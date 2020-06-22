@@ -1,5 +1,7 @@
 atomic/loadstore_helpers.ll
 cl_khr_int64_extended_atomics/minmax_helpers.ll
+integer/mul24.cl
+integer/mul_hi.cl
 synchronization/barrier.cl
 workitem/get_global_id.cl
 workitem/get_global_offset.cl

@@ -134,6 +134,7 @@
 ///    "image_accessor" -> a2;
 ///    "image_accessor" -> a4;
 ///    "image_accessor" -> a5;
+///    a1 -> "host_accessor";
 /// }
 /// \enddot
 ///
@@ -155,6 +156,13 @@
 //      |   |   |       | host_buffer     |   | local       |
 //      |   |   |       | global_buffer   |   +-------------+
 //      |   |   |       | constant_buffer |
+//      |   |   |       +-----------------+
+//      |   |   |                 |
+//      |   |   |                 v
+//      |   |   |       +-----------------+
+//      |   |   |       |                 |
+//      |   |   |       |  host_accessor  |
+//      |   |   |       |                 |
 //      |   |   |       +-----------------+
 //      |   |   |
 //      |   |   +------------------------------------+
@@ -190,7 +198,8 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-template <typename DataT, int Dimensions, access::mode AccessMode,
+template <typename DataT, int Dimensions = 1,
+          access::mode AccessMode = access::mode::read_write,
           access::target AccessTarget = access::target::global_buffer,
           access::placeholder IsPlaceholder = access::placeholder::false_t>
 class accessor;
@@ -709,7 +718,7 @@ class accessor :
 #endif
     public detail::accessor_common<DataT, Dimensions, AccessMode, AccessTarget,
                                    IsPlaceholder> {
-
+protected:
   static_assert((AccessTarget == access::target::global_buffer ||
                  AccessTarget == access::target::constant_buffer ||
                  AccessTarget == access::target::host_buffer),
@@ -755,6 +764,34 @@ class accessor :
       Result = Result * getMemoryRange()[I] + getOffset()[I] + Id[I];
     return Result;
   }
+
+  template <typename T, int Dims> static constexpr bool IsSameAsBuffer() {
+    return std::is_same<T, DataT>::value && (Dims > 0) && (Dims == Dimensions);
+  }
+
+  static access::mode getAdjustedMode(const property_list &PropertyList) {
+    access::mode AdjustedMode = AccessMode;
+
+    if (PropertyList.has_property<property::noinit>()) {
+      if (AdjustedMode == access::mode::write) {
+        AdjustedMode = access::mode::discard_write;
+      } else if (AdjustedMode == access::mode::read_write) {
+        AdjustedMode = access::mode::discard_read_write;
+      }
+    }
+
+    return AdjustedMode;
+  }
+
+#if __cplusplus > 201402L
+
+  template <typename TagT> static constexpr bool IsValidTag() {
+    return std::is_same<TagT, mode_tag_t<AccessMode>>::value ||
+           std::is_same<TagT,
+                        mode_target_tag_t<AccessMode, AccessTarget>>::value;
+  }
+
+#endif
 
 #ifdef __SYCL_DEVICE_ONLY__
 
@@ -811,17 +848,45 @@ public:
   using reference = DataT &;
   using const_reference = const DataT &;
 
-  template <int Dims = Dimensions, typename AllocatorT,
+  // The list of accessor constructors with their arguments
+  // -------+---------+-------+----+-----+--------------
+  // Dimensions = 0
+  // -------+---------+-------+----+-----+--------------
+  // buffer |         |       |    |     | property_list
+  // buffer | handler |       |    |     | property_list
+  // -------+---------+-------+----+-----+--------------
+  // Dimensions >= 1
+  // -------+---------+-------+----+-----+--------------
+  // buffer |         |       |    |     | property_list
+  // buffer |         |       |    | tag | property_list
+  // buffer | handler |       |    |     | property_list
+  // buffer | handler |       |    | tag | property_list
+  // buffer |         | range |    |     | property_list
+  // buffer |         | range |    | tag | property_list
+  // buffer | handler | range |    |     | property_list
+  // buffer | handler | range |    | tag | property_list
+  // buffer |         | range | id |     | property_list
+  // buffer |         | range | id | tag | property_list
+  // buffer | handler | range | id |     | property_list
+  // buffer | handler | range | id | tag | property_list
+  // -------+---------+-------+----+-----+--------------
+
+public:
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename detail::enable_if_t<
-                Dims == 0 && ((!IsPlaceH && IsHostBuf) ||
-                (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>* = nullptr>
-  accessor(buffer<DataT, 1, AllocatorT> &BufferRef)
+                std::is_same<T, DataT>::value && Dims == 0 &&
+                ((!IsPlaceH && IsHostBuf) ||
+                 (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))> * = nullptr>
+  accessor(buffer<T, 1, AllocatorT> &BufferRef,
+           const property_list &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
+    (void)PropertyList;
 #else
       : AccessorBaseHost(
             /*Offset=*/{0, 0, 0}, detail::convertToArrayOfN<3, 1>(range<1>{1}),
-            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
+            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
+            getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     if (!IsPlaceH)
@@ -829,41 +894,45 @@ public:
 #endif
   }
 
-  template <int Dims = Dimensions, typename AllocatorT,
-	   typename = typename detail::enable_if_t<
-		   (Dims == 0) && 
-                    (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>
-                                      >
-  accessor(buffer<DataT,1,AllocatorT> &BufferRef,
-		  handler &CommandGroupHandler)
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
+            typename = typename detail::enable_if_t<
+                std::is_same<T, DataT>::value && (Dims == 0) &&
+                (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
+  accessor(buffer<T, 1, AllocatorT> &BufferRef, handler &CommandGroupHandler,
+           const property_list &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
     (void)CommandGroupHandler;
+    (void)PropertyList;
   }
 #else
       : AccessorBaseHost(
             /*Offset=*/{0, 0, 0}, detail::convertToArrayOfN<3, 1>(range<1>{1}),
-            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
+            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
+            getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
   }
 #endif
 
-  template <int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<(Dims > 0) && (Dims == Dimensions) &&
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>() &&
                                            ((!IsPlaceH && IsHostBuf) ||
                                             (IsPlaceH &&
                                              (IsGlobalBuf || IsConstantBuf)))>>
-  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef)
+  accessor(buffer<T, Dims, AllocatorT> &BufferRef,
+           const property_list &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<Dimensions>(), BufferRef.get_range(), BufferRef.get_range()) {
+    (void)PropertyList;
   }
 #else
       : AccessorBaseHost(
             /*Offset=*/{0, 0, 0},
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
-            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
+            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
+            getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     if (!IsPlaceH)
@@ -871,69 +940,180 @@ public:
   }
 #endif
 
-  template <int Dims = Dimensions, typename AllocatorT,
+#if __cplusplus > 201402L
+
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
+            typename TagT,
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>() &&
+                                           IsValidTag<TagT>() && IsPlaceH &&
+                                           (IsGlobalBuf || IsConstantBuf)>>
+  accessor(buffer<T, Dims, AllocatorT> &BufferRef, TagT,
+           const property_list &PropertyList = {})
+      : accessor(BufferRef, PropertyList) {}
+
+#endif
+
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<
-                (Dims > 0) && (Dims == Dimensions) &&
+                IsSameAsBuffer<T, Dims>() &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
-  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
-           handler &CommandGroupHandler)
+  accessor(buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
+           const property_list &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.get_range()) {
     (void)CommandGroupHandler;
+    (void)PropertyList;
   }
 #else
       : AccessorBaseHost(
             /*Offset=*/{0, 0, 0},
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
-            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
+            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
+            getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
   }
 #endif
 
-  template <int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<(Dims > 0) && (Dims == Dimensions) &&
+#if __cplusplus > 201402L
+
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
+            typename TagT,
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>() &&
+                                           IsValidTag<TagT>() && !IsPlaceH &&
+                                           (IsGlobalBuf || IsConstantBuf)>>
+  accessor(buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
+           TagT, const property_list &PropertyList = {})
+      : accessor(BufferRef, CommandGroupHandler, PropertyList) {}
+
+#endif
+
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>() &&
                                            ((!IsPlaceH && IsHostBuf) ||
                                             (IsPlaceH &&
                                              (IsGlobalBuf || IsConstantBuf)))>>
-  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
-           range<Dimensions> AccessRange, id<Dimensions> AccessOffset = {})
+  accessor(buffer<T, Dims, AllocatorT> &BufferRef,
+           range<Dimensions> AccessRange,
+           const property_list &PropertyList = {})
+      : accessor(BufferRef, AccessRange, {}, PropertyList) {}
+
+#if __cplusplus > 201402L
+
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
+            typename TagT,
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>() &&
+                                           IsValidTag<TagT>() && IsPlaceH &&
+                                           (IsGlobalBuf || IsConstantBuf)>>
+  accessor(buffer<T, Dims, AllocatorT> &BufferRef,
+           range<Dimensions> AccessRange, TagT,
+           const property_list &PropertyList = {})
+      : accessor(BufferRef, AccessRange, {}, PropertyList) {}
+
+#endif
+
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>() &&
+                                           (!IsPlaceH &&
+                                            (IsGlobalBuf || IsConstantBuf))>>
+  accessor(buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
+           range<Dimensions> AccessRange,
+           const property_list &PropertyList = {})
+      : accessor(BufferRef, CommandGroupHandler, AccessRange, {},
+                 PropertyList) {}
+
+#if __cplusplus > 201402L
+
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
+            typename TagT,
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>() &&
+                                           IsValidTag<TagT>() && !IsPlaceH &&
+                                           (IsGlobalBuf || IsConstantBuf)>>
+  accessor(buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
+           range<Dimensions> AccessRange, TagT,
+           const property_list &PropertyList = {})
+      : accessor(BufferRef, CommandGroupHandler, AccessRange, {},
+                 PropertyList) {}
+
+#endif
+
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>() &&
+                                           ((!IsPlaceH && IsHostBuf) ||
+                                            (IsPlaceH &&
+                                             (IsGlobalBuf || IsConstantBuf)))>>
+  accessor(buffer<T, Dims, AllocatorT> &BufferRef,
+           range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
+           const property_list &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
+    (void)PropertyList;
   }
 #else
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
                          detail::convertToArrayOfN<3, 1>(AccessRange),
                          detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
-                         AccessMode, detail::getSyclObjImpl(BufferRef).get(),
-                         Dimensions, sizeof(DataT), BufferRef.OffsetInBytes,
+                         getAdjustedMode(PropertyList),
+                         detail::getSyclObjImpl(BufferRef).get(), Dimensions,
+                         sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
   }
 #endif
 
-  template <int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<(Dims > 0) && (Dims == Dimensions) &&
+#if __cplusplus > 201402L
+
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
+            typename TagT,
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>() &&
+                                           IsValidTag<TagT>() && IsPlaceH &&
+                                           (IsGlobalBuf || IsConstantBuf)>>
+  accessor(buffer<T, Dims, AllocatorT> &BufferRef,
+           range<Dimensions> AccessRange, id<Dimensions> AccessOffset, TagT,
+           const property_list &PropertyList = {})
+      : accessor(BufferRef, AccessRange, AccessOffset, PropertyList) {}
+
+#endif
+
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>() &&
                                            (!IsPlaceH &&
                                             (IsGlobalBuf || IsConstantBuf))>>
-  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
-           handler &CommandGroupHandler, range<Dimensions> AccessRange,
-           id<Dimensions> AccessOffset = {})
+  accessor(buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
+           range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
+           const property_list &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
     (void)CommandGroupHandler;
+    (void)PropertyList;
   }
 #else
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
                          detail::convertToArrayOfN<3, 1>(AccessRange),
                          detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
-                         AccessMode, detail::getSyclObjImpl(BufferRef).get(),
-                         Dimensions, sizeof(DataT), BufferRef.OffsetInBytes,
+                         getAdjustedMode(PropertyList),
+                         detail::getSyclObjImpl(BufferRef).get(), Dimensions,
+                         sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
   }
+#endif
+
+#if __cplusplus > 201402L
+
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
+            typename TagT,
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>() &&
+                                           IsValidTag<TagT>() && !IsPlaceH &&
+                                           (IsGlobalBuf || IsConstantBuf)>>
+  accessor(buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
+           range<Dimensions> AccessRange, id<Dimensions> AccessOffset, TagT,
+           const property_list &PropertyList = {})
+      : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
+                 PropertyList) {}
+
 #endif
 
   constexpr bool is_placeholder() const { return IsPlaceH; }
@@ -1040,6 +1220,48 @@ public:
   bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
   bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
 };
+
+#if __cplusplus > 201402L
+
+template <typename DataT, int Dimensions, typename AllocatorT, typename... Ts>
+accessor(buffer<DataT, Dimensions, AllocatorT>, Ts...)
+    ->accessor<DataT, Dimensions, access::mode::read_write,
+               target::global_buffer, access::placeholder::true_t>;
+
+template <typename DataT, int Dimensions, typename AllocatorT, typename... Ts>
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Ts...)
+    ->accessor<DataT, Dimensions, access::mode::read_write,
+               target::global_buffer, access::placeholder::false_t>;
+
+template <typename DataT, int Dimensions, typename AllocatorT,
+          access_mode AccessMode, typename... Ts>
+accessor(buffer<DataT, Dimensions, AllocatorT>, Ts..., mode_tag_t<AccessMode>,
+         property_list = {})
+    ->accessor<DataT, Dimensions, AccessMode, target::global_buffer,
+               access::placeholder::true_t>;
+
+template <typename DataT, int Dimensions, typename AllocatorT,
+          access_mode AccessMode, typename... Ts>
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Ts...,
+         mode_tag_t<AccessMode>, property_list = {})
+    ->accessor<DataT, Dimensions, AccessMode, target::global_buffer,
+               access::placeholder::false_t>;
+
+template <typename DataT, int Dimensions, typename AllocatorT,
+          access_mode AccessMode, target AccessTarget, typename... Ts>
+accessor(buffer<DataT, Dimensions, AllocatorT>, Ts...,
+         mode_target_tag_t<AccessMode, AccessTarget>, property_list = {})
+    ->accessor<DataT, Dimensions, AccessMode, AccessTarget,
+               access::placeholder::true_t>;
+
+template <typename DataT, int Dimensions, typename AllocatorT,
+          access_mode AccessMode, target AccessTarget, typename... Ts>
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Ts...,
+         mode_target_tag_t<AccessMode, AccessTarget>, property_list = {})
+    ->accessor<DataT, Dimensions, AccessMode, AccessTarget,
+               access::placeholder::false_t>;
+
+#endif
 
 /// Local accessor
 ///
@@ -1314,6 +1536,139 @@ public:
                                          IsPlaceholder>(*this, Index);
   }
 };
+
+template <typename DataT, int Dimensions = 1,
+          access_mode AccessMode = access_mode::read_write>
+class host_accessor
+    : public accessor<DataT, Dimensions, AccessMode, target::host_buffer,
+                      access::placeholder::false_t> {
+protected:
+  using AccessorT = accessor<DataT, Dimensions, AccessMode, target::host_buffer,
+                             access::placeholder::false_t>;
+
+  constexpr static int AdjustedDim = Dimensions == 0 ? 1 : Dimensions;
+
+  template <typename T, int Dims> static constexpr bool IsSameAsBuffer() {
+    return std::is_same<T, DataT>::value && (Dims > 0) && (Dims == Dimensions);
+  }
+
+#if __cplusplus > 201402L
+
+  template <typename TagT> static constexpr bool IsValidTag() {
+    return std::is_same<TagT, mode_tag_t<AccessMode>>::value;
+  }
+
+#endif
+
+  void
+  __init(typename accessor<DataT, Dimensions, AccessMode, target::host_buffer,
+                           access::placeholder::false_t>::ConcreteASPtrType Ptr,
+         range<AdjustedDim> AccessRange, range<AdjustedDim> MemRange,
+         id<AdjustedDim> Offset) {
+    AccessorT::__init(Ptr, AccessRange, MemRange, Offset);
+  }
+
+public:
+  host_accessor() : AccessorT() {}
+
+  // The list of host_accessor constructors with their arguments
+  // -------+---------+-------+----+----------+--------------
+  // Dimensions = 0
+  // -------+---------+-------+----+----------+--------------
+  // buffer |         |       |    |          | property_list
+  // buffer | handler |       |    |          | property_list
+  // -------+---------+-------+----+----------+--------------
+  // Dimensions >= 1
+  // -------+---------+-------+----+----------+--------------
+  // buffer |         |       |    |          | property_list
+  // buffer |         |       |    | mode_tag | property_list
+  // buffer | handler |       |    |          | property_list
+  // buffer | handler |       |    | mode_tag | property_list
+  // buffer |         | range |    |          | property_list
+  // buffer |         | range |    | mode_tag | property_list
+  // buffer | handler | range |    |          | property_list
+  // buffer | handler | range |    | mode_tag | property_list
+  // buffer |         | range | id |          | property_list
+  // buffer |         | range | id | mode_tag | property_list
+  // buffer | handler | range | id |          | property_list
+  // buffer | handler | range | id | mode_tag | property_list
+  // -------+---------+-------+----+----------+--------------
+  // host_accessor with handler argument will be added later
+  // to facilitate non-blocking accessor use case
+
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
+            typename = typename detail::enable_if_t<
+                std::is_same<T, DataT>::value && Dims == 0>>
+  host_accessor(buffer<T, 1, AllocatorT> &BufferRef,
+                const property_list &PropertyList = {})
+      : AccessorT(BufferRef, PropertyList) {}
+
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
+  host_accessor(buffer<T, Dims, AllocatorT> &BufferRef,
+                const property_list &PropertyList = {})
+      : AccessorT(BufferRef, PropertyList) {}
+
+#if __cplusplus > 201402L
+
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
+  host_accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
+                mode_tag_t<AccessMode>, const property_list &PropertyList = {})
+      : host_accessor(BufferRef, PropertyList) {}
+
+#endif
+
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
+  host_accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
+                range<Dimensions> AccessRange,
+                const property_list &PropertyList = {})
+      : AccessorT(BufferRef, AccessRange, {}, PropertyList) {}
+
+#if __cplusplus > 201402L
+
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
+  host_accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
+                range<Dimensions> AccessRange, mode_tag_t<AccessMode>,
+                const property_list &PropertyList = {})
+      : host_accessor(BufferRef, AccessRange, {}, PropertyList) {}
+
+#endif
+
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
+  host_accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
+                range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
+                const property_list &PropertyList = {})
+      : AccessorT(BufferRef, AccessRange, AccessOffset, PropertyList) {}
+
+#if __cplusplus > 201402L
+
+  template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>()>>
+  host_accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
+                range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
+                mode_tag_t<AccessMode>, const property_list &PropertyList = {})
+      : host_accessor(BufferRef, AccessRange, AccessOffset, PropertyList) {}
+
+#endif
+};
+
+#if __cplusplus > 201402L
+
+template <typename DataT, int Dimensions, typename AllocatorT, typename... Ts>
+host_accessor(buffer<DataT, Dimensions, AllocatorT>, Ts...)
+    ->host_accessor<DataT, Dimensions, access::mode::read_write>;
+
+template <typename DataT, int Dimensions, typename AllocatorT,
+          access_mode AccessMode, typename... Ts>
+host_accessor(buffer<DataT, Dimensions, AllocatorT>, Ts...,
+              mode_tag_t<AccessMode>, property_list = {})
+    ->host_accessor<DataT, Dimensions, AccessMode>;
+
+#endif
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

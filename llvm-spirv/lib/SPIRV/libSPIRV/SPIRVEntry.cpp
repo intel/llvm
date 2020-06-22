@@ -195,7 +195,9 @@ void SPIRVEntry::encodeWordCountOpCode(spv_ostream &O) const {
     return;
   }
 #endif
-  getEncoder(O) << mkWord(WordCount, OpCode);
+  assert(WordCount < 65536 && "WordCount must fit into 16-bit value");
+  SPIRVWord WordCountOpCode = (WordCount << WordCountShift) | OpCode;
+  getEncoder(O) << WordCountOpCode;
 }
 // Read words from SPIRV binary and create members for SPIRVEntry.
 // The word count and op code has already been read before calling this

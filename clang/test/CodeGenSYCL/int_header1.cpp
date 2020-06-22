@@ -13,6 +13,7 @@
 // CHECK:template <> struct KernelInfo<::nm1::KernelName8<::nm1::nm2::C>> {
 // CHECK:template <> struct KernelInfo<::TmplClassInAnonNS<ClassInAnonNS>> {
 // CHECK:template <> struct KernelInfo<::nm1::KernelName9<char>> {
+// CHECK:template <> struct KernelInfo<::nm1::KernelName3<const volatile ::nm1::KernelName3<const volatile char>>> {
 
 // This test checks if the SYCL device compiler is able to generate correct
 // integration header when the kernel name class is expressed in different
@@ -134,6 +135,12 @@ struct MyWrapper {
 
     // Kernel name type is a templated specialization class with empty template pack argument
     kernel_single_task<nm1::KernelName9<char>>(
+        [=]() { acc.use(); });
+
+    // Ensure we print template arguments with CVR qualifiers
+    kernel_single_task<nm1::KernelName3<
+        const volatile nm1::KernelName3<
+            const volatile char>>>(
         [=]() { acc.use(); });
 
     return 0;

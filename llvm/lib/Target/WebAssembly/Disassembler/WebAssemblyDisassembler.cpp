@@ -46,7 +46,7 @@ class WebAssemblyDisassembler final : public MCDisassembler {
   DecodeStatus getInstruction(MCInst &Instr, uint64_t &Size,
                               ArrayRef<uint8_t> Bytes, uint64_t Address,
                               raw_ostream &CStream) const override;
-  Optional<DecodeStatus> onSymbolStart(StringRef Name, uint64_t &Size,
+  Optional<DecodeStatus> onSymbolStart(SymbolInfoTy &Symbol, uint64_t &Size,
                                        ArrayRef<uint8_t> Bytes,
                                        uint64_t Address,
                                        raw_ostream &CStream) const override;
@@ -122,8 +122,8 @@ bool parseImmediate(MCInst &MI, uint64_t &Size, ArrayRef<uint8_t> Bytes) {
 }
 
 Optional<MCDisassembler::DecodeStatus> WebAssemblyDisassembler::onSymbolStart(
-    StringRef Name, uint64_t &Size, ArrayRef<uint8_t> Bytes, uint64_t Address,
-    raw_ostream &CStream) const {
+    SymbolInfoTy &Symbol, uint64_t &Size, ArrayRef<uint8_t> Bytes,
+    uint64_t Address, raw_ostream &CStream) const {
   Size = 0;
   if (Address == 0) {
     // Start of a code section: we're parsing only the function count.
@@ -199,6 +199,7 @@ MCDisassembler::DecodeStatus WebAssemblyDisassembler::getInstruction(
     case WebAssembly::OPERAND_GLOBAL:
     case WebAssembly::OPERAND_FUNCTION32:
     case WebAssembly::OPERAND_OFFSET32:
+    case WebAssembly::OPERAND_OFFSET64:
     case WebAssembly::OPERAND_P2ALIGN:
     case WebAssembly::OPERAND_TYPEINDEX:
     case WebAssembly::OPERAND_EVENT:

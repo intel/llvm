@@ -22,6 +22,8 @@ def AArch64PreLegalizerCombinerHelper: GICombinerHelper<
                                            elide_br_by_inverting_cond,
                                            fconstant_to_constant]> {
   let DisableRuleOption = "aarch64prelegalizercombiner-disable-rule";
+  let StateClass = "AArch64PreLegalizerCombinerHelperState";
+  let AdditionalArguments = [];
 }
 
 // Matchdata for combines which replace a G_SHUFFLE_VECTOR with a
@@ -63,9 +65,16 @@ def trn : GICombineRule<
   (apply [{ applyShuffleVectorPseudo(*${root}, ${matchinfo}); }])
 >;
 
+def ext: GICombineRule <
+  (defs root:$root, shuffle_matchdata:$matchinfo),
+  (match (wip_match_opcode G_SHUFFLE_VECTOR):$root,
+         [{ return matchEXT(*${root}, MRI, ${matchinfo}); }]),
+  (apply [{ applyEXT(*${root}, ${matchinfo}); }])
+>;
+
 // Combines which replace a G_SHUFFLE_VECTOR with a target-specific pseudo
 // instruction.
-def shuffle_vector_pseudos : GICombineGroup<[dup, rev, zip, uzp, trn]>;
+def shuffle_vector_pseudos : GICombineGroup<[dup, rev, ext, zip, uzp, trn]>;
 
 def AArch64PostLegalizerCombinerHelper
     : GICombinerHelper<"AArch64GenPostLegalizerCombinerHelper",

@@ -85,15 +85,15 @@ static Type *getFloatTypeForLLT(LLVMContext &Ctx, LLT Ty) {
 LegalizerHelper::LegalizerHelper(MachineFunction &MF,
                                  GISelChangeObserver &Observer,
                                  MachineIRBuilder &Builder)
-    : MIRBuilder(Builder), MRI(MF.getRegInfo()),
-      LI(*MF.getSubtarget().getLegalizerInfo()), Observer(Observer) {
+    : MIRBuilder(Builder), Observer(Observer), MRI(MF.getRegInfo()),
+      LI(*MF.getSubtarget().getLegalizerInfo()) {
   MIRBuilder.setChangeObserver(Observer);
 }
 
 LegalizerHelper::LegalizerHelper(MachineFunction &MF, const LegalizerInfo &LI,
                                  GISelChangeObserver &Observer,
                                  MachineIRBuilder &B)
-    : MIRBuilder(B), MRI(MF.getRegInfo()), LI(LI), Observer(Observer) {
+    : MIRBuilder(B), Observer(Observer), MRI(MF.getRegInfo()), LI(LI) {
   MIRBuilder.setChangeObserver(Observer);
 }
 LegalizerHelper::LegalizeResult
@@ -104,8 +104,7 @@ LegalizerHelper::legalizeInstrStep(MachineInstr &MI) {
 
   if (MI.getOpcode() == TargetOpcode::G_INTRINSIC ||
       MI.getOpcode() == TargetOpcode::G_INTRINSIC_W_SIDE_EFFECTS)
-    return LI.legalizeIntrinsic(MI, MIRBuilder, Observer) ? Legalized
-                                                          : UnableToLegalize;
+    return LI.legalizeIntrinsic(*this, MI) ? Legalized : UnableToLegalize;
   auto Step = LI.getAction(MI, MRI);
   switch (Step.Action) {
   case Legal:
@@ -134,8 +133,7 @@ LegalizerHelper::legalizeInstrStep(MachineInstr &MI) {
     return moreElementsVector(MI, Step.TypeIdx, Step.NewType);
   case Custom:
     LLVM_DEBUG(dbgs() << ".. Custom legalization\n");
-    return LI.legalizeCustom(MI, MRI, MIRBuilder, Observer) ? Legalized
-                                                            : UnableToLegalize;
+    return LI.legalizeCustom(*this, MI) ? Legalized : UnableToLegalize;
   default:
     LLVM_DEBUG(dbgs() << ".. Unable to legalize\n");
     return UnableToLegalize;
@@ -2057,9 +2055,10 @@ LegalizerHelper::widenScalar(MachineInstr &MI, unsigned TypeIdx, LLT WideTy) {
       // TODO: Probably should be zext
       widenScalarSrc(MI, WideTy, 3, TargetOpcode::G_SEXT);
       Observer.changedInstr(MI);
+      return Legalized;
     }
 
-    return Legalized;
+    return UnableToLegalize;
   }
   case TargetOpcode::G_FADD:
   case TargetOpcode::G_FMUL:
@@ -2170,15 +2169,57 @@ LegalizerHelper::lowerBitcast(MachineInstr &MI) {
   LLT DstTy = MRI.getType(Dst);
   LLT SrcTy = MRI.getType(Src);
 
-  if (SrcTy.isVector() && !DstTy.isVector()) {
+  if (SrcTy.isVector()) {
+    LLT SrcEltTy = SrcTy.getElementType();
     SmallVector<Register, 8> SrcRegs;
-    getUnmergePieces(SrcRegs, MIRBuilder, Src, SrcTy.getElementType());
+
+    if (DstTy.isVector()) {
+      int NumDstElt = DstTy.getNumElements();
+      int NumSrcElt = SrcTy.getNumElements();
+
+      LLT DstEltTy = DstTy.getElementType();
+      LLT DstCastTy = DstEltTy; // Intermediate bitcast result type
+      LLT SrcPartTy = SrcEltTy; // Original unmerge result type.
+
+      // If there's an element size mismatch, insert intermediate casts to match
+      // the result element type.
+      if (NumSrcElt < NumDstElt) { // Source element type is larger.
+        // %1:_(<4 x s8>) = G_BITCAST %0:_(<2 x s16>)
+        //
+        // =>
+        //
+        // %2:_(s16), %3:_(s16) = G_UNMERGE_VALUES %0
+        // %3:_(<2 x s8>) = G_BITCAST %2
+        // %4:_(<2 x s8>) = G_BITCAST %3
+        // %1:_(<4 x s16>) = G_CONCAT_VECTORS %3, %4
+        DstCastTy = LLT::vector(NumDstElt / NumSrcElt, DstEltTy);
+        SrcPartTy = SrcEltTy;
+      } else if (NumSrcElt > NumDstElt) { // Source element type is smaller.
+        //
+        // %1:_(<2 x s16>) = G_BITCAST %0:_(<4 x s8>)
+        //
+        // =>
+        //
+        // %2:_(<2 x s8>), %3:_(<2 x s8>) = G_UNMERGE_VALUES %0
+        // %3:_(s16) = G_BITCAST %2
+        // %4:_(s16) = G_BITCAST %3
+        // %1:_(<2 x s16>) = G_BUILD_VECTOR %3, %4
+        SrcPartTy = LLT::vector(NumSrcElt / NumDstElt, SrcEltTy);
+        DstCastTy = DstEltTy;
+      }
+
+      getUnmergePieces(SrcRegs, MIRBuilder, Src, SrcPartTy);
+      for (Register &SrcReg : SrcRegs)
+        SrcReg = MIRBuilder.buildBitcast(DstCastTy, SrcReg).getReg(0);
+    } else
+      getUnmergePieces(SrcRegs, MIRBuilder, Src, SrcEltTy);
+
     MIRBuilder.buildMerge(Dst, SrcRegs);
     MI.eraseFromParent();
     return Legalized;
   }
 
-  if (DstTy.isVector() && !SrcTy.isVector()) {
+  if (DstTy.isVector()) {
     SmallVector<Register, 8> SrcRegs;
     getUnmergePieces(SrcRegs, MIRBuilder, Src, DstTy.getElementType());
     MIRBuilder.buildMerge(Dst, SrcRegs);
@@ -2677,7 +2718,6 @@ LegalizerHelper::fewerElementsVectorMultiEltType(
   SmallVector<Register, 4> PartRegs, LeftoverRegs;
 
   for (unsigned I = 1, E = MI.getNumOperands(); I != E; ++I) {
-    LLT LeftoverTy;
     Register SrcReg = MI.getOperand(I).getReg();
     LLT SrcTyI = MRI.getType(SrcReg);
     LLT NarrowTyI = LLT::scalarOrVector(NewNumElts, SrcTyI.getScalarType());
