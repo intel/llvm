@@ -307,7 +307,7 @@ vector_class<vector_class<char>> program_impl::get_binaries() const {
   vector_class<vector_class<char>> Result;
   if (is_host())
     return {};
-    
+
   vector_class<vector_class<char>> Result;
   const detail::plugin &Plugin = getPlugin();
   vector_class<size_t> BinarySizes(MDevices.size());
