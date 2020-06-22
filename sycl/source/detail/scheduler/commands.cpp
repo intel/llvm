@@ -1959,24 +1959,24 @@ cl_int ExecCGCommand::enqueueImp() {
     // Extract the Mem Objects for all Requirements, to ensure they are
     // available if a user ask for them inside the interop task scope
     const std::vector<Requirement *> &HandlerReq = HostTask->MRequirements;
-    auto ReqToMemConv = [&ReqToMem, this](Requirement *Req) {
-      AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+    auto ReqToMemConv = [&ReqToMem, HostTask, this](Requirement *Req) {
+      const std::vector<AllocaCommandBase *> &AllocaCmds =
+          Req->MSYCLMemObj->MRecord->MAllocaCommands;
 
-      if (AllocaCmd->getQueue()->is_host()) {
-        if (!AllocaCmd->MLinkedAllocaCmd)
-          throw runtime_error(
-              "Can't get memory object for host-only allocation",
-              PI_INVALID_MEM_OBJECT);
+      for (AllocaCommandBase *AllocaCmd : AllocaCmds)
+        if (HostTask->MQueue == AllocaCmd->getQueue()) {
+          auto MemArg = reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
+          interop_handle::ReqToMem ReqToMemEl = std::make_pair(Req, MemArg);
+          ReqToMem.emplace_back(ReqToMemEl);
 
-        AllocaCmd = AllocaCmd->MLinkedAllocaCmd;
-      }
+          return;
+        }
 
-      assert(!AllocaCmd->getQueue()->is_host() &&
-             "Can't get memory object for host-only allocation");
+      assert(false && "Can't get memory object due to no allocation available");
 
-      auto MemArg = reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
-      interop_handle::ReqToMem ReqToMemEl = std::make_pair(Req, MemArg);
-      ReqToMem.emplace_back(ReqToMemEl);
+      throw runtime_error(
+          "Can't get memory object due to no allocation available",
+          PI_INVALID_MEM_OBJECT);
     };
     std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
     std::sort(std::begin(ReqToMem), std::end(ReqToMem));

@@ -710,10 +710,25 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     } else {
       // Cannot directly copy memory from OpenCL device to OpenCL device -
       // create two copies: device->host and host->device.
-      if (!Queue->is_host() && !Record->MCurContext->is_host())
+      bool NeedMemMoveToHost = false;
+      auto MemMoveTargetQueue = Queue;
+
+      if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
+        const detail::CGHostTask &HT =
+            static_cast<detail::CGHostTask &>(NewCmd->getCG());
+
+        if (HT.MHostTask->isInteropTask() && !HT.MQueue->is_host() &&
+            !Record->MCurContext->is_host()) {
+          NeedMemMoveToHost = true;
+          MemMoveTargetQueue = HT.MQueue;
+        }
+      } else if (!Queue->is_host() && !Record->MCurContext->is_host())
+        NeedMemMoveToHost = true;
+
+      if (NeedMemMoveToHost)
         insertMemoryMove(Record, Req,
                          Scheduler::getInstance().getDefaultHostQueue());
-      insertMemoryMove(Record, Req, Queue);
+      insertMemoryMove(Record, Req, MemMoveTargetQueue);
     }
     std::set<Command *> Deps =
         findDepsForReq(Record, Req, Queue->getContextImplPtr());
