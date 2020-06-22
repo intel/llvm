@@ -24,7 +24,7 @@ using namespace cl::sycl;
 
 struct SamplerWrapper {
   SamplerWrapper(sycl::coordinate_normalization_mode Norm,
-                  sycl::addressing_mode Addr, sycl::filtering_mode Filter)
+                 sycl::addressing_mode Addr, sycl::filtering_mode Filter)
       : Smpl(Norm, Addr, Filter), A(0) {}
 
   sycl::sampler Smpl;

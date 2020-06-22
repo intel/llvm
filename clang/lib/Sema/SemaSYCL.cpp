@@ -1463,8 +1463,8 @@ public:
   }
 
   using SyclKernelFieldHandler::enterStruct;
-  using SyclKernelFieldHandler::leaveStruct;
   using SyclKernelFieldHandler::handleSyclSamplerType;
+  using SyclKernelFieldHandler::leaveStruct;
 };
 
 class SyclKernelIntHeaderCreator
