@@ -443,7 +443,7 @@ public:
 #ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
     const detail::code_location &CodeLoc = {};
 #endif
-    return parallel_for_impl(NumWorkItems, KernelFunc, CodeLoc);
+    return parallel_for_impl<KernelName>(NumWorkItems, KernelFunc, CodeLoc);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -463,7 +463,7 @@ public:
 #ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
     const detail::code_location &CodeLoc = {};
 #endif
-    return parallel_for_impl(NumWorkItems, KernelFunc, CodeLoc);
+    return parallel_for_impl<KernelName>(NumWorkItems, KernelFunc, CodeLoc);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -483,7 +483,7 @@ public:
 #ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
     const detail::code_location &CodeLoc = {};
 #endif
-    return parallel_for_impl(NumWorkItems, KernelFunc, CodeLoc);
+    return parallel_for_impl<KernelName>(NumWorkItems, KernelFunc, CodeLoc);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
