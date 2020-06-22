@@ -407,9 +407,8 @@ DerivedArgList *Driver::TranslateInputArgs(const InputArgList &Args) const {
   if (Args.hasFlag(options::OPT_miamcu, options::OPT_mno_iamcu, false))
     DAL->AddFlagArg(0, Opts.getOption(options::OPT_static));
 
-  // Use of -fintelfpga implies -g and -MMD
+  // Use of -fintelfpga implies -g
   if (Args.hasArg(options::OPT_fintelfpga)) {
-    DAL->AddFlagArg(0, Opts.getOption(options::OPT_MMD));
     // if any -gN option is provided, use that.
     if (Arg *A = Args.getLastArg(options::OPT_gN_Group))
       DAL->append(A);
