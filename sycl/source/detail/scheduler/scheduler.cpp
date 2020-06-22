@@ -80,7 +80,10 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     default:
       NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), std::move(Queue));
     }
+  }
 
+  {
+    std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
     // TODO: Check if lazy mode.
     EnqueueResultT Res;
     bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);

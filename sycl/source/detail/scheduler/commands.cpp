@@ -1799,15 +1799,19 @@ cl_int ExecCGCommand::enqueueImp() {
     sycl::context Context = MQueue->get_context();
     const detail::plugin &Plugin = MQueue->getPlugin();
     RT::PiKernel Kernel = nullptr;
+    std::mutex *KernelMutex = nullptr;
 
     if (nullptr != ExecKernel->MSyclKernel) {
       assert(ExecKernel->MSyclKernel->get_info<info::kernel::context>() ==
              Context);
       Kernel = ExecKernel->MSyclKernel->getHandleRef();
-    } else
-      Kernel = detail::ProgramManager::getInstance().getOrCreateKernel(
-          ExecKernel->MOSModuleHandle, Context, ExecKernel->MKernelName,
-          nullptr);
+    } else {
+      std::tie(Kernel, KernelMutex) =
+          detail::ProgramManager::getInstance().getOrCreateKernel(
+              ExecKernel->MOSModuleHandle, Context, ExecKernel->MKernelName,
+              nullptr);
+      KernelMutex->lock();
+    }
 
     for (ArgDesc &Arg : ExecKernel->MArgs) {
       switch (Arg.MType) {
@@ -1862,6 +1866,9 @@ cl_int ExecCGCommand::enqueueImp() {
         MQueue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
         &NDRDesc.GlobalSize[0], HasLocalSize ? &NDRDesc.LocalSize[0] : nullptr,
         RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0], &Event);
+
+    if (KernelMutex != nullptr)
+      KernelMutex->unlock();
 
     if (PI_SUCCESS != Error) {
       // If we have got non-success error code, let's analyze it to emit nice
