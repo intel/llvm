@@ -1495,8 +1495,13 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_inline_assembly))
       return mapValue(V, transAsmINTEL(IA));
 
-  if (CallInst *CI = dyn_cast<CallInst>(V))
+  if (CallInst *CI = dyn_cast<CallInst>(V)) {
+    if (auto Alias =
+            dyn_cast_or_null<llvm::GlobalAlias>(CI->getCalledOperand())) {
+      CI->setCalledFunction(cast<Function>(Alias->getAliasee()));
+    }
     return mapValue(V, transCallInst(CI, BB));
+  }
 
   // FIXME: this is not valid translation of freeze instruction
   if (FreezeInst *FI = dyn_cast<FreezeInst>(V))
