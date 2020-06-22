@@ -28,13 +28,10 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
     Out << std::string("opencl");
     break;
   case backend::level0:
-    Out << std::string("level0");
+    Out << std::string("level-zero");
     break;
   case backend::cuda:
     Out << std::string("cuda");
-    break;
-  default:
-    Out << std::string("unknown");
   }
   return Out;
 }
