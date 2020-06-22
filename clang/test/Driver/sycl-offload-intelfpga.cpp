@@ -226,16 +226,16 @@
 // RUN:  | FileCheck -check-prefix=CHK-FPGA-DEP-FILES %s
 // RUN: %clang_cl -### -fsycl -fintelfpga %t-1.cpp %t-2.cpp 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK-FPGA-DEP-FILES %s
-// CHK-FPGA-DEP-FILES: clang{{.*}} "-dependency-file" "[[INPUT1:.+\.d]]"
-// CHK-FPGA-DEP-FILES: clang{{.*}} "-dependency-file" "[[INPUT2:.+\.d]]"
+// CHK-FPGA-DEP-FILES: clang{{.*}} "-dependency-file" "[[INPUT1:.+\.d]]" "-MT" "{{.*}}.o"
+// CHK-FPGA-DEP-FILES: clang{{.*}} "-dependency-file" "[[INPUT2:.+\.d]]" "-MT" "{{.*}}.o"
 // CHK-FPGA-DEP-FILES: aoc{{.*}} "-dep-files={{.*}}[[INPUT1]],{{.*}}[[INPUT2]]"
 // CHK-FPGA-DEP-FILES-NOT: clang{{.*}} "-dependency-file" {{.*}} "-fsycl-is-host"
 
 /// -fintelfpga dependency file check with host .d enabled
 // RUN: %clangxx -### -MMD -fsycl -fintelfpga %t-1.cpp %t-2.cpp 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK-FPGA-DEP-FILES-HOST %s
-// CHK-FPGA-DEP-FILES-HOST: clang{{.*}} "-dependency-file" "[[INPUT1:.+\.d]]"
-// CHK-FPGA-DEP-FILES-HOST: clang{{.*}} "-dependency-file" "[[INPUT2:.+\.d]]"
+// CHK-FPGA-DEP-FILES-HOST: clang{{.*}} "-dependency-file" "[[INPUT1:.+\.d]]" "-MT" "{{.*}}.o"
+// CHK-FPGA-DEP-FILES-HOST: clang{{.*}} "-dependency-file" "[[INPUT2:.+\.d]]" "-MT" "{{.*}}.o"
 // CHK-FPGA-DEP-FILES-HOST: aoc{{.*}} "-dep-files={{.*}}[[INPUT1]],{{.*}}[[INPUT2]]"
 // CHK-FPGA-DEP-FILES-HOST: clang{{.*}} "-dependency-file" {{.*}} "-fsycl-is-host"
 // CHK-FPGA-DEP-FILES-HOST: clang{{.*}} "-dependency-file" {{.*}} "-fsycl-is-host"
