@@ -310,20 +310,19 @@ vector_class<vector_class<char>> program_impl::get_binaries() const {
     
   vector_class<vector_class<char>> Result;
   const detail::plugin &Plugin = getPlugin();
-    vector_class<size_t> BinarySizes(MDevices.size());
-    Plugin.call<PiApiKind::piProgramGetInfo>(
-        MProgram, PI_PROGRAM_INFO_BINARY_SIZES,
-        sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
+  vector_class<size_t> BinarySizes(MDevices.size());
+  Plugin.call<PiApiKind::piProgramGetInfo>(
+      MProgram, PI_PROGRAM_INFO_BINARY_SIZES,
+      sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
 
-    vector_class<char *> Pointers;
-    for (size_t I = 0; I < BinarySizes.size(); ++I) {
-      Result.emplace_back(BinarySizes[I]);
-      Pointers.push_back(Result[I].data());
-    }
-    Plugin.call<PiApiKind::piProgramGetInfo>(MProgram, PI_PROGRAM_INFO_BINARIES,
-                                             sizeof(char *) * Pointers.size(),
-                                             Pointers.data(), nullptr);
+  vector_class<char *> Pointers;
+  for (size_t I = 0; I < BinarySizes.size(); ++I) {
+    Result.emplace_back(BinarySizes[I]);
+    Pointers.push_back(Result[I].data());
   }
+  Plugin.call<PiApiKind::piProgramGetInfo>(MProgram, PI_PROGRAM_INFO_BINARIES,
+                                           sizeof(char *) * Pointers.size(),
+                                           Pointers.data(), nullptr);
   return Result;
 }
 
