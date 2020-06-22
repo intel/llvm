@@ -305,8 +305,8 @@ kernel program_impl::get_kernel(string_class KernelName,
 vector_class<vector_class<char>> program_impl::get_binaries() const {
   throw_if_state_is(program_state::none);
   vector_class<vector_class<char>> Result;
-  const detail::plugin &Plugin = getPlugin();
   if (!is_host()) {
+    const detail::plugin &Plugin = getPlugin();
     vector_class<size_t> BinarySizes(MDevices.size());
     Plugin.call<PiApiKind::piProgramGetInfo>(
         MProgram, PI_PROGRAM_INFO_BINARY_SIZES,
