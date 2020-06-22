@@ -11,8 +11,8 @@
 #include <CL/sycl/detail/defines.hpp>
 
 #include <fstream>
-#include <istream>
 #include <iostream>
+#include <istream>
 #include <string>
 
 __SYCL_INLINE_NAMESPACE(cl) {
