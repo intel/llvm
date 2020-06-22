@@ -223,8 +223,7 @@ constexpr access::target deduceAccessTarget(access::target defaultTarget) {
                    mode_target_tag_t<access::mode::read,
                                      access::target::constant_buffer>>::value) {
     return access::target::constant_buffer;
-  }
-  else {
+  } else {
     return defaultTarget;
   }
 }
