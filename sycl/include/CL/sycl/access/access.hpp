@@ -46,8 +46,8 @@ enum class address_space : int {
   global_space,
   constant_space,
   local_space,
-  device_space,
-  host_space
+  global_device_space,
+  global_host_space
 };
 
 } // namespace access
@@ -126,7 +126,7 @@ template <access::target accessTarget> struct TargetToAS {
 
 template <> struct TargetToAS<access::target::global_buffer> {
   constexpr static access::address_space AS =
-      access::address_space::device_space;
+      access::address_space::global_device_space;
 };
 
 template <> struct TargetToAS<access::target::local> {
@@ -153,12 +153,12 @@ struct PtrValueType<ElementType, access::address_space::global_space> {
 };
 
 template <typename ElementType>
-struct PtrValueType<ElementType, access::address_space::device_space> {
+struct PtrValueType<ElementType, access::address_space::global_device_space> {
   using type = __OPENCL_GLOBAL_DEVICE_AS__ ElementType;
 };
 
 template <typename ElementType>
-struct PtrValueType<ElementType, access::address_space::host_space> {
+struct PtrValueType<ElementType, access::address_space::global_host_space> {
   using type = __OPENCL_GLOBAL_HOST_AS__ ElementType;
 };
 

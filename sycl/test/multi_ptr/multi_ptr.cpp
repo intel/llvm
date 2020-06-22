@@ -146,7 +146,7 @@ void testMultPtrArrowOperator() {
             accessorData_2.get_pointer());
         auto ptr_3 = make_ptr<point<T>, access::address_space::local_space>(
             accessorData_3.get_pointer());
-        auto ptr_4 = make_ptr<point<T>, access::address_space::device_space>(
+        auto ptr_4 = make_ptr<point<T>, access::address_space::global_device_space>(
             accessorData_4.get_pointer());
 
         auto x1 = ptr_1->x;

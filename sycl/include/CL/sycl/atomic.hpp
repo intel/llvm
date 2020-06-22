@@ -46,9 +46,10 @@ template <typename T> struct IsValidAtomicType {
 };
 
 template <cl::sycl::access::address_space AS> struct IsValidAtomicAddressSpace {
-  static constexpr bool value = (AS == access::address_space::global_space ||
-                                 AS == access::address_space::local_space ||
-                                 AS == access::address_space::device_space);
+  static constexpr bool value =
+      (AS == access::address_space::global_space ||
+       AS == access::address_space::local_space ||
+       AS == access::address_space::global_device_space);
 };
 
 // Type trait to translate a cl::sycl::access::address_space to
@@ -57,7 +58,8 @@ template <access::address_space AS> struct GetSpirvMemoryScope {};
 template <> struct GetSpirvMemoryScope<access::address_space::global_space> {
   static constexpr auto scope = __spv::Scope::Device;
 };
-template <> struct GetSpirvMemoryScope<access::address_space::device_space> {
+template <>
+struct GetSpirvMemoryScope<access::address_space::global_device_space> {
   static constexpr auto scope = __spv::Scope::Device;
 };
 template <> struct GetSpirvMemoryScope<access::address_space::local_space> {
@@ -177,7 +179,7 @@ class atomic {
                 "long long, float");
   static_assert(detail::IsValidAtomicAddressSpace<addressSpace>::value,
                 "Invalid SYCL atomic address_space. Valid address spaces are: "
-                "global_space, local_space, device_space");
+                "global_space, local_space, global_device_space");
   static constexpr auto SpirvScope =
       detail::GetSpirvMemoryScope<addressSpace>::scope;
 
