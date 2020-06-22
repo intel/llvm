@@ -615,7 +615,6 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   }
 
   try {
-    // TODO: Delete array at teardown
     ze_device_handle_t *ZeDevices = new ze_device_handle_t[ZeDeviceCount];
     ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, ZeDevices));
 
@@ -628,6 +627,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
         }
       }
     }
+    delete[] ZeDevices;
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
