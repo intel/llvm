@@ -309,7 +309,7 @@ static void reportConflictingAttrs(Sema &S, FunctionDecl *F, const Attr *A1,
 }
 
 /// Returns the signed constant integer value represetned by given expression
-static int getIntExprValue(const Expr *E, ASTContext &Ctx) {
+static int64_t getIntExprValue(const Expr *E, ASTContext &Ctx) {
   llvm::APSInt Val(32);
   bool IsValid = E->isIntegerConstantExpr(Val, Ctx);
   assert(IsValid && "expression must be constant integer");
