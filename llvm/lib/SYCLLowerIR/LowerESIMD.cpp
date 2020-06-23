@@ -33,6 +33,7 @@
 #include <cctype>
 #include <cstring>
 #include <unordered_map>
+#include <iostream>
 
 using namespace llvm;
 namespace id = itanium_demangle;
@@ -385,12 +386,7 @@ static const ESIMDIntrinDesc &getIntrinDesc(StringRef SrcSpelling) {
 
   if (It == Table.end()) {
     Twine Msg("unknown ESIMD intrinsic: " + SrcSpelling);
-
-    llvm::errs() << Msg << "\n";
-    // TODO warning message for now, to enable compiling tests with intrinsics
-    // that are not implemented yet
-    // llvm::report_fatal_error(Msg, false/*no crash diag*/);
-    return InvalidDesc;
+    llvm::report_fatal_error(Msg, false /*no crash diag*/);
   }
   return It->second;
 }
@@ -454,8 +450,8 @@ static const T *castNodeImpl(const id::Node *N, id::Node::Kind K) {
 
 static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
                               Type *&Ty, LLVMContext &Ctx) {
-  auto *Nm = castNode(FE->getName(), NameWithTemplateArgs);
-  auto *ArgsN = castNode(Nm->TemplateArgs, TemplateArgs);
+  const auto *Nm = castNode(FE->getName(), NameWithTemplateArgs);
+  const auto *ArgsN = castNode(Nm->TemplateArgs, TemplateArgs);
   id::NodeArray Args = ArgsN->getParams();
   assert(N < Args.size() && "too few template arguments");
   id::StringView Val;
@@ -652,7 +648,7 @@ static void translatePackMask(CallInst &CI) {
   IRBuilder<> Builder(&CI);
   llvm::Value *Trunc = Builder.CreateTrunc(
       CI.getArgOperand(0),
-      llvm::VectorType::get(llvm::Type::getInt1Ty(Context), N));
+      llvm::FixedVectorType::get(llvm::Type::getInt1Ty(Context), N));
   llvm::Type *Ty = llvm::Type::getIntNTy(Context, N);
 
   llvm::Value *BitCast = Builder.CreateBitCast(Trunc, Ty);
@@ -699,11 +695,11 @@ static void translateUnPackMask(CallInst &CI) {
   }
   assert(Arg0->getType()->getPrimitiveSizeInBits() == N);
   Arg0 = Builder.CreateBitCast(
-      Arg0, llvm::VectorType::get(llvm::Type::getInt1Ty(Context), N));
+      Arg0, llvm::FixedVectorType::get(llvm::Type::getInt1Ty(Context), N));
 
   // get N x i16
   llvm::Value *TransCI = Builder.CreateZExt(
-      Arg0, llvm::VectorType::get(llvm::Type::getInt16Ty(Context), N));
+      Arg0, llvm::FixedVectorType::get(llvm::Type::getInt16Ty(Context), N));
   TransCI->takeName(&CI);
   cast<llvm::Instruction>(TransCI)->setDebugLoc(CI.getDebugLoc());
   CI.replaceAllUsesWith(TransCI);
@@ -782,7 +778,7 @@ static Instruction *generateVectorGenXForSpirv(CallInst &CI, StringRef Suff,
   LLVMContext &Ctx = CI.getModule()->getContext();
   Type *I32Ty = Type::getInt32Ty(Ctx);
   Function *NewFDecl = GenXIntrinsic::getGenXDeclaration(
-      CI.getModule(), ID, {VectorType::get(I32Ty, 3)});
+      CI.getModule(), ID, {FixedVectorType::get(I32Ty, 3)});
   Instruction *IntrI =
       IntrinsicInst::Create(NewFDecl, {}, CI.getName() + ".esimd", &CI);
   int ExtractIndex = getIndexForSuffix(Suff);
@@ -825,8 +821,7 @@ translateSpirvIntrinsic(CallInst *CI, StringRef SpirvIntrName,
   auto translateSpirvIntr = [&SpirvIntrName, &ESIMDToErases,
                              CI](StringRef SpvIName, auto TranslateFunc) {
     if (SpirvIntrName.consume_front(SpvIName)) {
-      Value *TranslatedV =
-          TranslateFunc(*CI, SpirvIntrName.front()));
+      Value *TranslatedV = TranslateFunc(*CI, SpirvIntrName);
       CI->replaceAllUsesWith(TranslatedV);
       ESIMDToErases.push_back(CI);
     }
@@ -1025,8 +1020,7 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   using Demangler = id::ManglingParser<SimpleAllocator>;
   Function *F = CI.getCalledFunction();
   StringRef MnglName = F->getName();
-  const char *MnglNameCStr = MnglName.data();
-  Demangler Parser(MnglName.begin(), MnglName.end()));
+  Demangler Parser(MnglName.begin(), MnglName.end());
   id::Node *AST = Parser.parse();
 
   if (!AST || !Parser.ForwardTemplateRefs.empty()) {
@@ -1219,7 +1213,7 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
         IRBuilder<> Builder(&I);
         llvm::Value *Src = CastOp->getOperand(0);
         auto TmpTy =
-            llvm::VectorType::get(llvm::Type::getInt32Ty(DstTy->getContext()),
+            llvm::FixedVectorType::get(llvm::Type::getInt32Ty(DstTy->getContext()),
                                   cast<VectorType>(DstTy)->getNumElements());
         Src = Builder.CreateFPToSI(Src, TmpTy);
 
@@ -1241,22 +1235,22 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
     if (!Name.consume_front(ESIMD_INTRIN_PREF0))
       continue;
     // now skip the digits
-    StringRef Name1 = Name1.drop_while([](char C) { return std::isdigit(C); });
+    Name = Name.drop_while([](char C) { return std::isdigit(C); });
 
     // process ESIMD builtins that go through special handling instead of
     // the translation procedure
-    if (Name1.startswith("cl4sycl5intel3gpu8slm_init")) {
+    if (Name.startswith("N2cl4sycl5intel3gpu8slm_init")) {
       // tag the kernel with meta-data SLMSize, and remove this builtin
       translateSLMInit(*CI);
       ESIMDToErases.push_back(CI);
       continue;
     }
-    if (Name1.startswith("__esimd_pack_mask")) {
+    if (Name.startswith("__esimd_pack_mask")) {
       translatePackMask(*CI);
       ESIMDToErases.push_back(CI);
       continue;
     }
-    if (Name1.startswith("__esimd_unpack_mask")) {
+    if (Name.startswith("__esimd_unpack_mask")) {
       translateUnPackMask(*CI);
       ESIMDToErases.push_back(CI);
       continue;
@@ -1265,32 +1259,32 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
     // those globals marked as genx_volatile, We can translate
     // them directly into generic load/store inst. In this way
     // those insts can be optimized by llvm ASAP.
-    if (Name1.startswith("__esimd_vload")) {
+    if (Name.startswith("__esimd_vload")) {
       if (translateVLoad(*CI, GVTS)) {
         ESIMDToErases.push_back(CI);
         continue;
       }
     }
-    if (Name1.startswith("__esimd_vstore")) {
+    if (Name.startswith("__esimd_vstore")) {
       if (translateVStore(*CI, GVTS)) {
         ESIMDToErases.push_back(CI);
         continue;
       }
     }
 
-    if (Name1.startswith("__esimd_get_value")) {
+    if (Name.startswith("__esimd_get_value")) {
       translateGetValue(*CI);
       ESIMDToErases.push_back(CI);
       continue;
     }
 
-    if (Name1.consume_front(SPIRV_INTRIN_PREF)) {
-      translateSpirvIntrinsic(CI, Name1, ESIMDToErases);
+    if (Name.consume_front(SPIRV_INTRIN_PREF)) {
+      translateSpirvIntrinsic(CI, Name, ESIMDToErases);
       // For now: if no match, just let it go untranslated.
       continue;
     }
 
-    if (Name1.empty() || !Name1.startswith(ESIMD_INTRIN_PREF1))
+    if (Name.empty() || !Name.startswith(ESIMD_INTRIN_PREF1))
       continue;
     // this is ESIMD intrinsic - record for later translation
     ESIMDIntrCalls.push_back(CI);

@@ -163,6 +163,13 @@ define dso_local spir_func void  @FUNC_29() !sycl_explicit_simd !1 {
   ret void
 }
 
+define dso_local spir_kernel void  @FUNC_30() !sycl_explicit_simd !1 {
+; CHECK: define dso_local spir_kernel void  @FUNC_30() !sycl_explicit_simd !1
+  call spir_func void @_ZN2cl4sycl5intel3gpu8slm_initEj(i32 1023)
+  ret void
+; CHECK-NEXT: ret void
+}
+
 declare dso_local spir_func <32 x i32> @_Z20__esimd_flat_atomic0ILN2cm3gen14CmAtomicOpTypeE2EjLi32ELNS1_9CacheHintE0ELS3_0EENS1_13__vector_typeIT0_XT1_EE4typeENS4_IyXT1_EE4typeENS4_ItXT1_EE4typeE(<32 x i64> %0, <32 x i16> %1)
 declare dso_local spir_func <32 x i32> @_Z20__esimd_flat_atomic1ILN2cm3gen14CmAtomicOpTypeE0EjLi32ELNS1_9CacheHintE0ELS3_0EENS1_13__vector_typeIT0_XT1_EE4typeENS4_IyXT1_EE4typeES7_NS4_ItXT1_EE4typeE(<32 x i64> %0, <32 x i32> %1, <32 x i16> %2)
 declare dso_local spir_func <32 x i32> @_Z20__esimd_flat_atomic2ILN2cm3gen14CmAtomicOpTypeE7EjLi32ELNS1_9CacheHintE0ELS3_0EENS1_13__vector_typeIT0_XT1_EE4typeENS4_IyXT1_EE4typeES7_S7_NS4_ItXT1_EE4typeE(<32 x i64> %0, <32 x i32> %1, <32 x i32> %2, <32 x i16> %3)
@@ -192,7 +199,13 @@ declare dso_local spir_func <32 x i32> @_Z24__esimd_media_block_loadIiLi4ELi8E14
 declare dso_local spir_func void @_Z25__esimd_media_block_storeIiLi4ELi8E14ocl_image2d_woEvjT2_jjjjN2cm3gen13__vector_typeIT_XmlT0_T1_EE4typeE(i32 %0, %opencl.image2d_wo_t addrspace(1)* %1, i32 %2, i32 %3, i32 %4, i32 %5, <32 x i32> %6)
 declare dso_local spir_func <32 x i32> @_Z13__esimd_vloadIiLi32EEN2cm3gen13__vector_typeIT_XT0_EE4typeEPKS5_(<32 x i32> addrspace(4)* %0)
 declare dso_local spir_func void @_Z14__esimd_vstoreIfLi16EEvPN2cm3gen13__vector_typeIT_XT0_EE4typeES5_(<16 x float> addrspace(4)* %0, <16 x float> %1)
+declare dso_local spir_func void @_ZN2cl4sycl5intel3gpu8slm_initEj(i32)
 
 attributes #0 = { "genx_byte_offset"="192" "genx_volatile" }
 
-!1 = !{}
+!genx.kernels = !{!0}
+
+!0 = !{void ()* @"FUNC_30", !"FUNC_30", !1, i32 0, i32 0, !1, !2, i32 0, i32 0}
+; CHECK: !0 = !{void ()* @FUNC_30, !"FUNC_30", !1, i32 1023, i32 0, !1, !2, i32 0, i32 0}
+!1 = !{i32 0, i32 0}
+!2 = !{}
