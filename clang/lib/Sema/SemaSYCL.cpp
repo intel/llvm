@@ -308,11 +308,12 @@ static void reportConflictingAttrs(Sema &S, FunctionDecl *F, const Attr *A1,
   F->setInvalidDecl();
 }
 
-// Returns the signed constant integer value represented by given expression.
-static int64_t getIntExprValue(Sema &S, const Expr *E) {
+/// Returns the signed constant integer value represented by given expression
+static int64_t getIntExprValue(const Expr *E, ASTContext &Ctx) {
   llvm::APSInt Val(32);
-  bool IsValid = E->isIntegerConstantExpr(Val, S.getASTContext());
+  bool IsValid = E->isIntegerConstantExpr(Val, Ctx);
   assert(IsValid && "expression must be constant integer");
+  (void)IsValid;
   return Val.getSExtValue();
 }
 
@@ -1696,15 +1697,16 @@ void Sema::MarkDevice(void) {
               KernelBody ? KernelBody->getAttr<SYCLSimdAttr>() : nullptr;
           if (auto *Existing =
                   SYCLKernel->getAttr<IntelReqdSubGroupSizeAttr>()) {
-            if (Existing->getSubGroupSize() != Attr->getSubGroupSize()) {
+            if (getIntExprValue(Existing->getSubGroupSize(), getASTContext()) !=
+                getIntExprValue(Attr->getSubGroupSize(), getASTContext())) {
               Diag(SYCLKernel->getLocation(),
                    diag::err_conflicting_sycl_kernel_attributes);
               Diag(Existing->getLocation(), diag::note_conflicting_attribute);
               Diag(Attr->getLocation(), diag::note_conflicting_attribute);
               SYCLKernel->setInvalidDecl();
             }
-          } else if (KBSimdAttr &&
-                     (getIntExprValue(*this, Attr->getSubGroupSize()) != 1)) {
+          } else if (KBSimdAttr && (getIntExprValue(Attr->getSubGroupSize(),
+                                                    getASTContext()) != 1)) {
             reportConflictingAttrs(*this, KernelBody, KBSimdAttr, Attr);
           } else {
             SYCLKernel->addAttr(A);
