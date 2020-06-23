@@ -6,9 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <relational.h>
-#include <spirv/spirv.h>
-
-#define _CLC_SPIRV_BUILTIN __spirv_IsInf
-#define _CLC_BUILTIN_IMPL __builtin_isinf
-#include "genunary.inc"
+_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_bitselect(__CLC_GENTYPE x,
+                                                           __CLC_GENTYPE y,
+                                                           __CLC_GENTYPE z) {
+  return ((x) ^ ((z) & ((y) ^ (x))));
+}
