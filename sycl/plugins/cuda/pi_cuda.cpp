@@ -67,18 +67,39 @@ inline void assign_result(pi_result *ptr, pi_result value) noexcept {
 // Invokes the callback for each event in the wait list. The callback must take
 // a single pi_event argument and return a pi_result.
 template <typename Func>
-pi_result forEachEvent(const pi_event *event_wait_list,
-                       std::size_t num_events_in_wait_list, Func &&f) {
+pi_result forLatestEvents(const pi_event *event_wait_list,
+                          std::size_t num_events_in_wait_list, Func &&f) {
 
   if (event_wait_list == nullptr || num_events_in_wait_list == 0) {
     return PI_INVALID_EVENT_WAIT_LIST;
   }
 
-  for (size_t i = 0; i < num_events_in_wait_list; i++) {
-    auto event = event_wait_list[i];
-    if (event == nullptr) {
-      return PI_INVALID_EVENT_WAIT_LIST;
+  // Fast path if we only have a single event
+  if (num_events_in_wait_list == 1) {
+    return f(event_wait_list[0]);
+  }
+
+  std::vector<pi_event> events{event_wait_list,
+                               event_wait_list + num_events_in_wait_list};
+  std::sort(events.begin(), events.end(), [](pi_event e0, pi_event e1) {
+    // Tiered sort creating sublists of streams (smallest value first) in which
+    // the corresponding events are sorted into a sequence of newest first.
+    return e0->get_queue()->stream_ < e1->get_queue()->stream_ ||
+           (e0->get_queue()->stream_ == e1->get_queue()->stream_ &&
+            e0->get_event_id() > e1->get_event_id());
+  });
+
+  bool first = true;
+  CUstream lastSeenStream = 0;
+  for (pi_event event : events) {
+    CUstream stream = event->get_queue()->stream_;
+
+    if (!event || (!first && stream == lastSeenStream)) {
+      continue;
     }
+
+    first = false;
+    lastSeenStream = stream;
 
     auto result = f(event);
     if (result != PI_SUCCESS) {
@@ -354,6 +375,11 @@ pi_result _pi_event::record() {
   CUstream cuStream = queue_->get();
 
   try {
+    eventId_ = queue_->get_next_event_id();
+    if (eventId_ == 0) {
+      cl::sycl::detail::pi::die(
+          "Unrecoverable program state reached in event identifier overflow");
+    }
     result = PI_CHECK_ERROR(cuEventRecord(evEnd_, cuStream));
   } catch (pi_result error) {
     result = error;
@@ -1958,8 +1984,8 @@ pi_result cuda_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
 pi_result cuda_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
 
   try {
-    pi_result err = PI_SUCCESS;
-
+    assert(num_events != 0);
+    assert(event_list);
     if (num_events == 0) {
       return PI_INVALID_VALUE;
     }
@@ -1971,11 +1997,7 @@ pi_result cuda_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
     auto context = event_list[0]->get_context();
     ScopedContext active(context);
 
-    for (pi_uint32 count = 0; count < num_events && (err == PI_SUCCESS);
-         count++) {
-
-      auto event = event_list[count];
-
+    auto waitFunc = [context](pi_event event) -> pi_result {
       if (!event) {
         return PI_INVALID_EVENT;
       }
@@ -1984,9 +2006,9 @@ pi_result cuda_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
         return PI_INVALID_CONTEXT;
       }
 
-      err = event->wait();
-    }
-    return err;
+      return event->wait();
+    };
+    return forLatestEvents(event_list, num_events, waitFunc);
   } catch (pi_result err) {
     return err;
   } catch (...) {
@@ -2760,10 +2782,10 @@ pi_result cuda_piEnqueueEventsWait(pi_queue command_queue,
 
     if (event_wait_list) {
       auto result =
-          forEachEvent(event_wait_list, num_events_in_wait_list,
-                       [command_queue](pi_event event) -> pi_result {
-                         return enqueueEventWait(command_queue, event);
-                       });
+          forLatestEvents(event_wait_list, num_events_in_wait_list,
+                          [command_queue](pi_event event) -> pi_result {
+                            return enqueueEventWait(command_queue, event);
+                          });
 
       if (result != PI_SUCCESS) {
         return result;
