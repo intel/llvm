@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <relational.h>
 #include <spirv/spirv.h>
+#include <utils.h>
 
-#define _CLC_SPIRV_BUILTIN __spirv_IsInf
-#define _CLC_BUILTIN_IMPL __builtin_isinf
-#include "genunary.inc"
+#define __CLC_BODY <select.inc>
+#include <clc/math/gentype.inc>
+#define __CLC_BODY <select.inc>
+#include <clc/integer/gentype.inc>
