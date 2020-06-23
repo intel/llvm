@@ -326,14 +326,13 @@ MipsLegalizerInfo::MipsLegalizerInfo(const MipsSubtarget &ST) {
   verify(*ST.getInstrInfo());
 }
 
-bool MipsLegalizerInfo::legalizeCustom(MachineInstr &MI,
-                                       MachineRegisterInfo &MRI,
-                                       MachineIRBuilder &MIRBuilder,
-                                       GISelChangeObserver &Observer) const {
-
+bool MipsLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
+                                       MachineInstr &MI) const {
   using namespace TargetOpcode;
 
-  MIRBuilder.setInstr(MI);
+  MachineIRBuilder &MIRBuilder = Helper.MIRBuilder;
+  MachineRegisterInfo &MRI = *MIRBuilder.getMRI();
+
   const LLT s32 = LLT::scalar(32);
   const LLT s64 = LLT::scalar(64);
 
@@ -498,16 +497,15 @@ static bool MSA2OpIntrinsicToGeneric(MachineInstr &MI, unsigned Opcode,
   return true;
 }
 
-bool MipsLegalizerInfo::legalizeIntrinsic(MachineInstr &MI,
-                                          MachineIRBuilder &MIRBuilder,
-                                          GISelChangeObserver &Observer) const {
+bool MipsLegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper,
+                                          MachineInstr &MI) const {
+  MachineIRBuilder &MIRBuilder = Helper.MIRBuilder;
   MachineRegisterInfo &MRI = *MIRBuilder.getMRI();
   const MipsSubtarget &ST =
       static_cast<const MipsSubtarget &>(MI.getMF()->getSubtarget());
   const MipsInstrInfo &TII = *ST.getInstrInfo();
   const MipsRegisterInfo &TRI = *ST.getRegisterInfo();
   const RegisterBankInfo &RBI = *ST.getRegBankInfo();
-  MIRBuilder.setInstr(MI);
 
   switch (MI.getIntrinsicID()) {
   case Intrinsic::memcpy:
@@ -525,12 +523,13 @@ bool MipsLegalizerInfo::legalizeIntrinsic(MachineInstr &MI,
   }
   case Intrinsic::vacopy: {
     MachinePointerInfo MPO;
-    auto Tmp = MIRBuilder.buildLoad(LLT::pointer(0, 32), MI.getOperand(2),
-                                    *MI.getMF()->getMachineMemOperand(
-                                        MPO, MachineMemOperand::MOLoad, 4, 4));
+    auto Tmp =
+        MIRBuilder.buildLoad(LLT::pointer(0, 32), MI.getOperand(2),
+                             *MI.getMF()->getMachineMemOperand(
+                                 MPO, MachineMemOperand::MOLoad, 4, Align(4)));
     MIRBuilder.buildStore(Tmp, MI.getOperand(1),
                           *MI.getMF()->getMachineMemOperand(
-                              MPO, MachineMemOperand::MOStore, 4, 4));
+                              MPO, MachineMemOperand::MOStore, 4, Align(4)));
     MI.eraseFromParent();
     return true;
   }

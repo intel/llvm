@@ -8,7 +8,9 @@
 
 #include <CL/sycl/detail/spec_constant_impl.hpp>
 
+#include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/pi.h>
+#include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/exception.hpp>
 
 #include <cstring>
@@ -25,9 +27,18 @@ void spec_constant_impl::set(size_t Size, const void *Val) {
   std::memcpy(Bytes, Val, Size);
 }
 
+void stableSerializeSpecConstRegistry(const SpecConstRegistryT &Reg,
+                                      SerializedObj &Dst) {
+  for (const auto &E : Reg) {
+    Dst.insert(Dst.end(), E.first.begin(), E.first.end());
+    const spec_constant_impl &SC = E.second;
+    Dst.insert(Dst.end(), SC.getValuePtr(), SC.getValuePtr() + SC.getSize());
+  }
+}
+
 std::ostream &operator<<(std::ostream &Out, const spec_constant_impl &V) {
-  Out << "spec_constant_impl" << V.getID() << "{ Size=" << V.getSize()
-      << " IsSet=" << V.isSet() << " Val=[";
+  Out << "spec_constant_impl"
+      << " { Size=" << V.getSize() << " IsSet=" << V.isSet() << " Val=[";
   std::ios_base::fmtflags FlagsSav = Out.flags();
   Out << std::hex;
   for (unsigned I = 0; I < V.getSize(); ++I) {

@@ -41,6 +41,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PatternMatch.h"
+#include "llvm/IR/Statepoint.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/Value.h"
@@ -54,6 +55,7 @@
 #include "llvm/Support/RecyclingAllocator.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils/AssumeBundleBuilder.h"
 #include "llvm/Transforms/Utils/GuardUtils.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <cassert>
@@ -455,6 +457,14 @@ template <> struct DenseMapInfo<CallValue> {
 
 unsigned DenseMapInfo<CallValue>::getHashValue(CallValue Val) {
   Instruction *Inst = Val.Inst;
+
+  // gc.relocate is 'special' call: its second and third operands are
+  // not real values, but indices into statepoint's argument list.
+  // Get values they point to.
+  if (const GCRelocateInst *GCR = dyn_cast<GCRelocateInst>(Inst))
+    return hash_combine(GCR->getOpcode(), GCR->getOperand(0),
+                        GCR->getBasePtr(), GCR->getDerivedPtr());
+
   // Hash all of the operands as pointers and mix in the opcode.
   return hash_combine(
       Inst->getOpcode(),
@@ -465,6 +475,14 @@ bool DenseMapInfo<CallValue>::isEqual(CallValue LHS, CallValue RHS) {
   Instruction *LHSI = LHS.Inst, *RHSI = RHS.Inst;
   if (LHS.isSentinel() || RHS.isSentinel())
     return LHSI == RHSI;
+
+  // See comment above in `getHashValue()`.
+  if (const GCRelocateInst *GCR1 = dyn_cast<GCRelocateInst>(LHSI))
+    if (const GCRelocateInst *GCR2 = dyn_cast<GCRelocateInst>(RHSI))
+      return GCR1->getOperand(0) == GCR2->getOperand(0) &&
+             GCR1->getBasePtr() == GCR2->getBasePtr() &&
+             GCR1->getDerivedPtr() == GCR2->getDerivedPtr();
+
   return LHSI->isIdenticalTo(RHSI);
 }
 
@@ -947,7 +965,8 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
         continue;
       }
 
-      salvageDebugInfoOrMarkUndef(Inst);
+      salvageKnowledge(&Inst, &AC);
+      salvageDebugInfo(Inst);
       removeMSSA(Inst);
       Inst.eraseFromParent();
       Changed = true;
@@ -1013,6 +1032,7 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
                 cast<ConstantInt>(KnownCond)->isOne()) {
               LLVM_DEBUG(dbgs()
                          << "EarlyCSE removing guard: " << Inst << '\n');
+              salvageKnowledge(&Inst, &AC);
               removeMSSA(Inst);
               Inst.eraseFromParent();
               Changed = true;
@@ -1048,6 +1068,7 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
           Changed = true;
         }
         if (isInstructionTriviallyDead(&Inst, &TLI)) {
+          salvageKnowledge(&Inst, &AC);
           removeMSSA(Inst);
           Inst.eraseFromParent();
           Changed = true;
@@ -1073,6 +1094,7 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
         if (auto *I = dyn_cast<Instruction>(V))
           I->andIRFlags(&Inst);
         Inst.replaceAllUsesWith(V);
+        salvageKnowledge(&Inst, &AC);
         removeMSSA(Inst);
         Inst.eraseFromParent();
         Changed = true;
@@ -1133,6 +1155,7 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
           }
           if (!Inst.use_empty())
             Inst.replaceAllUsesWith(Op);
+          salvageKnowledge(&Inst, &AC);
           removeMSSA(Inst);
           Inst.eraseFromParent();
           Changed = true;
@@ -1176,6 +1199,7 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
         }
         if (!Inst.use_empty())
           Inst.replaceAllUsesWith(InVal.first);
+        salvageKnowledge(&Inst, &AC);
         removeMSSA(Inst);
         Inst.eraseFromParent();
         Changed = true;
@@ -1228,6 +1252,7 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
           LLVM_DEBUG(dbgs() << "Skipping due to debug counter\n");
           continue;
         }
+        salvageKnowledge(&Inst, &AC);
         removeMSSA(Inst);
         Inst.eraseFromParent();
         Changed = true;
@@ -1263,6 +1288,7 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
             if (!DebugCounter::shouldExecute(CSECounter)) {
               LLVM_DEBUG(dbgs() << "Skipping due to debug counter\n");
             } else {
+              salvageKnowledge(&Inst, &AC);
               removeMSSA(*LastStore);
               LastStore->eraseFromParent();
               Changed = true;

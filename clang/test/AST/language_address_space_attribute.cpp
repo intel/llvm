@@ -1,4 +1,11 @@
+// Test without serialization:
 // RUN: %clang_cc1 %s -ast-dump | FileCheck %s
+//
+// Test with serialization:
+// RUN: %clang_cc1 -emit-pch -o %t %s
+// RUN: %clang_cc1 -x c++ -include-pch %t -ast-dump-all /dev/null \
+// RUN: | sed -e "s/ <undeserialized declarations>//" -e "s/ imported//" \
+// RUN: | FileCheck %s
 
 // Verify that the language address space attribute is
 // understood correctly by clang.
@@ -9,6 +16,18 @@ void langas() {
 
   // CHECK: VarDecl {{.*}} z_global '__global int *'
   [[clang::opencl_global]] int *z_global;
+
+  // CHECK: VarDecl {{.*}} x_global_device '__global_device int *'
+  __attribute__((opencl_global_device)) int *x_global_device;
+
+  // CHECK: VarDecl {{.*}} z_global_device '__global_device int *'
+  [[clang::opencl_global_device]] int *z_global_device;
+
+  // CHECK: VarDecl {{.*}} x_global_host '__global_host int *'
+  __attribute__((opencl_global_host)) int *x_global_host;
+
+  // CHECK: VarDecl {{.*}} z_global_host '__global_host int *'
+  [[clang::opencl_global_host]] int *z_global_host;
 
   // CHECK: VarDecl {{.*}} x_local '__local int *'
   __attribute__((opencl_local)) int *x_local;

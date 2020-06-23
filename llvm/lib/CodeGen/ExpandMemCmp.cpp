@@ -25,6 +25,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/SizeOpts.h"
+#include "llvm/Target/TargetMachine.h"
 
 using namespace llvm;
 
@@ -273,8 +274,8 @@ MemCmpExpansion::LoadPair MemCmpExpansion::getLoadPair(Type *LoadSizeType,
   // Get the memory source at offset `OffsetBytes`.
   Value *LhsSource = CI->getArgOperand(0);
   Value *RhsSource = CI->getArgOperand(1);
-  Align LhsAlign = LhsSource->getPointerAlignment(DL).valueOrOne();
-  Align RhsAlign = RhsSource->getPointerAlignment(DL).valueOrOne();
+  Align LhsAlign = LhsSource->getPointerAlignment(DL);
+  Align RhsAlign = RhsSource->getPointerAlignment(DL);
   if (OffsetBytes > 0) {
     auto *ByteType = Type::getInt8Ty(CI->getContext());
     LhsSource = Builder.CreateConstGEP1_64(
@@ -824,7 +825,7 @@ bool ExpandMemCmpPass::runOnBlock(
       continue;
     }
     LibFunc Func;
-    if (TLI->getLibFunc(ImmutableCallSite(CI), Func) &&
+    if (TLI->getLibFunc(*CI, Func) &&
         (Func == LibFunc_memcmp || Func == LibFunc_bcmp) &&
         expandMemCmp(CI, TTI, TL, &DL, PSI, BFI)) {
       return true;

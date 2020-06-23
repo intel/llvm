@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -convert-std-to-llvm -split-input-file -verify-diagnostics | FileCheck %s
+// RUN: mlir-opt -allow-unregistered-dialect %s -convert-std-to-llvm -split-input-file -verify-diagnostics | FileCheck %s
 
 // CHECK-LABEL: func @address_space(
 // CHECK-SAME:    !llvm<"float addrspace(7)*">
@@ -25,6 +25,16 @@ func @rsqrt(%arg0 : f32) {
   // CHECK: %[[SQRT:.*]] = "llvm.intr.sqrt"(%arg0) : (!llvm.float) -> !llvm.float
   // CHECK: %[[DIV:.*]] = llvm.fdiv %[[ONE]], %[[SQRT]] : !llvm.float
   %0 = rsqrt %arg0 : f32
+  std.return
+}
+
+// -----
+
+// CHECK-LABEL: func @sine(
+// CHECK-SAME: !llvm.float
+func @sine(%arg0 : f32) {
+  // CHECK: "llvm.intr.sin"(%arg0) : (!llvm.float) -> !llvm.float
+  %0 = sin %arg0 : f32
   std.return
 }
 

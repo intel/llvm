@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -split-input-file -verify-diagnostics | FileCheck %s
+// RUN: mlir-opt -allow-unregistered-dialect %s -split-input-file -verify-diagnostics | FileCheck %s
 
 // CHECK: succeededSameOperandsElementType
 func @succeededSameOperandsElementType(%t10x10 : tensor<10x10xf32>, %t1f: tensor<1xf32>, %v1: vector<1xf32>, %t1i: tensor<1xi32>, %sf: f32) {
@@ -172,6 +172,39 @@ func @failedHasParent_wrong_parent() {
     "test.child"() : () -> ()
   }) : () -> ()
 }
+
+// -----
+
+// CHECK: succeededParentOneOf
+func @succeededParentOneOf() {
+  "test.parent"() ({
+    "test.child_with_parent_one_of"() : () -> ()
+    "test.finish"() : () -> ()
+   }) : () -> ()
+  return
+}
+
+// -----
+
+// CHECK: succeededParent1OneOf
+func @succeededParent1OneOf() {
+  "test.parent1"() ({
+    "test.child_with_parent_one_of"() : () -> ()
+    "test.finish"() : () -> ()
+   }) : () -> ()
+  return
+}
+
+// -----
+
+func @failedParentOneOf_wrong_parent1() {
+  "some.otherop"() ({
+    // expected-error@+1 {{'test.child_with_parent_one_of' op expects parent op to be one of 'test.parent, test.parent1'}}
+    "test.child_with_parent_one_of"() : () -> ()
+    "test.finish"() : () -> ()
+   }) : () -> ()
+}
+
 
 // -----
 

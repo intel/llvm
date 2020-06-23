@@ -47,16 +47,6 @@
 
 namespace SPIRV {
 
-static cl::opt<std::string>
-    MangledAtomicTypeNamePrefix("spirv-atomic-prefix",
-                                cl::desc("Mangled atomic type name prefix"),
-                                cl::init("U7_Atomic"));
-
-static cl::opt<std::string>
-    OCLBuiltinsVersion("spirv-ocl-builtins-version",
-                       cl::desc("Specify version of OCL builtins to translate "
-                                "to (CL1.2, CL2.0, CL2.1)"));
-
 void SPIRVToOCL::visitCallInst(CallInst &CI) {
   LLVM_DEBUG(dbgs() << "[visistCallInst] " << CI << '\n');
   auto F = CI.getCalledFunction();
@@ -87,7 +77,7 @@ void SPIRVToOCL::visitCallInst(CallInst &CI) {
     visitCallSPIRVAtomicBuiltin(&CI, OC);
     return;
   }
-  if (isGroupOpCode(OC)) {
+  if (isGroupOpCode(OC) || isGroupNonUniformOpcode(OC)) {
     visitCallSPIRVGroupBuiltin(&CI, OC);
     return;
   }
@@ -198,17 +188,16 @@ void SPIRVToOCL::visitCallSPRIVImageQuerySize(CallInst *CI) {
     if (CI->getType()->getScalarType() != Int32Ty) {
       GetImageSize = CastInst::CreateIntegerCast(
           GetImageSize,
-          VectorType::get(CI->getType()->getScalarType(),
-                          GetImageSize->getType()->getVectorNumElements()),
+          VectorType::get(
+              CI->getType()->getScalarType(),
+              cast<VectorType>(GetImageSize->getType())->getNumElements()),
           false, CI->getName(), CI);
     }
   }
 
   if (ImgArray || ImgDim == 3) {
-    assert(
-        CI->getType()->isVectorTy() &&
-        "OpImageQuerySize[Lod] must return vector for arrayed and 3d images");
-    const unsigned ImgQuerySizeRetEls = CI->getType()->getVectorNumElements();
+    auto *VecTy = cast<VectorType>(CI->getType());
+    const unsigned ImgQuerySizeRetEls = VecTy->getNumElements();
 
     if (ImgDim == 1) {
       // get_image_width returns scalar result while OpImageQuerySize
@@ -216,8 +205,8 @@ void SPIRVToOCL::visitCallSPRIVImageQuerySize(CallInst *CI) {
       assert(ImgQuerySizeRetEls == 2 &&
              "OpImageQuerySize[Lod] must return <2 x iN> vector type");
       GetImageSize = InsertElementInst::Create(
-          UndefValue::get(CI->getType()), GetImageSize,
-          ConstantInt::get(Int32Ty, 0), CI->getName(), CI);
+          UndefValue::get(VecTy), GetImageSize, ConstantInt::get(Int32Ty, 0),
+          CI->getName(), CI);
     } else {
       // get_image_dim and OpImageQuerySize returns different vector
       // types for arrayed and 3d images.
@@ -235,6 +224,7 @@ void SPIRVToOCL::visitCallSPRIVImageQuerySize(CallInst *CI) {
   if (ImgArray) {
     assert((ImgDim == 1 || ImgDim == 2) && "invalid image array type");
     // Insert get_image_array_size to the last position of the resulting vector.
+    auto *VecTy = cast<VectorType>(CI->getType());
     Type *SizeTy =
         Type::getIntNTy(*Ctx, M->getDataLayout().getPointerSizeInBits(0));
     Instruction *GetImageArraySize = addCallInst(
@@ -242,15 +232,14 @@ void SPIRVToOCL::visitCallSPRIVImageQuerySize(CallInst *CI) {
         &Attributes, CI, &Mangle, CI->getName(), false);
     // The width of integer type returning by OpImageQuerySize[Lod] may
     // differ from size_t which is returned by get_image_array_size
-    if (GetImageArraySize->getType() != CI->getType()->getScalarType()) {
+    if (GetImageArraySize->getType() != VecTy->getElementType()) {
       GetImageArraySize = CastInst::CreateIntegerCast(
-          GetImageArraySize, CI->getType()->getScalarType(), false,
-          CI->getName(), CI);
+          GetImageArraySize, VecTy->getElementType(), false, CI->getName(), CI);
     }
     GetImageSize = InsertElementInst::Create(
         GetImageSize, GetImageArraySize,
-        ConstantInt::get(Int32Ty, CI->getType()->getVectorNumElements() - 1),
-        CI->getName(), CI);
+        ConstantInt::get(Int32Ty, VecTy->getNumElements() - 1), CI->getName(),
+        CI);
   }
 
   assert(GetImageSize && "must not be null");
@@ -258,36 +247,183 @@ void SPIRVToOCL::visitCallSPRIVImageQuerySize(CallInst *CI) {
   CI->eraseFromParent();
 }
 
-void SPIRVToOCL::visitCallSPIRVGroupBuiltin(CallInst *CI, Op OC) {
-  auto DemangledName = OCLSPIRVBuiltinMap::rmap(OC);
-  assert(DemangledName.find(kSPIRVName::GroupPrefix) == 0);
-
+std::string SPIRVToOCL::getUniformArithmeticBuiltinName(CallInst *CI, Op OC) {
+  assert(isUniformArithmeticOpCode(OC) &&
+         "Not intended to handle other than uniform arithmetic opcodes!");
+  auto FuncName = OCLSPIRVBuiltinMap::rmap(OC);
   std::string Prefix = getGroupBuiltinPrefix(CI);
+  std::string Op = FuncName;
+  Op.erase(0, strlen(kSPIRVName::GroupPrefix));
+  // unsigned prefix cannot be removed yet, as it is necessary to properly
+  // mangle the function
+  bool Unsigned = Op.front() == 'u';
+  if (!Unsigned)
+    Op = Op.erase(0, 1);
 
-  bool HasGroupOperation = hasGroupOperation(OC);
-  if (!HasGroupOperation) {
-    DemangledName = Prefix + DemangledName;
-  } else {
-    auto GO = getArgAs<spv::GroupOperation>(CI, 1);
-    StringRef Op = DemangledName;
-    Op = Op.drop_front(strlen(kSPIRVName::GroupPrefix));
-    bool Unsigned = Op.front() == 'u';
-    if (!Unsigned)
-      Op = Op.drop_front(1);
-    DemangledName = Prefix + kSPIRVName::GroupPrefix +
-                    SPIRSPIRVGroupOperationMap::rmap(GO) + '_' + Op.str();
+  std::string GroupOp;
+  auto GO = getArgAs<spv::GroupOperation>(CI, 1);
+  switch (GO) {
+  case GroupOperationReduce:
+    GroupOp = "reduce";
+    break;
+  case GroupOperationInclusiveScan:
+    GroupOp = "scan_inclusive";
+    break;
+  case GroupOperationExclusiveScan:
+    GroupOp = "scan_exclusive";
+    break;
+  default:
+    llvm_unreachable("Unsupported group operation!");
+    break;
   }
+  return Prefix + kSPIRVName::GroupPrefix + GroupOp + "_" + Op;
+}
+
+std::string SPIRVToOCL::getNonUniformArithmeticBuiltinName(CallInst *CI,
+                                                           Op OC) {
+  assert(isNonUniformArithmeticOpCode(OC) &&
+         "Not intended to handle other than non uniform arithmetic opcodes!");
+  std::string Prefix = getGroupBuiltinPrefix(CI);
+  assert((Prefix == kOCLBuiltinName::SubPrefix) &&
+         "Workgroup scope is not supported for OpGroupNonUniform opcodes");
+  auto FuncName = OCLSPIRVBuiltinMap::rmap(OC);
+  std::string Op = FuncName;
+  Op.erase(0, strlen(kSPIRVName::GroupNonUniformPrefix));
+
+  if (!isGroupLogicalOpCode(OC)) {
+    // unsigned prefix cannot be removed yet, as it is necessary to properly
+    // mangle the function
+    const char Sign = Op.front();
+    bool Signed = (Sign == 'i' || Sign == 'f' || Sign == 's');
+    if (Signed)
+      Op = Op.erase(0, 1);
+    else
+      assert((Sign == 'u') && "Incorrect sign!");
+  } else { // LogicalOpcode
+    assert(
+        (Op == "logical_iand" || Op == "logical_ior" || Op == "logical_ixor") &&
+        "Incorrect logical operation");
+    Op = Op.erase(8, 1);
+  }
+
+  std::string GroupOp;
+  std::string GroupPrefix = kSPIRVName::GroupNonUniformPrefix;
+  auto GO = getArgAs<spv::GroupOperation>(CI, 1);
+  switch (GO) {
+  case GroupOperationReduce:
+    GroupOp = "reduce";
+    break;
+  case GroupOperationInclusiveScan:
+    GroupOp = "scan_inclusive";
+    break;
+  case GroupOperationExclusiveScan:
+    GroupOp = "scan_exclusive";
+    break;
+  case GroupOperationClusteredReduce:
+    GroupOp = "clustered_reduce";
+    // OpenCL clustered builtin has no non_uniform prefix, ex.
+    // sub_group_reduce_clustered_logical_and
+    GroupPrefix = kSPIRVName::GroupPrefix;
+    break;
+  default:
+    llvm_unreachable("Unsupported group operation!");
+    break;
+  }
+
+  return Prefix + GroupPrefix + GroupOp + "_" + Op;
+}
+
+std::string SPIRVToOCL::getBallotBuiltinName(CallInst *CI, Op OC) {
+  assert((OC == OpGroupNonUniformBallotBitCount) &&
+         "Not inteded to handle other opcodes than "
+         "OpGroupNonUniformBallotBitCount!");
+  std::string Prefix = getGroupBuiltinPrefix(CI);
+  assert(
+      (Prefix == kOCLBuiltinName::SubPrefix) &&
+      "Workgroup scope is not supported for OpGroupNonUniformBallotBitCount");
+  std::string GroupOp;
+  auto GO = getArgAs<spv::GroupOperation>(CI, 1);
+  switch (GO) {
+  case GroupOperationReduce:
+    GroupOp = "bit_count";
+    break;
+  case GroupOperationInclusiveScan:
+    GroupOp = "inclusive_scan";
+    break;
+  case GroupOperationExclusiveScan:
+    GroupOp = "exclusive_scan";
+    break;
+  default:
+    llvm_unreachable("Unsupported group operation!");
+    break;
+  }
+  return Prefix + kSPIRVName::GroupPrefix + "ballot_" + GroupOp;
+}
+
+std::string SPIRVToOCL::groupOCToOCLBuiltinName(CallInst *CI, Op OC) {
+  auto FuncName = OCLSPIRVBuiltinMap::rmap(OC);
+  assert(FuncName.find(kSPIRVName::GroupPrefix) == 0);
+
+  if (!hasGroupOperation(OC)) {
+    /// Transform OpenCL group builtin function names from group_
+    /// to work_group_ and sub_group_.
+    FuncName = getGroupBuiltinPrefix(CI) + FuncName;
+  } else { // Opcodes with group operation parameter
+    if (isUniformArithmeticOpCode(OC))
+      FuncName = getUniformArithmeticBuiltinName(CI, OC);
+    else if (isNonUniformArithmeticOpCode(OC))
+      FuncName = getNonUniformArithmeticBuiltinName(CI, OC);
+    else if (OC == OpGroupNonUniformBallotBitCount)
+      FuncName = getBallotBuiltinName(CI, OC);
+    else
+      llvm_unreachable("Unsupported opcode!");
+  }
+  return FuncName;
+}
+
+static bool extendRetTyToi32(Op OC) {
+  return OC == OpGroupAny || OC == OpGroupAll || OC == OpGroupNonUniformAny ||
+         OC == OpGroupNonUniformAll || OC == OpGroupNonUniformAllEqual ||
+         OC == OpGroupNonUniformElect || OC == OpGroupNonUniformInverseBallot ||
+         OC == OpGroupNonUniformBallotBitExtract || isGroupLogicalOpCode(OC);
+}
+
+void SPIRVToOCL::visitCallSPIRVGroupBuiltin(CallInst *CI, Op OC) {
+  auto FuncName = groupOCToOCLBuiltinName(CI, OC);
+  auto ModifyArguments = [=](CallInst *, std::vector<Value *> &Args,
+                             llvm::Type *&RetTy) {
+    Type *Int32Ty = Type::getInt32Ty(*Ctx);
+    bool HasArg0ExtendedToi32 =
+        OC == OpGroupAny || OC == OpGroupAll || OC == OpGroupNonUniformAny ||
+        OC == OpGroupNonUniformAll || OC == OpGroupNonUniformBallot ||
+        isGroupLogicalOpCode(OC);
+    /// Remove Group Operation argument,
+    /// as in OpenCL representation this is included in the function name
+    Args.erase(Args.begin(), Args.begin() + (hasGroupOperation(OC) ? 2 : 1));
+
+    // Handle function arguments
+    if (OC == OpGroupBroadcast)
+      expandVector(CI, Args, 1);
+    else if (HasArg0ExtendedToi32)
+      Args[0] = CastInst::CreateZExtOrBitCast(Args[0], Int32Ty, "", CI);
+
+    // Handle function return type
+    if (extendRetTyToi32(OC))
+      RetTy = Int32Ty;
+
+    return FuncName;
+  };
+  auto ModifyRetTy = [=](CallInst *CI) -> Instruction * {
+    if (extendRetTyToi32(OC)) {
+      Type *RetTy = Type::getInt1Ty(*Ctx);
+      return CastInst::CreateTruncOrBitCast(CI, RetTy, "", CI->getNextNode());
+    } else
+      return CI;
+  };
+
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        Args.erase(Args.begin(), Args.begin() + (HasGroupOperation ? 2 : 1));
-        if (OC == OpGroupBroadcast)
-          expandVector(CI, Args, 1);
-        return DemangledName;
-      },
-      &Attrs);
+  mutateCallInstOCL(M, CI, ModifyArguments, ModifyRetTy, &Attrs);
 }
 
 void SPIRVToOCL::visitCallSPIRVPipeBuiltin(CallInst *CI, Op OC) {
@@ -346,8 +482,8 @@ void SPIRVToOCL::visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC) {
         else
           assert(0 && "Unsupported texel type!");
 
-        if (RetType->isVectorTy()) {
-          unsigned int NumEl = RetType->getVectorNumElements();
+        if (auto *VecTy = dyn_cast<VectorType>(RetType)) {
+          unsigned int NumEl = VecTy->getNumElements();
           assert((NumEl == 2 || NumEl == 4 || NumEl == 8 || NumEl == 16) &&
                  "Wrong function type!");
           FuncPostfix += std::to_string(NumEl);
@@ -368,23 +504,6 @@ void SPIRVToOCL::visitCallSPIRVBuiltin(CallInst *CI, Op OC) {
       &Attrs);
 }
 
-void SPIRVToOCL::translateMangledAtomicTypeName() {
-  for (auto &I : M->functions()) {
-    if (!I.hasName())
-      continue;
-    std::string MangledName{I.getName()};
-    StringRef DemangledName;
-    if (!oclIsBuiltin(MangledName, DemangledName) ||
-        DemangledName.find(kOCLBuiltinName::AtomPrefix) != 0)
-      continue;
-    auto Loc = MangledName.find(kOCLBuiltinName::AtomPrefix);
-    Loc = MangledName.find(kMangledName::AtomicPrefixInternal, Loc);
-    MangledName.replace(Loc, strlen(kMangledName::AtomicPrefixInternal),
-                        MangledAtomicTypeNamePrefix);
-    I.setName(MangledName);
-  }
-}
-
 std::string SPIRVToOCL::getGroupBuiltinPrefix(CallInst *CI) {
   std::string Prefix;
   auto ES = getArgAsScope(CI, 0);
@@ -403,31 +522,19 @@ std::string SPIRVToOCL::getGroupBuiltinPrefix(CallInst *CI) {
 
 } // namespace SPIRV
 
-ModulePass *llvm::createSPIRVToOCL(Module &M) {
-  if (OCLBuiltinsVersion.getNumOccurrences() > 0) {
-    if (OCLBuiltinsVersion.getValue() == "CL1.2")
-      return createSPIRVToOCL12();
-    else if (OCLBuiltinsVersion.getValue() == "CL2.0" ||
-             OCLBuiltinsVersion.getValue() == "CL2.1")
-      return createSPIRVToOCL20();
-    else {
-      assert(0 && "Invalid spirv-ocl-builtins-version value");
-      return nullptr;
-    }
-  }
-  // Below part of code is here just temporarily (to not broke existing
-  // projects based on translator), because ocl builtins versions shouldn't has
-  // a dependency on OpSource spirv opcode. OpSource spec: "This has no semantic
-  // impact and can safely be removed from a module." After some time it can be
-  // removed, then only factor impacting version of ocl builtins will be
-  // spirv-ocl-builtins-version command option.
-  unsigned OCLVersion = getOCLVersion(&M);
-  if (OCLVersion <= kOCLVer::CL12)
+ModulePass *
+llvm::createSPIRVBIsLoweringPass(Module &M,
+                                 SPIRV::BIsRepresentation BIsRepresentation) {
+  switch (BIsRepresentation) {
+  case SPIRV::BIsRepresentation::OpenCL12:
     return createSPIRVToOCL12();
-  else if (OCLVersion >= kOCLVer::CL20)
+  case SPIRV::BIsRepresentation::OpenCL20:
     return createSPIRVToOCL20();
-  else {
-    assert(0 && "Invalid ocl version in llvm module");
+  case SPIRV::BIsRepresentation::SPIRVFriendlyIR:
+    // nothing to do, already done
+    return nullptr;
+  default:
+    llvm_unreachable("Unsupported built-ins representation");
     return nullptr;
   }
 }

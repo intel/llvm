@@ -1,3 +1,5 @@
+#define __CLC_GEN_S
+
 #define __CLC_GENTYPE int
 #include __CLC_BODY
 #undef __CLC_GENTYPE
@@ -21,6 +23,8 @@
 #define __CLC_GENTYPE int16
 #include __CLC_BODY
 #undef __CLC_GENTYPE
+
+#undef __CLC_GEN_S
 
 #define __CLC_GENTYPE uint
 #include __CLC_BODY

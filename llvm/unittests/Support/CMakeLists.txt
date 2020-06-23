@@ -28,9 +28,11 @@ add_llvm_unittest(SupportTests
   DJBTest.cpp
   EndianStreamTest.cpp
   EndianTest.cpp
+  ELFAttributeParserTest.cpp
   ErrnoTest.cpp
   ErrorOrTest.cpp
   ErrorTest.cpp
+  ExtensibleRTTITest.cpp
   FileCheckTest.cpp
   FileCollectorTest.cpp
   FileOutputBufferTest.cpp
@@ -38,6 +40,7 @@ add_llvm_unittest(SupportTests
   FormatVariadicTest.cpp
   GlobPatternTest.cpp
   Host.cpp
+  IndexedAccessorTest.cpp
   ItaniumManglingCanonicalizerTest.cpp
   JSONTest.cpp
   KnownBitsTest.cpp
@@ -51,7 +54,7 @@ add_llvm_unittest(SupportTests
   MemoryBufferTest.cpp
   MemoryTest.cpp
   NativeFormatTests.cpp
-  OptimalLayoutTest.cpp
+  OptimizedStructLayoutTest.cpp
   ParallelTest.cpp
   Path.cpp
   ProcessTest.cpp
@@ -60,11 +63,12 @@ add_llvm_unittest(SupportTests
   RegexTest.cpp
   ReverseIterationTest.cpp
   ReplaceFileTest.cpp
+  RISCVAttributeParserTest.cpp
   ScaledNumberTest.cpp
   SimpleTableTest.cpp
   SourceMgrTest.cpp
   SpecialCaseListTest.cpp
-  StringPool.cpp
+  SuffixTreeTest.cpp
   SwapByteOrderTest.cpp
   SymbolRemappingReaderTest.cpp
   TarWriterTest.cpp
@@ -74,6 +78,7 @@ add_llvm_unittest(SupportTests
   ThreadPool.cpp
   Threading.cpp
   TimerTest.cpp
+  ToolOutputFileTest.cpp
   TypeNameTest.cpp
   TypeTraitsTest.cpp
   TrailingObjectsTest.cpp
@@ -81,6 +86,7 @@ add_llvm_unittest(SupportTests
   UnicodeTest.cpp
   VersionTupleTest.cpp
   VirtualFileSystemTest.cpp
+  WithColorTest.cpp
   YAMLIOTest.cpp
   YAMLParserTest.cpp
   formatted_raw_ostream_test.cpp

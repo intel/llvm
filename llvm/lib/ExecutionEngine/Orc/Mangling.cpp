@@ -93,12 +93,17 @@ getObjectSymbolInfo(ExecutionSession &ES, MemoryBufferRef ObjBuffer) {
 
   SymbolFlagsMap SymbolFlags;
   for (auto &Sym : (*Obj)->symbols()) {
+    Expected<uint32_t> SymFlagsOrErr = Sym.getFlags();
+    if (!SymFlagsOrErr)
+      // TODO: Test this error.
+      return SymFlagsOrErr.takeError();
+
     // Skip symbols not defined in this object file.
-    if (Sym.getFlags() & object::BasicSymbolRef::SF_Undefined)
+    if (*SymFlagsOrErr & object::BasicSymbolRef::SF_Undefined)
       continue;
 
     // Skip symbols that are not global.
-    if (!(Sym.getFlags() & object::BasicSymbolRef::SF_Global))
+    if (!(*SymFlagsOrErr & object::BasicSymbolRef::SF_Global))
       continue;
 
     // Skip symbols that have type SF_File.
@@ -130,11 +135,19 @@ getObjectSymbolInfo(ExecutionSession &ES, MemoryBufferRef ObjBuffer) {
     for (auto &Sec : MachOObj.sections()) {
       auto SecType = MachOObj.getSectionType(Sec);
       if ((SecType & MachO::SECTION_TYPE) == MachO::S_MOD_INIT_FUNC_POINTERS) {
-        std::string InitSymString;
-        raw_string_ostream(InitSymString)
-            << "$." << ObjBuffer.getBufferIdentifier() << ".__inits";
-        InitSymbol = ES.intern(InitSymString);
-        SymbolFlags[InitSymbol] = JITSymbolFlags();
+        size_t Counter = 0;
+        while (true) {
+          std::string InitSymString;
+          raw_string_ostream(InitSymString)
+              << "$." << ObjBuffer.getBufferIdentifier() << ".__inits."
+              << Counter++;
+          InitSymbol = ES.intern(InitSymString);
+          if (SymbolFlags.count(InitSymbol))
+            continue;
+          SymbolFlags[InitSymbol] =
+              JITSymbolFlags::MaterializationSideEffectsOnly;
+          break;
+        }
         break;
       }
     }

@@ -43,6 +43,7 @@ function(add_sycl_unittest test_dirname link_variant)
   target_include_directories(${test_dirname} PRIVATE SYSTEM
       ${sycl_inc_dir}
       ${SYCL_SOURCE_DIR}/source/
+      ${SYCL_SOURCE_DIR}/unittests/
     )
   # LLVM gtest uses LLVM utilities that require C++-14
   # CXX_STANDARD_REQUIRED makes CXX_STANDARD a hard requirement.
@@ -53,7 +54,8 @@ function(add_sycl_unittest test_dirname link_variant)
     )
 endfunction()
 
-add_subdirectory(pi)
 add_subdirectory(misc)
-add_subdirectory(thread_safety)
+add_subdirectory(pi)
+add_subdirectory(program)
 add_subdirectory(scheduler)
+add_subdirectory(thread_safety)

@@ -52,8 +52,8 @@ public:
 
   bool isAsCheapAsAMove(const MachineInstr &MI) const override;
 
-  bool isCoalescableExtInstr(const MachineInstr &MI, unsigned &SrcReg,
-                             unsigned &DstReg, unsigned &SubIdx) const override;
+  bool isCoalescableExtInstr(const MachineInstr &MI, Register &SrcReg,
+                             Register &DstReg, unsigned &SubIdx) const override;
 
   bool
   areMemAccessesTriviallyDisjoint(const MachineInstr &MIa,
@@ -113,10 +113,10 @@ public:
   /// Hint that pairing the given load or store is unprofitable.
   static void suppressLdStPair(MachineInstr &MI);
 
-  bool getMemOperandsWithOffset(
+  bool getMemOperandsWithOffsetWidth(
       const MachineInstr &MI, SmallVectorImpl<const MachineOperand *> &BaseOps,
-      int64_t &Offset, bool &OffsetIsScalable, const TargetRegisterInfo *TRI)
-      const override;
+      int64_t &Offset, bool &OffsetIsScalable, unsigned &Width,
+      const TargetRegisterInfo *TRI) const override;
 
   /// If \p OffsetIsScalable is set to 'true', the offset is scaled by `vscale`.
   /// This is true for some SVE instructions like ldr/str that have a
@@ -140,7 +140,7 @@ public:
 
   bool shouldClusterMemOps(ArrayRef<const MachineOperand *> BaseOps1,
                            ArrayRef<const MachineOperand *> BaseOps2,
-                           unsigned NumLoads) const override;
+                           unsigned NumLoads, unsigned NumBytes) const override;
 
   void copyPhysRegTuple(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
                         const DebugLoc &DL, MCRegister DestReg,
@@ -197,12 +197,12 @@ public:
   bool
   reverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const override;
   bool canInsertSelect(const MachineBasicBlock &, ArrayRef<MachineOperand> Cond,
-                       unsigned, unsigned, unsigned, int &, int &,
+                       Register, Register, Register, int &, int &,
                        int &) const override;
   void insertSelect(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
-                    const DebugLoc &DL, unsigned DstReg,
-                    ArrayRef<MachineOperand> Cond, unsigned TrueReg,
-                    unsigned FalseReg) const override;
+                    const DebugLoc &DL, Register DstReg,
+                    ArrayRef<MachineOperand> Cond, Register TrueReg,
+                    Register FalseReg) const override;
   void getNoop(MCInst &NopInst) const override;
 
   bool isSchedulingBoundary(const MachineInstr &MI,
@@ -212,13 +212,13 @@ public:
   /// analyzeCompare - For a comparison instruction, return the source registers
   /// in SrcReg and SrcReg2, and the value it compares against in CmpValue.
   /// Return true if the comparison instruction can be analyzed.
-  bool analyzeCompare(const MachineInstr &MI, unsigned &SrcReg,
-                      unsigned &SrcReg2, int &CmpMask,
+  bool analyzeCompare(const MachineInstr &MI, Register &SrcReg,
+                      Register &SrcReg2, int &CmpMask,
                       int &CmpValue) const override;
   /// optimizeCompareInstr - Convert the instruction supplying the argument to
   /// the comparison into one that sets the zero bit in the flags register.
-  bool optimizeCompareInstr(MachineInstr &CmpInstr, unsigned SrcReg,
-                            unsigned SrcReg2, int CmpMask, int CmpValue,
+  bool optimizeCompareInstr(MachineInstr &CmpInstr, Register SrcReg,
+                            Register SrcReg2, int CmpMask, int CmpValue,
                             const MachineRegisterInfo *MRI) const override;
   bool optimizeCondBranch(MachineInstr &MI) const override;
 
@@ -316,6 +316,12 @@ private:
   unsigned findRegisterToSaveLRTo(const outliner::Candidate &C) const;
 };
 
+/// Return true if there is an instruction /after/ \p DefMI and before \p UseMI
+/// which either reads or clobbers NZCV.
+bool isNZCVTouchedInInstructionRange(const MachineInstr &DefMI,
+                                     const MachineInstr &UseMI,
+                                     const TargetRegisterInfo *TRI);
+
 /// emitFrameOffset - Emit instructions as needed to set DestReg to SrcReg
 /// plus Offset.  This is intended to be used from within the prolog/epilog
 /// insertion (PEI) pass, where a virtual scratch register may be allocated
@@ -380,8 +386,19 @@ static inline bool isCondBranchOpcode(int Opc) {
 }
 
 static inline bool isIndirectBranchOpcode(int Opc) {
-  return Opc == AArch64::BR;
+  switch (Opc) {
+  case AArch64::BR:
+  case AArch64::BRAA:
+  case AArch64::BRAB:
+  case AArch64::BRAAZ:
+  case AArch64::BRABZ:
+    return true;
+  }
+  return false;
 }
+
+/// Return opcode to be used for indirect calls.
+unsigned getBLRCallOpcode(const MachineFunction &MF);
 
 // struct TSFlags {
 #define TSFLAG_ELEMENT_SIZE_TYPE(X)      (X)       // 3-bits

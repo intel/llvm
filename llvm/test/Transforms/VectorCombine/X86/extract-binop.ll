@@ -418,9 +418,9 @@ define float @ext14_ext15_fmul_v16f32(<16 x float> %x) {
 
 define <4 x float> @ins_bo_ext_ext(<4 x float> %a, <4 x float> %b) {
 ; CHECK-LABEL: @ins_bo_ext_ext(
-; CHECK-NEXT:    [[TMP1:%.*]] = shufflevector <4 x float> [[A:%.*]], <4 x float> undef, <4 x i32> <i32 undef, i32 undef, i32 3, i32 undef>
-; CHECK-NEXT:    [[TMP2:%.*]] = fadd <4 x float> [[A]], [[TMP1]]
-; CHECK-NEXT:    [[TMP3:%.*]] = extractelement <4 x float> [[TMP2]], i32 2
+; CHECK-NEXT:    [[TMP1:%.*]] = shufflevector <4 x float> [[A:%.*]], <4 x float> undef, <4 x i32> <i32 undef, i32 undef, i32 undef, i32 2>
+; CHECK-NEXT:    [[TMP2:%.*]] = fadd <4 x float> [[TMP1]], [[A]]
+; CHECK-NEXT:    [[TMP3:%.*]] = extractelement <4 x float> [[TMP2]], i64 3
 ; CHECK-NEXT:    [[V3:%.*]] = insertelement <4 x float> [[B:%.*]], float [[TMP3]], i32 3
 ; CHECK-NEXT:    ret <4 x float> [[V3]]
 ;
@@ -430,6 +430,9 @@ define <4 x float> @ins_bo_ext_ext(<4 x float> %a, <4 x float> %b) {
   %v3 = insertelement <4 x float> %b, float %a23, i32 3
   ret <4 x float> %v3
 }
+
+; TODO: This is conservatively left to extract from the lower index value,
+;       but it is likely that extracting from index 3 is the better option.
 
 define <4 x float> @ins_bo_ext_ext_uses(<4 x float> %a, <4 x float> %b) {
 ; CHECK-LABEL: @ins_bo_ext_ext_uses(
@@ -452,13 +455,13 @@ define <4 x float> @PR34724(<4 x float> %a, <4 x float> %b) {
 ; CHECK-LABEL: @PR34724(
 ; CHECK-NEXT:    [[TMP1:%.*]] = shufflevector <4 x float> [[A:%.*]], <4 x float> undef, <4 x i32> <i32 undef, i32 undef, i32 3, i32 undef>
 ; CHECK-NEXT:    [[TMP2:%.*]] = shufflevector <4 x float> [[B:%.*]], <4 x float> undef, <4 x i32> <i32 1, i32 undef, i32 undef, i32 undef>
-; CHECK-NEXT:    [[TMP3:%.*]] = shufflevector <4 x float> [[B]], <4 x float> undef, <4 x i32> <i32 undef, i32 undef, i32 3, i32 undef>
+; CHECK-NEXT:    [[TMP3:%.*]] = shufflevector <4 x float> [[B]], <4 x float> undef, <4 x i32> <i32 undef, i32 undef, i32 undef, i32 2>
 ; CHECK-NEXT:    [[TMP4:%.*]] = fadd <4 x float> [[A]], [[TMP1]]
 ; CHECK-NEXT:    [[TMP5:%.*]] = extractelement <4 x float> [[TMP4]], i32 2
 ; CHECK-NEXT:    [[TMP6:%.*]] = fadd <4 x float> [[B]], [[TMP2]]
 ; CHECK-NEXT:    [[TMP7:%.*]] = extractelement <4 x float> [[TMP6]], i32 0
-; CHECK-NEXT:    [[TMP8:%.*]] = fadd <4 x float> [[B]], [[TMP3]]
-; CHECK-NEXT:    [[TMP9:%.*]] = extractelement <4 x float> [[TMP8]], i32 2
+; CHECK-NEXT:    [[TMP8:%.*]] = fadd <4 x float> [[TMP3]], [[B]]
+; CHECK-NEXT:    [[TMP9:%.*]] = extractelement <4 x float> [[TMP8]], i64 3
 ; CHECK-NEXT:    [[V1:%.*]] = insertelement <4 x float> undef, float [[TMP5]], i32 1
 ; CHECK-NEXT:    [[V2:%.*]] = insertelement <4 x float> [[V1]], float [[TMP7]], i32 2
 ; CHECK-NEXT:    [[V3:%.*]] = insertelement <4 x float> [[V2]], float [[TMP9]], i32 3
@@ -482,4 +485,91 @@ define <4 x float> @PR34724(<4 x float> %a, <4 x float> %b) {
   %v2 = insertelement <4 x float> %v1, float %b01, i32 2
   %v3 = insertelement <4 x float> %v2, float %b23, i32 3
   ret <4 x float> %v3
+}
+
+define i32 @ext_ext_or_reduction_v4i32(<4 x i32> %x, <4 x i32> %y) {
+; CHECK-LABEL: @ext_ext_or_reduction_v4i32(
+; CHECK-NEXT:    [[Z:%.*]] = and <4 x i32> [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[TMP1:%.*]] = shufflevector <4 x i32> [[Z]], <4 x i32> undef, <4 x i32> <i32 1, i32 undef, i32 undef, i32 undef>
+; CHECK-NEXT:    [[TMP2:%.*]] = or <4 x i32> [[Z]], [[TMP1]]
+; CHECK-NEXT:    [[TMP3:%.*]] = shufflevector <4 x i32> [[Z]], <4 x i32> undef, <4 x i32> <i32 2, i32 undef, i32 undef, i32 undef>
+; CHECK-NEXT:    [[TMP4:%.*]] = or <4 x i32> [[TMP2]], [[TMP3]]
+; CHECK-NEXT:    [[TMP5:%.*]] = shufflevector <4 x i32> [[Z]], <4 x i32> undef, <4 x i32> <i32 3, i32 undef, i32 undef, i32 undef>
+; CHECK-NEXT:    [[TMP6:%.*]] = or <4 x i32> [[TMP5]], [[TMP4]]
+; CHECK-NEXT:    [[TMP7:%.*]] = extractelement <4 x i32> [[TMP6]], i64 0
+; CHECK-NEXT:    ret i32 [[TMP7]]
+;
+  %z = and <4 x i32> %x, %y
+  %z0 = extractelement <4 x i32> %z, i32 0
+  %z1 = extractelement <4 x i32> %z, i32 1
+  %z01 = or i32 %z0, %z1
+  %z2 = extractelement <4 x i32> %z, i32 2
+  %z012 = or i32 %z01, %z2
+  %z3 = extractelement <4 x i32> %z, i32 3
+  %z0123 = or i32 %z3, %z012
+  ret i32 %z0123
+}
+
+define i32 @ext_ext_partial_add_reduction_v4i32(<4 x i32> %x) {
+; CHECK-LABEL: @ext_ext_partial_add_reduction_v4i32(
+; CHECK-NEXT:    [[TMP1:%.*]] = shufflevector <4 x i32> [[X:%.*]], <4 x i32> undef, <4 x i32> <i32 1, i32 undef, i32 undef, i32 undef>
+; CHECK-NEXT:    [[TMP2:%.*]] = add <4 x i32> [[TMP1]], [[X]]
+; CHECK-NEXT:    [[TMP3:%.*]] = shufflevector <4 x i32> [[X]], <4 x i32> undef, <4 x i32> <i32 2, i32 undef, i32 undef, i32 undef>
+; CHECK-NEXT:    [[TMP4:%.*]] = add <4 x i32> [[TMP3]], [[TMP2]]
+; CHECK-NEXT:    [[TMP5:%.*]] = extractelement <4 x i32> [[TMP4]], i64 0
+; CHECK-NEXT:    ret i32 [[TMP5]]
+;
+  %x0 = extractelement <4 x i32> %x, i32 0
+  %x1 = extractelement <4 x i32> %x, i32 1
+  %x10 = add i32 %x1, %x0
+  %x2 = extractelement <4 x i32> %x, i32 2
+  %x210 = add i32 %x2, %x10
+  ret i32 %x210
+}
+
+define i32 @ext_ext_partial_add_reduction_and_extra_add_v4i32(<4 x i32> %x, <4 x i32> %y) {
+; CHECK-LABEL: @ext_ext_partial_add_reduction_and_extra_add_v4i32(
+; CHECK-NEXT:    [[TMP1:%.*]] = shufflevector <4 x i32> [[Y:%.*]], <4 x i32> undef, <4 x i32> <i32 1, i32 undef, i32 undef, i32 undef>
+; CHECK-NEXT:    [[TMP2:%.*]] = add <4 x i32> [[TMP1]], [[Y]]
+; CHECK-NEXT:    [[TMP3:%.*]] = shufflevector <4 x i32> [[Y]], <4 x i32> undef, <4 x i32> <i32 2, i32 undef, i32 undef, i32 undef>
+; CHECK-NEXT:    [[TMP4:%.*]] = add <4 x i32> [[TMP3]], [[TMP2]]
+; CHECK-NEXT:    [[TMP5:%.*]] = shufflevector <4 x i32> [[X:%.*]], <4 x i32> undef, <4 x i32> <i32 2, i32 undef, i32 undef, i32 undef>
+; CHECK-NEXT:    [[TMP6:%.*]] = add <4 x i32> [[TMP5]], [[TMP4]]
+; CHECK-NEXT:    [[TMP7:%.*]] = extractelement <4 x i32> [[TMP6]], i64 0
+; CHECK-NEXT:    ret i32 [[TMP7]]
+;
+  %y0 = extractelement <4 x i32> %y, i32 0
+  %y1 = extractelement <4 x i32> %y, i32 1
+  %y10 = add i32 %y1, %y0
+  %y2 = extractelement <4 x i32> %y, i32 2
+  %y210 = add i32 %y2, %y10
+  %x2 = extractelement <4 x i32> %x, i32 2
+  %x2y210 = add i32 %x2, %y210
+  ret i32 %x2y210
+}
+
+define i32 @constant_fold_crash(<4 x i32> %x) {
+; CHECK-LABEL: @constant_fold_crash(
+; CHECK-NEXT:    [[A:%.*]] = extractelement <4 x i32> <i32 16, i32 17, i32 18, i32 19>, i32 1
+; CHECK-NEXT:    [[B:%.*]] = extractelement <4 x i32> [[X:%.*]], i32 0
+; CHECK-NEXT:    [[C:%.*]] = add i32 [[A]], [[B]]
+; CHECK-NEXT:    ret i32 [[C]]
+;
+  %a = extractelement <4 x i32> <i32 16, i32 17, i32 18, i32 19>, i32 1
+  %b = extractelement <4 x i32> %x, i32 0
+  %c = add i32 %a, %b
+  ret i32 %c
+}
+
+define float @constant_fold_crash_commute(<4 x float> %x) {
+; CHECK-LABEL: @constant_fold_crash_commute(
+; CHECK-NEXT:    [[A:%.*]] = extractelement <4 x float> <float 1.600000e+01, float 1.700000e+01, float 1.800000e+01, float 1.900000e+01>, i32 3
+; CHECK-NEXT:    [[B:%.*]] = extractelement <4 x float> [[X:%.*]], i32 1
+; CHECK-NEXT:    [[C:%.*]] = fadd float [[B]], [[A]]
+; CHECK-NEXT:    ret float [[C]]
+;
+  %a = extractelement <4 x float> <float 16.0, float 17.0, float 18.0, float 19.0>, i32 3
+  %b = extractelement <4 x float> %x, i32 1
+  %c = fadd float %b, %a
+  ret float %c
 }

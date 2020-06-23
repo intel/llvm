@@ -297,10 +297,14 @@ class DialectType<Dialect d, Pred condition, string descr = ""> :
 }
 
 // A variadic type constraint. It expands to zero or more of the base type. This
-// class is used for supporting variadic operands/results. An op can declare no
-// more than one variadic operand/result, and that operand/result must be the
-// last one in the operand/result list.
+// class is used for supporting variadic operands/results.
 class Variadic<Type type> : TypeConstraint<type.predicate, type.description> {
+  Type baseType = type;
+}
+
+// An optional type constraint. It expands to either zero or one of the base
+// type. This class is used for supporting optional operands/results.
+class Optional<Type type> : TypeConstraint<type.predicate, type.description> {
   Type baseType = type;
 }
 
@@ -319,7 +323,8 @@ class BuildableType<code builder> {
 def AnyType : Type<CPred<"true">, "any type">;
 
 // None type
-def NoneType : Type<CPred<"$_self.isa<NoneType>()">, "none type">;
+def NoneType : Type<CPred<"$_self.isa<NoneType>()">, "none type">,
+      BuildableType<"$_builder.getType<NoneType>()">;
 
 // Any type from the given list
 class AnyTypeOf<list<Type> allowedTypes, string description = ""> : Type<
@@ -577,6 +582,7 @@ def I8Tensor   : TensorOf<[I8]>;
 def I16Tensor  : TensorOf<[I16]>;
 def I32Tensor  : TensorOf<[I32]>;
 def I64Tensor  : TensorOf<[I64]>;
+def IndexTensor: TensorOf<[Index]>;
 
 def BF16Tensor : TensorOf<[BF16]>;
 def F16Tensor  : TensorOf<[F16]>;
@@ -713,7 +719,6 @@ def SignlessIntegerOrFloatLike : TypeConstraint<Or<[
     SignlessIntegerLike.predicate, FloatLike.predicate]>,
     "signless-integer-like or floating-point-like">;
 
-
 //===----------------------------------------------------------------------===//
 // Attribute definitions
 //===----------------------------------------------------------------------===//
@@ -835,7 +840,18 @@ def AnyAttr : Attr<CPred<"true">, "any attribute"> {
 def BoolAttr : Attr<CPred<"$_self.isa<BoolAttr>()">, "bool attribute"> {
   let storageType = [{ BoolAttr }];
   let returnType = [{ bool }];
+  let valueType = I1;
   let constBuilderCall = "$_builder.getBoolAttr($0)";
+}
+
+// Index attribute.
+def IndexAttr :
+    TypedAttrBase<
+      Index, "IntegerAttr",
+      And<[CPred<"$_self.isa<IntegerAttr>()">,
+           CPred<"$_self.cast<IntegerAttr>().getType().isa<IndexType>()">]>,
+      "index attribute"> {
+  let returnType = [{ APInt }];
 }
 
 // Base class for any integer (regardless of signedness semantics) attributes
@@ -942,10 +958,17 @@ class StringBasedAttr<Pred condition, string descr> : Attr<condition, descr> {
   let constBuilderCall = "$_builder.getStringAttr(\"$0\")";
   let storageType = [{ StringAttr }];
   let returnType = [{ StringRef }];
+  let valueType = NoneType;
 }
 
 def StrAttr : StringBasedAttr<CPred<"$_self.isa<StringAttr>()">,
                               "string attribute">;
+
+// String attribute that has a specific value type.
+class TypedStrAttr<Type ty> : StringBasedAttr<CPred<"$_self.isa<StringAttr>()">,
+                                                    "string attribute"> {
+  let valueType = ty;
+}
 
 // Base class for attributes containing types. Example:
 //   def IntTypeAttr : TypeAttrBase<"IntegerType", "integer type attribute">
@@ -957,6 +980,7 @@ class TypeAttrBase<string retType, string description> :
     description> {
   let storageType = [{ TypeAttr }];
   let returnType = retType;
+  let valueType = NoneType;
   let convertFromStorage = "$_self.getValue().cast<" # retType # ">()";
 }
 
@@ -970,6 +994,7 @@ def UnitAttr : Attr<CPred<"$_self.isa<UnitAttr>()">, "unit attribute"> {
   let constBuilderCall = "$_builder.getUnitAttr()";
   let convertFromStorage = "$_self != nullptr";
   let returnType = "bool";
+  let valueType = NoneType;
   let isOptional = 1;
 }
 
@@ -1162,14 +1187,16 @@ class BitEnumAttr<string name, string description,
 //===----------------------------------------------------------------------===//
 // Composite attribute kinds
 
-class DictionaryAttrBase : Attr<CPred<"$_self.isa<DictionaryAttr>()">,
-                          "dictionary of named attribute values"> {
+class DictionaryAttrBase<Pred condition, string description> :
+    Attr<condition, description> {
   let storageType = [{ DictionaryAttr }];
   let returnType = [{ DictionaryAttr }];
+  let valueType = NoneType;
   let convertFromStorage = "$_self";
 }
 
-def DictionaryAttr : DictionaryAttrBase;
+def DictionaryAttr : DictionaryAttrBase<CPred<"$_self.isa<DictionaryAttr>()">,
+                                        "dictionary of named attribute values">;
 
 class ElementsAttrBase<Pred condition, string description> :
     Attr<condition, description> {
@@ -1190,6 +1217,13 @@ class IntElementsAttrBase<Pred condition, string description> :
 
   let convertFromStorage = "$_self";
 }
+
+def IndexElementsAttr
+    : IntElementsAttrBase<CPred<[{$_self.cast<DenseIntElementsAttr>()
+                                      .getType()
+                                      .getElementType()
+                                      .isIndex()}]>,
+                          "index elements attribute">;
 
 class AnyIntElementsAttr<int width> : IntElementsAttrBase<
   CPred<"$_self.cast<DenseIntElementsAttr>().getType()."
@@ -1280,11 +1314,22 @@ class RankedFloatElementsAttr<int width, list<int> dims> : ElementsAttrBase<
 class RankedF32ElementsAttr<list<int> dims> : RankedFloatElementsAttr<32, dims>;
 class RankedF64ElementsAttr<list<int> dims> : RankedFloatElementsAttr<64, dims>;
 
+def StringElementsAttr : ElementsAttrBase<
+  CPred<"$_self.isa<DenseStringElementsAttr>()" >,
+  "string elements attribute"> {
+
+  let storageType = [{ DenseElementsAttr }];
+  let returnType = [{ DenseElementsAttr }];
+
+  let convertFromStorage = "$_self";
+}
+
 // Base class for array attributes.
 class ArrayAttrBase<Pred condition, string description> :
     Attr<condition, description> {
   let storageType = [{ ArrayAttr }];
   let returnType = [{ ArrayAttr }];
+  let valueType = NoneType;
   let convertFromStorage = "$_self";
 }
 
@@ -1308,6 +1353,10 @@ class TypedArrayAttrBase<Attr element, string description>: ArrayAttrBase<
   Attr elementAttr = element;
 }
 
+def BoolArrayAttr : TypedArrayAttrBase<BoolAttr,
+                                      "1-bit boolean array attribute"> {
+  let constBuilderCall = "$_builder.getBoolArrayAttr($0)";
+}
 def I32ArrayAttr : TypedArrayAttrBase<I32Attr,
                                       "32-bit integer array attribute"> {
   let constBuilderCall = "$_builder.getI32ArrayAttr($0)";
@@ -1342,7 +1391,11 @@ class StructFieldAttr<string thisName, Attr thisType> {
 // validation method and set of accessors for a fixed set of fields. This is
 // useful when representing data that would normally be in a structure.
 class StructAttr<string name, Dialect dialect,
-                 list<StructFieldAttr> attributes> : DictionaryAttrBase {
+                 list<StructFieldAttr> attributes> :
+    DictionaryAttrBase<CPred<"$_self.isa<" # name # ">()">,
+        "DictionaryAttr with field(s): " #
+        StrJoin<!foreach(a, attributes, "'" # a.name # "'"), ", ">.result #
+        " (each field having its own constraints)"> {
   // Name for this StructAttr.
   string className = name;
 
@@ -1364,6 +1417,7 @@ def SymbolRefAttr : Attr<CPred<"$_self.isa<SymbolRefAttr>()">,
                         "symbol reference attribute"> {
   let storageType = [{ SymbolRefAttr }];
   let returnType = [{ SymbolRefAttr }];
+  let valueType = NoneType;
   let constBuilderCall = "$_builder.getSymbolRefAttr($0)";
   let convertFromStorage = "$_self";
 }
@@ -1371,6 +1425,7 @@ def FlatSymbolRefAttr : Attr<CPred<"$_self.isa<FlatSymbolRefAttr>()">,
                                    "flat symbol reference attribute"> {
   let storageType = [{ FlatSymbolRefAttr }];
   let returnType = [{ StringRef }];
+  let valueType = NoneType;
   let constBuilderCall = "$_builder.getSymbolRefAttr($0)";
   let convertFromStorage = "$_self.getValue()";
 }
@@ -1389,13 +1444,29 @@ def SymbolRefArrayAttr :
 // Note: All derived attributes should be materializable as an Attribute. E.g.,
 // do not use DerivedAttr for things that could not have been stored as
 // Attribute.
-class DerivedAttr<code ret, code b> : Attr<CPred<"true">, "derived attribute"> {
+//
+class DerivedAttr<code ret, code b, code convert = ""> :
+    Attr<CPred<"true">, "derived attribute"> {
   let returnType = ret;
   code body = b;
+
+  // Specify how to convert from the derived attribute to an attribute.
+  //
+  // ## Special placeholders
+  //
+  // Special placeholders can be used to refer to entities during conversion:
+  //
+  // * `$_builder` will be replaced by a mlir::Builder instance.
+  // * `$_ctx` will be replaced by the MLIRContext* instance.
+  // * `$_self` will be replaced with the derived attribute (value produces
+  //    `returnType`).
+  let convertFromStorage = convert;
 }
 
 // Derived attribute that returns a mlir::Type.
-class DerivedTypeAttr<code body> : DerivedAttr<"Type", body>;
+class DerivedTypeAttr<code body> : DerivedAttr<"Type", body> {
+  let convertFromStorage = "TypeAttr::get($_self)";
+}
 
 //===----------------------------------------------------------------------===//
 // Constant attribute kinds
@@ -1518,6 +1589,10 @@ class SizedRegion<int numBlocks> : Region<
   CPred<"$_self.getBlocks().size() == " # numBlocks>,
   "region with " # numBlocks # " blocks">;
 
+// A variadic region constraint. It expands to zero or more of the base region.
+class VariadicRegion<Region region>
+  : Region<region.predicate, region.description>;
+
 //===----------------------------------------------------------------------===//
 // Successor definitions
 //===----------------------------------------------------------------------===//
@@ -1568,11 +1643,13 @@ class PredOpTrait<string descr, Pred pred> : OpTrait {
   Pred predicate = pred;
 }
 
+// Op defines an affine scope.
+def AffineScope : NativeOpTrait<"AffineScope">;
+// Op defines an automatic allocation scope.
+def AutomaticAllocationScope : NativeOpTrait<"AutomaticAllocationScope">;
 // Op supports operand broadcast behavior.
 def ResultsBroadcastableShape :
   NativeOpTrait<"ResultsBroadcastableShape">;
-// TODO: Alias of the above, remove post integrate.
-def Broadcastable : NativeOpTrait<"ResultsBroadcastableShape">;
 // X op Y == Y op X
 def Commutative  : NativeOpTrait<"IsCommutative">;
 // Op behaves like a constant.
@@ -1596,10 +1673,6 @@ def SameOperandsElementType : NativeOpTrait<"SameOperandsElementType">;
 // Op has the same operand and result element type (or type itself, if scalar).
 def SameOperandsAndResultElementType :
   NativeOpTrait<"SameOperandsAndResultElementType">;
-// Op is a symbol.
-def Symbol : NativeOpTrait<"Symbol">;
-// Op defines a symbol table.
-def SymbolTable : NativeOpTrait<"SymbolTable">;
 // Op is a terminator.
 def Terminator : NativeOpTrait<"IsTerminator">;
 
@@ -1610,6 +1683,9 @@ class SingleBlockImplicitTerminator<string op>
 // Op's parent operation is the provided one.
 class HasParent<string op>
     : ParamNativeOpTrait<"HasParent", op>;
+
+class ParentOneOf<list<string> ops>
+    : ParamNativeOpTrait<"HasParent", StrJoin<ops>.result>;
 
 // Op result type is derived from the first attribute. If the attribute is an
 // subclass of `TypeAttrBase`, its value is used, otherwise, the type of the
@@ -1659,6 +1735,10 @@ class OpInterfaceTrait<string name, code verifyBody = [{}]> : NativeOpTrait<""> 
   // Specify the body of the verification function. `$_op` will be replaced with
   // the operation being verified.
   code verify = verifyBody;
+
+  // An optional code block containing extra declarations to place in the
+  // interface trait declaration.
+  code extraTraitClassDeclaration = "";
 }
 
 // This class represents a single, optionally static, interface method.
@@ -1711,12 +1791,20 @@ class OpInterface<string name> : OpInterfaceTrait<name> {
 
 // Whether to declare the op interface methods in the op's header. This class
 // simply wraps an OpInterface but is used to indicate that the method
-// declarations should be generated.
-class DeclareOpInterfaceMethods<OpInterface interface> :
-  OpInterface<interface.cppClassName> {
+// declarations should be generated. This class takes an optional set of methods
+// that should have declarations generated even if the method has a default
+// implementation.
+class DeclareOpInterfaceMethods<OpInterface interface,
+                                list<string> overridenMethods = []>
+      : OpInterface<interface.cppClassName> {
     let description = interface.description;
     let cppClassName = interface.cppClassName;
     let methods = interface.methods;
+
+    // This field contains a set of method names that should always have their
+    // declarations generated. This allows for generating declarations for
+    // methods with default implementations that need to be overridden.
+    list<string> alwaysOverriddenMethods = overridenMethods;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1741,7 +1829,7 @@ def successor;
 // The signature of the builder is always
 //
 // ```c++
-// static void build(Builder *builder, OperationState &state,
+// static void build(OpBuilder &builder, OperationState &state,
 //                   <other-parameters>...) {
 //   <body>...
 // }
@@ -1821,7 +1909,7 @@ class Op<Dialect dialect, string mnemonic, list<OpTrait> props = []> {
   // following signatures:
   //
   // ```c++
-  // static void build(Builder *, OperationState &odsState,
+  // static void build(OpBuilder &, OperationState &odsState,
   //                   Type <result0-name>, Type <result1-name>, ...,
   //                   Value <arg0-name>, Value <arg1-name>, ...,
   //                   Attribute <attr0-name>, Attribute <attr1-name>, ...);
@@ -1829,7 +1917,7 @@ class Op<Dialect dialect, string mnemonic, list<OpTrait> props = []> {
   // * where the attributes follow the same declaration order as in the op.
   //
   // ```c++
-  // static void build(Builder *, OperationState &odsState,
+  // static void build(OpBuilder &, OperationState &odsState,
   //                   ArrayRef<Type> resultTypes,
   //                   ArrayRef<Value> operands,
   //                   ArrayRef<NamedAttribute> attributes);
@@ -1985,7 +2073,7 @@ class ElementTypeIs<string name, Type type> : PredOpTrait<
 // Type Constraint operand `i`'s Element type is Same As operand `j`'s Element
 // type.
 class TCopVTEtIsSameAs<int i, int j> : And<[
-    CPred<"$_op.getNumOperands() > std::max(" # i # "u," # j # "u)">,
+    CPred<"$_op.getNumOperands() > " # !if(!gt(i,j),i,j)>,
     SubstLeaves<"$_self", "$_op.getOperand(" # i # ").getType()",
       IsShapedTypePred>,
     SubstLeaves<"$_self", "$_op.getOperand(" # j # ").getType()",
@@ -2039,9 +2127,10 @@ class TCOpIsBroadcastableToRes<int opId, int resId> : And<[
 // 1) all operands involved are of shaped type and
 // 2) the indices are not out of range.
 class TCopVTEtAreSameAt<list<int> indices> : CPred<
-  "llvm::is_splat(mlir::functional::map("
-    "[this](unsigned i) { return getElementTypeOrSelf(this->getOperand(i)); }, "
-    "llvm::ArrayRef<unsigned>({" # StrJoinInt<indices>.result # "})))">;
+  "llvm::is_splat(llvm::map_range("
+    "llvm::ArrayRef<unsigned>({" # StrJoinInt<indices>.result # "}), "
+    "[this](unsigned i) { return getElementTypeOrSelf(this->getOperand(i)); "
+    "}))">;
 
 //===----------------------------------------------------------------------===//
 // Pattern definitions
@@ -2160,8 +2249,13 @@ class NativeCodeCall<string expr> {
 }
 
 //===----------------------------------------------------------------------===//
-// Common directives
+// Rewrite directives
 //===----------------------------------------------------------------------===//
+
+// Directive used in result pattern to specify the location of the generated
+// op. This directive must be used as the last argument to the op creation
+// DAG construct. The arguments to location must be previously captured symbol.
+def location;
 
 // Directive used in result pattern to indicate that no new op are generated,
 // so to replace the matched DAG with an existing SSA value.

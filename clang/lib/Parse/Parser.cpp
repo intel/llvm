@@ -433,16 +433,7 @@ Parser::~Parser() {
 
   PP.clearCodeCompletionHandler();
 
-  if (getLangOpts().DelayedTemplateParsing &&
-      !PP.isIncrementalProcessingEnabled() && !TemplateIds.empty()) {
-    // If an ASTConsumer parsed delay-parsed templates in their
-    // HandleTranslationUnit() method, TemplateIds created there were not
-    // guarded by a DestroyTemplateIdAnnotationsRAIIObj object in
-    // ParseTopLevelDecl(). Destroy them here.
-    DestroyTemplateIdAnnotationsRAIIObj CleanupRAII(TemplateIds);
-  }
-
-  assert(TemplateIds.empty() && "Still alive TemplateIdAnnotations around?");
+  DestroyTemplateIds();
 }
 
 /// Initialize - Warm up the parser.
@@ -538,11 +529,10 @@ void Parser::Initialize() {
   ConsumeToken();
 }
 
-void Parser::LateTemplateParserCleanupCallback(void *P) {
-  // While this RAII helper doesn't bracket any actual work, the destructor will
-  // clean up annotations that were created during ActOnEndOfTranslationUnit
-  // when incremental processing is enabled.
-  DestroyTemplateIdAnnotationsRAIIObj CleanupRAII(((Parser *)P)->TemplateIds);
+void Parser::DestroyTemplateIds() {
+  for (TemplateIdAnnotation *Id : TemplateIds)
+    Id->Destroy();
+  TemplateIds.clear();
 }
 
 /// Parse the first top-level declaration in a translation unit.
@@ -577,7 +567,7 @@ bool Parser::ParseFirstTopLevelDecl(DeclGroupPtrTy &Result) {
 ///           declaration
 /// [C++20]   module-import-declaration
 bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result, bool IsFirstDecl) {
-  DestroyTemplateIdAnnotationsRAIIObj CleanupRAII(TemplateIds);
+  DestroyTemplateIdAnnotationsRAIIObj CleanupRAII(*this);
 
   // Skip over the EOF token, flagging end of previous input for incremental
   // processing
@@ -662,11 +652,7 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result, bool IsFirstDecl) {
     }
 
     // Late template parsing can begin.
-    if (getLangOpts().DelayedTemplateParsing)
-      Actions.SetLateTemplateParser(LateTemplateParserCallback,
-                                    PP.isIncrementalProcessingEnabled() ?
-                                    LateTemplateParserCleanupCallback : nullptr,
-                                    this);
+    Actions.SetLateTemplateParser(LateTemplateParserCallback, nullptr, this);
     if (!PP.isIncrementalProcessingEnabled())
       Actions.ActOnEndOfTranslationUnit();
     //else don't tell Sema that we ended parsing: more input might come.
@@ -727,7 +713,7 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result, bool IsFirstDecl) {
 Parser::DeclGroupPtrTy
 Parser::ParseExternalDeclaration(ParsedAttributesWithRange &attrs,
                                  ParsingDeclSpec *DS) {
-  DestroyTemplateIdAnnotationsRAIIObj CleanupRAII(TemplateIds);
+  DestroyTemplateIdAnnotationsRAIIObj CleanupRAII(*this);
   ParenBraceBracketBalancer BalancerRAIIObj(*this);
 
   if (PP.isCodeCompletionReached()) {
@@ -763,6 +749,9 @@ Parser::ParseExternalDeclaration(ParsedAttributesWithRange &attrs,
     return nullptr;
   case tok::annot_pragma_fenv_access:
     HandlePragmaFEnvAccess();
+    return nullptr;
+  case tok::annot_pragma_float_control:
+    HandlePragmaFloatControl();
     return nullptr;
   case tok::annot_pragma_fp:
     HandlePragmaFP();
@@ -1703,7 +1692,8 @@ Parser::TryAnnotateName(CorrectionCandidateCallback *CCC) {
   }
 
   case Sema::NC_ContextIndependentExpr:
-    Tok.setKind(tok::annot_primary_expr);
+    Tok.setKind(Actions.isUnevaluatedContext() ? tok::annot_uneval_primary_expr
+                                               : tok::annot_primary_expr);
     setExprAnnotation(Tok, Classification.getExpression());
     Tok.setAnnotationEndLoc(NameLoc);
     if (SS.isNotEmpty())
@@ -1878,9 +1868,7 @@ bool Parser::TryAnnotateTypeOrScopeToken() {
                                      Tok.getLocation());
     } else if (Tok.is(tok::annot_template_id)) {
       TemplateIdAnnotation *TemplateId = takeTemplateIdAnnotation(Tok);
-      if (TemplateId->Kind != TNK_Type_template &&
-          TemplateId->Kind != TNK_Dependent_template_name &&
-          TemplateId->Kind != TNK_Undeclared_template) {
+      if (!TemplateId->mightBeType()) {
         Diag(Tok, diag::err_typename_refers_to_non_type_template)
           << Tok.getAnnotationRange();
         return true;
@@ -1889,14 +1877,13 @@ bool Parser::TryAnnotateTypeOrScopeToken() {
       ASTTemplateArgsPtr TemplateArgsPtr(TemplateId->getTemplateArgs(),
                                          TemplateId->NumArgs);
 
-      Ty = Actions.ActOnTypenameType(getCurScope(), TypenameLoc, SS,
-                                     TemplateId->TemplateKWLoc,
-                                     TemplateId->Template,
-                                     TemplateId->Name,
-                                     TemplateId->TemplateNameLoc,
-                                     TemplateId->LAngleLoc,
-                                     TemplateArgsPtr,
-                                     TemplateId->RAngleLoc);
+      Ty = TemplateId->isInvalid()
+               ? TypeError()
+               : Actions.ActOnTypenameType(
+                     getCurScope(), TypenameLoc, SS, TemplateId->TemplateKWLoc,
+                     TemplateId->Template, TemplateId->Name,
+                     TemplateId->TemplateNameLoc, TemplateId->LAngleLoc,
+                     TemplateArgsPtr, TemplateId->RAngleLoc);
     } else {
       Diag(Tok, diag::err_expected_type_name_after_typename)
         << SS.getRange();
@@ -1905,7 +1892,7 @@ bool Parser::TryAnnotateTypeOrScopeToken() {
 
     SourceLocation EndLoc = Tok.getLastLoc();
     Tok.setKind(tok::annot_typename);
-    setTypeAnnotation(Tok, Ty.isInvalid() ? nullptr : Ty.get());
+    setTypeAnnotation(Tok, Ty);
     Tok.setAnnotationEndLoc(EndLoc);
     Tok.setLocation(TypenameLoc);
     PP.AnnotateCachedTokens(Tok);

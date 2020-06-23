@@ -1,9 +1,9 @@
-; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=verde -verify-machineinstrs < %s | FileCheck --check-prefixes=GCN,SI,SIVI %s
-; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=gfx803 -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck --check-prefixes=GCN,VI,SIVI %s
-; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=gfx900 -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck --check-prefixes=GCN,GFX9,GFX9_10 %s
-; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=gfx900 -filetype=obj < %s | llvm-readobj -r | FileCheck --check-prefix=RELS %s
-; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=gfx1010 -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck --check-prefixes=GCN,GFX10_W32,GFX9_10 %s
-; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=gfx1010 -mattr=-flat-for-global,+wavefrontsize64 -verify-machineinstrs < %s | FileCheck --check-prefixes=GCN,GFX10_W64,GFX9_10 %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=verde -amdgpu-use-divergent-register-indexing -verify-machineinstrs < %s | FileCheck --check-prefixes=GCN,SI,SIVI %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=gfx803 -mattr=-flat-for-global -amdgpu-use-divergent-register-indexing -verify-machineinstrs < %s | FileCheck --check-prefixes=GCN,VI,SIVI %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=gfx900 -mattr=-flat-for-global -amdgpu-use-divergent-register-indexing -verify-machineinstrs < %s | FileCheck --check-prefixes=GCN,GFX9,GFX9_10 %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=gfx900 -filetype=obj -amdgpu-use-divergent-register-indexing < %s | llvm-readobj -r | FileCheck --check-prefix=RELS %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=gfx1010 -mattr=-flat-for-global -amdgpu-use-divergent-register-indexing -verify-machineinstrs < %s | FileCheck --check-prefixes=GCN,GFX10_W32,GFX9_10 %s
+; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=gfx1010 -mattr=-flat-for-global,+wavefrontsize64 -amdgpu-use-divergent-register-indexing -verify-machineinstrs < %s | FileCheck --check-prefixes=GCN,GFX10_W64,GFX9_10 %s
 
 ; RELS: R_AMDGPU_ABS32_LO SCRATCH_RSRC_DWORD0 0x0
 ; RELS: R_AMDGPU_ABS32_LO SCRATCH_RSRC_DWORD1 0x0
@@ -14,20 +14,20 @@
 ;
 ; GCN-LABEL: {{^}}ps_main:
 
-; GCN-DAG: s_mov_b32 s4, SCRATCH_RSRC_DWORD0
-; GCN-DAG: s_mov_b32 s5, SCRATCH_RSRC_DWORD1
-; GCN-DAG: s_mov_b32 s6, -1
-; SI-DAG: s_mov_b32 s7, 0xe8f000
-; VI-DAG: s_mov_b32 s7, 0xe80000
-; GFX9-DAG: s_mov_b32 s7, 0xe00000
-; GFX10_W32-DAG: s_mov_b32 s7, 0x31c16000
-; GFX10_W64-DAG: s_mov_b32 s7, 0x31e16000
+; GCN-DAG: s_mov_b32 s0, SCRATCH_RSRC_DWORD0
+; GCN-DAG: s_mov_b32 s1, SCRATCH_RSRC_DWORD1
+; GCN-DAG: s_mov_b32 s2, -1
+; SI-DAG: s_mov_b32 s3, 0xe8f000
+; VI-DAG: s_mov_b32 s3, 0xe80000
+; GFX9-DAG: s_mov_b32 s3, 0xe00000
+; GFX10_W32-DAG: s_mov_b32 s3, 0x31c16000
+; GFX10_W64-DAG: s_mov_b32 s3, 0x31e16000
 ; GCN-DAG: v_lshlrev_b32_e32 [[BYTES:v[0-9]+]], 2, v0
 ; GCN-DAG: v_and_b32_e32 [[CLAMP_IDX:v[0-9]+]], 0x1fc, [[BYTES]]
 ; GCN-NOT: s_mov_b32 s0
 
-; GCN-DAG: v_or_b32_e32 [[LO_OFF:v[0-9]+]], 0x200, [[CLAMP_IDX]]
-; GCN-DAG: v_or_b32_e32 [[HI_OFF:v[0-9]+]], 0x400, [[CLAMP_IDX]]
+; GCN-DAG: v_add{{_|_nc_}}{{i|u}}32_e32 [[HI_OFF:v[0-9]+]],{{.*}} 0x280, [[CLAMP_IDX]]
+; GCN-DAG: v_add{{_|_nc_}}{{i|u}}32_e32 [[LO_OFF:v[0-9]+]],{{.*}} {{v2|0x80}}, [[CLAMP_IDX]]
 
 ; GCN: buffer_load_dword {{v[0-9]+}}, [[LO_OFF]], {{s\[[0-9]+:[0-9]+\]}}, 0 offen
 ; GCN: buffer_load_dword {{v[0-9]+}}, [[HI_OFF]], {{s\[[0-9]+:[0-9]+\]}}, 0 offen
@@ -39,7 +39,7 @@ define amdgpu_ps float @ps_main(i32 %idx) {
 }
 
 ; GCN-LABEL: {{^}}vs_main:
-; GCN-DAG: s_mov_b32 s4, SCRATCH_RSRC_DWORD0
+; GCN-DAG: s_mov_b32 s0, SCRATCH_RSRC_DWORD0
 ; GCN-NOT: s_mov_b32 s0
 ; GCN: buffer_load_dword {{v[0-9]+}}, {{v[0-9]+}}, {{s\[[0-9]+:[0-9]+\]}}, 0 offen
 ; GCN: buffer_load_dword {{v[0-9]+}}, {{v[0-9]+}}, {{s\[[0-9]+:[0-9]+\]}}, 0 offen
@@ -51,7 +51,7 @@ define amdgpu_vs float @vs_main(i32 %idx) {
 }
 
 ; GCN-LABEL: {{^}}cs_main:
-; GCN-DAG: s_mov_b32 s4, SCRATCH_RSRC_DWORD0
+; GCN-DAG: s_mov_b32 s0, SCRATCH_RSRC_DWORD0
 ; GCN: buffer_load_dword {{v[0-9]+}}, {{v[0-9]+}}, {{s\[[0-9]+:[0-9]+\]}}, 0 offen
 ; GCN: buffer_load_dword {{v[0-9]+}}, {{v[0-9]+}}, {{s\[[0-9]+:[0-9]+\]}}, 0 offen
 define amdgpu_cs float @cs_main(i32 %idx) {
@@ -62,7 +62,7 @@ define amdgpu_cs float @cs_main(i32 %idx) {
 }
 
 ; GCN-LABEL: {{^}}hs_main:
-; SIVI: s_mov_b32 s4, SCRATCH_RSRC_DWORD0
+; SIVI: s_mov_b32 s0, SCRATCH_RSRC_DWORD0
 ; SIVI-NOT: s_mov_b32 s0
 ; SIVI: buffer_load_dword {{v[0-9]+}}, {{v[0-9]+}}, {{s\[[0-9]+:[0-9]+\]}}, 0 offen
 ; SIVI: buffer_load_dword {{v[0-9]+}}, {{v[0-9]+}}, {{s\[[0-9]+:[0-9]+\]}}, 0 offen
@@ -79,7 +79,7 @@ define amdgpu_hs float @hs_main(i32 %idx) {
 }
 
 ; GCN-LABEL: {{^}}gs_main:
-; SIVI: s_mov_b32 s4, SCRATCH_RSRC_DWORD0
+; SIVI: s_mov_b32 s0, SCRATCH_RSRC_DWORD0
 ; SIVI: buffer_load_dword {{v[0-9]+}}, {{v[0-9]+}}, {{s\[[0-9]+:[0-9]+\]}}, 0 offen
 ; SIVI: buffer_load_dword {{v[0-9]+}}, {{v[0-9]+}}, {{s\[[0-9]+:[0-9]+\]}}, 0 offen
 

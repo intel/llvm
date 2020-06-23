@@ -1,4 +1,4 @@
-// RUN: mlir-translate -mlir-to-llvmir %s | FileCheck %s
+// RUN: mlir-translate -mlir-to-llvmir -split-input-file %s | FileCheck %s
 
 // CHECK: @i32_global = internal global i32 42
 llvm.mlir.global internal @i32_global(42: i32) : !llvm.i32
@@ -927,6 +927,11 @@ llvm.func @llvm_noalias(%arg0: !llvm<"float*"> {llvm.noalias = true}) {
   llvm.return
 }
 
+// CHECK-LABEL: define void @llvm_align(float* align 4 {{%*.}})
+llvm.func @llvm_align(%arg0: !llvm<"float*"> {llvm.align = 4}) {
+  llvm.return
+}
+
 // CHECK-LABEL: @llvm_varargs(...)
 llvm.func @llvm_varargs(...)
 
@@ -1023,8 +1028,9 @@ llvm.func @vect_i64idx(%arg0: !llvm<"<4 x float>">, %arg1: !llvm.i64, %arg2: !ll
 
 // CHECK-LABEL: @alloca
 llvm.func @alloca(%size : !llvm.i64) {
-  //      CHECK: alloca
-  //  CHECK-NOT: align
+  // Alignment automatically set by the LLVM IR builder when alignment attribute
+  // is 0.
+  //  CHECK: alloca {{.*}} align 4
   llvm.alloca %size x !llvm.i32 {alignment = 0} : (!llvm.i64) -> (!llvm<"i32*">)
   // CHECK-NEXT: alloca {{.*}} align 8
   llvm.alloca %size x !llvm.i32 {alignment = 8} : (!llvm.i64) -> (!llvm<"i32*">)
@@ -1201,3 +1207,26 @@ llvm.func @callFenceInst() {
   llvm.fence syncscope("") release
   llvm.return
 }
+
+// CHECK-LABEL: @passthrough
+// CHECK: #[[ATTR_GROUP:[0-9]*]]
+llvm.func @passthrough() attributes {passthrough = ["noinline", ["alignstack", "4"], "null_pointer_is_valid", ["foo", "bar"]]} {
+  llvm.return
+}
+
+// CHECK: attributes #[[ATTR_GROUP]] = {
+// CHECK-DAG: noinline
+// CHECK-DAG: alignstack=4
+// CHECK-DAG: null_pointer_is_valid
+// CHECK-DAG: "foo"="bar"
+
+// -----
+
+// CHECK-LABEL: @constant_bf16
+llvm.func @constant_bf16() -> !llvm<"bfloat"> {
+  %0 = llvm.mlir.constant(1.000000e+01 : bf16) : !llvm<"bfloat">
+  llvm.return %0 : !llvm<"bfloat">
+}
+
+// CHECK: ret bfloat 0xR4120
+

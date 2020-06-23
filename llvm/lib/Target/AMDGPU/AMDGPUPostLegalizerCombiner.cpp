@@ -127,6 +127,97 @@ static void applySelectFCmpToFMinToFMaxLegacy(MachineInstr &MI,
   MI.eraseFromParent();
 }
 
+static bool matchUCharToFloat(MachineInstr &MI, MachineRegisterInfo &MRI,
+                              MachineFunction &MF, CombinerHelper &Helper) {
+  Register DstReg = MI.getOperand(0).getReg();
+
+  // TODO: We could try to match extracting the higher bytes, which would be
+  // easier if i8 vectors weren't promoted to i32 vectors, particularly after
+  // types are legalized. v4i8 -> v4f32 is probably the only case to worry
+  // about in practice.
+  LLT Ty = MRI.getType(DstReg);
+  if (Ty == LLT::scalar(32) || Ty == LLT::scalar(16)) {
+    const APInt Mask = APInt::getHighBitsSet(32, 24);
+    return Helper.getKnownBits()->maskedValueIsZero(MI.getOperand(1).getReg(),
+                                                    Mask);
+  }
+
+  return false;
+}
+
+static void applyUCharToFloat(MachineInstr &MI) {
+  MachineIRBuilder B(MI);
+
+  const LLT S32 = LLT::scalar(32);
+
+  Register DstReg = MI.getOperand(0).getReg();
+  LLT Ty = B.getMRI()->getType(DstReg);
+
+  if (Ty == S32) {
+    B.buildInstr(AMDGPU::G_AMDGPU_CVT_F32_UBYTE0, {DstReg},
+                   {MI.getOperand(1)}, MI.getFlags());
+  } else {
+    auto Cvt0 = B.buildInstr(AMDGPU::G_AMDGPU_CVT_F32_UBYTE0, {S32},
+                             {MI.getOperand(1)}, MI.getFlags());
+    B.buildFPTrunc(DstReg, Cvt0, MI.getFlags());
+  }
+
+  MI.eraseFromParent();
+}
+
+// FIXME: Should be able to have 2 separate matchdatas rather than custom struct
+// boilerplate.
+struct CvtF32UByteMatchInfo {
+  Register CvtVal;
+  unsigned ShiftOffset;
+};
+
+static bool matchCvtF32UByteN(MachineInstr &MI, MachineRegisterInfo &MRI,
+                              MachineFunction &MF,
+                              CvtF32UByteMatchInfo &MatchInfo) {
+  Register SrcReg = MI.getOperand(1).getReg();
+
+  // Look through G_ZEXT.
+  mi_match(SrcReg, MRI, m_GZExt(m_Reg(SrcReg)));
+
+  Register Src0;
+  int64_t ShiftAmt;
+  bool IsShr = mi_match(SrcReg, MRI, m_GLShr(m_Reg(Src0), m_ICst(ShiftAmt)));
+  if (IsShr || mi_match(SrcReg, MRI, m_GShl(m_Reg(Src0), m_ICst(ShiftAmt)))) {
+    const unsigned Offset = MI.getOpcode() - AMDGPU::G_AMDGPU_CVT_F32_UBYTE0;
+
+    unsigned ShiftOffset = 8 * Offset;
+    if (IsShr)
+      ShiftOffset += ShiftAmt;
+    else
+      ShiftOffset -= ShiftAmt;
+
+    MatchInfo.CvtVal = Src0;
+    MatchInfo.ShiftOffset = ShiftOffset;
+    return ShiftOffset < 32 && ShiftOffset >= 8 && (ShiftOffset % 8) == 0;
+  }
+
+  // TODO: Simplify demanded bits.
+  return false;
+}
+
+static void applyCvtF32UByteN(MachineInstr &MI,
+                              const CvtF32UByteMatchInfo &MatchInfo) {
+  MachineIRBuilder B(MI);
+  unsigned NewOpc = AMDGPU::G_AMDGPU_CVT_F32_UBYTE0 + MatchInfo.ShiftOffset / 8;
+
+  const LLT S32 = LLT::scalar(32);
+  Register CvtSrc = MatchInfo.CvtVal;
+  LLT SrcTy = B.getMRI()->getType(MatchInfo.CvtVal);
+  if (SrcTy != S32) {
+    assert(SrcTy.isScalar() && SrcTy.getSizeInBits() >= 8);
+    CvtSrc = B.buildAnyExt(S32, CvtSrc).getReg(0);
+  }
+
+  assert(MI.getOpcode() != NewOpc);
+  B.buildInstr(NewOpc, {MI.getOperand(0)}, {CvtSrc}, MI.getFlags());
+  MI.eraseFromParent();
+}
 
 #define AMDGPUPOSTLEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_DEPS
 #include "AMDGPUGenPostLegalizeGICombiner.inc"
@@ -142,7 +233,7 @@ class AMDGPUPostLegalizerCombinerInfo : public CombinerInfo {
   MachineDominatorTree *MDT;
 
 public:
-  AMDGPUGenPostLegalizerCombinerHelper Generated;
+  AMDGPUGenPostLegalizerCombinerHelperRuleConfig GeneratedRuleCfg;
 
   AMDGPUPostLegalizerCombinerInfo(bool EnableOpt, bool OptSize, bool MinSize,
                                   const AMDGPULegalizerInfo *LI,
@@ -150,18 +241,19 @@ public:
       : CombinerInfo(/*AllowIllegalOps*/ false, /*ShouldLegalizeIllegal*/ true,
                      /*LegalizerInfo*/ LI, EnableOpt, OptSize, MinSize),
         KB(KB), MDT(MDT) {
-    if (!Generated.parseCommandLineOption())
+    if (!GeneratedRuleCfg.parseCommandLineOption())
       report_fatal_error("Invalid rule identifier");
   }
 
-  virtual bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
-                       MachineIRBuilder &B) const override;
+  bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
+               MachineIRBuilder &B) const override;
 };
 
 bool AMDGPUPostLegalizerCombinerInfo::combine(GISelChangeObserver &Observer,
                                               MachineInstr &MI,
                                               MachineIRBuilder &B) const {
   CombinerHelper Helper(Observer, B, KB, MDT);
+  AMDGPUGenPostLegalizerCombinerHelper Generated(GeneratedRuleCfg);
 
   if (Generated.tryCombineAll(Observer, MI, B, Helper))
     return true;

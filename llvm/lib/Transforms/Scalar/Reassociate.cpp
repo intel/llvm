@@ -29,6 +29,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Argument.h"
@@ -975,7 +976,8 @@ static BinaryOperator *BreakUpSubtract(Instruction *Sub,
 /// this into a multiply by a constant to assist with further reassociation.
 static BinaryOperator *ConvertShiftToMul(Instruction *Shl) {
   Constant *MulCst = ConstantInt::get(Shl->getType(), 1);
-  MulCst = ConstantExpr::getShl(MulCst, cast<Constant>(Shl->getOperand(1)));
+  auto *SA = cast<ConstantInt>(Shl->getOperand(1));
+  MulCst = ConstantExpr::getShl(MulCst, SA);
 
   BinaryOperator *Mul =
     BinaryOperator::CreateMul(Shl->getOperand(0), MulCst, "", Shl);
@@ -988,10 +990,12 @@ static BinaryOperator *ConvertShiftToMul(Instruction *Shl) {
 
   // We can safely preserve the nuw flag in all cases.  It's also safe to turn a
   // nuw nsw shl into a nuw nsw mul.  However, nsw in isolation requires special
-  // handling.
+  // handling.  It can be preserved as long as we're not left shifting by
+  // bitwidth - 1.
   bool NSW = cast<BinaryOperator>(Shl)->hasNoSignedWrap();
   bool NUW = cast<BinaryOperator>(Shl)->hasNoUnsignedWrap();
-  if (NSW && NUW)
+  unsigned BitWidth = Shl->getType()->getIntegerBitWidth();
+  if (NSW && (NUW || SA->getValue().ult(BitWidth - 1)))
     Mul->setHasNoSignedWrap(true);
   Mul->setHasNoUnsignedWrap(NUW);
   return Mul;
@@ -1721,7 +1725,7 @@ static bool collectMultiplyFactors(SmallVectorImpl<ValueEntry> &Ops,
 }
 
 /// Build a tree of multiplies, computing the product of Ops.
-static Value *buildMultiplyTree(IRBuilder<> &Builder,
+static Value *buildMultiplyTree(IRBuilderBase &Builder,
                                 SmallVectorImpl<Value*> &Ops) {
   if (Ops.size() == 1)
     return Ops.back();
@@ -1744,7 +1748,7 @@ static Value *buildMultiplyTree(IRBuilder<> &Builder,
 /// DAG of multiplies to compute the final product, and return that product
 /// value.
 Value *
-ReassociatePass::buildMinimalMultiplyDAG(IRBuilder<> &Builder,
+ReassociatePass::buildMinimalMultiplyDAG(IRBuilderBase &Builder,
                                          SmallVectorImpl<Factor> &Factors) {
   assert(Factors[0].Power);
   SmallVector<Value *, 4> OuterProduct;
@@ -1899,7 +1903,7 @@ void ReassociatePass::RecursivelyEraseDeadInsts(Instruction *I,
   ValueRankMap.erase(I);
   Insts.remove(I);
   RedoInsts.remove(I);
-  llvm::salvageDebugInfoOrMarkUndef(*I);
+  llvm::salvageDebugInfo(*I);
   I->eraseFromParent();
   for (auto Op : Ops)
     if (Instruction *OpInst = dyn_cast<Instruction>(Op))
@@ -1916,7 +1920,7 @@ void ReassociatePass::EraseInst(Instruction *I) {
   // Erase the dead instruction.
   ValueRankMap.erase(I);
   RedoInsts.remove(I);
-  llvm::salvageDebugInfoOrMarkUndef(*I);
+  llvm::salvageDebugInfo(*I);
   I->eraseFromParent();
   // Optimize its operands.
   SmallPtrSet<Instruction *, 8> Visited; // Detect self-referential nodes.
@@ -2457,6 +2461,8 @@ PreservedAnalyses ReassociatePass::run(Function &F, FunctionAnalysisManager &) {
   if (MadeChange) {
     PreservedAnalyses PA;
     PA.preserveSet<CFGAnalyses>();
+    PA.preserve<AAManager>();
+    PA.preserve<BasicAA>();
     PA.preserve<GlobalsAA>();
     return PA;
   }
@@ -2487,6 +2493,8 @@ namespace {
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
       AU.setPreservesCFG();
+      AU.addPreserved<AAResultsWrapperPass>();
+      AU.addPreserved<BasicAAWrapperPass>();
       AU.addPreserved<GlobalsAAWrapperPass>();
     }
   };

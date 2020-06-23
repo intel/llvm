@@ -267,6 +267,10 @@ module std [system] {
     header "complex"
     export *
   }
+  module concepts {
+    header "concepts"
+    export *
+  }
   module condition_variable {
     header "condition_variable"
     export *
@@ -372,6 +376,10 @@ module std [system] {
   }
   module new {
     header "new"
+    export *
+  }
+  module numbers {
+    header "numbers"
     export *
   }
   module numeric {

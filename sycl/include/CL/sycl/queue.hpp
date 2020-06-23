@@ -32,6 +32,17 @@ namespace detail {
 class queue_impl;
 }
 
+/// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
+///
+/// A SYCL queue can be used to submit command groups to be executed by the SYCL
+/// runtime.
+///
+/// \sa device
+/// \sa handler
+/// \sa event
+/// \sa kernel
+///
+/// \ingroup sycl_api
 class __SYCL_EXPORT queue {
 public:
   /// Constructs a SYCL queue instance using the device returned by an instance
@@ -210,6 +221,46 @@ public:
     return submit_impl(CGF, SecondaryQueue, CodeLoc);
   }
 
+  /// Prevents any commands submitted afterward to this queue from executing
+  /// until all commands previously submitted to this queue have entered the
+  /// complete state.
+  ///
+  /// \param CodeLoc is the code location of the submit call (default argument)
+  /// \return a SYCL event object, which corresponds to the queue the command
+  /// group is being enqueued on.
+  event submit_barrier(
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    return submit([=](handler &CGH) { CGH.barrier(); }, CodeLoc);
+  }
+
+  /// Prevents any commands submitted afterward to this queue from executing
+  /// until all events in WaitList have entered the complete state. If WaitList
+  /// is empty, then submit_barrier has no effect.
+  ///
+  /// \param WaitList is a vector of valid SYCL events that need to complete
+  /// before barrier command can be executed.
+  /// \param CodeLoc is the code location of the submit call (default argument)
+  /// \return a SYCL event object, which corresponds to the queue the command
+  /// group is being enqueued on.
+  event submit_barrier(
+      const vector_class<event> &WaitList
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      ,
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    return submit([=](handler &CGH) { CGH.barrier(WaitList); }, CodeLoc);
+  }
+
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
   ///
@@ -300,7 +351,7 @@ public:
   ///
   /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
   /// \param Count is a number of bytes to be prefetched.
-  event prefetch(const void* Ptr, size_t Count) {
+  event prefetch(const void *Ptr, size_t Count) {
     return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); });
   }
 
@@ -395,8 +446,8 @@ public:
 #endif
     return submit(
         [&](handler &CGH) {
-          CGH.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
-                                                                  KernelFunc);
+          CGH.template parallel_for<KernelName, KernelType>(NumWorkItems,
+                                                            KernelFunc);
         },
         CodeLoc);
   }
@@ -423,8 +474,8 @@ public:
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
-          CGH.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
-                                                                  KernelFunc);
+          CGH.template parallel_for<KernelName, KernelType>(NumWorkItems,
+                                                            KernelFunc);
         },
         CodeLoc);
   }
@@ -453,8 +504,8 @@ public:
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
-          CGH.template parallel_for<KernelName, KernelType, Dims>(NumWorkItems,
-                                                                  KernelFunc);
+          CGH.template parallel_for<KernelName, KernelType>(NumWorkItems,
+                                                            KernelFunc);
         },
         CodeLoc);
   }
@@ -480,7 +531,7 @@ public:
 #endif
     return submit(
         [&](handler &CGH) {
-          CGH.template parallel_for<KernelName, KernelType, Dims>(
+          CGH.template parallel_for<KernelName, KernelType>(
               NumWorkItems, WorkItemOffset, KernelFunc);
         },
         CodeLoc);
@@ -510,7 +561,7 @@ public:
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
-          CGH.template parallel_for<KernelName, KernelType, Dims>(
+          CGH.template parallel_for<KernelName, KernelType>(
               NumWorkItems, WorkItemOffset, KernelFunc);
         },
         CodeLoc);
@@ -541,7 +592,7 @@ public:
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
-          CGH.template parallel_for<KernelName, KernelType, Dims>(
+          CGH.template parallel_for<KernelName, KernelType>(
               NumWorkItems, WorkItemOffset, KernelFunc);
         },
         CodeLoc);
@@ -568,8 +619,8 @@ public:
 #endif
     return submit(
         [&](handler &CGH) {
-          CGH.template parallel_for<KernelName, KernelType, Dims>(
-              ExecutionRange, KernelFunc);
+          CGH.template parallel_for<KernelName, KernelType>(ExecutionRange,
+                                                            KernelFunc);
         },
         CodeLoc);
   }
@@ -597,8 +648,8 @@ public:
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
-          CGH.template parallel_for<KernelName, KernelType, Dims>(
-              ExecutionRange, KernelFunc);
+          CGH.template parallel_for<KernelName, KernelType>(ExecutionRange,
+                                                            KernelFunc);
         },
         CodeLoc);
   }
@@ -628,8 +679,8 @@ public:
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
-          CGH.template parallel_for<KernelName, KernelType, Dims>(
-              ExecutionRange, KernelFunc);
+          CGH.template parallel_for<KernelName, KernelType>(ExecutionRange,
+                                                            KernelFunc);
         },
         CodeLoc);
   }
@@ -652,8 +703,12 @@ private:
   pi_native_handle getNative() const;
 
   shared_ptr_class<detail::queue_impl> impl;
+  queue(shared_ptr_class<detail::queue_impl> impl) : impl(impl) {}
+
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
   /// A template-free version of submit.
   event submit_impl(function_class<void(handler &)> CGH,

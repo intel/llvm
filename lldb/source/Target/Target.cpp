@@ -2556,7 +2556,7 @@ void Target::RunStopHooks() {
   if (!any_active_hooks)
     return;
 
-  CommandReturnObject result;
+  CommandReturnObject result(m_debugger.GetUseColor());
 
   std::vector<ExecutionContext> exc_ctx_with_reasons;
   std::vector<SymbolContext> sym_ctx_with_reasons;
@@ -3373,11 +3373,11 @@ public:
 };
 
 // TargetProperties
-#define LLDB_PROPERTIES_experimental
+#define LLDB_PROPERTIES_target_experimental
 #include "TargetProperties.inc"
 
 enum {
-#define LLDB_PROPERTIES_experimental
+#define LLDB_PROPERTIES_target_experimental
 #include "TargetPropertiesEnum.inc"
 };
 
@@ -3391,7 +3391,7 @@ public:
 TargetExperimentalProperties::TargetExperimentalProperties()
     : Properties(OptionValuePropertiesSP(
           new TargetExperimentalOptionValueProperties())) {
-  m_collection_sp->Initialize(g_experimental_properties);
+  m_collection_sp->Initialize(g_target_experimental_properties);
 }
 
 // TargetProperties
@@ -3710,6 +3710,12 @@ bool TargetProperties::GetEnableAutoApplyFixIts() const {
   const uint32_t idx = ePropertyAutoApplyFixIts;
   return m_collection_sp->GetPropertyAtIndexAsBoolean(
       nullptr, idx, g_target_properties[idx].default_uint_value != 0);
+}
+
+uint64_t TargetProperties::GetNumberOfRetriesWithFixits() const {
+  const uint32_t idx = ePropertyRetriesWithFixIts;
+  return m_collection_sp->GetPropertyAtIndexAsUInt64(
+      nullptr, idx, g_target_properties[idx].default_uint_value);
 }
 
 bool TargetProperties::GetEnableNotifyAboutFixIts() const {
@@ -4050,7 +4056,7 @@ Target::TargetEventData::GetModuleListFromEvent(const Event *event_ptr) {
   return module_list;
 }
 
-std::recursive_mutex &Target::GetAPIMutex() { 
+std::recursive_mutex &Target::GetAPIMutex() {
   if (GetProcessSP() && GetProcessSP()->CurrentThreadIsPrivateStateThread())
     return m_private_mutex;
   else

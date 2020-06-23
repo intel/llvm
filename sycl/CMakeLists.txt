@@ -2,10 +2,20 @@ cmake_minimum_required(VERSION 3.2)
 
 project(sycl-solution)
 # Requirements
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 option(SYCL_ENABLE_WERROR "Treat all warnings as errors in SYCL project" OFF)
+option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
+
+set(SYCL_MAJOR_VERSION 1)
+set(SYCL_MINOR_VERSION 0)
+set(SYCL_PATCH_VERSION 0)
+set(SYCL_DEV_ABI_VERSION 1)
+if (SYCL_ADD_DEV_VERSION_POSTFIX)
+  set(SYCL_VERSION_POSTFIX "-${SYCL_DEV_ABI_VERSION}")
+endif()
+set(SYCL_VERSION_STRING "${SYCL_MAJOR_VERSION}.${SYCL_MINOR_VERSION}.${SYCL_PATCH_VERSION}${SYCL_VERSION_POSTFIX}")
 
 # enable all warnings by default
 if (MSVC)
@@ -61,7 +71,7 @@ set(SYCL_INCLUDE_DEPLOY_DIR ${CMAKE_INSTALL_PREFIX}/${SYCL_INCLUDE_DIR})
 # build SYCL runtime.
 # WARNING: use with caution, building SYCL runtime with OpenCL implementation
 # instead of Khronos ICD loader might cause build and/or portability issues.
-option(OpenCL_BUILD_WITH_SYSTEM_SDK OFF)
+option(OpenCL_BUILD_WITH_SYSTEM_SDK "Build SYCL with OpenCL coming from the build system" OFF)
 
 if( (OpenCL_INCLUDE_DIR AND OpenCL_LIBRARY) OR OpenCL_BUILD_WITH_SYSTEM_SDK)
   find_package(OpenCL)
@@ -69,19 +79,33 @@ endif()
 
 include(ExternalProject)
 
+# By default, whenever cmake is re-run, the external project's sources will be
+# updated, which might be annoying - let's have a possibility to disable that as
+# not every external project which is used here is being updated often
+# Single toggle to control all external projects
+option(SYCL_EXTERNAL_PROJECTS_SKIP_AUTO_UPDATE
+  "Perform automatic update step for external projects (OpenCL Headers, OpenCL ICD, etc.)" OFF)
+# More precise controls for each particular external project are documented
+# near each ExternalProject_Add
+
 if( NOT OpenCL_INCLUDE_DIRS )
-  message("OpenCL_INCLUDE_DIRS is missing. Will try to download OpenCL headers from github.com")
+  message(STATUS "OpenCL_INCLUDE_DIRS is missing. Will try to download OpenCL headers from github.com")
   set(OpenCL_INCLUDE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/OpenCL/inc")
+  if (NOT DEFINED SYCL_EP_OCL_HEADERS_SKIP_AUTO_UPDATE)
+    set(SYCL_EP_OCL_HEADERS_SKIP_AUTO_UPDATE ${SYCL_EXTERNAL_PROJECTS_SKIP_AUTO_UPDATE})
+  endif()
   ExternalProject_Add(ocl-headers
     GIT_REPOSITORY    https://github.com/KhronosGroup/OpenCL-Headers.git
     GIT_TAG           origin/master
-    SOURCE_DIR        "${CMAKE_CURRENT_BINARY_DIR}/OpenCL/inc"
+    UPDATE_DISCONNECTED ${SYCL_EP_OCL_HEADERS_SKIP_AUTO_UPDATE}
+    SOURCE_DIR        ${OpenCL_INCLUDE_DIRS}
     CONFIGURE_COMMAND ""
     BUILD_COMMAND     ${CMAKE_COMMAND} -E copy_directory ${OpenCL_INCLUDE_DIRS}/CL ${SYCL_INCLUDE_BUILD_DIR}/CL
     INSTALL_COMMAND   ""
     STEP_TARGETS      build
     COMMENT           "Downloading OpenCL headers."
   )
+  add_definitions(-DCL_TARGET_OPENCL_VERSION=220)
 else()
   add_custom_target( ocl-headers ALL
     DEPENDS ${OpenCL_INCLUDE_DIRS}
@@ -91,7 +115,7 @@ else()
 endif()
 
 if( NOT OpenCL_LIBRARIES )
-  message("OpenCL_LIBRARIES is missing. Will try to download OpenCL ICD Loader from github.com")
+  message(STATUS "OpenCL_LIBRARIES is missing. Will try to download OpenCL ICD Loader from github.com")
   if(MSVC)
     set(OpenCL_LIBRARIES
         "${LLVM_LIBRARY_OUTPUT_INTDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}OpenCL${CMAKE_STATIC_LIBRARY_SUFFIX}")
@@ -107,21 +131,41 @@ if( NOT OpenCL_LIBRARIES )
       list(APPEND AUX_CMAKE_FLAGS -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER})
   endif()
   file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/icd_build)
+  set(OpenCL_ICD_LOADER_SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/OpenCL/icd")
+  if (NOT DEFINED SYCL_EP_OCL_ICD_SKIP_AUTO_UPDATE)
+    set(SYCL_EP_OCL_ICD_SKIP_AUTO_UPDATE ${SYCL_EXTERNAL_PROJECTS_SKIP_AUTO_UPDATE})
+  endif()
   ExternalProject_Add(ocl-icd
     GIT_REPOSITORY    https://github.com/KhronosGroup/OpenCL-ICD-Loader.git
     GIT_TAG           origin/master
-    SOURCE_DIR        "${CMAKE_CURRENT_BINARY_DIR}/OpenCL/icd"
+    UPDATE_DISCONNECTED ${SYCL_EP_OCL_ICD_SKIP_AUTO_UPDATE}
+    SOURCE_DIR        ${OpenCL_ICD_LOADER_SOURCE_DIR}
     BINARY_DIR        "${CMAKE_CURRENT_BINARY_DIR}/icd_build"
+    INSTALL_DIR       "${CMAKE_CURRENT_BINARY_DIR}/icd_install"
     CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
                -DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}
                -DOPENCL_ICD_LOADER_HEADERS_DIR=${OpenCL_INCLUDE_DIRS}
-               -DCMAKE_INSTALL_PREFIX=${LLVM_BINARY_DIR}
+               -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
                -DCMAKE_INSTALL_LIBDIR:PATH=lib${LLVM_LIBDIR_SUFFIX}
                ${AUX_CMAKE_FLAGS}
     STEP_TARGETS      configure,build,install
     DEPENDS           ocl-headers
     BUILD_BYPRODUCTS ${OpenCL_LIBRARIES}
   )
+  ExternalProject_Add_Step(ocl-icd llvminstall
+    COMMAND ${CMAKE_COMMAND} -E copy_directory <INSTALL_DIR>/ ${LLVM_BINARY_DIR}
+    COMMENT "Installing ocl-icd into the LLVM binary directory"
+    DEPENDEES install
+  )
+  # Optionally install the ICD library along with LLVM.
+  option(OpenCL_INSTALL_KHRONOS_ICD_LOADER
+    "Install the Khronos ICD Loader built as part of LLVM" OFF)
+  if (OpenCL_INSTALL_KHRONOS_ICD_LOADER)
+    install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/icd_install/"
+      DESTINATION "."
+      COMPONENT opencl-icd
+    )
+  endif()
 else()
   file(GLOB ICD_LOADER_SRC "${OpenCL_LIBRARIES}*")
   file(COPY ${ICD_LOADER_SRC} DESTINATION ${LLVM_LIBRARY_OUTPUT_INTDIR})
@@ -200,7 +244,11 @@ add_subdirectory( source )
 
 # Auxilliary extras for SYCL headers/library
 if (NOT WIN32)
-  install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/xmethods/$<TARGET_FILE_NAME:sycl>-gdb.py" DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT sycl-headers-extras)
+  install(FILES
+      "${CMAKE_CURRENT_SOURCE_DIR}/xmethods/libsycl.so-gdb.py"
+      RENAME "libsycl.so.${SYCL_VERSION_STRING}-gdb.py"
+      DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/"
+      COMPONENT sycl-headers-extras)
 endif()
 
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
@@ -218,6 +266,7 @@ add_custom_target( sycl-toolchain
           llvm-link
           llvm-objcopy
           sycl-post-link
+          sycl-ls
   COMMENT "Building SYCL compiler toolchain..."
 )
 
@@ -267,14 +316,19 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      llvm-link
      llvm-objcopy
      sycl-post-link
+     sycl-ls
      clang-resource-headers
      opencl-headers
      sycl-headers
      sycl-headers-extras
      sycl
      pi_opencl
+     pi_level0
      libsycldevice
 )
+if(OpenCL_INSTALL_KHRONOS_ICD_LOADER AND TARGET ocl-icd)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS opencl-icd)
+endif()
 
 if(SYCL_BUILD_PI_CUDA)
   # Ensure that libclc is enabled.

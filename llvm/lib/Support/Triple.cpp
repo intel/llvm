@@ -9,6 +9,7 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Host.h"
@@ -662,6 +663,8 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
     return Triple::ARMSubArch_v8_4a;
   case ARM::ArchKind::ARMV8_5A:
     return Triple::ARMSubArch_v8_5a;
+  case ARM::ArchKind::ARMV8_6A:
+    return Triple::ARMSubArch_v8_6a;
   case ARM::ArchKind::ARMV8R:
     return Triple::ARMSubArch_v8r;
   case ARM::ArchKind::ARMV8MBaseline:
@@ -1022,12 +1025,7 @@ std::string Triple::normalize(StringRef Str) {
   }
 
   // Stick the corrected components back together to form the normalized string.
-  std::string Normalized;
-  for (unsigned i = 0, e = Components.size(); i != e; ++i) {
-    if (i) Normalized += '-';
-    Normalized += Components[i];
-  }
-  return Normalized;
+  return join(Components, "-");
 }
 
 StringRef Triple::getArchName() const {

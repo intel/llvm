@@ -36,6 +36,7 @@ class LLVM_LIBRARY_VISIBILITY AArch64TargetInfo : public TargetInfo {
   bool HasFP16FML;
   bool HasMTE;
   bool HasTME;
+  bool HasMatMul;
 
   llvm::AArch64::ArchKind ArchKind;
 
@@ -69,6 +70,8 @@ public:
   void getTargetDefinesARMV84A(const LangOptions &Opts,
                                MacroBuilder &Builder) const;
   void getTargetDefinesARMV85A(const LangOptions &Opts,
+                               MacroBuilder &Builder) const;
+  void getTargetDefinesARMV86A(const LangOptions &Opts,
                                MacroBuilder &Builder) const;
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
@@ -116,7 +119,10 @@ public:
 
   int getEHDataRegisterNumber(unsigned RegNo) const override;
 
+  const char *getBFloat16Mangling() const override { return "u6__bf16"; };
   bool hasInt128Type() const override;
+
+  bool hasExtIntType() const override { return true; }
 };
 
 class LLVM_LIBRARY_VISIBILITY AArch64leTargetInfo : public AArch64TargetInfo {

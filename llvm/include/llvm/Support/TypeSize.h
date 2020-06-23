@@ -15,6 +15,7 @@
 #ifndef LLVM_SUPPORT_TYPESIZE_H
 #define LLVM_SUPPORT_TYPESIZE_H
 
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/WithColor.h"
 
 #include <cstdint>
@@ -30,6 +31,8 @@ public:
   bool Scalable; // If true, NumElements is a multiple of 'Min' determined
                  // at runtime rather than compile time.
 
+  ElementCount() = default;
+
   ElementCount(unsigned Min, bool Scalable)
   : Min(Min), Scalable(Scalable) {}
 
@@ -37,6 +40,7 @@ public:
     return { Min * RHS, Scalable };
   }
   ElementCount operator/(unsigned RHS) {
+    assert(Min % RHS == 0 && "Min is not a multiple of RHS.");
     return { Min / RHS, Scalable };
   }
 
@@ -45,6 +49,12 @@ public:
   }
   bool operator!=(const ElementCount& RHS) const {
     return !(*this == RHS);
+  }
+  bool operator==(unsigned RHS) const { return Min == RHS && !Scalable; }
+  bool operator!=(unsigned RHS) const { return !(*this == RHS); }
+
+  ElementCount NextPowerOf2() const {
+    return ElementCount(llvm::NextPowerOf2(Min), Scalable);
   }
 };
 
@@ -149,6 +159,9 @@ public:
   // Returns true if the type size is non-zero.
   bool isNonZero() const { return MinSize != 0; }
 
+  // Returns true if the type size is zero.
+  bool isZero() const { return MinSize == 0; }
+
   // Casts to a uint64_t if this is a fixed-width size.
   //
   // This interface is deprecated and will be removed in a future version
@@ -215,6 +228,10 @@ public:
 
   TypeSize operator/(int64_t RHS) const {
     return { MinSize / RHS, IsScalable };
+  }
+
+  TypeSize NextPowerOf2() const {
+    return TypeSize(llvm::NextPowerOf2(MinSize), IsScalable);
   }
 };
 

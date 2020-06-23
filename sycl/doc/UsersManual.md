@@ -14,8 +14,8 @@ your application.
 
 **`-fsycl-targets=<value>`**
 
-    A comma separated list of triples to specify the device target(s) to generate
-    code for.  This option is only valid when used with `-fsycl`.
+    A comma separated list of triples to specify the device target(s) to
+    generate code for.  This option is only valid when used with `-fsycl`.
 
 ### Target toolchain options.
 
@@ -112,15 +112,17 @@ your application.
 
 **`-fintelfpga`**
 
-    Perform ahead of time compilation for Intel FPGA, which relies on the external tool `aoc`
-    being available in the `PATH`.
+    Perform ahead of time compilation for Intel FPGA, which relies on the
+    external tool `aoc` being available in the `PATH`.
 
-    This option is roughly equivalent to `-fsycl-targets=spir64_fpga-unknown-unknown-sycldevice -g -MMD -lOpenCL`.
+    This option is roughly equivalent to
+    `-fsycl-targets=spir64_fpga-unknown-unknown-sycldevice -g -MMD -lOpenCL`.
 
     It is incompatible with `-fsycl-targets=...`; if ahead of time compilation
     is needed for multiple backends (e.g. Intel FPGA, Intel GPU, etc.), the
-    alternative form based on `-fsycl-targets=spir64_fpga-unknown-unknown-sycldevice`
-    should be used instead.
+    alternative form based on
+    `-fsycl-targets=spir64_fpga-unknown-unknown-sycldevice` should be used
+    instead.
 
 **`-fsycl-link=<value>`**
 

@@ -197,7 +197,7 @@ ConstString PlatformMacOSX::GetSDKDirectory(lldb_private::Target &target) {
     return {};
 
   // First try to find an SDK that matches the given SDK version.
-  if (FileSpec fspec = GetXcodeContentsDirectory()) {
+  if (FileSpec fspec = HostInfo::GetXcodeContentsDirectory()) {
     StreamString sdk_path;
     sdk_path.Printf("%s/Developer/Platforms/MacOSX.platform/Developer/"
                     "SDKs/MacOSX%u.%u.sdk",
@@ -208,7 +208,9 @@ ConstString PlatformMacOSX::GetSDKDirectory(lldb_private::Target &target) {
   }
 
   // Use the default SDK as a fallback.
-  if (FileSpec fspec = GetXcodeSDK(SDKType::MacOSX)) {
+  FileSpec fspec(
+      HostInfo::GetXcodeSDKPath(lldb_private::XcodeSDK::GetAnyMacOS()));
+  if (fspec) {
     if (FileSystem::Instance().Exists(fspec))
       return ConstString(fspec.GetPath());
   }

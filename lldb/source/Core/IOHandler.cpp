@@ -289,6 +289,13 @@ void IOHandlerEditline::Deactivate() {
   m_delegate.IOHandlerDeactivated(*this);
 }
 
+void IOHandlerEditline::TerminalSizeChanged() {
+#if LLDB_ENABLE_LIBEDIT
+  if (m_editline_up)
+    m_editline_up->TerminalSizeChanged();
+#endif
+}
+
 // Split out a line from the buffer, if there is a full one to get.
 static Optional<std::string> SplitLine(std::string &line_buffer) {
   size_t pos = line_buffer.find('\n');
@@ -303,7 +310,7 @@ static Optional<std::string> SplitLine(std::string &line_buffer) {
 // If the final line of the file ends without a end-of-line, return
 // it as a line anyway.
 static Optional<std::string> SplitLineEOF(std::string &line_buffer) {
-  if (llvm::all_of(line_buffer, isspace))
+  if (llvm::all_of(line_buffer, llvm::isSpace))
     return None;
   std::string line = std::move(line_buffer);
   line_buffer.clear();

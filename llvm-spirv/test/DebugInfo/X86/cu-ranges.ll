@@ -1,5 +1,5 @@
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -split-dwarf-file=foo.dwo -O0 %t.ll -function-sections -mtriple=x86_64-unknown-linux-gnu -filetype=obj -o %t
@@ -8,6 +8,9 @@
 
 ; RUN: llc -split-dwarf-file=foo.dwo -O0 %t.ll -mtriple=x86_64-unknown-linux-gnu -filetype=obj -o %t
 ; RUN: llvm-dwarfdump -debug-abbrev %t | FileCheck --check-prefix=NO-FUNCTION-SECTIONS %s
+
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
 
 ; From:
 ; int foo (int a) {
@@ -76,5 +79,3 @@ attributes #1 = { nounwind readnone }
 !14 = !DILocation(line: 1, scope: !4)
 !15 = !DILocalVariable(name: "b", line: 2, arg: 1, scope: !9, file: !5, type: !8)
 !16 = !DILocation(line: 2, scope: !9)
-target triple = "spir64-unknown-unknown"
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

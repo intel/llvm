@@ -13,12 +13,19 @@
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <detail/kernel_impl.hpp>
+#include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-event handler::finalize(const cl::sycl::detail::code_location &Payload) {
-  sycl::event EventRet;
+
+event handler::finalize() {
+  // This block of code is needed only for reduction implementation.
+  // It is harmless (does nothing) for everything else.
+  if (MIsFinalized)
+    return MLastEvent;
+  MIsFinalized = true;
+
   unique_ptr_class<detail::CG> CommandGroup;
   switch (MCGType) {
   case detail::CG::KERNEL:
@@ -29,14 +36,14 @@ event handler::finalize(const cl::sycl::detail::code_location &Payload) {
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), std::move(MArgs), std::move(MKernelName),
         std::move(MOSModuleHandle), std::move(MStreamStorage), MCGType,
-        Payload));
+        MCodeLoc));
     break;
   }
-  case detail::CG::INTEROP_TASK_CODEPLAY:
+  case detail::CG::CODEPLAY_INTEROP_TASK:
     CommandGroup.reset(new detail::CGInteropTask(
         std::move(MInteropTask), std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), MCGType, Payload));
+        std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
     break;
   case detail::CG::COPY_ACC_TO_PTR:
   case detail::CG::COPY_PTR_TO_ACC:
@@ -44,37 +51,50 @@ event handler::finalize(const cl::sycl::detail::code_location &Payload) {
     CommandGroup.reset(new detail::CGCopy(
         MCGType, MSrcPtr, MDstPtr, std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), Payload));
+        std::move(MRequirements), std::move(MEvents), MCodeLoc));
     break;
   case detail::CG::FILL:
     CommandGroup.reset(new detail::CGFill(
         std::move(MPattern), MDstPtr, std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), Payload));
+        std::move(MRequirements), std::move(MEvents), MCodeLoc));
     break;
   case detail::CG::UPDATE_HOST:
     CommandGroup.reset(new detail::CGUpdateHost(
         MDstPtr, std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents), Payload));
+        std::move(MEvents), MCodeLoc));
     break;
   case detail::CG::COPY_USM:
     CommandGroup.reset(new detail::CGCopyUSM(
         MSrcPtr, MDstPtr, MLength, std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), Payload));
+        std::move(MRequirements), std::move(MEvents), MCodeLoc));
     break;
   case detail::CG::FILL_USM:
     CommandGroup.reset(new detail::CGFillUSM(
         std::move(MPattern), MDstPtr, MLength, std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), Payload));
+        std::move(MRequirements), std::move(MEvents), MCodeLoc));
     break;
   case detail::CG::PREFETCH_USM:
     CommandGroup.reset(new detail::CGPrefetchUSM(
         MDstPtr, MLength, std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents), Payload));
+        std::move(MEvents), MCodeLoc));
+    break;
+  case detail::CG::CODEPLAY_HOST_TASK:
+    CommandGroup.reset(new detail::CGHostTask(
+        std::move(MHostTask), std::move(MArgs), std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
+    break;
+  case detail::CG::BARRIER:
+  case detail::CG::BARRIER_WAITLIST:
+    CommandGroup.reset(new detail::CGBarrier(
+        std::move(MEventsWaitWithBarrier), std::move(MArgsStorage),
+        std::move(MAccStorage), std::move(MSharedPtrStorage),
+        std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
     break;
   case detail::CG::NONE:
     throw runtime_error("Command group submitted without a kernel or a "
@@ -88,8 +108,8 @@ event handler::finalize(const cl::sycl::detail::code_location &Payload) {
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), std::move(MQueue));
 
-  EventRet = detail::createSyclObjFromImpl<event>(Event);
-  return EventRet;
+  MLastEvent = detail::createSyclObjFromImpl<event>(Event);
+  return MLastEvent;
 }
 
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
@@ -111,6 +131,14 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     case access::target::global_buffer:
     case access::target::constant_buffer: {
       detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
+
+      // Stream implementation creates an accessor with initial size for
+      // work item. Number of work items is not available during
+      // stream construction, that is why size of the accessor is updated here
+      // using information about number of work items.
+      if (AccImpl->PerWI) {
+        AccImpl->resize(MNDRDesc.GlobalSize.size());
+      }
       MArgs.emplace_back(Kind, AccImpl, Size, Index + IndexShift);
       if (!IsKernelCreatedFromSource) {
         // Dimensionality of the buffer is 1 when dimensionality of the
@@ -135,12 +163,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     case access::target::local: {
       detail::LocalAccessorImplHost *LAcc =
           static_cast<detail::LocalAccessorImplHost *>(Ptr);
-      // Stream implementation creates local accessor with size per work item
-      // in work group. Number of work items is not available during stream
-      // construction, that is why size of the accessor is updated here using
-      // information about number of work items in the work group.
-      if (LAcc->PerWI)
-        LAcc->resize(MNDRDesc.LocalSize.size(), MNDRDesc.GlobalSize.size());
+
       range<3> &Size = LAcc->MSize;
       const int Dims = LAcc->MDims;
       int SizeInBytes = LAcc->MElemSize;

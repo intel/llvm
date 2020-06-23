@@ -32,9 +32,7 @@ public:
   AMDGPULegalizerInfo(const GCNSubtarget &ST,
                       const GCNTargetMachine &TM);
 
-  bool legalizeCustom(MachineInstr &MI, MachineRegisterInfo &MRI,
-                      MachineIRBuilder &B,
-                      GISelChangeObserver &Observer) const override;
+  bool legalizeCustom(LegalizerHelper &Helper, MachineInstr &MI) const override;
 
   Register getSegmentAperture(unsigned AddrSpace,
                               MachineRegisterInfo &MRI,
@@ -52,8 +50,7 @@ public:
                      MachineIRBuilder &B, bool Signed) const;
   bool legalizeFPTOI(MachineInstr &MI, MachineRegisterInfo &MRI,
                      MachineIRBuilder &B, bool Signed) const;
-  bool legalizeMinNumMaxNum(MachineInstr &MI, MachineRegisterInfo &MRI,
-                            MachineIRBuilder &B) const;
+  bool legalizeMinNumMaxNum(LegalizerHelper &Helper, MachineInstr &MI) const;
   bool legalizeExtractVectorElt(MachineInstr &MI, MachineRegisterInfo &MRI,
                                 MachineIRBuilder &B) const;
   bool legalizeInsertVectorElt(MachineInstr &MI, MachineRegisterInfo &MRI,
@@ -111,8 +108,10 @@ public:
                                bool IsRem) const;
   bool legalizeUDIV_UREM32(MachineInstr &MI, MachineRegisterInfo &MRI,
                            MachineIRBuilder &B) const;
-
   bool legalizeSDIV_SREM32(MachineInstr &MI, MachineRegisterInfo &MRI,
+                           MachineIRBuilder &B) const;
+
+  bool legalizeUDIV_UREM64(MachineInstr &MI, MachineRegisterInfo &MRI,
                            MachineIRBuilder &B) const;
   bool legalizeSDIV_SREM(MachineInstr &MI, MachineRegisterInfo &MRI,
                          MachineIRBuilder &B) const;
@@ -173,8 +172,8 @@ public:
   bool legalizeDebugTrapIntrinsic(MachineInstr &MI, MachineRegisterInfo &MRI,
                                   MachineIRBuilder &B) const;
 
-  bool legalizeIntrinsic(MachineInstr &MI, MachineIRBuilder &B,
-                         GISelChangeObserver &Observer) const override;
+  bool legalizeIntrinsic(LegalizerHelper &Helper,
+                         MachineInstr &MI) const override;
 };
 } // End llvm namespace.
 #endif

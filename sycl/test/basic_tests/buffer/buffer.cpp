@@ -1,5 +1,3 @@
-// REQUIRES: opencl
-
 // RUN: %clangxx %s -o %t1.out -lsycl -I %sycl_include
 // RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t2.out
@@ -7,9 +5,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t2.out
 // RUN: %GPU_RUN_PLACEHOLDER %t2.out
 // RUN: %ACC_RUN_PLACEHOLDER %t2.out
-
-// TODO: Unexpected result and following assertion
-// XFAIL: cuda
 
 //==------------------- buffer.cpp - SYCL buffer basic test ----------------==//
 //
@@ -397,8 +392,8 @@ int main() {
 
       myQueue.submit([&](handler &cgh) {
         accessor<int, 2, access::mode::write, access::target::global_buffer,
-               access::placeholder::false_t>
-          B(Buffer, cgh, range<2>(20,20), id<2>(10,10));
+                 access::placeholder::false_t>
+            B(Buffer, cgh, range<2>(20, 20), id<2>(10, 10));
         cgh.parallel_for<class bufferByRangeOffset>(
             range<2>{10, 5}, [=](id<2> index) { B[index] = 1; });
       });
@@ -494,9 +489,8 @@ int main() {
       myQueue.submit([&](handler &cgh) {
         auto B = b.get_access<access::mode::read_write>(cgh);
         cgh.parallel_for<class wb>(range<1>{10},
-                                       [=](id<1> index) { B[index] = 0; });
+                                   [=](id<1> index) { B[index] = 0; });
       });
-
     }
     // Data is copied back because there is a user side ptr and write-back is
     // enabled
@@ -519,9 +513,8 @@ int main() {
       myQueue.submit([&](handler &cgh) {
         auto B = b.get_access<access::mode::read_write>(cgh);
         cgh.parallel_for<class notwb>(range<1>{10},
-                                       [=](id<1> index) { B[index] = 0; });
+                                      [=](id<1> index) { B[index] = 0; });
       });
-
     }
     // Data is not copied back because write-back is canceled
     for (int i = 0; i < 10; i++)
@@ -552,33 +545,6 @@ int main() {
   }
 
   {
-    queue myQueue;
-    if (!myQueue.is_host()) {
-      std::vector<int> data1(10, -1);
-      std::vector<int> data2(10, -2);
-      {
-        buffer<int, 1> a(data1.data(), range<1>(10));
-        buffer<int, 1> b(data2);
-
-        program prog(myQueue.get_context());
-        prog.build_with_source("kernel void override_source(global int* Acc) "
-                               "{Acc[get_global_id(0)] = 0; }\n");
-        cl::sycl::kernel krn = prog.get_kernel("override_source");
-        myQueue.submit([&](handler &cgh) {
-          auto A = a.get_access<access::mode::read_write>(cgh);
-          cgh.set_arg(0, A);
-          auto B = b.get_access<access::mode::read_write>(cgh);
-          cgh.parallel_for(cl::sycl::range<1>(10), krn);
-        });
-      } // Data is copied back
-      for (int i = 0; i < 10; i++)
-        assert(data2[i] == -2);
-      for (int i = 0; i < 10; i++)
-        assert(data1[i] == 0);
-    }
-  }
-
-  {
     std::vector<int> data1(10, -1);
     std::vector<int> data2(10, -2);
     {
@@ -602,40 +568,6 @@ int main() {
       assert(data2[i] == -2);
     for (int i = 0; i < 10; i++)
       assert(data1[i] == 0);
-  }
-
-  {
-    queue myQueue;
-    if (!myQueue.is_host()) {
-      std::vector<int> data1(10, -1);
-      std::vector<int> data2(10, -2);
-      {
-        buffer<int, 1> a(data1.data(), range<1>(10));
-        buffer<int, 1> b(data2);
-        accessor<int, 1, access::mode::read_write,
-                 access::target::global_buffer, access::placeholder::true_t>
-            A(a);
-        accessor<int, 1, access::mode::read_write,
-                 access::target::global_buffer, access::placeholder::true_t>
-            B(b);
-
-        program prog(myQueue.get_context());
-        prog.build_with_source("kernel void override_source_placeholder(global "
-                               "int* Acc) {Acc[get_global_id(0)] = 0; }\n");
-        cl::sycl::kernel krn = prog.get_kernel("override_source_placeholder");
-
-        myQueue.submit([&](handler &cgh) {
-          cgh.require(A);
-          cgh.set_arg(0, A);
-          cgh.require(B);
-          cgh.parallel_for(cl::sycl::range<1>(10), krn);
-        });
-      } // Data is copied back
-      for (int i = 0; i < 10; i++)
-        assert(data2[i] == -2);
-      for (int i = 0; i < 10; i++)
-        assert(data1[i] == 0);
-    }
   }
 
   {

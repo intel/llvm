@@ -231,26 +231,26 @@ func @contraction4x4_ikj(%arg0 : vector<4x2xf32>, %arg1 : vector<2x4xf32>,
 
 // Check LHS vector.transfer read is split for each user.
 
-//      CHECK: %[[VTR0:.*]] = vector.transfer_read %{{.*}}[%[[C0]], %[[C0]]], %{{.*}} {permutation_map = #[[MAP0]]} : memref<4x2xf32>, vector<2x2xf32>
-// CHECK-NEXT: %[[VTR1:.*]] = vector.transfer_read %{{.*}}[%[[C2]], %[[C0]]], %{{.*}} {permutation_map = #[[MAP0]]} : memref<4x2xf32>, vector<2x2xf32>
+//      CHECK: %[[VTR0:.*]] = vector.transfer_read %{{.*}}[%[[C0]], %[[C0]]], %{{.*}} : memref<4x2xf32>, vector<2x2xf32>
+// CHECK-NEXT: %[[VTR1:.*]] = vector.transfer_read %{{.*}}[%[[C2]], %[[C0]]], %{{.*}} : memref<4x2xf32>, vector<2x2xf32>
 
-// CHECK-NEXT: %[[VTR2:.*]] = vector.transfer_read %{{.*}}[%[[C0]], %[[C0]]], %{{.*}} {permutation_map = #[[MAP0]]} : memref<2x4xf32>, vector<2x2xf32>
-// CHECK-NEXT: %[[VTR3:.*]] = vector.transfer_read %{{.*}}[%[[C0]], %[[C2]]], %{{.*}} {permutation_map = #[[MAP0]]} : memref<2x4xf32>, vector<2x2xf32>
+// CHECK-NEXT: %[[VTR2:.*]] = vector.transfer_read %{{.*}}[%[[C0]], %[[C0]]], %{{.*}} : memref<2x4xf32>, vector<2x2xf32>
+// CHECK-NEXT: %[[VTR3:.*]] = vector.transfer_read %{{.*}}[%[[C0]], %[[C2]]], %{{.*}} : memref<2x4xf32>, vector<2x2xf32>
 
-// CHECK-NEXT: %[[VTR4:.*]] = vector.transfer_read %{{.*}}[%[[C0]], %[[C0]]], %{{.*}} {permutation_map = #[[MAP0]]} : memref<4x4xf32>, vector<2x2xf32>
-// CHECK-NEXT: %[[VTR5:.*]] = vector.transfer_read %{{.*}}[%[[C0]], %[[C2]]], %{{.*}} {permutation_map = #[[MAP0]]} : memref<4x4xf32>, vector<2x2xf32>
-// CHECK-NEXT: %[[VTR6:.*]] = vector.transfer_read %{{.*}}[%[[C2]], %[[C0]]], %{{.*}} {permutation_map = #[[MAP0]]} : memref<4x4xf32>, vector<2x2xf32>
-// CHECK-NEXT: %[[VTR7:.*]] = vector.transfer_read %{{.*}}[%[[C2]], %[[C2]]], %{{.*}} {permutation_map = #[[MAP0]]} : memref<4x4xf32>, vector<2x2xf32>
+// CHECK-NEXT: %[[VTR4:.*]] = vector.transfer_read %{{.*}}[%[[C0]], %[[C0]]], %{{.*}} : memref<4x4xf32>, vector<2x2xf32>
+// CHECK-NEXT: %[[VTR5:.*]] = vector.transfer_read %{{.*}}[%[[C0]], %[[C2]]], %{{.*}} : memref<4x4xf32>, vector<2x2xf32>
+// CHECK-NEXT: %[[VTR6:.*]] = vector.transfer_read %{{.*}}[%[[C2]], %[[C0]]], %{{.*}} : memref<4x4xf32>, vector<2x2xf32>
+// CHECK-NEXT: %[[VTR7:.*]] = vector.transfer_read %{{.*}}[%[[C2]], %[[C2]]], %{{.*}} : memref<4x4xf32>, vector<2x2xf32>
 
 // CHECK-NEXT: %[[R0:.*]] = vector.contract {indexing_maps = [#map2, #map3, #map0], iterator_types = ["parallel", "reduction", "parallel"]} %[[VTR0]], %[[VTR2]], %[[VTR4]] : vector<2x2xf32>, vector<2x2xf32> into vector<2x2xf32>
 // CHECK-NEXT: %[[R1:.*]] = vector.contract {indexing_maps = [#map2, #map3, #map0], iterator_types = ["parallel", "reduction", "parallel"]} %[[VTR0]], %[[VTR3]], %[[VTR5]] : vector<2x2xf32>, vector<2x2xf32> into vector<2x2xf32>
 // CHECK-NEXT: %[[R2:.*]] = vector.contract {indexing_maps = [#map2, #map3, #map0], iterator_types = ["parallel", "reduction", "parallel"]} %[[VTR1]], %[[VTR2]], %[[VTR6]] : vector<2x2xf32>, vector<2x2xf32> into vector<2x2xf32>
 // CHECK-NEXT: %[[R3:.*]] = vector.contract {indexing_maps = [#map2, #map3, #map0], iterator_types = ["parallel", "reduction", "parallel"]} %[[VTR1]], %[[VTR3]], %[[VTR7]] : vector<2x2xf32>, vector<2x2xf32> into vector<2x2xf32>
 
-// CHECK-NEXT: vector.transfer_write %[[R0]], %{{.*}}[%[[C0]], %[[C0]]] {permutation_map = #[[MAP0]]} : vector<2x2xf32>, memref<4x4xf32>
-// CHECK-NEXT: vector.transfer_write %[[R1]], %{{.*}}[%[[C0]], %[[C2]]] {permutation_map = #[[MAP0]]} : vector<2x2xf32>, memref<4x4xf32>
-// CHECK-NEXT: vector.transfer_write %[[R2]], %{{.*}}[%[[C2]], %[[C0]]] {permutation_map = #[[MAP0]]} : vector<2x2xf32>, memref<4x4xf32>
-// CHECK-NEXT: vector.transfer_write %[[R3]], %{{.*}}[%[[C2]], %[[C2]]] {permutation_map = #[[MAP0]]} : vector<2x2xf32>, memref<4x4xf32>
+// CHECK-NEXT: vector.transfer_write %[[R0]], %{{.*}}[%[[C0]], %[[C0]]] : vector<2x2xf32>, memref<4x4xf32>
+// CHECK-NEXT: vector.transfer_write %[[R1]], %{{.*}}[%[[C0]], %[[C2]]] : vector<2x2xf32>, memref<4x4xf32>
+// CHECK-NEXT: vector.transfer_write %[[R2]], %{{.*}}[%[[C2]], %[[C0]]] : vector<2x2xf32>, memref<4x4xf32>
+// CHECK-NEXT: vector.transfer_write %[[R3]], %{{.*}}[%[[C2]], %[[C2]]] : vector<2x2xf32>, memref<4x4xf32>
 // CHECK-NEXT: return
 
 func @contraction4x4_ikj_xfer_read(%arg0 : memref<4x2xf32>,
@@ -313,13 +313,122 @@ func @tuple_get(%arg0: vector<4xf32>, %arg1: vector<8xf32>) -> vector<8xf32> {
   return %1 : vector<8xf32>
 }
 
+// CHECK-LABEL: func @tuple_get_producer_consumer
+// CHECK-SAME: %[[A0:.*0]]: vector<2x4xf32>,
+// CHECK-SAME: %[[A1:.*1]]: vector<2x4xf32>,
+// CHECK-SAME: %[[A2:.*2]]: vector<2x4xf32>,
+// CHECK-SAME: %[[A3:.*3]]: vector<2x4xf32>,
+// CHECK-SAME: %[[A4:.*4]]: vector<2x4xf32>,
+// CHECK-SAME: %[[A5:.*5]]: vector<2x4xf32>,
+// CHECK-SAME: %[[A6:.*6]]: vector<2x4xf32>,
+// CHECK-SAME: %[[A7:.*7]]: vector<2x4xf32>
+//      CHECK: return %[[A7]] : vector<2x4xf32>
+
+func @tuple_get_producer_consumer(
+  %arg0 : vector<2x4xf32>, %arg1 : vector<2x4xf32>,
+  %arg2 : vector<2x4xf32>, %arg3 : vector<2x4xf32>,
+  %arg4 : vector<2x4xf32>, %arg5 : vector<2x4xf32>,
+  %arg6 : vector<2x4xf32>, %arg7 : vector<2x4xf32>) -> vector<2x4xf32> {
+  %0 = vector.tuple %arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6, %arg7
+    : vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>,
+      vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>
+  // %arg7 == %0 at tupleIndex = 7, offsets = [0, 0]
+  %1 = vector.insert_slices %0, [2, 4], [1, 1]
+    : tuple<vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>,
+            vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>>
+      into vector<4x16xf32>
+  // %arg7 == %1 at tupleIndex = -1, offsets = [2, 12]
+  %2 = vector.extract_slices %1, [4, 8], [1, 1]
+    : vector<4x16xf32> into tuple<vector<4x8xf32>, vector<4x8xf32>>
+  // %arg7 == %2 at tupleIndex = 1, offsets = [2, 4]
+  %3 = vector.shape_cast %2 : tuple<vector<4x8xf32>, vector<4x8xf32>> to
+                              tuple<vector<1x1x4x8xf32>, vector<1x1x4x8xf32>>
+  // %arg7 = %3 at tupleIndex = 1, offsets = [0, 0, 2, 4]
+  %4 = vector.tuple_get %3, 1 : tuple<vector<1x1x4x8xf32>, vector<1x1x4x8xf32>>
+  // %arg7 == %4 at tupleIndex = -1, offsets = [0, 0, 2, 4]
+  %5 = vector.shape_cast %4 : vector<1x1x4x8xf32> to vector<4x8xf32>
+  // %arg7 == %5 at tupleIndex = -1, offsets = [2, 4]
+  %6 = vector.extract_slices %5, [2, 4], [1, 1]
+    : vector<4x8xf32> into
+      tuple<vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>>
+  // %arg7 == %6 at tupleIndex = 3, offsets = [0, 0]
+  %7 = vector.tuple_get %6, 3
+    : tuple<vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>>
+  // %arg7 == %7
+  return %7 : vector<2x4xf32>
+}
+
+// CHECK-LABEL: func @tuple_get_producer_consumer_swizzle
+// CHECK-SAME: %[[A0:.*0]]: vector<2x4xf32>,
+// CHECK-SAME: %[[A1:.*1]]: vector<2x4xf32>,
+// CHECK-SAME: %[[A2:.*2]]: vector<2x4xf32>,
+// CHECK-SAME: %[[A3:.*3]]: vector<2x4xf32>,
+// CHECK-SAME: %[[A4:.*4]]: vector<2x4xf32>,
+// CHECK-SAME: %[[A5:.*5]]: vector<2x4xf32>,
+// CHECK-SAME: %[[A6:.*6]]: vector<2x4xf32>,
+// CHECK-SAME: %[[A7:.*7]]: vector<2x4xf32>
+//      CHECK: return %[[A7]] : vector<2x4xf32>
+
+func @tuple_get_producer_consumer_swizzle(
+  %arg0 : vector<2x4xf32>, %arg1 : vector<2x4xf32>,
+  %arg2 : vector<2x4xf32>, %arg3 : vector<2x4xf32>,
+  %arg4 : vector<2x4xf32>, %arg5 : vector<2x4xf32>,
+  %arg6 : vector<2x4xf32>, %arg7 : vector<2x4xf32>) -> vector<2x4xf32> {
+  %0 = vector.tuple %arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6, %arg7
+    : vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>,
+      vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>
+  // %arg7 == %0 at tupleIndex = 7, offsets = [0, 0]
+  %1 = vector.insert_slices %0, [2, 4], [1, 1]
+    : tuple<vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>,
+            vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>>
+      into vector<4x16xf32>
+  // %arg7 == %1 at tupleIndex = -1, offsets = [2, 12]
+  %2 = vector.extract_slices %1, [4, 8], [1, 1]
+    : vector<4x16xf32> into tuple<vector<4x8xf32>, vector<4x8xf32>>
+  // %arg7 == %2 at tupleIndex = 1, offsets = [2, 4]
+  %3= vector.shape_cast %2 : tuple<vector<4x8xf32>, vector<4x8xf32>> to
+                             tuple<vector<1x1x4x8xf32>, vector<1x1x4x8xf32>>
+  // %arg7 = %3 at tupleIndex = 1, offsets = [0, 0, 2, 4]
+
+  // Extract tuple elements.
+  %4 = vector.tuple_get %3, 0 : tuple<vector<1x1x4x8xf32>, vector<1x1x4x8xf32>>
+  %5 = vector.tuple_get %3, 1 : tuple<vector<1x1x4x8xf32>, vector<1x1x4x8xf32>>
+  // %arg7 == %5 at tupleIndex = -1, offsets = [0, 0, 2, 4]
+
+  // Swizzle tuple elements.
+  %6 = vector.tuple %5, %4 : vector<1x1x4x8xf32>, vector<1x1x4x8xf32>
+  // %arg7 == %6 at tupleIndex = 0, offsets = [0, 0, 2, 4]
+  %7 = vector.shape_cast %6 : tuple<vector<1x1x4x8xf32>, vector<1x1x4x8xf32>> to
+                              tuple<vector<4x8xf32>, vector<4x8xf32>>
+  // %arg7 = %7 at tupleIndex = 0, offsets = [2, 4]
+  %8 = vector.tuple_get %7, 0 : tuple<vector<4x8xf32>, vector<4x8xf32>>
+  // %arg7 == %8 at tupleIndex = -1, offsets = [2, 4]
+  %9 = vector.extract_slices %8, [2, 4], [1, 1]
+    : vector<4x8xf32> into
+      tuple<vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>>
+  // %arg7 == %9 at tupleIndex = 3, offsets = [0, 0]
+  %10 = vector.tuple_get %9, 3
+    : tuple<vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>, vector<2x4xf32>>
+  // %arg7 == %10
+  return %10 : vector<2x4xf32>
+}
+
+// CHECK-LABEL: func @cancelling_shape_cast_ops
+//  CHECK-SAME: %[[A0:.*0]]: vector<2x4xf32>
+//       CHECK: return %[[A0]] : vector<2x4xf32>
+func @cancelling_shape_cast_ops(%arg0 : vector<2x4xf32>) -> vector<2x4xf32> {
+  %0 = vector.shape_cast %arg0 : vector<2x4xf32> to vector<8xf32>
+  %1 = vector.shape_cast %0 : vector<8xf32> to vector<2x4xf32>
+  return %1 : vector<2x4xf32>
+}
+
 // CHECK-LABEL: func @vector_transfers_vector_element_type
 //      CHECK: %[[C0:.*]] = constant 0 : index
 //      CHECK: %[[C1:.*]] = constant 1 : index
-//      CHECK: %[[VTR0:.*]] = vector.transfer_read %{{.*}}[%[[C0]], %[[C0]], %[[C0]]], %{{.*}} {permutation_map = #[[MAP1]]} : memref<6x2x1xvector<2x4xf32>>, vector<1x1x2x4xf32>
-// CHECK-NEXT: %[[VTR1:.*]] = vector.transfer_read %{{.*}}[%[[C0]], %[[C1]], %[[C0]]], %{{.*}} {permutation_map = #[[MAP1]]} : memref<6x2x1xvector<2x4xf32>>, vector<1x1x2x4xf32>
-// CHECK-NEXT: vector.transfer_write %[[VTR0]], %{{.*}}[%[[C0]], %[[C0]], %[[C0]]] {permutation_map = #[[MAP1]]} : vector<1x1x2x4xf32>, memref<6x2x1xvector<2x4xf32>>
-// CHECK-NEXT: vector.transfer_write %[[VTR1]], %{{.*}}[%[[C0]], %[[C1]], %[[C0]]] {permutation_map = #[[MAP1]]} : vector<1x1x2x4xf32>, memref<6x2x1xvector<2x4xf32>>
+//      CHECK: %[[VTR0:.*]] = vector.transfer_read %{{.*}}[%[[C0]], %[[C0]], %[[C0]]], %{{.*}} : memref<6x2x1xvector<2x4xf32>>, vector<1x1x2x4xf32>
+// CHECK-NEXT: %[[VTR1:.*]] = vector.transfer_read %{{.*}}[%[[C0]], %[[C1]], %[[C0]]], %{{.*}} : memref<6x2x1xvector<2x4xf32>>, vector<1x1x2x4xf32>
+// CHECK-NEXT: vector.transfer_write %[[VTR0]], %{{.*}}[%[[C0]], %[[C0]], %[[C0]]] : vector<1x1x2x4xf32>, memref<6x2x1xvector<2x4xf32>>
+// CHECK-NEXT: vector.transfer_write %[[VTR1]], %{{.*}}[%[[C0]], %[[C1]], %[[C0]]] : vector<1x1x2x4xf32>, memref<6x2x1xvector<2x4xf32>>
 
 func @vector_transfers_vector_element_type() {
   %c0 = constant 0 : index

@@ -10,6 +10,7 @@
 
 #include <cuda.h>
 
+#include "TestGetPlugin.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/cuda_definitions.hpp>
 #include <CL/sycl/detail/pi.hpp>
@@ -21,27 +22,27 @@ const unsigned int LATEST_KNOWN_CUDA_DRIVER_API_VERSION = 3020u;
 
 using namespace cl::sycl;
 
-class DISABLED_CudaBaseObjectsTest : public ::testing::Test {
+class CudaBaseObjectsTest : public ::testing::Test {
 protected:
-  std::vector<detail::plugin> Plugins;
+  detail::plugin plugin = pi::initializeAndGet(backend::cuda);
 
-  DISABLED_CudaBaseObjectsTest() { Plugins = detail::pi::initialize(); }
+  CudaBaseObjectsTest() = default;
 
-  ~DISABLED_CudaBaseObjectsTest() = default;
+  ~CudaBaseObjectsTest() = default;
 };
 
-TEST_F(DISABLED_CudaBaseObjectsTest, piContextCreate) {
+TEST_F(CudaBaseObjectsTest, piContextCreate) {
   pi_uint32 numPlatforms = 0;
   pi_platform platform = nullptr;
   pi_device device;
-  ASSERT_FALSE(Plugins.empty());
+  ASSERT_EQ(plugin.getBackend(), backend::cuda);
 
-  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
                 0, nullptr, &numPlatforms)),
             PI_SUCCESS)
       << "piPlatformsGet failed.\n";
 
-  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
                 numPlatforms, &platform, nullptr)),
             PI_SUCCESS)
       << "piPlatformsGet failed.\n";
@@ -49,13 +50,13 @@ TEST_F(DISABLED_CudaBaseObjectsTest, piContextCreate) {
   ASSERT_GE(numPlatforms, 1u);
   ASSERT_NE(platform, nullptr);
 
-  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piDevicesGet>(
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piDevicesGet>(
                 platform, PI_DEVICE_TYPE_GPU, 1, &device, nullptr)),
             PI_SUCCESS)
       << "piDevicesGet failed.\n";
 
   pi_context ctxt = nullptr;
-  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piContextCreate>(
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piContextCreate>(
                 nullptr, 1, &device, nullptr, nullptr, &ctxt)),
             PI_SUCCESS)
       << "piContextCreate failed.\n";
@@ -73,29 +74,29 @@ TEST_F(DISABLED_CudaBaseObjectsTest, piContextCreate) {
   ASSERT_EQ(cuErr, CUDA_SUCCESS);
 }
 
-TEST_F(DISABLED_CudaBaseObjectsTest, piContextCreatePrimaryTrue) {
+TEST_F(CudaBaseObjectsTest, piContextCreatePrimaryTrue) {
   pi_uint32 numPlatforms = 0;
   pi_platform platform;
   pi_device device;
 
-  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
                 0, nullptr, &numPlatforms)),
             PI_SUCCESS)
       << "piPlatformsGet failed.\n";
 
-  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
                 numPlatforms, &platform, nullptr)),
             PI_SUCCESS)
       << "piPlatformsGet failed.\n";
 
-  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piDevicesGet>(
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piDevicesGet>(
                 platform, PI_DEVICE_TYPE_GPU, 1, &device, nullptr)),
             PI_SUCCESS);
   pi_context_properties properties[] = {PI_CONTEXT_PROPERTIES_CUDA_PRIMARY,
                                         PI_TRUE, 0};
 
   pi_context ctxt;
-  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piContextCreate>(
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piContextCreate>(
                 properties, 1, &device, nullptr, nullptr, &ctxt)),
             PI_SUCCESS);
   EXPECT_NE(ctxt, nullptr);
@@ -114,34 +115,33 @@ TEST_F(DISABLED_CudaBaseObjectsTest, piContextCreatePrimaryTrue) {
   cuErr = cuCtxGetCurrent(&current);
   ASSERT_EQ(cuErr, CUDA_SUCCESS);
   ASSERT_EQ(current, cudaContext);
-  ASSERT_EQ(
-      (Plugins[0].call_nocheck<detail::PiApiKind::piContextRelease>(ctxt)),
-      PI_SUCCESS);
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piContextRelease>(ctxt)),
+            PI_SUCCESS);
 }
 
-TEST_F(DISABLED_CudaBaseObjectsTest, piContextCreatePrimaryFalse) {
+TEST_F(CudaBaseObjectsTest, piContextCreatePrimaryFalse) {
   pi_uint32 numPlatforms = 0;
   pi_platform platform;
   pi_device device;
 
-  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
                 0, nullptr, &numPlatforms)),
             PI_SUCCESS)
       << "piPlatformsGet failed.\n";
 
-  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
                 numPlatforms, &platform, nullptr)),
             PI_SUCCESS)
       << "piPlatformsGet failed.\n";
 
-  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piDevicesGet>(
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piDevicesGet>(
                 platform, PI_DEVICE_TYPE_GPU, 1, &device, nullptr)),
             PI_SUCCESS);
   pi_context_properties properties[] = {PI_CONTEXT_PROPERTIES_CUDA_PRIMARY,
                                         PI_FALSE, 0};
 
   pi_context ctxt;
-  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piContextCreate>(
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piContextCreate>(
                 properties, 1, &device, nullptr, nullptr, &ctxt)),
             PI_SUCCESS);
   EXPECT_NE(ctxt, nullptr);
@@ -160,32 +160,31 @@ TEST_F(DISABLED_CudaBaseObjectsTest, piContextCreatePrimaryFalse) {
   cuErr = cuCtxGetCurrent(&current);
   ASSERT_EQ(cuErr, CUDA_SUCCESS);
   ASSERT_EQ(current, cudaContext);
-  ASSERT_EQ(
-      (Plugins[0].call_nocheck<detail::PiApiKind::piContextRelease>(ctxt)),
-      PI_SUCCESS);
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piContextRelease>(ctxt)),
+            PI_SUCCESS);
 }
 
-TEST_F(DISABLED_CudaBaseObjectsTest, piContextCreateChildThread) {
+TEST_F(CudaBaseObjectsTest, piContextCreateChildThread) {
   pi_uint32 numPlatforms = 0;
   pi_platform platform;
   pi_device device;
 
-  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
                 0, nullptr, &numPlatforms)),
             PI_SUCCESS)
       << "piPlatformsGet failed.\n";
 
-  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piPlatformsGet>(
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
                 numPlatforms, &platform, nullptr)),
             PI_SUCCESS)
       << "piPlatformsGet failed.\n";
 
-  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piDevicesGet>(
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piDevicesGet>(
                 platform, PI_DEVICE_TYPE_GPU, 1, &device, nullptr)),
             PI_SUCCESS);
 
   pi_context ctxt;
-  ASSERT_EQ((Plugins[0].call_nocheck<detail::PiApiKind::piContextCreate>(
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piContextCreate>(
                 nullptr, 1, &device, nullptr, nullptr, &ctxt)),
             PI_SUCCESS);
   EXPECT_NE(ctxt, nullptr);
@@ -216,7 +215,6 @@ TEST_F(DISABLED_CudaBaseObjectsTest, piContextCreateChildThread) {
 
   callContextFromOtherThread.join();
 
-  ASSERT_EQ(
-      (Plugins[0].call_nocheck<detail::PiApiKind::piContextRelease>(ctxt)),
-      PI_SUCCESS);
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piContextRelease>(ctxt)),
+            PI_SUCCESS);
 }

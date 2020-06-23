@@ -110,7 +110,9 @@ private:
 
     static Optional<FunctionData> create(const CallEvent &Call,
                                          const CheckerContext &C) {
-      assert(Call.getDecl());
+      if (!Call.getDecl())
+        return None;
+
       const FunctionDecl *FDecl = Call.getDecl()->getAsFunction();
       if (!FDecl || (FDecl->getKind() != Decl::Function &&
                      FDecl->getKind() != Decl::CXXMethod))
@@ -948,6 +950,6 @@ void ento::registerGenericTaintChecker(CheckerManager &Mgr) {
     Checker->parseConfiguration(Mgr, Option, std::move(Config.getValue()));
 }
 
-bool ento::shouldRegisterGenericTaintChecker(const LangOptions &LO) {
+bool ento::shouldRegisterGenericTaintChecker(const CheckerManager &mgr) {
   return true;
 }

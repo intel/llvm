@@ -8,6 +8,7 @@
 
 #include "gtest/gtest.h"
 
+#include "TestGetPlatforms.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/backend/cuda.hpp>
 #include <cuda.h>
@@ -15,39 +16,21 @@
 
 using namespace cl::sycl;
 
-struct DISABLED_CudaInteropGetNativeTests : public ::testing::Test {
+struct CudaInteropGetNativeTests : public ::testing::TestWithParam<platform> {
 
 protected:
-  queue syclQueue_;
-  context syclContext_;
+  std::unique_ptr<queue> syclQueue_;
   device syclDevice_;
 
-  static bool isCudaDevice(const device &dev) {
-    const platform platform = dev.get_info<info::device::platform>();
-    const std::string platformVersion =
-        platform.get_info<info::platform::version>();
-    // If using PI_CUDA, don't accept a non-CUDA device
-    return platformVersion.find("CUDA") != std::string::npos;
-  }
-
-  class cuda_device_selector : public device_selector {
-  public:
-    int operator()(const device &dev) const {
-      return isCudaDevice(dev) ? 1 : -1;
-    }
-  };
-
   void SetUp() override {
-    syclQueue_ = queue{cuda_device_selector()};
-    context syclContext_ = syclQueue_.get_context();
-    device syclDevice_ = syclQueue_.get_device();
-    ASSERT_TRUE(isCudaDevice(syclDevice_));
+    syclDevice_ = GetParam().get_devices()[0];
+    syclQueue_ = std::unique_ptr<queue>{new queue{syclDevice_}};
   }
 
-  void TearDown() override {}
+  void TearDown() override { syclQueue_.reset(); }
 };
 
-TEST_F(DISABLED_CudaInteropGetNativeTests, getNativeDevice) {
+TEST_P(CudaInteropGetNativeTests, getNativeDevice) {
   CUdevice cudaDevice = get_native<backend::cuda>(syclDevice_);
   char cudaDeviceName[2] = {0, 0};
   CUresult result = cuDeviceGetName(cudaDeviceName, 2, cudaDevice);
@@ -55,43 +38,52 @@ TEST_F(DISABLED_CudaInteropGetNativeTests, getNativeDevice) {
   ASSERT_NE(cudaDeviceName[0], 0);
 }
 
-TEST_F(DISABLED_CudaInteropGetNativeTests, getNativeContext) {
-  CUcontext cudaContext = get_native<backend::cuda>(syclContext_);
+TEST_P(CudaInteropGetNativeTests, getNativeContext) {
+  CUcontext cudaContext = get_native<backend::cuda>(syclQueue_->get_context());
   ASSERT_NE(cudaContext, nullptr);
 }
 
-TEST_F(DISABLED_CudaInteropGetNativeTests, getNativeQueue) {
-  CUstream cudaStream = get_native<backend::cuda>(syclQueue_);
+TEST_P(CudaInteropGetNativeTests, getNativeQueue) {
+  CUstream cudaStream = get_native<backend::cuda>(*syclQueue_);
   ASSERT_NE(cudaStream, nullptr);
 
   CUcontext streamContext = nullptr;
   CUresult result = cuStreamGetCtx(cudaStream, &streamContext);
   ASSERT_EQ(result, CUDA_SUCCESS);
 
-  CUcontext cudaContext = get_native<backend::cuda>(syclContext_);
+  CUcontext cudaContext = get_native<backend::cuda>(syclQueue_->get_context());
   ASSERT_EQ(streamContext, cudaContext);
 }
 
-TEST_F(DISABLED_CudaInteropGetNativeTests, interopTaskGetMem) {
+TEST_P(CudaInteropGetNativeTests, interopTaskGetMem) {
   buffer<int, 1> syclBuffer(range<1>{1});
-  syclQueue_.submit([&](cl::sycl::handler &cgh) {
+  syclQueue_->submit([&](handler &cgh) {
     auto syclAccessor = syclBuffer.get_access<access::mode::read>(cgh);
-    cgh.interop_task([=](sycl::interop_handler ih) {
+    cgh.interop_task([=](interop_handler ih) {
       CUdeviceptr cudaPtr = ih.get_mem<backend::cuda>(syclAccessor);
       CUdeviceptr cudaPtrBase;
       size_t cudaPtrSize = 0;
-      cuMemGetAddressRange(&cudaPtrBase, &cudaPtrSize, cudaPtr);
-      ASSERT_EQ(cudaPtrSize, sizeof(int));
+      CUcontext cudaContext =
+          get_native<backend::cuda>(syclQueue_->get_context());
+      ASSERT_EQ(CUDA_SUCCESS, cuCtxPushCurrent(cudaContext));
+      ASSERT_EQ(CUDA_SUCCESS,
+                cuMemGetAddressRange(&cudaPtrBase, &cudaPtrSize, cudaPtr));
+      ASSERT_EQ(CUDA_SUCCESS, cuCtxPopCurrent(nullptr));
+      ASSERT_EQ(sizeof(int), cudaPtrSize);
     });
   });
 }
 
-TEST_F(DISABLED_CudaInteropGetNativeTests, interopTaskGetBufferMem) {
-  CUstream cudaStream = get_native<backend::cuda>(syclQueue_);
-  syclQueue_.submit([&](cl::sycl::handler &cgh) {
-    cgh.interop_task([=](sycl::interop_handler ih) {
+TEST_P(CudaInteropGetNativeTests, interopTaskGetBufferMem) {
+  CUstream cudaStream = get_native<backend::cuda>(*syclQueue_);
+  syclQueue_->submit([&](handler &cgh) {
+    cgh.interop_task([=](interop_handler ih) {
       CUstream cudaInteropStream = ih.get_queue<backend::cuda>();
       ASSERT_EQ(cudaInteropStream, cudaStream);
     });
   });
 }
+
+INSTANTIATE_TEST_CASE_P(
+    OnCudaPlatform, CudaInteropGetNativeTests,
+    ::testing::ValuesIn(pi::getPlatformsWithName("CUDA BACKEND")), );

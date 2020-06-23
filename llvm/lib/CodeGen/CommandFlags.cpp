@@ -13,6 +13,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/CommandFlags.h"
+#include "llvm/IR/Module.h"
+#include "llvm/MC/SubtargetFeature.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Host.h"
 
 using namespace llvm;
 
@@ -54,7 +58,8 @@ CGOPT(bool, EnableNoInfsFPMath)
 CGOPT(bool, EnableNoNaNsFPMath)
 CGOPT(bool, EnableNoSignedZerosFPMath)
 CGOPT(bool, EnableNoTrappingFPMath)
-CGOPT(FPDenormal::DenormalMode, DenormalFPMath)
+CGOPT(DenormalMode::DenormalModeKind, DenormalFPMath)
+CGOPT(DenormalMode::DenormalModeKind, DenormalFP32Math)
 CGOPT(bool, EnableHonorSignDependentRoundingFPMath)
 CGOPT(FloatABI::ABIType, FloatABIForCalls)
 CGOPT(FPOpFusion::FPOpFusionMode, FuseFPOps)
@@ -73,7 +78,7 @@ CGOPT(std::string, BBSections)
 CGOPT(unsigned, TLSSize)
 CGOPT(bool, EmulatedTLS)
 CGOPT(bool, UniqueSectionNames)
-CGOPT(bool, UniqueBBSectionNames)
+CGOPT(bool, UniqueBasicBlockSectionNames)
 CGOPT(EABI, EABIVersion)
 CGOPT(DebuggerKind, DebuggerTuningOpt)
 CGOPT(bool, EnableStackSizeSection)
@@ -81,6 +86,7 @@ CGOPT(bool, EnableAddrsig)
 CGOPT(bool, EmitCallSiteInfo)
 CGOPT(bool, EnableDebugEntryValues)
 CGOPT(bool, ForceDwarfFrameSection)
+CGOPT(bool, XRayOmitFunctionIndex)
 
 codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
 #define CGBINDOPT(NAME)                                                        \
@@ -212,19 +218,29 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
       cl::init(false));
   CGBINDOPT(EnableNoTrappingFPMath);
 
-  static cl::opt<FPDenormal::DenormalMode> DenormalFPMath(
-      "denormal-fp-math",
-      cl::desc(
-          "Select which denormal numbers the code is permitted to require"),
-      cl::init(FPDenormal::IEEE),
-      cl::values(
-          clEnumValN(FPDenormal::IEEE, "ieee", "IEEE 754 denormal numbers"),
-          clEnumValN(FPDenormal::PreserveSign, "preserve-sign",
-                     "the sign of a  flushed-to-zero number is preserved "
-                     "in the sign of 0"),
-          clEnumValN(FPDenormal::PositiveZero, "positive-zero",
-                     "denormals are flushed to positive zero")));
+  static const auto DenormFlagEnumOptions =
+  cl::values(clEnumValN(DenormalMode::IEEE, "ieee",
+                        "IEEE 754 denormal numbers"),
+             clEnumValN(DenormalMode::PreserveSign, "preserve-sign",
+                        "the sign of a  flushed-to-zero number is preserved "
+                        "in the sign of 0"),
+             clEnumValN(DenormalMode::PositiveZero, "positive-zero",
+                        "denormals are flushed to positive zero"));
+
+  // FIXME: Doesn't have way to specify separate input and output modes.
+  static cl::opt<DenormalMode::DenormalModeKind> DenormalFPMath(
+    "denormal-fp-math",
+    cl::desc("Select which denormal numbers the code is permitted to require"),
+    cl::init(DenormalMode::IEEE),
+    DenormFlagEnumOptions);
   CGBINDOPT(DenormalFPMath);
+
+  static cl::opt<DenormalMode::DenormalModeKind> DenormalFP32Math(
+    "denormal-fp-math-f32",
+    cl::desc("Select which denormal numbers the code is permitted to require for float"),
+    cl::init(DenormalMode::Invalid),
+    DenormFlagEnumOptions);
+  CGBINDOPT(DenormalFP32Math);
 
   static cl::opt<bool> EnableHonorSignDependentRoundingFPMath(
       "enable-sign-dependent-rounding-fp-math", cl::Hidden,
@@ -335,11 +351,11 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
       cl::init(true));
   CGBINDOPT(UniqueSectionNames);
 
-  static cl::opt<bool> UniqueBBSectionNames(
+  static cl::opt<bool> UniqueBasicBlockSectionNames(
       "unique-bb-section-names",
       cl::desc("Give unique names to every basic block section"),
       cl::init(false));
-  CGBINDOPT(UniqueBBSectionNames);
+  CGBINDOPT(UniqueBasicBlockSectionNames);
 
   static cl::opt<EABI> EABIVersion(
       "meabi", cl::desc("Set EABI type (default depends on triple):"),
@@ -389,6 +405,11 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
       cl::desc("Always emit a debug frame section."), cl::init(false));
   CGBINDOPT(ForceDwarfFrameSection);
 
+  static cl::opt<bool> XRayOmitFunctionIndex(
+      "no-xray-index", cl::desc("Don't emit xray_fn_idx section"),
+      cl::init(false));
+  CGBINDOPT(XRayOmitFunctionIndex);
+
 #undef CGBINDOPT
 
   mc::RegisterMCTargetOptionsFlags();
@@ -425,7 +446,12 @@ TargetOptions codegen::InitTargetOptionsFromCodeGenFlags() {
   Options.NoNaNsFPMath = getEnableNoNaNsFPMath();
   Options.NoSignedZerosFPMath = getEnableNoSignedZerosFPMath();
   Options.NoTrappingFPMath = getEnableNoTrappingFPMath();
-  Options.FPDenormalMode = getDenormalFPMath();
+
+  DenormalMode::DenormalModeKind DenormKind = getDenormalFPMath();
+
+  // FIXME: Should have separate input and output flags
+  Options.setFPDenormalMode(DenormalMode(DenormKind, DenormKind));
+
   Options.HonorSignDependentRoundingFPMathOption =
       getEnableHonorSignDependentRoundingFPMath();
   if (getFloatABIForCalls() != FloatABI::Default)
@@ -440,7 +466,7 @@ TargetOptions codegen::InitTargetOptionsFromCodeGenFlags() {
   Options.FunctionSections = getFunctionSections();
   Options.BBSections = getBBSectionsMode(Options);
   Options.UniqueSectionNames = getUniqueSectionNames();
-  Options.UniqueBBSectionNames = getUniqueBBSectionNames();
+  Options.UniqueBasicBlockSectionNames = getUniqueBasicBlockSectionNames();
   Options.TLSSize = getTLSSize();
   Options.EmulatedTLS = getEmulatedTLS();
   Options.ExplicitEmulatedTLS = EmulatedTLSView->getNumOccurrences() > 0;
@@ -450,6 +476,7 @@ TargetOptions codegen::InitTargetOptionsFromCodeGenFlags() {
   Options.EmitCallSiteInfo = getEmitCallSiteInfo();
   Options.EnableDebugEntryValues = getEnableDebugEntryValues();
   Options.ForceDwarfFrameSection = getForceDwarfFrameSection();
+  Options.XRayOmitFunctionIndex = getXRayOmitFunctionIndex();
 
   Options.MCOptions = mc::InitMCTargetOptionsFromFlags();
 
@@ -562,6 +589,25 @@ void codegen::setFunctionAttributes(StringRef CPU, StringRef Features,
   HANDLE_BOOL_ATTR(EnableNoInfsFPMathView, "no-infs-fp-math");
   HANDLE_BOOL_ATTR(EnableNoNaNsFPMathView, "no-nans-fp-math");
   HANDLE_BOOL_ATTR(EnableNoSignedZerosFPMathView, "no-signed-zeros-fp-math");
+
+  if (DenormalFPMathView->getNumOccurrences() > 0 &&
+      !F.hasFnAttribute("denormal-fp-math")) {
+    DenormalMode::DenormalModeKind DenormKind = getDenormalFPMath();
+
+    // FIXME: Command line flag should expose separate input/output modes.
+    NewAttrs.addAttribute("denormal-fp-math",
+                          DenormalMode(DenormKind, DenormKind).str());
+  }
+
+  if (DenormalFP32MathView->getNumOccurrences() > 0 &&
+      !F.hasFnAttribute("denormal-fp-math-f32")) {
+    // FIXME: Command line flag should expose separate input/output modes.
+    DenormalMode::DenormalModeKind DenormKind = getDenormalFP32Math();
+
+    NewAttrs.addAttribute(
+      "denormal-fp-math-f32",
+      DenormalMode(DenormKind, DenormKind).str());
+  }
 
   if (TrapFuncNameView->getNumOccurrences() > 0)
     for (auto &B : F)

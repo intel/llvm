@@ -21,7 +21,7 @@
 #include "mlir/IR/TypeSupport.h"
 #include "mlir/IR/Types.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
-#include "mlir/Interfaces/SideEffects.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -32,6 +32,10 @@
 namespace llvm {
 class Type;
 class LLVMContext;
+namespace sys {
+template <bool mt_only>
+class SmartMutex;
+} // end namespace sys
 } // end namespace llvm
 
 namespace mlir {
@@ -58,6 +62,7 @@ public:
   llvm::Type *getUnderlyingType() const;
 
   /// Utilities to identify types.
+  bool isBFloatTy() { return getUnderlyingType()->isBFloatTy(); }
   bool isHalfTy() { return getUnderlyingType()->isHalfTy(); }
   bool isFloatTy() { return getUnderlyingType()->isFloatTy(); }
   bool isDoubleTy() { return getUnderlyingType()->isDoubleTy(); }
@@ -73,6 +78,7 @@ public:
 
   /// Vector type utilities.
   LLVMType getVectorElementType();
+  unsigned getVectorNumElements();
   bool isVectorTy();
 
   /// Function type utilities.
@@ -94,6 +100,7 @@ public:
   /// Utilities used to generate floating point types.
   static LLVMType getDoubleTy(LLVMDialect *dialect);
   static LLVMType getFloatTy(LLVMDialect *dialect);
+  static LLVMType getBFloatTy(LLVMDialect *dialect);
   static LLVMType getHalfTy(LLVMDialect *dialect);
   static LLVMType getFP128Ty(LLVMDialect *dialect);
   static LLVMType getX86_FP80Ty(LLVMDialect *dialect);
@@ -214,6 +221,12 @@ Value createGlobalString(Location loc, OpBuilder &builder, StringRef name,
 /// LLVM requires some operations to be inside of a Module operation. This
 /// function confirms that the Operation has the desired properties.
 bool satisfiesLLVMModule(Operation *op);
+
+/// Clones the given module into the provided context. This is implemented by
+/// transforming the module into bitcode and then reparsing the bitcode in the
+/// provided context.
+std::unique_ptr<llvm::Module>
+cloneModuleIntoNewContext(llvm::LLVMContext *context, llvm::Module *module);
 
 } // end namespace LLVM
 } // end namespace mlir

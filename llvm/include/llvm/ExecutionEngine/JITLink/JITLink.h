@@ -248,8 +248,8 @@ public:
   bool edges_empty() const { return Edges.empty(); }
 
   /// Remove the edge pointed to by the given iterator.
-  /// Invalidates all iterators that point to or past the given one.
-  void removeEdge(const_edge_iterator I) { Edges.erase(I); }
+  /// Returns an iterator to the new next element.
+  edge_iterator removeEdge(edge_iterator I) { return Edges.erase(I); }
 
 private:
   static constexpr uint64_t MaxAlignmentOffset = (1ULL << 57) - 1;
@@ -352,7 +352,8 @@ private:
                                   JITTargetAddress Size, bool IsCallable,
                                   bool IsLive) {
     assert(SymStorage && "Storage cannot be null");
-    assert(Offset < Base.getSize() && "Symbol offset is outside block");
+    assert((Offset + Size) <= Base.getSize() &&
+           "Symbol extends past end of block");
     auto *Sym = reinterpret_cast<Symbol *>(SymStorage);
     new (Sym) Symbol(Base, Offset, StringRef(), Size, Linkage::Strong,
                      Scope::Local, IsLive, IsCallable);
@@ -364,7 +365,8 @@ private:
                                    JITTargetAddress Size, Linkage L, Scope S,
                                    bool IsLive, bool IsCallable) {
     assert(SymStorage && "Storage cannot be null");
-    assert(Offset < Base.getSize() && "Symbol offset is outside block");
+    assert((Offset + Size) <= Base.getSize() &&
+           "Symbol extends past end of block");
     assert(!Name.empty() && "Name cannot be empty");
     auto *Sym = reinterpret_cast<Symbol *>(SymStorage);
     new (Sym) Symbol(Base, Offset, Name, Size, L, S, IsLive, IsCallable);

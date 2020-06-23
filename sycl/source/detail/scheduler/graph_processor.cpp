@@ -38,18 +38,18 @@ Scheduler::GraphProcessor::getWaitList(EventImplPtr Event) {
 
 void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event) {
   Command *Cmd = getCommand(Event);
-  assert(Cmd && "Event has no associated command?");
+  // Command can be nullptr if user creates cl::sycl::event explicitly or the
+  // event has been waited on by another thread
+  if (!Cmd)
+    return;
+
   EnqueueResultT Res;
   bool Enqueued = enqueueCommand(Cmd, Res, BLOCKING);
   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
     // TODO: Reschedule commands.
     throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
 
-  RT::PiEvent &CLEvent = Cmd->getEvent()->getHandleRef();
-  if (CLEvent) {
-    const detail::plugin &Plugin = Event->getPlugin();
-    Plugin.call<PiApiKind::piEventsWait>(1, &CLEvent);
-  }
+  Cmd->getEvent()->waitInternal();
 }
 
 bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,

@@ -98,7 +98,7 @@ private:
   void readTokenWithJavaScriptASI();
   void parseStructuralElement();
   bool tryToParseBracedList();
-  bool parseBracedList(bool ContinueOnSemicolons = false,
+  bool parseBracedList(bool ContinueOnSemicolons = false, bool IsEnum = false,
                        tok::TokenKind ClosingBraceKind = tok::r_brace);
   void parseParens();
   void parseSquare(bool LambdaIntroducer = false);
@@ -132,7 +132,9 @@ private:
   void parseCSharpGenericTypeConstraint();
   bool tryToParseLambda();
   bool tryToParseLambdaIntroducer();
+  bool tryToParsePropertyAccessor();
   void tryToParseJSFunction();
+  bool tryToParseSimpleAttribute();
   void addUnwrappedLine();
   bool eof() const;
   // LevelDifference is the difference of levels after and before the current

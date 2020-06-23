@@ -26,9 +26,8 @@ stream_impl::stream_impl(size_t BufferSize, size_t MaxStatementSize,
       Data(BufferSize + OffsetSize + 1, 0),
       Buf(Data.data(), range<1>(BufferSize + OffsetSize + 1),
           {property::buffer::use_host_ptr()}),
-      // This buffer is used to pass provided flsuh buffer size to the device
-      FlushBufferSize(&MaxStatementSize_, range<1>(1),
-                      {property::buffer::use_host_ptr()}) {}
+
+      FlushBuf(range<1>(MaxStatementSize)) {}
 
 size_t stream_impl::get_size() const { return BufferSize_; }
 

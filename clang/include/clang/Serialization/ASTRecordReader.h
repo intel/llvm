@@ -14,6 +14,7 @@
 #ifndef LLVM_CLANG_SERIALIZATION_ASTRECORDREADER_H
 #define LLVM_CLANG_SERIALIZATION_ASTRECORDREADER_H
 
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/AbstractBasicReader.h"
 #include "clang/Lex/Token.h"
 #include "clang/Serialization/ASTReader.h"
@@ -118,7 +119,7 @@ public:
   //readExceptionSpecInfo(SmallVectorImpl<QualType> &ExceptionStorage);
 
   /// Get the global offset corresponding to a local offset.
-  uint64_t getGlobalBitOffset(uint32_t LocalOffset) {
+  uint64_t getGlobalBitOffset(uint64_t LocalOffset) {
     return Reader->getGlobalBitOffset(*F, LocalOffset);
   }
 

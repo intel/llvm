@@ -75,6 +75,13 @@ New module
 
 New checks
 ^^^^^^^^^^
+
+- New :doc:`abseil-string-find-str-contains
+  <clang-tidy/checks/abseil-string-find-str-contains>` check.
+
+  Finds ``s.find(...) == string::npos`` comparisons (for various string-like types)
+  and suggests replacing with ``absl::StrContains()``.
+
 - New :doc:`cppcoreguidelines-avoid-non-const-global-variables
   <clang-tidy/checks/cppcoreguidelines-avoid-non-const-global-variables>` check.
   Finds non-const global variables as described in check I.2 of C++ Core
@@ -92,7 +99,7 @@ New checks
 
   Finds ``cnd_wait``, ``cnd_timedwait``, ``wait``, ``wait_for``, or
   ``wait_until`` function calls when the function is not invoked from a loop
-  that checks whether a condition predicate holds or the function has a 
+  that checks whether a condition predicate holds or the function has a
   condition parameter.
 
 - New :doc:`bugprone-reserved-identifier
@@ -113,11 +120,27 @@ New checks
   Flags use of the `C` standard library functions ``memset``, ``memcpy`` and
   ``memcmp`` and similar derivatives on non-trivial types.
 
+- New :doc:`llvmlibc-callee-namespace
+  <clang-tidy/checks/llvmlibc-callee-namespace>` check.
+
+  Checks all calls resolve to functions within ``__llvm_libc`` namespace.
+
+- New :doc:`llvmlibc-implementation-in-namespace
+  <clang-tidy/checks/llvmlibc-implementation-in-namespace>` check.
+
+  Checks all llvm-libc implementation is within the correct namespace.
+
 - New :doc:`llvmlibc-restrict-system-libc-headers
   <clang-tidy/checks/llvmlibc-restrict-system-libc-headers>` check.
 
   Finds includes of system libc headers not provided by the compiler within
   llvm-libc implementations.
+
+- New :doc:`modernize-replace-disallow-copy-and-assign-macro
+  <clang-tidy/checks/modernize-replace-disallow-copy-and-assign-macro>` check.
+
+  Finds macro expansions of ``DISALLOW_COPY_AND_ASSIGN`` and replaces them with
+  a deleted copy constructor and a deleted assignment operator.
 
 - New :doc:`objc-dealloc-in-category
   <clang-tidy/checks/objc-dealloc-in-category>` check.
@@ -128,6 +151,18 @@ New checks
   <clang-tidy/checks/misc-no-recursion>` check.
 
   Finds recursive functions and diagnoses them.
+
+- New :doc:`objc-nsinvocation-argument-lifetime
+  <clang-tidy/checks/objc-nsinvocation-argument-lifetime>` check.
+
+  Finds calls to ``NSInvocation`` methods under ARC that don't have proper
+  argument object lifetimes.
+
+- New :doc:`readability-use-anyofallof
+  <clang-tidy/checks/readability-use-anyofallof>` check.
+
+  Finds range-based for loops that can be replaced by a call to ``std::any_of``
+  or ``std::all_of``.
 
 New check aliases
 ^^^^^^^^^^^^^^^^^
@@ -152,11 +187,22 @@ New check aliases
   :doc:`bugprone-reserved-identifier
   <clang-tidy/checks/bugprone-reserved-identifier>` was added.
 
+- New alias :doc:`cert-str34-c
+  <clang-tidy/checks/cert-str34-c>` to
+  :doc:`bugprone-signed-char-misuse
+  <clang-tidy/checks/bugprone-signed-char-misuse>` was added.
+
 Changes in existing checks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+- Improved :doc:'readability-identifier-naming
+  <clang-tidy/checks/readability-identifier-naming>` check.
+
+  Now able to rename member references in class template definitions with 
+  explicit access.
+
 - Improved :doc:`readability-qualified-auto
-  <clang-tidy/checks/readability-qualified-auto>` check now supports a 
+  <clang-tidy/checks/readability-qualified-auto>` check now supports a
   `AddConstToQualified` to enable adding ``const`` qualifiers to variables
   typed with ``auto *`` and ``auto &``.
 
@@ -176,6 +222,11 @@ Renamed checks
 
 - The 'fuchsia-restrict-system-headers' check was renamed to :doc:`portability-restrict-system-includes
   <clang-tidy/checks/portability-restrict-system-includes>`
+
+Other improvements
+^^^^^^^^^^^^^^^^^^
+
+- For 'run-clang-tidy.py' add option to use alpha checkers from clang-analyzer.
 
 Improvements to include-fixer
 -----------------------------
@@ -199,4 +250,3 @@ The improvements are...
 
 Clang-tidy visual studio plugin
 -------------------------------
-

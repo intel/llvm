@@ -13,10 +13,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "PassDetail.h"
 #include "mlir/Analysis/CallGraph.h"
 #include "mlir/IR/PatternMatch.h"
-#include "mlir/Interfaces/SideEffects.h"
-#include "mlir/Pass/Pass.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Transforms/InliningUtils.h"
 #include "mlir/Transforms/Passes.h"
 #include "llvm/ADT/SCCIterator.h"
@@ -27,63 +27,9 @@
 
 using namespace mlir;
 
-static llvm::cl::opt<bool> disableCanonicalization(
-    "mlir-disable-inline-simplify",
-    llvm::cl::desc("Disable running simplifications during inlining"),
-    llvm::cl::ReallyHidden, llvm::cl::init(false));
-
-static llvm::cl::opt<unsigned> maxInliningIterations(
-    "mlir-max-inline-iterations",
-    llvm::cl::desc("Maximum number of iterations when inlining within an SCC"),
-    llvm::cl::ReallyHidden, llvm::cl::init(4));
-
 //===----------------------------------------------------------------------===//
 // Symbol Use Tracking
 //===----------------------------------------------------------------------===//
-
-/// Returns true if this operation can be discarded if it is a symbol and has no
-/// uses. 'allUsesVisible' corresponds to if the parent symbol table is hidden
-/// from above.
-static bool canDiscardSymbolOnUseEmpty(Operation *op, bool allUsesVisible) {
-  if (!SymbolTable::isSymbol(op))
-    return false;
-
-  // TODO: This is essentially the same logic from SymbolDCE. Remove this when
-  // we have a 'Symbol' interface.
-  // Private symbols are always initially considered dead.
-  SymbolTable::Visibility visibility = SymbolTable::getSymbolVisibility(op);
-  if (visibility == mlir::SymbolTable::Visibility::Private)
-    return true;
-  // We only include nested visibility here if all uses are visible.
-  if (allUsesVisible && visibility == SymbolTable::Visibility::Nested)
-    return true;
-  // Otherwise, public symbols are never removable.
-  return false;
-}
-
-/// Walk all of the symbol table operations nested with 'op' along with a
-/// boolean signifying if the symbols within can be treated as if all uses are
-/// visible. The provided callback is invoked with the symbol table operation,
-/// and a boolean signaling if all of the uses within the symbol table are
-/// visible.
-static void walkSymbolTables(Operation *op, bool allSymUsesVisible,
-                             function_ref<void(Operation *, bool)> callback) {
-  if (op->hasTrait<OpTrait::SymbolTable>()) {
-    allSymUsesVisible = allSymUsesVisible || !SymbolTable::isSymbol(op) ||
-                        SymbolTable::getSymbolVisibility(op) ==
-                            SymbolTable::Visibility::Private;
-    callback(op, allSymUsesVisible);
-  } else {
-    // Otherwise if 'op' is not a symbol table, any nested symbols are
-    // guaranteed to be hidden.
-    allSymUsesVisible = true;
-  }
-
-  for (Region &region : op->getRegions())
-    for (Block &block : region)
-      for (Operation &nested : block)
-        walkSymbolTables(&nested, allSymUsesVisible, callback);
-}
 
 /// Walk all of the used symbol callgraph nodes referenced with the given op.
 static void walkReferencedSymbolNodes(
@@ -176,23 +122,25 @@ CGUseList::CGUseList(Operation *op, CallGraph &cg) {
 
   // Walk each of the symbol tables looking for discardable callgraph nodes.
   auto walkFn = [&](Operation *symbolTableOp, bool allUsesVisible) {
-    for (Block &block : symbolTableOp->getRegion(0)) {
-      for (Operation &op : block) {
-        // If this is a callgraph operation, check to see if it is discardable.
-        if (auto callable = dyn_cast<CallableOpInterface>(&op)) {
-          if (auto *node = cg.lookupNode(callable.getCallableRegion())) {
-            if (canDiscardSymbolOnUseEmpty(&op, allUsesVisible))
-              discardableSymNodeUses.try_emplace(node, 0);
-            continue;
+    for (Operation &op : symbolTableOp->getRegion(0).getOps()) {
+      // If this is a callgraph operation, check to see if it is discardable.
+      if (auto callable = dyn_cast<CallableOpInterface>(&op)) {
+        if (auto *node = cg.lookupNode(callable.getCallableRegion())) {
+          SymbolOpInterface symbol = dyn_cast<SymbolOpInterface>(&op);
+          if (symbol && (allUsesVisible || symbol.isPrivate()) &&
+              symbol.canDiscardOnUseEmpty()) {
+            discardableSymNodeUses.try_emplace(node, 0);
           }
+          continue;
         }
-        // Otherwise, check for any referenced nodes. These will be always-live.
-        walkReferencedSymbolNodes(&op, cg, alwaysLiveNodes,
-                                  [](CallGraphNode *, Operation *) {});
       }
+      // Otherwise, check for any referenced nodes. These will be always-live.
+      walkReferencedSymbolNodes(&op, cg, alwaysLiveNodes,
+                                [](CallGraphNode *, Operation *) {});
     }
   };
-  walkSymbolTables(op, /*allSymUsesVisible=*/!op->getBlock(), walkFn);
+  SymbolTable::walkSymbolTables(op, /*allSymUsesVisible=*/!op->getBlock(),
+                                walkFn);
 
   // Drop the use information for any discardable nodes that are always live.
   for (auto &it : alwaysLiveNodes)
@@ -234,7 +182,7 @@ void CGUseList::eraseNode(CallGraphNode *node) {
 bool CGUseList::isDead(CallGraphNode *node) const {
   // If the parent operation isn't a symbol, simply check normal SSA deadness.
   Operation *nodeOp = node->getCallableRegion()->getParentOp();
-  if (!SymbolTable::isSymbol(nodeOp))
+  if (!isa<SymbolOpInterface>(nodeOp))
     return MemoryEffectOpInterface::hasNoEffect(nodeOp) && nodeOp->use_empty();
 
   // Otherwise, check the number of symbol uses.
@@ -245,7 +193,7 @@ bool CGUseList::isDead(CallGraphNode *node) const {
 bool CGUseList::hasOneUseAndDiscardable(CallGraphNode *node) const {
   // If this isn't a symbol node, check for side-effects and SSA use count.
   Operation *nodeOp = node->getCallableRegion()->getParentOp();
-  if (!SymbolTable::isSymbol(nodeOp))
+  if (!isa<SymbolOpInterface>(nodeOp))
     return MemoryEffectOpInterface::hasNoEffect(nodeOp) && nodeOp->hasOneUse();
 
   // Otherwise, check the number of symbol uses.
@@ -294,19 +242,47 @@ void CGUseList::decrementDiscardableUses(CGUser &uses) {
 // CallGraph traversal
 //===----------------------------------------------------------------------===//
 
+namespace {
+/// This class represents a specific callgraph SCC.
+class CallGraphSCC {
+public:
+  CallGraphSCC(llvm::scc_iterator<const CallGraph *> &parentIterator)
+      : parentIterator(parentIterator) {}
+  /// Return a range over the nodes within this SCC.
+  std::vector<CallGraphNode *>::iterator begin() { return nodes.begin(); }
+  std::vector<CallGraphNode *>::iterator end() { return nodes.end(); }
+
+  /// Reset the nodes of this SCC with those provided.
+  void reset(const std::vector<CallGraphNode *> &newNodes) { nodes = newNodes; }
+
+  /// Remove the given node from this SCC.
+  void remove(CallGraphNode *node) {
+    auto it = llvm::find(nodes, node);
+    if (it != nodes.end()) {
+      nodes.erase(it);
+      parentIterator.ReplaceNode(node, nullptr);
+    }
+  }
+
+private:
+  std::vector<CallGraphNode *> nodes;
+  llvm::scc_iterator<const CallGraph *> &parentIterator;
+};
+} // end anonymous namespace
+
 /// Run a given transformation over the SCCs of the callgraph in a bottom up
 /// traversal.
-static void runTransformOnCGSCCs(
-    const CallGraph &cg,
-    function_ref<void(MutableArrayRef<CallGraphNode *>)> sccTransformer) {
-  std::vector<CallGraphNode *> currentSCCVec;
-  auto cgi = llvm::scc_begin(&cg);
+static void
+runTransformOnCGSCCs(const CallGraph &cg,
+                     function_ref<void(CallGraphSCC &)> sccTransformer) {
+  llvm::scc_iterator<const CallGraph *> cgi = llvm::scc_begin(&cg);
+  CallGraphSCC currentSCC(cgi);
   while (!cgi.isAtEnd()) {
     // Copy the current SCC and increment so that the transformer can modify the
     // SCC without invalidating our iterator.
-    currentSCCVec = *cgi;
+    currentSCC.reset(*cgi);
     ++cgi;
-    sccTransformer(currentSCCVec);
+    sccTransformer(currentSCC);
   }
 }
 
@@ -395,6 +371,19 @@ struct Inliner : public InlinerInterface {
                    /*traverseNestedCGNodes=*/true);
   }
 
+  /// Mark the given callgraph node for deletion.
+  void markForDeletion(CallGraphNode *node) { deadNodes.insert(node); }
+
+  /// This method properly disposes of callables that became dead during
+  /// inlining. This should not be called while iterating over the SCCs.
+  void eraseDeadCallables() {
+    for (CallGraphNode *node : deadNodes)
+      node->getCallableRegion()->getParentOp()->erase();
+  }
+
+  /// The set of callables known to be dead.
+  SmallPtrSet<CallGraphNode *, 8> deadNodes;
+
   /// The current set of call instructions to consider for inlining.
   SmallVector<ResolvedCall, 8> calls;
 
@@ -420,26 +409,15 @@ static bool shouldInline(ResolvedCall &resolvedCall) {
   return true;
 }
 
-/// Delete the given node and remove it from the current scc and the callgraph.
-static void deleteNode(CallGraphNode *node, CGUseList &useList, CallGraph &cg,
-                       MutableArrayRef<CallGraphNode *> currentSCC) {
-  // Erase the parent operation and remove it from the various lists.
-  node->getCallableRegion()->getParentOp()->erase();
-  cg.eraseNode(node);
-
-  // Replace this node in the currentSCC with the external node.
-  auto it = llvm::find(currentSCC, node);
-  if (it != currentSCC.end())
-    *it = cg.getExternalNode();
-}
-
 /// Attempt to inline calls within the given scc. This function returns
 /// success if any calls were inlined, failure otherwise.
-static LogicalResult
-inlineCallsInSCC(Inliner &inliner, CGUseList &useList,
-                 MutableArrayRef<CallGraphNode *> currentSCC) {
+static LogicalResult inlineCallsInSCC(Inliner &inliner, CGUseList &useList,
+                                      CallGraphSCC &currentSCC) {
   CallGraph &cg = inliner.cg;
   auto &calls = inliner.calls;
+
+  // A set of dead nodes to remove after inlining.
+  SmallVector<CallGraphNode *, 1> deadNodes;
 
   // Collect all of the direct calls within the nodes of the current SCC. We
   // don't traverse nested callgraph nodes, because they are handled separately
@@ -448,31 +426,29 @@ inlineCallsInSCC(Inliner &inliner, CGUseList &useList,
     if (node->isExternal())
       continue;
 
-    // If this node is dead, just delete it now.
+    // Don't collect calls if the node is already dead.
     if (useList.isDead(node))
-      deleteNode(node, useList, cg, currentSCC);
+      deadNodes.push_back(node);
     else
       collectCallOps(*node->getCallableRegion(), node, cg, calls,
                      /*traverseNestedCGNodes=*/false);
   }
-  if (calls.empty())
-    return failure();
-
-  // A set of dead nodes to remove after inlining.
-  SmallVector<CallGraphNode *, 1> deadNodes;
 
   // Try to inline each of the call operations. Don't cache the end iterator
   // here as more calls may be added during inlining.
   bool inlinedAnyCalls = false;
   for (unsigned i = 0; i != calls.size(); ++i) {
-    ResolvedCall &it = calls[i];
-    LLVM_DEBUG({
-      llvm::dbgs() << "* Considering inlining call: ";
-      it.call.dump();
-    });
-    if (!shouldInline(it))
-      continue;
+    ResolvedCall it = calls[i];
+    bool doInline = shouldInline(it);
     CallOpInterface call = it.call;
+    LLVM_DEBUG({
+      if (doInline)
+        llvm::dbgs() << "* Inlining call: " << call << "\n";
+      else
+        llvm::dbgs() << "* Not inlining call: " << call << "\n";
+    });
+    if (!doInline)
+      continue;
     Region *targetRegion = it.targetNode->getCallableRegion();
 
     // If this is the last call to the target node and the node is discardable,
@@ -482,8 +458,10 @@ inlineCallsInSCC(Inliner &inliner, CGUseList &useList,
     LogicalResult inlineResult = inlineCall(
         inliner, call, cast<CallableOpInterface>(targetRegion->getParentOp()),
         targetRegion, /*shouldCloneInlinedRegion=*/!inlineInPlace);
-    if (failed(inlineResult))
+    if (failed(inlineResult)) {
+      LLVM_DEBUG(llvm::dbgs() << "** Failed to inline\n");
       continue;
+    }
     inlinedAnyCalls = true;
 
     // If the inlining was successful, Merge the new uses into the source node.
@@ -500,8 +478,10 @@ inlineCallsInSCC(Inliner &inliner, CGUseList &useList,
     }
   }
 
-  for (CallGraphNode *node : deadNodes)
-    deleteNode(node, useList, cg, currentSCC);
+  for (CallGraphNode *node : deadNodes) {
+    currentSCC.remove(node);
+    inliner.markForDeletion(node);
+  }
   calls.clear();
   return success(inlinedAnyCalls);
 }
@@ -509,8 +489,7 @@ inlineCallsInSCC(Inliner &inliner, CGUseList &useList,
 /// Canonicalize the nodes within the given SCC with the given set of
 /// canonicalization patterns.
 static void canonicalizeSCC(CallGraph &cg, CGUseList &useList,
-                            MutableArrayRef<CallGraphNode *> currentSCC,
-                            MLIRContext *context,
+                            CallGraphSCC &currentSCC, MLIRContext *context,
                             const OwningRewritePatternList &canonPatterns) {
   // Collect the sets of nodes to canonicalize.
   SmallVector<CallGraphNode *, 4> nodesToCanonicalize;
@@ -528,7 +507,8 @@ static void canonicalizeSCC(CallGraph &cg, CGUseList &useList,
 
     // We also won't apply canonicalizations for nodes that are not
     // isolated. This avoids potentially mutating the regions of nodes defined
-    // above, this is also a stipulation of the 'applyPatternsGreedily' driver.
+    // above, this is also a stipulation of the 'applyPatternsAndFoldGreedily'
+    // driver.
     auto *region = node->getCallableRegion();
     if (!region->getParentOp()->isKnownIsolatedFromAbove())
       continue;
@@ -541,35 +521,83 @@ static void canonicalizeSCC(CallGraph &cg, CGUseList &useList,
   // NOTE: This is simple now, because we don't enable canonicalizing nodes
   // within children. When we remove this restriction, this logic will need to
   // be reworked.
-  ParallelDiagnosticHandler canonicalizationHandler(context);
-  llvm::parallel::for_each_n(
-      llvm::parallel::par, /*Begin=*/size_t(0),
-      /*End=*/nodesToCanonicalize.size(), [&](size_t index) {
-        // Set the order for this thread so that diagnostics will be properly
-        // ordered.
-        canonicalizationHandler.setOrderIDForThread(index);
+  if (context->isMultithreadingEnabled()) {
+    ParallelDiagnosticHandler canonicalizationHandler(context);
+    llvm::parallelForEachN(
+        /*Begin=*/0, /*End=*/nodesToCanonicalize.size(), [&](size_t index) {
+          // Set the order for this thread so that diagnostics will be properly
+          // ordered.
+          canonicalizationHandler.setOrderIDForThread(index);
 
-        // Apply the canonicalization patterns to this region.
-        auto *node = nodesToCanonicalize[index];
-        applyPatternsGreedily(*node->getCallableRegion(), canonPatterns);
+          // Apply the canonicalization patterns to this region.
+          auto *node = nodesToCanonicalize[index];
+          applyPatternsAndFoldGreedily(*node->getCallableRegion(),
+                                       canonPatterns);
 
-        // Make sure to reset the order ID for the diagnostic handler, as this
-        // thread may be used in a different context.
-        canonicalizationHandler.eraseOrderIDForThread();
-      });
+          // Make sure to reset the order ID for the diagnostic handler, as this
+          // thread may be used in a different context.
+          canonicalizationHandler.eraseOrderIDForThread();
+        });
+  } else {
+    for (CallGraphNode *node : nodesToCanonicalize)
+      applyPatternsAndFoldGreedily(*node->getCallableRegion(), canonPatterns);
+  }
 
   // Recompute the uses held by each of the nodes.
   for (CallGraphNode *node : nodesToCanonicalize)
     useList.recomputeUses(node, cg);
 }
 
-/// Attempt to inline calls within the given scc, and run canonicalizations with
-/// the given patterns, until a fixed point is reached. This allows for the
-/// inlining of newly devirtualized calls.
-static void inlineSCC(Inliner &inliner, CGUseList &useList,
-                      MutableArrayRef<CallGraphNode *> currentSCC,
-                      MLIRContext *context,
-                      const OwningRewritePatternList &canonPatterns) {
+//===----------------------------------------------------------------------===//
+// InlinerPass
+//===----------------------------------------------------------------------===//
+
+namespace {
+struct InlinerPass : public InlinerBase<InlinerPass> {
+  void runOnOperation() override;
+
+  /// Attempt to inline calls within the given scc, and run canonicalizations
+  /// with the given patterns, until a fixed point is reached. This allows for
+  /// the inlining of newly devirtualized calls.
+  void inlineSCC(Inliner &inliner, CGUseList &useList, CallGraphSCC &currentSCC,
+                 MLIRContext *context,
+                 const OwningRewritePatternList &canonPatterns);
+};
+} // end anonymous namespace
+
+void InlinerPass::runOnOperation() {
+  CallGraph &cg = getAnalysis<CallGraph>();
+  auto *context = &getContext();
+
+  // The inliner should only be run on operations that define a symbol table,
+  // as the callgraph will need to resolve references.
+  Operation *op = getOperation();
+  if (!op->hasTrait<OpTrait::SymbolTable>()) {
+    op->emitOpError() << " was scheduled to run under the inliner, but does "
+                         "not define a symbol table";
+    return signalPassFailure();
+  }
+
+  // Collect a set of canonicalization patterns to use when simplifying
+  // callable regions within an SCC.
+  OwningRewritePatternList canonPatterns;
+  for (auto *op : context->getRegisteredOperations())
+    op->getCanonicalizationPatterns(canonPatterns, context);
+
+  // Run the inline transform in post-order over the SCCs in the callgraph.
+  Inliner inliner(context, cg);
+  CGUseList useList(getOperation(), cg);
+  runTransformOnCGSCCs(cg, [&](CallGraphSCC &scc) {
+    inlineSCC(inliner, useList, scc, context, canonPatterns);
+  });
+
+  // After inlining, make sure to erase any callables proven to be dead.
+  inliner.eraseDeadCallables();
+}
+
+void InlinerPass::inlineSCC(Inliner &inliner, CGUseList &useList,
+                            CallGraphSCC &currentSCC, MLIRContext *context,
+                            const OwningRewritePatternList &canonPatterns) {
   // If we successfully inlined any calls, run some simplifications on the
   // nodes of the scc. Continue attempting to inline until we reach a fixed
   // point, or a maximum iteration count. We canonicalize here as it may
@@ -584,43 +612,6 @@ static void inlineSCC(Inliner &inliner, CGUseList &useList,
   }
 }
 
-//===----------------------------------------------------------------------===//
-// InlinerPass
-//===----------------------------------------------------------------------===//
-
-namespace {
-struct InlinerPass : public OperationPass<InlinerPass> {
-  void runOnOperation() override {
-    CallGraph &cg = getAnalysis<CallGraph>();
-    auto *context = &getContext();
-
-    // The inliner should only be run on operations that define a symbol table,
-    // as the callgraph will need to resolve references.
-    Operation *op = getOperation();
-    if (!op->hasTrait<OpTrait::SymbolTable>()) {
-      op->emitOpError() << " was scheduled to run under the inliner, but does "
-                           "not define a symbol table";
-      return signalPassFailure();
-    }
-
-    // Collect a set of canonicalization patterns to use when simplifying
-    // callable regions within an SCC.
-    OwningRewritePatternList canonPatterns;
-    for (auto *op : context->getRegisteredOperations())
-      op->getCanonicalizationPatterns(canonPatterns, context);
-
-    // Run the inline transform in post-order over the SCCs in the callgraph.
-    Inliner inliner(context, cg);
-    CGUseList useList(getOperation(), cg);
-    runTransformOnCGSCCs(cg, [&](MutableArrayRef<CallGraphNode *> scc) {
-      inlineSCC(inliner, useList, scc, context, canonPatterns);
-    });
-  }
-};
-} // end anonymous namespace
-
 std::unique_ptr<Pass> mlir::createInlinerPass() {
   return std::make_unique<InlinerPass>();
 }
-
-static PassRegistration<InlinerPass> pass("inline", "Inline function calls");

@@ -103,6 +103,8 @@ config.available_features.add(config.host_os.lower())
 if re.match(r'^x86_64.*-linux', config.target_triple):
   config.available_features.add("x86_64-linux")
 
+config.available_features.add("host-byteorder-" + sys.byteorder + "-endian")
+
 if config.have_zlib == "1":
   config.available_features.add("zlib")
 
@@ -181,7 +183,7 @@ elif config.host_os == 'Darwin' and config.apple_platform != "osx":
   config.compile_wrapper = compile_wrapper
 
   try:
-    prepare_output = subprocess.check_output([prepare_script, config.apple_platform, config.clang]).strip()
+    prepare_output = subprocess.check_output([prepare_script, config.apple_platform, config.clang]).decode().strip()
   except subprocess.CalledProcessError as e:
     print("Command failed:")
     print(e.output)
@@ -307,7 +309,8 @@ if config.host_os == 'Darwin':
 
   osx_version = (10, 0, 0)
   try:
-    osx_version = subprocess.check_output(["sw_vers", "-productVersion"])
+    osx_version = subprocess.check_output(["sw_vers", "-productVersion"],
+                                          universal_newlines=True)
     osx_version = tuple(int(x) for x in osx_version.split('.'))
     if len(osx_version) == 2: osx_version = (osx_version[0], osx_version[1], 0)
     if osx_version >= (10, 11):
@@ -319,7 +322,7 @@ if config.host_os == 'Darwin':
       # this "feature", we can pass the test on newer OS X versions and other
       # platforms.
       config.available_features.add('osx-no-ld64-live_support')
-  except:
+  except subprocess.CalledProcessError:
     pass
 
   config.darwin_osx_version = osx_version
@@ -533,6 +536,19 @@ if config.host_os == 'Darwin':
   # much slower. Let's override this and run lit tests with 'abort_on_error=0'.
   config.default_sanitizer_opts += ['abort_on_error=0']
   config.default_sanitizer_opts += ['log_to_syslog=0']
+  if lit.util.which('log'):
+    # Querying the log can only done by a privileged user so
+    # so check if we can query the log.
+    exit_code = -1
+    with open('/dev/null', 'r') as f:
+      # Run a `log show` command the should finish fairly quickly and produce very little output.
+      exit_code = subprocess.call(['log', 'show', '--last', '1m', '--predicate', '1 == 0'], stdout=f, stderr=f)
+    if exit_code == 0:
+      config.available_features.add('darwin_log_cmd')
+    else:
+      lit_config.warning('log command found but cannot queried')
+  else:
+    lit_config.warning('log command not found. Some tests will be skipped.')
 elif config.android:
   config.default_sanitizer_opts += ['abort_on_error=0']
 

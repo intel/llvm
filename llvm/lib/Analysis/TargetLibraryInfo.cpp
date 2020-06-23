@@ -69,11 +69,10 @@ static bool hasBcmp(const Triple &TT) {
 static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
                        ArrayRef<StringLiteral> StandardNames) {
   // Verify that the StandardNames array is in alphabetical order.
-  assert(std::is_sorted(StandardNames.begin(), StandardNames.end(),
-                        [](StringRef LHS, StringRef RHS) {
-                          return LHS < RHS;
-                        }) &&
-         "TargetLibraryInfoImpl function names must be sorted");
+  assert(
+      llvm::is_sorted(StandardNames,
+                      [](StringRef LHS, StringRef RHS) { return LHS < RHS; }) &&
+      "TargetLibraryInfoImpl function names must be sorted");
 
   // Set IO unlocked variants as unavailable
   // Set them as available per system below
@@ -901,6 +900,8 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
             FTy.getParamType(1)->isPointerTy());
   case LibFunc_write:
     return (NumParams == 3 && FTy.getParamType(1)->isPointerTy());
+  case LibFunc_aligned_alloc:
+    return (NumParams == 2 && FTy.getReturnType()->isPointerTy());
   case LibFunc_bcopy:
   case LibFunc_bcmp:
     return (NumParams == 3 && FTy.getParamType(0)->isPointerTy() &&
@@ -1217,6 +1218,14 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
   case LibFunc_ZdlPvSt11align_val_tRKSt9nothrow_t:
   // void operator delete[](void*, align_val_t, nothrow)
   case LibFunc_ZdaPvSt11align_val_tRKSt9nothrow_t:
+  // void operator delete(void*, unsigned int, align_val_t)
+  case LibFunc_ZdlPvjSt11align_val_t:
+  // void operator delete(void*, unsigned long, align_val_t)
+  case LibFunc_ZdlPvmSt11align_val_t:
+  // void operator delete[](void*, unsigned int, align_val_t);
+  case LibFunc_ZdaPvjSt11align_val_t:
+  // void operator delete[](void*, unsigned long, align_val_t);
+  case LibFunc_ZdaPvmSt11align_val_t:
     return (NumParams == 3 && FTy.getParamType(0)->isPointerTy());
 
   case LibFunc_memset_pattern16:
@@ -1340,6 +1349,9 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
   case LibFunc_round:
   case LibFunc_roundf:
   case LibFunc_roundl:
+  case LibFunc_roundeven:
+  case LibFunc_roundevenf:
+  case LibFunc_roundevenl:
   case LibFunc_sin:
   case LibFunc_sinf:
   case LibFunc_sinh:

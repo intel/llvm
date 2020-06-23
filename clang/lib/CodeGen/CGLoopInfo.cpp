@@ -10,6 +10,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Expr.h"
+#include "clang/Basic/CodeGenOptions.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
@@ -760,6 +761,7 @@ void LoopInfoStack::push(BasicBlock *Header, const llvm::DebugLoc &StartLoc,
 }
 
 void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
+                         const clang::CodeGenOptions &CGOpts,
                          ArrayRef<const clang::Attr *> Attrs,
                          const llvm::DebugLoc &StartLoc,
                          const llvm::DebugLoc &EndLoc) {
@@ -990,16 +992,9 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
         !IntelFPGAMaxInterleaving && !IntelFPGASpeculatedIterations)
       continue;
 
-    if (IntelFPGAIVDep) {
-      const ValueDecl *Array = nullptr;
-      if (IntelFPGAIVDep->getArrayExpr())
-        Array =
-            cast<ValueDecl>(cast<DeclRefExpr>(IntelFPGAIVDep->getArrayExpr())
-                                ->getDecl()
-                                ->getCanonicalDecl());
+    if (IntelFPGAIVDep)
       addSYCLIVDepInfo(Header->getContext(), IntelFPGAIVDep->getSafelenValue(),
-                       Array);
-    }
+                       IntelFPGAIVDep->getArrayDecl());
 
     if (IntelFPGAII) {
       llvm::APSInt ArgVal(32);
@@ -1059,6 +1054,14 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       setSYCLSpeculatedIterationsNIterations(ArgVal.getSExtValue());
     }
   }
+
+  if (CGOpts.OptimizationLevel > 0)
+    // Disable unrolling for the loop, if unrolling is disabled (via
+    // -fno-unroll-loops) and no pragmas override the decision.
+    if (!CGOpts.UnrollLoops &&
+        (StagedAttrs.UnrollEnable == LoopAttributes::Unspecified &&
+         StagedAttrs.UnrollCount == 0))
+      setUnrollState(LoopAttributes::Disable);
 
   /// Stage the attributes.
   push(Header, StartLoc, EndLoc);

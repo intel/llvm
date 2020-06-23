@@ -159,6 +159,16 @@ int getTargetMemOpcode(uint16_t Opcode);
 // Return a version of comparison CC mask CCMask in which the LT and GT
 // actions are swapped.
 unsigned reverseCCMask(unsigned CCMask);
+
+// Create a new basic block after MBB.
+MachineBasicBlock *emitBlockAfter(MachineBasicBlock *MBB);
+// Split MBB after MI and return the new block (the one that contains
+// instructions after MI).
+MachineBasicBlock *splitBlockAfter(MachineBasicBlock::iterator MI,
+                                   MachineBasicBlock *MBB);
+// Split MBB before MI and return the new block (the one that contains MI).
+MachineBasicBlock *splitBlockBefore(MachineBasicBlock::iterator MI,
+                                    MachineBasicBlock *MBB);
 }
 
 class SystemZInstrInfo : public SystemZGenInstrInfo {
@@ -223,16 +233,16 @@ public:
                         MachineBasicBlock *FBB, ArrayRef<MachineOperand> Cond,
                         const DebugLoc &DL,
                         int *BytesAdded = nullptr) const override;
-  bool analyzeCompare(const MachineInstr &MI, unsigned &SrcReg,
-                      unsigned &SrcReg2, int &Mask, int &Value) const override;
+  bool analyzeCompare(const MachineInstr &MI, Register &SrcReg,
+                      Register &SrcReg2, int &Mask, int &Value) const override;
   bool canInsertSelect(const MachineBasicBlock &, ArrayRef<MachineOperand> Cond,
-                       unsigned, unsigned, unsigned, int &, int &,
+                       Register, Register, Register, int &, int &,
                        int &) const override;
   void insertSelect(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
-                    const DebugLoc &DL, unsigned DstReg,
-                    ArrayRef<MachineOperand> Cond, unsigned TrueReg,
-                    unsigned FalseReg) const override;
-  bool FoldImmediate(MachineInstr &UseMI, MachineInstr &DefMI, unsigned Reg,
+                    const DebugLoc &DL, Register DstReg,
+                    ArrayRef<MachineOperand> Cond, Register TrueReg,
+                    Register FalseReg) const override;
+  bool FoldImmediate(MachineInstr &UseMI, MachineInstr &DefMI, Register Reg,
                      MachineRegisterInfo *MRI) const override;
   bool isPredicable(const MachineInstr &MI) const override;
   bool isProfitableToIfCvt(MachineBasicBlock &MBB, unsigned NumCycles,

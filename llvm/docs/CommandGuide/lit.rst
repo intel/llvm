@@ -158,6 +158,13 @@ EXECUTION OPTIONS
 SELECTION OPTIONS
 -----------------
 
+.. option:: --max-failures MAX_FAILURES
+
+ Stop execution after the given number of failures.
+ An integer argument may be passed on the command line
+ or the environment vairable MAX_FAILURES may be set
+ prior to execution.
+
 .. option:: --max-tests=N
 
  Run at most ``N`` tests and then terminate.
@@ -165,10 +172,8 @@ SELECTION OPTIONS
 .. option:: --max-time=N
 
  Spend at most ``N`` seconds (approximately) running tests and then terminate.
-
-.. option:: --shuffle
-
- Run the tests in a random order.
+ Note that this is not an alias for :option:`--timeout`; the two are
+ different kinds of maximums.
 
 .. option:: --num-shards=M
 
@@ -186,6 +191,16 @@ SELECTION OPTIONS
  provided. The two options must be used together, and the value of ``N``
  must be in the range ``1..M``. The environment variable
  ``LIT_RUN_SHARD`` can also be used in place of this option.
+
+.. option:: --shuffle
+
+ Run the tests in a random order.
+
+.. option:: --timeout=N
+
+ Spend at most ``N`` seconds (approximately) running each individual test.
+ ``0`` means no time limit, and ``0`` is the default. Note that this is not an
+ alias for :option:`--max-time`; the two are different kinds of maximums.
 
 .. option:: --filter=REGEXP
 
@@ -410,11 +425,12 @@ be used to define subdirectories of optional tests, or to change other
 configuration parameters --- for example, to change the test format, or the
 suffixes which identify test files.
 
-PRE-DEFINED SUBSTITUTIONS
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+SUBSTITUTIONS
+~~~~~~~~~~~~~
 
-:program:`lit` provides various patterns that can be used with the RUN command.
-These are defined in TestRunner.py. The base set of substitutions are:
+:program:`lit` allows patterns to be substituted inside RUN commands. It also
+provides the following base set of substitutions, which are defined in
+TestRunner.py:
 
  ======================= ==============
   Macro                   Substitution
@@ -452,6 +468,14 @@ These are defined in TestRunner.py. The base set of substitutions are:
 Other substitutions are provided that are variations on this base set and
 further substitution patterns can be defined by each test module. See the
 modules :ref:`local-configuration-files`.
+
+By default, substitutions are expanded exactly once, so that if e.g. a
+substitution ``%build`` is defined in top of another substitution ``%cxx``,
+``%build`` will expand to ``%cxx`` textually, not to what ``%cxx`` expands to.
+However, if the ``recursiveExpansionLimit`` property of the ``TestingConfig``
+is set to a non-negative integer, substitutions will be expanded recursively
+until that limit is reached. It is an error if the limit is reached and
+expanding substitutions again would yield a different result.
 
 More detailed information on substitutions can be found in the
 :doc:`../TestingGuide`.

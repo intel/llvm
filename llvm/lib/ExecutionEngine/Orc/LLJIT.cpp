@@ -29,14 +29,6 @@ using namespace llvm::orc;
 
 namespace {
 
-/// Add a reference to the __dso_handle global to the given module.
-/// Returns a reference to the __dso_handle IR decl.
-GlobalVariable *addDSOHandleDecl(Module &M) {
-  auto DSOHandleTy = StructType::create(M.getContext(), "lljit.dso_handle");
-  return new GlobalVariable(M, DSOHandleTy, true, GlobalValue::ExternalLinkage,
-                            nullptr, "__dso_handle");
-}
-
 /// Adds helper function decls and wrapper functions that call the helper with
 /// some additional prefix arguments.
 ///
@@ -130,24 +122,22 @@ private:
 class GenericLLVMIRPlatformSupport : public LLJIT::PlatformSupport {
 public:
   // GenericLLVMIRPlatform &P) : P(P) {
-  GenericLLVMIRPlatformSupport(LLJIT &J) : J(J) {
-
-    MangleAndInterner Mangle(getExecutionSession(), J.getDataLayout());
-    InitFunctionPrefix = Mangle("__orc_init_func.");
+  GenericLLVMIRPlatformSupport(LLJIT &J)
+      : J(J), InitFunctionPrefix(J.mangle("__orc_init_func.")) {
 
     getExecutionSession().setPlatform(
         std::make_unique<GenericLLVMIRPlatform>(*this));
 
-    setInitTransform(J, GlobalCtorDtorScraper(*this, *InitFunctionPrefix));
+    setInitTransform(J, GlobalCtorDtorScraper(*this, InitFunctionPrefix));
 
     SymbolMap StdInterposes;
 
-    StdInterposes[Mangle("__lljit.platform_support_instance")] =
-        JITEvaluatedSymbol(pointerToJITTargetAddress(this), JITSymbolFlags());
-    StdInterposes[Mangle("__lljit.cxa_atexit_helper")] = JITEvaluatedSymbol(
-        pointerToJITTargetAddress(registerAtExitHelper), JITSymbolFlags());
-    StdInterposes[Mangle("__lljit.run_atexits_helper")] = JITEvaluatedSymbol(
-        pointerToJITTargetAddress(runAtExitsHelper), JITSymbolFlags());
+    StdInterposes[J.mangleAndIntern("__lljit.platform_support_instance")] =
+        JITEvaluatedSymbol(pointerToJITTargetAddress(this),
+                           JITSymbolFlags::Exported);
+    StdInterposes[J.mangleAndIntern("__lljit.cxa_atexit_helper")] =
+        JITEvaluatedSymbol(pointerToJITTargetAddress(registerAtExitHelper),
+                           JITSymbolFlags());
 
     cantFail(
         J.getMainJITDylib().define(absoluteSymbols(std::move(StdInterposes))));
@@ -159,6 +149,14 @@ public:
 
   /// Adds a module that defines the __dso_handle global.
   Error setupJITDylib(JITDylib &JD) {
+
+    // Add per-jitdylib standard interposes.
+    SymbolMap PerJDInterposes;
+    PerJDInterposes[J.mangleAndIntern("__lljit.run_atexits_helper")] =
+        JITEvaluatedSymbol(pointerToJITTargetAddress(runAtExitsHelper),
+                           JITSymbolFlags());
+    cantFail(JD.define(absoluteSymbols(std::move(PerJDInterposes))));
+
     auto Ctx = std::make_unique<LLVMContext>();
     auto M = std::make_unique<Module>("__standard_lib", *Ctx);
     M->setDataLayout(J.getDataLayout());
@@ -168,15 +166,29 @@ public:
         *M, Int64Ty, true, GlobalValue::ExternalLinkage,
         ConstantInt::get(Int64Ty, reinterpret_cast<uintptr_t>(&JD)),
         "__dso_handle");
-    DSOHandle->setVisibility(GlobalValue::HiddenVisibility);
+    DSOHandle->setVisibility(GlobalValue::DefaultVisibility);
     DSOHandle->setInitializer(
         ConstantInt::get(Int64Ty, pointerToJITTargetAddress(&JD)));
+
+    auto *GenericIRPlatformSupportTy =
+        StructType::create(*Ctx, "lljit.GenericLLJITIRPlatformSupport");
+
+    auto *PlatformInstanceDecl = new GlobalVariable(
+        *M, GenericIRPlatformSupportTy, true, GlobalValue::ExternalLinkage,
+        nullptr, "__lljit.platform_support_instance");
+
+    auto *VoidTy = Type::getVoidTy(*Ctx);
+    addHelperAndWrapper(
+        *M, "__lljit_run_atexits", FunctionType::get(VoidTy, {}, false),
+        GlobalValue::HiddenVisibility, "__lljit.run_atexits_helper",
+        {PlatformInstanceDecl, DSOHandle});
+
     return J.addIRModule(JD, ThreadSafeModule(std::move(M), std::move(Ctx)));
   }
 
   Error notifyAdding(JITDylib &JD, const MaterializationUnit &MU) {
     if (auto &InitSym = MU.getInitializerSymbol())
-      InitSymbols[&JD].add(InitSym);
+      InitSymbols[&JD].add(InitSym, SymbolLookupFlags::WeaklyReferencedSymbol);
     else {
       // If there's no identified init symbol attached, but there is a symbol
       // with the GenericIRPlatform::InitFunctionPrefix, then treat that as
@@ -184,8 +196,9 @@ public:
       // will trigger a lookup to materialize the module) and the InitFunctions
       // map (which holds the names of the symbols to execute).
       for (auto &KV : MU.getSymbols())
-        if ((*KV.first).startswith(*InitFunctionPrefix)) {
-          InitSymbols[&JD].add(KV.first);
+        if ((*KV.first).startswith(InitFunctionPrefix)) {
+          InitSymbols[&JD].add(KV.first,
+                               SymbolLookupFlags::WeaklyReferencedSymbol);
           InitFunctions[&JD].add(KV.first);
         }
     }
@@ -294,8 +307,7 @@ private:
   Expected<std::vector<JITTargetAddress>> getDeinitializers(JITDylib &JD) {
     auto &ES = getExecutionSession();
 
-    MangleAndInterner Mangle(getExecutionSession(), J.getDataLayout());
-    auto LLJITRunAtExits = Mangle("__lljit_run_atexits");
+    auto LLJITRunAtExits = J.mangleAndIntern("__lljit_run_atexits");
 
     DenseMap<JITDylib *, SymbolLookupSet> LookupSymbols;
     std::vector<JITDylib *> DFSLinkOrder;
@@ -313,6 +325,16 @@ private:
           JDLookupSymbols.add(LLJITRunAtExits,
                             SymbolLookupFlags::WeaklyReferencedSymbol);
       }
+    });
+
+    LLVM_DEBUG({
+      dbgs() << "JITDylib deinit order is [ ";
+      for (auto *JD : DFSLinkOrder)
+        dbgs() << "\"" << JD->getName() << "\" ";
+      dbgs() << "]\n";
+      dbgs() << "Looking up deinit functions:\n";
+      for (auto &KV : LookupSymbols)
+        dbgs() << "  \"" << KV.first->getName() << "\": " << KV.second << "\n";
     });
 
     auto LookupResult = Platform::lookupInitSymbols(ES, LookupSymbols);
@@ -352,8 +374,8 @@ private:
         continue;
       Visited.insert(&NextJD);
       DFSLinkOrder.push_back(&NextJD);
-      NextJD.withSearchOrderDo([&](const JITDylibSearchOrder &SearchOrder) {
-        for (auto &KV : SearchOrder)
+      NextJD.withLinkOrderDo([&](const JITDylibSearchOrder &LinkOrder) {
+        for (auto &KV : LinkOrder)
           WorkStack.push_back(KV.first);
       });
     }
@@ -386,11 +408,19 @@ private:
 
   static void registerAtExitHelper(void *Self, void (*F)(void *), void *Ctx,
                                    void *DSOHandle) {
+    LLVM_DEBUG({
+      dbgs() << "Registering atexit function " << (void *)F << " for JD "
+             << (*static_cast<JITDylib **>(DSOHandle))->getName() << "\n";
+    });
     static_cast<GenericLLVMIRPlatformSupport *>(Self)->AtExitMgr.registerAtExit(
         F, Ctx, DSOHandle);
   }
 
   static void runAtExitsHelper(void *Self, void *DSOHandle) {
+    LLVM_DEBUG({
+      dbgs() << "Running atexit functions for JD "
+             << (*static_cast<JITDylib **>(DSOHandle))->getName() << "\n";
+    });
     static_cast<GenericLLVMIRPlatformSupport *>(Self)->AtExitMgr.runAtExits(
         DSOHandle);
   }
@@ -409,8 +439,6 @@ private:
         *M, GenericIRPlatformSupportTy, true, GlobalValue::ExternalLinkage,
         nullptr, "__lljit.platform_support_instance");
 
-    auto *DSOHandleDecl = addDSOHandleDecl(*M);
-
     auto *Int8Ty = Type::getInt8Ty(*Ctx);
     auto *IntTy = Type::getIntNTy(*Ctx, sizeof(int) * CHAR_BIT);
     auto *VoidTy = Type::getVoidTy(*Ctx);
@@ -422,19 +450,14 @@ private:
         *M, "__cxa_atexit",
         FunctionType::get(IntTy, {AtExitCallbackPtrTy, BytePtrTy, BytePtrTy},
                           false),
-        GlobalValue::HiddenVisibility, "__lljit.cxa_atexit_helper",
+        GlobalValue::DefaultVisibility, "__lljit.cxa_atexit_helper",
         {PlatformInstanceDecl});
-
-    addHelperAndWrapper(
-        *M, "__lljit_run_atexits", FunctionType::get(VoidTy, {}, false),
-        GlobalValue::HiddenVisibility, "__lljit.run_atexits_helper",
-        {PlatformInstanceDecl, DSOHandleDecl});
 
     return ThreadSafeModule(std::move(M), std::move(Ctx));
   }
 
   LLJIT &J;
-  SymbolStringPtr InitFunctionPrefix;
+  std::string InitFunctionPrefix;
   DenseMap<JITDylib *, SymbolLookupSet> InitSymbols;
   DenseMap<JITDylib *, SymbolLookupSet> InitFunctions;
   DenseMap<JITDylib *, SymbolLookupSet> DeInitFunctions;
@@ -628,26 +651,31 @@ private:
   MachOPlatformSupport(LLJIT &J, JITDylib &PlatformJITDylib, DlFcnValues DlFcn)
       : J(J), MP(setupPlatform(J)), DlFcn(std::move(DlFcn)) {
 
-    MangleAndInterner Mangle(J.getExecutionSession(), J.getDataLayout());
     SymbolMap HelperSymbols;
 
     // platform and atexit helpers.
-    HelperSymbols[Mangle("__lljit.platform_support_instance")] =
+    HelperSymbols[J.mangleAndIntern("__lljit.platform_support_instance")] =
         JITEvaluatedSymbol(pointerToJITTargetAddress(this), JITSymbolFlags());
-    HelperSymbols[Mangle("__lljit.cxa_atexit_helper")] = JITEvaluatedSymbol(
-        pointerToJITTargetAddress(registerAtExitHelper), JITSymbolFlags());
-    HelperSymbols[Mangle("__lljit.run_atexits_helper")] = JITEvaluatedSymbol(
-        pointerToJITTargetAddress(runAtExitsHelper), JITSymbolFlags());
+    HelperSymbols[J.mangleAndIntern("__lljit.cxa_atexit_helper")] =
+        JITEvaluatedSymbol(pointerToJITTargetAddress(registerAtExitHelper),
+                           JITSymbolFlags());
+    HelperSymbols[J.mangleAndIntern("__lljit.run_atexits_helper")] =
+        JITEvaluatedSymbol(pointerToJITTargetAddress(runAtExitsHelper),
+                           JITSymbolFlags());
 
     // dlfcn helpers.
-    HelperSymbols[Mangle("__lljit.dlopen_helper")] = JITEvaluatedSymbol(
-        pointerToJITTargetAddress(dlopenHelper), JITSymbolFlags());
-    HelperSymbols[Mangle("__lljit.dlclose_helper")] = JITEvaluatedSymbol(
-        pointerToJITTargetAddress(dlcloseHelper), JITSymbolFlags());
-    HelperSymbols[Mangle("__lljit.dlsym_helper")] = JITEvaluatedSymbol(
-        pointerToJITTargetAddress(dlsymHelper), JITSymbolFlags());
-    HelperSymbols[Mangle("__lljit.dlerror_helper")] = JITEvaluatedSymbol(
-        pointerToJITTargetAddress(dlerrorHelper), JITSymbolFlags());
+    HelperSymbols[J.mangleAndIntern("__lljit.dlopen_helper")] =
+        JITEvaluatedSymbol(pointerToJITTargetAddress(dlopenHelper),
+                           JITSymbolFlags());
+    HelperSymbols[J.mangleAndIntern("__lljit.dlclose_helper")] =
+        JITEvaluatedSymbol(pointerToJITTargetAddress(dlcloseHelper),
+                           JITSymbolFlags());
+    HelperSymbols[J.mangleAndIntern("__lljit.dlsym_helper")] =
+        JITEvaluatedSymbol(pointerToJITTargetAddress(dlsymHelper),
+                           JITSymbolFlags());
+    HelperSymbols[J.mangleAndIntern("__lljit.dlerror_helper")] =
+        JITEvaluatedSymbol(pointerToJITTargetAddress(dlerrorHelper),
+                           JITSymbolFlags());
 
     cantFail(
         PlatformJITDylib.define(absoluteSymbols(std::move(HelperSymbols))));
@@ -675,7 +703,7 @@ private:
     auto *DSOHandle =
         new GlobalVariable(M, Int64Ty, true, GlobalValue::ExternalLinkage,
                            ConstantInt::get(Int64Ty, 0), "__dso_handle");
-    DSOHandle->setVisibility(GlobalValue::HiddenVisibility);
+    DSOHandle->setVisibility(GlobalValue::DefaultVisibility);
 
     return cantFail(J.getIRCompileLayer().getCompiler()(M));
   }
@@ -834,8 +862,7 @@ private:
     }
 
     if (!JITSymSearchOrder.empty()) {
-      MangleAndInterner Mangle(J.getExecutionSession(), J.getDataLayout());
-      auto MangledName = Mangle(Name);
+      auto MangledName = J.mangleAndIntern(Name);
       SymbolLookupSet Syms(MangledName,
                            SymbolLookupFlags::WeaklyReferencedSymbol);
       if (auto Result = J.getExecutionSession().lookup(JITSymSearchOrder, Syms,
@@ -900,18 +927,45 @@ LLJIT::PlatformSupport::~PlatformSupport() {}
 
 Error LLJITBuilderState::prepareForConstruction() {
 
+  LLVM_DEBUG(dbgs() << "Preparing to create LLIT instance...\n");
+
   if (!JTMB) {
+    LLVM_DEBUG({
+      dbgs() << "  No explicitly set JITTargetMachineBuilder. "
+                "Detecting host...\n";
+    });
     if (auto JTMBOrErr = JITTargetMachineBuilder::detectHost())
       JTMB = std::move(*JTMBOrErr);
     else
       return JTMBOrErr.takeError();
   }
 
+  LLVM_DEBUG({
+    dbgs() << "  JITTargetMachineBuilder is " << JTMB << "\n"
+           << "  Pre-constructed ExecutionSession: " << (ES ? "Yes" : "No")
+           << "\n"
+           << "  DataLayout: ";
+    if (DL)
+      dbgs() << DL->getStringRepresentation() << "\n";
+    else
+      dbgs() << "None (will be created by JITTargetMachineBuilder)\n";
+
+    dbgs() << "  Custom object-linking-layer creator: "
+           << (CreateObjectLinkingLayer ? "Yes" : "No") << "\n"
+           << "  Custom compile-function creator: "
+           << (CreateCompileFunction ? "Yes" : "No") << "\n"
+           << "  Custom platform-setup function: "
+           << (SetUpPlatform ? "Yes" : "No") << "\n"
+           << "  Number of compile threads: " << NumCompileThreads;
+    if (!NumCompileThreads)
+      dbgs() << " (code will be compiled on the execution thread)\n";
+    else
+      dbgs() << "\n";
+  });
+
   // If the client didn't configure any linker options then auto-configure the
   // JIT linker.
-  if (!CreateObjectLinkingLayer && JTMB->getCodeModel() == None &&
-      JTMB->getRelocationModel() == None) {
-
+  if (!CreateObjectLinkingLayer) {
     auto &TT = JTMB->getTargetTriple();
     if (TT.isOSBinFormatMachO() &&
         (TT.getArch() == Triple::aarch64 || TT.getArch() == Triple::x86_64)) {
@@ -938,12 +992,6 @@ LLJIT::~LLJIT() {
     CompileThreads->wait();
 }
 
-Error LLJIT::defineAbsolute(StringRef Name, JITEvaluatedSymbol Sym) {
-  auto InternedName = ES->intern(Name);
-  SymbolMap Symbols({{InternedName, Sym}});
-  return Main->define(absoluteSymbols(std::move(Symbols)));
-}
-
 Error LLJIT::addIRModule(JITDylib &JD, ThreadSafeModule TSM) {
   assert(TSM && "Can not add null module");
 
@@ -962,10 +1010,9 @@ Error LLJIT::addObjectFile(JITDylib &JD, std::unique_ptr<MemoryBuffer> Obj) {
 }
 
 Expected<JITEvaluatedSymbol> LLJIT::lookupLinkerMangled(JITDylib &JD,
-                                                        StringRef Name) {
+                                                        SymbolStringPtr Name) {
   return ES->lookup(
-      makeJITDylibSearchOrder(&JD, JITDylibLookupFlags::MatchAllSymbols),
-      ES->intern(Name));
+      makeJITDylibSearchOrder(&JD, JITDylibLookupFlags::MatchAllSymbols), Name);
 }
 
 std::unique_ptr<ObjectLayer>
@@ -1054,10 +1101,15 @@ LLJIT::LLJIT(LLJITBuilderState &S, Error &Err)
     CompileThreads =
         std::make_unique<ThreadPool>(hardware_concurrency(S.NumCompileThreads));
     ES->setDispatchMaterialization(
-        [this](JITDylib &JD, std::unique_ptr<MaterializationUnit> MU) {
-          // FIXME: Switch to move capture once we have c++14.
+        [this](std::unique_ptr<MaterializationUnit> MU,
+               MaterializationResponsibility MR) {
+          // FIXME: Switch to move capture once ThreadPool uses unique_function.
           auto SharedMU = std::shared_ptr<MaterializationUnit>(std::move(MU));
-          auto Work = [SharedMU, &JD]() { SharedMU->doMaterialize(JD); };
+          auto SharedMR =
+              std::make_shared<MaterializationResponsibility>(std::move(MR));
+          auto Work = [SharedMU, SharedMR]() mutable {
+            SharedMU->materialize(std::move(*SharedMR));
+          };
           CompileThreads->async(std::move(Work));
         });
   }
@@ -1068,7 +1120,7 @@ LLJIT::LLJIT(LLJITBuilderState &S, Error &Err)
     setUpGenericLLVMIRPlatform(*this);
 }
 
-std::string LLJIT::mangle(StringRef UnmangledName) {
+std::string LLJIT::mangle(StringRef UnmangledName) const {
   std::string MangledName;
   {
     raw_string_ostream MangledNameStream(MangledName);

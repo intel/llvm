@@ -9,32 +9,20 @@
 #ifndef __LIBDEVICE_DEVICE_H__
 #define __LIBDEVICE_DEVICE_H__
 
-// We need the following header to ensure the definition of all spirv variables
-// required by the wrapper libraries.
-#include "spirv_vars.hpp"
-
 #ifdef __cplusplus
 #define EXTERN_C extern "C"
 #else // __cplusplus
 #define EXTERN_C
 #endif // __cplusplus
 
-#ifdef CL_SYCL_LANGUAGE_VERSION
-#ifndef SYCL_EXTERNAL
-#define SYCL_EXTERNAL
-#endif // SYCL_EXTERNAL
-
+#ifdef __SPIR__
 #ifdef __SYCL_DEVICE_ONLY__
 #define DEVICE_EXTERNAL SYCL_EXTERNAL __attribute__((weak))
 #else // __SYCL_DEVICE_ONLY__
-#define DEVICE_EXTERNAL static
-#undef EXTERN_C
-#define EXTERN_C
+#define DEVICE_EXTERNAL __attribute__((weak))
 #endif // __SYCL_DEVICE_ONLY__
-#else  // CL_SYCL_LANGUAGE_VERSION
-#define DEVICE_EXTERNAL
-#endif // CL_SYCL_LANGUAGE_VERSION
 
 #define DEVICE_EXTERN_C DEVICE_EXTERNAL EXTERN_C
+#endif // __SPIR__
 
 #endif // __LIBDEVICE_DEVICE_H__

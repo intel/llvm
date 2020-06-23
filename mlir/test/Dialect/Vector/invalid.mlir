@@ -238,8 +238,28 @@ func @outerproduct_operand_3_result_type_generic(%arg0: vector<4xf32>, %arg1: ve
 func @test_vector.transfer_read(%arg0: memref<?x?xf32>) {
   %c3 = constant 3 : index
   %cst = constant 3.0 : f32
-  // expected-error@+1 {{two types required}}
+  // expected-error@+1 {{requires two types}}
   %0 = vector.transfer_read %arg0[%c3, %c3], %cst { permutation_map = affine_map<()->(0)> } : memref<?x?xf32>
+}
+
+// -----
+
+func @test_vector.transfer_read(%arg0: vector<4x3xf32>) {
+  %c3 = constant 3 : index
+  %f0 = constant 0.0 : f32
+  %vf0 = splat %f0 : vector<4x3xf32>
+  // expected-error@+1 {{ requires memref type}}
+  %0 = vector.transfer_read %arg0[%c3, %c3], %vf0 : vector<4x3xf32>, vector<1x1x2x3xf32>
+}
+
+// -----
+
+func @test_vector.transfer_read(%arg0: memref<4x3xf32>) {
+  %c3 = constant 3 : index
+  %f0 = constant 0.0 : f32
+  %vf0 = splat %f0 : vector<4x3xf32>
+  // expected-error@+1 {{ requires vector type}}
+  %0 = vector.transfer_read %arg0[%c3, %c3], %vf0 : memref<4x3xf32>, f32
 }
 
 // -----
@@ -249,15 +269,6 @@ func @test_vector.transfer_read(%arg0: memref<?x?xf32>) {
   %cst = constant 3.0 : f32
   // expected-error@+1 {{requires 2 indices}}
   %0 = vector.transfer_read %arg0[%c3, %c3, %c3], %cst { permutation_map = affine_map<()->(0)> } : memref<?x?xf32>, vector<128xf32>
-}
-
-// -----
-
-func @test_vector.transfer_read(%arg0: memref<?x?xf32>) {
-  %c3 = constant 3 : index
-  %cst = constant 3.0 : f32
-  // expected-error@+1 {{requires attribute 'permutation_map'}}
-  %0 = vector.transfer_read %arg0[%c3, %c3], %cst {perm = affine_map<(d0)->(d0)>} : memref<?x?xf32>, vector<128xf32>
 }
 
 // -----
@@ -337,6 +348,45 @@ func @test_vector.transfer_read(%arg0: memref<?x?xvector<4x3xf32>>) {
 
 // -----
 
+func @test_vector.transfer_read(%arg0: memref<?x?xvector<2x3xf32>>) {
+  %c3 = constant 3 : index
+  %f0 = constant 0.0 : f32
+  %vf0 = splat %f0 : vector<2x3xf32>
+  // expected-error@+1 {{ expects the optional masked attr of same rank as permutation_map results: affine_map<(d0, d1) -> (d0, d1)>}}
+  %0 = vector.transfer_read %arg0[%c3, %c3], %vf0 {masked = [false], permutation_map = affine_map<(d0, d1)->(d0, d1)>} : memref<?x?xvector<2x3xf32>>, vector<1x1x2x3xf32>
+}
+
+// -----
+
+func @test_vector.transfer_write(%arg0: memref<?x?xf32>) {
+  %c3 = constant 3 : index
+  %cst = constant 3.0 : f32
+  // expected-error@+1 {{requires two types}}
+  vector.transfer_write %arg0, %arg0[%c3, %c3] : memref<?x?xf32>
+}
+
+// -----
+
+func @test_vector.transfer_write(%arg0: memref<vector<4x3xf32>>) {
+  %c3 = constant 3 : index
+  %f0 = constant 0.0 : f32
+  %vf0 = splat %f0 : vector<4x3xf32>
+  // expected-error@+1 {{ requires vector type}}
+  vector.transfer_write %arg0, %arg0[%c3, %c3] : memref<vector<4x3xf32>>, vector<4x3xf32>
+}
+
+// -----
+
+func @test_vector.transfer_write(%arg0: vector<4x3xf32>) {
+  %c3 = constant 3 : index
+  %f0 = constant 0.0 : f32
+  %vf0 = splat %f0 : vector<4x3xf32>
+  // expected-error@+1 {{ requires memref type}}
+  vector.transfer_write %arg0, %arg0[%c3, %c3] : vector<4x3xf32>, f32
+}
+
+// -----
+
 func @test_vector.transfer_write(%arg0: memref<?x?xf32>) {
   %c3 = constant 3 : index
   %cst = constant dense<3.0> : vector<128 x f32>
@@ -351,15 +401,6 @@ func @test_vector.transfer_write(%arg0: memref<?x?xf32>) {
   %cst = constant dense<3.0> : vector<128 x f32>
   // expected-error@+1 {{requires 2 indices}}
   vector.transfer_write %cst, %arg0[%c3, %c3, %c3] {permutation_map = affine_map<()->(0)>} : vector<128xf32>, memref<?x?xf32>
-}
-
-// -----
-
-func @test_vector.transfer_write(%arg0: memref<?x?xf32>) {
-  %c3 = constant 3 : index
-  %cst = constant dense<3.0> : vector<128 x f32>
-  // expected-error@+1 {{requires attribute 'permutation_map'}}
-  vector.transfer_write %cst, %arg0[%c3, %c3] {perm = affine_map<(d0)->(d0)>} : vector<128xf32>, memref<?x?xf32>
 }
 
 // -----
@@ -451,65 +492,65 @@ func @insert_strided_slice(%a: vector<4x4xf32>, %b: vector<4x8x16xf32>) {
 
 // -----
 
-func @strided_slice(%arg0: vector<4x8x16xf32>) {
+func @extract_strided_slice(%arg0: vector<4x8x16xf32>) {
   // expected-error@+1 {{expected offsets, sizes and strides attributes of same size}}
-  %1 = vector.strided_slice %arg0 {offsets = [100], sizes = [2, 2], strides = [1, 1]} : vector<4x8x16xf32> to vector<2x2x16xf32>
+  %1 = vector.extract_strided_slice %arg0 {offsets = [100], sizes = [2, 2], strides = [1, 1]} : vector<4x8x16xf32> to vector<2x2x16xf32>
 }
 
 // -----
 
-func @strided_slice(%arg0: vector<4x8x16xf32>) {
+func @extract_strided_slice(%arg0: vector<4x8x16xf32>) {
   // expected-error@+1 {{expected offsets attribute of rank smaller than vector rank}}
-  %1 = vector.strided_slice %arg0 {offsets = [2, 2, 2, 2], sizes = [2, 2, 2, 2], strides = [1, 1, 1, 1]} : vector<4x8x16xf32> to vector<2x2x16xf32>
+  %1 = vector.extract_strided_slice %arg0 {offsets = [2, 2, 2, 2], sizes = [2, 2, 2, 2], strides = [1, 1, 1, 1]} : vector<4x8x16xf32> to vector<2x2x16xf32>
 }
 
 // -----
 
-func @strided_slice(%arg0: vector<4x8x16xf32>) {
+func @extract_strided_slice(%arg0: vector<4x8x16xf32>) {
   // expected-error@+1 {{expected offsets attribute of rank smaller than vector rank}}
-  %1 = vector.strided_slice %arg0 {offsets = [2, 2, 2, 2], sizes = [2, 2, 2, 2], strides = [1, 1, 1, 1]} : vector<4x8x16xf32> to vector<2x2x16xf32>
+  %1 = vector.extract_strided_slice %arg0 {offsets = [2, 2, 2, 2], sizes = [2, 2, 2, 2], strides = [1, 1, 1, 1]} : vector<4x8x16xf32> to vector<2x2x16xf32>
 }
 
 // -----
 
-func @strided_slice(%arg0: vector<4x8x16xf32>) {
+func @extract_strided_slice(%arg0: vector<4x8x16xf32>) {
   // expected-error@+1 {{op expected offsets dimension 0 to be confined to [0, 4)}}
-  %1 = vector.strided_slice %arg0 {offsets = [100], sizes = [100], strides = [100]} : vector<4x8x16xf32> to vector<100x8x16xf32>
+  %1 = vector.extract_strided_slice %arg0 {offsets = [100], sizes = [100], strides = [100]} : vector<4x8x16xf32> to vector<100x8x16xf32>
 }
 
 // -----
 
-func @strided_slice(%arg0: vector<4x8x16xf32>) {
+func @extract_strided_slice(%arg0: vector<4x8x16xf32>) {
   // expected-error@+1 {{op expected sizes dimension 0 to be confined to [1, 5)}}
-  %1 = vector.strided_slice %arg0 {offsets = [2], sizes = [100], strides = [100]} : vector<4x8x16xf32> to vector<100x8x16xf32>
+  %1 = vector.extract_strided_slice %arg0 {offsets = [2], sizes = [100], strides = [100]} : vector<4x8x16xf32> to vector<100x8x16xf32>
 }
 
 // -----
 
-func @strided_slice(%arg0: vector<4x8x16xf32>) {
+func @extract_strided_slice(%arg0: vector<4x8x16xf32>) {
   // expected-error@+1 {{op expected strides to be confined to [1, 2)}}
-  %1 = vector.strided_slice %arg0 {offsets = [2], sizes = [1], strides = [100]} : vector<4x8x16xf32> to vector<1x8x16xf32>
+  %1 = vector.extract_strided_slice %arg0 {offsets = [2], sizes = [1], strides = [100]} : vector<4x8x16xf32> to vector<1x8x16xf32>
 }
 
 // -----
 
-func @strided_slice(%arg0: vector<4x8x16xf32>) {
+func @extract_strided_slice(%arg0: vector<4x8x16xf32>) {
   // expected-error@+1 {{op expected strides to be confined to [1, 2)}}
-  %1 = vector.strided_slice %arg0 {offsets = [2], sizes = [1], strides = [100]} : vector<4x8x16xf32> to vector<1x8x16xf32>
+  %1 = vector.extract_strided_slice %arg0 {offsets = [2], sizes = [1], strides = [100]} : vector<4x8x16xf32> to vector<1x8x16xf32>
 }
 
 // -----
 
-func @strided_slice(%arg0: vector<4x8x16xf32>) {
+func @extract_strided_slice(%arg0: vector<4x8x16xf32>) {
   // expected-error@+1 {{op expected sum(offsets, sizes) dimension 0 to be confined to [1, 5)}}
-  %1 = vector.strided_slice %arg0 {offsets = [2], sizes = [3], strides = [1]} : vector<4x8x16xf32> to vector<3x8x16xf32>
+  %1 = vector.extract_strided_slice %arg0 {offsets = [2], sizes = [3], strides = [1]} : vector<4x8x16xf32> to vector<3x8x16xf32>
 }
 
 // -----
 
-func @strided_slice(%arg0: vector<4x8x16xf32>) {
+func @extract_strided_slice(%arg0: vector<4x8x16xf32>) {
   // expected-error@+1 {{op expected result type to be 'vector<2x8x16xf32>'}}
-  %1 = vector.strided_slice %arg0 {offsets = [2], sizes = [2], strides = [1]} : vector<4x8x16xf32> to vector<3x1xf32>
+  %1 = vector.extract_strided_slice %arg0 {offsets = [2], sizes = [2], strides = [1]} : vector<4x8x16xf32> to vector<3x1xf32>
 }
 
 // -----
@@ -719,9 +760,29 @@ func @contraction(%arg0: vector<7x8x16x15xf32>, %arg1: vector<8x16x7x5xf32>,
 func @contraction(%arg0: vector<4x3xi32>,
                   %arg1: vector<3x7xf32>,
                   %arg2: vector<4x7xf32>) -> vector<4x7xf32> {
-  // expected-error@+1 {{'vector.contract' op failed to verify that first operand lhs and result have same element type}}
+  // expected-error@+1 {{'vector.contract' op failed to verify that lhs and rhs have same element type}}
   %0 = vector.contract #contraction_trait %arg0, %arg1, %arg2
     : vector<4x3xi32>, vector<3x7xf32> into vector<4x7xf32>
+}
+
+// -----
+
+#contraction_accesses = [
+  affine_map<(m, n, k) -> (m, k)>,
+  affine_map<(m, n, k) -> (k, n)>,
+  affine_map<(m, n, k) -> (n, m)>
+]
+#contraction_trait = {
+  indexing_maps = #contraction_accesses,
+  iterator_types = ["parallel", "parallel", "reduction"]
+}
+func @contraction(%arg0: vector<2x1xf32>, %arg1: vector<1x3xf32>, %arg2: vector<2x3xf32>)
+-> vector<3x2xf32>
+{
+// expected-error@+1 {{invalid accumulator/result vector shape, expected: 'vector<3x2xf32>'}}
+  %0 = vector.contract #contraction_trait %arg0, %arg1, %arg2
+    : vector<2x1xf32>, vector<1x3xf32> into vector<2x3xf32>
+  return %0 : vector<2x3xf32>
 }
 
 // -----
@@ -1008,7 +1069,7 @@ func @reduce_elt_type_mismatch(%arg0: vector<16xf32>) -> i32 {
 // -----
 
 func @reduce_unsupported_attr(%arg0: vector<16xf32>) -> i32 {
-  // expected-error@+1 {{'vector.reduction' op attribute 'kind' failed to satisfy constraint: string attribute}}
+  // expected-error@+1 {{attribute 'kind' failed to satisfy constraint: string attribute}}
   %0 = vector.reduction 1234, %arg0 : vector<16xf32> into i32
 }
 
@@ -1080,6 +1141,13 @@ func @transpose_index_dup(%arg0: vector<4x4xf32>) {
 func @transpose_dim_size_mismatch(%arg0: vector<11x7x3x2xi32>) {
   // expected-error@+1 {{'vector.transpose' op dimension size mismatch at: 0}}
   %0 = vector.transpose %arg0, [3, 0, 1, 2] : vector<11x7x3x2xi32> to vector<2x3x7x11xi32>
+}
+
+// -----
+
+func @flat_transpose_type_mismatch(%arg0: vector<16xf32>) {
+  // expected-error@+1 {{'vector.flat_transpose' op failed to verify that source operand and result have same element type}}
+  %0 = vector.flat_transpose %arg0 { rows = 4: i32, columns = 4: i32 } : vector<16xf32> -> vector<16xf64>
 }
 
 // -----

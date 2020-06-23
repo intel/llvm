@@ -109,11 +109,11 @@ struct SymbolAssignment : BaseCommand {
   std::string commandString;
 
   // Address of this assignment command.
-  unsigned addr;
+  uint64_t addr;
 
   // Size of this assignment command. This is usually 0, but if
   // you move '.' this may be greater than 0.
-  unsigned size;
+  uint64_t size;
 };
 
 // Linker scripts allow additional constraints to be put on output sections.
@@ -245,9 +245,12 @@ class LinkerScript final {
   void expandMemoryRegions(uint64_t size);
 
   std::vector<InputSectionBase *>
-  computeInputSections(const InputSectionDescription *);
+  computeInputSections(const InputSectionDescription *,
+                       ArrayRef<InputSectionBase *>);
 
   std::vector<InputSectionBase *> createInputSectionList(OutputSection &cmd);
+
+  void discardSynthetic(OutputSection &);
 
   std::vector<size_t> getPhdrIndices(OutputSection *sec);
 

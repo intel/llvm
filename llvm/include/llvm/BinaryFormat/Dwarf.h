@@ -357,7 +357,8 @@ enum Constants {
 };
 
 /// Constants for the DW_APPLE_PROPERTY_attributes attribute.
-/// Keep this list in sync with clang's DeclSpec.h ObjCPropertyAttributeKind!
+/// Keep this list in sync with clang's DeclObjCCommon.h
+/// ObjCPropertyAttribute::Kind!
 enum ApplePropertyAttributes {
 #define HANDLE_DW_APPLE_PROPERTY(ID, NAME) DW_APPLE_PROPERTY_##NAME = ID,
 #include "llvm/BinaryFormat/Dwarf.def"
@@ -480,6 +481,8 @@ StringRef AtomTypeString(unsigned Atom);
 StringRef GDBIndexEntryKindString(GDBIndexEntryKind Kind);
 StringRef GDBIndexEntryLinkageString(GDBIndexEntryLinkage Linkage);
 StringRef IndexString(unsigned Idx);
+StringRef FormatString(DwarfFormat Format);
+StringRef FormatString(bool IsDWARF64);
 /// @}
 
 /// \defgroup DwarfConstantsParsing Dwarf constants parsing functions
@@ -665,6 +668,11 @@ template <> struct EnumTraits<Tag> : public std::true_type {
 template <> struct EnumTraits<LineNumberOps> : public std::true_type {
   static constexpr char Type[4] = "LNS";
   static constexpr StringRef (*StringFn)(unsigned) = &LNStandardString;
+};
+
+template <> struct EnumTraits<LocationAtom> : public std::true_type {
+  static constexpr char Type[3] = "OP";
+  static constexpr StringRef (*StringFn)(unsigned) = &OperationEncodingString;
 };
 } // End of namespace dwarf
 

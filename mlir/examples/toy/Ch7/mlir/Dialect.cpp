@@ -154,14 +154,14 @@ static void printBinaryOp(mlir::OpAsmPrinter &printer, mlir::Operation *op) {
 /// Build a constant operation.
 /// The builder is passed as an argument, so is the state that this method is
 /// expected to fill in order to build the operation.
-void ConstantOp::build(mlir::Builder *builder, mlir::OperationState &state,
+void ConstantOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
                        double value) {
-  auto dataType = RankedTensorType::get({}, builder->getF64Type());
+  auto dataType = RankedTensorType::get({}, builder.getF64Type());
   auto dataAttribute = DenseElementsAttr::get(dataType, value);
   ConstantOp::build(builder, state, dataType, dataAttribute);
 }
 
-/// The 'OpAsmPrinter' class provides a collection of methods for parsing
+/// The 'OpAsmParser' class provides a collection of methods for parsing
 /// various punctuation, as well as attributes, operands, types, etc. Each of
 /// these methods returns a `ParseResult`. This class is a wrapper around
 /// `LogicalResult` that can be converted to a boolean `true` value on failure,
@@ -179,7 +179,7 @@ static mlir::ParseResult parseConstantOp(mlir::OpAsmParser &parser,
   return success();
 }
 
-/// The 'OpAsmPrinter' class is a stream that will allows for formatting
+/// The 'OpAsmPrinter' class is a stream that allows for formatting
 /// strings, attributes, operands, types, etc.
 static void print(mlir::OpAsmPrinter &printer, ConstantOp op) {
   printer << "toy.constant ";
@@ -192,7 +192,7 @@ static mlir::LogicalResult verifyConstantForType(mlir::Type type,
                                                  mlir::Attribute opaqueValue,
                                                  mlir::Operation *op) {
   if (type.isa<mlir::TensorType>()) {
-    // Check that the value is a elements attribute.
+    // Check that the value is an elements attribute.
     auto attrValue = opaqueValue.dyn_cast<mlir::DenseFPElementsAttr>();
     if (!attrValue)
       return op->emitError("constant of TensorType must be initialized by "
@@ -260,9 +260,9 @@ void ConstantOp::inferShapes() { getResult().setType(value().getType()); }
 //===----------------------------------------------------------------------===//
 // AddOp
 
-void AddOp::build(mlir::Builder *builder, mlir::OperationState &state,
+void AddOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
                   mlir::Value lhs, mlir::Value rhs) {
-  state.addTypes(UnrankedTensorType::get(builder->getF64Type()));
+  state.addTypes(UnrankedTensorType::get(builder.getF64Type()));
   state.addOperands({lhs, rhs});
 }
 
@@ -280,12 +280,12 @@ void CastOp::inferShapes() { getResult().setType(getOperand().getType()); }
 //===----------------------------------------------------------------------===//
 // GenericCallOp
 
-void GenericCallOp::build(mlir::Builder *builder, mlir::OperationState &state,
+void GenericCallOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
                           StringRef callee, ArrayRef<mlir::Value> arguments) {
   // Generic call always returns an unranked Tensor initially.
-  state.addTypes(UnrankedTensorType::get(builder->getF64Type()));
+  state.addTypes(UnrankedTensorType::get(builder.getF64Type()));
   state.addOperands(arguments);
-  state.addAttribute("callee", builder->getSymbolRefAttr(callee));
+  state.addAttribute("callee", builder.getSymbolRefAttr(callee));
 }
 
 /// Return the callee of the generic call operation, this is required by the
@@ -301,9 +301,9 @@ Operation::operand_range GenericCallOp::getArgOperands() { return inputs(); }
 //===----------------------------------------------------------------------===//
 // MulOp
 
-void MulOp::build(mlir::Builder *builder, mlir::OperationState &state,
+void MulOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
                   mlir::Value lhs, mlir::Value rhs) {
-  state.addTypes(UnrankedTensorType::get(builder->getF64Type()));
+  state.addTypes(UnrankedTensorType::get(builder.getF64Type()));
   state.addOperands({lhs, rhs});
 }
 
@@ -343,16 +343,15 @@ static mlir::LogicalResult verify(ReturnOp op) {
       resultType.isa<mlir::UnrankedTensorType>())
     return mlir::success();
 
-  return op.emitError() << "type of return operand ("
-                        << *op.operand_type_begin()
+  return op.emitError() << "type of return operand (" << inputType
                         << ") doesn't match function result type ("
-                        << results.front() << ")";
+                        << resultType << ")";
 }
 
 //===----------------------------------------------------------------------===//
 // StructAccessOp
 
-void StructAccessOp::build(mlir::Builder *b, mlir::OperationState &state,
+void StructAccessOp::build(mlir::OpBuilder &b, mlir::OperationState &state,
                            mlir::Value input, size_t index) {
   // Extract the result type from the input type.
   StructType structTy = input.getType().cast<StructType>();
@@ -360,7 +359,7 @@ void StructAccessOp::build(mlir::Builder *b, mlir::OperationState &state,
   mlir::Type resultType = structTy.getElementTypes()[index];
 
   // Call into the auto-generated build method.
-  build(b, state, resultType, input, b->getI64IntegerAttr(index));
+  build(b, state, resultType, input, b.getI64IntegerAttr(index));
 }
 
 static mlir::LogicalResult verify(StructAccessOp op) {
@@ -379,9 +378,9 @@ static mlir::LogicalResult verify(StructAccessOp op) {
 //===----------------------------------------------------------------------===//
 // TransposeOp
 
-void TransposeOp::build(mlir::Builder *builder, mlir::OperationState &state,
+void TransposeOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
                         mlir::Value value) {
-  state.addTypes(UnrankedTensorType::get(builder->getF64Type()));
+  state.addTypes(UnrankedTensorType::get(builder.getF64Type()));
   state.addOperands(value);
 }
 
@@ -537,7 +536,7 @@ void ToyDialect::printType(mlir::Type type,
 
   // Print the struct type according to the parser format.
   printer << "struct<";
-  mlir::interleaveComma(structType.getElementTypes(), printer);
+  llvm::interleaveComma(structType.getElementTypes(), printer);
   printer << '>';
 }
 

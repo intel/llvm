@@ -1419,7 +1419,7 @@ tryInstructionTransform(MachineBasicBlock::iterator &mi,
             LV->addVirtualRegisterKilled(Reg, *NewMIs[1]);
           }
 
-          SmallVector<unsigned, 4> OrigRegs;
+          SmallVector<Register, 4> OrigRegs;
           if (LIS) {
             for (const MachineOperand &MO : MI.operands()) {
               if (MO.isReg())
@@ -1687,6 +1687,10 @@ bool TwoAddressInstructionPass::runOnMachineFunction(MachineFunction &Func) {
   // This pass takes the function out of SSA form.
   MRI->leaveSSA();
 
+  // This pass will rewrite the tied-def to meet the RegConstraint.
+  MF->getProperties()
+      .set(MachineFunctionProperties::Property::TiedOpsRewritten);
+
   TiedOperandMap TiedOperands;
   for (MachineFunction::iterator MBBI = MF->begin(), MBBE = MF->end();
        MBBI != MBBE; ++MBBI) {
@@ -1802,7 +1806,7 @@ eliminateRegSequence(MachineBasicBlock::iterator &MBBI) {
     llvm_unreachable(nullptr);
   }
 
-  SmallVector<unsigned, 4> OrigRegs;
+  SmallVector<Register, 4> OrigRegs;
   if (LIS) {
     OrigRegs.push_back(MI.getOperand(0).getReg());
     for (unsigned i = 1, e = MI.getNumOperands(); i < e; i += 2)

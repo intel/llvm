@@ -14,10 +14,13 @@
 #include "Matchers.h"
 #include "SyncAPI.h"
 #include "TestFS.h"
-#include "Threading.h"
 #include "URI.h"
+#include "support/Path.h"
+#include "support/Threading.h"
 #include "clang/Config/config.h"
 #include "clang/Sema/CodeCompleteConsumer.h"
+#include "llvm/ADT/None.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Errc.h"
@@ -38,6 +41,7 @@ namespace clangd {
 
 namespace {
 
+using ::testing::AllOf;
 using ::testing::ElementsAre;
 using ::testing::Field;
 using ::testing::Gt;
@@ -141,7 +145,7 @@ protected:
       PathRef SourceFileRelPath, llvm::StringRef SourceContents,
       std::vector<std::pair<PathRef, llvm::StringRef>> ExtraFiles = {},
       bool ExpectErrors = false) {
-    MockFSProvider FS;
+    MockFS FS;
     ErrorCheckingCallbacks DiagConsumer;
     MockCompilationDatabase CDB;
     ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &DiagConsumer);
@@ -194,7 +198,7 @@ int b = a;
 }
 
 TEST_F(ClangdVFSTest, Reparse) {
-  MockFSProvider FS;
+  MockFS FS;
   ErrorCheckingCallbacks DiagConsumer;
   MockCompilationDatabase CDB;
   ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &DiagConsumer);
@@ -210,18 +214,18 @@ int b = a;
   FS.Files[FooCpp] = SourceContents;
 
   Server.addDocument(FooCpp, SourceContents);
-  auto DumpParse1 = dumpASTWithoutMemoryLocs(Server, FooCpp);
   ASSERT_TRUE(Server.blockUntilIdleForTest()) << "Waiting for diagnostics";
+  auto DumpParse1 = dumpASTWithoutMemoryLocs(Server, FooCpp);
   EXPECT_FALSE(DiagConsumer.hadErrorInLastDiags());
 
   Server.addDocument(FooCpp, "");
-  auto DumpParseEmpty = dumpASTWithoutMemoryLocs(Server, FooCpp);
   ASSERT_TRUE(Server.blockUntilIdleForTest()) << "Waiting for diagnostics";
+  auto DumpParseEmpty = dumpASTWithoutMemoryLocs(Server, FooCpp);
   EXPECT_FALSE(DiagConsumer.hadErrorInLastDiags());
 
   Server.addDocument(FooCpp, SourceContents);
-  auto DumpParse2 = dumpASTWithoutMemoryLocs(Server, FooCpp);
   ASSERT_TRUE(Server.blockUntilIdleForTest()) << "Waiting for diagnostics";
+  auto DumpParse2 = dumpASTWithoutMemoryLocs(Server, FooCpp);
   EXPECT_FALSE(DiagConsumer.hadErrorInLastDiags());
 
   EXPECT_EQ(DumpParse1, DumpParse2);
@@ -229,7 +233,7 @@ int b = a;
 }
 
 TEST_F(ClangdVFSTest, ReparseOnHeaderChange) {
-  MockFSProvider FS;
+  MockFS FS;
   ErrorCheckingCallbacks DiagConsumer;
   MockCompilationDatabase CDB;
   ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &DiagConsumer);
@@ -246,20 +250,20 @@ int b = a;
   FS.Files[FooCpp] = SourceContents;
 
   Server.addDocument(FooCpp, SourceContents);
-  auto DumpParse1 = dumpASTWithoutMemoryLocs(Server, FooCpp);
   ASSERT_TRUE(Server.blockUntilIdleForTest()) << "Waiting for diagnostics";
+  auto DumpParse1 = dumpASTWithoutMemoryLocs(Server, FooCpp);
   EXPECT_FALSE(DiagConsumer.hadErrorInLastDiags());
 
   FS.Files[FooH] = "";
   Server.addDocument(FooCpp, SourceContents);
-  auto DumpParseDifferent = dumpASTWithoutMemoryLocs(Server, FooCpp);
   ASSERT_TRUE(Server.blockUntilIdleForTest()) << "Waiting for diagnostics";
+  auto DumpParseDifferent = dumpASTWithoutMemoryLocs(Server, FooCpp);
   EXPECT_TRUE(DiagConsumer.hadErrorInLastDiags());
 
   FS.Files[FooH] = "int a;";
   Server.addDocument(FooCpp, SourceContents);
-  auto DumpParse2 = dumpASTWithoutMemoryLocs(Server, FooCpp);
   ASSERT_TRUE(Server.blockUntilIdleForTest()) << "Waiting for diagnostics";
+  auto DumpParse2 = dumpASTWithoutMemoryLocs(Server, FooCpp);
   EXPECT_FALSE(DiagConsumer.hadErrorInLastDiags());
 
   EXPECT_EQ(DumpParse1, DumpParse2);
@@ -268,8 +272,9 @@ int b = a;
 
 TEST_F(ClangdVFSTest, PropagatesContexts) {
   static Key<int> Secret;
-  struct FSProvider : public FileSystemProvider {
-    IntrusiveRefCntPtr<llvm::vfs::FileSystem> getFileSystem() const override {
+  struct ContextReadingFS : public ThreadsafeFS {
+    IntrusiveRefCntPtr<llvm::vfs::FileSystem>
+    view(llvm::NoneType) const override {
       Got = Context::current().getExisting(Secret);
       return buildTestFS({});
     }
@@ -297,7 +302,7 @@ TEST_F(ClangdVFSTest, PropagatesContexts) {
 
 TEST_F(ClangdVFSTest, PropagatesVersion) {
   MockCompilationDatabase CDB;
-  MockFSProvider FS;
+  MockFS FS;
   struct Callbacks : public ClangdServer::Callbacks {
     void onDiagnosticsReady(PathRef File, llvm::StringRef Version,
                             std::vector<Diag> Diagnostics) override {
@@ -316,7 +321,7 @@ TEST_F(ClangdVFSTest, PropagatesVersion) {
 #ifdef LLVM_ON_UNIX
 TEST_F(ClangdVFSTest, SearchLibDir) {
   // Checks that searches for GCC installation is done through vfs.
-  MockFSProvider FS;
+  MockFS FS;
   ErrorCheckingCallbacks DiagConsumer;
   MockCompilationDatabase CDB;
   CDB.ExtraClangFlags.insert(CDB.ExtraClangFlags.end(),
@@ -365,7 +370,7 @@ std::string x;
 #endif // LLVM_ON_UNIX
 
 TEST_F(ClangdVFSTest, ForceReparseCompileCommand) {
-  MockFSProvider FS;
+  MockFS FS;
   ErrorCheckingCallbacks DiagConsumer;
   MockCompilationDatabase CDB;
   ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &DiagConsumer);
@@ -401,7 +406,7 @@ struct bar { T x; };
 }
 
 TEST_F(ClangdVFSTest, ForceReparseCompileCommandDefines) {
-  MockFSProvider FS;
+  MockFS FS;
   ErrorCheckingCallbacks DiagConsumer;
   MockCompilationDatabase CDB;
   ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &DiagConsumer);
@@ -453,7 +458,7 @@ this is an error
 int hello;
 )cpp");
 
-  MockFSProvider FS;
+  MockFS FS;
   MockCompilationDatabase CDB;
   MultipleErrorCheckingCallbacks DiagConsumer;
   ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &DiagConsumer);
@@ -496,8 +501,14 @@ int hello;
   EXPECT_THAT(*Locations, ElementsAre(DeclAt(FooCpp, FooSource.range("two"))));
 }
 
-TEST_F(ClangdVFSTest, MemoryUsage) {
-  MockFSProvider FS;
+MATCHER_P4(Stats, Name, UsesMemory, PreambleBuilds, ASTBuilds, "") {
+  return arg.first() == Name && (arg.second.UsedBytes != 0) == UsesMemory &&
+         std::tie(arg.second.PreambleBuilds, ASTBuilds) ==
+             std::tie(PreambleBuilds, ASTBuilds);
+}
+
+TEST_F(ClangdVFSTest, FileStats) {
+  MockFS FS;
   ErrorCheckingCallbacks DiagConsumer;
   MockCompilationDatabase CDB;
   ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &DiagConsumer);
@@ -513,26 +524,27 @@ struct Something {
   FS.Files[FooCpp] = "";
   FS.Files[BarCpp] = "";
 
-  EXPECT_THAT(Server.getUsedBytesPerFile(), IsEmpty());
+  EXPECT_THAT(Server.fileStats(), IsEmpty());
 
   Server.addDocument(FooCpp, SourceContents);
   Server.addDocument(BarCpp, SourceContents);
   ASSERT_TRUE(Server.blockUntilIdleForTest());
 
-  EXPECT_THAT(Server.getUsedBytesPerFile(),
-              UnorderedElementsAre(Pair(FooCpp, Gt(0u)), Pair(BarCpp, Gt(0u))));
+  EXPECT_THAT(Server.fileStats(),
+              UnorderedElementsAre(Stats(FooCpp, true, 1, 1),
+                                   Stats(BarCpp, true, 1, 1)));
 
   Server.removeDocument(FooCpp);
   ASSERT_TRUE(Server.blockUntilIdleForTest());
-  EXPECT_THAT(Server.getUsedBytesPerFile(), ElementsAre(Pair(BarCpp, Gt(0u))));
+  EXPECT_THAT(Server.fileStats(), ElementsAre(Stats(BarCpp, true, 1, 1)));
 
   Server.removeDocument(BarCpp);
   ASSERT_TRUE(Server.blockUntilIdleForTest());
-  EXPECT_THAT(Server.getUsedBytesPerFile(), IsEmpty());
+  EXPECT_THAT(Server.fileStats(), IsEmpty());
 }
 
 TEST_F(ClangdVFSTest, InvalidCompileCommand) {
-  MockFSProvider FS;
+  MockFS FS;
   ErrorCheckingCallbacks DiagConsumer;
   MockCompilationDatabase CDB;
 
@@ -552,15 +564,13 @@ TEST_F(ClangdVFSTest, InvalidCompileCommand) {
   EXPECT_ERROR(runFindDocumentHighlights(Server, FooCpp, Position()));
   EXPECT_ERROR(runRename(Server, FooCpp, Position(), "new_name",
                          clangd::RenameOptions()));
+  EXPECT_ERROR(runSignatureHelp(Server, FooCpp, Position()));
   // Identifier-based fallback completion.
   EXPECT_THAT(cantFail(runCodeComplete(Server, FooCpp, Position(),
                                        clangd::CodeCompleteOptions()))
                   .Completions,
               ElementsAre(Field(&CodeCompletion::Name, "int"),
                           Field(&CodeCompletion::Name, "main")));
-  auto SigHelp = runSignatureHelp(Server, FooCpp, Position());
-  ASSERT_TRUE(bool(SigHelp)) << "signatureHelp returned an error";
-  EXPECT_THAT(SigHelp->signatures, IsEmpty());
 }
 
 class ClangdThreadingTest : public ClangdVFSTest {};
@@ -595,7 +605,7 @@ int d;
   unsigned MaxColumnForFileRequests = 10;
 
   std::vector<std::string> FilePaths;
-  MockFSProvider FS;
+  MockFS FS;
   for (unsigned I = 0; I < FilesCount; ++I) {
     std::string Name = std::string("Foo") + std::to_string(I) + ".cpp";
     FS.Files[Name] = "";
@@ -829,7 +839,7 @@ int d;
 )cpp";
 
   auto FooCpp = testPath("foo.cpp");
-  MockFSProvider FS;
+  MockFS FS;
   FS.Files[FooCpp] = "";
 
   std::promise<void> StartSecondPromise;
@@ -846,7 +856,7 @@ int d;
 }
 
 TEST_F(ClangdVFSTest, FormatCode) {
-  MockFSProvider FS;
+  MockFS FS;
   ErrorCheckingCallbacks DiagConsumer;
   MockCompilationDatabase CDB;
   ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &DiagConsumer);
@@ -875,7 +885,7 @@ void f() {}
 }
 
 TEST_F(ClangdVFSTest, ChangedHeaderFromISystem) {
-  MockFSProvider FS;
+  MockFS FS;
   ErrorCheckingCallbacks DiagConsumer;
   MockCompilationDatabase CDB;
   ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &DiagConsumer);
@@ -914,16 +924,17 @@ TEST_F(ClangdVFSTest, ChangedHeaderFromISystem) {
 // Check that running code completion doesn't stat() a bunch of files from the
 // preamble again. (They should be using the preamble's stat-cache)
 TEST(ClangdTests, PreambleVFSStatCache) {
-  class ListenStatsFSProvider : public FileSystemProvider {
+  class StatRecordingFS : public ThreadsafeFS {
   public:
-    ListenStatsFSProvider(llvm::StringMap<unsigned> &CountStats)
+    StatRecordingFS(llvm::StringMap<unsigned> &CountStats)
         : CountStats(CountStats) {}
 
-    IntrusiveRefCntPtr<llvm::vfs::FileSystem> getFileSystem() const override {
-      class ListenStatVFS : public llvm::vfs::ProxyFileSystem {
+    IntrusiveRefCntPtr<llvm::vfs::FileSystem>
+    view(llvm::NoneType) const override {
+      class StatRecordingVFS : public llvm::vfs::ProxyFileSystem {
       public:
-        ListenStatVFS(IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
-                      llvm::StringMap<unsigned> &CountStats)
+        StatRecordingVFS(IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
+                         llvm::StringMap<unsigned> &CountStats)
             : ProxyFileSystem(std::move(FS)), CountStats(CountStats) {}
 
         llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
@@ -940,8 +951,8 @@ TEST(ClangdTests, PreambleVFSStatCache) {
         llvm::StringMap<unsigned> &CountStats;
       };
 
-      return IntrusiveRefCntPtr<ListenStatVFS>(
-          new ListenStatVFS(buildTestFS(Files), CountStats));
+      return IntrusiveRefCntPtr<StatRecordingVFS>(
+          new StatRecordingVFS(buildTestFS(Files), CountStats));
     }
 
     // If relative paths are used, they are resolved with testPath().
@@ -950,7 +961,7 @@ TEST(ClangdTests, PreambleVFSStatCache) {
   };
 
   llvm::StringMap<unsigned> CountStats;
-  ListenStatsFSProvider FS(CountStats);
+  StatRecordingFS FS(CountStats);
   ErrorCheckingCallbacks DiagConsumer;
   MockCompilationDatabase CDB;
   ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &DiagConsumer);
@@ -979,7 +990,7 @@ TEST(ClangdTests, PreambleVFSStatCache) {
 #endif
 
 TEST_F(ClangdVFSTest, FallbackWhenPreambleIsNotReady) {
-  MockFSProvider FS;
+  MockFS FS;
   ErrorCheckingCallbacks DiagConsumer;
   MockCompilationDatabase CDB;
   ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &DiagConsumer);
@@ -1025,7 +1036,7 @@ TEST_F(ClangdVFSTest, FallbackWhenPreambleIsNotReady) {
 }
 
 TEST_F(ClangdVFSTest, FallbackWhenWaitingForCompileCommand) {
-  MockFSProvider FS;
+  MockFS FS;
   ErrorCheckingCallbacks DiagConsumer;
   // Returns compile command only when notified.
   class DelayedCompilationDatabase : public GlobalCompilationDatabase {
@@ -1087,7 +1098,7 @@ TEST_F(ClangdVFSTest, FallbackWhenWaitingForCompileCommand) {
 // test as a workaround.
 #if !defined(__has_feature) || !__has_feature(address_sanitizer)
 TEST_F(ClangdVFSTest, TestStackOverflow) {
-  MockFSProvider FS;
+  MockFS FS;
   ErrorCheckingCallbacks DiagConsumer;
   MockCompilationDatabase CDB;
   ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &DiagConsumer);

@@ -15,13 +15,13 @@
 
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/GPU/Passes.h"
-#include "mlir/Dialect/LoopOps/LoopOps.h"
+#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/Pass/Pass.h"
 
 using namespace mlir;
 using namespace mlir::gpu;
-using namespace mlir::loop;
+using namespace mlir::scf;
 
 #include "mlir/Dialect/GPU/ParallelLoopMapperEnums.cpp.inc"
 namespace mlir {
@@ -41,7 +41,7 @@ ParallelLoopDimMapping getParallelLoopDimMappingAttr(Processor processor,
       AffineMapAttr::get(map), AffineMapAttr::get(bound), context);
 }
 
-LogicalResult setMappingAttr(loop::ParallelOp ploopOp,
+LogicalResult setMappingAttr(scf::ParallelOp ploopOp,
                              ArrayRef<ParallelLoopDimMapping> mapping) {
   // Verify that each processor is mapped to only once.
   llvm::DenseSet<gpu::Processor> specifiedMappings;
@@ -130,8 +130,8 @@ static void mapParallelOp(ParallelOp parallelOp,
   MLIRContext *ctx = parallelOp.getContext();
   Builder b(ctx);
   SmallVector<ParallelLoopDimMapping, 4> attrs;
-  attrs.reserve(parallelOp.getNumInductionVars());
-  for (int i = 0, e = parallelOp.getNumInductionVars(); i < e; ++i) {
+  attrs.reserve(parallelOp.getNumLoops());
+  for (int i = 0, e = parallelOp.getNumLoops(); i < e; ++i) {
     attrs.push_back(getParallelLoopDimMappingAttr(
         getHardwareIdForMapping(mappingLevel, i), b.getDimIdentityMap(),
         b.getDimIdentityMap()));
@@ -146,6 +146,6 @@ static void mapParallelOp(ParallelOp parallelOp,
   }
 }
 
-void mlir::greedilyMapParallelLoopsToGPU(Region &region) {
+void mlir::greedilyMapParallelSCFToGPU(Region &region) {
   region.walk([](ParallelOp parallelOp) { mapParallelOp(parallelOp); });
 }

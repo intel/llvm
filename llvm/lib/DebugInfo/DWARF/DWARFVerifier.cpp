@@ -305,7 +305,7 @@ unsigned DWARFVerifier::verifyUnitSection(const DWARFSection &S,
         Unit = TypeUnitVector.addUnit(std::make_unique<DWARFTypeUnit>(
             DCtx, S, Header, DCtx.getDebugAbbrev(), &DObj.getRangesSection(),
             &DObj.getLocSection(), DObj.getStrSection(),
-            DObj.getStrOffsetsSection(), &DObj.getAppleObjCSection(),
+            DObj.getStrOffsetsSection(), &DObj.getAddrSection(),
             DObj.getLineSection(), DCtx.isLittleEndian(), false,
             TypeUnitVector));
         break;
@@ -319,7 +319,7 @@ unsigned DWARFVerifier::verifyUnitSection(const DWARFSection &S,
         Unit = CompileUnitVector.addUnit(std::make_unique<DWARFCompileUnit>(
             DCtx, S, Header, DCtx.getDebugAbbrev(), &DObj.getRangesSection(),
             &DObj.getLocSection(), DObj.getStrSection(),
-            DObj.getStrOffsetsSection(), &DObj.getAppleObjCSection(),
+            DObj.getStrOffsetsSection(), &DObj.getAddrSection(),
             DObj.getLineSection(), DCtx.isLittleEndian(), false,
             CompileUnitVector));
         break;
@@ -352,7 +352,7 @@ bool DWARFVerifier::handleDebugInfo() {
 
   OS << "Verifying .debug_types Unit Header Chain...\n";
   DObj.forEachTypesSections([&](const DWARFSection &S) {
-    NumErrors += verifyUnitSection(S, DW_SECT_TYPES);
+    NumErrors += verifyUnitSection(S, DW_SECT_EXT_TYPES);
   });
   return NumErrors == 0;
 }
@@ -457,8 +457,15 @@ unsigned DWARFVerifier::verifyDebugInfoAttribute(const DWARFDie &Die,
   case DW_AT_ranges:
     // Make sure the offset in the DW_AT_ranges attribute is valid.
     if (auto SectionOffset = AttrValue.Value.getAsSectionOffset()) {
-      if (*SectionOffset >= DObj.getRangesSection().Data.size())
-        ReportError("DW_AT_ranges offset is beyond .debug_ranges bounds:");
+      unsigned DwarfVersion = Die.getDwarfUnit()->getVersion();
+      const DWARFSection &RangeSection = DwarfVersion < 5
+                                             ? DObj.getRangesSection()
+                                             : DObj.getRnglistsSection();
+      if (*SectionOffset >= RangeSection.Data.size())
+        ReportError(
+            "DW_AT_ranges offset is beyond " +
+            StringRef(DwarfVersion < 5 ? ".debug_ranges" : ".debug_rnglists") +
+            " bounds: " + llvm::formatv("{0:x8}", *SectionOffset));
       break;
     }
     ReportError("DIE has invalid DW_AT_ranges encoding:");
@@ -479,7 +486,8 @@ unsigned DWARFVerifier::verifyDebugInfoAttribute(const DWARFDie &Die,
       DWARFUnit *U = Die.getDwarfUnit();
       for (const auto &Entry : *Loc) {
         DataExtractor Data(toStringRef(Entry.Expr), DCtx.isLittleEndian(), 0);
-        DWARFExpression Expression(Data, U->getAddressByteSize());
+        DWARFExpression Expression(Data, U->getAddressByteSize(),
+                                   U->getFormParams().Format);
         bool Error = any_of(Expression, [](DWARFExpression::Operation &Op) {
           return Op.isError();
         });
@@ -755,7 +763,7 @@ void DWARFVerifier::verifyDebugLineRows() {
                 << "] row[" << RowIndex
                 << "] decreases in address from previous row:\n";
 
-        DWARFDebugLine::Row::dumpTableHeader(OS);
+        DWARFDebugLine::Row::dumpTableHeader(OS, 0);
         if (RowIndex > 0)
           LineTable->Rows[RowIndex - 1].dump(OS);
         Row.dump(OS);
@@ -773,7 +781,7 @@ void DWARFVerifier::verifyDebugLineRows() {
                 << " (valid values are [" << (isDWARF5 ? "0," : "1,")
                 << LineTable->Prologue.FileNames.size()
                 << (isDWARF5 ? ")" : "]") << "):\n";
-        DWARFDebugLine::Row::dumpTableHeader(OS);
+        DWARFDebugLine::Row::dumpTableHeader(OS, 0);
         Row.dump(OS);
         OS << '\n';
       }
@@ -1287,7 +1295,8 @@ static bool isVariableIndexable(const DWARFDie &Die, DWARFContext &DCtx) {
   for (const auto &Entry : *Loc) {
     DataExtractor Data(toStringRef(Entry.Expr), DCtx.isLittleEndian(),
                        U->getAddressByteSize());
-    DWARFExpression Expression(Data, U->getAddressByteSize());
+    DWARFExpression Expression(Data, U->getAddressByteSize(),
+                               U->getFormParams().Format);
     bool IsInteresting = any_of(Expression, [](DWARFExpression::Operation &Op) {
       return !Op.isError() && (Op.getCode() == DW_OP_addr ||
                                Op.getCode() == DW_OP_form_tls_address ||
@@ -1327,9 +1336,7 @@ unsigned DWARFVerifier::verifyNameIndexCompleteness(
   // "The name index must contain an entry for each debugging information entry
   // that defines a named subprogram, label, variable, type, or namespace,
   // subject to ..."
-  // Instead whitelisting all TAGs representing a "type" or a "subprogram", to
-  // make sure we catch any missing items, we instead blacklist all TAGs that we
-  // know shouldn't be indexed.
+  // Explicitly exclude all TAGs that we know shouldn't be indexed.
   switch (Die.getTag()) {
   // Compile units and modules have names but shouldn't be indexed.
   case DW_TAG_compile_unit:

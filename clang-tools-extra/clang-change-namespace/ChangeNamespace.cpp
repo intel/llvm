@@ -347,7 +347,7 @@ bool isTemplateParameter(TypeLoc Type) {
 
 ChangeNamespaceTool::ChangeNamespaceTool(
     llvm::StringRef OldNs, llvm::StringRef NewNs, llvm::StringRef FilePattern,
-    llvm::ArrayRef<std::string> WhiteListedSymbolPatterns,
+    llvm::ArrayRef<std::string> AllowedSymbolPatterns,
     std::map<std::string, tooling::Replacements> *FileToReplacements,
     llvm::StringRef FallbackStyle)
     : FallbackStyle(FallbackStyle), FileToReplacements(*FileToReplacements),
@@ -365,8 +365,8 @@ ChangeNamespaceTool::ChangeNamespaceTool(
   DiffOldNamespace = joinNamespaces(OldNsSplitted);
   DiffNewNamespace = joinNamespaces(NewNsSplitted);
 
-  for (const auto &Pattern : WhiteListedSymbolPatterns)
-    WhiteListedSymbolRegexes.emplace_back(Pattern);
+  for (const auto &Pattern : AllowedSymbolPatterns)
+    AllowedSymbolRegexes.emplace_back(Pattern);
 }
 
 void ChangeNamespaceTool::registerMatchers(ast_matchers::MatchFinder *Finder) {
@@ -800,7 +800,7 @@ void ChangeNamespaceTool::replaceQualifiedSymbolInDeclContext(
           Result.SourceManager->getSpellingLoc(End)),
       *Result.SourceManager, Result.Context->getLangOpts());
   std::string FromDeclName = FromDecl->getQualifiedNameAsString();
-  for (llvm::Regex &RE : WhiteListedSymbolRegexes)
+  for (llvm::Regex &RE : AllowedSymbolRegexes)
     if (RE.match(FromDeclName))
       return;
   std::string ReplaceName =
@@ -832,7 +832,7 @@ void ChangeNamespaceTool::replaceQualifiedSymbolInDeclContext(
       std::string AliasName = NamespaceAlias->getNameAsString();
       std::string AliasQualifiedName =
           NamespaceAlias->getQualifiedNameAsString();
-      // We only consider namespace aliases define in the global namepspace or
+      // We only consider namespace aliases define in the global namespace or
       // in namespaces that are directly visible from the reference, i.e.
       // ancestor of the `OldNs`. Note that declarations in ancestor namespaces
       // but not visible in the new namespace is filtered out by

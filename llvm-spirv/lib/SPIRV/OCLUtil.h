@@ -426,9 +426,8 @@ bool isKernelQueryBI(const StringRef MangledName);
 /// Check that the type is the sampler_t
 bool isSamplerTy(Type *Ty);
 
-// Checks if clang did not generate llvm.fmuladd for fp multiply-add operations.
-// If so, it applies ContractionOff ExecutionMode to the kernel.
-void checkFpContract(BinaryOperator *B, SPIRVBasicBlock *BB);
+// Checks if the binary operator is an unfused fmul + fadd instruction.
+bool isUnfusedMulAdd(BinaryOperator *B);
 
 template <typename T> std::string toString(const T *Object) {
   std::string S;
@@ -437,6 +436,12 @@ template <typename T> std::string toString(const T *Object) {
   RSOS.flush();
   return S;
 }
+
+// Get data and vector size postfix for sugroup_block_{read|write} builtins
+// as specified by cl_intel_subgroups* extensions.
+// Scalar data assumed to be represented as vector of one element.
+std::string getIntelSubgroupBlockDataPostfix(unsigned ElementBitSize,
+                                             unsigned VectorNumElements);
 } // namespace OCLUtil
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -491,12 +496,13 @@ Instruction *
 getOrCreateSwitchFunc(StringRef MapName, Value *V,
                       const SPIRVMap<KeyTy, ValTy, Identifier> &Map,
                       bool IsReverse, Optional<int> DefaultCase,
-                      Instruction *InsertPoint, Module *M, int KeyMask = 0) {
+                      Instruction *InsertPoint, int KeyMask = 0) {
   static_assert(std::is_convertible<KeyTy, int>::value &&
                     std::is_convertible<ValTy, int>::value,
                 "Can map only integer values");
   Type *Ty = V->getType();
   assert(Ty && Ty->isIntegerTy() && "Can't map non-integer types");
+  Module *M = InsertPoint->getModule();
   Function *F = getOrCreateFunction(M, Ty, Ty, MapName);
   if (!F->empty()) // The switch function already exists. just call it.
     return addCallInst(M, MapName, Ty, V, nullptr, InsertPoint);
@@ -538,10 +544,99 @@ getOrCreateSwitchFunc(StringRef MapName, Value *V,
   return addCallInst(M, MapName, Ty, V, nullptr, InsertPoint);
 }
 
+/// Performs conversion from OpenCL memory_scope into SPIR-V Scope.
+///
+/// Supports both constant and non-constant values. To handle the latter case,
+/// function with switch..case statement will be inserted into module which
+/// \arg InsertBefore belongs to (in order to perform mapping at runtime)
+///
+/// \param [in] MemScope memory_scope value which needs to be translated
+/// \param [in] DefaultCase default value for switch..case construct if
+///             dynamic mapping is used
+/// \param [in] InsertBefore insertion point for call into conversion function
+///             which is generated if \arg MemScope is not a constant
+/// \returns \c Value corresponding to SPIR-V Scope equivalent to OpenCL
+///          memory_scope passed in \arg MemScope
+Value *transOCLMemScopeIntoSPIRVScope(Value *MemScope,
+                                      Optional<int> DefaultCase,
+                                      Instruction *InsertBefore);
+
+/// Performs conversion from OpenCL memory_order into SPIR-V Memory Semantics.
+///
+/// Supports both constant and non-constant values. To handle the latter case,
+/// function with switch..case statement will be inserted into module which
+/// \arg InsertBefore belongs to (in order to perform mapping at runtime)
+///
+/// \param [in] MemOrder memory_scope value which needs to be translated
+/// \param [in] DefaultCase default value for switch..case construct if
+///             dynamic mapping is used
+/// \param [in] InsertBefore insertion point for call into conversion function
+///             which is generated if \arg MemOrder is not a constant
+/// \returns \c Value corresponding to SPIR-V Memory Semantics equivalent to
+///          OpenCL memory_order passed in \arg MemOrder
+Value *transOCLMemOrderIntoSPIRVMemorySemantics(Value *MemOrder,
+                                                Optional<int> DefaultCase,
+                                                Instruction *InsertBefore);
+
+/// Performs conversion from SPIR-V Scope into OpenCL memory_scope.
+///
+/// Supports both constant and non-constant values. To handle the latter case,
+/// function with switch..case statement will be inserted into module which
+/// \arg InsertBefore belongs to (in order to perform mapping at runtime)
+///
+/// \param [in] MemScope Scope value which needs to be translated
+/// \param [in] InsertBefore insertion point for call into conversion function
+///             which is generated if \arg MemScope is not a constant
+/// \returns \c Value corresponding to  OpenCL memory_scope equivalent to SPIR-V
+///          Scope passed in \arg MemScope
+Value *transSPIRVMemoryScopeIntoOCLMemoryScope(Value *MemScope,
+                                               Instruction *InsertBefore);
+
+/// Performs conversion from SPIR-V Memory Semantics into OpenCL memory_order.
+///
+/// Supports both constant and non-constant values. To handle the latter case,
+/// function with switch..case statement will be inserted into module which
+/// \arg InsertBefore belongs to (in order to perform mapping at runtime)
+///
+/// \param [in] MemorySemantics Memory Semantics value which needs to be
+///             translated
+/// \param [in] InsertBefore insertion point for call into conversion function
+///             which is generated if \arg MemorySemantics is not a constant
+/// \returns \c Value corresponding to  OpenCL memory_order equivalent to SPIR-V
+///          Memory Semantics passed in \arg MemorySemantics
+Value *transSPIRVMemorySemanticsIntoOCLMemoryOrder(Value *MemorySemantics,
+                                                   Instruction *InsertBefore);
+
+/// Performs conversion from SPIR-V Memory Semantics into OpenCL
+/// mem_fence_flags.
+///
+/// Supports both constant and non-constant values. To handle the latter case,
+/// function with switch..case statement will be inserted into module which
+/// \arg InsertBefore belongs to (in order to perform mapping at runtime)
+///
+/// \param [in] MemorySemantics Memory Semantics value which needs to be
+///             translated
+/// \param [in] InsertBefore insertion point for call into conversion function
+///             which is generated if \arg MemorySemantics is not a constant
+/// \returns \c Value corresponding to  OpenCL mem_fence_flags equivalent to
+///          SPIR-V Memory Semantics passed in \arg MemorySemantics
+Value *transSPIRVMemorySemanticsIntoOCLMemFenceFlags(Value *MemorySemantics,
+                                                     Instruction *InsertBefore);
+
 template <> inline void SPIRVMap<std::string, SPIRVGroupOperationKind>::init() {
   add("reduce", GroupOperationReduce);
   add("scan_inclusive", GroupOperationInclusiveScan);
   add("scan_exclusive", GroupOperationExclusiveScan);
+  add("ballot_bit_count", GroupOperationReduce);
+  add("ballot_inclusive_scan", GroupOperationInclusiveScan);
+  add("ballot_exclusive_scan", GroupOperationExclusiveScan);
+  add("non_uniform_reduce", GroupOperationReduce);
+  add("non_uniform_scan_inclusive", GroupOperationInclusiveScan);
+  add("non_uniform_scan_exclusive", GroupOperationExclusiveScan);
+  add("non_uniform_reduce_logical", GroupOperationReduce);
+  add("non_uniform_scan_inclusive_logical", GroupOperationInclusiveScan);
+  add("non_uniform_scan_exclusive_logical", GroupOperationExclusiveScan);
+  add("clustered_reduce", GroupOperationClusteredReduce);
 }
 
 template <> inline void SPIRVMap<std::string, SPIRVFPRoundingModeKind>::init() {
@@ -605,12 +700,19 @@ inline void SPIRVMap<std::string, SPIRVBuiltinVariableKind>::init() {
   add("get_group_id", BuiltInWorkgroupId);
   add("get_global_linear_id", BuiltInGlobalLinearId);
   add("get_local_linear_id", BuiltInLocalInvocationIndex);
+  // cl_khr_subgroups
   add("get_sub_group_size", BuiltInSubgroupSize);
   add("get_max_sub_group_size", BuiltInSubgroupMaxSize);
   add("get_num_sub_groups", BuiltInNumSubgroups);
   add("get_enqueued_num_sub_groups", BuiltInNumEnqueuedSubgroups);
   add("get_sub_group_id", BuiltInSubgroupId);
   add("get_sub_group_local_id", BuiltInSubgroupLocalInvocationId);
+  // cl_khr_subgroup_ballot
+  add("get_sub_group_eq_mask", BuiltInSubgroupEqMask);
+  add("get_sub_group_ge_mask", BuiltInSubgroupGeMask);
+  add("get_sub_group_gt_mask", BuiltInSubgroupGtMask);
+  add("get_sub_group_le_mask", BuiltInSubgroupLeMask);
+  add("get_sub_group_lt_mask", BuiltInSubgroupLtMask);
 }
 
 // Maps uniqued OCL builtin function name to SPIR-V op code.
@@ -634,7 +736,7 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(max, SMax)
   _SPIRV_OP(and, And)
   _SPIRV_OP(or, Or)
-  _SPIRV_OP (xor, Xor)
+  _SPIRV_OP(xor, Xor)
 #undef _SPIRV_OP
 #define _SPIRV_OP(x, y) add("atomic_" #x, Op##y);
   // CL 2.0 atomic builtins
@@ -754,6 +856,43 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(intel_sub_group_media_block_read, SubgroupImageMediaBlockReadINTEL)
   _SPIRV_OP(intel_sub_group_media_block_write,
             SubgroupImageMediaBlockWriteINTEL)
+  // cl_khr_subgroup_non_uniform_vote
+  _SPIRV_OP(group_elect, GroupNonUniformElect)
+  _SPIRV_OP(group_non_uniform_all, GroupNonUniformAll)
+  _SPIRV_OP(group_non_uniform_any, GroupNonUniformAny)
+  _SPIRV_OP(group_non_uniform_all_equal, GroupNonUniformAllEqual)
+  // cl_khr_subgroup_ballot
+  _SPIRV_OP(group_non_uniform_broadcast, GroupNonUniformBroadcast)
+  _SPIRV_OP(group_broadcast_first, GroupNonUniformBroadcastFirst)
+  _SPIRV_OP(group_ballot, GroupNonUniformBallot)
+  _SPIRV_OP(group_inverse_ballot, GroupNonUniformInverseBallot)
+  _SPIRV_OP(group_ballot_bit_extract, GroupNonUniformBallotBitExtract)
+  _SPIRV_OP(group_ballot_bit_count_iadd, GroupNonUniformBallotBitCount)
+  _SPIRV_OP(group_ballot_find_lsb, GroupNonUniformBallotFindLSB)
+  _SPIRV_OP(group_ballot_find_msb, GroupNonUniformBallotFindMSB)
+  // cl_khr_subgroup_non_uniform_arithmetic
+  _SPIRV_OP(group_non_uniform_iadd, GroupNonUniformIAdd)
+  _SPIRV_OP(group_non_uniform_fadd, GroupNonUniformFAdd)
+  _SPIRV_OP(group_non_uniform_imul, GroupNonUniformIMul)
+  _SPIRV_OP(group_non_uniform_fmul, GroupNonUniformFMul)
+  _SPIRV_OP(group_non_uniform_smin, GroupNonUniformSMin)
+  _SPIRV_OP(group_non_uniform_umin, GroupNonUniformUMin)
+  _SPIRV_OP(group_non_uniform_fmin, GroupNonUniformFMin)
+  _SPIRV_OP(group_non_uniform_smax, GroupNonUniformSMax)
+  _SPIRV_OP(group_non_uniform_umax, GroupNonUniformUMax)
+  _SPIRV_OP(group_non_uniform_fmax, GroupNonUniformFMax)
+  _SPIRV_OP(group_non_uniform_iand, GroupNonUniformBitwiseAnd)
+  _SPIRV_OP(group_non_uniform_ior, GroupNonUniformBitwiseOr)
+  _SPIRV_OP(group_non_uniform_ixor, GroupNonUniformBitwiseXor)
+  _SPIRV_OP(group_non_uniform_logical_iand, GroupNonUniformLogicalAnd)
+  _SPIRV_OP(group_non_uniform_logical_ior, GroupNonUniformLogicalOr)
+  _SPIRV_OP(group_non_uniform_logical_ixor, GroupNonUniformLogicalXor)
+  // cl_khr_subgroup_shuffle
+  _SPIRV_OP(group_shuffle, GroupNonUniformShuffle)
+  _SPIRV_OP(group_shuffle_xor, GroupNonUniformShuffleXor)
+  // cl_khr_subgroup_shuffle_relative
+  _SPIRV_OP(group_shuffle_up, GroupNonUniformShuffleUp)
+  _SPIRV_OP(group_shuffle_down, GroupNonUniformShuffleDown)
 #undef _SPIRV_OP
 }
 

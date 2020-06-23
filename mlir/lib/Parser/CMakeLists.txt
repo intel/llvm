@@ -1,12 +1,16 @@
 add_mlir_library(MLIRParser
+  AffineParser.cpp
+  AttributeParser.cpp
+  DialectSymbolParser.cpp
   Lexer.cpp
+  LocationParser.cpp
   Parser.cpp
   Token.cpp
+  TypeParser.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Parser
-  )
-target_link_libraries(MLIRParser
-  PUBLIC
+
+  LINK_LIBS PUBLIC
   MLIRIR
-  MLIRAnalysis)
+  )

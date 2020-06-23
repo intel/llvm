@@ -202,7 +202,9 @@ void program_impl::compile_with_kernel_name(string_class KernelName,
   throw_if_state_is_not(program_state::none);
   MProgramModuleHandle = M;
   if (!is_host()) {
-    create_pi_program_with_kernel_name(M, KernelName);
+    create_pi_program_with_kernel_name(
+        M, KernelName,
+        /*JITCompilationIsRequired=*/(!CompileOptions.empty()));
     compile(CompileOptions);
   }
   MState = program_state::compiled;
@@ -231,11 +233,14 @@ void program_impl::build_with_kernel_name(string_class KernelName,
     if (is_cacheable_with_options(BuildOptions)) {
       MProgramAndKernelCachingAllowed = true;
       MProgram = ProgramManager::getInstance().getBuiltPIProgram(
-          Module, get_context(), KernelName);
+          Module, get_context(), KernelName, this,
+          /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
       const detail::plugin &Plugin = getPlugin();
       Plugin.call<PiApiKind::piProgramRetain>(MProgram);
     } else {
-      create_pi_program_with_kernel_name(Module, KernelName);
+      create_pi_program_with_kernel_name(
+          Module, KernelName,
+          /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
       build(BuildOptions);
     }
   }
@@ -332,7 +337,6 @@ void program_impl::compile(const string_class &Options) {
   check_device_feature_support<info::device::is_compiler_available>(MDevices);
   vector_class<RT::PiDevice> Devices(get_pi_devices());
   const detail::plugin &Plugin = getPlugin();
-  ProgramManager::getInstance().flushSpecConstants(MProgram, *MContext);
   RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
       MProgram, Devices.size(), Devices.data(), Options.c_str(), 0, nullptr,
       nullptr, nullptr, nullptr);
@@ -351,7 +355,7 @@ void program_impl::build(const string_class &Options) {
   check_device_feature_support<info::device::is_compiler_available>(MDevices);
   vector_class<RT::PiDevice> Devices(get_pi_devices());
   const detail::plugin &Plugin = getPlugin();
-  ProgramManager::getInstance().flushSpecConstants(MProgram, *MContext);
+  ProgramManager::getInstance().flushSpecConstants(*this);
   RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
       MProgram, Devices.size(), Devices.data(), Options.c_str(), nullptr,
       nullptr);
@@ -398,7 +402,8 @@ RT::PiKernel program_impl::get_pi_kernel(const string_class &KernelName) const {
 
   if (is_cacheable()) {
     Kernel = ProgramManager::getInstance().getOrCreateKernel(
-        MProgramModuleHandle, get_context(), KernelName);
+        MProgramModuleHandle, get_context(), KernelName, this);
+    getPlugin().call<PiApiKind::piKernelRetain>(Kernel);
   } else {
     const detail::plugin &Plugin = getPlugin();
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piKernelCreate>(
@@ -437,11 +442,12 @@ void program_impl::throw_if_state_is_not(program_state State) const {
 }
 
 void program_impl::create_pi_program_with_kernel_name(
-    OSModuleHandle Module, const string_class &KernelName) {
+    OSModuleHandle Module, const string_class &KernelName,
+    bool JITCompilationIsRequired) {
   assert(!MProgram && "This program already has an encapsulated PI program");
   ProgramManager &PM = ProgramManager::getInstance();
-  RTDeviceBinaryImage &Img =
-      PM.getDeviceImage(Module, KernelName, get_context());
+  RTDeviceBinaryImage &Img = PM.getDeviceImage(
+      Module, KernelName, get_context(), JITCompilationIsRequired);
   MProgram = PM.createPIProgram(Img, get_context());
 }
 
@@ -470,9 +476,39 @@ vector_class<device> program_impl::get_info<info::program::devices>() const {
 
 void program_impl::set_spec_constant_impl(const char *Name, const void *ValAddr,
                                           size_t ValSize) {
-  spec_constant_impl &SC =
-      ProgramManager::getInstance().resolveSpecConstant(this, Name);
+  if (MState != program_state::none)
+    throw cl::sycl::experimental::spec_const_error("Invalid program state",
+                                                   PI_INVALID_PROGRAM);
+  // Reuse cached programs lock as opposed to introducing a new lock.
+  auto LockGuard = MContext->getKernelProgramCache().acquireCachedPrograms();
+  spec_constant_impl &SC = SpecConstRegistry[Name];
   SC.set(ValSize, ValAddr);
+}
+
+void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
+                                        RT::PiProgram NativePrg) const {
+  // iterate via all specialization constants the program's image depends on,
+  // and set each to current runtime value (if any)
+  const pi::DeviceBinaryImage::PropertyRange &SCRange = Img.getSpecConstants();
+  ContextImplPtr Ctx = getSyclObjImpl(get_context());
+  using SCItTy = pi::DeviceBinaryImage::PropertyRange::ConstIterator;
+
+  auto LockGuard = Ctx->getKernelProgramCache().acquireCachedPrograms();
+
+  for (SCItTy SCIt : SCRange) {
+    const char *SCName = (*SCIt)->Name;
+    auto SCEntry = SpecConstRegistry.find(SCName);
+    if (SCEntry == SpecConstRegistry.end())
+      // spec constant has not been set in user code - SPIRV will use default
+      continue;
+    const spec_constant_impl &SC = SCEntry->second;
+    assert(SC.isSet() && "uninitialized spec constant");
+    pi_device_binary_property SCProp = *SCIt;
+    pi_uint32 ID = pi::DeviceBinaryProperty(SCProp).asUint32();
+    NativePrg = NativePrg ? NativePrg : getHandleRef();
+    Ctx->getPlugin().call<PiApiKind::piextProgramSetSpecializationConstant>(
+        NativePrg, ID, SC.getSize(), SC.getValuePtr());
+  }
 }
 
 } // namespace detail

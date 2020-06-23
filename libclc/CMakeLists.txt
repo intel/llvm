@@ -45,8 +45,13 @@ set( LIBCLC_TARGETS_ALL
   nvptx--nvidiacl
   nvptx64--nvidiacl
 )
+set( LIBCLC_TEST_TARGETS_ALL
+  nvptx--nvidiacl
+  nvptx64--nvidiacl
+)
 
 set( LIBCLC_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR} )
+set( LIBCLC_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR} )
 
 set( LIBCLC_TARGETS_TO_BUILD "all"
     CACHE STRING "Semicolon-separated list of targets to build, or 'all'." )
@@ -65,8 +70,38 @@ endif()
 
 list( SORT LIBCLC_TARGETS_TO_BUILD )
 
+set(LIBCLC_TARGET_TO_TEST)
+
+foreach ( t ${LIBCLC_TEST_TARGETS_ALL})
+	if( ${t} IN_LIST LIBCLC_TARGETS_TO_BUILD )
+		list( APPEND LIBCLC_TARGET_TO_TEST "${t}" )
+	endif(t)
+endforeach(t)
+
+execute_process( COMMAND ${LLVM_CONFIG} "--system-libs"
+	OUTPUT_VARIABLE LLVM_SYSTEM_LIBS
+	OUTPUT_STRIP_TRAILING_WHITESPACE )
+separate_arguments( LLVM_SYSTEM_LIBS )
+execute_process( COMMAND ${LLVM_CONFIG} "--libs" "core" "bitreader" "bitwriter"
+	OUTPUT_VARIABLE LLVM_LIBS
+	OUTPUT_STRIP_TRAILING_WHITESPACE )
+separate_arguments( LLVM_LIBS )
+execute_process( COMMAND ${LLVM_CONFIG} "--libdir"
+	OUTPUT_VARIABLE LLVM_LIBDIR
+	OUTPUT_STRIP_TRAILING_WHITESPACE )
+execute_process( COMMAND ${LLVM_CONFIG} "--ldflags"
+	OUTPUT_VARIABLE LLVM_LD_FLAGS
+	OUTPUT_STRIP_TRAILING_WHITESPACE )
+execute_process( COMMAND ${LLVM_CONFIG} "--cxxflags"
+	OUTPUT_VARIABLE LLVM_CXX_FLAGS
+	OUTPUT_STRIP_TRAILING_WHITESPACE )
+separate_arguments( LLVM_CXX_FLAGS )
+execute_process( COMMAND ${LLVM_CONFIG} "--bindir"
+	OUTPUT_VARIABLE LLVM_BINDIR
+	OUTPUT_STRIP_TRAILING_WHITESPACE )
+
 # These were not properly reported in early LLVM and we don't need them
-set( LLVM_CXX_FLAGS ${LLVM_CXX_FLAGS} -fno-rtti -fno-exceptions )
+list( APPEND LLVM_CXX_FLAGS -fno-rtti -fno-exceptions )
 
 # Print LLVM variables
 message( "LLVM libdir: ${LLVM_LIBRARY_DIR}" )
@@ -138,7 +173,14 @@ endif()
 
 find_program( PYTHON python )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/gen_convert.py clc_script_loc )
+file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/libspirv/gen_core_convert.py core_script_loc )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/libspirv/gen_convert.py spirv_script_loc )
+
+add_custom_command(
+	OUTPUT convert-core.cl
+	COMMAND ${PYTHON} ${core_script_loc} > convert-core.cl
+	DEPENDS ${core_script_loc} )
+add_custom_target( "generate_convert_core.cl" DEPENDS convert-core.cl )
 
 add_custom_command(
 	OUTPUT convert-spirv.cl
@@ -189,7 +231,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 	libclc_configure_lib_source(libspirv_files
 		LIB_DIR libspirv
 		DIRS ${dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS}
-		DEPS convert-spirv.cl )
+		DEPS convert-spirv.cl convert-core.cl)
 
 	foreach( d ${${t}_devices} )
 		# Some targets don't have a specific GPU to target
@@ -208,7 +250,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 			COMPILE_OPT ${mcpu}
 			FILES ${libspirv_files}
 			ALIASES ${${d}_aliases}
-			GENERATE_TARGET "generate_convert_clc.cl"
+			GENERATE_TARGET "generate_convert_spirv.cl" "generate_convert_core.cl"
 			PARENT_TARGET libspirv-builtins)
 
 		add_libclc_builtin_set(clc-${arch_suffix}
@@ -218,7 +260,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 			FILES ${lib_files}
 			LIB_DEP libspirv-${arch_suffix}
 			ALIASES ${${d}_aliases}
-			GENERATE_TARGET "generate_convert_spirv.cl"
+			GENERATE_TARGET "generate_convert_clc.cl"
 			PARENT_TARGET libclc-builtins)
 	endforeach( d )
 endforeach( t )
@@ -232,3 +274,5 @@ install(DIRECTORY ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
 				DESTINATION lib${LLVM_LIBDIR_SUFFIX}
 				COMPONENT clc-builtins
 				FILES_MATCHING PATTERN "clc-*")
+
+add_subdirectory(test)

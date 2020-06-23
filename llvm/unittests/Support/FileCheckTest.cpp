@@ -28,164 +28,250 @@ static StringRef bufferize(SourceMgr &SM, StringRef Str) {
   return StrBufferRef;
 }
 
+static std::string toString(const std::unordered_set<std::string> &Set) {
+  bool First = true;
+  std::string Str;
+  for (StringRef S : Set) {
+    Str += Twine(First ? "{" + S : ", " + S).str();
+    First = false;
+  }
+  Str += '}';
+  return Str;
+}
+
+template <typename ErrorT>
+static void expectSameErrors(std::unordered_set<std::string> ExpectedMsgs,
+                             Error Err) {
+  auto AnyErrorMsgMatch = [&ExpectedMsgs](std::string &&ErrorMsg) -> bool {
+    for (auto ExpectedMsgItr = ExpectedMsgs.begin(),
+              ExpectedMsgEnd = ExpectedMsgs.end();
+         ExpectedMsgItr != ExpectedMsgEnd; ++ExpectedMsgItr) {
+      if (ErrorMsg.find(*ExpectedMsgItr) != std::string::npos) {
+        ExpectedMsgs.erase(ExpectedMsgItr);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  Error RemainingErrors = std::move(Err);
+  do {
+    RemainingErrors =
+        handleErrors(std::move(RemainingErrors), [&](const ErrorT &E) {
+          EXPECT_TRUE(AnyErrorMsgMatch(E.message()))
+              << "Unexpected error message:" << std::endl
+              << E.message();
+        });
+  } while (RemainingErrors && !ExpectedMsgs.empty());
+  EXPECT_THAT_ERROR(std::move(RemainingErrors), Succeeded());
+  EXPECT_TRUE(ExpectedMsgs.empty())
+      << "Error message(s) not found:" << std::endl
+      << toString(ExpectedMsgs);
+}
+
 template <typename ErrorT>
 static void expectError(StringRef ExpectedMsg, Error Err) {
-  bool ErrorHandled = false;
-  EXPECT_THAT_ERROR(handleErrors(std::move(Err),
-                                 [&](const ErrorT &E) {
-                                   EXPECT_NE(
-                                       E.message().find(ExpectedMsg.str()),
-                                       std::string::npos);
-                                   ErrorHandled = true;
-                                 }),
-                    Succeeded());
-  EXPECT_TRUE(ErrorHandled);
+  expectSameErrors<ErrorT>({ExpectedMsg.str()}, std::move(Err));
 }
 
 static void expectDiagnosticError(StringRef ExpectedMsg, Error Err) {
   expectError<ErrorDiagnostic>(ExpectedMsg, std::move(Err));
 }
 
-struct ExpressionFormatParameterisedFixture
-    : public ::testing::TestWithParam<
-          std::tuple<ExpressionFormat::Kind, bool, bool>> {
-  void SetUp() { std::tie(Kind, AllowHex, AllowUpperHex) = GetParam(); }
+constexpr uint64_t MaxUint64 = std::numeric_limits<uint64_t>::max();
+constexpr int64_t MaxInt64 = std::numeric_limits<int64_t>::max();
+constexpr int64_t MinInt64 = std::numeric_limits<int64_t>::min();
+constexpr uint64_t AbsoluteMinInt64 =
+    static_cast<uint64_t>(-(MinInt64 + 1)) + 1;
+constexpr uint64_t AbsoluteMaxInt64 = static_cast<uint64_t>(MaxInt64);
 
-  ExpressionFormat::Kind Kind;
+struct ExpressionFormatParameterisedFixture
+    : public ::testing::TestWithParam<ExpressionFormat::Kind> {
+  bool Signed;
   bool AllowHex;
   bool AllowUpperHex;
+  ExpressionFormat Format;
+  Regex WildcardRegex;
+
+  StringRef TenStr;
+  StringRef FifteenStr;
+  std::string MaxUint64Str;
+  std::string MaxInt64Str;
+  std::string MinInt64Str;
+  StringRef FirstInvalidCharDigits;
+  StringRef AcceptedHexOnlyDigits;
+  StringRef RefusedHexOnlyDigits;
+
+  SourceMgr SM;
+
+  void SetUp() {
+    ExpressionFormat::Kind Kind = GetParam();
+    AllowHex = Kind == ExpressionFormat::Kind::HexLower ||
+               Kind == ExpressionFormat::Kind::HexUpper;
+    AllowUpperHex = Kind == ExpressionFormat::Kind::HexUpper;
+    Signed = Kind == ExpressionFormat::Kind::Signed;
+    Format = ExpressionFormat(Kind);
+
+    if (!AllowHex) {
+      MaxUint64Str = std::to_string(MaxUint64);
+      MaxInt64Str = std::to_string(MaxInt64);
+      MinInt64Str = std::to_string(MinInt64);
+      TenStr = "10";
+      FifteenStr = "15";
+      FirstInvalidCharDigits = "aA";
+      AcceptedHexOnlyDigits = RefusedHexOnlyDigits = "N/A";
+      return;
+    }
+
+    MaxUint64Str = AllowUpperHex ? "FFFFFFFFFFFFFFFF" : "ffffffffffffffff";
+    MaxInt64Str = AllowUpperHex ? "7FFFFFFFFFFFFFFF" : "7fffffffffffffff";
+    TenStr = AllowUpperHex ? "A" : "a";
+    FifteenStr = AllowUpperHex ? "F" : "f";
+    AcceptedHexOnlyDigits = AllowUpperHex ? "ABCDEF" : "abcdef";
+    RefusedHexOnlyDigits = AllowUpperHex ? "abcdef" : "ABCDEF";
+    MinInt64Str = "N/A";
+    FirstInvalidCharDigits = "gG";
+  }
+
+  void checkWildcardRegexMatch(StringRef Input) {
+    SmallVector<StringRef, 4> Matches;
+    ASSERT_TRUE(WildcardRegex.match(Input, &Matches))
+        << "Wildcard regex does not match " << Input;
+    EXPECT_EQ(Matches[0], Input);
+  }
+
+  void checkWildcardRegexMatchFailure(StringRef Input) {
+    EXPECT_FALSE(WildcardRegex.match(Input));
+  }
+
+  template <class T> void checkMatchingString(T Val, StringRef ExpectedStr) {
+    Expected<std::string> MatchingString =
+        Format.getMatchingString(ExpressionValue(Val));
+    ASSERT_THAT_EXPECTED(MatchingString, Succeeded())
+        << "No matching string for " << Val;
+    EXPECT_EQ(*MatchingString, ExpectedStr);
+  }
+
+  template <class T> void checkMatchingStringFailure(T Val) {
+    Expected<std::string> MatchingString =
+        Format.getMatchingString(ExpressionValue(Val));
+    // Error message tested in ExpressionValue unit tests.
+    EXPECT_THAT_EXPECTED(MatchingString, Failed());
+  }
+
+  Expected<ExpressionValue> getValueFromStringReprFailure(StringRef Str) {
+    StringRef BufferizedStr = bufferize(SM, Str);
+    return Format.valueFromStringRepr(BufferizedStr, SM);
+  }
+
+  template <class T>
+  void checkValueFromStringRepr(StringRef Str, T ExpectedVal) {
+    Expected<ExpressionValue> ResultValue = getValueFromStringReprFailure(Str);
+    ASSERT_THAT_EXPECTED(ResultValue, Succeeded())
+        << "Failed to get value from " << Str;
+    ASSERT_EQ(ResultValue->isNegative(), ExpectedVal < 0)
+        << "Value for " << Str << " is not " << ExpectedVal;
+    if (ResultValue->isNegative())
+      EXPECT_EQ(cantFail(ResultValue->getSignedValue()),
+                static_cast<int64_t>(ExpectedVal));
+    else
+      EXPECT_EQ(cantFail(ResultValue->getUnsignedValue()),
+                static_cast<uint64_t>(ExpectedVal));
+  }
+
+  void checkValueFromStringReprFailure(StringRef Str) {
+    StringRef OverflowErrorStr = "unable to represent numeric value";
+    Expected<ExpressionValue> ResultValue = getValueFromStringReprFailure(Str);
+    expectDiagnosticError(OverflowErrorStr, ResultValue.takeError());
+  }
 };
 
-TEST_P(ExpressionFormatParameterisedFixture, Format) {
-  SourceMgr SM;
-  ExpressionFormat Format(Kind);
-
+TEST_P(ExpressionFormatParameterisedFixture, FormatGetWildcardRegex) {
+  // Wildcard regex is valid.
   Expected<StringRef> WildcardPattern = Format.getWildcardRegex();
   ASSERT_THAT_EXPECTED(WildcardPattern, Succeeded());
-  Regex WildcardRegex(*WildcardPattern);
+  WildcardRegex = Regex((Twine("^") + *WildcardPattern).str());
   ASSERT_TRUE(WildcardRegex.isValid());
+
   // Does not match empty string.
-  EXPECT_FALSE(WildcardRegex.match(""));
+  checkWildcardRegexMatchFailure("");
+
   // Matches all decimal digits and matches several of them.
-  SmallVector<StringRef, 4> Matches;
-  StringRef DecimalDigits = "0123456789";
-  ASSERT_TRUE(WildcardRegex.match(DecimalDigits, &Matches));
-  EXPECT_EQ(Matches[0], DecimalDigits);
+  checkWildcardRegexMatch("0123456789");
+
+  // Matches negative digits.
+  if (Signed)
+    checkWildcardRegexMatch("-42");
+  else
+    checkWildcardRegexMatchFailure("-42");
+
   // Check non digits or digits with wrong casing are not matched.
   if (AllowHex) {
-    StringRef HexOnlyDigits[] = {"abcdef", "ABCDEF"};
-    StringRef AcceptedHexOnlyDigits =
-        AllowUpperHex ? HexOnlyDigits[1] : HexOnlyDigits[0];
-    StringRef RefusedHexOnlyDigits =
-        AllowUpperHex ? HexOnlyDigits[0] : HexOnlyDigits[1];
-    ASSERT_TRUE(WildcardRegex.match(AcceptedHexOnlyDigits, &Matches));
-    EXPECT_EQ(Matches[0], AcceptedHexOnlyDigits);
-    EXPECT_FALSE(WildcardRegex.match(RefusedHexOnlyDigits));
+    checkWildcardRegexMatch(AcceptedHexOnlyDigits);
+    checkWildcardRegexMatchFailure(RefusedHexOnlyDigits);
+  }
+  checkWildcardRegexMatchFailure(FirstInvalidCharDigits);
+}
 
-    EXPECT_FALSE(WildcardRegex.match("g"));
-    EXPECT_FALSE(WildcardRegex.match("G"));
+TEST_P(ExpressionFormatParameterisedFixture, FormatGetMatchingString) {
+  checkMatchingString(0, "0");
+  checkMatchingString(9, "9");
+
+  if (Signed) {
+    checkMatchingString(-5, "-5");
+    checkMatchingStringFailure(MaxUint64);
+    checkMatchingString(MaxInt64, MaxInt64Str);
+    checkMatchingString(MinInt64, MinInt64Str);
   } else {
-    EXPECT_FALSE(WildcardRegex.match("a"));
-    EXPECT_FALSE(WildcardRegex.match("A"));
+    checkMatchingStringFailure(-5);
+    checkMatchingString(MaxUint64, MaxUint64Str);
+    checkMatchingString(MaxInt64, MaxInt64Str);
+    checkMatchingStringFailure(MinInt64);
   }
 
-  Expected<std::string> MatchingString = Format.getMatchingString(0U);
-  ASSERT_THAT_EXPECTED(MatchingString, Succeeded());
-  EXPECT_EQ(*MatchingString, "0");
-  MatchingString = Format.getMatchingString(9U);
-  ASSERT_THAT_EXPECTED(MatchingString, Succeeded());
-  EXPECT_EQ(*MatchingString, "9");
-  Expected<std::string> TenMatchingString = Format.getMatchingString(10U);
-  ASSERT_THAT_EXPECTED(TenMatchingString, Succeeded());
-  Expected<std::string> FifteenMatchingString = Format.getMatchingString(15U);
-  ASSERT_THAT_EXPECTED(FifteenMatchingString, Succeeded());
-  StringRef ExpectedTenMatchingString, ExpectedFifteenMatchingString;
-  if (AllowHex) {
-    if (AllowUpperHex) {
-      ExpectedTenMatchingString = "A";
-      ExpectedFifteenMatchingString = "F";
-    } else {
-      ExpectedTenMatchingString = "a";
-      ExpectedFifteenMatchingString = "f";
-    }
-  } else {
-    ExpectedTenMatchingString = "10";
-    ExpectedFifteenMatchingString = "15";
-  }
-  EXPECT_EQ(*TenMatchingString, ExpectedTenMatchingString);
-  EXPECT_EQ(*FifteenMatchingString, ExpectedFifteenMatchingString);
+  checkMatchingString(10, TenStr);
+  checkMatchingString(15, FifteenStr);
+}
 
-  StringRef BufferizedValidValueStr = bufferize(SM, "0");
-  Expected<uint64_t> Val =
-      Format.valueFromStringRepr(BufferizedValidValueStr, SM);
-  ASSERT_THAT_EXPECTED(Val, Succeeded());
-  EXPECT_EQ(*Val, 0U);
-  BufferizedValidValueStr = bufferize(SM, "9");
-  Val = Format.valueFromStringRepr(BufferizedValidValueStr, SM);
-  ASSERT_THAT_EXPECTED(Val, Succeeded());
-  EXPECT_EQ(*Val, 9U);
-  StringRef BufferizedTenStr, BufferizedInvalidTenStr, BufferizedFifteenStr;
-  StringRef TenStr, FifteenStr, InvalidTenStr;
-  if (AllowHex) {
-    if (AllowUpperHex) {
-      TenStr = "A";
-      FifteenStr = "F";
-      InvalidTenStr = "a";
-    } else {
-      TenStr = "a";
-      FifteenStr = "f";
-      InvalidTenStr = "A";
-    }
+TEST_P(ExpressionFormatParameterisedFixture, FormatValueFromStringRepr) {
+  checkValueFromStringRepr("0", 0);
+  checkValueFromStringRepr("9", 9);
+
+  if (Signed) {
+    checkValueFromStringRepr("-5", -5);
+    checkValueFromStringReprFailure(MaxUint64Str);
   } else {
-    TenStr = "10";
-    FifteenStr = "15";
-    InvalidTenStr = "A";
+    checkValueFromStringReprFailure("-5");
+    checkValueFromStringRepr(MaxUint64Str, MaxUint64);
   }
-  BufferizedTenStr = bufferize(SM, TenStr);
-  Val = Format.valueFromStringRepr(BufferizedTenStr, SM);
-  ASSERT_THAT_EXPECTED(Val, Succeeded());
-  EXPECT_EQ(*Val, 10U);
-  BufferizedFifteenStr = bufferize(SM, FifteenStr);
-  Val = Format.valueFromStringRepr(BufferizedFifteenStr, SM);
-  ASSERT_THAT_EXPECTED(Val, Succeeded());
-  EXPECT_EQ(*Val, 15U);
+
+  checkValueFromStringRepr(TenStr, 10);
+  checkValueFromStringRepr(FifteenStr, 15);
+
   // Wrong casing is not tested because valueFromStringRepr() relies on
   // StringRef's getAsInteger() which does not allow to restrict casing.
-  BufferizedInvalidTenStr = bufferize(SM, InvalidTenStr);
-  expectDiagnosticError(
-      "unable to represent numeric value",
-      Format.valueFromStringRepr(bufferize(SM, "G"), SM).takeError());
+  checkValueFromStringReprFailure("G");
+}
 
-  // Check boolean operator.
+TEST_P(ExpressionFormatParameterisedFixture, FormatBoolOperator) {
   EXPECT_TRUE(bool(Format));
 }
 
-INSTANTIATE_TEST_CASE_P(
-    AllowedExplicitExpressionFormat, ExpressionFormatParameterisedFixture,
-    ::testing::Values(
-        std::make_tuple(ExpressionFormat::Kind::Unsigned, /*AllowHex=*/false,
-                        /*AllowUpperHex=*/false),
-        std::make_tuple(ExpressionFormat::Kind::HexLower, /*AllowHex=*/true,
-                        /*AllowUpperHex=*/false),
-        std::make_tuple(ExpressionFormat::Kind::HexUpper, /*AllowHex=*/true,
-                        /*AllowUpperHex=*/true)), );
+INSTANTIATE_TEST_CASE_P(AllowedExplicitExpressionFormat,
+                        ExpressionFormatParameterisedFixture,
+                        ::testing::Values(ExpressionFormat::Kind::Unsigned,
+                                          ExpressionFormat::Kind::Signed,
+                                          ExpressionFormat::Kind::HexLower,
+                                          ExpressionFormat::Kind::HexUpper), );
 
 TEST_F(FileCheckTest, NoFormatProperties) {
   ExpressionFormat NoFormat(ExpressionFormat::Kind::NoFormat);
   expectError<StringError>("trying to match value with invalid format",
                            NoFormat.getWildcardRegex().takeError());
-  expectError<StringError>("trying to match value with invalid format",
-                           NoFormat.getMatchingString(18).takeError());
+  expectError<StringError>(
+      "trying to match value with invalid format",
+      NoFormat.getMatchingString(ExpressionValue(18u)).takeError());
   EXPECT_FALSE(bool(NoFormat));
-}
-
-TEST_F(FileCheckTest, ConflictFormatProperties) {
-  ExpressionFormat ConflictFormat(ExpressionFormat::Kind::Conflict);
-  expectError<StringError>("trying to match value with invalid format",
-                           ConflictFormat.getWildcardRegex().takeError());
-  expectError<StringError>("trying to match value with invalid format",
-                           ConflictFormat.getMatchingString(18).takeError());
-  EXPECT_FALSE(bool(ConflictFormat));
 }
 
 TEST_F(FileCheckTest, FormatEqualityOperators) {
@@ -202,11 +288,6 @@ TEST_F(FileCheckTest, FormatEqualityOperators) {
   ExpressionFormat NoFormat2(ExpressionFormat::Kind::NoFormat);
   EXPECT_FALSE(NoFormat == NoFormat2);
   EXPECT_TRUE(NoFormat != NoFormat2);
-
-  ExpressionFormat ConflictFormat(ExpressionFormat::Kind::Conflict);
-  ExpressionFormat ConflictFormat2(ExpressionFormat::Kind::Conflict);
-  EXPECT_TRUE(ConflictFormat == ConflictFormat2);
-  EXPECT_FALSE(ConflictFormat != ConflictFormat2);
 }
 
 TEST_F(FileCheckTest, FormatKindEqualityOperators) {
@@ -215,43 +296,328 @@ TEST_F(FileCheckTest, FormatKindEqualityOperators) {
   EXPECT_FALSE(UnsignedFormat != ExpressionFormat::Kind::Unsigned);
   EXPECT_FALSE(UnsignedFormat == ExpressionFormat::Kind::HexLower);
   EXPECT_TRUE(UnsignedFormat != ExpressionFormat::Kind::HexLower);
-  ExpressionFormat ConflictFormat(ExpressionFormat::Kind::Conflict);
-  EXPECT_TRUE(ConflictFormat == ExpressionFormat::Kind::Conflict);
-  EXPECT_FALSE(ConflictFormat != ExpressionFormat::Kind::Conflict);
   ExpressionFormat NoFormat(ExpressionFormat::Kind::NoFormat);
   EXPECT_TRUE(NoFormat == ExpressionFormat::Kind::NoFormat);
   EXPECT_FALSE(NoFormat != ExpressionFormat::Kind::NoFormat);
 }
 
-TEST_F(FileCheckTest, Literal) {
-  // Eval returns the literal's value.
-  ExpressionLiteral Ten(10);
-  Expected<uint64_t> Value = Ten.eval();
-  ASSERT_THAT_EXPECTED(Value, Succeeded());
-  EXPECT_EQ(10U, *Value);
-  EXPECT_EQ(Ten.getImplicitFormat(), ExpressionFormat::Kind::NoFormat);
-
-  // Max value can be correctly represented.
-  ExpressionLiteral Max(std::numeric_limits<uint64_t>::max());
-  Value = Max.eval();
-  ASSERT_THAT_EXPECTED(Value, Succeeded());
-  EXPECT_EQ(std::numeric_limits<uint64_t>::max(), *Value);
+template <class T1, class T2>
+static Expected<ExpressionValue> doValueOperation(binop_eval_t Operation,
+                                                  T1 LeftValue, T2 RightValue) {
+  ExpressionValue LeftOperand(LeftValue);
+  ExpressionValue RightOperand(RightValue);
+  return Operation(LeftOperand, RightOperand);
 }
 
-static std::string toString(const std::unordered_set<std::string> &Set) {
-  bool First = true;
-  std::string Str;
-  for (StringRef S : Set) {
-    Str += Twine(First ? "{" + S : ", " + S).str();
-    First = false;
+template <class T>
+static void expectValueEqual(ExpressionValue ActualValue, T ExpectedValue) {
+  EXPECT_EQ(ExpectedValue < 0, ActualValue.isNegative());
+  if (ExpectedValue < 0) {
+    Expected<int64_t> SignedActualValue = ActualValue.getSignedValue();
+    ASSERT_THAT_EXPECTED(SignedActualValue, Succeeded());
+    EXPECT_EQ(*SignedActualValue, static_cast<int64_t>(ExpectedValue));
+  } else {
+    Expected<uint64_t> UnsignedActualValue = ActualValue.getUnsignedValue();
+    ASSERT_THAT_EXPECTED(UnsignedActualValue, Succeeded());
+    EXPECT_EQ(*UnsignedActualValue, static_cast<uint64_t>(ExpectedValue));
   }
-  Str += '}';
-  return Str;
+}
+
+template <class T1, class T2, class TR>
+static void expectOperationValueResult(binop_eval_t Operation, T1 LeftValue,
+                                       T2 RightValue, TR ResultValue) {
+  Expected<ExpressionValue> OperationResult =
+      doValueOperation(Operation, LeftValue, RightValue);
+  ASSERT_THAT_EXPECTED(OperationResult, Succeeded());
+  expectValueEqual(*OperationResult, ResultValue);
+}
+
+template <class T1, class T2>
+static void expectOperationValueResult(binop_eval_t Operation, T1 LeftValue,
+                                       T2 RightValue) {
+  expectError<OverflowError>(
+      "overflow error",
+      doValueOperation(Operation, LeftValue, RightValue).takeError());
+}
+
+TEST_F(FileCheckTest, ExpressionValueGetUnsigned) {
+  // Test positive value.
+  Expected<uint64_t> UnsignedValue = ExpressionValue(10).getUnsignedValue();
+  ASSERT_THAT_EXPECTED(UnsignedValue, Succeeded());
+  EXPECT_EQ(*UnsignedValue, 10U);
+
+  // Test 0.
+  UnsignedValue = ExpressionValue(0).getUnsignedValue();
+  ASSERT_THAT_EXPECTED(UnsignedValue, Succeeded());
+  EXPECT_EQ(*UnsignedValue, 0U);
+
+  // Test max positive value.
+  UnsignedValue = ExpressionValue(MaxUint64).getUnsignedValue();
+  ASSERT_THAT_EXPECTED(UnsignedValue, Succeeded());
+  EXPECT_EQ(*UnsignedValue, MaxUint64);
+
+  // Test failure with negative value.
+  expectError<OverflowError>(
+      "overflow error", ExpressionValue(-1).getUnsignedValue().takeError());
+
+  // Test failure with min negative value.
+  expectError<OverflowError>(
+      "overflow error",
+      ExpressionValue(MinInt64).getUnsignedValue().takeError());
+}
+
+TEST_F(FileCheckTest, ExpressionValueGetSigned) {
+  // Test positive value.
+  Expected<int64_t> SignedValue = ExpressionValue(10).getSignedValue();
+  ASSERT_THAT_EXPECTED(SignedValue, Succeeded());
+  EXPECT_EQ(*SignedValue, 10);
+
+  // Test 0.
+  SignedValue = ExpressionValue(0).getSignedValue();
+  ASSERT_THAT_EXPECTED(SignedValue, Succeeded());
+  EXPECT_EQ(*SignedValue, 0);
+
+  // Test max int64_t.
+  SignedValue = ExpressionValue(MaxInt64).getSignedValue();
+  ASSERT_THAT_EXPECTED(SignedValue, Succeeded());
+  EXPECT_EQ(*SignedValue, MaxInt64);
+
+  // Test failure with too big positive value.
+  expectError<OverflowError>(
+      "overflow error", ExpressionValue(static_cast<uint64_t>(MaxInt64) + 1)
+                            .getSignedValue()
+                            .takeError());
+
+  // Test failure with max uint64_t.
+  expectError<OverflowError>(
+      "overflow error",
+      ExpressionValue(MaxUint64).getSignedValue().takeError());
+
+  // Test negative value.
+  SignedValue = ExpressionValue(-10).getSignedValue();
+  ASSERT_THAT_EXPECTED(SignedValue, Succeeded());
+  EXPECT_EQ(*SignedValue, -10);
+
+  // Test min int64_t.
+  SignedValue = ExpressionValue(MinInt64).getSignedValue();
+  ASSERT_THAT_EXPECTED(SignedValue, Succeeded());
+  EXPECT_EQ(*SignedValue, MinInt64);
+}
+
+TEST_F(FileCheckTest, ExpressionValueAbsolute) {
+  // Test positive value.
+  expectValueEqual(ExpressionValue(10).getAbsolute(), 10);
+
+  // Test 0.
+  expectValueEqual(ExpressionValue(0).getAbsolute(), 0);
+
+  // Test max uint64_t.
+  expectValueEqual(ExpressionValue(MaxUint64).getAbsolute(), MaxUint64);
+
+  // Test negative value.
+  expectValueEqual(ExpressionValue(-10).getAbsolute(), 10);
+
+  // Test absence of overflow on min int64_t.
+  expectValueEqual(ExpressionValue(MinInt64).getAbsolute(),
+                   static_cast<uint64_t>(-(MinInt64 + 10)) + 10);
+}
+
+TEST_F(FileCheckTest, ExpressionValueAddition) {
+  // Test both negative values.
+  expectOperationValueResult(operator+, -10, -10, -20);
+
+  // Test both negative values with underflow.
+  expectOperationValueResult(operator+, MinInt64, -1);
+  expectOperationValueResult(operator+, MinInt64, MinInt64);
+
+  // Test negative and positive value.
+  expectOperationValueResult(operator+, -10, 10, 0);
+  expectOperationValueResult(operator+, -10, 11, 1);
+  expectOperationValueResult(operator+, -11, 10, -1);
+
+  // Test positive and negative value.
+  expectOperationValueResult(operator+, 10, -10, 0);
+  expectOperationValueResult(operator+, 10, -11, -1);
+  expectOperationValueResult(operator+, 11, -10, 1);
+
+  // Test both positive values.
+  expectOperationValueResult(operator+, 10, 10, 20);
+
+  // Test both positive values with overflow.
+  expectOperationValueResult(operator+, MaxUint64, 1);
+  expectOperationValueResult(operator+, MaxUint64, MaxUint64);
+}
+
+TEST_F(FileCheckTest, ExpressionValueSubtraction) {
+  // Test negative value and value bigger than int64_t max.
+  expectOperationValueResult(operator-, -10, MaxUint64);
+
+  // Test negative and positive value with underflow.
+  expectOperationValueResult(operator-, MinInt64, 1);
+
+  // Test negative and positive value.
+  expectOperationValueResult(operator-, -10, 10, -20);
+
+  // Test both negative values.
+  expectOperationValueResult(operator-, -10, -10, 0);
+  expectOperationValueResult(operator-, -11, -10, -1);
+  expectOperationValueResult(operator-, -10, -11, 1);
+
+  // Test positive and negative values.
+  expectOperationValueResult(operator-, 10, -10, 20);
+
+  // Test both positive values with result positive.
+  expectOperationValueResult(operator-, 10, 5, 5);
+
+  // Test both positive values with underflow.
+  expectOperationValueResult(operator-, 0, MaxUint64);
+  expectOperationValueResult(operator-, 0,
+                             static_cast<uint64_t>(-(MinInt64 + 10)) + 11);
+
+  // Test both positive values with result < -(max int64_t)
+  expectOperationValueResult(operator-, 10,
+                             static_cast<uint64_t>(MaxInt64) + 11,
+                             -MaxInt64 - 1);
+
+  // Test both positive values with 0 > result > -(max int64_t)
+  expectOperationValueResult(operator-, 10, 11, -1);
+}
+
+TEST_F(FileCheckTest, ExpressionValueMultiplication) {
+  // Test mixed signed values.
+  expectOperationValueResult(operator*, -3, 10, -30);
+  expectOperationValueResult(operator*, 2, -17, -34);
+  expectOperationValueResult(operator*, 0, MinInt64, 0);
+  expectOperationValueResult(operator*, MinInt64, 1, MinInt64);
+  expectOperationValueResult(operator*, 1, MinInt64, MinInt64);
+  expectOperationValueResult(operator*, MaxInt64, -1, -MaxInt64);
+  expectOperationValueResult(operator*, -1, MaxInt64, -MaxInt64);
+
+  // Test both negative values.
+  expectOperationValueResult(operator*, -3, -10, 30);
+  expectOperationValueResult(operator*, -2, -17, 34);
+  expectOperationValueResult(operator*, MinInt64, -1, AbsoluteMinInt64);
+
+  // Test both positive values.
+  expectOperationValueResult(operator*, 3, 10, 30);
+  expectOperationValueResult(operator*, 2, 17, 34);
+  expectOperationValueResult(operator*, 0, MaxUint64, 0);
+
+  // Test negative results that underflow.
+  expectOperationValueResult(operator*, -10, MaxInt64);
+  expectOperationValueResult(operator*, MaxInt64, -10);
+  expectOperationValueResult(operator*, 10, MinInt64);
+  expectOperationValueResult(operator*, MinInt64, 10);
+  expectOperationValueResult(operator*, -1, MaxUint64);
+  expectOperationValueResult(operator*, MaxUint64, -1);
+  expectOperationValueResult(operator*, -1, AbsoluteMaxInt64 + 2);
+  expectOperationValueResult(operator*, AbsoluteMaxInt64 + 2, -1);
+
+  // Test positive results that overflow.
+  expectOperationValueResult(operator*, 10, MaxUint64);
+  expectOperationValueResult(operator*, MaxUint64, 10);
+  expectOperationValueResult(operator*, MinInt64, -10);
+  expectOperationValueResult(operator*, -10, MinInt64);
+}
+
+TEST_F(FileCheckTest, ExpressionValueDivision) {
+  // Test mixed signed values.
+  expectOperationValueResult(operator/, -30, 10, -3);
+  expectOperationValueResult(operator/, 34, -17, -2);
+  expectOperationValueResult(operator/, 0, -10, 0);
+  expectOperationValueResult(operator/, MinInt64, 1, MinInt64);
+  expectOperationValueResult(operator/, MaxInt64, -1, -MaxInt64);
+  expectOperationValueResult(operator/, -MaxInt64, 1, -MaxInt64);
+
+  // Test both negative values.
+  expectOperationValueResult(operator/, -30, -10, 3);
+  expectOperationValueResult(operator/, -34, -17, 2);
+
+  // Test both positive values.
+  expectOperationValueResult(operator/, 30, 10, 3);
+  expectOperationValueResult(operator/, 34, 17, 2);
+  expectOperationValueResult(operator/, 0, 10, 0);
+
+  // Test divide by zero.
+  expectOperationValueResult(operator/, -10, 0);
+  expectOperationValueResult(operator/, 10, 0);
+  expectOperationValueResult(operator/, 0, 0);
+
+  // Test negative result that underflows.
+  expectOperationValueResult(operator/, MaxUint64, -1);
+  expectOperationValueResult(operator/, AbsoluteMaxInt64 + 2, -1);
+}
+
+TEST_F(FileCheckTest, ExpressionValueEquality) {
+  // Test negative and positive value.
+  EXPECT_FALSE(ExpressionValue(5) == ExpressionValue(-3));
+  EXPECT_TRUE(ExpressionValue(5) != ExpressionValue(-3));
+  EXPECT_FALSE(ExpressionValue(-2) == ExpressionValue(6));
+  EXPECT_TRUE(ExpressionValue(-2) != ExpressionValue(6));
+  EXPECT_FALSE(ExpressionValue(-7) == ExpressionValue(7));
+  EXPECT_TRUE(ExpressionValue(-7) != ExpressionValue(7));
+  EXPECT_FALSE(ExpressionValue(4) == ExpressionValue(-4));
+  EXPECT_TRUE(ExpressionValue(4) != ExpressionValue(-4));
+  EXPECT_FALSE(ExpressionValue(MaxUint64) == ExpressionValue(-1));
+  EXPECT_TRUE(ExpressionValue(MaxUint64) != ExpressionValue(-1));
+
+  // Test both negative values.
+  EXPECT_FALSE(ExpressionValue(-2) == ExpressionValue(-7));
+  EXPECT_TRUE(ExpressionValue(-2) != ExpressionValue(-7));
+  EXPECT_TRUE(ExpressionValue(-3) == ExpressionValue(-3));
+  EXPECT_FALSE(ExpressionValue(-3) != ExpressionValue(-3));
+  EXPECT_FALSE(ExpressionValue(MinInt64) == ExpressionValue(-1));
+  EXPECT_TRUE(ExpressionValue(MinInt64) != ExpressionValue(-1));
+  EXPECT_FALSE(ExpressionValue(MinInt64) == ExpressionValue(-0));
+  EXPECT_TRUE(ExpressionValue(MinInt64) != ExpressionValue(-0));
+
+  // Test both positive values.
+  EXPECT_FALSE(ExpressionValue(8) == ExpressionValue(9));
+  EXPECT_TRUE(ExpressionValue(8) != ExpressionValue(9));
+  EXPECT_TRUE(ExpressionValue(1) == ExpressionValue(1));
+  EXPECT_FALSE(ExpressionValue(1) != ExpressionValue(1));
+
+  // Check the signedness of zero doesn't affect equality.
+  EXPECT_TRUE(ExpressionValue(0) == ExpressionValue(0));
+  EXPECT_FALSE(ExpressionValue(0) != ExpressionValue(0));
+  EXPECT_TRUE(ExpressionValue(0) == ExpressionValue(-0));
+  EXPECT_FALSE(ExpressionValue(0) != ExpressionValue(-0));
+  EXPECT_TRUE(ExpressionValue(-0) == ExpressionValue(0));
+  EXPECT_FALSE(ExpressionValue(-0) != ExpressionValue(0));
+  EXPECT_TRUE(ExpressionValue(-0) == ExpressionValue(-0));
+  EXPECT_FALSE(ExpressionValue(-0) != ExpressionValue(-0));
+}
+
+TEST_F(FileCheckTest, Literal) {
+  SourceMgr SM;
+
+  // Eval returns the literal's value.
+  ExpressionLiteral Ten(bufferize(SM, "10"), 10u);
+  Expected<ExpressionValue> Value = Ten.eval();
+  ASSERT_THAT_EXPECTED(Value, Succeeded());
+  EXPECT_EQ(10, cantFail(Value->getSignedValue()));
+  Expected<ExpressionFormat> ImplicitFormat = Ten.getImplicitFormat(SM);
+  ASSERT_THAT_EXPECTED(ImplicitFormat, Succeeded());
+  EXPECT_EQ(*ImplicitFormat, ExpressionFormat::Kind::NoFormat);
+
+  // Min value can be correctly represented.
+  ExpressionLiteral Min(bufferize(SM, std::to_string(MinInt64)), MinInt64);
+  Value = Min.eval();
+  ASSERT_TRUE(bool(Value));
+  EXPECT_EQ(MinInt64, cantFail(Value->getSignedValue()));
+
+  // Max value can be correctly represented.
+  ExpressionLiteral Max(bufferize(SM, std::to_string(MaxUint64)), MaxUint64);
+  Value = Max.eval();
+  ASSERT_THAT_EXPECTED(Value, Succeeded());
+  EXPECT_EQ(MaxUint64, cantFail(Value->getUnsignedValue()));
 }
 
 TEST_F(FileCheckTest, Expression) {
+  SourceMgr SM;
+
   std::unique_ptr<ExpressionLiteral> Ten =
-      std::make_unique<ExpressionLiteral>(10);
+      std::make_unique<ExpressionLiteral>(bufferize(SM, "10"), 10u);
   ExpressionLiteral *TenPtr = Ten.get();
   Expression Expr(std::move(Ten),
                   ExpressionFormat(ExpressionFormat::Kind::HexLower));
@@ -272,9 +638,9 @@ expectUndefErrors(std::unordered_set<std::string> ExpectedUndefVarNames,
   EXPECT_TRUE(ExpectedUndefVarNames.empty()) << toString(ExpectedUndefVarNames);
 }
 
-uint64_t doAdd(uint64_t OpL, uint64_t OpR) { return OpL + OpR; }
-
 TEST_F(FileCheckTest, NumericVariable) {
+  SourceMgr SM;
+
   // Undefined variable: getValue and eval fail, error returned by eval holds
   // the name of the undefined variable.
   NumericVariable FooVar("FOO",
@@ -282,20 +648,22 @@ TEST_F(FileCheckTest, NumericVariable) {
   EXPECT_EQ("FOO", FooVar.getName());
   EXPECT_EQ(FooVar.getImplicitFormat(), ExpressionFormat::Kind::Unsigned);
   NumericVariableUse FooVarUse("FOO", &FooVar);
-  EXPECT_EQ(FooVarUse.getImplicitFormat(), ExpressionFormat::Kind::Unsigned);
+  Expected<ExpressionFormat> ImplicitFormat = FooVarUse.getImplicitFormat(SM);
+  ASSERT_THAT_EXPECTED(ImplicitFormat, Succeeded());
+  EXPECT_EQ(*ImplicitFormat, ExpressionFormat::Kind::Unsigned);
   EXPECT_FALSE(FooVar.getValue());
-  Expected<uint64_t> EvalResult = FooVarUse.eval();
+  Expected<ExpressionValue> EvalResult = FooVarUse.eval();
   expectUndefErrors({"FOO"}, EvalResult.takeError());
 
-  FooVar.setValue(42);
+  FooVar.setValue(ExpressionValue(42u));
 
   // Defined variable: getValue and eval return value set.
-  Optional<uint64_t> Value = FooVar.getValue();
+  Optional<ExpressionValue> Value = FooVar.getValue();
   ASSERT_TRUE(Value);
-  EXPECT_EQ(42U, *Value);
+  EXPECT_EQ(42, cantFail(Value->getSignedValue()));
   EvalResult = FooVarUse.eval();
   ASSERT_THAT_EXPECTED(EvalResult, Succeeded());
-  EXPECT_EQ(42U, *EvalResult);
+  EXPECT_EQ(42, cantFail(EvalResult->getSignedValue()));
 
   // Clearing variable: getValue and eval fail. Error returned by eval holds
   // the name of the cleared variable.
@@ -306,24 +674,33 @@ TEST_F(FileCheckTest, NumericVariable) {
 }
 
 TEST_F(FileCheckTest, Binop) {
-  NumericVariable FooVar("FOO",
+  SourceMgr SM;
+
+  StringRef ExprStr = bufferize(SM, "FOO+BAR");
+  StringRef FooStr = ExprStr.take_front(3);
+  NumericVariable FooVar(FooStr,
                          ExpressionFormat(ExpressionFormat::Kind::Unsigned), 1);
-  FooVar.setValue(42);
+  FooVar.setValue(ExpressionValue(42u));
   std::unique_ptr<NumericVariableUse> FooVarUse =
-      std::make_unique<NumericVariableUse>("FOO", &FooVar);
-  NumericVariable BarVar("BAR",
+      std::make_unique<NumericVariableUse>(FooStr, &FooVar);
+  StringRef BarStr = ExprStr.take_back(3);
+  NumericVariable BarVar(BarStr,
                          ExpressionFormat(ExpressionFormat::Kind::Unsigned), 2);
-  BarVar.setValue(18);
+  BarVar.setValue(ExpressionValue(18u));
   std::unique_ptr<NumericVariableUse> BarVarUse =
-      std::make_unique<NumericVariableUse>("BAR", &BarVar);
-  BinaryOperation Binop(doAdd, std::move(FooVarUse), std::move(BarVarUse));
+      std::make_unique<NumericVariableUse>(BarStr, &BarVar);
+  binop_eval_t doAdd = operator+;
+  BinaryOperation Binop(ExprStr, doAdd, std::move(FooVarUse),
+                        std::move(BarVarUse));
 
   // Defined variables: eval returns right value; implicit format is as
   // expected.
-  Expected<uint64_t> Value = Binop.eval();
+  Expected<ExpressionValue> Value = Binop.eval();
   ASSERT_THAT_EXPECTED(Value, Succeeded());
-  EXPECT_EQ(60U, *Value);
-  EXPECT_EQ(Binop.getImplicitFormat(), ExpressionFormat::Kind::Unsigned);
+  EXPECT_EQ(60, cantFail(Value->getSignedValue()));
+  Expected<ExpressionFormat> ImplicitFormat = Binop.getImplicitFormat(SM);
+  ASSERT_THAT_EXPECTED(ImplicitFormat, Succeeded());
+  EXPECT_EQ(*ImplicitFormat, ExpressionFormat::Kind::Unsigned);
 
   // 1 undefined variable: eval fails, error contains name of undefined
   // variable.
@@ -338,24 +715,76 @@ TEST_F(FileCheckTest, Binop) {
   expectUndefErrors({"FOO", "BAR"}, Value.takeError());
 
   // Literal + Variable has format of variable.
-  FooVarUse = std::make_unique<NumericVariableUse>("FOO", &FooVar);
+  ExprStr = bufferize(SM, "FOO+18");
+  FooStr = ExprStr.take_front(3);
+  StringRef EighteenStr = ExprStr.take_back(2);
+  FooVarUse = std::make_unique<NumericVariableUse>(FooStr, &FooVar);
   std::unique_ptr<ExpressionLiteral> Eighteen =
-      std::make_unique<ExpressionLiteral>(18);
-  Binop = BinaryOperation(doAdd, std::move(FooVarUse), std::move(Eighteen));
-  EXPECT_EQ(Binop.getImplicitFormat(), ExpressionFormat::Kind::Unsigned);
-  FooVarUse = std::make_unique<NumericVariableUse>("FOO", &FooVar);
-  Eighteen = std::make_unique<ExpressionLiteral>(18);
-  Binop = BinaryOperation(doAdd, std::move(Eighteen), std::move(FooVarUse));
-  EXPECT_EQ(Binop.getImplicitFormat(), ExpressionFormat::Kind::Unsigned);
+      std::make_unique<ExpressionLiteral>(EighteenStr, 18u);
+  Binop = BinaryOperation(ExprStr, doAdd, std::move(FooVarUse),
+                          std::move(Eighteen));
+  ImplicitFormat = Binop.getImplicitFormat(SM);
+  ASSERT_THAT_EXPECTED(ImplicitFormat, Succeeded());
+  EXPECT_EQ(*ImplicitFormat, ExpressionFormat::Kind::Unsigned);
+  ExprStr = bufferize(SM, "18+FOO");
+  FooStr = ExprStr.take_back(3);
+  EighteenStr = ExprStr.take_front(2);
+  FooVarUse = std::make_unique<NumericVariableUse>(FooStr, &FooVar);
+  Eighteen = std::make_unique<ExpressionLiteral>(EighteenStr, 18u);
+  Binop = BinaryOperation(ExprStr, doAdd, std::move(Eighteen),
+                          std::move(FooVarUse));
+  ImplicitFormat = Binop.getImplicitFormat(SM);
+  ASSERT_THAT_EXPECTED(ImplicitFormat, Succeeded());
+  EXPECT_EQ(*ImplicitFormat, ExpressionFormat::Kind::Unsigned);
 
   // Variables with different implicit format conflict.
-  NumericVariable BazVar("BAZ",
+  ExprStr = bufferize(SM, "FOO+BAZ");
+  FooStr = ExprStr.take_front(3);
+  StringRef BazStr = ExprStr.take_back(3);
+  NumericVariable BazVar(BazStr,
                          ExpressionFormat(ExpressionFormat::Kind::HexLower), 3);
-  FooVarUse = std::make_unique<NumericVariableUse>("BAZ", &FooVar);
+  FooVarUse = std::make_unique<NumericVariableUse>(FooStr, &FooVar);
   std::unique_ptr<NumericVariableUse> BazVarUse =
-      std::make_unique<NumericVariableUse>("BAZ", &BazVar);
-  Binop = BinaryOperation(doAdd, std::move(FooVarUse), std::move(BazVarUse));
-  EXPECT_EQ(Binop.getImplicitFormat(), ExpressionFormat::Kind::Conflict);
+      std::make_unique<NumericVariableUse>(BazStr, &BazVar);
+  Binop = BinaryOperation(ExprStr, doAdd, std::move(FooVarUse),
+                          std::move(BazVarUse));
+  ImplicitFormat = Binop.getImplicitFormat(SM);
+  expectDiagnosticError(
+      "implicit format conflict between 'FOO' (%u) and 'BAZ' (%x), "
+      "need an explicit format specifier",
+      ImplicitFormat.takeError());
+
+  // All variable conflicts are reported.
+  ExprStr = bufferize(SM, "(FOO+BAZ)+(FOO+QUUX)");
+  StringRef Paren1ExprStr = ExprStr.substr(1, 7);
+  FooStr = Paren1ExprStr.take_front(3);
+  BazStr = Paren1ExprStr.take_back(3);
+  StringRef Paren2ExprStr = ExprStr.substr(ExprStr.rfind('(') + 1, 8);
+  StringRef FooStr2 = Paren2ExprStr.take_front(3);
+  StringRef QuuxStr = Paren2ExprStr.take_back(4);
+  FooVarUse = std::make_unique<NumericVariableUse>(FooStr, &FooVar);
+  BazVarUse = std::make_unique<NumericVariableUse>(BazStr, &BazVar);
+  std::unique_ptr<NumericVariableUse> FooVarUse2 =
+      std::make_unique<NumericVariableUse>(FooStr2, &FooVar);
+  NumericVariable QuuxVar(
+      QuuxStr, ExpressionFormat(ExpressionFormat::Kind::HexLower), 4);
+  std::unique_ptr<NumericVariableUse> QuuxVarUse =
+      std::make_unique<NumericVariableUse>(QuuxStr, &QuuxVar);
+  std::unique_ptr<BinaryOperation> Binop1 = std::make_unique<BinaryOperation>(
+      ExprStr.take_front(9), doAdd, std::move(FooVarUse), std::move(BazVarUse));
+  std::unique_ptr<BinaryOperation> Binop2 = std::make_unique<BinaryOperation>(
+      ExprStr.take_back(10), doAdd, std::move(FooVarUse2),
+      std::move(QuuxVarUse));
+  std::unique_ptr<BinaryOperation> OuterBinop =
+      std::make_unique<BinaryOperation>(ExprStr, doAdd, std::move(Binop1),
+                                        std::move(Binop2));
+  ImplicitFormat = OuterBinop->getImplicitFormat(SM);
+  expectSameErrors<ErrorDiagnostic>(
+      {"implicit format conflict between 'FOO' (%u) and 'BAZ' (%x), "
+       "need an explicit format specifier",
+       "implicit format conflict between 'FOO' (%u) and 'QUUX' (%x), "
+       "need an explicit format specifier"},
+      ImplicitFormat.takeError());
 }
 
 TEST_F(FileCheckTest, ValidVarNameStart) {
@@ -453,9 +882,7 @@ private:
 
 public:
   PatternTester() {
-    std::vector<std::string> GlobalDefines;
-    GlobalDefines.emplace_back(std::string("#FOO=42"));
-    GlobalDefines.emplace_back(std::string("BAR=BAZ"));
+    std::vector<StringRef> GlobalDefines = {"#FOO=42", "BAR=BAZ", "#add=7"};
     // An ASSERT_FALSE would make more sense but cannot be used in a
     // constructor.
     EXPECT_THAT_ERROR(Context.defineCmdlineVariables(GlobalDefines, SM),
@@ -545,7 +972,7 @@ TEST_F(FileCheckTest, ParseNumericSubstitutionBlock) {
   Tester.initNextPattern();
 
   // Invalid variable name.
-  expectDiagnosticError("invalid operand format '%VAR'",
+  expectDiagnosticError("invalid matching constraint or operand format",
                         Tester.parseSubst("%VAR").takeError());
 
   expectDiagnosticError("invalid pseudo numeric variable '@FOO'",
@@ -580,8 +1007,26 @@ TEST_F(FileCheckTest, ParseNumericSubstitutionBlock) {
   // Valid empty expression.
   EXPECT_THAT_EXPECTED(Tester.parseSubst(""), Succeeded());
 
+  // Invalid equality matching constraint with empty expression.
+  expectDiagnosticError("empty numeric expression should not have a constraint",
+                        Tester.parseSubst("==").takeError());
+
   // Valid single operand expression.
   EXPECT_THAT_EXPECTED(Tester.parseSubst("FOO"), Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("18"), Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst(std::to_string(MaxUint64)),
+                       Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("0x12"), Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("-30"), Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst(std::to_string(MinInt64)),
+                       Succeeded());
+
+  // Valid optional matching constraint.
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("==FOO"), Succeeded());
+
+  // Invalid matching constraint.
+  expectDiagnosticError("invalid matching constraint or operand format",
+                        Tester.parseSubst("+=FOO").takeError());
 
   // Invalid format.
   expectDiagnosticError("invalid matching format specification in expression",
@@ -604,12 +1049,12 @@ TEST_F(FileCheckTest, ParseNumericSubstitutionBlock) {
 
   // Errors in RHS operand are bubbled up by parseBinop() to
   // parseNumericSubstitutionBlock().
-  expectDiagnosticError("invalid operand format '%VAR'",
+  expectDiagnosticError("invalid operand format",
                         Tester.parseSubst("@LINE+%VAR").takeError());
 
   // Invalid legacy @LINE expression with non literal rhs.
   expectDiagnosticError(
-      "invalid operand format '@LINE'",
+      "invalid operand format",
       Tester.parseSubst("@LINE+@LINE", /*IsLegacyNumExpr=*/true).takeError());
 
   // Invalid legacy @LINE expression made of a single literal.
@@ -624,6 +1069,7 @@ TEST_F(FileCheckTest, ParseNumericSubstitutionBlock) {
 
   // Valid expression with format specifier.
   EXPECT_THAT_EXPECTED(Tester.parseSubst("%u, FOO"), Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("%d, FOO"), Succeeded());
   EXPECT_THAT_EXPECTED(Tester.parseSubst("%x, FOO"), Succeeded());
   EXPECT_THAT_EXPECTED(Tester.parseSubst("%X, FOO"), Succeeded());
 
@@ -648,8 +1094,103 @@ TEST_F(FileCheckTest, ParseNumericSubstitutionBlock) {
 
   // Implicit format conflict.
   expectDiagnosticError(
-      "variables with conflicting format specifier: need an explicit one",
+      "implicit format conflict between 'FOO' (%u) and "
+      "'VAR_LOWER_HEX' (%x), need an explicit format specifier",
       Tester.parseSubst("FOO+VAR_LOWER_HEX").takeError());
+
+  // Simple parenthesized expressions:
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("(1)"), Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("(1+1)"), Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("(1)+1"), Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("((1)+1)"), Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("((1)+X)"), Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("((X)+Y)"), Succeeded());
+
+  expectDiagnosticError("missing operand in expression",
+                        Tester.parseSubst("(").takeError());
+  expectDiagnosticError("missing ')' at end of nested expression",
+                        Tester.parseSubst("(1").takeError());
+  expectDiagnosticError("missing operand in expression",
+                        Tester.parseSubst("(1+").takeError());
+  expectDiagnosticError("missing ')' at end of nested expression",
+                        Tester.parseSubst("(1+1").takeError());
+  expectDiagnosticError("missing ')' at end of nested expression",
+                        Tester.parseSubst("((1+2+3").takeError());
+  expectDiagnosticError("missing ')' at end of nested expression",
+                        Tester.parseSubst("((1+2)+3").takeError());
+
+  // Test missing operation between operands:
+  expectDiagnosticError("unsupported operation '('",
+                        Tester.parseSubst("(1)(2)").takeError());
+  expectDiagnosticError("unsupported operation '('",
+                        Tester.parseSubst("2(X)").takeError());
+
+  // Test more closing than opening parentheses. The diagnostic messages are
+  // not ideal, but for now simply check that we reject invalid input.
+  expectDiagnosticError("invalid matching constraint or operand format",
+                        Tester.parseSubst(")").takeError());
+  expectDiagnosticError("unsupported operation ')'",
+                        Tester.parseSubst("1)").takeError());
+  expectDiagnosticError("unsupported operation ')'",
+                        Tester.parseSubst("(1+2))").takeError());
+  expectDiagnosticError("unsupported operation ')'",
+                        Tester.parseSubst("(2))").takeError());
+  expectDiagnosticError("unsupported operation ')'",
+                        Tester.parseSubst("(1))(").takeError());
+
+  // Valid expression with function call.
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("add(FOO,3)"), Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("add (FOO,3)"), Succeeded());
+  // Valid expression with nested function call.
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("add(FOO, min(BAR,10))"), Succeeded());
+  // Valid expression with function call taking expression as argument.
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("add(FOO, (BAR+10) + 3)"),
+                       Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("add(FOO, min (BAR,10) + 3)"),
+                       Succeeded());
+  // Valid expression with variable named the same as a function.
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("add"), Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("add+FOO"), Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("FOO+add"), Succeeded());
+  EXPECT_THAT_EXPECTED(Tester.parseSubst("add(add,add)+add"), Succeeded());
+
+  // Malformed call syntax.
+  expectDiagnosticError("missing ')' at end of call expression",
+                        Tester.parseSubst("add(FOO,(BAR+7)").takeError());
+  expectDiagnosticError("missing ')' at end of call expression",
+                        Tester.parseSubst("add(FOO,min(BAR,7)").takeError());
+  expectDiagnosticError("missing argument",
+                        Tester.parseSubst("add(FOO,)").takeError());
+  expectDiagnosticError("missing argument",
+                        Tester.parseSubst("add(,FOO)").takeError());
+  expectDiagnosticError("missing argument",
+                        Tester.parseSubst("add(FOO,,3)").takeError());
+
+  // Valid call, but to an unknown function.
+  expectDiagnosticError("call to undefined function 'bogus_function'",
+                        Tester.parseSubst("bogus_function(FOO,3)").takeError());
+  expectDiagnosticError("call to undefined function '@add'",
+                        Tester.parseSubst("@add(2,3)").takeError());
+  expectDiagnosticError("call to undefined function '$add'",
+                        Tester.parseSubst("$add(2,3)").takeError());
+  expectDiagnosticError("call to undefined function 'FOO'",
+                        Tester.parseSubst("FOO(2,3)").takeError());
+  expectDiagnosticError("call to undefined function 'FOO'",
+                        Tester.parseSubst("FOO (2,3)").takeError());
+
+  // Valid call, but with incorrect argument count.
+  expectDiagnosticError("function 'add' takes 2 arguments but 1 given",
+                        Tester.parseSubst("add(FOO)").takeError());
+  expectDiagnosticError("function 'add' takes 2 arguments but 3 given",
+                        Tester.parseSubst("add(FOO,3,4)").takeError());
+
+  // Valid call, but not part of a valid expression.
+  expectDiagnosticError("unsupported operation 'a'",
+                        Tester.parseSubst("2add(FOO,2)").takeError());
+  expectDiagnosticError("unsupported operation 'a'",
+                        Tester.parseSubst("FOO add(FOO,2)").takeError());
+  expectDiagnosticError("unsupported operation 'a'",
+                        Tester.parseSubst("add(FOO,2)add(FOO,2)").takeError());
 }
 
 TEST_F(FileCheckTest, ParsePattern) {
@@ -690,7 +1231,14 @@ TEST_F(FileCheckTest, ParsePattern) {
 TEST_F(FileCheckTest, Match) {
   PatternTester Tester;
 
+  // Check a substitution error is diagnosed.
+  ASSERT_FALSE(Tester.parsePattern("[[#%u, -1]]"));
+  expectDiagnosticError(
+      "unable to substitute variable or numeric expression: overflow error",
+      Tester.match("").takeError());
+
   // Check matching an empty expression only matches a number.
+  Tester.initNextPattern();
   ASSERT_FALSE(Tester.parsePattern("[[#]]"));
   expectNotFoundError(Tester.match("FAIL").takeError());
   EXPECT_THAT_EXPECTED(Tester.match("18"), Succeeded());
@@ -770,12 +1318,102 @@ TEST_F(FileCheckTest, Match) {
                        Succeeded());
 }
 
+TEST_F(FileCheckTest, MatchParen) {
+  PatternTester Tester;
+  // Check simple parenthesized expressions
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#NUMVAR:]]"));
+  expectNotFoundError(Tester.match("FAIL").takeError());
+  expectNotFoundError(Tester.match("").takeError());
+  EXPECT_THAT_EXPECTED(Tester.match("18"), Succeeded());
+
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#NUMVAR + (2 + 2)]]"));
+  expectNotFoundError(Tester.match("21").takeError());
+  EXPECT_THAT_EXPECTED(Tester.match("22"), Succeeded());
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#NUMVAR + (2)]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("20"), Succeeded());
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#NUMVAR+(2)]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("20"), Succeeded());
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#NUMVAR+(NUMVAR)]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("36"), Succeeded());
+
+  // Check nested parenthesized expressions:
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#NUMVAR+(2+(2))]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("22"), Succeeded());
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#NUMVAR+(2+(NUMVAR))]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("38"), Succeeded());
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#NUMVAR+((((NUMVAR))))]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("36"), Succeeded());
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#NUMVAR+((((NUMVAR)))-1)-1]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("34"), Succeeded());
+
+  // Parentheses can also be the first character after the '#':
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#(NUMVAR)]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("18"), Succeeded());
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#(NUMVAR+2)]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("20"), Succeeded());
+}
+
+TEST_F(FileCheckTest, MatchBuiltinFunctions) {
+  PatternTester Tester;
+  // Esnure #NUMVAR has the expected value.
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#NUMVAR:]]"));
+  expectNotFoundError(Tester.match("FAIL").takeError());
+  expectNotFoundError(Tester.match("").takeError());
+  EXPECT_THAT_EXPECTED(Tester.match("18"), Succeeded());
+
+  // Check each builtin function generates the expected result.
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#add(NUMVAR,13)]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("31"), Succeeded());
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#div(NUMVAR,3)]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("6"), Succeeded());
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#max(NUMVAR,5)]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("18"), Succeeded());
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#max(NUMVAR,99)]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("99"), Succeeded());
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#min(NUMVAR,5)]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("5"), Succeeded());
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#min(NUMVAR,99)]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("18"), Succeeded());
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#mul(NUMVAR,3)]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("54"), Succeeded());
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#sub(NUMVAR,7)]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("11"), Succeeded());
+
+  // Check nested function calls.
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#add(min(7,2),max(4,10))]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("12"), Succeeded());
+
+  // Check function call that uses a variable of the same name.
+  Tester.initNextPattern();
+  ASSERT_FALSE(Tester.parsePattern("[[#add(add,add)+min (add,3)+add]]"));
+  EXPECT_THAT_EXPECTED(Tester.match("24"), Succeeded());
+}
+
 TEST_F(FileCheckTest, Substitution) {
   SourceMgr SM;
   FileCheckPatternContext Context;
-  std::vector<std::string> GlobalDefines;
-  GlobalDefines.emplace_back(std::string("FOO=BAR"));
-  EXPECT_THAT_ERROR(Context.defineCmdlineVariables(GlobalDefines, SM),
+  EXPECT_THAT_ERROR(Context.defineCmdlineVariables({"FOO=BAR"}, SM),
                     Succeeded());
 
   // Substitution of an undefined string variable fails and error holds that
@@ -788,7 +1426,7 @@ TEST_F(FileCheckTest, Substitution) {
   // substituted for the variable's value.
   NumericVariable NVar("N", ExpressionFormat(ExpressionFormat::Kind::Unsigned),
                        1);
-  NVar.setValue(10);
+  NVar.setValue(ExpressionValue(10u));
   auto NVarUse = std::make_unique<NumericVariableUse>("N", &NVar);
   auto ExpressionN = std::make_unique<Expression>(
       std::move(NVarUse), ExpressionFormat(ExpressionFormat::Kind::HexUpper));
@@ -814,72 +1452,53 @@ TEST_F(FileCheckTest, Substitution) {
 
 TEST_F(FileCheckTest, FileCheckContext) {
   FileCheckPatternContext Cxt;
-  std::vector<std::string> GlobalDefines;
   SourceMgr SM;
 
   // No definition.
-  EXPECT_THAT_ERROR(Cxt.defineCmdlineVariables(GlobalDefines, SM), Succeeded());
+  EXPECT_THAT_ERROR(Cxt.defineCmdlineVariables({}, SM), Succeeded());
 
   // Missing equal sign.
-  GlobalDefines.emplace_back(std::string("LocalVar"));
   expectDiagnosticError("missing equal sign in global definition",
-                        Cxt.defineCmdlineVariables(GlobalDefines, SM));
-  GlobalDefines.clear();
-  GlobalDefines.emplace_back(std::string("#LocalNumVar"));
+                        Cxt.defineCmdlineVariables({"LocalVar"}, SM));
   expectDiagnosticError("missing equal sign in global definition",
-                        Cxt.defineCmdlineVariables(GlobalDefines, SM));
+                        Cxt.defineCmdlineVariables({"#LocalNumVar"}, SM));
 
   // Empty variable name.
-  GlobalDefines.clear();
-  GlobalDefines.emplace_back(std::string("=18"));
   expectDiagnosticError("empty variable name",
-                        Cxt.defineCmdlineVariables(GlobalDefines, SM));
-  GlobalDefines.clear();
-  GlobalDefines.emplace_back(std::string("#=18"));
+                        Cxt.defineCmdlineVariables({"=18"}, SM));
   expectDiagnosticError("empty variable name",
-                        Cxt.defineCmdlineVariables(GlobalDefines, SM));
+                        Cxt.defineCmdlineVariables({"#=18"}, SM));
 
   // Invalid variable name.
-  GlobalDefines.clear();
-  GlobalDefines.emplace_back(std::string("18LocalVar=18"));
   expectDiagnosticError("invalid variable name",
-                        Cxt.defineCmdlineVariables(GlobalDefines, SM));
-  GlobalDefines.clear();
-  GlobalDefines.emplace_back(std::string("#18LocalNumVar=18"));
+                        Cxt.defineCmdlineVariables({"18LocalVar=18"}, SM));
   expectDiagnosticError("invalid variable name",
-                        Cxt.defineCmdlineVariables(GlobalDefines, SM));
+                        Cxt.defineCmdlineVariables({"#18LocalNumVar=18"}, SM));
 
   // Name conflict between pattern and numeric variable.
-  GlobalDefines.clear();
-  GlobalDefines.emplace_back(std::string("LocalVar=18"));
-  GlobalDefines.emplace_back(std::string("#LocalVar=36"));
-  expectDiagnosticError("string variable with name 'LocalVar' already exists",
-                        Cxt.defineCmdlineVariables(GlobalDefines, SM));
+  expectDiagnosticError(
+      "string variable with name 'LocalVar' already exists",
+      Cxt.defineCmdlineVariables({"LocalVar=18", "#LocalVar=36"}, SM));
   Cxt = FileCheckPatternContext();
-  GlobalDefines.clear();
-  GlobalDefines.emplace_back(std::string("#LocalNumVar=18"));
-  GlobalDefines.emplace_back(std::string("LocalNumVar=36"));
   expectDiagnosticError(
       "numeric variable with name 'LocalNumVar' already exists",
-      Cxt.defineCmdlineVariables(GlobalDefines, SM));
+      Cxt.defineCmdlineVariables({"#LocalNumVar=18", "LocalNumVar=36"}, SM));
   Cxt = FileCheckPatternContext();
 
   // Invalid numeric value for numeric variable.
-  GlobalDefines.clear();
-  GlobalDefines.emplace_back(std::string("#LocalNumVar=x"));
-  expectUndefErrors({"x"}, Cxt.defineCmdlineVariables(GlobalDefines, SM));
+  expectUndefErrors({"x"}, Cxt.defineCmdlineVariables({"#LocalNumVar=x"}, SM));
 
   // Define local variables from command-line.
-  GlobalDefines.clear();
+  std::vector<StringRef> GlobalDefines;
   // Clear local variables to remove dummy numeric variable x that
   // parseNumericSubstitutionBlock would have created and stored in
   // GlobalNumericVariableTable.
   Cxt.clearLocalVars();
-  GlobalDefines.emplace_back(std::string("LocalVar=FOO"));
-  GlobalDefines.emplace_back(std::string("EmptyVar="));
-  GlobalDefines.emplace_back(std::string("#LocalNumVar1=18"));
-  GlobalDefines.emplace_back(std::string("#%x,LocalNumVar2=LocalNumVar1+2"));
-  GlobalDefines.emplace_back(std::string("#LocalNumVar3=0xc"));
+  GlobalDefines.emplace_back("LocalVar=FOO");
+  GlobalDefines.emplace_back("EmptyVar=");
+  GlobalDefines.emplace_back("#LocalNumVar1=18");
+  GlobalDefines.emplace_back("#%x,LocalNumVar2=LocalNumVar1+2");
+  GlobalDefines.emplace_back("#LocalNumVar3=0xc");
   ASSERT_THAT_ERROR(Cxt.defineCmdlineVariables(GlobalDefines, SM), Succeeded());
 
   // Create @LINE pseudo numeric variable and check it is present by matching
@@ -917,24 +1536,24 @@ TEST_F(FileCheckTest, FileCheckContext) {
   Expected<StringRef> EmptyVar = Cxt.getPatternVarValue(EmptyVarStr);
   Expected<StringRef> UnknownVar = Cxt.getPatternVarValue(UnknownVarStr);
   ASSERT_THAT_EXPECTED(ExpressionPointer, Succeeded());
-  Expected<uint64_t> ExpressionVal = (*ExpressionPointer)->getAST()->eval();
+  Expected<ExpressionValue> ExpressionVal =
+      (*ExpressionPointer)->getAST()->eval();
   ASSERT_THAT_EXPECTED(ExpressionVal, Succeeded());
-  EXPECT_EQ(*ExpressionVal, 18U);
+  EXPECT_EQ(cantFail(ExpressionVal->getSignedValue()), 18);
   ExpressionPointer = P.parseNumericSubstitutionBlock(
       LocalNumVar2Ref, DefinedNumericVariable,
       /*IsLegacyLineExpr=*/false, LineNumber, &Cxt, SM);
   ASSERT_THAT_EXPECTED(ExpressionPointer, Succeeded());
   ExpressionVal = (*ExpressionPointer)->getAST()->eval();
   ASSERT_THAT_EXPECTED(ExpressionVal, Succeeded());
-  EXPECT_EQ(*ExpressionVal, 20U);
-  ExpressionPointer =
-      P.parseNumericSubstitutionBlock(LocalNumVar3Ref, DefinedNumericVariable,
-                                      /*IsLegacyLineExpr=*/false,
-                                      LineNumber, &Cxt, SM);
+  EXPECT_EQ(cantFail(ExpressionVal->getSignedValue()), 20);
+  ExpressionPointer = P.parseNumericSubstitutionBlock(
+      LocalNumVar3Ref, DefinedNumericVariable,
+      /*IsLegacyLineExpr=*/false, LineNumber, &Cxt, SM);
   ASSERT_THAT_EXPECTED(ExpressionPointer, Succeeded());
   ExpressionVal = (*ExpressionPointer)->getAST()->eval();
   ASSERT_THAT_EXPECTED(ExpressionVal, Succeeded());
-  EXPECT_EQ(*ExpressionVal, 12U);
+  EXPECT_EQ(cantFail(ExpressionVal->getSignedValue()), 12);
   ASSERT_THAT_EXPECTED(EmptyVar, Succeeded());
   EXPECT_EQ(*EmptyVar, "");
   expectUndefErrors({std::string(UnknownVarStr)}, UnknownVar.takeError());
@@ -969,8 +1588,8 @@ TEST_F(FileCheckTest, FileCheckContext) {
   Cxt.clearLocalVars();
 
   // Redefine global variables and check variables are defined again.
-  GlobalDefines.emplace_back(std::string("$GlobalVar=BAR"));
-  GlobalDefines.emplace_back(std::string("#$GlobalNumVar=36"));
+  GlobalDefines.emplace_back("$GlobalVar=BAR");
+  GlobalDefines.emplace_back("#$GlobalNumVar=36");
   ASSERT_THAT_ERROR(Cxt.defineCmdlineVariables(GlobalDefines, SM), Succeeded());
   StringRef GlobalVarStr = "$GlobalVar";
   StringRef GlobalNumVarRef = bufferize(SM, "$GlobalNumVar");
@@ -984,7 +1603,7 @@ TEST_F(FileCheckTest, FileCheckContext) {
   ASSERT_THAT_EXPECTED(ExpressionPointer, Succeeded());
   ExpressionVal = (*ExpressionPointer)->getAST()->eval();
   ASSERT_THAT_EXPECTED(ExpressionVal, Succeeded());
-  EXPECT_EQ(*ExpressionVal, 36U);
+  EXPECT_EQ(cantFail(ExpressionVal->getSignedValue()), 36);
 
   // Clear local variables and check global variables remain defined.
   Cxt.clearLocalVars();
@@ -996,6 +1615,6 @@ TEST_F(FileCheckTest, FileCheckContext) {
   ASSERT_THAT_EXPECTED(ExpressionPointer, Succeeded());
   ExpressionVal = (*ExpressionPointer)->getAST()->eval();
   ASSERT_THAT_EXPECTED(ExpressionVal, Succeeded());
-  EXPECT_EQ(*ExpressionVal, 36U);
+  EXPECT_EQ(cantFail(ExpressionVal->getSignedValue()), 36);
 }
 } // namespace

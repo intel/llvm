@@ -1191,8 +1191,8 @@ bool ARMDAGToDAGISel::SelectThumbAddrModeSP(SDValue N,
     // Only multiples of 4 are allowed for the offset, so the frame object
     // alignment must be at least 4.
     MachineFrameInfo &MFI = MF->getFrameInfo();
-    if (MFI.getObjectAlignment(FI) < 4)
-      MFI.setObjectAlignment(FI, 4);
+    if (MFI.getObjectAlign(FI) < Align(4))
+      MFI.setObjectAlignment(FI, Align(4));
     Base = CurDAG->getTargetFrameIndex(
         FI, TLI->getPointerTy(CurDAG->getDataLayout()));
     OffImm = CurDAG->getTargetConstant(0, SDLoc(N), MVT::i32);
@@ -1215,9 +1215,9 @@ bool ARMDAGToDAGISel::SelectThumbAddrModeSP(SDValue N,
       if (RHSC * 4 < MFI.getObjectSize(FI)) {
         // For LHS+RHS to result in an offset that's a multiple of 4 the object
         // indexed by the LHS must be 4-byte aligned.
-        if (!MFI.isFixedObjectIndex(FI) && MFI.getObjectAlignment(FI) < 4)
-          MFI.setObjectAlignment(FI, 4);
-        if (MFI.getObjectAlignment(FI) >= 4) {
+        if (!MFI.isFixedObjectIndex(FI) && MFI.getObjectAlign(FI) < Align(4))
+          MFI.setObjectAlignment(FI, Align(4));
+        if (MFI.getObjectAlign(FI) >= Align(4)) {
           Base = CurDAG->getTargetFrameIndex(
               FI, TLI->getPointerTy(CurDAG->getDataLayout()));
           OffImm = CurDAG->getTargetConstant(RHSC, SDLoc(N), MVT::i32);
@@ -2078,6 +2078,7 @@ void ARMDAGToDAGISel::SelectVLD(SDNode *N, bool isUpdating, unsigned NumVecs,
     // Double-register operations:
   case MVT::v8i8:  OpcodeIndex = 0; break;
   case MVT::v4f16:
+  case MVT::v4bf16:
   case MVT::v4i16: OpcodeIndex = 1; break;
   case MVT::v2f32:
   case MVT::v2i32: OpcodeIndex = 2; break;
@@ -2085,6 +2086,7 @@ void ARMDAGToDAGISel::SelectVLD(SDNode *N, bool isUpdating, unsigned NumVecs,
     // Quad-register operations:
   case MVT::v16i8: OpcodeIndex = 0; break;
   case MVT::v8f16:
+  case MVT::v8bf16:
   case MVT::v8i16: OpcodeIndex = 1; break;
   case MVT::v4f32:
   case MVT::v4i32: OpcodeIndex = 2; break;
@@ -2221,6 +2223,7 @@ void ARMDAGToDAGISel::SelectVST(SDNode *N, bool isUpdating, unsigned NumVecs,
     // Double-register operations:
   case MVT::v8i8:  OpcodeIndex = 0; break;
   case MVT::v4f16:
+  case MVT::v4bf16:
   case MVT::v4i16: OpcodeIndex = 1; break;
   case MVT::v2f32:
   case MVT::v2i32: OpcodeIndex = 2; break;
@@ -2228,6 +2231,7 @@ void ARMDAGToDAGISel::SelectVST(SDNode *N, bool isUpdating, unsigned NumVecs,
     // Quad-register operations:
   case MVT::v16i8: OpcodeIndex = 0; break;
   case MVT::v8f16:
+  case MVT::v8bf16:
   case MVT::v8i16: OpcodeIndex = 1; break;
   case MVT::v4f32:
   case MVT::v4i32: OpcodeIndex = 2; break;
@@ -2389,11 +2393,13 @@ void ARMDAGToDAGISel::SelectVLDSTLane(SDNode *N, bool IsLoad, bool isUpdating,
     // Double-register operations:
   case MVT::v8i8:  OpcodeIndex = 0; break;
   case MVT::v4f16:
+  case MVT::v4bf16:
   case MVT::v4i16: OpcodeIndex = 1; break;
   case MVT::v2f32:
   case MVT::v2i32: OpcodeIndex = 2; break;
     // Quad-register operations:
   case MVT::v8f16:
+  case MVT::v8bf16:
   case MVT::v8i16: OpcodeIndex = 0; break;
   case MVT::v4f32:
   case MVT::v4i32: OpcodeIndex = 1; break;
@@ -2923,6 +2929,8 @@ void ARMDAGToDAGISel::SelectVLDDup(SDNode *N, bool IsIntrinsic,
   case MVT::v8i16:
   case MVT::v4f16:
   case MVT::v8f16:
+  case MVT::v4bf16:
+  case MVT::v8bf16:
                   OpcodeIndex = 1; break;
   case MVT::v2f32:
   case MVT::v2i32:
@@ -3400,7 +3408,7 @@ void ARMDAGToDAGISel::Select(SDNode *N) {
       MachineFunction& MF = CurDAG->getMachineFunction();
       MachineMemOperand *MemOp =
           MF.getMachineMemOperand(MachinePointerInfo::getConstantPool(MF),
-                                  MachineMemOperand::MOLoad, 4, 4);
+                                  MachineMemOperand::MOLoad, 4, Align(4));
 
       CurDAG->setNodeMemRefs(cast<MachineSDNode>(ResNode), {MemOp});
 
@@ -3420,8 +3428,8 @@ void ARMDAGToDAGISel::Select(SDNode *N) {
       // Set the alignment of the frame object to 4, to avoid having to generate
       // more than one ADD
       MachineFrameInfo &MFI = MF->getFrameInfo();
-      if (MFI.getObjectAlignment(FI) < 4)
-        MFI.setObjectAlignment(FI, 4);
+      if (MFI.getObjectAlign(FI) < Align(4))
+        MFI.setObjectAlignment(FI, Align(4));
       CurDAG->SelectNodeTo(N, ARM::tADDframe, MVT::i32, TFI,
                            CurDAG->getTargetConstant(0, dl, MVT::i32));
       return;

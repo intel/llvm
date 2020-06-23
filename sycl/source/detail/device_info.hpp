@@ -262,7 +262,7 @@ struct get_device_info<vector_class<info::partition_property>,
                                             arrayResult.get(), nullptr);
 
     vector_class<info::partition_property> result;
-    for (size_t i = 0; i < arrayLength - 1; ++i) {
+    for (size_t i = 0; i < arrayLength; ++i) {
       result.push_back(info::partition_property(arrayResult[i]));
     }
     return result;

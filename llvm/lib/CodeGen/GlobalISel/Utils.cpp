@@ -198,20 +198,35 @@ bool llvm::isTriviallyDead(const MachineInstr &MI,
   return true;
 }
 
+static void reportGISelDiagnostic(DiagnosticSeverity Severity,
+                                  MachineFunction &MF,
+                                  const TargetPassConfig &TPC,
+                                  MachineOptimizationRemarkEmitter &MORE,
+                                  MachineOptimizationRemarkMissed &R) {
+  bool IsFatal = Severity == DS_Error &&
+                 TPC.isGlobalISelAbortEnabled();
+  // Print the function name explicitly if we don't have a debug location (which
+  // makes the diagnostic less useful) or if we're going to emit a raw error.
+  if (!R.getLocation().isValid() || IsFatal)
+    R << (" (in function: " + MF.getName() + ")").str();
+
+  if (IsFatal)
+    report_fatal_error(R.getMsg());
+  else
+    MORE.emit(R);
+}
+
+void llvm::reportGISelWarning(MachineFunction &MF, const TargetPassConfig &TPC,
+                              MachineOptimizationRemarkEmitter &MORE,
+                              MachineOptimizationRemarkMissed &R) {
+  reportGISelDiagnostic(DS_Warning, MF, TPC, MORE, R);
+}
+
 void llvm::reportGISelFailure(MachineFunction &MF, const TargetPassConfig &TPC,
                               MachineOptimizationRemarkEmitter &MORE,
                               MachineOptimizationRemarkMissed &R) {
   MF.getProperties().set(MachineFunctionProperties::Property::FailedISel);
-
-  // Print the function name explicitly if we don't have a debug location (which
-  // makes the diagnostic less useful) or if we're going to emit a raw error.
-  if (!R.getLocation().isValid() || TPC.isGlobalISelAbortEnabled())
-    R << (" (in function: " + MF.getName() + ")").str();
-
-  if (TPC.isGlobalISelAbortEnabled())
-    report_fatal_error(R.getMsg());
-  else
-    MORE.emit(R);
+  reportGISelDiagnostic(DS_Error, MF, TPC, MORE, R);
 }
 
 void llvm::reportGISelFailure(MachineFunction &MF, const TargetPassConfig &TPC,
@@ -381,54 +396,59 @@ APFloat llvm::getAPFloatFromSize(double Val, unsigned Size) {
   return APF;
 }
 
-Optional<APInt> llvm::ConstantFoldBinOp(unsigned Opcode, const unsigned Op1,
-                                        const unsigned Op2,
+Optional<APInt> llvm::ConstantFoldBinOp(unsigned Opcode, const Register Op1,
+                                        const Register Op2,
                                         const MachineRegisterInfo &MRI) {
-  auto MaybeOp1Cst = getConstantVRegVal(Op1, MRI);
   auto MaybeOp2Cst = getConstantVRegVal(Op2, MRI);
-  if (MaybeOp1Cst && MaybeOp2Cst) {
-    LLT Ty = MRI.getType(Op1);
-    APInt C1(Ty.getSizeInBits(), *MaybeOp1Cst, true);
-    APInt C2(Ty.getSizeInBits(), *MaybeOp2Cst, true);
-    switch (Opcode) {
-    default:
+  if (!MaybeOp2Cst)
+    return None;
+
+  auto MaybeOp1Cst = getConstantVRegVal(Op1, MRI);
+  if (!MaybeOp1Cst)
+    return None;
+
+  LLT Ty = MRI.getType(Op1);
+  APInt C1(Ty.getSizeInBits(), *MaybeOp1Cst, true);
+  APInt C2(Ty.getSizeInBits(), *MaybeOp2Cst, true);
+  switch (Opcode) {
+  default:
+    break;
+  case TargetOpcode::G_ADD:
+    return C1 + C2;
+  case TargetOpcode::G_AND:
+    return C1 & C2;
+  case TargetOpcode::G_ASHR:
+    return C1.ashr(C2);
+  case TargetOpcode::G_LSHR:
+    return C1.lshr(C2);
+  case TargetOpcode::G_MUL:
+    return C1 * C2;
+  case TargetOpcode::G_OR:
+    return C1 | C2;
+  case TargetOpcode::G_SHL:
+    return C1 << C2;
+  case TargetOpcode::G_SUB:
+    return C1 - C2;
+  case TargetOpcode::G_XOR:
+    return C1 ^ C2;
+  case TargetOpcode::G_UDIV:
+    if (!C2.getBoolValue())
       break;
-    case TargetOpcode::G_ADD:
-      return C1 + C2;
-    case TargetOpcode::G_AND:
-      return C1 & C2;
-    case TargetOpcode::G_ASHR:
-      return C1.ashr(C2);
-    case TargetOpcode::G_LSHR:
-      return C1.lshr(C2);
-    case TargetOpcode::G_MUL:
-      return C1 * C2;
-    case TargetOpcode::G_OR:
-      return C1 | C2;
-    case TargetOpcode::G_SHL:
-      return C1 << C2;
-    case TargetOpcode::G_SUB:
-      return C1 - C2;
-    case TargetOpcode::G_XOR:
-      return C1 ^ C2;
-    case TargetOpcode::G_UDIV:
-      if (!C2.getBoolValue())
-        break;
-      return C1.udiv(C2);
-    case TargetOpcode::G_SDIV:
-      if (!C2.getBoolValue())
-        break;
-      return C1.sdiv(C2);
-    case TargetOpcode::G_UREM:
-      if (!C2.getBoolValue())
-        break;
-      return C1.urem(C2);
-    case TargetOpcode::G_SREM:
-      if (!C2.getBoolValue())
-        break;
-      return C1.srem(C2);
-    }
+    return C1.udiv(C2);
+  case TargetOpcode::G_SDIV:
+    if (!C2.getBoolValue())
+      break;
+    return C1.sdiv(C2);
+  case TargetOpcode::G_UREM:
+    if (!C2.getBoolValue())
+      break;
+    return C1.urem(C2);
+  case TargetOpcode::G_SREM:
+    if (!C2.getBoolValue())
+      break;
+    return C1.srem(C2);
   }
+
   return None;
 }
 
@@ -457,18 +477,19 @@ bool llvm::isKnownNeverNaN(Register Val, const MachineRegisterInfo &MRI,
   return false;
 }
 
-unsigned llvm::inferAlignmentFromPtrInfo(MachineFunction &MF,
-                                         const MachinePointerInfo &MPO) {
+Align llvm::inferAlignFromPtrInfo(MachineFunction &MF,
+                                  const MachinePointerInfo &MPO) {
   auto PSV = MPO.V.dyn_cast<const PseudoSourceValue *>();
   if (auto FSPV = dyn_cast_or_null<FixedStackPseudoSourceValue>(PSV)) {
     MachineFrameInfo &MFI = MF.getFrameInfo();
-    return MinAlign(MFI.getObjectAlignment(FSPV->getFrameIndex()), MPO.Offset);
+    return commonAlignment(MFI.getObjectAlign(FSPV->getFrameIndex()),
+                           MPO.Offset);
   }
 
-  return 1;
+  return Align(1);
 }
 
-Optional<APInt> llvm::ConstantFoldExtOp(unsigned Opcode, const unsigned Op1,
+Optional<APInt> llvm::ConstantFoldExtOp(unsigned Opcode, const Register Op1,
                                         uint64_t Imm,
                                         const MachineRegisterInfo &MRI) {
   auto MaybeOp1Cst = getConstantVRegVal(Op1, MRI);

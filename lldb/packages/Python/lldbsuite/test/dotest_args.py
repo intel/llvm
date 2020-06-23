@@ -41,7 +41,7 @@ def create_parser():
     group.add_argument('-C', '--compiler', metavar='compiler', dest='compiler', help=textwrap.dedent(
         '''Specify the compiler(s) used to build the inferior executables. The compiler path can be an executable basename or a full path to a compiler executable. This option can be specified multiple times.'''))
     if sys.platform == 'darwin':
-        group.add_argument('--apple-sdk', metavar='apple_sdk', dest='apple_sdk', default="macosx", help=textwrap.dedent(
+        group.add_argument('--apple-sdk', metavar='apple_sdk', dest='apple_sdk', default="", help=textwrap.dedent(
             '''Specify the name of the Apple SDK (macosx, macosx.internal, iphoneos, iphoneos.internal, or path to SDK) and use the appropriate tools from that SDK's toolchain.'''))
     # FIXME? This won't work for different extra flags according to each arch.
     group.add_argument(
@@ -177,6 +177,13 @@ def create_parser():
         dest='lldb_libs_dir',
         metavar='path',
         help='The path to LLDB library directory (containing liblldb)')
+    group.add_argument(
+        '--enable-plugin',
+        dest='enabled_plugins',
+        action='append',
+        type=str,
+        metavar='A plugin whose tests will be enabled',
+        help='A plugin whose tests will be enabled. The only currently supported plugin is intel-pt.')
 
     # Configuration options
     group = parser.add_argument_group('Remote platform options')
@@ -195,6 +202,17 @@ def create_parser():
         dest='lldb_platform_working_dir',
         metavar='platform-working-dir',
         help='The directory to use on the remote platform.')
+
+    # Reproducer options
+    group = parser.add_argument_group('Reproducer options')
+    group.add_argument(
+        '--capture-path',
+        metavar='reproducer path',
+        help='The reproducer capture path')
+    group.add_argument(
+        '--replay-path',
+        metavar='reproducer path',
+        help='The reproducer replay path')
 
     # Test-suite behaviour
     group = parser.add_argument_group('Runtime behaviour options')

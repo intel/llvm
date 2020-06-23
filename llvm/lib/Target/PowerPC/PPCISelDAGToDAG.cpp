@@ -296,6 +296,10 @@ namespace {
       return true;
     }
 
+    bool SelectAddrPCRel(SDValue N, SDValue &Base) {
+      return PPCLowering->SelectAddressPCRel(N, Base);
+    }
+
     /// SelectInlineAsmMemoryOperand - Implement addressing mode selection for
     /// inline asm expressions.  It is always correct to compute the value into
     /// a register.  The case of adding a (possibly relocatable) constant to a
@@ -347,6 +351,8 @@ private:
     bool tryAsSingleRLWINM(SDNode *N);
     bool tryAsSingleRLWINM8(SDNode *N);
     bool tryAsSingleRLWIMI(SDNode *N);
+    bool tryAsPairOfRLDICL(SDNode *N);
+    bool tryAsSingleRLDIMI(SDNode *N);
 
     void PeepholePPC64();
     void PeepholePPC64ZExt();
@@ -4213,7 +4219,7 @@ bool PPCDAGToDAGISel::isOffsetMultipleOf(SDNode *N, unsigned Val) const {
     // because it is translated to r31 or r1 + slot + offset. We won't know the
     // slot number until the stack frame is finalized.
     const MachineFrameInfo &MFI = CurDAG->getMachineFunction().getFrameInfo();
-    unsigned SlotAlign = MFI.getObjectAlignment(FI->getIndex());
+    unsigned SlotAlign = MFI.getObjectAlign(FI->getIndex()).value();
     if ((SlotAlign % Val) != 0)
       return false;
 
@@ -4245,12 +4251,9 @@ static bool mayUseP9Setb(SDNode *N, const ISD::CondCode &CC, SelectionDAG *DAG,
   SDValue TrueRes = N->getOperand(2);
   SDValue FalseRes = N->getOperand(3);
   ConstantSDNode *TrueConst = dyn_cast<ConstantSDNode>(TrueRes);
-  if (!TrueConst)
+  if (!TrueConst || (N->getSimpleValueType(0) != MVT::i64 &&
+                     N->getSimpleValueType(0) != MVT::i32))
     return false;
-
-  assert((N->getSimpleValueType(0) == MVT::i64 ||
-          N->getSimpleValueType(0) == MVT::i32) &&
-         "Expecting either i64 or i32 here.");
 
   // We are looking for any of:
   // (select_cc lhs, rhs,  1, (sext (setcc [lr]hs, [lr]hs, cc2)), cc1)
@@ -4438,6 +4441,60 @@ bool PPCDAGToDAGISel::tryAsSingleRLWINM8(SDNode *N) {
   return false;
 }
 
+bool PPCDAGToDAGISel::tryAsPairOfRLDICL(SDNode *N) {
+  assert(N->getOpcode() == ISD::AND && "ISD::AND SDNode expected");
+  uint64_t Imm64;
+  if (!isInt64Immediate(N->getOperand(1).getNode(), Imm64))
+    return false;
+
+  // Do nothing if it is 16-bit imm as the pattern in the .td file handle
+  // it well with "andi.".
+  if (isUInt<16>(Imm64))
+    return false;
+
+  SDLoc Loc(N);
+  SDValue Val = N->getOperand(0);
+
+  // Optimized with two rldicl's as follows:
+  // Add missing bits on left to the mask and check that the mask is a
+  // wrapped run of ones, i.e.
+  // Change pattern |0001111100000011111111|
+  //             to |1111111100000011111111|.
+  unsigned NumOfLeadingZeros = countLeadingZeros(Imm64);
+  if (NumOfLeadingZeros != 0)
+    Imm64 |= maskLeadingOnes<uint64_t>(NumOfLeadingZeros);
+
+  unsigned MB, ME;
+  if (!isRunOfOnes64(Imm64, MB, ME))
+    return false;
+
+  //         ME     MB                   MB-ME+63
+  // +----------------------+     +----------------------+
+  // |1111111100000011111111| ->  |0000001111111111111111|
+  // +----------------------+     +----------------------+
+  //  0                    63      0                    63
+  // There are ME + 1 ones on the left and (MB - ME + 63) & 63 zeros in between.
+  unsigned OnesOnLeft = ME + 1;
+  unsigned ZerosInBetween = (MB - ME + 63) & 63;
+  // Rotate left by OnesOnLeft (so leading ones are now trailing ones) and clear
+  // on the left the bits that are already zeros in the mask.
+  Val = SDValue(CurDAG->getMachineNode(PPC::RLDICL, Loc, MVT::i64, Val,
+                                       getI64Imm(OnesOnLeft, Loc),
+                                       getI64Imm(ZerosInBetween, Loc)),
+                0);
+  //        MB-ME+63                      ME     MB
+  // +----------------------+     +----------------------+
+  // |0000001111111111111111| ->  |0001111100000011111111|
+  // +----------------------+     +----------------------+
+  //  0                    63      0                    63
+  // Rotate back by 64 - OnesOnLeft to undo previous rotate. Then clear on the
+  // left the number of ones we previously added.
+  SDValue Ops[] = {Val, getI64Imm(64 - OnesOnLeft, Loc),
+                   getI64Imm(NumOfLeadingZeros, Loc)};
+  CurDAG->SelectNodeTo(N, PPC::RLDICL, MVT::i64, Ops);
+  return true;
+}
+
 bool PPCDAGToDAGISel::tryAsSingleRLWIMI(SDNode *N) {
   assert(N->getOpcode() == ISD::AND && "ISD::AND SDNode expected");
   unsigned Imm;
@@ -4538,6 +4595,31 @@ bool PPCDAGToDAGISel::tryAsSingleRLDICR(SDNode *N) {
   SDLoc dl(N);
   SDValue Ops[] = {N->getOperand(0), getI32Imm(SH, dl), getI32Imm(MB, dl)};
   CurDAG->SelectNodeTo(N, PPC::RLDICR, MVT::i64, Ops);
+  return true;
+}
+
+bool PPCDAGToDAGISel::tryAsSingleRLDIMI(SDNode *N) {
+  assert(N->getOpcode() == ISD::OR && "ISD::OR SDNode expected");
+  uint64_t Imm64;
+  unsigned MB, ME;
+  SDValue N0 = N->getOperand(0);
+
+  // We won't get fewer instructions if the imm is 32-bit integer.
+  // rldimi requires the imm to have consecutive ones with both sides zero.
+  // Also, make sure the first Op has only one use, otherwise this may increase
+  // register pressure since rldimi is destructive.
+  if (!isInt64Immediate(N->getOperand(1).getNode(), Imm64) ||
+      isUInt<32>(Imm64) || !isRunOfOnes64(Imm64, MB, ME) || !N0.hasOneUse())
+    return false;
+
+  unsigned SH = 63 - ME;
+  SDLoc Dl(N);
+  // Use select64Imm for making LI instr instead of directly putting Imm64
+  SDValue Ops[] = {
+      N->getOperand(0),
+      SDValue(selectI64Imm(CurDAG, getI64Imm(-1, Dl).getNode()), 0),
+      getI32Imm(SH, Dl), getI32Imm(MB, Dl)};
+  CurDAG->SelectNodeTo(N, PPC::RLDIMI, MVT::i64, Ops);
   return true;
 }
 
@@ -4765,7 +4847,7 @@ void PPCDAGToDAGISel::Select(SDNode *N) {
   case ISD::AND:
     // If this is an 'and' with a mask, try to emit rlwinm/rldicl/rldicr
     if (tryAsSingleRLWINM(N) || tryAsSingleRLWIMI(N) || tryAsSingleRLDICL(N) ||
-        tryAsSingleRLDICR(N) || tryAsSingleRLWINM8(N))
+        tryAsSingleRLDICR(N) || tryAsSingleRLWINM8(N) || tryAsPairOfRLDICL(N))
       return;
 
     // Other cases are autogenerated.
@@ -4787,6 +4869,11 @@ void PPCDAGToDAGISel::Select(SDNode *N) {
         return;
       }
     }
+
+    // If this is 'or' against an imm with consecutive ones and both sides zero,
+    // try to emit rldimi
+    if (tryAsSingleRLDIMI(N))
+      return;
 
     // OR with a 32-bit immediate can be handled by ori + oris
     // without creating an immediate in a GPR.
@@ -6649,8 +6736,7 @@ void PPCDAGToDAGISel::PeepholePPC64() {
       } else if (ConstantPoolSDNode *CP =
                  dyn_cast<ConstantPoolSDNode>(ImmOpnd)) {
         const Constant *C = CP->getConstVal();
-        ImmOpnd = CurDAG->getTargetConstantPool(C, MVT::i64,
-                                                CP->getAlignment(),
+        ImmOpnd = CurDAG->getTargetConstantPool(C, MVT::i64, CP->getAlign(),
                                                 Offset, Flags);
       }
     }

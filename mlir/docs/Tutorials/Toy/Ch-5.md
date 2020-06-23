@@ -13,8 +13,8 @@ transformations: `Affine`. This dialect is tailored to the computation-heavy
 part of the program and is limited: it doesn't support representing our
 `toy.print` builtin, for instance, neither should it! Instead, we can target
 `Affine` for the computation heavy part of Toy, and in the
-[next chapter](Ch-6.md) directly the `LLVM IR` dialect for lowering `print`. As
-part of this lowering, we will be lowering from the
+[next chapter](Ch-6.md) directly target the `LLVM IR` dialect for lowering
+`print`. As part of this lowering, we will be lowering from the
 [TensorType](../../LangRef.md#tensor-type) that `Toy` operates on to the
 [MemRefType](../../LangRef.md#memref-type) that is indexed via an affine
 loop-nest. Tensors represent an abstract value-typed sequence of data, meaning
@@ -39,7 +39,7 @@ framework, we need to provide two things (and an optional third):
 *   A set of
     [Rewrite Patterns](../../DialectConversion.md#rewrite-pattern-specification)
 
-    -   This is the set of [patterns](../../QuickstartRewrites.md) used to
+    -   This is the set of [patterns](../QuickstartRewrites.md) used to
         convert *illegal* operations into a set of zero or more *legal* ones.
 
 *   Optionally, a [Type Converter](../../DialectConversion.md#type-conversion).
@@ -76,7 +76,7 @@ void ToyToAffineLoweringPass::runOnFunction() {
 
 Above, we first set the toy dialect to illegal, and then the print operation
 as legal. We could have done this the other way around.
-Individual operations always take precendence over the (more generic) dialect
+Individual operations always take precedence over the (more generic) dialect
 definitions, so the order doesn't matter. See `ConversionTarget::getOpInfo`
 for the details.
 
@@ -86,7 +86,7 @@ After the conversion target has been defined, we can define how to convert the
 *illegal* operations into *legal* ones. Similarly to the canonicalization
 framework introduced in [chapter 3](Ch-3.md), the
 [`DialectConversion` framework](../../DialectConversion.md) also uses
-[RewritePatterns](../../QuickstartRewrites.md) to perform the conversion logic.
+[RewritePatterns](../QuickstartRewrites.md) to perform the conversion logic.
 These patterns may be the `RewritePatterns` seen before or a new type of pattern
 specific to the conversion framework `ConversionPattern`. `ConversionPatterns`
 are different from traditional `RewritePatterns` in that they accept an
@@ -124,7 +124,7 @@ struct TransposeOpLowering : public mlir::ConversionPattern {
           // This allows for using the nice named accessors that are generated
           // by the ODS. This adaptor is automatically provided by the ODS
           // framework.
-          TransposeOpOperandAdaptor transposeAdaptor(memRefOperands);
+          TransposeOpAdaptor transposeAdaptor(memRefOperands);
           mlir::Value input = transposeAdaptor.input();
 
           // Transpose the elements by generating a load from the reverse
@@ -222,7 +222,7 @@ def PrintOp : Toy_Op<"print"> {
 
 ## Complete Toy Example
 
-Looking back at our current working example:
+Let's take a concrete example:
 
 ```mlir
 func @main() {
@@ -268,8 +268,8 @@ func @main() {
   }
 
   // Multiply and store into the output buffer.
-  affine.for %arg0 = 0 to 2 {
-    affine.for %arg1 = 0 to 3 {
+  affine.for %arg0 = 0 to 3 {
+    affine.for %arg1 = 0 to 2 {
       %3 = affine.load %1[%arg0, %arg1] : memref<3x2xf64>
       %4 = affine.load %1[%arg0, %arg1] : memref<3x2xf64>
       %5 = mulf %3, %4 : f64
@@ -336,8 +336,8 @@ func @main() {
 
 Here, we can see that a redundant allocation was removed, the two loop nests
 were fused, and some unnecessary `load`s were removed. You can build `toyc-ch5`
-and try yourself: `toyc-ch5 test/lowering.toy -emit=mlir-affine`. We can also
-check our optimizations by adding `-opt`.
+and try yourself: `toyc-ch5 test/Examples/Toy/Ch5/affine-lowering.mlir
+-emit=mlir-affine`. We can also check our optimizations by adding `-opt`.
 
 In this chapter we explored some aspects of partial lowering, with the intent to
 optimize. In the [next chapter](Ch-6.md) we will continue the discussion about

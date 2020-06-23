@@ -43,7 +43,6 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
-#include "llvm/PassSupport.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 
@@ -76,8 +75,10 @@ public:
   virtual void visitTruncInst(TruncInst &I) {
     if (isBoolType(I.getType())) {
       auto Op = I.getOperand(0);
+      auto And = BinaryOperator::CreateAnd(
+          Op, getScalarOrVectorConstantInt(Op->getType(), 1, false), "", &I);
       auto Zero = getScalarOrVectorConstantInt(Op->getType(), 0, false);
-      auto Cmp = new ICmpInst(&I, CmpInst::ICMP_NE, Op, Zero);
+      auto Cmp = new ICmpInst(&I, CmpInst::ICMP_NE, And, Zero);
       replace(&I, Cmp);
     }
   }

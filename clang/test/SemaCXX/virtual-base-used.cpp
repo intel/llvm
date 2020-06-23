@@ -67,7 +67,7 @@ D d;
 #if __cplusplus <= 199711L
 // expected-note@-2 2{{implicit default constructor for 'D' first required here}}
 #else
-// expected-error@-4 {{call to implicitly-deleted default constructor of 'D'}}
+// expected-error@-4 {{call to implicitly-deleted default constructor of 'D'}}å
 #endif
 #else
 void D::foo() {

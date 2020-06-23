@@ -1,6 +1,6 @@
 include "../../include/lldb/Core/PropertiesBase.td"
 
-let Definition = "experimental" in {
+let Definition = "target_experimental" in {
   def InjectLocalVars : Property<"inject-local-vars", "Boolean">,
     Global, DefaultTrue,
     Desc<"If true, inject local variables explicitly into the expression text. This will fix symbol resolution when there are name collisions between ivars and local variables. But it can make expressions run much more slowly.">;
@@ -51,6 +51,9 @@ let Definition = "target" in {
   def AutoApplyFixIts: Property<"auto-apply-fixits", "Boolean">,
     DefaultTrue,
     Desc<"Automatically apply fix-it hints to expressions.">;
+  def RetriesWithFixIts: Property<"retries-with-fixits", "UInt64">,
+    DefaultUnsignedValue<1>,
+    Desc<"Maximum number of attempts to fix an expression with Fix-Its">;
   def NotifyAboutFixIts: Property<"notify-about-fixits", "Boolean">,
     DefaultTrue,
     Desc<"Print the fixed expression text.">;
@@ -162,6 +165,13 @@ let Definition = "target" in {
     Desc<"Always install the main executable when connected to a remote platform.">;
 }
 
+let Definition = "process_experimental" in {
+  def OSPluginReportsAllThreads: Property<"os-plugin-reports-all-threads", "Boolean">,
+    Global,
+    DefaultTrue,
+    Desc<"Set to False if your OS Plugins doesn't report all threads on each stop.">;
+}
+
 let Definition = "process" in {
   def DisableMemCache: Property<"disable-memory-cache", "Boolean">,
     DefaultFalse,
@@ -194,6 +204,9 @@ let Definition = "process" in {
   def WarningOptimization: Property<"optimization-warnings", "Boolean">,
     DefaultTrue,
     Desc<"If true, warn when stopped in code that is optimized where stepping and variable availability may not behave as expected.">;
+  def WarningUnsupportedLanguage: Property<"unsupported-language-warnings", "Boolean">,
+    DefaultTrue,
+    Desc<"If true, warn when stopped in code that is written in a source language that LLDB does not support.">;
   def StopOnExec: Property<"stop-on-exec", "Boolean">,
     Global,
     DefaultTrue,

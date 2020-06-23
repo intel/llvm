@@ -467,8 +467,13 @@ void Session::modifyPassConfig(const Triple &FTT,
                                PassConfiguration &PassConfig) {
   if (!CheckFiles.empty())
     PassConfig.PostFixupPasses.push_back([this](LinkGraph &G) {
+
+      if (TT.getObjectFormat() == Triple::ELF)
+        return registerELFGraphInfo(*this, G);
+
       if (TT.getObjectFormat() == Triple::MachO)
-        return registerMachOStubsAndGOT(*this, G);
+        return registerMachOGraphInfo(*this, G);
+
       return make_error<StringError>("Unsupported object format for GOT/stub "
                                      "registration",
                                      inconvertibleErrorCode());
@@ -657,13 +662,13 @@ Error loadObjects(Session &S) {
     // Set every dylib to link against every other, in command line order.
     for (auto *JD : S.JDSearchOrder) {
       auto LookupFlags = JITDylibLookupFlags::MatchExportedSymbolsOnly;
-      JITDylibSearchOrder O;
+      JITDylibSearchOrder LinkOrder;
       for (auto *JD2 : S.JDSearchOrder) {
         if (JD2 == JD)
           continue;
-        O.push_back(std::make_pair(JD2, LookupFlags));
+        LinkOrder.push_back(std::make_pair(JD2, LookupFlags));
       }
-      JD->setSearchOrder(std::move(O));
+      JD->setLinkOrder(std::move(LinkOrder));
     }
   }
 

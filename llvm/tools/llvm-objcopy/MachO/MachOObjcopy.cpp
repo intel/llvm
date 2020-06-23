@@ -20,8 +20,10 @@ namespace macho {
 using namespace object;
 using SectionPred = std::function<bool(const std::unique_ptr<Section> &Sec)>;
 
-static void removeSections(const CopyConfig &Config, Object &Obj) {
-  SectionPred RemovePred = [](const std::unique_ptr<Section> &) { return false; };
+static Error removeSections(const CopyConfig &Config, Object &Obj) {
+  SectionPred RemovePred = [](const std::unique_ptr<Section> &) {
+    return false;
+  };
 
   if (!Config.ToRemove.empty()) {
     RemovePred = [&Config, RemovePred](const std::unique_ptr<Section> &Sec) {
@@ -63,12 +65,16 @@ static void updateAndRemoveSymbols(const CopyConfig &Config, Object &Obj) {
       Sym.Name = std::string(I->getValue());
   }
 
-  auto RemovePred = [Config](const std::unique_ptr<SymbolEntry> &N) {
+  auto RemovePred = [Config, &Obj](const std::unique_ptr<SymbolEntry> &N) {
     if (N->Referenced)
       return false;
     if (Config.StripAll)
       return true;
     if (Config.DiscardMode == DiscardType::All && !(N->n_type & MachO::N_EXT))
+      return true;
+    // This behavior is consistent with cctools' strip.
+    if (Config.StripSwiftSymbols && (Obj.Header.Flags & MachO::MH_DYLDLINK) &&
+        Obj.SwiftVersion && *Obj.SwiftVersion && N->isSwiftSymbol())
       return true;
     return false;
   };
@@ -81,7 +87,7 @@ static LoadCommand buildRPathLoadCommand(StringRef Path) {
   MachO::rpath_command RPathLC;
   RPathLC.cmd = MachO::LC_RPATH;
   RPathLC.path = sizeof(MachO::rpath_command);
-  RPathLC.cmdsize = alignTo(sizeof(MachO::rpath_command) + Path.size(), 8);
+  RPathLC.cmdsize = alignTo(sizeof(MachO::rpath_command) + Path.size() + 1, 8);
   LC.MachOLoadCommand.rpath_command_data = RPathLC;
   LC.Payload.assign(RPathLC.cmdsize - sizeof(MachO::rpath_command), 0);
   std::copy(Path.begin(), Path.end(), LC.Payload.begin());
@@ -171,17 +177,27 @@ static Error handleArgs(const CopyConfig &Config, Object &Obj) {
       !Config.SectionsToRename.empty() ||
       !Config.UnneededSymbolsToRemove.empty() ||
       !Config.SetSectionAlignment.empty() || !Config.SetSectionFlags.empty() ||
-      Config.ExtractDWO || Config.KeepFileSymbols || Config.LocalizeHidden ||
-      Config.PreserveDates || Config.StripAllGNU || Config.StripDWO ||
-      Config.StripNonAlloc || Config.StripSections || Config.Weaken ||
-      Config.DecompressDebugSections || Config.StripNonAlloc ||
-      Config.StripSections || Config.StripUnneeded ||
+      Config.ExtractDWO || Config.LocalizeHidden || Config.PreserveDates ||
+      Config.StripAllGNU || Config.StripDWO || Config.StripNonAlloc ||
+      Config.StripSections || Config.Weaken || Config.DecompressDebugSections ||
+      Config.StripNonAlloc || Config.StripSections || Config.StripUnneeded ||
       Config.DiscardMode == DiscardType::Locals ||
       !Config.SymbolsToAdd.empty() || Config.EntryExpr) {
     return createStringError(llvm::errc::invalid_argument,
                              "option not supported by llvm-objcopy for MachO");
   }
-  removeSections(Config, Obj);
+
+  // Dump sections before add/remove for compatibility with GNU objcopy.
+  for (StringRef Flag : Config.DumpSection) {
+    StringRef SectionName;
+    StringRef FileName;
+    std::tie(SectionName, FileName) = Flag.split('=');
+    if (Error E = dumpSectionToFile(SectionName, FileName, Obj))
+      return E;
+  }
+
+  if (Error E = removeSections(Config, Obj))
+    return E;
 
   // Mark symbols to determine which symbols are still needed.
   if (Config.StripAll)
@@ -193,14 +209,6 @@ static Error handleArgs(const CopyConfig &Config, Object &Obj) {
     for (LoadCommand &LC : Obj.LoadCommands)
       for (std::unique_ptr<Section> &Sec : LC.Sections)
         Sec->Relocations.clear();
-
-  for (const StringRef &Flag : Config.DumpSection) {
-    std::pair<StringRef, StringRef> SecPair = Flag.split("=");
-    StringRef SecName = SecPair.first;
-    StringRef File = SecPair.second;
-    if (Error E = dumpSectionToFile(SecName, File, Obj))
-      return E;
-  }
 
   for (const auto &Flag : Config.AddSection) {
     std::pair<StringRef, StringRef> SecPair = Flag.split("=");

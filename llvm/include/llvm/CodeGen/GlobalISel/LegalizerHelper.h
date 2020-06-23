@@ -35,6 +35,18 @@ class GISelChangeObserver;
 
 class LegalizerHelper {
 public:
+  /// Expose MIRBuilder so clients can set their own RecordInsertInstruction
+  /// functions
+  MachineIRBuilder &MIRBuilder;
+
+  /// To keep track of changes made by the LegalizerHelper.
+  GISelChangeObserver &Observer;
+
+private:
+  MachineRegisterInfo &MRI;
+  const LegalizerInfo &LI;
+
+public:
   enum LegalizeResult {
     /// Instruction was already legal and no change was made to the
     /// MachineFunction.
@@ -47,6 +59,9 @@ public:
     /// instruction.
     UnableToLegalize,
   };
+
+  /// Expose LegalizerInfo so the clients can re-use.
+  const LegalizerInfo &getLegalizerInfo() const { return LI; }
 
   LegalizerHelper(MachineFunction &MF, GISelChangeObserver &Observer,
                   MachineIRBuilder &B);
@@ -91,12 +106,12 @@ public:
   LegalizeResult moreElementsVector(MachineInstr &MI, unsigned TypeIdx,
                                     LLT MoreTy);
 
-  /// Expose MIRBuilder so clients can set their own RecordInsertInstruction
-  /// functions
-  MachineIRBuilder &MIRBuilder;
-
-  /// Expose LegalizerInfo so the clients can re-use.
-  const LegalizerInfo &getLegalizerInfo() const { return LI; }
+  /// Cast the given value to an LLT::scalar with an equivalent size. Returns
+  /// the register to use if an instruction was inserted. Returns the original
+  /// register if no coercion was necessary.
+  //
+  // This may also fail and return Register() if there is no legal way to cast.
+  Register coerceToScalar(Register Val);
 
   /// Legalize a single operand \p OpIdx of the machine instruction \p MI as a
   /// Use by extending the operand's type to \p WideTy using the specified \p
@@ -215,11 +230,6 @@ public:
   LegalizeResult fewerElementsVectorImplicitDef(MachineInstr &MI,
                                                 unsigned TypeIdx, LLT NarrowTy);
 
-  /// Legalize a simple vector instruction where all operands are the same type
-  /// by splitting into multiple components.
-  LegalizeResult fewerElementsVectorBasic(MachineInstr &MI, unsigned TypeIdx,
-                                          LLT NarrowTy);
-
   /// Legalize a instruction with a vector type where each operand may have a
   /// different element type. All type indexes must have the same number of
   /// elements.
@@ -250,6 +260,16 @@ public:
 
   LegalizeResult
   reduceLoadStoreWidth(MachineInstr &MI, unsigned TypeIdx, LLT NarrowTy);
+
+  /// Legalize an instruction by reducing the operation width, either by
+  /// narrowing the type of the operation or by reducing the number of elements
+  /// of a vector.
+  /// The used strategy (narrow vs. fewerElements) is decided by \p NarrowTy.
+  /// Narrow is used if the scalar type of \p NarrowTy and \p DstTy differ,
+  /// fewerElements is used when the scalar type is the same but the number of
+  /// elements between \p NarrowTy and \p DstTy differ.
+  LegalizeResult reduceOperationWidth(MachineInstr &MI, unsigned TypeIdx,
+                                      LLT NarrowTy);
 
   LegalizeResult fewerElementsVectorSextInReg(MachineInstr &MI, unsigned TypeIdx,
                                               LLT NarrowTy);
@@ -287,6 +307,7 @@ public:
   LegalizeResult lowerFMad(MachineInstr &MI);
   LegalizeResult lowerIntrinsicRound(MachineInstr &MI);
   LegalizeResult lowerFFloor(MachineInstr &MI);
+  LegalizeResult lowerMergeValues(MachineInstr &MI);
   LegalizeResult lowerUnmergeValues(MachineInstr &MI);
   LegalizeResult lowerShuffleVector(MachineInstr &MI);
   LegalizeResult lowerDynStackAlloc(MachineInstr &MI);
@@ -296,13 +317,14 @@ public:
   LegalizeResult lowerBswap(MachineInstr &MI);
   LegalizeResult lowerBitreverse(MachineInstr &MI);
   LegalizeResult lowerReadWriteRegister(MachineInstr &MI);
-
-private:
-  MachineRegisterInfo &MRI;
-  const LegalizerInfo &LI;
-  /// To keep track of changes made by the LegalizerHelper.
-  GISelChangeObserver &Observer;
 };
+
+/// Helper function that creates a libcall to the given \p Name using the given
+/// calling convention \p CC.
+LegalizerHelper::LegalizeResult
+createLibcall(MachineIRBuilder &MIRBuilder, const char *Name,
+              const CallLowering::ArgInfo &Result,
+              ArrayRef<CallLowering::ArgInfo> Args, CallingConv::ID CC);
 
 /// Helper function that creates the given libcall.
 LegalizerHelper::LegalizeResult

@@ -8,6 +8,8 @@
 
 #include "device_complex.h"
 #include "device_math.h"
+
+#ifdef __SPIR__
 #include <cmath>
 
 DEVICE_EXTERN_C
@@ -423,3 +425,4 @@ double __complex__ __devicelib_catan(double __complex__ z) {
       __devicelib_catanh(CMPLX(-__devicelib_cimag(z), __devicelib_creal(z)));
   return CMPLX(__devicelib_cimag(w), -__devicelib_creal(w));
 }
+#endif // __SPIR__

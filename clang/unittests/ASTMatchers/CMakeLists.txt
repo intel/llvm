@@ -1,4 +1,5 @@
 set(LLVM_LINK_COMPONENTS
+  FrontendOpenMP
   Support
   )
 
@@ -26,7 +27,13 @@ clang_target_link_libraries(ASTMatchersTests
   clangBasic
   clangFrontend
   clangSerialization
+  clangTesting
   clangTooling
   )
+
+target_link_libraries(ASTMatchersTests
+  PRIVATE
+  LLVMTestingSupport
+)
 
 add_subdirectory(Dynamic)

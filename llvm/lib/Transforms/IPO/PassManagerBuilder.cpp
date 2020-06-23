@@ -100,8 +100,8 @@ static cl::opt<bool>
     EnablePerformThinLTO("perform-thinlto", cl::init(false), cl::Hidden,
                          cl::desc("Enable performing ThinLTO."));
 
-cl::opt<bool> EnableHotColdSplit("hot-cold-split", cl::init(false), cl::Hidden,
-    cl::desc("Enable hot-cold splitting pass"));
+cl::opt<bool> EnableHotColdSplit("hot-cold-split", cl::init(false),
+    cl::ZeroOrMore, cl::desc("Enable hot-cold splitting pass"));
 
 static cl::opt<bool> UseLoopVersioningLICM(
     "enable-loop-versioning-licm", cl::init(false), cl::Hidden,
@@ -117,7 +117,7 @@ static cl::opt<int> PreInlineThreshold(
              "(default = 75)"));
 
 static cl::opt<bool> EnableGVNHoist(
-    "enable-gvn-hoist", cl::init(false), cl::Hidden,
+    "enable-gvn-hoist", cl::init(false), cl::ZeroOrMore,
     cl::desc("Enable the GVN hoisting pass (default = off)"));
 
 static cl::opt<bool>
@@ -131,7 +131,7 @@ static cl::opt<bool> EnableSimpleLoopUnswitch(
              "cleanup passes integrated into the loop pass manager pipeline."));
 
 static cl::opt<bool> EnableGVNSink(
-    "enable-gvn-sink", cl::init(false), cl::Hidden,
+    "enable-gvn-sink", cl::init(false), cl::ZeroOrMore,
     cl::desc("Enable the GVN sinking pass (default = off)"));
 
 // This option is used in simplifying testing SampleFDO optimizations for
@@ -153,15 +153,29 @@ static cl::opt<bool>
     EnableMatrix("enable-matrix", cl::init(false), cl::Hidden,
                  cl::desc("Enable lowering of the matrix intrinsics"));
 
+cl::opt<AttributorRunOption> AttributorRun(
+    "attributor-enable", cl::Hidden, cl::init(AttributorRunOption::NONE),
+    cl::desc("Enable the attributor inter-procedural deduction pass."),
+    cl::values(clEnumValN(AttributorRunOption::ALL, "all",
+                          "enable all attributor runs"),
+               clEnumValN(AttributorRunOption::MODULE, "module",
+                          "enable module-wide attributor runs"),
+               clEnumValN(AttributorRunOption::CGSCC, "cgscc",
+                          "enable call graph SCC attributor runs"),
+               clEnumValN(AttributorRunOption::NONE, "none",
+                          "disable attributor runs")));
+
+extern cl::opt<bool> EnableKnowledgeRetention;
+
 PassManagerBuilder::PassManagerBuilder() {
     OptLevel = 2;
     SizeLevel = 0;
     LibraryInfo = nullptr;
     Inliner = nullptr;
     DisableUnrollLoops = false;
-    SLPVectorize = RunSLPVectorization;
-    LoopVectorize = EnableLoopVectorization;
-    LoopsInterleaved = EnableLoopInterleaving;
+    SLPVectorize = false;
+    LoopVectorize = true;
+    LoopsInterleaved = true;
     RerollLoops = RunLoopRerolling;
     NewGVN = RunNewGVN;
     LicmMssaOptCap = SetLicmMssaOptCap;
@@ -347,6 +361,8 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   assert(OptLevel >= 1 && "Calling function optimizer with no optimization level!");
   MPM.add(createSROAPass());
   MPM.add(createEarlyCSEPass(true /* Enable mem-ssa. */)); // Catch trivial redundancies
+  if (EnableKnowledgeRetention)
+    MPM.add(createAssumeSimplifyPass());
 
   if (OptLevel > 1) {
     if (EnableGVNHoist)
@@ -547,7 +563,8 @@ void PassManagerBuilder::populateModulePassManager(
   MPM.add(createInferFunctionAttrsLegacyPass());
 
   // Infer attributes on declarations, call sites, arguments, etc.
-  MPM.add(createAttributorLegacyPass());
+  if (AttributorRun & AttributorRunOption::MODULE)
+    MPM.add(createAttributorLegacyPass());
 
   addExtensionsToPM(EP_ModuleOptimizerEarly, MPM);
 
@@ -595,7 +612,8 @@ void PassManagerBuilder::populateModulePassManager(
   }
 
   // Infer attributes on declarations, call sites, arguments, etc. for an SCC.
-  MPM.add(createAttributorCGSCCLegacyPass());
+  if (AttributorRun & AttributorRunOption::CGSCC)
+    MPM.add(createAttributorCGSCCLegacyPass());
 
   // Try to perform OpenMP specific optimizations. This is a (quick!) no-op if
   // there are no OpenMP runtime calls present in the module.
@@ -723,8 +741,6 @@ void PassManagerBuilder::populateModulePassManager(
   MPM.add(createLoopDistributePass());
 
   MPM.add(createLoopVectorizePass(!LoopsInterleaved, !LoopVectorize));
-  MPM.add(createVectorCombinePass());
-  MPM.add(createEarlyCSEPass());
 
   // Eliminate loads by forwarding stores from the previous iteration to loads
   // of the current iteration.
@@ -743,6 +759,7 @@ void PassManagerBuilder::populateModulePassManager(
     // common computations, hoist loop-invariant aspects out of any outer loop,
     // and unswitch the runtime checks if possible. Once hoisted, we may have
     // dead (or speculatable) control flows or more combining opportunities.
+    MPM.add(createEarlyCSEPass());
     MPM.add(createCorrelatedValuePropagationPass());
     MPM.add(createInstructionCombiningPass());
     MPM.add(createLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap));
@@ -764,6 +781,9 @@ void PassManagerBuilder::populateModulePassManager(
       MPM.add(createEarlyCSEPass());
     }
   }
+
+  // Enhance/cleanup vector code.
+  MPM.add(createVectorCombinePass());
 
   addExtensionsToPM(EP_Peephole, MPM);
   MPM.add(createInstructionCombiningPass());
@@ -881,7 +901,8 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
     PM.add(createCalledValuePropagationPass());
 
     // Infer attributes on declarations, call sites, arguments, etc.
-    PM.add(createAttributorLegacyPass());
+    if (AttributorRun & AttributorRunOption::MODULE)
+      PM.add(createAttributorLegacyPass());
   }
 
   // Infer attributes about definitions. The readnone attribute in particular is
@@ -935,7 +956,8 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
   addPGOInstrPasses(PM, /* IsCS */ true);
 
   // Infer attributes on declarations, call sites, arguments, etc. for an SCC.
-  PM.add(createAttributorCGSCCLegacyPass());
+  if (AttributorRun & AttributorRunOption::CGSCC)
+    PM.add(createAttributorCGSCCLegacyPass());
 
   // Try to perform OpenMP specific optimizations. This is a (quick!) no-op if
   // there are no OpenMP runtime calls present in the module.
@@ -997,7 +1019,6 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
   // Now that we've optimized loops (in particular loop induction variables),
   // we may have exposed more scalar opportunities. Run parts of the scalar
   // optimizer again at this point.
-  PM.add(createVectorCombinePass());
   PM.add(createInstructionCombiningPass()); // Initial cleanup
   PM.add(createCFGSimplificationPass()); // if-convert
   PM.add(createSCCPPass()); // Propagate exposed constants
@@ -1005,10 +1026,10 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
   PM.add(createBitTrackingDCEPass());
 
   // More scalar chains could be vectorized due to more alias information
-  if (SLPVectorize) {
+  if (SLPVectorize)
     PM.add(createSLPVectorizerPass()); // Vectorize parallel scalar chains.
-    PM.add(createVectorCombinePass()); // Clean up partial vectorization.
-  }
+
+  PM.add(createVectorCombinePass()); // Clean up partial vectorization.
 
   // After vectorization, assume intrinsics may tell us more about pointer
   // alignments.

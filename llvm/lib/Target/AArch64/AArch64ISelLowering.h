@@ -52,6 +52,18 @@ enum NodeType : unsigned {
   ADC,
   SBC, // adc, sbc instructions
 
+  // Arithmetic instructions
+  SDIV_PRED,
+  UDIV_PRED,
+  SMIN_PRED,
+  UMIN_PRED,
+  SMAX_PRED,
+  UMAX_PRED,
+  SHL_PRED,
+  SRL_PRED,
+  SRA_PRED,
+  SETCC_PRED,
+
   // Arithmetic instructions which write flags.
   ADDS,
   SUBS,
@@ -120,6 +132,10 @@ enum NodeType : unsigned {
   SQSHLU_I,
   SRSHR_I,
   URSHR_I,
+
+  // Vector shift by constant and insert
+  VSLI,
+  VSRI,
 
   // Vector comparisons
   CMEQ,
@@ -196,8 +212,10 @@ enum NodeType : unsigned {
   UMULL,
 
   // Reciprocal estimates and steps.
-  FRECPE, FRECPS,
-  FRSQRTE, FRSQRTS,
+  FRECPE,
+  FRECPS,
+  FRSQRTE,
+  FRSQRTS,
 
   SUNPKHI,
   SUNPKLO,
@@ -211,6 +229,14 @@ enum NodeType : unsigned {
   REV,
   TBL,
 
+  // Floating-point reductions.
+  FADDA_PRED,
+  FADDV_PRED,
+  FMAXV_PRED,
+  FMAXNMV_PRED,
+  FMINV_PRED,
+  FMINNMV_PRED,
+
   INSR,
   PTEST,
   PTRUE,
@@ -220,10 +246,19 @@ enum NodeType : unsigned {
 
   REINTERPRET_CAST,
 
+  LD1,
+  LD1S,
   LDNF1,
   LDNF1S,
   LDFF1,
   LDFF1S,
+  LD1RQ,
+  LD1RO,
+
+  // Structured loads.
+  SVE_LD2,
+  SVE_LD3,
+  SVE_LD4,
 
   // Unsigned gather loads.
   GLD1,
@@ -265,6 +300,8 @@ enum NodeType : unsigned {
   GLDNT1,
   GLDNT1_INDEX,
   GLDNT1S,
+
+  ST1,
 
   // Scatter store
   SST1,
@@ -376,9 +413,10 @@ public:
       MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
       bool *Fast = nullptr) const override;
   /// LLT variant.
-  bool allowsMisalignedMemoryAccesses(
-    LLT Ty, unsigned AddrSpace, unsigned Align, MachineMemOperand::Flags Flags,
-    bool *Fast = nullptr) const override;
+  bool allowsMisalignedMemoryAccesses(LLT Ty, unsigned AddrSpace,
+                                      Align Alignment,
+                                      MachineMemOperand::Flags Flags,
+                                      bool *Fast = nullptr) const override;
 
   /// Provide custom lowering hooks for some operations.
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
@@ -542,7 +580,7 @@ public:
 
   /// If a physical register, this returns the register that receives the
   /// exception address on entry to an EH pad.
-  unsigned
+  Register
   getExceptionPointerRegister(const Constant *PersonalityFn) const override {
     // FIXME: This is a guess. Has this been defined yet?
     return AArch64::X0;
@@ -550,7 +588,7 @@ public:
 
   /// If a physical register, this returns the register that receives the
   /// exception typeid on entry to a landing pad.
-  unsigned
+  Register
   getExceptionSelectorRegister(const Constant *PersonalityFn) const override {
     // FIXME: This is a guess. Has this been defined yet?
     return AArch64::X1;
@@ -664,6 +702,9 @@ public:
                                                  bool isVarArg) const override;
   /// Used for exception handling on Win64.
   bool needsFixedCatchObjects() const override;
+
+  bool fallBackToDAGISel(const Instruction &Inst) const override;
+
 private:
   /// Keep a pointer to the AArch64Subtarget around so that we can
   /// make the right decision when generating code for different targets.
@@ -776,6 +817,8 @@ private:
   SDValue LowerVECTOR_SHUFFLE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSPLAT_VECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerDUPQLane(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerToPredicatedOp(SDValue Op, SelectionDAG &DAG,
+                              unsigned NewOp) const;
   SDValue LowerEXTRACT_SUBVECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVectorSRA_SRL_SHL(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerShiftLeftParts(SDValue Op, SelectionDAG &DAG) const;
@@ -801,6 +844,8 @@ private:
   SDValue LowerWindowsDYNAMIC_STACKALLOC(SDValue Op, SDValue Chain,
                                          SDValue &Size,
                                          SelectionDAG &DAG) const;
+  SDValue LowerSVEStructLoad(unsigned Intrinsic, ArrayRef<SDValue> LoadOps,
+                             EVT VT, SelectionDAG &DAG, const SDLoc &DL) const;
 
   SDValue BuildSDIVPow2(SDNode *N, const APInt &Divisor, SelectionDAG &DAG,
                         SmallVectorImpl<SDNode *> &Created) const override;
@@ -855,6 +900,9 @@ private:
 
   void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
                           SelectionDAG &DAG) const override;
+  void ReplaceExtractSubVectorResults(SDNode *N,
+                                      SmallVectorImpl<SDValue> &Results,
+                                      SelectionDAG &DAG) const;
 
   bool shouldNormalizeToSelectSequence(LLVMContext &, EVT) const override;
 
@@ -862,6 +910,9 @@ private:
 
   bool shouldLocalize(const MachineInstr &MI,
                       const TargetTransformInfo *TTI) const override;
+
+  bool useSVEForFixedLengthVectors() const;
+  bool useSVEForFixedLengthVectorVT(MVT VT) const;
 };
 
 namespace AArch64 {

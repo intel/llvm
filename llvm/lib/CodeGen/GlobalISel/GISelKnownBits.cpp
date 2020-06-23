@@ -31,36 +31,25 @@ GISelKnownBits::GISelKnownBits(MachineFunction &MF, unsigned MaxDepth)
     : MF(MF), MRI(MF.getRegInfo()), TL(*MF.getSubtarget().getTargetLowering()),
       DL(MF.getFunction().getParent()->getDataLayout()), MaxDepth(MaxDepth) {}
 
-Align GISelKnownBits::inferAlignmentForFrameIdx(int FrameIdx, int Offset,
-                                                const MachineFunction &MF) {
-  const MachineFrameInfo &MFI = MF.getFrameInfo();
-  return commonAlignment(Align(MFI.getObjectAlignment(FrameIdx)), Offset);
-  // TODO: How to handle cases with Base + Offset?
-}
-
-MaybeAlign GISelKnownBits::inferPtrAlignment(const MachineInstr &MI) {
-  if (MI.getOpcode() == TargetOpcode::G_FRAME_INDEX) {
-    int FrameIdx = MI.getOperand(1).getIndex();
-    return inferAlignmentForFrameIdx(FrameIdx, 0, *MI.getMF());
+Align GISelKnownBits::computeKnownAlignment(Register R, unsigned Depth) {
+  const MachineInstr *MI = MRI.getVRegDef(R);
+  switch (MI->getOpcode()) {
+  case TargetOpcode::COPY:
+    return computeKnownAlignment(MI->getOperand(1).getReg(), Depth);
+  case TargetOpcode::G_FRAME_INDEX: {
+    int FrameIdx = MI->getOperand(1).getIndex();
+    return MF.getFrameInfo().getObjectAlign(FrameIdx);
   }
-  return None;
-}
-
-void GISelKnownBits::computeKnownBitsForFrameIndex(Register R, KnownBits &Known,
-                                                   const APInt &DemandedElts,
-                                                   unsigned Depth) {
-  const MachineInstr &MI = *MRI.getVRegDef(R);
-  computeKnownBitsForAlignment(Known, inferPtrAlignment(MI));
-}
-
-void GISelKnownBits::computeKnownBitsForAlignment(KnownBits &Known,
-                                                  MaybeAlign Alignment) {
-  if (Alignment)
-    // The low bits are known zero if the pointer is aligned.
-    Known.Zero.setLowBits(Log2(Alignment));
+  case TargetOpcode::G_INTRINSIC:
+  case TargetOpcode::G_INTRINSIC_W_SIDE_EFFECTS:
+  default:
+    return TL.computeKnownAlignForTargetInstr(*this, R, MRI, Depth + 1);
+  }
 }
 
 KnownBits GISelKnownBits::getKnownBits(MachineInstr &MI) {
+  assert(MI.getNumExplicitDefs() == 1 &&
+         "expected single return generic instruction");
   return getKnownBits(MI.getOperand(0).getReg());
 }
 
@@ -215,7 +204,8 @@ void GISelKnownBits::computeKnownBitsImpl(Register R, KnownBits &Known,
     break;
   }
   case TargetOpcode::G_FRAME_INDEX: {
-    computeKnownBitsForFrameIndex(R, Known, DemandedElts);
+    int FrameIdx = MI.getOperand(1).getIndex();
+    TL.computeKnownBitsForFrameIndex(FrameIdx, Known, MF);
     break;
   }
   case TargetOpcode::G_SUB: {
@@ -233,11 +223,7 @@ void GISelKnownBits::computeKnownBitsImpl(Register R, KnownBits &Known,
     computeKnownBitsImpl(MI.getOperand(1).getReg(), Known2, DemandedElts,
                          Depth + 1);
 
-    // Output known-0 bits are known if clear or set in both the LHS & RHS.
-    APInt KnownZeroOut = (Known.Zero & Known2.Zero) | (Known.One & Known2.One);
-    // Output known-1 are known to be set if set in only one of the LHS, RHS.
-    Known.One = (Known.Zero & Known2.One) | (Known.One & Known2.Zero);
-    Known.Zero = KnownZeroOut;
+    Known ^= Known2;
     break;
   }
   case TargetOpcode::G_PTR_ADD: {
@@ -263,10 +249,7 @@ void GISelKnownBits::computeKnownBitsImpl(Register R, KnownBits &Known,
     computeKnownBitsImpl(MI.getOperand(1).getReg(), Known2, DemandedElts,
                          Depth + 1);
 
-    // Output known-1 bits are only known if set in both the LHS & RHS.
-    Known.One &= Known2.One;
-    // Output known-0 are known to be clear if zero in either the LHS | RHS.
-    Known.Zero |= Known2.Zero;
+    Known &= Known2;
     break;
   }
   case TargetOpcode::G_OR: {
@@ -276,10 +259,7 @@ void GISelKnownBits::computeKnownBitsImpl(Register R, KnownBits &Known,
     computeKnownBitsImpl(MI.getOperand(1).getReg(), Known2, DemandedElts,
                          Depth + 1);
 
-    // Output known-0 bits are only known if clear in both the LHS & RHS.
-    Known.Zero &= Known2.Zero;
-    // Output known-1 are known to be set if set in either the LHS | RHS.
-    Known.One |= Known2.One;
+    Known |= Known2;
     break;
   }
   case TargetOpcode::G_MUL: {

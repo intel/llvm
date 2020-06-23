@@ -11,7 +11,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/ADT/TypeSwitch.h"
 #include "mlir/Analysis/AffineAnalysis.h"
 #include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Analysis/Utils.h"
@@ -19,6 +18,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/Pass/Pass.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "memref-bound-check"
@@ -28,7 +28,8 @@ using namespace mlir;
 namespace {
 
 /// Checks for out of bound memef access subscripts..
-struct TestMemRefBoundCheck : public FunctionPass<TestMemRefBoundCheck> {
+struct TestMemRefBoundCheck
+    : public PassWrapper<TestMemRefBoundCheck, FunctionPass> {
   void runOnFunction() override;
 };
 
@@ -36,8 +37,9 @@ struct TestMemRefBoundCheck : public FunctionPass<TestMemRefBoundCheck> {
 
 void TestMemRefBoundCheck::runOnFunction() {
   getFunction().walk([](Operation *opInst) {
-    TypeSwitch<Operation *>(opInst).Case<AffineLoadOp, AffineStoreOp>(
-        [](auto op) { boundCheckLoadOrStoreOp(op); });
+    TypeSwitch<Operation *>(opInst)
+        .Case<AffineReadOpInterface, AffineWriteOpInterface>(
+            [](auto op) { boundCheckLoadOrStoreOp(op); });
 
     // TODO(bondhugula): do this for DMA ops as well.
   });

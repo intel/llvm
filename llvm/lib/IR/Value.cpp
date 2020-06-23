@@ -128,8 +128,10 @@ void Value::deleteValue() {
 
 void Value::destroyValueName() {
   ValueName *Name = getValueName();
-  if (Name)
-    Name->Destroy();
+  if (Name) {
+    MallocAllocator Allocator;
+    Name->Destroy(Allocator);
+  }
   setValueName(nullptr);
 }
 
@@ -312,7 +314,8 @@ void Value::setNameImpl(const Twine &NewName) {
     destroyValueName();
 
     // Create the new name.
-    setValueName(ValueName::Create(NameRef));
+    MallocAllocator Allocator;
+    setValueName(ValueName::Create(NameRef, Allocator));
     getValueName()->setValue(this);
     return;
   }
@@ -512,8 +515,12 @@ enum PointerStripKind {
   PSK_InBounds
 };
 
+template <PointerStripKind StripKind> static void NoopCallback(const Value *) {}
+
 template <PointerStripKind StripKind>
-static const Value *stripPointerCastsAndOffsets(const Value *V) {
+static const Value *stripPointerCastsAndOffsets(
+    const Value *V,
+    function_ref<void(const Value *)> Func = NoopCallback<StripKind>) {
   if (!V->getType()->isPointerTy())
     return V;
 
@@ -523,6 +530,7 @@ static const Value *stripPointerCastsAndOffsets(const Value *V) {
 
   Visited.insert(V);
   do {
+    Func(V);
     if (auto *GEP = dyn_cast<GEPOperator>(V)) {
       switch (StripKind) {
       case PSK_ZeroIndices:
@@ -596,9 +604,9 @@ const Value *Value::stripPointerCastsAndInvariantGroups() const {
   return stripPointerCastsAndOffsets<PSK_ZeroIndicesAndInvariantGroups>(this);
 }
 
-const Value *
-Value::stripAndAccumulateConstantOffsets(const DataLayout &DL, APInt &Offset,
-                                         bool AllowNonInbounds) const {
+const Value *Value::stripAndAccumulateConstantOffsets(
+    const DataLayout &DL, APInt &Offset, bool AllowNonInbounds,
+    function_ref<bool(Value &, APInt &)> ExternalAnalysis) const {
   if (!getType()->isPtrOrPtrVectorTy())
     return this;
 
@@ -624,7 +632,7 @@ Value::stripAndAccumulateConstantOffsets(const DataLayout &DL, APInt &Offset,
       // of GEP's pointer type rather than the size of the original
       // pointer type.
       APInt GEPOffset(DL.getIndexTypeSizeInBits(V->getType()), 0);
-      if (!GEP->accumulateConstantOffset(DL, GEPOffset))
+      if (!GEP->accumulateConstantOffset(DL, GEPOffset, ExternalAnalysis))
         return V;
 
       // Stop traversal if the pointer offset wouldn't fit in the bit-width
@@ -633,7 +641,20 @@ Value::stripAndAccumulateConstantOffsets(const DataLayout &DL, APInt &Offset,
       if (GEPOffset.getMinSignedBits() > BitWidth)
         return V;
 
-      Offset += GEPOffset.sextOrTrunc(BitWidth);
+      // External Analysis can return a result higher/lower than the value
+      // represents. We need to detect overflow/underflow.
+      APInt GEPOffsetST = GEPOffset.sextOrTrunc(BitWidth);
+      if (!ExternalAnalysis) {
+        Offset += GEPOffsetST;
+      } else {
+        bool Overflow = false;
+        APInt OldOffset = Offset;
+        Offset = Offset.sadd_ov(GEPOffsetST, Overflow);
+        if (Overflow) {
+          Offset = OldOffset;
+          return V;
+        }
+      }
       V = GEP->getPointerOperand();
     } else if (Operator::getOpcode(V) == Instruction::BitCast ||
                Operator::getOpcode(V) == Instruction::AddrSpaceCast) {
@@ -651,8 +672,9 @@ Value::stripAndAccumulateConstantOffsets(const DataLayout &DL, APInt &Offset,
   return V;
 }
 
-const Value *Value::stripInBoundsOffsets() const {
-  return stripPointerCastsAndOffsets<PSK_InBounds>(this);
+const Value *
+Value::stripInBoundsOffsets(function_ref<void(const Value *)> Func) const {
+  return stripPointerCastsAndOffsets<PSK_InBounds>(this, Func);
 }
 
 uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
@@ -722,16 +744,16 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
   return DerefBytes;
 }
 
-MaybeAlign Value::getPointerAlignment(const DataLayout &DL) const {
+Align Value::getPointerAlignment(const DataLayout &DL) const {
   assert(getType()->isPointerTy() && "must be pointer");
   if (auto *GO = dyn_cast<GlobalObject>(this)) {
     if (isa<Function>(GO)) {
-      const MaybeAlign FunctionPtrAlign = DL.getFunctionPtrAlign();
+      Align FunctionPtrAlign = DL.getFunctionPtrAlign().valueOrOne();
       switch (DL.getFunctionPtrAlignType()) {
       case DataLayout::FunctionPtrAlignType::Independent:
         return FunctionPtrAlign;
       case DataLayout::FunctionPtrAlignType::MultipleOfFunctionAlign:
-        return std::max(FunctionPtrAlign, MaybeAlign(GO->getAlignment()));
+        return std::max(FunctionPtrAlign, GO->getAlign().valueOrOne());
       }
       llvm_unreachable("Unhandled FunctionPtrAlignType");
     }
@@ -744,40 +766,33 @@ MaybeAlign Value::getPointerAlignment(const DataLayout &DL) const {
           // it the preferred alignment. Otherwise, we have to assume that it
           // may only have the minimum ABI alignment.
           if (GVar->isStrongDefinitionForLinker())
-            return MaybeAlign(DL.getPreferredAlignment(GVar));
+            return Align(DL.getPreferredAlignment(GVar));
           else
-            return Align(DL.getABITypeAlignment(ObjectType));
+            return DL.getABITypeAlign(ObjectType);
         }
       }
     }
-    return Alignment;
+    return Alignment.valueOrOne();
   } else if (const Argument *A = dyn_cast<Argument>(this)) {
-    const MaybeAlign Alignment(A->getParamAlignment());
+    const MaybeAlign Alignment = A->getParamAlign();
     if (!Alignment && A->hasStructRetAttr()) {
       // An sret parameter has at least the ABI alignment of the return type.
       Type *EltTy = cast<PointerType>(A->getType())->getElementType();
       if (EltTy->isSized())
-        return Align(DL.getABITypeAlignment(EltTy));
+        return DL.getABITypeAlign(EltTy);
     }
-    return Alignment;
+    return Alignment.valueOrOne();
   } else if (const AllocaInst *AI = dyn_cast<AllocaInst>(this)) {
-    const MaybeAlign Alignment(AI->getAlignment());
-    if (!Alignment) {
-      Type *AllocatedType = AI->getAllocatedType();
-      if (AllocatedType->isSized())
-        return MaybeAlign(DL.getPrefTypeAlignment(AllocatedType));
-    }
-    return Alignment;
+    return AI->getAlign();
   } else if (const auto *Call = dyn_cast<CallBase>(this)) {
-    const MaybeAlign Alignment(Call->getRetAlignment());
+    MaybeAlign Alignment = Call->getRetAlign();
     if (!Alignment && Call->getCalledFunction())
-      return MaybeAlign(
-          Call->getCalledFunction()->getAttributes().getRetAlignment());
-    return Alignment;
+      Alignment = Call->getCalledFunction()->getAttributes().getRetAlignment();
+    return Alignment.valueOrOne();
   } else if (const LoadInst *LI = dyn_cast<LoadInst>(this)) {
     if (MDNode *MD = LI->getMetadata(LLVMContext::MD_align)) {
       ConstantInt *CI = mdconst::extract<ConstantInt>(MD->getOperand(0));
-      return MaybeAlign(CI->getLimitedValue());
+      return Align(CI->getLimitedValue());
     }
   } else if (auto *CstPtr = dyn_cast<Constant>(this)) {
     if (auto *CstInt = dyn_cast_or_null<ConstantInt>(ConstantExpr::getPtrToInt(
@@ -791,7 +806,7 @@ MaybeAlign Value::getPointerAlignment(const DataLayout &DL) const {
                        : Value::MaximumAlignment);
     }
   }
-  return llvm::None;
+  return Align(1);
 }
 
 const Value *Value::DoPHITranslation(const BasicBlock *CurBB,
@@ -815,12 +830,12 @@ void Value::reverseUseList() {
   while (Current) {
     Use *Next = Current->Next;
     Current->Next = Head;
-    Head->setPrev(&Current->Next);
+    Head->Prev = &Current->Next;
     Head = Current;
     Current = Next;
   }
   UseList = Head;
-  Head->setPrev(&UseList);
+  Head->Prev = &UseList;
 }
 
 bool Value::isSwiftError() const {

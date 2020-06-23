@@ -63,9 +63,9 @@ struct ParsedAttrInfo {
   /// The syntaxes supported by this attribute and how they're spelled.
   struct Spelling {
     AttributeCommonInfo::Syntax Syntax;
-    std::string NormalizedFullName;
+    const char *NormalizedFullName;
   };
-  std::vector<Spelling> Spellings;
+  ArrayRef<Spelling> Spellings;
 
   ParsedAttrInfo(AttributeCommonInfo::Kind AttrKind =
                      AttributeCommonInfo::NoSemaHandlerAttribute)
@@ -606,30 +606,16 @@ public:
       return LangAS::opencl_constant;
     case ParsedAttr::AT_OpenCLGlobalAddressSpace:
       return LangAS::opencl_global;
+    case ParsedAttr::AT_OpenCLGlobalDeviceAddressSpace:
+      return LangAS::opencl_global_device;
+    case ParsedAttr::AT_OpenCLGlobalHostAddressSpace:
+      return LangAS::opencl_global_host;
     case ParsedAttr::AT_OpenCLLocalAddressSpace:
       return LangAS::opencl_local;
     case ParsedAttr::AT_OpenCLPrivateAddressSpace:
       return LangAS::opencl_private;
     case ParsedAttr::AT_OpenCLGenericAddressSpace:
       return LangAS::opencl_generic;
-    default:
-      return LangAS::Default;
-    }
-  }
-
-  /// If this is an OpenCL addr space attribute returns its SYCL representation
-  /// in LangAS, otherwise returns default addr space.
-  LangAS asSYCLLangAS() const {
-    switch (getKind()) {
-    case ParsedAttr::AT_OpenCLConstantAddressSpace:
-      return LangAS::sycl_constant;
-    case ParsedAttr::AT_OpenCLGlobalAddressSpace:
-      return LangAS::sycl_global;
-    case ParsedAttr::AT_OpenCLLocalAddressSpace:
-      return LangAS::sycl_local;
-    case ParsedAttr::AT_OpenCLPrivateAddressSpace:
-      return LangAS::sycl_private;
-    case ParsedAttr::AT_OpenCLGenericAddressSpace:
     default:
       return LangAS::Default;
     }

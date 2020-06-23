@@ -16,7 +16,6 @@
 
 #include "LocalAccessorToSharedMemory.h"
 #include "../MCTargetDesc/NVPTXBaseInfo.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
@@ -120,7 +119,7 @@ public:
         /* ThreadLocalMode= */ GlobalValue::NotThreadLocal,
         /* AddressSpace= */ ADDRESS_SPACE_SHARED,
         /* IsExternallyInitialized= */ false);
-    SharedMemGlobal->setAlignment(4);
+    SharedMemGlobal->setAlignment(Align(4));
 
     FunctionType *FTy = F->getFunctionType();
     const AttributeList &FAttrs = F->getAttributes();

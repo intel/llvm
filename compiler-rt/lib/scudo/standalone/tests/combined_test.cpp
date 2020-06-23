@@ -115,7 +115,44 @@ template <class Config> static void testAllocator() {
       void *P = Allocator->allocate(Size, Origin, 1U << MinAlignLog, true);
       EXPECT_NE(P, nullptr);
       for (scudo::uptr I = 0; I < Size; I++)
-        EXPECT_EQ((reinterpret_cast<char *>(P))[I], 0);
+        ASSERT_EQ((reinterpret_cast<char *>(P))[I], 0);
+      memset(P, 0xaa, Size);
+      Allocator->deallocate(P, Origin, Size);
+    }
+  }
+  Allocator->releaseToOS();
+
+  // Ensure that specifying ZeroContents returns a zero'd out block.
+  Allocator->setFillContents(scudo::ZeroFill);
+  for (scudo::uptr SizeLog = 0U; SizeLog <= 20U; SizeLog++) {
+    for (scudo::uptr Delta = 0U; Delta <= 4U; Delta++) {
+      const scudo::uptr Size = (1U << SizeLog) + Delta * 128U;
+      void *P = Allocator->allocate(Size, Origin, 1U << MinAlignLog, false);
+      EXPECT_NE(P, nullptr);
+      for (scudo::uptr I = 0; I < Size; I++)
+        ASSERT_EQ((reinterpret_cast<char *>(P))[I], 0);
+      memset(P, 0xaa, Size);
+      Allocator->deallocate(P, Origin, Size);
+    }
+  }
+  Allocator->releaseToOS();
+
+  // Ensure that specifying PatternOrZeroFill returns a pattern-filled block in
+  // the primary allocator, and either pattern or zero filled block in the
+  // secondary.
+  Allocator->setFillContents(scudo::PatternOrZeroFill);
+  for (scudo::uptr SizeLog = 0U; SizeLog <= 20U; SizeLog++) {
+    for (scudo::uptr Delta = 0U; Delta <= 4U; Delta++) {
+      const scudo::uptr Size = (1U << SizeLog) + Delta * 128U;
+      void *P = Allocator->allocate(Size, Origin, 1U << MinAlignLog, false);
+      EXPECT_NE(P, nullptr);
+      for (scudo::uptr I = 0; I < Size; I++) {
+        unsigned char V = (reinterpret_cast<unsigned char *>(P))[I];
+        if (AllocatorT::PrimaryT::canAllocate(Size))
+          ASSERT_EQ(V, scudo::PatternFillByte);
+        else
+          ASSERT_TRUE(V == scudo::PatternFillByte || V == 0);
+      }
       memset(P, 0xaa, Size);
       Allocator->deallocate(P, Origin, Size);
     }
@@ -348,14 +385,14 @@ struct DeathSizeClassConfig {
   static const scudo::uptr NumBits = 1;
   static const scudo::uptr MinSizeLog = 10;
   static const scudo::uptr MidSizeLog = 10;
-  static const scudo::uptr MaxSizeLog = 11;
+  static const scudo::uptr MaxSizeLog = 13;
   static const scudo::u32 MaxNumCachedHint = 4;
   static const scudo::uptr MaxBytesCachedLog = 12;
 };
 
 static const scudo::uptr DeathRegionSizeLog = 20U;
 struct DeathConfig {
-  // Tiny allocator, its Primary only serves chunks of two sizes.
+  // Tiny allocator, its Primary only serves chunks of four sizes.
   using DeathSizeClassMap = scudo::FixedSizeClassMap<DeathSizeClassConfig>;
   typedef scudo::SizeClassAllocator64<DeathSizeClassMap, DeathRegionSizeLog>
       Primary;
@@ -435,7 +472,10 @@ TEST(ScudoCombinedTest, FullRegion) {
        ClassId <= DeathConfig::DeathSizeClassMap::LargestClassId; ClassId++) {
     const scudo::uptr Size =
         DeathConfig::DeathSizeClassMap::getSizeByClassId(ClassId);
-    const scudo::uptr MaxNumberOfChunks = (1U << DeathRegionSizeLog) / Size;
+    // Allocate enough to fill all of the regions above this one.
+    const scudo::uptr MaxNumberOfChunks =
+        ((1U << DeathRegionSizeLog) / Size) *
+        (DeathConfig::DeathSizeClassMap::LargestClassId - ClassId + 1);
     void *P;
     for (scudo::uptr I = 0; I <= MaxNumberOfChunks; I++) {
       P = Allocator->allocate(Size - 64U, Origin);
@@ -444,10 +484,10 @@ TEST(ScudoCombinedTest, FullRegion) {
       else
         V.push_back(P);
     }
-  }
-  while (!V.empty()) {
-    Allocator->deallocate(V.back(), Origin);
-    V.pop_back();
+    while (!V.empty()) {
+      Allocator->deallocate(V.back(), Origin);
+      V.pop_back();
+    }
   }
   EXPECT_EQ(FailedAllocationsCount, 0U);
 }

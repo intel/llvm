@@ -283,18 +283,19 @@ public:
   /// Creating this name is expensive, so it should be called only when
   /// performance doesn't matter.
   void printQualifiedName(raw_ostream &OS) const;
-  void printQualifiedName(raw_ostream &OS, const PrintingPolicy &Policy) const;
+  void printQualifiedName(raw_ostream &OS, const PrintingPolicy &Policy,
+                          bool WithGlobalNsPrefix = false) const;
 
   /// Print only the nested name specifier part of a fully-qualified name,
   /// including the '::' at the end. E.g.
   ///    when `printQualifiedName(D)` prints "A::B::i",
   ///    this function prints "A::B::".
   void printNestedNameSpecifier(raw_ostream &OS) const;
-  void printNestedNameSpecifier(raw_ostream &OS,
-                                const PrintingPolicy &Policy) const;
+  void printNestedNameSpecifier(raw_ostream &OS, const PrintingPolicy &Policy,
+                                bool WithGlobalNsPrefix = false) const;
 
   // FIXME: Remove string version.
-  std::string getQualifiedNameAsString() const;
+  std::string getQualifiedNameAsString(bool WithGlobalNsPrefix = false) const;
 
   /// Appends a human-readable name for this declaration into the given stream.
   ///
@@ -2030,7 +2031,7 @@ public:
   /// declaration to the declaration that is a definition (if there is one).
   bool isDefined(const FunctionDecl *&Definition) const;
 
-  virtual bool isDefined() const {
+  bool isDefined() const {
     const FunctionDecl* Definition;
     return isDefined(Definition);
   }
@@ -2125,19 +2126,17 @@ public:
   bool isTrivialForCall() const { return FunctionDeclBits.IsTrivialForCall; }
   void setTrivialForCall(bool IT) { FunctionDeclBits.IsTrivialForCall = IT; }
 
-  /// Whether this function is defaulted per C++0x. Only valid for
-  /// special member functions.
+  /// Whether this function is defaulted. Valid for e.g.
+  /// special member functions, defaulted comparisions (not methods!).
   bool isDefaulted() const { return FunctionDeclBits.IsDefaulted; }
   void setDefaulted(bool D = true) { FunctionDeclBits.IsDefaulted = D; }
 
-  /// Whether this function is explicitly defaulted per C++0x. Only valid
-  /// for special member functions.
+  /// Whether this function is explicitly defaulted.
   bool isExplicitlyDefaulted() const {
     return FunctionDeclBits.IsExplicitlyDefaulted;
   }
 
-  /// State that this function is explicitly defaulted per C++0x. Only valid
-  /// for special member functions.
+  /// State that this function is explicitly defaulted.
   void setExplicitlyDefaulted(bool ED = true) {
     FunctionDeclBits.IsExplicitlyDefaulted = ED;
   }
@@ -2440,6 +2439,14 @@ public:
   /// may be fewer than the number of function parameters, if some of the
   /// parameters have default arguments (in C++).
   unsigned getMinRequiredArguments() const;
+
+  /// Determine whether this function has a single parameter, or multiple
+  /// parameters where all but the first have default arguments.
+  ///
+  /// This notion is used in the definition of copy/move constructors and
+  /// initializer list constructors. Note that, unlike getMinRequiredArguments,
+  /// parameter packs are not treated specially here.
+  bool hasOneParamOrDefaultArgs() const;
 
   /// Find the source location information for how the type of this function
   /// was written. May be absent (for example if the function was declared via
@@ -2920,12 +2927,15 @@ public:
 
   /// Returns the parent of this field declaration, which
   /// is the struct in which this field is defined.
+  ///
+  /// Returns null if this is not a normal class/struct field declaration, e.g.
+  /// ObjCAtDefsFieldDecl, ObjCIvarDecl.
   const RecordDecl *getParent() const {
-    return cast<RecordDecl>(getDeclContext());
+    return dyn_cast<RecordDecl>(getDeclContext());
   }
 
   RecordDecl *getParent() {
-    return cast<RecordDecl>(getDeclContext());
+    return dyn_cast<RecordDecl>(getDeclContext());
   }
 
   SourceRange getSourceRange() const override LLVM_READONLY;
@@ -3961,6 +3971,11 @@ public:
     return cast_or_null<RecordDecl>(TagDecl::getDefinition());
   }
 
+  /// Returns whether this record is a union, or contains (at any nesting level)
+  /// a union member. This is used by CMSE to warn about possible information
+  /// leaks.
+  bool isOrContainsUnion() const;
+
   // Iterator access to field members. The field iterator only visits
   // the non-static data members of this class, ignoring any static
   // data members, functions, constructors, destructors, etc.
@@ -4540,6 +4555,13 @@ inline bool IsEnumDeclComplete(EnumDecl *ED) {
 /// Type.h and Decl.h.
 inline bool IsEnumDeclScoped(EnumDecl *ED) {
   return ED->isScoped();
+}
+
+/// OpenMP variants are mangled early based on their OpenMP context selector.
+/// The new name looks likes this:
+///  <name> + OpenMPVariantManglingSeparatorStr + <mangled OpenMP context>
+static constexpr StringRef getOpenMPVariantManglingSeparatorStr() {
+  return "$ompvariant";
 }
 
 } // namespace clang

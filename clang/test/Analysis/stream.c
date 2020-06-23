@@ -1,26 +1,6 @@
 // RUN: %clang_analyze_cc1 -analyzer-checker=alpha.unix.Stream -analyzer-store region -verify %s
 
-typedef __typeof__(sizeof(int)) size_t;
-typedef __typeof__(sizeof(int)) fpos_t;
-typedef struct _IO_FILE FILE;
-#define SEEK_SET  0  /* Seek from beginning of file.  */
-#define SEEK_CUR  1  /* Seek from current position.  */
-#define SEEK_END  2  /* Seek from end of file.  */
-extern FILE *fopen(const char *path, const char *mode);
-extern FILE *tmpfile(void);
-extern int fclose(FILE *fp);
-extern size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
-extern size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
-extern int fseek (FILE *__stream, long int __off, int __whence);
-extern long int ftell (FILE *__stream);
-extern void rewind (FILE *__stream);
-extern int fgetpos(FILE *stream, fpos_t *pos);
-extern int fsetpos(FILE *stream, const fpos_t *pos);
-extern void clearerr(FILE *stream);
-extern int feof(FILE *stream);
-extern int ferror(FILE *stream);
-extern int fileno(FILE *stream);
-extern FILE *freopen(const char *pathname, const char *mode, FILE *stream);
+#include "Inputs/system-header-simulator.h"
 
 void check_fread() {
   FILE *fp = tmpfile();
@@ -212,4 +192,51 @@ void check_freopen_3() {
     rewind(f1); // expected-warning {{Stream might be invalid}}
     fclose(f1);
   }
+}
+
+extern FILE *GlobalF;
+extern void takeFile(FILE *);
+
+void check_escape1() {
+  FILE *F = tmpfile();
+  if (!F)
+    return;
+  fwrite("1", 1, 1, F); // may fail
+  GlobalF = F;
+  fwrite("1", 1, 1, F); // no warning
+}
+
+void check_escape2() {
+  FILE *F = tmpfile();
+  if (!F)
+    return;
+  fwrite("1", 1, 1, F); // may fail
+  takeFile(F);
+  fwrite("1", 1, 1, F); // no warning
+}
+
+void check_escape3() {
+  FILE *F = tmpfile();
+  if (!F)
+    return;
+  takeFile(F);
+  F = freopen(0, "w", F);
+  if (!F)
+    return;
+  fwrite("1", 1, 1, F); // may fail
+  fwrite("1", 1, 1, F); // no warning
+}
+
+void check_escape4() {
+  FILE *F = tmpfile();
+  if (!F)
+    return;
+  fwrite("1", 1, 1, F); // may fail
+
+  // no escape at (non-StreamChecker-handled) system call
+  // FIXME: all such calls should be handled by the checker
+  fprintf(F, "0");
+
+  fwrite("1", 1, 1, F); // expected-warning {{might be 'indeterminate'}}
+  fclose(F);
 }

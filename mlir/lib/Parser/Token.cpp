@@ -37,7 +37,7 @@ Optional<unsigned> Token::getUnsignedIntegerValue() const {
 
 /// For an integer token, return its value as a uint64_t.  If it doesn't fit,
 /// return None.
-Optional<uint64_t> Token::getUInt64IntegerValue() const {
+Optional<uint64_t> Token::getUInt64IntegerValue(StringRef spelling) {
   bool isHex = spelling.size() > 1 && spelling[1] == 'x';
 
   uint64_t result = 0;
@@ -122,6 +122,18 @@ std::string Token::getStringValue() const {
   }
 
   return result;
+}
+
+/// Given a token containing a symbol reference, return the unescaped string
+/// value.
+std::string Token::getSymbolReference() const {
+  assert(is(Token::at_identifier) && "expected valid @-identifier");
+  StringRef nameStr = getSpelling().drop_front();
+
+  // Check to see if the reference is a string literal, or a bare identifier.
+  if (nameStr.front() == '"')
+    return getStringValue();
+  return std::string(nameStr);
 }
 
 /// Given a hash_identifier token like #123, try to parse the number out of

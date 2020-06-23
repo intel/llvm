@@ -763,7 +763,7 @@ define <3 x i16> @v_fshr_v3i16(<3 x i16> %src0, <3 x i16> %src1, <3 x i16> %src2
 ; SI-NEXT:    v_cmp_eq_u32_e32 vcc, 0, v1
 ; SI-NEXT:    v_cndmask_b32_e32 v1, v2, v5, vcc
 ; SI-NEXT:    v_and_b32_e32 v2, v9, v1
-; SI-NEXT:    v_alignbit_b32 v1, v2, v0, 16
+; SI-NEXT:    v_alignbit_b32 v1, v1, v0, 16
 ; SI-NEXT:    s_setpc_b64 s[30:31]
 ;
 ; VI-LABEL: v_fshr_v3i16:
@@ -782,9 +782,8 @@ define <3 x i16> @v_fshr_v3i16(<3 x i16> %src0, <3 x i16> %src1, <3 x i16> %src2
 ; VI-NEXT:    v_and_b32_e32 v7, 15, v5
 ; VI-NEXT:    v_lshrrev_b16_e32 v8, v7, v3
 ; VI-NEXT:    v_sub_u16_e32 v7, 16, v7
-; VI-NEXT:    s_mov_b32 s4, 0xf000f
 ; VI-NEXT:    v_lshlrev_b16_e32 v1, v7, v1
-; VI-NEXT:    v_and_b32_e32 v5, s4, v5
+; VI-NEXT:    v_and_b32_e32 v5, 15, v5
 ; VI-NEXT:    v_or_b32_e32 v1, v1, v8
 ; VI-NEXT:    v_cmp_eq_u16_e32 vcc, 0, v5
 ; VI-NEXT:    v_cndmask_b32_e32 v1, v1, v3, vcc
@@ -792,7 +791,7 @@ define <3 x i16> @v_fshr_v3i16(<3 x i16> %src0, <3 x i16> %src1, <3 x i16> %src2
 ; VI-NEXT:    v_lshrrev_b16_e32 v5, v3, v2
 ; VI-NEXT:    v_sub_u16_e32 v3, 16, v3
 ; VI-NEXT:    v_lshlrev_b16_e32 v0, v3, v0
-; VI-NEXT:    v_and_b32_e32 v3, s4, v4
+; VI-NEXT:    v_and_b32_e32 v3, 0xf000f, v4
 ; VI-NEXT:    v_or_b32_e32 v0, v0, v5
 ; VI-NEXT:    v_cmp_eq_u16_e32 vcc, 0, v3
 ; VI-NEXT:    v_cndmask_b32_e32 v0, v0, v2, vcc

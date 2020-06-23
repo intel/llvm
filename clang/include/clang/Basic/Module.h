@@ -20,9 +20,9 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerIntPair.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
@@ -30,6 +30,7 @@
 #include <cassert>
 #include <cstdint>
 #include <ctime>
+#include <iterator>
 #include <string>
 #include <utility>
 #include <vector>
@@ -52,12 +53,33 @@ class TargetInfo;
 using ModuleId = SmallVector<std::pair<std::string, SourceLocation>, 2>;
 
 /// The signature of a module, which is a hash of the AST content.
-struct ASTFileSignature : std::array<uint32_t, 5> {
-  ASTFileSignature(std::array<uint32_t, 5> S = {{0}})
-      : std::array<uint32_t, 5>(std::move(S)) {}
+struct ASTFileSignature : std::array<uint8_t, 20> {
+  using BaseT = std::array<uint8_t, 20>;
 
-  explicit operator bool() const {
-    return *this != std::array<uint32_t, 5>({{0}});
+  static constexpr size_t size = std::tuple_size<BaseT>::value;
+
+  ASTFileSignature(BaseT S = {{0}}) : BaseT(std::move(S)) {}
+
+  explicit operator bool() const { return *this != BaseT({{0}}); }
+
+  static ASTFileSignature create(StringRef Bytes) {
+    return create(Bytes.bytes_begin(), Bytes.bytes_end());
+  }
+
+  static ASTFileSignature createDISentinel() {
+    ASTFileSignature Sentinel;
+    Sentinel.fill(0xFF);
+    return Sentinel;
+  }
+
+  template <typename InputIt>
+  static ASTFileSignature create(InputIt First, InputIt Last) {
+    assert(std::distance(First, Last) == size &&
+           "Wrong amount of bytes to create an ASTFileSignature");
+
+    ASTFileSignature Signature;
+    std::copy(First, Last, Signature.begin());
+    return Signature;
   }
 };
 
@@ -207,8 +229,10 @@ public:
   /// A module with the same name that shadows this module.
   Module *ShadowingModule = nullptr;
 
-  /// Whether this module is missing a feature from \c Requirements.
-  unsigned IsMissingRequirement : 1;
+  /// Whether this module has declared itself unimportable, either because
+  /// it's missing a requirement from \p Requirements or because it's been
+  /// shadowed by another module.
+  unsigned IsUnimportable : 1;
 
   /// Whether we tried and failed to load a module file for this module.
   unsigned HasIncompatibleModuleFile : 1;
@@ -384,6 +408,25 @@ public:
 
   ~Module();
 
+  /// Determine whether this module has been declared unimportable.
+  bool isUnimportable() const { return IsUnimportable; }
+
+  /// Determine whether this module has been declared unimportable.
+  ///
+  /// \param LangOpts The language options used for the current
+  /// translation unit.
+  ///
+  /// \param Target The target options used for the current translation unit.
+  ///
+  /// \param Req If this module is unimportable because of a missing
+  /// requirement, this parameter will be set to one of the requirements that
+  /// is not met for use of this module.
+  ///
+  /// \param ShadowingModule If this module is unimportable because it is
+  /// shadowed, this parameter will be set to the shadowing module.
+  bool isUnimportable(const LangOptions &LangOpts, const TargetInfo &Target,
+                      Requirement &Req, Module *&ShadowingModule) const;
+
   /// Determine whether this module is available for use within the
   /// current translation unit.
   bool isAvailable() const { return IsAvailable; }
@@ -535,7 +578,7 @@ public:
                       const TargetInfo &Target);
 
   /// Mark this module and all of its submodules as unavailable.
-  void markUnavailable(bool MissingRequirement = false);
+  void markUnavailable(bool Unimportable);
 
   /// Find the submodule with the given name.
   ///
@@ -662,7 +705,7 @@ class ASTSourceDescriptor {
   StringRef Path;
   StringRef ASTFile;
   ASTFileSignature Signature;
-  const Module *ClangModule = nullptr;
+  Module *ClangModule = nullptr;
 
 public:
   ASTSourceDescriptor() = default;
@@ -670,13 +713,13 @@ public:
                       ASTFileSignature Signature)
       : PCHModuleName(std::move(Name)), Path(std::move(Path)),
         ASTFile(std::move(ASTFile)), Signature(Signature) {}
-  ASTSourceDescriptor(const Module &M);
+  ASTSourceDescriptor(Module &M);
 
   std::string getModuleName() const;
   StringRef getPath() const { return Path; }
   StringRef getASTFile() const { return ASTFile; }
   ASTFileSignature getSignature() const { return Signature; }
-  const Module *getModuleOrNull() const { return ClangModule; }
+  Module *getModuleOrNull() const { return ClangModule; }
 };
 
 

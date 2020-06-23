@@ -345,7 +345,7 @@ bool ARMConstantIslands::runOnMachineFunction(MachineFunction &mf) {
 
   LLVM_DEBUG(dbgs() << "***** ARMConstantIslands: "
                     << MCP->getConstants().size() << " CP entries, aligned to "
-                    << MCP->getConstantPoolAlignment() << " bytes *****\n");
+                    << MCP->getConstantPoolAlign().value() << " bytes *****\n");
 
   STI = &static_cast<const ARMSubtarget &>(MF->getSubtarget());
   TII = STI->getInstrInfo();
@@ -483,7 +483,7 @@ ARMConstantIslands::doInitialConstPlacement(std::vector<MachineInstr*> &CPEMIs) 
   MF->push_back(BB);
 
   // MachineConstantPool measures alignment in bytes.
-  const Align MaxAlign(MCP->getConstantPoolAlignment());
+  const Align MaxAlign = MCP->getConstantPoolAlign();
   const unsigned MaxLogAlign = Log2(MaxAlign);
 
   // Mark the basic block as required by the const-pool.
@@ -507,14 +507,13 @@ ARMConstantIslands::doInitialConstPlacement(std::vector<MachineInstr*> &CPEMIs) 
   const DataLayout &TD = MF->getDataLayout();
   for (unsigned i = 0, e = CPs.size(); i != e; ++i) {
     unsigned Size = TD.getTypeAllocSize(CPs[i].getType());
-    unsigned Align = CPs[i].getAlignment();
-    assert(isPowerOf2_32(Align) && "Invalid alignment");
+    Align Alignment = CPs[i].getAlign();
     // Verify that all constant pool entries are a multiple of their alignment.
     // If not, we would have to pad them out so that instructions stay aligned.
-    assert((Size % Align) == 0 && "CP Entry not multiple of 4 bytes!");
+    assert(isAligned(Alignment, Size) && "CP Entry not multiple of 4 bytes!");
 
     // Insert CONSTPOOL_ENTRY before entries with a smaller alignment.
-    unsigned LogAlign = Log2_32(Align);
+    unsigned LogAlign = Log2(Alignment);
     MachineBasicBlock::iterator InsAt = InsPoint[LogAlign];
     MachineInstr *CPEMI =
       BuildMI(*BB, InsAt, DebugLoc(), TII->get(ARM::CONSTPOOL_ENTRY))
@@ -531,7 +530,7 @@ ARMConstantIslands::doInitialConstPlacement(std::vector<MachineInstr*> &CPEMIs) 
     CPEntries.emplace_back(1, CPEntry(CPEMI, i));
     ++NumCPEs;
     LLVM_DEBUG(dbgs() << "Moved CPI#" << i << " to end of function, size = "
-                      << Size << ", align = " << Align << '\n');
+                      << Size << ", align = " << Alignment.value() << '\n');
   }
   LLVM_DEBUG(BB->dump());
 }
@@ -657,7 +656,7 @@ Align ARMConstantIslands::getCPEAlign(const MachineInstr *CPEMI) {
 
   unsigned CPI = getCombinedIndex(CPEMI);
   assert(CPI < MCP->getConstants().size() && "Invalid constant pool index.");
-  return Align(MCP->getConstants()[CPI].getAlignment());
+  return MCP->getConstants()[CPI].getAlign();
 }
 
 /// scanFunctionJumpTables - Do a scan of the function, building up
@@ -1353,8 +1352,8 @@ void ARMConstantIslands::createNewWater(unsigned CPUserIndex,
     //   displacement.
     MachineBasicBlock::iterator I = UserMI;
     ++I;
-    for (unsigned Offset = UserOffset + TII->getInstSizeInBytes(*UserMI),
-                  PredReg = 0;
+    Register PredReg;
+    for (unsigned Offset = UserOffset + TII->getInstSizeInBytes(*UserMI);
          I->getOpcode() != ARM::t2IT &&
          getITInstrPredicate(*I, PredReg) != ARMCC::AL;
          Offset += TII->getInstSizeInBytes(*I), I = std::next(I)) {
@@ -1399,7 +1398,7 @@ void ARMConstantIslands::createNewWater(unsigned CPUserIndex,
 
   // Avoid splitting an IT block.
   if (LastIT) {
-    unsigned PredReg = 0;
+    Register PredReg;
     ARMCC::CondCodes CC = getITInstrPredicate(*MI, PredReg);
     if (CC != ARMCC::AL)
       MI = LastIT;
@@ -1423,7 +1422,7 @@ void ARMConstantIslands::createNewWater(unsigned CPUserIndex,
 
   // We really must not split an IT block.
 #ifndef NDEBUG
-  unsigned PredReg;
+  Register PredReg;
   assert(!isThumb || getITInstrPredicate(*MI, PredReg) == ARMCC::AL);
 #endif
   NewMBB = splitBlockBeforeInstr(&*MI);
@@ -1828,7 +1827,7 @@ bool ARMConstantIslands::optimizeThumb2Branches() {
     if (!Br.MI->killsRegister(ARM::CPSR))
       return false;
 
-    unsigned PredReg = 0;
+    Register PredReg;
     unsigned NewOpc = 0;
     ARMCC::CondCodes Pred = getInstrPredicate(*Br.MI, PredReg);
     if (Pred == ARMCC::EQ)
@@ -2362,6 +2361,7 @@ adjustJTTargetBlockForward(MachineBasicBlock *BB, MachineBasicBlock *JTBB) {
   SmallVector<MachineOperand, 4> CondPrior;
   MachineFunction::iterator BBi = BB->getIterator();
   MachineFunction::iterator OldPrior = std::prev(BBi);
+  MachineFunction::iterator OldNext = std::next(BBi);
 
   // If the block terminator isn't analyzable, don't try to move the block
   bool B = TII->analyzeBranch(*BB, TBB, FBB, Cond);
@@ -2372,8 +2372,8 @@ adjustJTTargetBlockForward(MachineBasicBlock *BB, MachineBasicBlock *JTBB) {
   if (!B && Cond.empty() && BB != &MF->front() &&
       !TII->analyzeBranch(*OldPrior, TBB, FBB, CondPrior)) {
     BB->moveAfter(JTBB);
-    OldPrior->updateTerminator();
-    BB->updateTerminator();
+    OldPrior->updateTerminator(BB);
+    BB->updateTerminator(OldNext != MF->end() ? &*OldNext : nullptr);
     // Update numbering to account for the block being moved.
     MF->RenumberBlocks();
     ++NumJTMoved;

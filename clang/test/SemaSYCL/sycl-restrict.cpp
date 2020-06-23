@@ -26,7 +26,7 @@ public:
   int den() const { return d; }
 };
 bool operator==(const Fraction &lhs, const Fraction &rhs) {
-  new int; // expected-error 2{{SYCL kernel cannot allocate storage}}
+  new int; // expected-error {{SYCL kernel cannot allocate storage}}
   return lhs.num() == rhs.num() && lhs.den() == rhs.den();
 }
 } // namespace Check_User_Operators
@@ -42,10 +42,9 @@ void restriction(int p) {
   // expected-note@#call_usage {{called by 'operator()'}}
   // expected-note@#call_kernelFunc {{called by 'kernel_single_task<fake_kernel, (lambda at}}
   // expected-note@#call_isa_B 2{{called by 'operator()'}}
-  // expected-note@#call_rtti_kernel {{called by 'usage'}}
   // expected-note@#rtti_kernel 2{{called by 'kernel1<kernel_name, (lambda at }}
-  // expected-note@#call_vla 2{{called by 'isa_B'}}
-  int index[p + 2]; // expected-error 2{{variable length arrays are not supported for the current target}}
+  // expected-note@#call_vla {{called by 'isa_B'}}
+  int index[p + 2]; // expected-error {{variable length arrays are not supported for the current target}}
 }
 } // namespace Check_VLA_Restriction
 
@@ -62,7 +61,7 @@ struct B : public A {
 struct OverloadedNewDelete {
   // This overload allocates storage, give diagnostic.
   void *operator new(std::size_t size) throw() {
-    float *pt = new float; // expected-error 2{{SYCL kernel cannot allocate storage}}
+    float *pt = new float; // expected-error {{SYCL kernel cannot allocate storage}}
     return 0;
   }
   // This overload does not allocate: no diagnostic.
@@ -73,14 +72,14 @@ struct OverloadedNewDelete {
 
 bool isa_B(A *a) {
   Check_User_Operators::Fraction f1(3, 8), f2(1, 2), f3(10, 2);
-  if (f1 == f2) // expected-note 2{{called by 'isa_B'}}
+  if (f1 == f2) // expected-note {{called by 'isa_B'}}
     return false;
 
   Check_VLA_Restriction::restriction(7); //#call_vla
-  int *ip = new int;                     // expected-error 2{{SYCL kernel cannot allocate storage}}
+  int *ip = new int;                     // expected-error {{SYCL kernel cannot allocate storage}}
   int i;
   int *p3 = new (&i) int;                                    // no error on placement new
-  OverloadedNewDelete *x = new (struct OverloadedNewDelete); // expected-note 2{{called by 'isa_B'}}
+  OverloadedNewDelete *x = new (struct OverloadedNewDelete); // expected-note {{called by 'isa_B'}}
   auto y = new struct OverloadedNewDelete[5];
   (void)typeid(int);                // expected-error {{SYCL kernel cannot use rtti}}
   return dynamic_cast<B *>(a) != 0; // expected-error {{SYCL kernel cannot use rtti}}
@@ -88,7 +87,7 @@ bool isa_B(A *a) {
 
 template <typename N, typename L>
 __attribute__((sycl_kernel)) void kernel1(L l) {
-  l(); //#rtti_kernel  // expected-note 6{{called by 'kernel1<kernel_name, (lambda at }}
+  l(); //#rtti_kernel  // expected-note 2{{called by 'kernel1<kernel_name, (lambda at }}
 }
 } // namespace Check_RTTI_Restriction
 
@@ -124,10 +123,12 @@ typedef __int128 tricky128Type;
 typedef long double trickyLDType;
 
 //templated return type
+// expected-note@+2 2{{'bar<__float128>' defined here}}
 template <typename T>
 T bar() { return T(); };
 
 //variable template
+// expected-note@+2 2{{solutionToEverything<__float128>' defined here}}
 template <class T>
 constexpr T solutionToEverything = T(42);
 
@@ -208,28 +209,34 @@ void usage(myFuncDef functionPtr) {
     // expected-error@+1 {{SYCL kernel cannot use a non-const global variable}}
     b.f(); // expected-error {{SYCL kernel cannot call a virtual function}}
 
-  Check_RTTI_Restriction::kernel1<class kernel_name>([]() { //#call_rtti_kernel // expected-note 3{{called by 'usage'}}
+  Check_RTTI_Restriction::kernel1<class kernel_name>([]() { //#call_rtti_kernel
     Check_RTTI_Restriction::A *a;
-    Check_RTTI_Restriction::isa_B(a); //#call_isa_B  // expected-note 6{{called by 'operator()'}}
+    Check_RTTI_Restriction::isa_B(a); //#call_isa_B  // expected-note 2{{called by 'operator()'}}
   });
 
   // ======= Float128 Not Allowed in Kernel ==========
+  // expected-note@+2 {{'malFloat' defined here}}
   // expected-error@+1 {{'__float128' is not supported on this target}}
   __float128 malFloat = 40;
   // expected-error@+1 {{'__float128' is not supported on this target}}
   trickyFloatType malFloatTrick = 41;
   // expected-error@+1 {{'__float128' is not supported on this target}}
   floatDef malFloatDef = 44;
+  // expected-error@+2 {{'malFloat' requires 128 bit size '__float128' type support, but device 'spir64' does not support it}}
   // expected-error@+1 {{'__float128' is not supported on this target}}
   auto whatFloat = malFloat;
+  // expected-error@+2 {{'bar<__float128>' requires 128 bit size '__float128' type support, but device 'spir64' does not support it}}
   // expected-error@+1 {{'__float128' is not supported on this target}}
   auto malAutoTemp5 = bar<__float128>();
+  // expected-error@+2 {{'bar<__float128>' requires 128 bit size '__float128' type support, but device 'spir64' does not support it}}
   // expected-error@+1 {{'__float128' is not supported on this target}}
   auto malAutoTemp6 = bar<trickyFloatType>();
   // expected-error@+1 {{'__float128' is not supported on this target}}
   decltype(malFloat) malDeclFloat = 42;
+  // expected-error@+2 {{'solutionToEverything<__float128>' requires 128 bit size 'const __float128' type support, but device 'spir64' does not support it}}
   // expected-error@+1 {{'__float128' is not supported on this target}}
   auto malFloatTemplateVar = solutionToEverything<__float128>;
+  // expected-error@+2 {{'solutionToEverything<__float128>' requires 128 bit size 'const __float128' type support, but device 'spir64' does not support it}}
   // expected-error@+1 {{'__float128' is not supported on this target}}
   auto malTrifectaFloat = solutionToEverything<trickyFloatType>;
   // expected-error@+1 {{'__float128' is not supported on this target}}
@@ -368,7 +375,7 @@ int use2(a_type ab, a_type *abp) {
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
-  kernelFunc(); //#call_kernelFunc // expected-note 7{{called by 'kernel_single_task<fake_kernel, (lambda at}}
+  kernelFunc(); //#call_kernelFunc // expected-note 3{{called by 'kernel_single_task<fake_kernel, (lambda at}}
 }
 
 int main() {
@@ -385,7 +392,7 @@ int main() {
   auto notACrime = &commitInfraction;
 
   kernel_single_task<class fake_kernel>([=]() {
-    usage(&addInt); //#call_usage // expected-note 5{{called by 'operator()'}}
+    usage(&addInt); //#call_usage // expected-note {{called by 'operator()'}}
     a_type *p;
     use2(ab, p); // expected-note 2{{called by 'operator()'}}
   });

@@ -38,6 +38,21 @@
 ;   }
 ; }
 ;
+; void ivdep_embedded_inner_access() {
+;   int a[10][10][10];
+;   int b[10][10][10];
+;   [[intelfpga::ivdep]]
+;   for (int i = 0; i != 10; ++i) {
+;     [[intelfpga::ivdep]]
+;     for (int j = 0; j != 10; ++j) {
+;       [[intelfpga::ivdep]]
+;       for (int k = 0; k != 10; ++k) {
+;         a[i][j][k] = b[i][j][k];
+;       }
+;     }
+;   }
+; }
+;
 ; template <typename name, typename Func>
 ; __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
 ;   kernelFunc();
@@ -47,6 +62,7 @@
 ;   kernel_single_task<class kernel_function>([]() {
 ;     ivdep_embedded_multiple_dimensions();
 ;     ivdep_mul_arrays_and_global();
+;     ivdep_embedded_inner_access();
 ;   });
 ;   return 0;
 ; }
@@ -80,6 +96,9 @@ target triple = "spir64-unknown-unknown-sycldevice"
 ; CHECK-SPIRV-DAG: Constant [[TYPE_INT_64]] [[SIZE:[0-9]+]] 10 0
 ; CHECK-SPIRV-DAG: TypeArray [[TYPE_ARRAY:[0-9]+]] [[TYPE_INT_32]] [[SIZE]]
 ; CHECK-SPIRV-DAG: TypePointer [[TYPE_PTR:[0-9]+]] {{[0-9]+}} [[TYPE_ARRAY]]
+; CHECK-SPIRV-DAG: TypeArray [[TYPE_2_DIM_ARRAY:[0-9]+]] [[TYPE_ARRAY]] [[SIZE]]
+; CHECK-SPIRV-DAG: TypeArray [[TYPE_3_DIM_ARRAY:[0-9]+]] [[TYPE_2_DIM_ARRAY]] [[SIZE]]
+; CHECK-SPIRV-DAG: TypePointer [[TYPE_3_DIM_PTR:[0-9]+]] {{[0-9]+}} [[TYPE_3_DIM_ARRAY]]
 
 ; CHECK-SPIRV: Function
 define dso_local spir_kernel void @_ZTSZ4mainE15kernel_function() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
@@ -102,6 +121,7 @@ define internal spir_func void @"_ZZ4mainENK3$_0clEv"(%"class._ZTSZ4mainE3$_0.an
   store %"class._ZTSZ4mainE3$_0.anon" addrspace(4)* %0, %"class._ZTSZ4mainE3$_0.anon" addrspace(4)** %2, align 8, !tbaa !5
   call spir_func void @_Z34ivdep_embedded_multiple_dimensionsv()
   call spir_func void @_Z27ivdep_mul_arrays_and_globalv()
+  call spir_func void @_Z27ivdep_embedded_inner_accessv()
   ret void
 }
 
@@ -134,8 +154,8 @@ define dso_local spir_func void @_Z34ivdep_embedded_multiple_dimensionsv() #3 {
   %11 = load i32, i32* %3, align 4, !tbaa !9
   %12 = icmp ne i32 %11, 10
   ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
-  ; DependencyArrayINTEL = 0x40000 (262144)
-  ; CHECK-SPIRV: LoopMerge [[MERGE_BLOCK:[0-9]+]] {{[0-9]+}} 262144 2 [[ARRAY_A]] 0 [[ARRAY_B]] 0
+  ; DependencyArrayINTEL & LoopControlDependencyInfiniteMask = 0x40000 & 0x00000004 = 262148
+  ; CHECK-SPIRV: LoopMerge [[MERGE_BLOCK:[0-9]+]] {{[0-9]+}} 262148 2 [[ARRAY_A]] 0 [[ARRAY_B]] 0
   ; CHECK-SPIRV-NEXT: BranchConditional {{[0-9]+}} {{[0-9]+}} [[MERGE_BLOCK]]
   br i1 %12, label %15, label %13
 
@@ -167,8 +187,8 @@ define dso_local spir_func void @_Z34ivdep_embedded_multiple_dimensionsv() #3 {
   %26 = load i32, i32* %5, align 4, !tbaa !9
   %27 = icmp ne i32 %26, 10
   ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
-  ; DependencyArrayINTEL = 0x40000 (262144)
-  ; CHECK-SPIRV: LoopMerge [[MERGE_BLOCK:[0-9]+]] {{[0-9]+}} 262144 2 [[ARRAY_A]] 0 [[ARRAY_B]] 0
+  ; DependencyArrayINTEL & LoopControlDependencyInfiniteMask = 0x40000 & 0x00000004 = 262148
+  ; CHECK-SPIRV: LoopMerge [[MERGE_BLOCK:[0-9]+]] {{[0-9]+}} 262148 2 [[ARRAY_A]] 0 [[ARRAY_B]] 0
   ; CHECK-SPIRV-NEXT: BranchConditional {{[0-9]+}} {{[0-9]+}} [[MERGE_BLOCK]]
   br i1 %27, label %30, label %28
 
@@ -204,8 +224,8 @@ define dso_local spir_func void @_Z34ivdep_embedded_multiple_dimensionsv() #3 {
   %45 = load i32, i32* %6, align 4, !tbaa !9
   %46 = icmp ne i32 %45, 10
   ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
-  ; DependencyArrayINTEL = 0x40000 (262144)
-  ; CHECK-SPIRV: LoopMerge [[MERGE_BLOCK:[0-9]+]] {{[0-9]+}} 262144 2 [[ARRAY_A]] 0 [[ARRAY_B]] 0
+  ; DependencyArrayINTEL & LoopControlDependencyInfiniteMask = 0x40000 & 0x00000004 = 262148
+  ; CHECK-SPIRV: LoopMerge [[MERGE_BLOCK:[0-9]+]] {{[0-9]+}} 262148 2 [[ARRAY_A]] 0 [[ARRAY_B]] 0
   ; CHECK-SPIRV-NEXT: BranchConditional {{[0-9]+}} {{[0-9]+}} [[MERGE_BLOCK]]
   br i1 %46, label %49, label %47
 
@@ -249,7 +269,7 @@ define dso_local spir_func void @_Z34ivdep_embedded_multiple_dimensionsv() #3 {
   %68 = add nsw i32 %67, 1
   store i32 %68, i32* %5, align 4, !tbaa !9
   ; CHECK-LLVM: br label %{{.*}}, !llvm.loop ![[EMB_MD_LOOP_DIM_2:[0-9]+]]
-  br label %25, !llvm.loop !23
+  br label %25, !llvm.loop !24
 
 69:                                               ; preds = %28
   br label %70
@@ -259,7 +279,7 @@ define dso_local spir_func void @_Z34ivdep_embedded_multiple_dimensionsv() #3 {
   %72 = add nsw i32 %71, 1
   store i32 %72, i32* %3, align 4, !tbaa !9
   ; CHECK-LLVM: br label %{{.*}}, !llvm.loop ![[EMB_MD_LOOP_DIM_1:[0-9]+]]
-  br label %10, !llvm.loop !25
+  br label %10, !llvm.loop !26
 
 73:                                               ; preds = %13
   %74 = bitcast [10 x i32]* %2 to i8*
@@ -302,8 +322,8 @@ define dso_local spir_func void @_Z27ivdep_mul_arrays_and_globalv() #3 {
   %12 = load i32, i32* %5, align 4, !tbaa !9
   %13 = icmp ne i32 %12, 10
   ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
-  ; DependencyArrayINTEL = 0x40000 (262144)
-  ; CHECK-SPIRV: LoopMerge [[MERGE_BLOCK:[0-9]+]] {{[0-9]+}} 262144 4 [[ARRAY_A]] 5 [[ARRAY_D]] 5 [[ARRAY_B]] 6 [[ARRAY_C]] 0
+  ; DependencyArrayINTEL & LoopControlDependencyLengthMask = 0x40000 & 0x00000008 = 262152
+  ; CHECK-SPIRV: LoopMerge [[MERGE_BLOCK:[0-9]+]] {{[0-9]+}} 262152 5 4 [[ARRAY_A]] 5 [[ARRAY_D]] 5 [[ARRAY_B]] 6 [[ARRAY_C]] 0
   ; CHECK-SPIRV-NEXT: BranchConditional {{[0-9]+}} {{[0-9]+}} [[MERGE_BLOCK]]
   br i1 %13, label %16, label %14
 
@@ -316,22 +336,22 @@ define dso_local spir_func void @_Z27ivdep_mul_arrays_and_globalv() #3 {
   %17 = load i32, i32* %5, align 4, !tbaa !9
   %18 = sext i32 %17 to i64
   ; CHECK-LLVM: getelementptr inbounds [10 x i32], [10 x i32]* %[[SIMPLE_ARRAY_A]], {{.*}}, !llvm.index.group ![[SIMPLE_A_IDX_GR:[0-9]+]]
-  %19 = getelementptr inbounds [10 x i32], [10 x i32]* %1, i64 0, i64 %18, !llvm.index.group !27
+  %19 = getelementptr inbounds [10 x i32], [10 x i32]* %1, i64 0, i64 %18, !llvm.index.group !28
   store i32 0, i32* %19, align 4, !tbaa !9
   %20 = load i32, i32* %5, align 4, !tbaa !9
   %21 = sext i32 %20 to i64
   ; CHECK-LLVM: getelementptr inbounds [10 x i32], [10 x i32]* %[[SIMPLE_ARRAY_B]], {{.*}}, !llvm.index.group ![[SIMPLE_B_IDX_GR:[0-9]+]]
-  %22 = getelementptr inbounds [10 x i32], [10 x i32]* %2, i64 0, i64 %21, !llvm.index.group !28
+  %22 = getelementptr inbounds [10 x i32], [10 x i32]* %2, i64 0, i64 %21, !llvm.index.group !29
   store i32 0, i32* %22, align 4, !tbaa !9
   %23 = load i32, i32* %5, align 4, !tbaa !9
   %24 = sext i32 %23 to i64
   ; CHECK-LLVM: getelementptr inbounds [10 x i32], [10 x i32]* %[[SIMPLE_ARRAY_C]], {{.*}}, !llvm.index.group ![[SIMPLE_C_IDX_GR:[0-9]+]]
-  %25 = getelementptr inbounds [10 x i32], [10 x i32]* %3, i64 0, i64 %24, !llvm.index.group !29
+  %25 = getelementptr inbounds [10 x i32], [10 x i32]* %3, i64 0, i64 %24, !llvm.index.group !30
   store i32 0, i32* %25, align 4, !tbaa !9
   %26 = load i32, i32* %5, align 4, !tbaa !9
   %27 = sext i32 %26 to i64
   ; CHECK-LLVM: getelementptr inbounds [10 x i32], [10 x i32]* %[[SIMPLE_ARRAY_D]], {{.*}}, !llvm.index.group ![[SIMPLE_D_IDX_GR:[0-9]+]]
-  %28 = getelementptr inbounds [10 x i32], [10 x i32]* %4, i64 0, i64 %27, !llvm.index.group !30
+  %28 = getelementptr inbounds [10 x i32], [10 x i32]* %4, i64 0, i64 %27, !llvm.index.group !31
   store i32 0, i32* %28, align 4, !tbaa !9
   br label %29
 
@@ -340,7 +360,7 @@ define dso_local spir_func void @_Z27ivdep_mul_arrays_and_globalv() #3 {
   %31 = add nsw i32 %30, 1
   store i32 %31, i32* %5, align 4, !tbaa !9
   ; CHECK-LLVM: br label %{{.*}}, !llvm.loop ![[SIMPLE_MD_LOOP:[0-9]+]]
-  br label %11, !llvm.loop !31
+  br label %11, !llvm.loop !32
 
 32:                                               ; preds = %14
   %33 = bitcast [10 x i32]* %4 to i8*
@@ -351,6 +371,144 @@ define dso_local spir_func void @_Z27ivdep_mul_arrays_and_globalv() #3 {
   call void @llvm.lifetime.end.p0i8(i64 40, i8* %35) #4
   %36 = bitcast [10 x i32]* %1 to i8*
   call void @llvm.lifetime.end.p0i8(i64 40, i8* %36) #4
+  ret void
+}
+
+; Function Attrs: norecurse nounwind
+define dso_local spir_func void @_Z27ivdep_embedded_inner_accessv() #3 {
+  ; CHECK-SPIRV: Variable [[TYPE_3_DIM_PTR]] [[ARRAY_A:[0-9]+]]
+  ; CHECK-LLVM: %[[EMB_INNER_ARRAY_A:[0-9]+]] = alloca [10 x [10 x [10 x i32]]]
+  %1 = alloca [10 x [10 x [10 x i32]]], align 4
+  ; CHECK-SPIRV: Variable [[TYPE_3_DIM_PTR]] [[ARRAY_B:[0-9]+]]
+  ; CHECK-LLVM: %[[EMB_INNER_ARRAY_B:[0-9]+]] = alloca [10 x [10 x [10 x i32]]]
+  %2 = alloca [10 x [10 x [10 x i32]]], align 4
+  %3 = alloca i32, align 4
+  %4 = alloca i32, align 4
+  %5 = alloca i32, align 4
+  %6 = alloca i32, align 4
+  %7 = bitcast [10 x [10 x [10 x i32]]]* %1 to i8*
+  call void @llvm.lifetime.start.p0i8(i64 4000, i8* %7) #4
+  %8 = bitcast [10 x [10 x [10 x i32]]]* %2 to i8*
+  call void @llvm.lifetime.start.p0i8(i64 4000, i8* %8) #4
+  %9 = bitcast i32* %3 to i8*
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %9) #4
+  store i32 0, i32* %3, align 4, !tbaa !9
+  br label %10
+
+10:                                               ; preds = %57, %0
+  %11 = load i32, i32* %3, align 4, !tbaa !9
+  %12 = icmp ne i32 %11, 10
+  ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
+  ; DependencyArrayINTEL & LoopControlDependencyInfiniteMask = 0x40000 & 0x00000004 = 262148
+  ; CHECK-SPIRV: LoopMerge [[MERGE_BLOCK:[0-9]+]] {{[0-9]+}} 262148 2 [[ARRAY_B]] 0 [[ARRAY_A]] 0
+  ; CHECK-SPIRV-NEXT: BranchConditional {{[0-9]+}} {{[0-9]+}} [[MERGE_BLOCK]]
+  br i1 %12, label %15, label %13
+
+13:                                               ; preds = %10
+  store i32 2, i32* %4, align 4
+  %14 = bitcast i32* %3 to i8*
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %14) #4
+  br label %60
+
+15:                                               ; preds = %10
+  %16 = bitcast i32* %5 to i8*
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %16) #4
+  store i32 0, i32* %5, align 4, !tbaa !9
+  br label %17
+
+17:                                               ; preds = %53, %15
+  %18 = load i32, i32* %5, align 4, !tbaa !9
+  %19 = icmp ne i32 %18, 10
+  ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
+  ; DependencyArrayINTEL & LoopControlDependencyInfiniteMask = 0x40000 & 0x00000004 = 262148
+  ; CHECK-SPIRV: LoopMerge [[MERGE_BLOCK:[0-9]+]] {{[0-9]+}} 262148 2 [[ARRAY_B]] 0 [[ARRAY_A]] 0
+  ; CHECK-SPIRV-NEXT: BranchConditional {{[0-9]+}} {{[0-9]+}} [[MERGE_BLOCK]]
+  br i1 %19, label %22, label %20
+
+20:                                               ; preds = %17
+  store i32 5, i32* %4, align 4
+  %21 = bitcast i32* %5 to i8*
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %21) #4
+  br label %56
+
+22:                                               ; preds = %17
+  %23 = bitcast i32* %6 to i8*
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %23) #4
+  store i32 0, i32* %6, align 4, !tbaa !9
+  br label %24
+
+24:                                               ; preds = %49, %22
+  %25 = load i32, i32* %6, align 4, !tbaa !9
+  %26 = icmp ne i32 %25, 10
+  ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
+  ; DependencyArrayINTEL & LoopControlDependencyInfiniteMask = 0x40000 & 0x00000004 = 262148
+  ; CHECK-SPIRV: LoopMerge [[MERGE_BLOCK:[0-9]+]] {{[0-9]+}} 262148 2 [[ARRAY_B]] 0 [[ARRAY_A]] 0
+  ; CHECK-SPIRV-NEXT: BranchConditional {{[0-9]+}} {{[0-9]+}} [[MERGE_BLOCK]]
+  br i1 %26, label %29, label %27
+
+27:                                               ; preds = %24
+  store i32 8, i32* %4, align 4
+  %28 = bitcast i32* %6 to i8*
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %28) #4
+  br label %52
+
+29:                                               ; preds = %24
+  %30 = load i32, i32* %3, align 4, !tbaa !9
+  %31 = sext i32 %30 to i64
+  ; CHECK-LLVM: getelementptr inbounds [10 x [10 x [10 x i32]]], [10 x [10 x [10 x i32]]]* %[[EMB_INNER_ARRAY_B]], {{.*}}, !llvm.index.group ![[EMB_INNER_B_IDX_GR:[0-9]+]]
+  %32 = getelementptr inbounds [10 x [10 x [10 x i32]]], [10 x [10 x [10 x i32]]]* %2, i64 0, i64 %31, !llvm.index.group !37
+  %33 = load i32, i32* %5, align 4, !tbaa !9
+  %34 = sext i32 %33 to i64
+  %35 = getelementptr inbounds [10 x [10 x i32]], [10 x [10 x i32]]* %32, i64 0, i64 %34
+  %36 = load i32, i32* %6, align 4, !tbaa !9
+  %37 = sext i32 %36 to i64
+  %38 = getelementptr inbounds [10 x i32], [10 x i32]* %35, i64 0, i64 %37
+  %39 = load i32, i32* %38, align 4, !tbaa !9
+  %40 = load i32, i32* %3, align 4, !tbaa !9
+  %41 = sext i32 %40 to i64
+  ; CHECK-LLVM: getelementptr inbounds [10 x [10 x [10 x i32]]], [10 x [10 x [10 x i32]]]* %[[EMB_INNER_ARRAY_A]], {{.*}}, !llvm.index.group ![[EMB_INNER_A_IDX_GR:[0-9]+]]
+  %42 = getelementptr inbounds [10 x [10 x [10 x i32]]], [10 x [10 x [10 x i32]]]* %1, i64 0, i64 %41, !llvm.index.group !41
+  %43 = load i32, i32* %5, align 4, !tbaa !9
+  %44 = sext i32 %43 to i64
+  %45 = getelementptr inbounds [10 x [10 x i32]], [10 x [10 x i32]]* %42, i64 0, i64 %44
+  %46 = load i32, i32* %6, align 4, !tbaa !9
+  %47 = sext i32 %46 to i64
+  %48 = getelementptr inbounds [10 x i32], [10 x i32]* %45, i64 0, i64 %47
+  store i32 %39, i32* %48, align 4, !tbaa !9
+  br label %49
+
+49:                                               ; preds = %29
+  %50 = load i32, i32* %6, align 4, !tbaa !9
+  %51 = add nsw i32 %50, 1
+  store i32 %51, i32* %6, align 4, !tbaa !9
+  ; CHECK-LLVM: br label %{{.*}}, !llvm.loop ![[EMB_INNER_MD_LOOP_DIM_3:[0-9]+]]
+  br label %24, !llvm.loop !45
+
+52:                                               ; preds = %27
+  br label %53
+
+53:                                               ; preds = %52
+  %54 = load i32, i32* %5, align 4, !tbaa !9
+  %55 = add nsw i32 %54, 1
+  store i32 %55, i32* %5, align 4, !tbaa !9
+  ; CHECK-LLVM: br label %{{.*}}, !llvm.loop ![[EMB_INNER_MD_LOOP_DIM_2:[0-9]+]]
+  br label %17, !llvm.loop !47
+
+56:                                               ; preds = %20
+  br label %57
+
+57:                                               ; preds = %56
+  %58 = load i32, i32* %3, align 4, !tbaa !9
+  %59 = add nsw i32 %58, 1
+  store i32 %59, i32* %3, align 4, !tbaa !9
+  ; CHECK-LLVM: br label %{{.*}}, !llvm.loop ![[EMB_INNER_MD_LOOP_DIM_1:[0-9]+]]
+  br label %10, !llvm.loop !49
+
+60:                                               ; preds = %13
+  %61 = bitcast [10 x [10 x [10 x i32]]]* %2 to i8*
+  call void @llvm.lifetime.end.p0i8(i64 4000, i8* %61) #4
+  %62 = bitcast [10 x [10 x [10 x i32]]]* %1 to i8*
+  call void @llvm.lifetime.end.p0i8(i64 4000, i8* %62) #4
   ret void
 }
 
@@ -376,16 +534,18 @@ attributes #4 = { nounwind }
 !8 = !{!"Simple C++ TBAA"}
 !9 = !{!10, !10, i64 0}
 !10 = !{!"int", !7, i64 0}
+; Legacy metadata
+; CHECK-LLVM-DAG: ![[IVDEP_LEGACY:[0-9]+]] = !{!"llvm.loop.ivdep.enable"}
+;
 ; Accesses within each dimension of a multi-dimensional (n > 2) loop
 ; Index group(s) of each inner loop should have a subnode that points to the containing loop's index group subnode
-; (in case the containing loop is the outermost, to the index group itself)
 ;
 ; Loop dimension 3 (the innermost loop)
 ; CHECK-LLVM-DAG: ![[EMB_A_IDX_GR_DIM_3]] = !{![[EMB_A_IDX_GR_DIM_1]], ![[EMB_A_IDX_NODE_DIM_2:[0-9]+]], ![[EMB_A_IDX_NODE_DIM_3:[0-9]+]]}
 ; CHECK-LLVM-DAG: ![[EMB_A_IDX_NODE_DIM_3]] = distinct !{}
 ; CHECK-LLVM-DAG: ![[EMB_B_IDX_GR_DIM_3]] = !{![[EMB_B_IDX_GR_DIM_1]], ![[EMB_B_IDX_NODE_DIM_2:[0-9]+]], ![[EMB_B_IDX_NODE_DIM_3:[0-9]+]]}
 ; CHECK-LLVM-DAG: ![[EMB_B_IDX_NODE_DIM_3]] = distinct !{}
-; CHECK-LLVM-DAG: ![[EMB_MD_LOOP_DIM_3]] = distinct !{![[EMB_MD_LOOP_DIM_3]], ![[EMB_IVDEP_DIM_3:[0-9]+]]}
+; CHECK-LLVM-DAG: ![[EMB_MD_LOOP_DIM_3]] = distinct !{![[EMB_MD_LOOP_DIM_3]], ![[IVDEP_LEGACY]], ![[EMB_IVDEP_DIM_3:[0-9]+]]{{.*}}}
 ; The next directives should overlap
 ; CHECK-LLVM-MD-OP1-DAG: ![[EMB_IVDEP_DIM_3]] = !{!"llvm.loop.parallel_access_indices",{{.*}} ![[EMB_A_IDX_NODE_DIM_3]]{{.*}}}
 ; CHECK-LLVM-MD-OP2-DAG: ![[EMB_IVDEP_DIM_3]] = !{!"llvm.loop.parallel_access_indices",{{.*}} ![[EMB_B_IDX_NODE_DIM_3]]{{.*}}}
@@ -395,14 +555,14 @@ attributes #4 = { nounwind }
 ; CHECK-LLVM-DAG: ![[EMB_A_IDX_NODE_DIM_2]] = distinct !{}
 ; CHECK-LLVM-DAG: ![[EMB_B_IDX_GR_DIM_2]] = !{![[EMB_B_IDX_GR_DIM_1]], ![[EMB_B_IDX_NODE_DIM_2]]}
 ; CHECK-LLVM-DAG: ![[EMB_B_IDX_NODE_DIM_2]] = distinct !{}
-; CHECK-LLVM-DAG: ![[EMB_MD_LOOP_DIM_2]] = distinct !{![[EMB_MD_LOOP_DIM_2]], ![[EMB_IVDEP_DIM_2:[0-9]+]]}
+; CHECK-LLVM-DAG: ![[EMB_MD_LOOP_DIM_2]] = distinct !{![[EMB_MD_LOOP_DIM_2]], ![[IVDEP_LEGACY]], ![[EMB_IVDEP_DIM_2:[0-9]+]]}
 ; The next directives should overlap
 ; CHECK-LLVM-MD-OP1-DAG: ![[EMB_IVDEP_DIM_2]] = !{!"llvm.loop.parallel_access_indices",{{.*}} ![[EMB_A_IDX_NODE_DIM_2]]{{.*}}}
 ; CHECK-LLVM-MD-OP2-DAG: ![[EMB_IVDEP_DIM_2]] = !{!"llvm.loop.parallel_access_indices",{{.*}} ![[EMB_B_IDX_NODE_DIM_2]]{{.*}}}
 ;
 ; Loop dimension 1 (the outermost loop)
 ; CHECK-LLVM-DAG: ![[EMB_A_IDX_GR_DIM_1]] = distinct !{}
-; CHECK-LLVM-DAG: ![[EMB_MD_LOOP_DIM_1]] = distinct !{![[EMB_MD_LOOP_DIM_1]], ![[EMB_IVDEP_DIM_1:[0-9]+]]}
+; CHECK-LLVM-DAG: ![[EMB_MD_LOOP_DIM_1]] = distinct !{![[EMB_MD_LOOP_DIM_1]], ![[IVDEP_LEGACY]], ![[EMB_IVDEP_DIM_1:[0-9]+]]}
 ; The next directives should overlap
 ; CHECK-LLVM-MD-OP1-DAG: ![[EMB_IVDEP_DIM_1]] = !{!"llvm.loop.parallel_access_indices",{{.*}} ![[EMB_A_IDX_GR_DIM_1]]{{.*}}}
 ; CHECK-LLVM-MD-OP2-DAG: ![[EMB_IVDEP_DIM_1]] = !{!"llvm.loop.parallel_access_indices",{{.*}} ![[EMB_B_IDX_GR_DIM_1]]{{.*}}}
@@ -416,28 +576,74 @@ attributes #4 = { nounwind }
 !18 = distinct !{}
 !19 = !{!12, !16, !20}
 !20 = distinct !{}
-!21 = distinct !{!21, !22}
+!21 = distinct !{!21, !22, !23}
 !22 = !{!"llvm.loop.parallel_access_indices", !18, !20}
-!23 = distinct !{!23, !24}
-!24 = !{!"llvm.loop.parallel_access_indices", !14, !16}
-!25 = distinct !{!25, !26}
-!26 = !{!"llvm.loop.parallel_access_indices", !11, !12}
+!23 = !{!"llvm.loop.ivdep.enable"}
+!24 = distinct !{!24, !25, !23}
+!25 = !{!"llvm.loop.parallel_access_indices", !14, !16}
+!26 = distinct !{!26, !27, !23}
+!27 = !{!"llvm.loop.parallel_access_indices", !11, !12}
 ; Multiple arrays with specific safelens in a simple one-dimensional loop
 ; CHECK-LLVM-DAG: ![[SIMPLE_A_IDX_GR]] = distinct !{}
 ; CHECK-LLVM-DAG: ![[SIMPLE_B_IDX_GR]] = distinct !{}
 ; CHECK-LLVM-DAG: ![[SIMPLE_C_IDX_GR]] = distinct !{}
 ; CHECK-LLVM-DAG: ![[SIMPLE_D_IDX_GR]] = distinct !{}
-!27 = distinct !{}
 !28 = distinct !{}
 !29 = distinct !{}
 !30 = distinct !{}
-; CHECK-LLVM-DAG: ![[SIMPLE_MD_LOOP]] = distinct !{![[SIMPLE_MD_LOOP]], ![[SIMPLE_IVDEP_C:[0-9]+]], ![[SIMPLE_IVDEP_A_D:[0-9]+]], ![[SIMPLE_IVDEP_B:[0-9]+]]}
-!31 = distinct !{!31, !32, !33, !34}
+!31 = distinct !{}
+; Legacy metadata
+; CHECK-LLVM-DAG: ![[IVDEP_LEGACY_SAFELEN_5:[0-9]+]] = !{!"llvm.loop.ivdep.safelen", i32 5}
+;
+; CHECK-LLVM-DAG: ![[SIMPLE_MD_LOOP]] = distinct !{![[SIMPLE_MD_LOOP]], ![[IVDEP_LEGACY_SAFELEN_5]], ![[SIMPLE_IVDEP_C:[0-9]+]], ![[SIMPLE_IVDEP_A_D:[0-9]+]], ![[SIMPLE_IVDEP_B:[0-9]+]]}
+!32 = distinct !{!32, !33, !34, !35, !36}
 ; The next directives should overlap
 ; CHECK-LLVM-MD-OP1-DAG: ![[SIMPLE_IVDEP_A_D]] = !{!"llvm.loop.parallel_access_indices",{{.*}} ![[SIMPLE_A_IDX_GR]],{{.*}} i32 5}
 ; CHECK-LLVM-MD-OP2-DAG: ![[SIMPLE_IVDEP_A_D]] = !{!"llvm.loop.parallel_access_indices",{{.*}} ![[SIMPLE_D_IDX_GR]],{{.*}} i32 5}
-!32 = !{!"llvm.loop.parallel_access_indices", !27, !30, i32 5}
+!33 = !{!"llvm.loop.parallel_access_indices", !28, !31, i32 5}
+!34 = !{!"llvm.loop.ivdep.safelen", i32 5}
 ; CHECK-LLVM-DAG: ![[SIMPLE_IVDEP_B]] = !{!"llvm.loop.parallel_access_indices", ![[SIMPLE_B_IDX_GR]], i32 6}
-!33 = !{!"llvm.loop.parallel_access_indices", !28, i32 6}
+!35 = !{!"llvm.loop.parallel_access_indices", !29, i32 6}
 ; CHECK-LLVM-DAG: ![[SIMPLE_IVDEP_C]] = !{!"llvm.loop.parallel_access_indices", ![[SIMPLE_C_IDX_GR]]}
-!34 = !{!"llvm.loop.parallel_access_indices", !29}
+!36 = !{!"llvm.loop.parallel_access_indices", !30}
+; Accesses within the inner loop of a multi-dimensional (n > 2) loop nest
+;
+; Loop dimension 3 (the innermost loop)
+; CHECK-LLVM-DAG: ![[EMB_INNER_A_IDX_GR]] = !{![[EMB_INNER_A_IDX_NODE_DIM_1:[0-9]+]], ![[EMB_INNER_A_IDX_NODE_DIM_2:[0-9]+]], ![[EMB_INNER_A_IDX_NODE_DIM_3:[0-9]+]]}
+; CHECK-LLVM-DAG: ![[EMB_INNER_A_IDX_NODE_DIM_3]] = distinct !{}
+; CHECK-LLVM-DAG: ![[EMB_INNER_B_IDX_GR]] = !{![[EMB_INNER_B_IDX_NODE_DIM_1:[0-9]+]], ![[EMB_INNER_B_IDX_NODE_DIM_2:[0-9]+]], ![[EMB_INNER_B_IDX_NODE_DIM_3:[0-9]+]]}
+; CHECK-LLVM-DAG: ![[EMB_INNER_B_IDX_NODE_DIM_3]] = distinct !{}
+; CHECK-LLVM-DAG: ![[EMB_INNER_MD_LOOP_DIM_3]] = distinct !{![[EMB_INNER_MD_LOOP_DIM_3]], ![[IVDEP_LEGACY]], ![[EMB_INNER_IVDEP_DIM_3:[0-9]+]]{{.*}}}
+; The next directives should overlap
+; CHECK-LLVM-MD-OP1-DAG: ![[EMB_INNER_IVDEP_DIM_3]] = !{!"llvm.loop.parallel_access_indices",{{.*}} ![[EMB_INNER_A_IDX_NODE_DIM_3]]{{.*}}}
+; CHECK-LLVM-MD-OP2-DAG: ![[EMB_INNER_IVDEP_DIM_3]] = !{!"llvm.loop.parallel_access_indices",{{.*}} ![[EMB_INNER_B_IDX_NODE_DIM_3]]{{.*}}}
+;
+; Loop dimension 2
+; CHECK-LLVM-DAG: ![[EMB_INNER_A_IDX_NODE_DIM_2]] = distinct !{}
+; CHECK-LLVM-DAG: ![[EMB_INNER_B_IDX_NODE_DIM_2]] = distinct !{}
+; CHECK-LLVM-DAG: ![[EMB_INNER_MD_LOOP_DIM_2]] = distinct !{![[EMB_INNER_MD_LOOP_DIM_2]], ![[IVDEP_LEGACY]], ![[EMB_INNER_IVDEP_DIM_2:[0-9]+]]}
+; The next directives should overlap
+; CHECK-LLVM-MD-OP1-DAG: ![[EMB_INNER_IVDEP_DIM_2]] = !{!"llvm.loop.parallel_access_indices",{{.*}} ![[EMB_INNER_A_IDX_NODE_DIM_2]]{{.*}}}
+; CHECK-LLVM-MD-OP2-DAG: ![[EMB_INNER_IVDEP_DIM_2]] = !{!"llvm.loop.parallel_access_indices",{{.*}} ![[EMB_INNER_B_IDX_NODE_DIM_2]]{{.*}}}
+;
+; Loop dimension 1 (the outermost loop)
+; CHECK-LLVM-DAG: ![[EMB_INNER_A_IDX_NODE_DIM_1]] = distinct !{}
+; CHECK-LLVM-DAG: ![[EMB_INNER_B_IDX_NODE_DIM_1]] = distinct !{}
+; CHECK-LLVM-DAG: ![[EMB_INNER_MD_LOOP_DIM_1]] = distinct !{![[EMB_INNER_MD_LOOP_DIM_1]], ![[IVDEP_LEGACY]], ![[EMB_INNER_IVDEP_DIM_1:[0-9]+]]}
+; The next directives should overlap
+; CHECK-LLVM-MD-OP1-DAG: ![[EMB_INNER_IVDEP_DIM_1]] = !{!"llvm.loop.parallel_access_indices",{{.*}} ![[EMB_INNER_A_IDX_NODE_DIM_1]]{{.*}}}
+; CHECK-LLVM-MD-OP2-DAG: ![[EMB_INNER_IVDEP_DIM_1]] = !{!"llvm.loop.parallel_access_indices",{{.*}} ![[EMB_INNER_B_IDX_NODE_DIM_1]]{{.*}}}
+!37 = !{!38, !39, !40}
+!38 = distinct !{}
+!39 = distinct !{}
+!40 = distinct !{}
+!41 = !{!42, !43, !44}
+!42 = distinct !{}
+!43 = distinct !{}
+!44 = distinct !{}
+!45 = distinct !{!45, !46, !23}
+!46 = !{!"llvm.loop.parallel_access_indices", !40, !44}
+!47 = distinct !{!47, !48, !23}
+!48 = !{!"llvm.loop.parallel_access_indices", !39, !43}
+!49 = distinct !{!49, !50, !23}
+!50 = !{!"llvm.loop.parallel_access_indices", !38, !42}

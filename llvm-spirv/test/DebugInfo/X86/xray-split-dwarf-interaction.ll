@@ -1,5 +1,5 @@
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=x86_64-pc-linux -split-dwarf-file=input.dwo -O3 \
@@ -13,6 +13,9 @@
 ; RUN:     -generate-type-units -o - %s | \
 ; RUN:     llvm-readelf -sections | \
 ; RUN:     FileCheck %s --check-prefix=CHECK-ELF
+
+target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
+target triple = "spir64-unknown-unknown"
 ; Created from `clang++ -fxray-instrument -gsplit-dwarf -fdebug-types-section
 ; -ffunction-sections -fdata-sections -emit-llvm -S input.cc`:
 ; input.cc:
@@ -33,8 +36,7 @@
 ;
 ; CHECK-ELF-DAG: [[FSECT:[0-9]+]]] .text._ZN1a1bEv PROGBITS
 ; CHECK-ELF-DAG: [{{.*}}] .debug_types.dwo PROGBITS
-; CHECK-ELF-DAG: [{{.*}}] xray_instr_map PROGBITS {{.*}} {{.*}} {{.*}} {{.*}} WAL [[FSECT]]
-target triple = "spir64-unknown-unknown"
+; CHECK-ELF-DAG: [{{.*}}] xray_instr_map PROGBITS {{.*}} {{.*}} {{.*}} {{.*}} AL [[FSECT]]
 
 %class.a = type { i8 }
 
@@ -86,4 +88,3 @@ attributes #1 = { nounwind readnone speculatable }
 !25 = distinct !{!25, !26, !27}
 !26 = !DILocation(line: 5, column: 3, scope: !24)
 !27 = !DILocation(line: 6, column: 5, scope: !24)
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

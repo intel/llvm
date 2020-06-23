@@ -118,7 +118,13 @@ void AsynchronousSymbolQuery::notifySymbolMetRequiredState(
   assert(I != ResolvedSymbols.end() &&
          "Resolving symbol outside the requested set");
   assert(I->second.getAddress() == 0 && "Redundantly resolving symbol Name");
-  I->second = std::move(Sym);
+
+  // If this is a materialization-side-effects-only symbol then drop it,
+  // otherwise update its map entry with its resolved address.
+  if (Sym.getFlags().hasMaterializationSideEffectsOnly())
+    ResolvedSymbols.erase(I);
+  else
+    I->second = std::move(Sym);
   --OutstandingSymbolsCount;
 }
 
@@ -159,6 +165,14 @@ void AsynchronousSymbolQuery::removeQueryDependence(
     QueryRegistrations.erase(QRI);
 }
 
+void AsynchronousSymbolQuery::dropSymbol(const SymbolStringPtr &Name) {
+  auto I = ResolvedSymbols.find(Name);
+  assert(I != ResolvedSymbols.end() &&
+         "Redundant removal of weakly-referenced symbol");
+  ResolvedSymbols.erase(I);
+  --OutstandingSymbolsCount;
+}
+
 void AsynchronousSymbolQuery::detach() {
   ResolvedSymbols.clear();
   OutstandingSymbolsCount = 0;
@@ -173,12 +187,12 @@ MaterializationResponsibility::~MaterializationResponsibility() {
 }
 
 SymbolNameSet MaterializationResponsibility::getRequestedSymbols() const {
-  return JD.getRequestedSymbols(SymbolFlags);
+  return JD->getRequestedSymbols(SymbolFlags);
 }
 
 Error MaterializationResponsibility::notifyResolved(const SymbolMap &Symbols) {
   LLVM_DEBUG({
-    dbgs() << "In " << JD.getName() << " resolving " << Symbols << "\n";
+    dbgs() << "In " << JD->getName() << " resolving " << Symbols << "\n";
   });
 #ifndef NDEBUG
   for (auto &KV : Symbols) {
@@ -186,21 +200,23 @@ Error MaterializationResponsibility::notifyResolved(const SymbolMap &Symbols) {
     auto I = SymbolFlags.find(KV.first);
     assert(I != SymbolFlags.end() &&
            "Resolving symbol outside this responsibility set");
+    assert(!I->second.hasMaterializationSideEffectsOnly() &&
+           "Can't resolve materialization-side-effects-only symbol");
     assert((KV.second.getFlags() & ~WeakFlags) == (I->second & ~WeakFlags) &&
            "Resolving symbol with incorrect flags");
   }
 #endif
 
-  return JD.resolve(Symbols);
+  return JD->resolve(Symbols);
 }
 
 Error MaterializationResponsibility::notifyEmitted() {
 
   LLVM_DEBUG({
-    dbgs() << "In " << JD.getName() << " emitting " << SymbolFlags << "\n";
+    dbgs() << "In " << JD->getName() << " emitting " << SymbolFlags << "\n";
   });
 
-  if (auto Err = JD.emit(SymbolFlags))
+  if (auto Err = JD->emit(SymbolFlags))
     return Err;
 
   SymbolFlags.clear();
@@ -211,10 +227,10 @@ Error MaterializationResponsibility::defineMaterializing(
     SymbolFlagsMap NewSymbolFlags) {
 
   LLVM_DEBUG({
-      dbgs() << "In " << JD.getName() << " defining materializing symbols "
-             << NewSymbolFlags << "\n";
-    });
-  if (auto AcceptedDefs = JD.defineMaterializing(std::move(NewSymbolFlags))) {
+    dbgs() << "In " << JD->getName() << " defining materializing symbols "
+           << NewSymbolFlags << "\n";
+  });
+  if (auto AcceptedDefs = JD->defineMaterializing(std::move(NewSymbolFlags))) {
     // Add all newly accepted symbols to this responsibility object.
     for (auto &KV : *AcceptedDefs)
       SymbolFlags.insert(KV);
@@ -226,17 +242,17 @@ Error MaterializationResponsibility::defineMaterializing(
 void MaterializationResponsibility::failMaterialization() {
 
   LLVM_DEBUG({
-    dbgs() << "In " << JD.getName() << " failing materialization for "
+    dbgs() << "In " << JD->getName() << " failing materialization for "
            << SymbolFlags << "\n";
   });
 
   JITDylib::FailedSymbolsWorklist Worklist;
 
   for (auto &KV : SymbolFlags)
-    Worklist.push_back(std::make_pair(&JD, KV.first));
+    Worklist.push_back(std::make_pair(JD.get(), KV.first));
   SymbolFlags.clear();
 
-  JD.notifyFailed(std::move(Worklist));
+  JD->notifyFailed(std::move(Worklist));
 }
 
 void MaterializationResponsibility::replace(
@@ -255,12 +271,12 @@ void MaterializationResponsibility::replace(
   if (MU->getInitializerSymbol() == InitSymbol)
     InitSymbol = nullptr;
 
-  LLVM_DEBUG(JD.getExecutionSession().runSessionLocked([&]() {
-    dbgs() << "In " << JD.getName() << " replacing symbols with " << *MU
+  LLVM_DEBUG(JD->getExecutionSession().runSessionLocked([&]() {
+    dbgs() << "In " << JD->getName() << " replacing symbols with " << *MU
            << "\n";
   }););
 
-  JD.replace(std::move(MU));
+  JD->replace(std::move(MU));
 }
 
 MaterializationResponsibility
@@ -299,7 +315,7 @@ void MaterializationResponsibility::addDependencies(
   });
   assert(SymbolFlags.count(Name) &&
          "Symbol not covered by this MaterializationResponsibility instance");
-  JD.addDependencies(Name, Dependencies);
+  JD->addDependencies(Name, Dependencies);
 }
 
 void MaterializationResponsibility::addDependenciesForAll(
@@ -309,7 +325,7 @@ void MaterializationResponsibility::addDependenciesForAll(
            << Dependencies << "\n";
   });
   for (auto &KV : SymbolFlags)
-    JD.addDependencies(KV.first, Dependencies);
+    JD->addDependencies(KV.first, Dependencies);
 }
 
 AbsoluteSymbolsMaterializationUnit::AbsoluteSymbolsMaterializationUnit(
@@ -398,11 +414,13 @@ void ReExportsMaterializationUnit::materialize(
     SymbolAliasMap Aliases;
   };
 
-  // Build a list of queries to issue. In each round we build the largest set of
-  // aliases that we can resolve without encountering a chain definition of the
-  // form Foo -> Bar, Bar -> Baz. Such a form would deadlock as the query would
-  // be waitin on a symbol that it itself had to resolve. Usually this will just
-  // involve one round and a single query.
+  // Build a list of queries to issue. In each round we build a query for the
+  // largest set of aliases that we can resolve without encountering a chain of
+  // aliases (e.g. Foo -> Bar, Bar -> Baz). Such a chain would deadlock as the
+  // query would be waiting on a symbol that it itself had to resolve. Creating
+  // a new query for each link in such a chain eliminates the possibility of
+  // deadlock. In practice chains are likely to be rare, and this algorithm will
+  // usually result in a single query to issue.
 
   std::vector<std::pair<SymbolLookupSet, std::shared_ptr<OnResolveInfo>>>
       QueryInfos;
@@ -419,7 +437,10 @@ void ReExportsMaterializationUnit::materialize(
         continue;
 
       ResponsibilitySymbols.insert(KV.first);
-      QuerySymbols.add(KV.second.Aliasee);
+      QuerySymbols.add(KV.second.Aliasee,
+                       KV.second.AliasFlags.hasMaterializationSideEffectsOnly()
+                           ? SymbolLookupFlags::WeaklyReferencedSymbol
+                           : SymbolLookupFlags::RequiredSymbol);
       QueryAliases[KV.first] = std::move(KV.second);
     }
 
@@ -468,8 +489,13 @@ void ReExportsMaterializationUnit::materialize(
       if (Result) {
         SymbolMap ResolutionMap;
         for (auto &KV : QueryInfo->Aliases) {
-          assert(Result->count(KV.second.Aliasee) &&
+          assert((KV.second.AliasFlags.hasMaterializationSideEffectsOnly() ||
+                  Result->count(KV.second.Aliasee)) &&
                  "Result map missing entry?");
+          // Don't try to resolve materialization-side-effects-only symbols.
+          if (KV.second.AliasFlags.hasMaterializationSideEffectsOnly())
+            continue;
+
           ResolutionMap[KV.first] = JITEvaluatedSymbol(
               (*Result)[KV.second.Aliasee].getAddress(), KV.second.AliasFlags);
         }
@@ -677,8 +703,11 @@ void JITDylib::replace(std::unique_ptr<MaterializationUnit> MU) {
         return nullptr;
       });
 
-  if (MustRunMU)
-    ES.dispatchMaterialization(*this, std::move(MustRunMU));
+  if (MustRunMU) {
+    auto MR =
+        MustRunMU->createMaterializationResponsibility(shared_from_this());
+    ES.dispatchMaterialization(std::move(MustRunMU), std::move(MR));
+  }
 }
 
 SymbolNameSet
@@ -759,8 +788,6 @@ void JITDylib::addDependencies(const SymbolStringPtr &Name,
 
       // If the dependency was not in the error state then add it to
       // our list of dependencies.
-      assert(OtherJITDylib.MaterializingInfos.count(OtherSymbol) &&
-             "No MaterializingInfo for dependency");
       auto &OtherMI = OtherJITDylib.MaterializingInfos[OtherSymbol];
 
       if (OtherSymEntry.getState() == SymbolState::Emitted)
@@ -841,7 +868,11 @@ Error JITDylib::resolve(const SymbolMap &Resolved) {
       SymI->second.setFlags(ResolvedFlags);
       SymI->second.setState(SymbolState::Resolved);
 
-      auto &MI = MaterializingInfos[Name];
+      auto MII = MaterializingInfos.find(Name);
+      if (MII == MaterializingInfos.end())
+        continue;
+
+      auto &MI = MII->second;
       for (auto &Q : MI.takeQueriesMeeting(SymbolState::Resolved)) {
         Q->notifySymbolMetRequiredState(Name, ResolvedSym);
         Q->removeQueryDependence(*this, Name);
@@ -904,13 +935,21 @@ Error JITDylib::emit(const SymbolFlagsMap &Emitted) {
       auto &SymEntry = SymI->second;
 
       // Move symbol to the emitted state.
-      assert(SymEntry.getState() == SymbolState::Resolved &&
+      assert(((SymEntry.getFlags().hasMaterializationSideEffectsOnly() &&
+               SymEntry.getState() == SymbolState::Materializing) ||
+              SymEntry.getState() == SymbolState::Resolved) &&
              "Emitting from state other than Resolved");
       SymEntry.setState(SymbolState::Emitted);
 
       auto MII = MaterializingInfos.find(Name);
-      assert(MII != MaterializingInfos.end() &&
-             "Missing MaterializingInfo entry");
+
+      // If this symbol has no MaterializingInfo then it's trivially ready.
+      // Update its state and continue.
+      if (MII == MaterializingInfos.end()) {
+        SymEntry.setState(SymbolState::Ready);
+        continue;
+      }
+
       auto &MI = MII->second;
 
       // For each dependant, transfer this node's emitted dependencies to
@@ -1121,30 +1160,29 @@ void JITDylib::notifyFailed(FailedSymbolsWorklist Worklist) {
     Q->handleFailed(make_error<FailedToMaterialize>(FailedSymbolsMap));
 }
 
-void JITDylib::setSearchOrder(JITDylibSearchOrder NewSearchOrder,
-                              bool SearchThisJITDylibFirst) {
+void JITDylib::setLinkOrder(JITDylibSearchOrder NewLinkOrder,
+                            bool LinkAgainstThisJITDylibFirst) {
   ES.runSessionLocked([&]() {
-    if (SearchThisJITDylibFirst) {
-      SearchOrder.clear();
-      if (NewSearchOrder.empty() || NewSearchOrder.front().first != this)
-        SearchOrder.push_back(
+    if (LinkAgainstThisJITDylibFirst) {
+      LinkOrder.clear();
+      if (NewLinkOrder.empty() || NewLinkOrder.front().first != this)
+        LinkOrder.push_back(
             std::make_pair(this, JITDylibLookupFlags::MatchAllSymbols));
-      SearchOrder.insert(SearchOrder.end(), NewSearchOrder.begin(),
-                         NewSearchOrder.end());
+      LinkOrder.insert(LinkOrder.end(), NewLinkOrder.begin(),
+                       NewLinkOrder.end());
     } else
-      SearchOrder = std::move(NewSearchOrder);
+      LinkOrder = std::move(NewLinkOrder);
   });
 }
 
-void JITDylib::addToSearchOrder(JITDylib &JD,
-                                JITDylibLookupFlags JDLookupFlags) {
-  ES.runSessionLocked([&]() { SearchOrder.push_back({&JD, JDLookupFlags}); });
+void JITDylib::addToLinkOrder(JITDylib &JD, JITDylibLookupFlags JDLookupFlags) {
+  ES.runSessionLocked([&]() { LinkOrder.push_back({&JD, JDLookupFlags}); });
 }
 
-void JITDylib::replaceInSearchOrder(JITDylib &OldJD, JITDylib &NewJD,
-                                    JITDylibLookupFlags JDLookupFlags) {
+void JITDylib::replaceInLinkOrder(JITDylib &OldJD, JITDylib &NewJD,
+                                  JITDylibLookupFlags JDLookupFlags) {
   ES.runSessionLocked([&]() {
-    for (auto &KV : SearchOrder)
+    for (auto &KV : LinkOrder)
       if (KV.first == &OldJD) {
         KV = {&NewJD, JDLookupFlags};
         break;
@@ -1152,14 +1190,14 @@ void JITDylib::replaceInSearchOrder(JITDylib &OldJD, JITDylib &NewJD,
   });
 }
 
-void JITDylib::removeFromSearchOrder(JITDylib &JD) {
+void JITDylib::removeFromLinkOrder(JITDylib &JD) {
   ES.runSessionLocked([&]() {
-    auto I = std::find_if(SearchOrder.begin(), SearchOrder.end(),
+    auto I = std::find_if(LinkOrder.begin(), LinkOrder.end(),
                           [&](const JITDylibSearchOrder::value_type &KV) {
                             return KV.first == &JD;
                           });
-    if (I != SearchOrder.end())
-      SearchOrder.erase(I);
+    if (I != LinkOrder.end())
+      LinkOrder.erase(I);
   });
 }
 
@@ -1303,6 +1341,12 @@ Error JITDylib::lodgeQueryImpl(MaterializationUnitList &MUs,
         if (SymI == Symbols.end())
           return false;
 
+        // If we match against a materialization-side-effects only symbol then
+        // make sure it is weakly-referenced. Otherwise bail out with an error.
+        if (SymI->second.getFlags().hasMaterializationSideEffectsOnly() &&
+            SymLookupFlags != SymbolLookupFlags::WeaklyReferencedSymbol)
+          return make_error<SymbolsNotFound>(SymbolNameVector({Name}));
+
         // If this is a non exported symbol and we're matching exported symbols
         // only then skip this symbol without removal.
         if (!SymI->second.getFlags().isExported() &&
@@ -1407,8 +1451,11 @@ JITDylib::legacyLookup(std::shared_ptr<AsynchronousSymbolQuery> Q,
   // Add MUs to the OutstandingMUs list.
   {
     std::lock_guard<std::recursive_mutex> Lock(ES.OutstandingMUsMutex);
-    for (auto &MU : MUs)
-      ES.OutstandingMUs.push_back(make_pair(this, std::move(MU)));
+    auto ThisJD = shared_from_this();
+    for (auto &MU : MUs) {
+      auto MR = MU->createMaterializationResponsibility(ThisJD);
+      ES.OutstandingMUs.push_back(make_pair(std::move(MU), std::move(MR)));
+    }
   }
   ES.runOutstandingMUs();
 
@@ -1487,7 +1534,7 @@ void JITDylib::dump(raw_ostream &OS) {
   ES.runSessionLocked([&, this]() {
     OS << "JITDylib \"" << JITDylibName << "\" (ES: "
        << format("0x%016" PRIx64, reinterpret_cast<uintptr_t>(&ES)) << "):\n"
-       << "Search order: " << SearchOrder << "\n"
+       << "Link order: " << LinkOrder << "\n"
        << "Symbol table:\n";
 
     for (auto &KV : Symbols) {
@@ -1568,10 +1615,13 @@ JITDylib::MaterializingInfo::takeQueriesMeeting(SymbolState RequiredState) {
 
 JITDylib::JITDylib(ExecutionSession &ES, std::string Name)
     : ES(ES), JITDylibName(std::move(Name)) {
-  SearchOrder.push_back({this, JITDylibLookupFlags::MatchAllSymbols});
+  LinkOrder.push_back({this, JITDylibLookupFlags::MatchAllSymbols});
 }
 
 Error JITDylib::defineImpl(MaterializationUnit &MU) {
+
+  LLVM_DEBUG({ dbgs() << "  " << MU.getSymbols() << "\n"; });
+
   SymbolNameSet Duplicates;
   std::vector<SymbolStringPtr> ExistingDefsOverridden;
   std::vector<SymbolStringPtr> MUDefsOverridden;
@@ -1596,14 +1646,26 @@ Error JITDylib::defineImpl(MaterializationUnit &MU) {
   }
 
   // If there were any duplicate definitions then bail out.
-  if (!Duplicates.empty())
+  if (!Duplicates.empty()) {
+    LLVM_DEBUG(
+        { dbgs() << "  Error: Duplicate symbols " << Duplicates << "\n"; });
     return make_error<DuplicateDefinition>(std::string(**Duplicates.begin()));
+  }
 
   // Discard any overridden defs in this MU.
+  LLVM_DEBUG({
+    if (!MUDefsOverridden.empty())
+      dbgs() << "  Defs in this MU overridden: " << MUDefsOverridden << "\n";
+  });
   for (auto &S : MUDefsOverridden)
     MU.doDiscard(*this, S);
 
   // Discard existing overridden defs.
+  LLVM_DEBUG({
+    if (!ExistingDefsOverridden.empty())
+      dbgs() << "  Existing defs overridden by this MU: " << MUDefsOverridden
+             << "\n";
+  });
   for (auto &S : ExistingDefsOverridden) {
 
     auto UMII = UnmaterializedInfos.find(S);
@@ -1727,7 +1789,7 @@ JITDylib &ExecutionSession::createBareJITDylib(std::string Name) {
   assert(!getJITDylibByName(Name) && "JITDylib with that name already exists");
   return runSessionLocked([&, this]() -> JITDylib & {
     JDs.push_back(
-        std::unique_ptr<JITDylib>(new JITDylib(*this, std::move(Name))));
+        std::shared_ptr<JITDylib>(new JITDylib(*this, std::move(Name))));
     return *JDs.back();
   });
 }
@@ -1916,9 +1978,13 @@ void ExecutionSession::lookup(
   {
     std::lock_guard<std::recursive_mutex> Lock(OutstandingMUsMutex);
 
-    for (auto &KV : CollectedMUsMap)
-      for (auto &MU : KV.second)
-        OutstandingMUs.push_back(std::make_pair(KV.first, std::move(MU)));
+    for (auto &KV : CollectedMUsMap) {
+      auto JD = KV.first->shared_from_this();
+      for (auto &MU : KV.second) {
+        auto MR = MU->createMaterializationResponsibility(JD);
+        OutstandingMUs.push_back(std::make_pair(std::move(MU), std::move(MR)));
+      }
+    }
   }
 
   runOutstandingMUs();
@@ -2013,22 +2079,23 @@ void ExecutionSession::dump(raw_ostream &OS) {
 
 void ExecutionSession::runOutstandingMUs() {
   while (1) {
-    std::pair<JITDylib *, std::unique_ptr<MaterializationUnit>> JITDylibAndMU;
+    Optional<std::pair<std::unique_ptr<MaterializationUnit>,
+                       MaterializationResponsibility>>
+        JMU;
 
     {
       std::lock_guard<std::recursive_mutex> Lock(OutstandingMUsMutex);
       if (!OutstandingMUs.empty()) {
-        JITDylibAndMU = std::move(OutstandingMUs.back());
+        JMU.emplace(std::move(OutstandingMUs.back()));
         OutstandingMUs.pop_back();
       }
     }
 
-    if (JITDylibAndMU.first) {
-      assert(JITDylibAndMU.second && "JITDylib, but no MU?");
-      dispatchMaterialization(*JITDylibAndMU.first,
-                              std::move(JITDylibAndMU.second));
-    } else
+    if (!JMU)
       break;
+
+    assert(JMU->first && "No MU?");
+    dispatchMaterialization(std::move(JMU->first), std::move(JMU->second));
   }
 }
 

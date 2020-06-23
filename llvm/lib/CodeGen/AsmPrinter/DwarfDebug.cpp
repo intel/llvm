@@ -639,27 +639,17 @@ static void addToFwdRegWorklist(FwdRegWorklist &Worklist, unsigned Reg,
   }
 }
 
-/// Try to interpret values loaded into registers that forward parameters
-/// for \p CallMI. Store parameters with interpreted value into \p Params.
-static void collectCallSiteParameters(const MachineInstr *CallMI,
-                                      ParamSet &Params) {
-  auto *MF = CallMI->getMF();
-  auto CalleesMap = MF->getCallSitesInfo();
-  auto CallFwdRegsInfo = CalleesMap.find(CallMI);
+/// Interpret values loaded into registers by \p CurMI.
+static void interpretValues(const MachineInstr *CurMI,
+                            FwdRegWorklist &ForwardedRegWorklist,
+                            ParamSet &Params) {
 
-  // There is no information for the call instruction.
-  if (CallFwdRegsInfo == CalleesMap.end())
-    return;
-
-  auto *MBB = CallMI->getParent();
-  const auto &TRI = MF->getSubtarget().getRegisterInfo();
-  const auto &TII = MF->getSubtarget().getInstrInfo();
-  const auto &TLI = MF->getSubtarget().getTargetLowering();
-
-  // Skip the call instruction.
-  auto I = std::next(CallMI->getReverseIterator());
-
-  FwdRegWorklist ForwardedRegWorklist;
+  const MachineFunction *MF = CurMI->getMF();
+  const DIExpression *EmptyExpr =
+      DIExpression::get(MF->getFunction().getContext(), {});
+  const auto &TRI = *MF->getSubtarget().getRegisterInfo();
+  const auto &TII = *MF->getSubtarget().getInstrInfo();
+  const auto &TLI = *MF->getSubtarget().getTargetLowering();
 
   // If an instruction defines more than one item in the worklist, we may run
   // into situations where a worklist register's value is (potentially)
@@ -680,7 +670,115 @@ static void collectCallSiteParameters(const MachineInstr *CallMI,
   // entry values, we simply postpone adding new parameter registers to the
   // worklist, by first keeping them in this temporary container until the
   // instruction has been handled.
-  FwdRegWorklist NewWorklistItems;
+  FwdRegWorklist TmpWorklistItems;
+
+  // If the MI is an instruction defining one or more parameters' forwarding
+  // registers, add those defines.
+  auto getForwardingRegsDefinedByMI = [&](const MachineInstr &MI,
+                                          SmallSetVector<unsigned, 4> &Defs) {
+    if (MI.isDebugInstr())
+      return;
+
+    for (const MachineOperand &MO : MI.operands()) {
+      if (MO.isReg() && MO.isDef() &&
+          Register::isPhysicalRegister(MO.getReg())) {
+        for (auto FwdReg : ForwardedRegWorklist)
+          if (TRI.regsOverlap(FwdReg.first, MO.getReg()))
+            Defs.insert(FwdReg.first);
+      }
+    }
+  };
+
+  // Set of worklist registers that are defined by this instruction.
+  SmallSetVector<unsigned, 4> FwdRegDefs;
+
+  getForwardingRegsDefinedByMI(*CurMI, FwdRegDefs);
+  if (FwdRegDefs.empty())
+    return;
+
+  for (auto ParamFwdReg : FwdRegDefs) {
+    if (auto ParamValue = TII.describeLoadedValue(*CurMI, ParamFwdReg)) {
+      if (ParamValue->first.isImm()) {
+        int64_t Val = ParamValue->first.getImm();
+        finishCallSiteParams(Val, ParamValue->second,
+                             ForwardedRegWorklist[ParamFwdReg], Params);
+      } else if (ParamValue->first.isReg()) {
+        Register RegLoc = ParamValue->first.getReg();
+        unsigned SP = TLI.getStackPointerRegisterToSaveRestore();
+        Register FP = TRI.getFrameRegister(*MF);
+        bool IsSPorFP = (RegLoc == SP) || (RegLoc == FP);
+        if (TRI.isCalleeSavedPhysReg(RegLoc, *MF) || IsSPorFP) {
+          MachineLocation MLoc(RegLoc, /*IsIndirect=*/IsSPorFP);
+          finishCallSiteParams(MLoc, ParamValue->second,
+                               ForwardedRegWorklist[ParamFwdReg], Params);
+        } else {
+          // ParamFwdReg was described by the non-callee saved register
+          // RegLoc. Mark that the call site values for the parameters are
+          // dependent on that register instead of ParamFwdReg. Since RegLoc
+          // may be a register that will be handled in this iteration, we
+          // postpone adding the items to the worklist, and instead keep them
+          // in a temporary container.
+          addToFwdRegWorklist(TmpWorklistItems, RegLoc, ParamValue->second,
+                              ForwardedRegWorklist[ParamFwdReg]);
+        }
+      }
+    }
+  }
+
+  // Remove all registers that this instruction defines from the worklist.
+  for (auto ParamFwdReg : FwdRegDefs)
+    ForwardedRegWorklist.erase(ParamFwdReg);
+
+  // Now that we are done handling this instruction, add items from the
+  // temporary worklist to the real one.
+  for (auto New : TmpWorklistItems)
+    addToFwdRegWorklist(ForwardedRegWorklist, New.first, EmptyExpr, New.second);
+  TmpWorklistItems.clear();
+}
+
+static bool interpretNextInstr(const MachineInstr *CurMI,
+                               FwdRegWorklist &ForwardedRegWorklist,
+                               ParamSet &Params) {
+  // Skip bundle headers.
+  if (CurMI->isBundle())
+    return true;
+
+  // If the next instruction is a call we can not interpret parameter's
+  // forwarding registers or we finished the interpretation of all
+  // parameters.
+  if (CurMI->isCall())
+    return false;
+
+  if (ForwardedRegWorklist.empty())
+    return false;
+
+  // Avoid NOP description.
+  if (CurMI->getNumOperands() == 0)
+    return true;
+
+  interpretValues(CurMI, ForwardedRegWorklist, Params);
+
+  return true;
+}
+
+/// Try to interpret values loaded into registers that forward parameters
+/// for \p CallMI. Store parameters with interpreted value into \p Params.
+static void collectCallSiteParameters(const MachineInstr *CallMI,
+                                      ParamSet &Params) {
+  const MachineFunction *MF = CallMI->getMF();
+  auto CalleesMap = MF->getCallSitesInfo();
+  auto CallFwdRegsInfo = CalleesMap.find(CallMI);
+
+  // There is no information for the call instruction.
+  if (CallFwdRegsInfo == CalleesMap.end())
+    return;
+
+  const MachineBasicBlock *MBB = CallMI->getParent();
+
+  // Skip the call instruction.
+  auto I = std::next(CallMI->getReverseIterator());
+
+  FwdRegWorklist ForwardedRegWorklist;
 
   const DIExpression *EmptyExpr =
       DIExpression::get(MF->getFunction().getContext(), {});
@@ -704,83 +802,24 @@ static void collectCallSiteParameters(const MachineInstr *CallMI,
   // as the entry value within basic blocks other than the first one.
   bool ShouldTryEmitEntryVals = MBB->getIterator() == MF->begin();
 
-  // If the MI is an instruction defining one or more parameters' forwarding
-  // registers, add those defines.
-  auto getForwardingRegsDefinedByMI = [&](const MachineInstr &MI,
-                                          SmallSetVector<unsigned, 4> &Defs) {
-    if (MI.isDebugInstr())
+  // Search for a loading value in forwarding registers inside call delay slot.
+  if (CallMI->hasDelaySlot()) {
+    auto Suc = std::next(CallMI->getIterator());
+    // Only one-instruction delay slot is supported.
+    auto BundleEnd = llvm::getBundleEnd(CallMI->getIterator());
+    (void)BundleEnd;
+    assert(std::next(Suc) == BundleEnd &&
+           "More than one instruction in call delay slot");
+    // Try to interpret value loaded by instruction.
+    if (!interpretNextInstr(&*Suc, ForwardedRegWorklist, Params))
       return;
-
-    for (const MachineOperand &MO : MI.operands()) {
-      if (MO.isReg() && MO.isDef() &&
-          Register::isPhysicalRegister(MO.getReg())) {
-        for (auto FwdReg : ForwardedRegWorklist)
-          if (TRI->regsOverlap(FwdReg.first, MO.getReg()))
-            Defs.insert(FwdReg.first);
-      }
-    }
-  };
+  }
 
   // Search for a loading value in forwarding registers.
   for (; I != MBB->rend(); ++I) {
-    // Skip bundle headers.
-    if (I->isBundle())
-      continue;
-
-    // If the next instruction is a call we can not interpret parameter's
-    // forwarding registers or we finished the interpretation of all parameters.
-    if (I->isCall())
+    // Try to interpret values loaded by instruction.
+    if (!interpretNextInstr(&*I, ForwardedRegWorklist, Params))
       return;
-
-    if (ForwardedRegWorklist.empty())
-      return;
-
-    // Set of worklist registers that are defined by this instruction.
-    SmallSetVector<unsigned, 4> FwdRegDefs;
-
-    getForwardingRegsDefinedByMI(*I, FwdRegDefs);
-    if (FwdRegDefs.empty())
-      continue;
-
-    for (auto ParamFwdReg : FwdRegDefs) {
-      if (auto ParamValue = TII->describeLoadedValue(*I, ParamFwdReg)) {
-        if (ParamValue->first.isImm()) {
-          int64_t Val = ParamValue->first.getImm();
-          finishCallSiteParams(Val, ParamValue->second,
-                               ForwardedRegWorklist[ParamFwdReg], Params);
-        } else if (ParamValue->first.isReg()) {
-          Register RegLoc = ParamValue->first.getReg();
-          unsigned SP = TLI->getStackPointerRegisterToSaveRestore();
-          Register FP = TRI->getFrameRegister(*MF);
-          bool IsSPorFP = (RegLoc == SP) || (RegLoc == FP);
-          if (TRI->isCalleeSavedPhysReg(RegLoc, *MF) || IsSPorFP) {
-            MachineLocation MLoc(RegLoc, /*IsIndirect=*/IsSPorFP);
-            finishCallSiteParams(MLoc, ParamValue->second,
-                                 ForwardedRegWorklist[ParamFwdReg], Params);
-          } else {
-            // ParamFwdReg was described by the non-callee saved register
-            // RegLoc. Mark that the call site values for the parameters are
-            // dependent on that register instead of ParamFwdReg. Since RegLoc
-            // may be a register that will be handled in this iteration, we
-            // postpone adding the items to the worklist, and instead keep them
-            // in a temporary container.
-            addToFwdRegWorklist(NewWorklistItems, RegLoc, ParamValue->second,
-                                ForwardedRegWorklist[ParamFwdReg]);
-          }
-        }
-      }
-    }
-
-    // Remove all registers that this instruction defines from the worklist.
-    for (auto ParamFwdReg : FwdRegDefs)
-      ForwardedRegWorklist.erase(ParamFwdReg);
-
-    // Now that we are done handling this instruction, add items from the
-    // temporary worklist to the real one.
-    for (auto New : NewWorklistItems)
-      addToFwdRegWorklist(ForwardedRegWorklist, New.first, EmptyExpr,
-                          New.second);
-    NewWorklistItems.clear();
   }
 
   // Emit the call site parameter's value as an entry value.
@@ -812,6 +851,25 @@ void DwarfDebug::constructCallSiteEntryDIEs(const DISubprogram &SP,
   const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
   assert(TII && "TargetInstrInfo not found: cannot label tail calls");
 
+  // Delay slot support check.
+  auto delaySlotSupported = [&](const MachineInstr &MI) {
+    if (!MI.isBundledWithSucc())
+      return false;
+    auto Suc = std::next(MI.getIterator());
+    auto CallInstrBundle = getBundleStart(MI.getIterator());
+    (void)CallInstrBundle;
+    auto DelaySlotBundle = getBundleStart(Suc);
+    (void)DelaySlotBundle;
+    // Ensure that label after call is following delay slot instruction.
+    // Ex. CALL_INSTRUCTION {
+    //       DELAY_SLOT_INSTRUCTION }
+    //      LABEL_AFTER_CALL
+    assert(getLabelAfterInsn(&*CallInstrBundle) ==
+               getLabelAfterInsn(&*DelaySlotBundle) &&
+           "Call and its successor instruction don't have same label after.");
+    return true;
+  };
+
   // Emit call site entries for each call or tail call in the function.
   for (const MachineBasicBlock &MBB : MF) {
     for (const MachineInstr &MI : MBB.instrs()) {
@@ -831,8 +889,8 @@ void DwarfDebug::constructCallSiteEntryDIEs(const DISubprogram &SP,
       if (MI.getFlag(MachineInstr::FrameSetup))
         continue;
 
-      // TODO: Add support for targets with delay slots (see: beginInstruction).
-      if (MI.hasDelaySlot())
+      // Check if delay slot support is enabled.
+      if (MI.hasDelaySlot() && !delaySlotSupported(*&MI))
         return;
 
       // If this is a direct call, find the callee's subprogram.
@@ -1271,8 +1329,7 @@ void DwarfDebug::finalizeModuleInfo() {
 
     // We don't keep track of which addresses are used in which CU so this
     // is a bit pessimistic under LTO.
-    if ((!AddrPool.isEmpty() || TheCU.hasRangeLists()) &&
-        (getDwarfVersion() >= 5 || HasSplitUnit))
+    if ((HasSplitUnit || getDwarfVersion() >= 5) && !AddrPool.isEmpty())
       U.addAddrTableBase();
 
     if (getDwarfVersion() >= 5) {
@@ -1288,18 +1345,31 @@ void DwarfDebug::finalizeModuleInfo() {
     }
 
     auto *CUNode = cast<DICompileUnit>(P.first);
-    // If compile Unit has macros, emit "DW_AT_macro_info" attribute.
+    // If compile Unit has macros, emit "DW_AT_macro_info/DW_AT_macros"
+    // attribute.
     if (CUNode->getMacros()) {
-      if (useSplitDwarf())
-        TheCU.addSectionDelta(TheCU.getUnitDie(), dwarf::DW_AT_macro_info,
+      if (getDwarfVersion() >= 5) {
+        if (useSplitDwarf())
+          TheCU.addSectionDelta(
+              TheCU.getUnitDie(), dwarf::DW_AT_macros, U.getMacroLabelBegin(),
+              TLOF.getDwarfMacroDWOSection()->getBeginSymbol());
+        else
+          U.addSectionLabel(U.getUnitDie(), dwarf::DW_AT_macros,
                             U.getMacroLabelBegin(),
-                            TLOF.getDwarfMacinfoDWOSection()->getBeginSymbol());
-      else
-        U.addSectionLabel(U.getUnitDie(), dwarf::DW_AT_macro_info,
-                          U.getMacroLabelBegin(),
-                          TLOF.getDwarfMacinfoSection()->getBeginSymbol());
+                            TLOF.getDwarfMacroSection()->getBeginSymbol());
+      } else {
+        if (useSplitDwarf())
+          TheCU.addSectionDelta(
+              TheCU.getUnitDie(), dwarf::DW_AT_macro_info,
+              U.getMacroLabelBegin(),
+              TLOF.getDwarfMacinfoDWOSection()->getBeginSymbol());
+        else
+          U.addSectionLabel(U.getUnitDie(), dwarf::DW_AT_macro_info,
+                            U.getMacroLabelBegin(),
+                            TLOF.getDwarfMacinfoSection()->getBeginSymbol());
+      }
     }
-  }
+    }
 
   // Emit all frontend-produced Skeleton CUs, i.e., Clang modules.
   for (auto *CUNode : MMI->getModule()->debug_compile_units())
@@ -1355,7 +1425,7 @@ void DwarfDebug::endModule() {
   // Emit info into a debug macinfo.dwo section.
     emitDebugMacinfoDWO();
   else
-  // Emit info into a debug macinfo section.
+    // Emit info into a debug macinfo/macro section.
     emitDebugMacinfo();
 
   emitDebugStr();
@@ -1469,11 +1539,20 @@ static bool validThroughout(LexicalScopes &LScopes,
   if (LSRange.size() == 0)
     return false;
 
+
   // Determine if the DBG_VALUE is valid at the beginning of its lexical block.
   const MachineInstr *LScopeBegin = LSRange.front().first;
   // Early exit if the lexical scope begins outside of the current block.
   if (LScopeBegin->getParent() != MBB)
     return false;
+
+  // If there are instructions belonging to our scope in another block, and
+  // we're not a constant (see DWARF2 comment below), then we can't be
+  // validThroughout.
+  const MachineInstr *LScopeEnd = LSRange.back().second;
+  if (RangeEnd && LScopeEnd->getParent() != MBB)
+    return false;
+
   MachineBasicBlock::const_reverse_iterator Pred(DbgValue);
   for (++Pred; Pred != MBB->rend(); ++Pred) {
     if (Pred->getFlag(MachineInstr::FrameSetup))
@@ -1494,11 +1573,6 @@ static bool validThroughout(LexicalScopes &LScopes,
   if (!RangeEnd)
     return true;
 
-  // Fail if there are instructions belonging to our scope in another block.
-  const MachineInstr *LScopeEnd = LSRange.back().second;
-  if (LScopeEnd->getParent() != MBB)
-    return false;
-
   // Single, constant DBG_VALUEs in the prologue are promoted to be live
   // throughout the function. This is a hack, presumably for DWARF v2 and not
   // necessarily correct. It would be much better to use a dbg.declare instead
@@ -1506,7 +1580,28 @@ static bool validThroughout(LexicalScopes &LScopes,
   if (DbgValue->getOperand(0).isImm() && MBB->pred_empty())
     return true;
 
-  return false;
+  // Now check for situations where an "open-ended" DBG_VALUE isn't enough to
+  // determine eligibility for a single location, e.g. nested scopes, inlined
+  // functions.
+  // FIXME: For now we just handle a simple (but common) case where the scope
+  // is contained in MBB. We could be smarter here.
+  //
+  // At this point we know that our scope ends in MBB. So, if RangeEnd exists
+  // outside of the block we can ignore it; the location is just leaking outside
+  // its scope.
+  assert(LScopeEnd->getParent() == MBB && "Scope ends outside MBB");
+  if (RangeEnd->getParent() != DbgValue->getParent())
+    return true;
+
+  // The location range and variable's enclosing scope are both contained within
+  // MBB, test if location terminates before end of scope.
+  for (auto I = RangeEnd->getIterator(); I != MBB->end(); ++I)
+    if (&*I == LScopeEnd)
+      return false;
+
+  // There's a single location which starts at the scope start, and ends at or
+  // after the scope end.
+  return true;
 }
 
 /// Build the location list for all DBG_VALUEs in the function that
@@ -1796,11 +1891,24 @@ void DwarfDebug::beginInstruction(const MachineInstr *MI) {
   bool NoDebug =
       !SP || SP->getUnit()->getEmissionKind() == DICompileUnit::NoDebug;
 
+  // Delay slot support check.
+  auto delaySlotSupported = [](const MachineInstr &MI) {
+    if (!MI.isBundledWithSucc())
+      return false;
+    auto Suc = std::next(MI.getIterator());
+    (void)Suc;
+    // Ensure that delay slot instruction is successor of the call instruction.
+    // Ex. CALL_INSTRUCTION {
+    //        DELAY_SLOT_INSTRUCTION }
+    assert(Suc->isBundledWithPred() &&
+           "Call bundle instructions are out of order");
+    return true;
+  };
+
   // When describing calls, we need a label for the call instruction.
-  // TODO: Add support for targets with delay slots.
   if (!NoDebug && SP->areAllCallsDescribed() &&
       MI->isCandidateForCallSiteEntry(MachineInstr::AnyInBundle) &&
-      !MI->hasDelaySlot()) {
+      (!MI->hasDelaySlot() || delaySlotSupported(*MI))) {
     const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
     bool IsTail = TII->isTailCall(*MI);
     // For tail calls, we need the address of the branch instruction for
@@ -2318,7 +2426,7 @@ void DwarfDebug::emitDebugLocEntry(ByteStreamer &Streamer,
   DWARFDataExtractor Data(StringRef(DebugLocs.getBytes(Entry).data(),
                                     DebugLocs.getBytes(Entry).size()),
                           Asm->getDataLayout().isLittleEndian(), PtrSize);
-  DWARFExpression Expr(Data, PtrSize);
+  DWARFExpression Expr(Data, PtrSize, Asm->OutContext.getDwarfFormat());
 
   using Encoding = DWARFExpression::Operation::Encoding;
   uint64_t Offset = 0;
@@ -2364,14 +2472,11 @@ void DwarfDebug::emitDebugLocValue(const AsmPrinter &AP, const DIBasicType *BT,
       DwarfExpr.addUnsignedConstant(Value.getInt());
   } else if (Value.isLocation()) {
     MachineLocation Location = Value.getLoc();
-    if (Location.isIndirect())
-      DwarfExpr.setMemoryLocationKind();
+    DwarfExpr.setLocation(Location, DIExpr);
     DIExpressionCursor Cursor(DIExpr);
 
-    if (DIExpr->isEntryValue()) {
-      DwarfExpr.setEntryValueFlag();
+    if (DIExpr->isEntryValue())
       DwarfExpr.beginEntryValueExpression(Cursor);
-    }
 
     const TargetRegisterInfo &TRI = *AP.MF->getSubtarget().getRegisterInfo();
     if (!DwarfExpr.addMachineRegExpression(TRI, Cursor, Location.getReg()))
@@ -2381,7 +2486,7 @@ void DwarfDebug::emitDebugLocValue(const AsmPrinter &AP, const DIBasicType *BT,
     TargetIndexLocation Loc = Value.getTargetIndexLocation();
     // TODO TargetIndexLocation is a target-independent. Currently only the WebAssembly-specific
     // encoding is supported.
-    DwarfExpr.addWasmLocation(Loc.Index, Loc.Offset);
+    DwarfExpr.addWasmLocation(Loc.Index, static_cast<uint64_t>(Loc.Offset));
   } else if (Value.isConstantFP()) {
     APInt RawBytes = Value.getConstantFP()->getValueAPF().bitcastToAPInt();
     DwarfExpr.addUnsignedConstant(RawBytes);
@@ -2405,8 +2510,7 @@ void DebugLocEntry::finalize(const AsmPrinter &AP,
     assert(llvm::all_of(Values, [](DbgValueLoc P) {
           return P.isFragment();
         }) && "all values are expected to be fragments");
-    assert(std::is_sorted(Values.begin(), Values.end()) &&
-           "fragments are expected to be sorted");
+    assert(llvm::is_sorted(Values) && "fragments are expected to be sorted");
 
     for (auto Fragment : Values)
       DwarfDebug::emitDebugLocValue(AP, BT, Fragment, DwarfExpr);
@@ -2854,6 +2958,27 @@ void DwarfDebug::emitDebugRangesDWO() {
                       Asm->getObjFileLowering().getDwarfRnglistsDWOSection());
 }
 
+/// Emit the header of a DWARF 5 macro section.
+static void emitMacroHeader(AsmPrinter *Asm, const DwarfDebug &DD,
+                            const DwarfCompileUnit &CU) {
+  enum HeaderFlagMask {
+#define HANDLE_MACRO_FLAG(ID, NAME) MACRO_FLAG_##NAME = ID,
+#include "llvm/BinaryFormat/Dwarf.def"
+  };
+  uint8_t Flags = 0;
+  Asm->OutStreamer->AddComment("Macro information version");
+  Asm->emitInt16(5);
+  // We are setting Offset and line offset flags unconditionally here,
+  // since we're only supporting DWARF32 and line offset should be mostly
+  // present.
+  // FIXME: Add support for DWARF64.
+  Flags |= MACRO_FLAG_DEBUG_LINE_OFFSET;
+  Asm->OutStreamer->AddComment("Flags: 32 bit, debug_line_offset present");
+  Asm->emitInt8(Flags);
+  Asm->OutStreamer->AddComment("debug_line_offset");
+  Asm->OutStreamer->emitSymbolValue(CU.getLineTableStartSym(), /*Size=*/4);
+}
+
 void DwarfDebug::handleMacroNodes(DIMacroNodeArray Nodes, DwarfCompileUnit &U) {
   for (auto *MN : Nodes) {
     if (auto *M = dyn_cast<DIMacro>(MN))
@@ -2866,26 +2991,72 @@ void DwarfDebug::handleMacroNodes(DIMacroNodeArray Nodes, DwarfCompileUnit &U) {
 }
 
 void DwarfDebug::emitMacro(DIMacro &M) {
-  Asm->emitULEB128(M.getMacinfoType());
-  Asm->emitULEB128(M.getLine());
   StringRef Name = M.getName();
   StringRef Value = M.getValue();
-  Asm->OutStreamer->emitBytes(Name);
-  if (!Value.empty()) {
-    // There should be one space between macro name and macro value.
-    Asm->emitInt8(' ');
-    Asm->OutStreamer->emitBytes(Value);
+  bool UseMacro = getDwarfVersion() >= 5;
+
+  if (UseMacro) {
+    unsigned Type = M.getMacinfoType() == dwarf::DW_MACINFO_define
+                        ? dwarf::DW_MACRO_define_strx
+                        : dwarf::DW_MACRO_undef_strx;
+    Asm->OutStreamer->AddComment(dwarf::MacroString(Type));
+    Asm->emitULEB128(Type);
+    Asm->OutStreamer->AddComment("Line Number");
+    Asm->emitULEB128(M.getLine());
+    Asm->OutStreamer->AddComment("Macro String");
+    if (!Value.empty())
+      Asm->emitULEB128(this->InfoHolder.getStringPool()
+                           .getIndexedEntry(*Asm, (Name + " " + Value).str())
+                           .getIndex());
+    else
+      // DW_MACRO_undef_strx doesn't have a value, so just emit the macro
+      // string.
+      Asm->emitULEB128(this->InfoHolder.getStringPool()
+                           .getIndexedEntry(*Asm, (Name).str())
+                           .getIndex());
+  } else {
+    Asm->OutStreamer->AddComment(dwarf::MacinfoString(M.getMacinfoType()));
+    Asm->emitULEB128(M.getMacinfoType());
+    Asm->OutStreamer->AddComment("Line Number");
+    Asm->emitULEB128(M.getLine());
+    Asm->OutStreamer->AddComment("Macro String");
+    Asm->OutStreamer->emitBytes(Name);
+    if (!Value.empty()) {
+      // There should be one space between macro name and macro value.
+      Asm->emitInt8(' ');
+      Asm->OutStreamer->AddComment("Macro Value=");
+      Asm->OutStreamer->emitBytes(Value);
+    }
+    Asm->emitInt8('\0');
   }
-  Asm->emitInt8('\0');
+}
+
+void DwarfDebug::emitMacroFileImpl(
+    DIMacroFile &F, DwarfCompileUnit &U, unsigned StartFile, unsigned EndFile,
+    StringRef (*MacroFormToString)(unsigned Form)) {
+
+  Asm->OutStreamer->AddComment(MacroFormToString(StartFile));
+  Asm->emitULEB128(StartFile);
+  Asm->OutStreamer->AddComment("Line Number");
+  Asm->emitULEB128(F.getLine());
+  Asm->OutStreamer->AddComment("File Number");
+  Asm->emitULEB128(U.getOrCreateSourceID(F.getFile()));
+  handleMacroNodes(F.getElements(), U);
+  Asm->OutStreamer->AddComment(MacroFormToString(EndFile));
+  Asm->emitULEB128(EndFile);
 }
 
 void DwarfDebug::emitMacroFile(DIMacroFile &F, DwarfCompileUnit &U) {
+  // DWARFv5 macro and DWARFv4 macinfo share some common encodings,
+  // so for readibility/uniformity, We are explicitly emitting those.
   assert(F.getMacinfoType() == dwarf::DW_MACINFO_start_file);
-  Asm->emitULEB128(dwarf::DW_MACINFO_start_file);
-  Asm->emitULEB128(F.getLine());
-  Asm->emitULEB128(U.getOrCreateSourceID(F.getFile()));
-  handleMacroNodes(F.getElements(), U);
-  Asm->emitULEB128(dwarf::DW_MACINFO_end_file);
+  bool UseMacro = getDwarfVersion() >= 5;
+  if (UseMacro)
+    emitMacroFileImpl(F, U, dwarf::DW_MACRO_start_file,
+                      dwarf::DW_MACRO_end_file, dwarf::MacroString);
+  else
+    emitMacroFileImpl(F, U, dwarf::DW_MACINFO_start_file,
+                      dwarf::DW_MACINFO_end_file, dwarf::MacinfoString);
 }
 
 void DwarfDebug::emitDebugMacinfoImpl(MCSection *Section) {
@@ -2899,19 +3070,27 @@ void DwarfDebug::emitDebugMacinfoImpl(MCSection *Section) {
       continue;
     Asm->OutStreamer->SwitchSection(Section);
     Asm->OutStreamer->emitLabel(U.getMacroLabelBegin());
+    if (getDwarfVersion() >= 5)
+      emitMacroHeader(Asm, *this, U);
     handleMacroNodes(Macros, U);
     Asm->OutStreamer->AddComment("End Of Macro List Mark");
     Asm->emitInt8(0);
   }
 }
 
-/// Emit macros into a debug macinfo section.
+/// Emit macros into a debug macinfo/macro section.
 void DwarfDebug::emitDebugMacinfo() {
-  emitDebugMacinfoImpl(Asm->getObjFileLowering().getDwarfMacinfoSection());
+  auto &ObjLower = Asm->getObjFileLowering();
+  emitDebugMacinfoImpl(getDwarfVersion() >= 5
+                           ? ObjLower.getDwarfMacroSection()
+                           : ObjLower.getDwarfMacinfoSection());
 }
 
 void DwarfDebug::emitDebugMacinfoDWO() {
-  emitDebugMacinfoImpl(Asm->getObjFileLowering().getDwarfMacinfoDWOSection());
+  auto &ObjLower = Asm->getObjFileLowering();
+  emitDebugMacinfoImpl(getDwarfVersion() >= 5
+                           ? ObjLower.getDwarfMacroDWOSection()
+                           : ObjLower.getDwarfMacinfoDWOSection());
 }
 
 // DWARF5 Experimental Separate Dwarf emitters.
@@ -3175,5 +3354,7 @@ const MCSymbol *DwarfDebug::getSectionLabel(const MCSection *S) {
   return SectionLabels.find(S)->second;
 }
 void DwarfDebug::insertSectionLabel(const MCSymbol *S) {
-  SectionLabels.insert(std::make_pair(&S->getSection(), S));
+  if (SectionLabels.insert(std::make_pair(&S->getSection(), S)).second)
+    if (useSplitDwarf() || getDwarfVersion() >= 5)
+      AddrPool.getIndex(S);
 }

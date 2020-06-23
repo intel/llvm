@@ -71,14 +71,22 @@ ExprDependence clang::computeDependence(UnaryExprOrTypeTraitExpr *E) {
   if (!D)
     return Deps;
   for (const auto *I : D->specific_attrs<AlignedAttr>()) {
+    if (I->isAlignmentErrorDependent())
+      Deps |= ExprDependence::Error;
     if (I->isAlignmentDependent())
-      return Deps | ExprDependence::ValueInstantiation;
+      Deps |= ExprDependence::ValueInstantiation;
   }
   return Deps;
 }
 
 ExprDependence clang::computeDependence(ArraySubscriptExpr *E) {
   return E->getLHS()->getDependence() | E->getRHS()->getDependence();
+}
+
+ExprDependence clang::computeDependence(MatrixSubscriptExpr *E) {
+  return E->getBase()->getDependence() | E->getRowIdx()->getDependence() |
+         (E->getColumnIdx() ? E->getColumnIdx()->getDependence()
+                            : ExprDependence::None);
 }
 
 ExprDependence clang::computeDependence(CompoundLiteralExpr *E) {
@@ -120,15 +128,19 @@ ExprDependence clang::computeDependence(BinaryConditionalOperator *E) {
 }
 
 ExprDependence clang::computeDependence(StmtExpr *E, unsigned TemplateDepth) {
-  // FIXME: why is unexpanded-pack not propagated?
-  auto D = toExprDependence(E->getType()->getDependence()) &
-           ~ExprDependence::UnexpandedPack;
+  auto D = toExprDependence(E->getType()->getDependence());
+  // Propagate dependence of the result.
+  if (const auto *CompoundExprResult =
+          dyn_cast_or_null<ValueStmt>(E->getSubStmt()->getStmtExprResult()))
+    if (const Expr *ResultExpr = CompoundExprResult->getExprStmt())
+      D |= ResultExpr->getDependence();
   // Note: we treat a statement-expression in a dependent context as always
   // being value- and instantiation-dependent. This matches the behavior of
   // lambda-expressions and GCC.
   if (TemplateDepth)
     D |= ExprDependence::ValueInstantiation;
-  return D;
+  // A param pack cannot be expanded over stmtexpr boundaries.
+  return D & ~ExprDependence::UnexpandedPack;
 }
 
 ExprDependence clang::computeDependence(ConvertVectorExpr *E) {
@@ -172,7 +184,7 @@ ExprDependence clang::computeDependence(VAArgExpr *E) {
 
 ExprDependence clang::computeDependence(NoInitExpr *E) {
   return toExprDependence(E->getType()->getDependence()) &
-         (ExprDependence::Instantiation & ExprDependence::Error);
+         (ExprDependence::Instantiation | ExprDependence::Error);
 }
 
 ExprDependence clang::computeDependence(ArrayInitLoopExpr *E) {
@@ -363,6 +375,31 @@ ExprDependence clang::computeDependence(OMPArraySectionExpr *E) {
   return D;
 }
 
+ExprDependence clang::computeDependence(OMPArrayShapingExpr *E) {
+  auto D = E->getBase()->getDependence() |
+           toExprDependence(E->getType()->getDependence());
+  for (Expr *Dim: E->getDimensions())
+    if (Dim)
+      D |= Dim->getDependence();
+  return D;
+}
+
+ExprDependence clang::computeDependence(OMPIteratorExpr *E) {
+  auto D = toExprDependence(E->getType()->getDependence());
+  for (unsigned I = 0, End = E->numOfIterators(); I < End; ++I) {
+    if (auto *VD = cast_or_null<ValueDecl>(E->getIteratorDecl(I)))
+      D |= toExprDependence(VD->getType()->getDependence());
+    OMPIteratorExpr::IteratorRange IR = E->getIteratorRange(I);
+    if (Expr *BE = IR.Begin)
+      D |= BE->getDependence();
+    if (Expr *EE = IR.End)
+      D |= EE->getDependence();
+    if (Expr *SE = IR.Step)
+      D |= SE->getDependence();
+  }
+  return D;
+}
+
 /// Compute the type-, value-, and instantiation-dependence of a
 /// declaration reference
 /// based on the declaration being referenced.
@@ -370,7 +407,8 @@ ExprDependence clang::computeDependence(DeclRefExpr *E, const ASTContext &Ctx) {
   auto Deps = ExprDependence::None;
 
   if (auto *NNS = E->getQualifier())
-    Deps |= toExprDependence(NNS->getDependence());
+    Deps |= toExprDependence(NNS->getDependence() &
+                             ~NestedNameSpecifierDependence::Dependent);
 
   if (auto *FirstArg = E->getTemplateArgs()) {
     unsigned NumArgs = E->getNumTemplateArgs();
@@ -457,9 +495,13 @@ ExprDependence clang::computeDependence(DeclRefExpr *E, const ASTContext &Ctx) {
 }
 
 ExprDependence clang::computeDependence(RecoveryExpr *E) {
+  // Mark the expression as value- and instantiation- dependent to reuse
+  // existing suppressions for dependent code, e.g. avoiding
+  // constant-evaluation.
   // FIXME: drop type+value+instantiation once Error is sufficient to suppress
   // bogus dianostics.
-  auto D = ExprDependence::TypeValueInstantiation | ExprDependence::Error;
+  auto D = toExprDependence(E->getType()->getDependence()) |
+           ExprDependence::ValueInstantiation | ExprDependence::Error;
   for (auto *S : E->subExpressions())
     D |= S->getDependence();
   return D;
@@ -590,7 +632,8 @@ ExprDependence clang::computeDependence(CXXPseudoDestructorExpr *E) {
     D |= turnTypeToValueDependence(
         toExprDependence(ST->getType()->getDependence()));
   if (auto *Q = E->getQualifier())
-    D |= toExprDependence(Q->getDependence());
+    D |= toExprDependence(Q->getDependence() &
+                          ~NestedNameSpecifierDependence::Dependent);
   return D;
 }
 
@@ -616,7 +659,8 @@ clang::computeDependence(OverloadExpr *E, bool KnownDependent,
     Deps |= ExprDependence::UnexpandedPack;
   Deps |= getDependenceInExpr(E->getNameInfo());
   if (auto *Q = E->getQualifier())
-    Deps |= toExprDependence(Q->getDependence());
+    Deps |= toExprDependence(Q->getDependence() &
+                             ~NestedNameSpecifierDependence::Dependent);
   for (auto *D : E->decls()) {
     if (D->getDeclContext()->isDependentContext() ||
         isa<UnresolvedUsingValueDecl>(D))

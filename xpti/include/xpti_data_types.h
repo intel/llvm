@@ -246,6 +246,15 @@ enum class trace_point_type_t : uint16_t {
   wait_begin = XPTI_TRACE_POINT_BEGIN(11),
   /// Models the explicit barrier end in SYCL
   wait_end = XPTI_TRACE_POINT_END(11),
+  /// Used to trace function call begin, from libraries, for example. This trace
+  /// point type does not require an event object for the parent or the event of
+  /// interest, but information about the function being traced needs to be sent
+  /// using the user_data parameter in the xptiNotifySubscribers() call.
+  function_begin = XPTI_TRACE_POINT_BEGIN(12),
+  /// Used to trace function call end
+  function_end = XPTI_TRACE_POINT_END(12),
+  /// Use to notify that a new metadata entry is available for a given event
+  metadata = XPTI_TRACE_POINT_BEGIN(13),
   /// Indicates that the trace point is user defined and only the tool defined
   /// for a stream will be able to handle it
   user_defined = 1 << 7
@@ -363,7 +372,7 @@ struct trace_event_data_t {
   reserved_data_t reserved;
   /// User defined data, if required; owned by the user shared object and will
   /// not be deleted when event data is destroyed
-  void *user_data = nullptr;
+  void *global_user_data = nullptr;
 };
 
 ///

@@ -86,7 +86,7 @@ protected:
 };
 
 TEST_F(BackgroundIndexTest, NoCrashOnErrorFile) {
-  MockFSProvider FS;
+  MockFS FS;
   FS.Files[testPath("root/A.cc")] = "error file";
   llvm::StringMap<std::string> Storage;
   size_t CacheHits = 0;
@@ -105,7 +105,7 @@ TEST_F(BackgroundIndexTest, NoCrashOnErrorFile) {
 }
 
 TEST_F(BackgroundIndexTest, IndexTwoFiles) {
-  MockFSProvider FS;
+  MockFS FS;
   // a.h yields different symbols when included by A.cc vs B.cc.
   FS.Files[testPath("root/A.h")] = R"cpp(
       void common();
@@ -175,7 +175,7 @@ TEST_F(BackgroundIndexTest, IndexTwoFiles) {
 }
 
 TEST_F(BackgroundIndexTest, ShardStorageTest) {
-  MockFSProvider FS;
+  MockFS FS;
   FS.Files[testPath("root/A.h")] = R"cpp(
       void common();
       void f_b();
@@ -246,7 +246,7 @@ TEST_F(BackgroundIndexTest, ShardStorageTest) {
 }
 
 TEST_F(BackgroundIndexTest, DirectIncludesTest) {
-  MockFSProvider FS;
+  MockFS FS;
   FS.Files[testPath("root/B.h")] = "";
   FS.Files[testPath("root/A.h")] = R"cpp(
       #include "B.h"
@@ -297,7 +297,7 @@ TEST_F(BackgroundIndexTest, DirectIncludesTest) {
 }
 
 TEST_F(BackgroundIndexTest, ShardStorageLoad) {
-  MockFSProvider FS;
+  MockFS FS;
   FS.Files[testPath("root/A.h")] = R"cpp(
       void common();
       void f_b();
@@ -368,7 +368,7 @@ TEST_F(BackgroundIndexTest, ShardStorageLoad) {
 }
 
 TEST_F(BackgroundIndexTest, ShardStorageEmptyFile) {
-  MockFSProvider FS;
+  MockFS FS;
   FS.Files[testPath("root/A.h")] = R"cpp(
       void common();
       void f_b();
@@ -436,13 +436,14 @@ TEST_F(BackgroundIndexTest, ShardStorageEmptyFile) {
 }
 
 TEST_F(BackgroundIndexTest, NoDotsInAbsPath) {
-  MockFSProvider FS;
+  MockFS FS;
   llvm::StringMap<std::string> Storage;
   size_t CacheHits = 0;
   MemoryShardStorage MSS(Storage, CacheHits);
   OverlayCDB CDB(/*Base=*/nullptr);
   BackgroundIndex Idx(Context::empty(), FS, CDB,
                       [&](llvm::StringRef) { return &MSS; });
+  ASSERT_TRUE(Idx.blockUntilIdleForTest());
 
   tooling::CompileCommand Cmd;
   FS.Files[testPath("root/A.cc")] = "";
@@ -450,14 +451,15 @@ TEST_F(BackgroundIndexTest, NoDotsInAbsPath) {
   Cmd.Directory = testPath("root/build");
   Cmd.CommandLine = {"clang++", "../A.cc"};
   CDB.setCompileCommand(testPath("root/build/../A.cc"), Cmd);
+  ASSERT_TRUE(Idx.blockUntilIdleForTest());
 
   FS.Files[testPath("root/B.cc")] = "";
   Cmd.Filename = "./B.cc";
   Cmd.Directory = testPath("root");
   Cmd.CommandLine = {"clang++", "./B.cc"};
   CDB.setCompileCommand(testPath("root/./B.cc"), Cmd);
-
   ASSERT_TRUE(Idx.blockUntilIdleForTest());
+
   for (llvm::StringRef AbsPath : MSS.AccessedPaths.keys()) {
     EXPECT_FALSE(AbsPath.contains("./")) << AbsPath;
     EXPECT_FALSE(AbsPath.contains("../")) << AbsPath;
@@ -465,7 +467,7 @@ TEST_F(BackgroundIndexTest, NoDotsInAbsPath) {
 }
 
 TEST_F(BackgroundIndexTest, UncompilableFiles) {
-  MockFSProvider FS;
+  MockFS FS;
   llvm::StringMap<std::string> Storage;
   size_t CacheHits = 0;
   MemoryShardStorage MSS(Storage, CacheHits);
@@ -528,7 +530,7 @@ TEST_F(BackgroundIndexTest, UncompilableFiles) {
 }
 
 TEST_F(BackgroundIndexTest, CmdLineHash) {
-  MockFSProvider FS;
+  MockFS FS;
   llvm::StringMap<std::string> Storage;
   size_t CacheHits = 0;
   MemoryShardStorage MSS(Storage, CacheHits);

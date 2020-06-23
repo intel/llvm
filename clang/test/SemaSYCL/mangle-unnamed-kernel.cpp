@@ -8,5 +8,5 @@ int main() {
   return 0;
 }
 
-// CHECK: _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE6->12clES2_EUlvE6->54{{.*}}
-// CHECK: _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE7->12clES2_EUlvE7->54{{.*}}
+// CHECK: _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE6_12clES2_EUlvE6_54{{.*}}
+// CHECK: _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE7_12clES2_EUlvE7_54{{.*}}

@@ -55,7 +55,7 @@ define i32 @test3(i32* %g_addr) nounwind {
 
 define void @test4(i32* %Q) {
 ; CHECK-LABEL: @test4(
-; CHECK-NEXT:    [[A:%.*]] = load i32, i32* [[Q:%.*]]
+; CHECK-NEXT:    [[A:%.*]] = load i32, i32* [[Q:%.*]], align 4
 ; CHECK-NEXT:    store volatile i32 [[A]], i32* [[Q]]
 ; CHECK-NEXT:    ret void
 ;
@@ -66,7 +66,7 @@ define void @test4(i32* %Q) {
 
 define void @test5(i32* %Q) {
 ; CHECK-LABEL: @test5(
-; CHECK-NEXT:    [[A:%.*]] = load volatile i32, i32* [[Q:%.*]]
+; CHECK-NEXT:    [[A:%.*]] = load volatile i32, i32* [[Q:%.*]], align 4
 ; CHECK-NEXT:    ret void
 ;
   %a = load volatile i32, i32* %Q
@@ -169,6 +169,16 @@ define void @test9_2(%struct.x* inalloca  %a) nounwind  {
   ret void
 }
 
+; Test for preallocated handling.
+define void @test9_3(%struct.x* preallocated(%struct.x)  %a) nounwind  {
+; CHECK-LABEL: @test9_3(
+; CHECK-NEXT:    ret void
+;
+  %tmp2 = getelementptr %struct.x, %struct.x* %a, i32 0, i32 0
+  store i32 1, i32* %tmp2, align 4
+  ret void
+}
+
 ; va_arg has fuzzy dependence, the store shouldn't be zapped.
 define double @test10(i8* %X) {
 ; CHECK-LABEL: @test10(
@@ -259,6 +269,8 @@ define i32 addrspace(1)* @test13_addrspacecast() {
 
 declare noalias i8* @malloc(i32)
 declare noalias i8* @calloc(i32, i32)
+declare noalias i8* @aligned_alloc(i32, i32)
+declare void @free(i8*)
 
 
 define void @test14(i32* %Q) {
@@ -272,6 +284,17 @@ define void @test14(i32* %Q) {
 
 }
 
+; Dead store on an aligned_alloc: should know that %M doesn't alias with %A.
+define i32 @test14a(i8* %M, i8 %value) {
+; CHECK-LABEL: @test14a(
+; CHECK-NOT: store
+; CHECK:     ret i32 0
+;
+  %A = tail call i8* @aligned_alloc(i32 32, i32 1024)
+  store i8 %value, i8* %A
+  tail call void @free(i8* %A)
+  ret i32 0
+}
 
 ; PR8701
 

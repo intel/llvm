@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/defines.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -47,7 +48,43 @@ enum class address_space : int {
   local_space
 };
 
-}  // namespace access
+} // namespace access
+
+using access::target;
+using access_mode = access::mode;
+
+template <access_mode mode> struct mode_tag_t {
+  explicit mode_tag_t() = default;
+};
+
+template <access_mode mode, target trgt> struct mode_target_tag_t {
+  explicit mode_target_tag_t() = default;
+};
+
+#if __cplusplus > 201402L
+
+inline constexpr mode_tag_t<access_mode::read> read_only{};
+inline constexpr mode_tag_t<access_mode::read_write> read_write{};
+inline constexpr mode_tag_t<access_mode::write> write_only{};
+inline constexpr mode_target_tag_t<access_mode::read, target::constant_buffer>
+    read_constant{};
+
+#else
+
+namespace {
+
+constexpr const auto &read_only =
+    sycl::detail::InlineVariableHelper<mode_tag_t<access_mode::read>>::value;
+constexpr const auto &read_write = sycl::detail::InlineVariableHelper<
+    mode_tag_t<access_mode::read_write>>::value;
+constexpr const auto &write_only =
+    sycl::detail::InlineVariableHelper<mode_tag_t<access_mode::write>>::value;
+constexpr const auto &read_constant = sycl::detail::InlineVariableHelper<
+    mode_target_tag_t<access_mode::read, target::constant_buffer>>::value;
+
+} // namespace
+
+#endif
 
 namespace detail {
 

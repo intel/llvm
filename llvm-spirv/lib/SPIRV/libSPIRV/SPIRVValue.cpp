@@ -111,4 +111,14 @@ void SPIRVValue::setNoUnsignedWrap(bool HasNoUnsignedWrap) {
   }
 }
 
+void SPIRVValue::setFPFastMathMode(SPIRVWord M) {
+  if (M == 0) {
+    eraseDecorate(DecorationFPFastMathMode);
+    return;
+  }
+  addDecorate(new SPIRVDecorate(DecorationFPFastMathMode, this, M));
+  SPIRVDBG(spvdbgs() << "Set fast math mode to " << M << " for obj " << Id
+                     << "\n")
+}
+
 } // namespace SPIRV

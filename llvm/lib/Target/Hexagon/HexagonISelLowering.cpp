@@ -387,9 +387,7 @@ HexagonTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   MachineFrameInfo &MFI = MF.getFrameInfo();
   auto PtrVT = getPointerTy(MF.getDataLayout());
 
-  unsigned NumParams = CLI.CS.getInstruction()
-                        ? CLI.CS.getFunctionType()->getNumParams()
-                        : 0;
+  unsigned NumParams = CLI.CB ? CLI.CB->getFunctionType()->getNumParams() : 0;
   if (GlobalAddressSDNode *GAN = dyn_cast<GlobalAddressSDNode>(Callee))
     Callee = DAG.getTargetGlobalAddress(GAN->getGlobal(), dl, MVT::i32);
 
@@ -729,7 +727,7 @@ HexagonTargetLowering::LowerDYNAMIC_STACKALLOC(SDValue Op,
   auto &HFI = *Subtarget.getFrameLowering();
   // "Zero" means natural stack alignment.
   if (A == 0)
-    A = HFI.getStackAlignment();
+    A = HFI.getStackAlign().value();
 
   LLVM_DEBUG({
     dbgs () << __func__ << " Align: " << A << " Size: ";
@@ -1087,7 +1085,7 @@ HexagonTargetLowering::LowerConstantPool(SDValue Op, SelectionDAG &DAG) const {
   Constant *CVal = nullptr;
   bool isVTi1Type = false;
   if (auto *CV = dyn_cast<ConstantVector>(CPN->getConstVal())) {
-    if (CV->getType()->getVectorElementType()->isIntegerTy(1)) {
+    if (cast<VectorType>(CV->getType())->getElementType()->isIntegerTy(1)) {
       IRBuilder<> IRB(CV->getContext());
       SmallVector<Constant*, 128> NewConst;
       unsigned VecLen = CV->getNumOperands();
@@ -1100,19 +1098,20 @@ HexagonTargetLowering::LowerConstantPool(SDValue Op, SelectionDAG &DAG) const {
       isVTi1Type = true;
     }
   }
-  unsigned Align = CPN->getAlignment();
+  Align Alignment = CPN->getAlign();
   bool IsPositionIndependent = isPositionIndependent();
   unsigned char TF = IsPositionIndependent ? HexagonII::MO_PCREL : 0;
 
   unsigned Offset = 0;
   SDValue T;
   if (CPN->isMachineConstantPoolEntry())
-    T = DAG.getTargetConstantPool(CPN->getMachineCPVal(), ValTy, Align, Offset,
-                                  TF);
+    T = DAG.getTargetConstantPool(CPN->getMachineCPVal(), ValTy, Alignment,
+                                  Offset, TF);
   else if (isVTi1Type)
-    T = DAG.getTargetConstantPool(CVal, ValTy, Align, Offset, TF);
+    T = DAG.getTargetConstantPool(CVal, ValTy, Alignment, Offset, TF);
   else
-    T = DAG.getTargetConstantPool(CPN->getConstVal(), ValTy, Align, Offset, TF);
+    T = DAG.getTargetConstantPool(CPN->getConstVal(), ValTy, Alignment, Offset,
+                                  TF);
 
   assert(cast<ConstantPoolSDNode>(T)->getTargetFlags() == TF &&
          "Inconsistent target flag encountered");
@@ -2909,10 +2908,10 @@ HexagonTargetLowering::LowerUnalignedLoad(SDValue Op, SelectionDAG &DAG)
   MachineMemOperand *WideMMO = nullptr;
   if (MachineMemOperand *MMO = LN->getMemOperand()) {
     MachineFunction &MF = DAG.getMachineFunction();
-    WideMMO = MF.getMachineMemOperand(MMO->getPointerInfo(), MMO->getFlags(),
-                    2*LoadLen, LoadLen, MMO->getAAInfo(), MMO->getRanges(),
-                    MMO->getSyncScopeID(), MMO->getOrdering(),
-                    MMO->getFailureOrdering());
+    WideMMO = MF.getMachineMemOperand(
+        MMO->getPointerInfo(), MMO->getFlags(), 2 * LoadLen, Align(LoadLen),
+        MMO->getAAInfo(), MMO->getRanges(), MMO->getSyncScopeID(),
+        MMO->getOrdering(), MMO->getFailureOrdering());
   }
 
   SDValue Load0 = DAG.getLoad(LoadTy, dl, Chain, Base0, WideMMO);
@@ -3506,9 +3505,5 @@ bool HexagonTargetLowering::shouldExpandAtomicStoreInIR(StoreInst *SI) const {
 TargetLowering::AtomicExpansionKind
 HexagonTargetLowering::shouldExpandAtomicCmpXchgInIR(
     AtomicCmpXchgInst *AI) const {
-  const DataLayout &DL = AI->getModule()->getDataLayout();
-  unsigned Size = DL.getTypeStoreSize(AI->getCompareOperand()->getType());
-  if (Size >= 4 && Size <= 8)
-    return AtomicExpansionKind::LLSC;
-  return AtomicExpansionKind::None;
+  return AtomicExpansionKind::LLSC;
 }

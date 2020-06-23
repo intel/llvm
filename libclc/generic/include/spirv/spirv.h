@@ -23,17 +23,17 @@
 /* Function Attributes */
 #include <func.h>
 
-/* 6.1 Supported Data Types */
+/* Supported Data Types */
 #include <types.h>
 #include <spirv/spirv_types.h>
 
-/* 6.2.3 Explicit Conversions */
-#include <spirv/convert.h>
+/* Supported builtins */
+#include <spirv/spirv_builtins.h>
 
-/* 6.2.4.2 Reinterpreting Types Using as_type() and as_typen() */
+/* Reinterpreting Types Using as_type() and as_typen() */
 #include <as_type.h>
 
-/* 6.9 Preprocessor Directives and Macros */
+/* Preprocessor Directives and Macros */
 #include <macros.h>
 
 /* 6.11.1 Work-Item Functions */
@@ -144,39 +144,15 @@
 #include <spirv/math/rsqrt.h>
 
 /* 6.11.2.1 Floating-point macros */
-#include <spirv/float/definitions.h>
-
-/* 6.11.3 Integer Functions */
-#include <spirv/integer/abs.h>
-#include <spirv/integer/abs_diff.h>
-#include <spirv/integer/add_sat.h>
-#include <spirv/integer/clz.h>
-#include <spirv/integer/hadd.h>
-#include <spirv/integer/mad24.h>
-#include <spirv/integer/mad_hi.h>
-#include <spirv/integer/mad_sat.h>
-#include <spirv/integer/mul24.h>
-#include <spirv/integer/mul_hi.h>
-#include <spirv/integer/popcount.h>
-#include <spirv/integer/rhadd.h>
-#include <spirv/integer/rotate.h>
-#include <spirv/integer/sub_sat.h>
-#include <spirv/integer/upsample.h>
+#include <clc/float/definitions.h>
 
 /* 6.11.3 Integer Definitions */
-#include <spirv/integer/definitions.h>
-
-/* 6.11.2 and 6.11.3 Shared Integer/Math Functions */
-#include <spirv/shared/clamp.h>
-#include <spirv/shared/max.h>
-#include <spirv/shared/min.h>
-#include <spirv/shared/vload.h>
-#include <spirv/shared/vstore.h>
+#include <clc/integer/definitions.h>
 
 /* 6.11.4 Common Functions */
 #include <spirv/common/degrees.h>
-#include <spirv/common/radians.h>
 #include <spirv/common/mix.h>
+#include <spirv/common/radians.h>
 #include <spirv/common/sign.h>
 #include <spirv/common/smoothstep.h>
 #include <spirv/common/step.h>
@@ -210,18 +186,6 @@
 #include <spirv/relational/isunordered.h>
 #include <spirv/relational/select.h>
 #include <spirv/relational/signbit.h>
-
-/* 6.11.8 Synchronization Functions */
-#include <spirv/synchronization/barrier.h>
-
-/* 6.11.9 Explicit Memory Fence Functions */
-#include <spirv/explicit_fence/explicit_memory_fence.h>
-
-/* 6.11.10 Async Copy and Prefetch Functions */
-/* #include <spirv/async/async_work_group_copy.h> -- Explicitly omitted from SPIR-V interface. */
-#include <spirv/async/async_work_group_strided_copy.h>
-#include <spirv/async/prefetch.h>
-#include <spirv/async/wait_group_events.h>
 
 /* 6.11.11 Atomic Functions */
 #include <spirv/atomic/atomic_add.h>

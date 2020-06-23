@@ -1,4 +1,7 @@
-set(LLVM_LINK_COMPONENTS support)
+set(LLVM_LINK_COMPONENTS
+  FrontendOpenMP
+  Support
+  )
 
 add_clang_library(clangTidyUtils
   ASTUtils.cpp
@@ -19,11 +22,15 @@ add_clang_library(clangTidyUtils
   UsingInserter.cpp
 
   LINK_LIBS
+  clangTidy
+  )
+
+clang_target_link_libraries(clangTidyUtils
+  PRIVATE
   clangAST
   clangASTMatchers
   clangBasic
   clangLex
   clangSema
-  clangTidy
   clangTransformer
   )

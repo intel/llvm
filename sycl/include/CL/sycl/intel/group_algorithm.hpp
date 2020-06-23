@@ -42,7 +42,7 @@ typename Group::linear_id_type get_local_linear_id(Group g);
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_GROUP_GET_LOCAL_LINEAR_ID(D)                                    \
   template <>                                                                  \
-  group<D>::linear_id_type get_local_linear_id<group<D>>(group<D> g) {         \
+  group<D>::linear_id_type get_local_linear_id<group<D>>(group<D>) {           \
     nd_item<D> it = cl::sycl::detail::Builder::getNDItem<D>();                 \
     return it.get_local_linear_id();                                           \
   }
@@ -60,7 +60,7 @@ get_local_linear_id<intel::sub_group>(intel::sub_group g) {
 
 template <int Dimensions>
 id<Dimensions> linear_id_to_id(range<Dimensions>, size_t linear_id);
-template <> inline id<1> linear_id_to_id(range<1> r, size_t linear_id) {
+template <> inline id<1> linear_id_to_id(range<1>, size_t linear_id) {
   return id<1>(linear_id);
 }
 template <> inline id<2> linear_id_to_id(range<2> r, size_t linear_id) {
@@ -108,13 +108,17 @@ template <typename T, typename V> struct identity<T, intel::maximum<V>> {
 template <typename Group, typename Ptr, class Function>
 Function for_each(Group g, Ptr first, Ptr last, Function f) {
 #ifdef __SYCL_DEVICE_ONLY__
-  ptrdiff_t offset = detail::get_local_linear_id(g);
-  ptrdiff_t stride = detail::get_local_linear_range(g);
+  ptrdiff_t offset = sycl::detail::get_local_linear_id(g);
+  ptrdiff_t stride = sycl::detail::get_local_linear_range(g);
   for (Ptr p = first + offset; p < last; p += stride) {
     f(*p);
   }
   return f;
 #else
+  (void)g;
+  (void)first;
+  (void)last;
+  (void)f;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -136,13 +140,14 @@ template <typename Ptr, typename T>
 using EnableIfIsPointer =
     cl::sycl::detail::enable_if_t<cl::sycl::detail::is_pointer<Ptr>::value, T>;
 
-template <typename Group> bool all_of(Group g, bool pred) {
-  static_assert(detail::is_generic_group<Group>::value,
+template <typename Group> bool all_of(Group, bool pred) {
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
-  return detail::spirv::GroupAll<Group>(pred);
+  return sycl::detail::spirv::GroupAll<Group>(pred);
 #else
+  (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -150,7 +155,7 @@ template <typename Group> bool all_of(Group g, bool pred) {
 
 template <typename Group, typename T, class Predicate>
 bool all_of(Group g, T x, Predicate pred) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   return all_of(g, pred(x));
@@ -159,28 +164,33 @@ bool all_of(Group g, T x, Predicate pred) {
 template <typename Group, typename Ptr, class Predicate>
 EnableIfIsPointer<Ptr, bool> all_of(Group g, Ptr first, Ptr last,
                                     Predicate pred) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
   bool partial = true;
-  detail::for_each(g, first, last, [&](const typename Ptr::element_type &x) {
-    partial &= pred(x);
-  });
+  sycl::detail::for_each(
+      g, first, last,
+      [&](const typename Ptr::element_type &x) { partial &= pred(x); });
   return all_of(g, partial);
 #else
+  (void)g;
+  (void)first;
+  (void)last;
+  (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
 }
 
-template <typename Group> bool any_of(Group g, bool pred) {
-  static_assert(detail::is_generic_group<Group>::value,
+template <typename Group> bool any_of(Group, bool pred) {
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
-  return detail::spirv::GroupAny<Group>(pred);
+  return sycl::detail::spirv::GroupAny<Group>(pred);
 #else
+  (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -188,7 +198,7 @@ template <typename Group> bool any_of(Group g, bool pred) {
 
 template <typename Group, typename T, class Predicate>
 bool any_of(Group g, T x, Predicate pred) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   return any_of(g, pred(x));
@@ -198,27 +208,32 @@ template <typename Group, typename Ptr, class Predicate>
 EnableIfIsPointer<Ptr, bool> any_of(Group g, Ptr first, Ptr last,
                                     Predicate pred) {
 #ifdef __SYCL_DEVICE_ONLY__
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   bool partial = false;
-  detail::for_each(g, first, last, [&](const typename Ptr::element_type &x) {
-    partial |= pred(x);
-  });
+  sycl::detail::for_each(
+      g, first, last,
+      [&](const typename Ptr::element_type &x) { partial |= pred(x); });
   return any_of(g, partial);
 #else
+  (void)g;
+  (void)first;
+  (void)last;
+  (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
 }
 
-template <typename Group> bool none_of(Group g, bool pred) {
-  static_assert(detail::is_generic_group<Group>::value,
+template <typename Group> bool none_of(Group, bool pred) {
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
-  return detail::spirv::GroupAll<Group>(!pred);
+  return sycl::detail::spirv::GroupAll<Group>(!pred);
 #else
+  (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -226,7 +241,7 @@ template <typename Group> bool none_of(Group g, bool pred) {
 
 template <typename Group, typename T, class Predicate>
 bool none_of(Group g, T x, Predicate pred) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   return none_of(g, pred(x));
@@ -236,25 +251,31 @@ template <typename Group, typename Ptr, class Predicate>
 EnableIfIsPointer<Ptr, bool> none_of(Group g, Ptr first, Ptr last,
                                      Predicate pred) {
 #ifdef __SYCL_DEVICE_ONLY__
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   return !any_of(g, first, last, pred);
 #else
+  (void)g;
+  (void)first;
+  (void)last;
+  (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
 }
 
 template <typename Group, typename T>
-EnableIfIsScalarArithmetic<T> broadcast(Group g, T x,
+EnableIfIsScalarArithmetic<T> broadcast(Group, T x,
                                         typename Group::id_type local_id) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
-  return detail::spirv::GroupBroadcast<Group>(x, local_id);
+  return sycl::detail::spirv::GroupBroadcast<Group>(x, local_id);
 #else
+  (void)x;
+  (void)local_id;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -263,7 +284,7 @@ EnableIfIsScalarArithmetic<T> broadcast(Group g, T x,
 template <typename Group, typename T>
 EnableIfIsVectorArithmetic<T> broadcast(Group g, T x,
                                         typename Group::id_type local_id) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
@@ -273,6 +294,9 @@ EnableIfIsVectorArithmetic<T> broadcast(Group g, T x,
   }
   return result;
 #else
+  (void)g;
+  (void)x;
+  (void)local_id;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -281,13 +305,17 @@ EnableIfIsVectorArithmetic<T> broadcast(Group g, T x,
 template <typename Group, typename T>
 EnableIfIsScalarArithmetic<T>
 broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
   return broadcast(
-      g, x, detail::linear_id_to_id(g.get_local_range(), linear_local_id));
+      g, x,
+      sycl::detail::linear_id_to_id(g.get_local_range(), linear_local_id));
 #else
+  (void)g;
+  (void)x;
+  (void)linear_local_id;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -296,7 +324,7 @@ broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 template <typename Group, typename T>
 EnableIfIsVectorArithmetic<T>
 broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
@@ -306,6 +334,9 @@ broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
   }
   return result;
 #else
+  (void)g;
+  (void)x;
+  (void)linear_local_id;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -313,12 +344,14 @@ broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 
 template <typename Group, typename T>
 EnableIfIsScalarArithmetic<T> broadcast(Group g, T x) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
   return broadcast(g, x, 0);
 #else
+  (void)g;
+  (void)x;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -326,7 +359,7 @@ EnableIfIsScalarArithmetic<T> broadcast(Group g, T x) {
 
 template <typename Group, typename T>
 EnableIfIsVectorArithmetic<T> broadcast(Group g, T x) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
@@ -336,14 +369,16 @@ EnableIfIsVectorArithmetic<T> broadcast(Group g, T x) {
   }
   return result;
 #else
+  (void)g;
+  (void)x;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
 }
 
 template <typename Group, typename T, class BinaryOperation>
-EnableIfIsScalarArithmetic<T> reduce(Group g, T x, BinaryOperation binary_op) {
-  static_assert(detail::is_generic_group<Group>::value,
+EnableIfIsScalarArithmetic<T> reduce(Group, T x, BinaryOperation binary_op) {
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   // FIXME: Do not special-case for half precision
@@ -353,9 +388,9 @@ EnableIfIsScalarArithmetic<T> reduce(Group g, T x, BinaryOperation binary_op) {
            std::is_same<decltype(binary_op(x, x)), float>::value),
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  return detail::calc<T, __spv::GroupOperation::Reduce,
-                      detail::spirv::group_scope<Group>::value>(
-      typename detail::GroupOpTag<T>::type(), x, binary_op);
+  return sycl::detail::calc<T, __spv::GroupOperation::Reduce,
+                            sycl::detail::spirv::group_scope<Group>::value>(
+      typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
@@ -364,7 +399,7 @@ EnableIfIsScalarArithmetic<T> reduce(Group g, T x, BinaryOperation binary_op) {
 
 template <typename Group, typename T, class BinaryOperation>
 EnableIfIsVectorArithmetic<T> reduce(Group g, T x, BinaryOperation binary_op) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   // FIXME: Do not special-case for half precision
@@ -384,7 +419,7 @@ EnableIfIsVectorArithmetic<T> reduce(Group g, T x, BinaryOperation binary_op) {
 template <typename Group, typename V, typename T, class BinaryOperation>
 EnableIfIsScalarArithmetic<T> reduce(Group g, V x, T init,
                                      BinaryOperation binary_op) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   // FIXME: Do not special-case for half precision
@@ -396,6 +431,7 @@ EnableIfIsScalarArithmetic<T> reduce(Group g, V x, T init,
 #ifdef __SYCL_DEVICE_ONLY__
   return binary_op(init, reduce(g, x, binary_op));
 #else
+  (void)g;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -404,7 +440,7 @@ EnableIfIsScalarArithmetic<T> reduce(Group g, V x, T init,
 template <typename Group, typename V, typename T, class BinaryOperation>
 EnableIfIsVectorArithmetic<T> reduce(Group g, V x, T init,
                                      BinaryOperation binary_op) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   // FIXME: Do not special-case for half precision
@@ -421,6 +457,7 @@ EnableIfIsVectorArithmetic<T> reduce(Group g, V x, T init,
   }
   return result;
 #else
+  (void)g;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -429,7 +466,7 @@ EnableIfIsVectorArithmetic<T> reduce(Group g, V x, T init,
 template <typename Group, typename Ptr, class BinaryOperation>
 EnableIfIsPointer<Ptr, typename Ptr::element_type>
 reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   // FIXME: Do not special-case for half precision
@@ -441,12 +478,17 @@ reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   typename Ptr::element_type partial =
-      detail::identity<typename Ptr::element_type, BinaryOperation>::value;
-  detail::for_each(g, first, last, [&](const typename Ptr::element_type &x) {
-    partial = binary_op(partial, x);
-  });
+      sycl::detail::identity<typename Ptr::element_type,
+                             BinaryOperation>::value;
+  sycl::detail::for_each(g, first, last,
+                         [&](const typename Ptr::element_type &x) {
+                           partial = binary_op(partial, x);
+                         });
   return reduce(g, partial, binary_op);
 #else
+  (void)g;
+  (void)last;
+  (void)binary_op;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -455,7 +497,7 @@ reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
 template <typename Group, typename Ptr, typename T, class BinaryOperation>
 EnableIfIsPointer<Ptr, T> reduce(Group g, Ptr first, Ptr last, T init,
                                  BinaryOperation binary_op) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   // FIXME: Do not special-case for half precision
@@ -465,22 +507,25 @@ EnableIfIsPointer<Ptr, T> reduce(Group g, Ptr first, Ptr last, T init,
            std::is_same<decltype(binary_op(init, *first)), float>::value),
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  T partial =
-      detail::identity<typename Ptr::element_type, BinaryOperation>::value;
-  detail::for_each(g, first, last, [&](const typename Ptr::element_type &x) {
-    partial = binary_op(partial, x);
-  });
+  T partial = sycl::detail::identity<typename Ptr::element_type,
+                                     BinaryOperation>::value;
+  sycl::detail::for_each(g, first, last,
+                         [&](const typename Ptr::element_type &x) {
+                           partial = binary_op(partial, x);
+                         });
   return reduce(g, partial, init, binary_op);
 #else
+  (void)g;
+  (void)last;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
 }
 
 template <typename Group, typename T, class BinaryOperation>
-EnableIfIsScalarArithmetic<T> exclusive_scan(Group g, T x,
+EnableIfIsScalarArithmetic<T> exclusive_scan(Group, T x,
                                              BinaryOperation binary_op) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   // FIXME: Do not special-case for half precision
@@ -489,9 +534,9 @@ EnableIfIsScalarArithmetic<T> exclusive_scan(Group g, T x,
                      std::is_same<decltype(binary_op(x, x)), float>::value),
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  return detail::calc<T, __spv::GroupOperation::ExclusiveScan,
-                      detail::spirv::group_scope<Group>::value>(
-      typename detail::GroupOpTag<T>::type(), x, binary_op);
+  return sycl::detail::calc<T, __spv::GroupOperation::ExclusiveScan,
+                            sycl::detail::spirv::group_scope<Group>::value>(
+      typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
@@ -501,7 +546,7 @@ EnableIfIsScalarArithmetic<T> exclusive_scan(Group g, T x,
 template <typename Group, typename T, class BinaryOperation>
 EnableIfIsVectorArithmetic<T> exclusive_scan(Group g, T x,
                                              BinaryOperation binary_op) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   // FIXME: Do not special-case for half precision
@@ -521,7 +566,7 @@ EnableIfIsVectorArithmetic<T> exclusive_scan(Group g, T x,
 template <typename Group, typename V, typename T, class BinaryOperation>
 EnableIfIsVectorArithmetic<T> exclusive_scan(Group g, V x, T init,
                                              BinaryOperation binary_op) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   // FIXME: Do not special-case for half precision
@@ -541,7 +586,7 @@ EnableIfIsVectorArithmetic<T> exclusive_scan(Group g, V x, T init,
 template <typename Group, typename V, typename T, class BinaryOperation>
 EnableIfIsScalarArithmetic<T> exclusive_scan(Group g, V x, T init,
                                              BinaryOperation binary_op) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   // FIXME: Do not special-case for half precision
@@ -551,7 +596,7 @@ EnableIfIsScalarArithmetic<T> exclusive_scan(Group g, V x, T init,
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   typename Group::linear_id_type local_linear_id =
-      detail::get_local_linear_id(g);
+      sycl::detail::get_local_linear_id(g);
   if (local_linear_id == 0) {
     x = binary_op(init, x);
   }
@@ -561,6 +606,7 @@ EnableIfIsScalarArithmetic<T> exclusive_scan(Group g, V x, T init,
   }
   return scan;
 #else
+  (void)g;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -571,7 +617,7 @@ template <typename Group, typename InPtr, typename OutPtr, typename T,
 EnableIfIsPointer<InPtr, OutPtr>
 exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
                BinaryOperation binary_op) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   // FIXME: Do not special-case for half precision
@@ -581,8 +627,8 @@ exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
            std::is_same<decltype(binary_op(*first, *first)), float>::value),
       "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  ptrdiff_t offset = detail::get_local_linear_id(g);
-  ptrdiff_t stride = detail::get_local_linear_range(g);
+  ptrdiff_t offset = sycl::detail::get_local_linear_id(g);
+  ptrdiff_t stride = sycl::detail::get_local_linear_range(g);
   ptrdiff_t N = last - first;
   auto roundup = [=](const ptrdiff_t &v,
                      const ptrdiff_t &divisor) -> ptrdiff_t {
@@ -603,6 +649,10 @@ exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
   }
   return result + N;
 #else
+  (void)g;
+  (void)last;
+  (void)result;
+  (void)init;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -620,16 +670,16 @@ EnableIfIsPointer<InPtr, OutPtr> exclusive_scan(Group g, InPtr first,
           (std::is_same<typename OutPtr::element_type, half>::value &&
            std::is_same<decltype(binary_op(*first, *first)), float>::value),
       "Result type of binary_op must match scan accumulation type.");
-  return exclusive_scan(
-      g, first, last, result,
-      detail::identity<typename OutPtr::element_type, BinaryOperation>::value,
-      binary_op);
+  return exclusive_scan(g, first, last, result,
+                        sycl::detail::identity<typename OutPtr::element_type,
+                                               BinaryOperation>::value,
+                        binary_op);
 }
 
 template <typename Group, typename T, class BinaryOperation>
 EnableIfIsVectorArithmetic<T> inclusive_scan(Group g, T x,
                                              BinaryOperation binary_op) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   // FIXME: Do not special-case for half precision
@@ -647,9 +697,9 @@ EnableIfIsVectorArithmetic<T> inclusive_scan(Group g, T x,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-EnableIfIsScalarArithmetic<T> inclusive_scan(Group g, T x,
+EnableIfIsScalarArithmetic<T> inclusive_scan(Group, T x,
                                              BinaryOperation binary_op) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   // FIXME: Do not special-case for half precision
@@ -658,9 +708,9 @@ EnableIfIsScalarArithmetic<T> inclusive_scan(Group g, T x,
                      std::is_same<decltype(binary_op(x, x)), float>::value),
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  return detail::calc<T, __spv::GroupOperation::InclusiveScan,
-                      detail::spirv::group_scope<Group>::value>(
-      typename detail::GroupOpTag<T>::type(), x, binary_op);
+  return sycl::detail::calc<T, __spv::GroupOperation::InclusiveScan,
+                            sycl::detail::spirv::group_scope<Group>::value>(
+      typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
@@ -670,7 +720,7 @@ EnableIfIsScalarArithmetic<T> inclusive_scan(Group g, T x,
 template <typename Group, typename V, class BinaryOperation, typename T>
 EnableIfIsScalarArithmetic<T>
 inclusive_scan(Group g, V x, BinaryOperation binary_op, T init) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   // FIXME: Do not special-case for half precision
@@ -679,11 +729,12 @@ inclusive_scan(Group g, V x, BinaryOperation binary_op, T init) {
                      std::is_same<decltype(binary_op(init, x)), float>::value),
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  if (detail::get_local_linear_id(g) == 0) {
+  if (sycl::detail::get_local_linear_id(g) == 0) {
     x = binary_op(init, x);
   }
   return inclusive_scan(g, x, binary_op);
 #else
+  (void)g;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -692,7 +743,7 @@ inclusive_scan(Group g, V x, BinaryOperation binary_op, T init) {
 template <typename Group, typename V, class BinaryOperation, typename T>
 EnableIfIsVectorArithmetic<T>
 inclusive_scan(Group g, V x, BinaryOperation binary_op, T init) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   // FIXME: Do not special-case for half precision
@@ -713,7 +764,7 @@ template <typename Group, typename InPtr, typename OutPtr,
 EnableIfIsPointer<InPtr, OutPtr>
 inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                BinaryOperation binary_op, T init) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
   // FIXME: Do not special-case for half precision
@@ -723,8 +774,8 @@ inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
            std::is_same<decltype(binary_op(init, *first)), float>::value),
       "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  ptrdiff_t offset = detail::get_local_linear_id(g);
-  ptrdiff_t stride = detail::get_local_linear_range(g);
+  ptrdiff_t offset = sycl::detail::get_local_linear_id(g);
+  ptrdiff_t stride = sycl::detail::get_local_linear_range(g);
   ptrdiff_t N = last - first;
   auto roundup = [=](const ptrdiff_t &v,
                      const ptrdiff_t &divisor) -> ptrdiff_t {
@@ -745,6 +796,9 @@ inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
   }
   return result + N;
 #else
+  (void)g;
+  (void)last;
+  (void)result;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
@@ -762,19 +816,21 @@ EnableIfIsPointer<InPtr, OutPtr> inclusive_scan(Group g, InPtr first,
           (std::is_same<typename OutPtr::element_type, half>::value &&
            std::is_same<decltype(binary_op(*first, *first)), float>::value),
       "Result type of binary_op must match scan accumulation type.");
-  return inclusive_scan(
-      g, first, last, result, binary_op,
-      detail::identity<typename OutPtr::element_type, BinaryOperation>::value);
+  return inclusive_scan(g, first, last, result, binary_op,
+                        sycl::detail::identity<typename OutPtr::element_type,
+                                               BinaryOperation>::value);
 }
 
 template <typename Group> bool leader(Group g) {
-  static_assert(detail::is_generic_group<Group>::value,
+  static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
-  typename Group::linear_id_type linear_id = detail::get_local_linear_id(g);
+  typename Group::linear_id_type linear_id =
+      sycl::detail::get_local_linear_id(g);
   return (linear_id == 0);
 #else
+  (void)g;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif

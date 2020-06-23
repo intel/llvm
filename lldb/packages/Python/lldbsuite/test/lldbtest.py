@@ -505,6 +505,10 @@ class Base(unittest2.TestCase):
         """Returns True if we are in trace mode (tracing detailed test execution)."""
         return traceAlways
 
+    def trace(self, *args,**kwargs):
+        with recording(self, self.TraceOn()) as sbuf:
+            print(*args, file=sbuf, **kwargs)
+
     @classmethod
     def setUpClass(cls):
         """
@@ -526,6 +530,7 @@ class Base(unittest2.TestCase):
             if traceAlways:
                 print("Change dir to:", full_dir, file=sys.stderr)
             os.chdir(full_dir)
+            lldb.SBReproducer.SetWorkingDirectory(full_dir)
 
         # Set platform context.
         cls.platformContext = lldbplatformutil.createPlatformContext()
@@ -642,7 +647,7 @@ class Base(unittest2.TestCase):
         lldb.remote_platform.SetWorkingDirectory(remote_test_dir)
 
         # This function removes all files from the current working directory while leaving
-        # the directories in place. The cleaup is required to reduce the disk space required
+        # the directories in place. The cleanup is required to reduce the disk space required
         # by the test suite while leaving the directories untouched is neccessary because
         # sub-directories might belong to an other test
         def clean_working_directory():
@@ -663,14 +668,20 @@ class Base(unittest2.TestCase):
 
     def getBuildDir(self):
         """Return the full path to the current test."""
-        return os.path.join(os.environ["LLDB_BUILD"], self.mydir,
+        return os.path.join(configuration.test_build_dir, self.mydir,
                             self.getBuildDirBasename())
 
+    def getReproducerDir(self):
+        """Return the full path to the reproducer if enabled."""
+        if configuration.capture_path:
+            return configuration.capture_path
+        if configuration.replay_path:
+            return configuration.replay_path
+        return None
 
     def makeBuildDir(self):
         """Create the test-specific working directory, deleting any previous
         contents."""
-        # See also dotest.py which sets up ${LLDB_BUILD}.
         bdir = self.getBuildDir()
         if os.path.isdir(bdir):
             shutil.rmtree(bdir)
@@ -683,6 +694,16 @@ class Base(unittest2.TestCase):
     def getSourcePath(self, name):
         """Return absolute path to a file in the test's source directory."""
         return os.path.join(self.getSourceDir(), name)
+
+    def getReproducerArtifact(self, name):
+        lldbutil.mkdir_p(self.getReproducerDir())
+        return os.path.join(self.getReproducerDir(), name)
+
+    def getReproducerRemappedPath(self, path):
+        assert configuration.replay_path
+        assert os.path.isabs(path)
+        path = os.path.relpath(path, '/')
+        return os.path.join(configuration.replay_path, 'root', path)
 
     @classmethod
     def setUpCommands(cls):
@@ -869,8 +890,10 @@ class Base(unittest2.TestCase):
         del self.subprocesses[:]
         # Ensure any forked processes are cleaned up
         for pid in self.forkedProcessPids:
-            if os.path.exists("/proc/" + str(pid)):
+            try:
                 os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
 
     def spawnSubprocess(self, executable, args=[], install_remote=True):
         """ Creates a subprocess.Popen object with the specified executable and arguments,
@@ -942,12 +965,12 @@ class Base(unittest2.TestCase):
     # =======================================================================
 
     def setTearDownCleanup(self, dictionary=None):
-        """Register a cleanup action at tearDown() time with a dictinary"""
+        """Register a cleanup action at tearDown() time with a dictionary"""
         self.dict = dictionary
         self.doTearDownCleanup = True
 
     def addTearDownCleanup(self, dictionary):
-        """Add a cleanup action at tearDown() time with a dictinary"""
+        """Add a cleanup action at tearDown() time with a dictionary"""
         self.dicts.append(dictionary)
         self.doTearDownCleanups = True
 
@@ -1152,7 +1175,7 @@ class Base(unittest2.TestCase):
 
         # We are here because self.tearDown() detected that this test instance
         # either errored or failed.  The lldb.test_result singleton contains
-        # two lists (erros and failures) which get populated by the unittest
+        # two lists (errors and failures) which get populated by the unittest
         # framework.  Look over there for stack trace information.
         #
         # The lists contain 2-tuples of TestCase instances and strings holding
@@ -2002,9 +2025,17 @@ class TestBase(Base):
                 process = target.GetProcess()
                 if process:
                     rc = self.invoke(process, "Kill")
-                    self.assertTrue(rc.Success(), PROCESS_KILLED)
+                    assert rc.Success()
         for target in targets:
             self.dbg.DeleteTarget(target)
+
+        # Modules are not orphaned during reproducer replay because they're
+        # leaked on purpose.
+        if not configuration.is_reproducer():
+            # Assert that all targets are deleted.
+            assert self.dbg.GetNumTargets() == 0
+            # Assert that the global module cache is empty.
+            assert lldb.SBModule.GetNumberAllocatedModules() == 0
 
         # Do this last, to make sure it's in reverse order from how we setup.
         Base.tearDown(self)
@@ -2132,13 +2163,27 @@ class TestBase(Base):
 
         return match_object
 
-    def check_completion_with_desc(self, str_input, match_desc_pairs):
+    def check_completion_with_desc(self, str_input, match_desc_pairs, enforce_order=False):
+        """
+        Checks that when the given input is completed at the given list of
+        completions and descriptions is returned.
+        :param str_input: The input that should be completed. The completion happens at the end of the string.
+        :param match_desc_pairs: A list of pairs that indicate what completions have to be in the list of
+                                 completions returned by LLDB. The first element of the pair is the completion
+                                 string that LLDB should generate and the second element the description.
+        :param enforce_order: True iff the order in which the completions are returned by LLDB
+                              should match the order of the match_desc_pairs pairs.
+        """
         interp = self.dbg.GetCommandInterpreter()
         match_strings = lldb.SBStringList()
         description_strings = lldb.SBStringList()
         num_matches = interp.HandleCompletionWithDescriptions(str_input, len(str_input), 0, -1, match_strings, description_strings)
         self.assertEqual(len(description_strings), len(match_strings))
 
+        # The index of the last matched description in description_strings or
+        # -1 if no description has been matched yet.
+        last_found_index = -1
+        out_of_order_errors = ""
         missing_pairs = []
         for pair in match_desc_pairs:
             found_pair = False
@@ -2147,20 +2192,35 @@ class TestBase(Base):
                 description_candidate = description_strings.GetStringAtIndex(i)
                 if match_candidate == pair[0] and description_candidate == pair[1]:
                     found_pair = True
+                    if enforce_order and last_found_index > i:
+                        new_err = ("Found completion " + pair[0] + " at index " +
+                                  str(i) + " in returned completion list but " +
+                                  "should have been after completion " +
+                                  match_strings.GetStringAtIndex(last_found_index) +
+                                  " (index:" + str(last_found_index) + ")\n")
+                        out_of_order_errors += new_err
+                    last_found_index = i
                     break
             if not found_pair:
                 missing_pairs.append(pair)
 
+        error_msg = ""
+        got_failure = False
         if len(missing_pairs):
-            error_msg = "Missing pairs:\n"
+            got_failure = True
+            error_msg += "Missing pairs:\n"
             for pair in missing_pairs:
                 error_msg += " [" + pair[0] + ":" + pair[1] + "]\n"
+        if len(out_of_order_errors):
+            got_failure = True
+            error_msg += out_of_order_errors
+        if got_failure:
             error_msg += "Got the following " + str(num_matches) + " completions back:\n"
             for i in range(num_matches + 1):
                 match_candidate = match_strings.GetStringAtIndex(i)
                 description_candidate = description_strings.GetStringAtIndex(i)
-                error_msg += "[" + match_candidate + ":" + description_candidate + "]\n"
-            self.assertEqual(0, len(missing_pairs), error_msg)
+                error_msg += "[" + match_candidate + ":" + description_candidate + "] index " + str(i) + "\n"
+            self.assertFalse(got_failure, error_msg)
 
     def complete_exactly(self, str_input, patterns):
         self.complete_from_to(str_input, patterns, True)
@@ -2414,9 +2474,12 @@ FileCheck output:
 
         # Set the usual default options for normal expressions.
         options.SetIgnoreBreakpoints(True)
-        options.SetLanguage(frame.GuessLanguage())
 
-        eval_result = frame.EvaluateExpression(expr, options)
+        if self.frame().IsValid():
+          options.SetLanguage(frame.GuessLanguage())
+          eval_result = self.frame().EvaluateExpression(expr, options)
+        else:
+          eval_result = self.target().EvaluateExpression(expr, options)
 
         if not eval_result.GetError().Success():
             self.assertTrue(eval_result.GetError().Success(),

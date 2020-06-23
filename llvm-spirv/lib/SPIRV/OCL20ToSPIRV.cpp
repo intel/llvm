@@ -49,7 +49,6 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
-#include "llvm/PassSupport.h"
 #include "llvm/Support/Debug.h"
 
 #include <algorithm>
@@ -618,7 +617,8 @@ CallInst *OCL20ToSPIRV::visitCallAtomicCmpXchg(CallInst *CI) {
       M, CI,
       [&](CallInst *CI, std::vector<Value *> &Args, Type *&RetTy) {
         Expected = Args[1]; // temporary save second argument.
-        Args[1] = new LoadInst(Args[1], "exp", false, CI);
+        Args[1] = new LoadInst(Args[1]->getType()->getPointerElementType(),
+                               Args[1], "exp", false, CI);
         RetTy = Args[2]->getType();
         assert(Args[0]->getType()->getPointerElementType()->isIntegerTy() &&
                Args[1]->getType()->isIntegerTy() &&
@@ -810,29 +810,13 @@ void OCL20ToSPIRV::transAtomicBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
         const size_t ArgsCount = Args.size();
         const size_t ScopeIdx = ArgsCount - 1;
         const size_t OrderIdx = ScopeIdx - NumOrder;
-        if (auto ScopeInt = dyn_cast_or_null<ConstantInt>(Args[ScopeIdx])) {
-          Args[ScopeIdx] = mapUInt(M, ScopeInt, [](unsigned I) {
-            return map<Scope>(static_cast<OCLScopeKind>(I));
-          });
-        } else {
-          Args[ScopeIdx] =
-              getOrCreateSwitchFunc(kSPIRVName::TranslateOCLMemScope,
-                                    Args[ScopeIdx], OCLMemScopeMap::getMap(),
-                                    false /*IsReverse*/, OCLMS_device, CI, M);
-        }
+
+        Args[ScopeIdx] =
+            transOCLMemScopeIntoSPIRVScope(Args[ScopeIdx], OCLMS_device, CI);
+
         for (size_t I = 0; I < NumOrder; ++I) {
-          if (auto OrderInt =
-                  dyn_cast_or_null<ConstantInt>(Args[OrderIdx + I])) {
-            Args[OrderIdx + I] = mapUInt(M, OrderInt, [](unsigned Ord) {
-              return mapOCLMemSemanticToSPIRV(
-                  0, static_cast<OCLMemOrderKind>(Ord));
-            });
-          } else {
-            Args[OrderIdx + I] = getOrCreateSwitchFunc(
-                kSPIRVName::TranslateOCLMemOrder, Args[OrderIdx + I],
-                OCLMemOrderMap::getMap(), false /*IsReverse*/, OCLMO_seq_cst,
-                CI, M);
-          }
+          Args[OrderIdx + I] = transOCLMemOrderIntoSPIRVMemorySemantics(
+              Args[OrderIdx + I], OCLMO_seq_cst, CI);
         }
         // Order of args in SPIR-V:
         // object, scope, 1-2 order, 0-2 other args
@@ -881,10 +865,10 @@ void OCL20ToSPIRV::visitCallConvert(CallInst *CI, StringRef MangledName,
   Op OC = OpNop;
   auto TargetTy = CI->getType();
   auto SrcTy = CI->getArgOperand(0)->getType();
-  if (isa<VectorType>(TargetTy))
-    TargetTy = TargetTy->getVectorElementType();
-  if (isa<VectorType>(SrcTy))
-    SrcTy = SrcTy->getVectorElementType();
+  if (auto *VecTy = dyn_cast<VectorType>(TargetTy))
+    TargetTy = VecTy->getElementType();
+  if (auto *VecTy = dyn_cast<VectorType>(SrcTy))
+    SrcTy = VecTy->getElementType();
   auto IsTargetInt = isa<IntegerType>(TargetTy);
 
   std::string TargetTyName(
@@ -947,25 +931,46 @@ void OCL20ToSPIRV::visitCallGroupBuiltin(CallInst *CI,
     return;
 
   if (DemangledName != kOCLBuiltinName::WaitGroupEvent) {
-    StringRef GroupOp = DemangledName;
-    GroupOp = GroupOp.drop_front(strlen(kSPIRVName::GroupPrefix));
+    StringRef FuncName = DemangledName;
+    FuncName = FuncName.drop_front(strlen(kSPIRVName::GroupPrefix));
     SPIRSPIRVGroupOperationMap::foreachConditional(
         [&](const std::string &S, SPIRVGroupOperationKind G) {
-          if (!GroupOp.startswith(S))
+          if (!FuncName.startswith(S))
             return true; // continue
           PreOps.push_back(G);
-          StringRef Op = GroupOp.drop_front(S.size() + 1);
-          assert(!Op.empty() && "Invalid OpenCL group builtin function");
+          StringRef Op =
+              StringSwitch<StringRef>(FuncName)
+                  .StartsWith("ballot", "group_ballot_bit_count_")
+                  .StartsWith("non_uniform", kSPIRVName::GroupNonUniformPrefix)
+                  .Default(kSPIRVName::GroupPrefix);
+          // clustered functions are handled with non uniform group opcodes
+          StringRef ClusteredOp =
+              FuncName.contains("clustered_") ? "non_uniform_" : "";
+          StringRef LogicalOp = FuncName.contains("logical_") ? "logical_" : "";
+          StringRef GroupOp = StringSwitch<StringRef>(FuncName)
+                                  .Case("ballot_bit_count", "add")
+                                  .Case("ballot_inclusive_scan", "add")
+                                  .Case("ballot_exclusive_scan", "add")
+                                  .Default(FuncName.take_back(
+                                      3)); // assumes op is three characters
+          GroupOp.consume_front("_");      // when op is two characters
+          assert(!GroupOp.empty() && "Invalid OpenCL group builtin function");
           char OpTyC = 0;
-          auto NeedSign = Op == "max" || Op == "min";
           auto OpTy = F->getReturnType();
           if (OpTy->isFloatingPointTy())
             OpTyC = 'f';
           else if (OpTy->isIntegerTy()) {
+            auto NeedSign = GroupOp == "max" || GroupOp == "min";
             if (!NeedSign)
               OpTyC = 'i';
             else {
-              if (isLastFuncParamSigned(F->getName()))
+              // clustered reduce args are (type, uint)
+              // other operation args are (type)
+              auto MangledName = F->getName();
+              auto MangledTyC = ClusteredOp.empty()
+                                    ? MangledName.back()
+                                    : MangledName.take_back(2).front();
+              if (isMangledTypeSigned(MangledTyC))
                 OpTyC = 's';
               else
                 OpTyC = 'u';
@@ -973,22 +978,33 @@ void OCL20ToSPIRV::visitCallGroupBuiltin(CallInst *CI,
           } else
             llvm_unreachable("Invalid OpenCL group builtin argument type");
 
-          DemangledName =
-              std::string(kSPIRVName::GroupPrefix) + OpTyC + Op.str();
+          DemangledName = Op.str() + ClusteredOp.str() + LogicalOp.str() +
+                          OpTyC + GroupOp.str();
           return false; // break out of loop
         });
   }
 
-  bool IsGroupAllAny = (DemangledName.find("_all") != std::string::npos ||
-                        DemangledName.find("_any") != std::string::npos);
+  const bool IsElect = DemangledName == "group_elect";
+  const bool IsAllOrAny = (DemangledName.find("_all") != std::string::npos ||
+                           DemangledName.find("_any") != std::string::npos);
+  const bool IsAllEqual = DemangledName.find("_all_equal") != std::string::npos;
+  const bool IsBallot = DemangledName == "group_ballot";
+  const bool IsInverseBallot = DemangledName == "group_inverse_ballot";
+  const bool IsBallotBitExtract = DemangledName == "group_ballot_bit_extract";
+  const bool IsLogical = DemangledName.find("_logical") != std::string::npos;
+
+  const bool HasBoolReturnType = IsElect || IsAllOrAny || IsAllEqual ||
+                                 IsInverseBallot || IsBallotBitExtract ||
+                                 IsLogical;
+  const bool HasBoolArg = (IsAllOrAny && !IsAllEqual) || IsBallot || IsLogical;
 
   auto Consts = getInt32(M, PreOps);
   OCLBuiltinTransInfo Info;
-  if (IsGroupAllAny)
+  if (HasBoolReturnType)
     Info.RetTy = Type::getInt1Ty(*Ctx);
   Info.UniqName = DemangledName;
   Info.PostProc = [=](std::vector<Value *> &Ops) {
-    if (IsGroupAllAny) {
+    if (HasBoolArg) {
       IRBuilder<> IRB(CI);
       Ops[0] =
           IRB.CreateICmpNE(Ops[0], ConstantInt::get(Type::getInt32Ty(*Ctx), 0));
@@ -1158,7 +1174,8 @@ void OCL20ToSPIRV::visitCallGetImageSize(CallInst *CI,
           if (Desc.Dim == Dim3D) {
             auto ZeroVec = ConstantVector::getSplat(
                 {3, false},
-                Constant::getNullValue(NCI->getType()->getVectorElementType()));
+                Constant::getNullValue(
+                    cast<VectorType>(NCI->getType())->getElementType()));
             Constant *Index[] = {getInt32(M, 0), getInt32(M, 1), getInt32(M, 2),
                                  getInt32(M, 3)};
             return new ShuffleVectorInst(NCI, ZeroVec,
@@ -1188,10 +1205,10 @@ bool OCL20ToSPIRV::eraseUselessConvert(CallInst *CI, StringRef MangledName,
                                        StringRef DemangledName) {
   auto TargetTy = CI->getType();
   auto SrcTy = CI->getArgOperand(0)->getType();
-  if (isa<VectorType>(TargetTy))
-    TargetTy = TargetTy->getVectorElementType();
-  if (isa<VectorType>(SrcTy))
-    SrcTy = SrcTy->getVectorElementType();
+  if (auto *VecTy = dyn_cast<VectorType>(TargetTy))
+    TargetTy = VecTy->getElementType();
+  if (auto *VecTy = dyn_cast<VectorType>(SrcTy))
+    SrcTy = VecTy->getElementType();
   if (TargetTy == SrcTy) {
     if (isa<IntegerType>(TargetTy) &&
         DemangledName.find("_sat") != StringRef::npos &&
@@ -1244,7 +1261,7 @@ void OCL20ToSPIRV::transWorkItemBuiltinsToVariables() {
     for (auto UI = I.user_begin(), UE = I.user_end(); UI != UE; ++UI) {
       auto CI = dyn_cast<CallInst>(*UI);
       assert(CI && "invalid instruction");
-      Value *NewValue = new LoadInst(BV, "", CI);
+      Value *NewValue = new LoadInst(GVType, BV, "", CI);
       LLVM_DEBUG(dbgs() << "Transform: " << *CI << " => " << *NewValue << '\n');
       if (IsVec) {
         NewValue =
@@ -1318,7 +1335,7 @@ void OCL20ToSPIRV::visitCallRelational(CallInst *CI, StringRef DemangledName) {
         if (CI->getOperand(0)->getType()->isVectorTy())
           Ret = VectorType::get(
               Type::getInt1Ty(*Ctx),
-              CI->getOperand(0)->getType()->getVectorNumElements());
+              cast<VectorType>(CI->getOperand(0)->getType())->getNumElements());
         return SPIRVName;
       },
       [=](CallInst *NewCI) -> Instruction * {
@@ -1333,8 +1350,8 @@ void OCL20ToSPIRV::visitCallRelational(CallInst *CI, StringRef DemangledName) {
                   ->getElementType()
                   ->isHalfTy())
             IntTy = Type::getInt16Ty(*Ctx);
-          Type *VTy =
-              VectorType::get(IntTy, NewCI->getType()->getVectorNumElements());
+          Type *VTy = VectorType::get(
+              IntTy, cast<VectorType>(NewCI->getType())->getNumElements());
           False = Constant::getNullValue(VTy);
           True = Constant::getAllOnesValue(VTy);
         } else {
@@ -1456,7 +1473,8 @@ void OCL20ToSPIRV::visitCallScalToVec(CallInst *CI, StringRef MangledName,
           Args[I] = CI->getOperand(I);
         }
         auto VecElemCount =
-            CI->getOperand(VecPos[0])->getType()->getVectorElementCount();
+            cast<VectorType>(CI->getOperand(VecPos[0])->getType())
+                ->getElementCount();
         for (auto I : ScalarPos) {
           Instruction *Inst = InsertElementInst::Create(
               UndefValue::get(CI->getOperand(VecPos[0])->getType()),
@@ -1594,6 +1612,29 @@ void OCL20ToSPIRV::visitCallKernelQuery(CallInst *CI, StringRef DemangledName) {
                  /*BuiltinFuncMangleInfo*/ nullptr, &Attrs);
 }
 
+// Add postfix to overloaded intel subgroup block read/write builtins
+// so new functions can be distinguished.
+static void processSubgroupBlockReadWriteINTEL(CallInst *CI,
+                                               OCLBuiltinTransInfo &Info,
+                                               const Type *DataTy, Module *M) {
+  unsigned VectorNumElements = 1;
+  if (auto *VecTy = dyn_cast<VectorType>(DataTy))
+    VectorNumElements = VecTy->getNumElements();
+  unsigned ElementBitSize = DataTy->getScalarSizeInBits();
+  Info.Postfix = "_";
+  Info.Postfix +=
+      getIntelSubgroupBlockDataPostfix(ElementBitSize, VectorNumElements);
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstSPIRV(
+      M, CI,
+      [&Info](CallInst *, std::vector<Value *> &Args) {
+        Info.PostProc(Args);
+        return Info.UniqName + Info.Postfix;
+      },
+      &Attrs);
+}
+
 // The intel_sub_group_block_read built-ins are overloaded to support both
 // buffers and images, but need to be mapped to distinct SPIR-V instructions.
 // Additionally, for block reads, need to distinguish between scalar block
@@ -1604,70 +1645,24 @@ void OCL20ToSPIRV::visitSubgroupBlockReadINTEL(CallInst *CI) {
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupImageBlockReadINTEL);
   else
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupBlockReadINTEL);
-  if (CI->getType()->isVectorTy()) {
-    switch (CI->getType()->getVectorNumElements()) {
-    case 2:
-      Info.Postfix = "_v2";
-      break;
-    case 4:
-      Info.Postfix = "_v4";
-      break;
-    case 8:
-      Info.Postfix = "_v8";
-      break;
-    default:
-      break;
-    }
-  }
-  if (CI->getType()->getScalarSizeInBits() == 16)
-    Info.Postfix += "_us";
-  else
-    Info.Postfix += "_ui";
-  assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstSPIRV(M, CI,
-                      [=](CallInst *, std::vector<Value *> &Args) {
-                        Info.PostProc(Args);
-                        return Info.UniqName + Info.Postfix;
-                      },
-                      &Attrs);
+  Type *DataTy = CI->getType();
+  processSubgroupBlockReadWriteINTEL(CI, Info, DataTy, M);
 }
 
 // The intel_sub_group_block_write built-ins are similarly overloaded to support
 // both buffers and images but need to be mapped to distinct SPIR-V
-// instructions. Since the type of data to be written is encoded in the mangled
-// name there is no need to do additional work to distinguish between scalar
-// block writes and vector block writes.
+// instructions.
 void OCL20ToSPIRV::visitSubgroupBlockWriteINTEL(CallInst *CI) {
   OCLBuiltinTransInfo Info;
   if (isOCLImageType(CI->getArgOperand(0)->getType()))
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupImageBlockWriteINTEL);
   else
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupBlockWriteINTEL);
-  unsigned NumArgs = CI->getNumArgOperands();
-  if (NumArgs && CI->getArgOperand(NumArgs - 1)->getType()->isVectorTy()) {
-    switch (CI->getArgOperand(NumArgs - 1)->getType()->getVectorNumElements()) {
-    case 2:
-      Info.Postfix = "_v2";
-      break;
-    case 4:
-      Info.Postfix = "_v4";
-      break;
-    case 8:
-      Info.Postfix = "_v8";
-      break;
-    default:
-      break;
-    }
-  }
-  assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstSPIRV(M, CI,
-                      [=](CallInst *, std::vector<Value *> &Args) {
-                        Info.PostProc(Args);
-                        return Info.UniqName + Info.Postfix;
-                      },
-                      &Attrs);
+  assert(!CI->arg_empty() &&
+         "Intel subgroup block write should have arguments");
+  unsigned DataArg = CI->getNumArgOperands() - 1;
+  Type *DataTy = CI->getArgOperand(DataArg)->getType();
+  processSubgroupBlockReadWriteINTEL(CI, Info, DataTy, M);
 }
 
 void OCL20ToSPIRV::visitSubgroupImageMediaBlockINTEL(CallInst *CI,

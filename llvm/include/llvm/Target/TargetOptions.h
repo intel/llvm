@@ -14,14 +14,15 @@
 #ifndef LLVM_TARGET_TARGETOPTIONS_H
 #define LLVM_TARGET_TARGETOPTIONS_H
 
+#include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/MC/MCTargetOptions.h"
 
 #include <memory>
 
 namespace llvm {
+  struct fltSemantics;
   class MachineFunction;
   class MemoryBuffer;
-  class Module;
 
   namespace FloatABI {
     enum ABIType {
@@ -54,15 +55,6 @@ namespace llvm {
     enum Model {
       POSIX,  // POSIX Threads
       Single  // Single Threaded Environment
-    };
-  }
-
-  namespace FPDenormal {
-    enum DenormalMode {
-      IEEE,           // IEEE 754 denormal numbers
-      PreserveSign,   // the sign of a flushed-to-zero number is preserved in
-                      // the sign of 0
-      PositiveZero    // denormals are flushed to positive zero
     };
   }
 
@@ -129,13 +121,15 @@ namespace llvm {
           EnableFastISel(false), EnableGlobalISel(false), UseInitArray(false),
           DisableIntegratedAS(false), RelaxELFRelocations(false),
           FunctionSections(false), DataSections(false),
-          UniqueSectionNames(true), UniqueBBSectionNames(false),
+          UniqueSectionNames(true), UniqueBasicBlockSectionNames(false),
           TrapUnreachable(false), NoTrapAfterNoreturn(false), TLSSize(0),
           EmulatedTLS(false), ExplicitEmulatedTLS(false), EnableIPRA(false),
           EmitStackSizeSection(false), EnableMachineOutliner(false),
           SupportsDefaultOutlining(false), EmitAddrsig(false),
           EmitCallSiteInfo(false), SupportsDebugEntryValues(false),
-          EnableDebugEntryValues(false), ForceDwarfFrameSection(false) {}
+          EnableDebugEntryValues(false), ForceDwarfFrameSection(false),
+          XRayOmitFunctionIndex(false),
+          FPDenormalMode(DenormalMode::IEEE, DenormalMode::IEEE) {}
 
     /// PrintMachineCode - This flag is enabled when the -print-machineinstrs
     /// option is specified on the command line, and should enable debugging
@@ -241,7 +235,7 @@ namespace llvm {
     unsigned UniqueSectionNames : 1;
 
     /// Use unique names for basic block sections.
-    unsigned UniqueBBSectionNames : 1;
+    unsigned UniqueBasicBlockSectionNames : 1;
 
     /// Emit target-specific trap instruction for 'unreachable' IR instructions.
     unsigned TrapUnreachable : 1;
@@ -300,6 +294,9 @@ namespace llvm {
     /// Emit DWARF debug frame section.
     unsigned ForceDwarfFrameSection : 1;
 
+    /// Emit XRay Function Index section
+    unsigned XRayOmitFunctionIndex : 1;
+
     /// FloatABIType - This setting is set by -float-abi=xxx option is specfied
     /// on the command line. This setting may either be Default, Soft, or Hard.
     /// Default selects the target's default behavior. Soft selects the ABI for
@@ -336,9 +333,32 @@ namespace llvm {
     /// Which debugger to tune for.
     DebuggerKind DebuggerTuning = DebuggerKind::Default;
 
-    /// FPDenormalMode - This flags specificies which denormal numbers the code
-    /// is permitted to require.
-    FPDenormal::DenormalMode FPDenormalMode = FPDenormal::IEEE;
+  private:
+    /// Flushing mode to assume in default FP environment.
+    DenormalMode FPDenormalMode;
+
+    /// Flushing mode to assume in default FP environment, for float/vector of
+    /// float.
+    DenormalMode FP32DenormalMode;
+
+  public:
+    void setFPDenormalMode(DenormalMode Mode) {
+      FPDenormalMode = Mode;
+    }
+
+    void setFP32DenormalMode(DenormalMode Mode) {
+      FP32DenormalMode = Mode;
+    }
+
+    DenormalMode getRawFPDenormalMode() const {
+      return FPDenormalMode;
+    }
+
+    DenormalMode getRawFP32DenormalMode() const {
+      return FP32DenormalMode;
+    }
+
+    DenormalMode getDenormalMode(const fltSemantics &FPType) const;
 
     /// What exception model to use
     ExceptionHandling ExceptionModel = ExceptionHandling::None;

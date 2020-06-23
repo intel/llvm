@@ -942,8 +942,8 @@ int runOrcLazyJIT(const char *ProgName) {
       orc::JITDylib *JD = J->getJITDylibByName(*JDItr);
       if (!JD) {
         JD = &ExitOnErr(J->createJITDylib(*JDItr));
-        J->getMainJITDylib().addToSearchOrder(*JD);
-        JD->addToSearchOrder(J->getMainJITDylib());
+        J->getMainJITDylib().addToLinkOrder(*JD);
+        JD->addToLinkOrder(J->getMainJITDylib());
       }
       IdxToDylib[JITDylibs.getPosition(JDItr - JITDylibs.begin())] = JD;
     }
@@ -966,7 +966,7 @@ int runOrcLazyJIT(const char *ProgName) {
       auto JDItr = std::prev(IdxToDylib.lower_bound(EAIdx));
       auto &JD = *JDItr->second;
       JD.addGenerator(ExitOnErr(orc::StaticLibraryDefinitionGenerator::Load(
-          J->getObjLinkingLayer(), EAItr->c_str())));
+          J->getObjLinkingLayer(), EAItr->c_str(), *TT)));
     }
   }
 

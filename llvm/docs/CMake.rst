@@ -422,7 +422,7 @@ LLVM-specific variables
 **LLVM_USE_SANITIZER**:STRING
   Define the sanitizer used to build LLVM binaries and tests. Possible values
   are ``Address``, ``Memory``, ``MemoryWithOrigins``, ``Undefined``, ``Thread``,
-  and ``Address;Undefined``. Defaults to empty string.
+  ``DataFlow``, and ``Address;Undefined``. Defaults to empty string.
 
 **LLVM_ENABLE_LTO**:STRING
   Add ``-flto`` or ``-flto=`` flags to the compile and link command
@@ -638,6 +638,10 @@ LLVM-specific variables
 **LLVM_USE_RELATIVE_PATHS_IN_FILES**:BOOL
   Rewrite absolute source paths in sources and debug info to relative ones. The
   source prefix can be adjusted via the LLVM_SOURCE_PREFIX variable.
+
+**LLVM_INSTALL_UTILS**:BOOL
+  If enabled, utility binaries like ``FileCheck`` and ``not`` will be installed
+  to CMAKE_INSTALL_PREFIX.
 
 CMake Caches
 ============

@@ -1,12 +1,13 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUN: env SYCL_PI_TRACE=1 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_PI_TRACE=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
+// RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 // TODO: For now PI checks are skipped for ACC device. To decide if it's good.
 // RUN: env %ACC_RUN_PLACEHOLDER %t.out
-
-// UNSUPPORTED: cuda
+//
+// UNSUPPORTED: cuda || windows && level0
 // CUDA cannot support OpenCL spec conform images.
+// TODO: test hangs on level0, enable when fixed.
 
 //==-------------- image_access.cpp - SYCL image accessors test  -----------==//
 //

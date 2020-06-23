@@ -159,6 +159,8 @@ def ARMcall_nolink   : SDNode<"ARMISD::CALL_NOLINK", SDT_ARMcall,
 
 def ARMretflag       : SDNode<"ARMISD::RET_FLAG", SDTNone,
                               [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+def ARMseretflag     : SDNode<"ARMISD::SERET_FLAG", SDTNone,
+                              [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 def ARMintretflag    : SDNode<"ARMISD::INTRET_FLAG", SDT_ARMcall,
                               [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 def ARMcmov          : SDNode<"ARMISD::CMOV", SDT_ARMCMov,
@@ -264,7 +266,7 @@ def ARMvrev64    : SDNode<"ARMISD::VREV64", SDTARMVSHUF>;
 def ARMvrev32    : SDNode<"ARMISD::VREV32", SDTARMVSHUF>;
 def ARMvrev16    : SDNode<"ARMISD::VREV16", SDTARMVSHUF>;
 
-def SDTARMVGETLN  : SDTypeProfile<1, 2, [SDTCisVT<0, i32>, SDTCisInt<1>,
+def SDTARMVGETLN  : SDTypeProfile<1, 2, [SDTCisVT<0, i32>, SDTCisVec<1>,
                                          SDTCisVT<2, i32>]>;
 def ARMvgetlaneu : SDNode<"ARMISD::VGETLANEu", SDTARMVGETLN>;
 def ARMvgetlanes : SDNode<"ARMISD::VGETLANEs", SDTARMVGETLN>;
@@ -288,6 +290,11 @@ def ARMvshrsImm  : SDNode<"ARMISD::VSHRsIMM", SDTARMVSHIMM>;
 def ARMvshruImm  : SDNode<"ARMISD::VSHRuIMM", SDTARMVSHIMM>;
 def ARMvshls     : SDNode<"ARMISD::VSHLs", SDTARMVSH>;
 def ARMvshlu     : SDNode<"ARMISD::VSHLu", SDTARMVSH>;
+
+def SDTARMVMULL   : SDTypeProfile<1, 2, [SDTCisInt<0>, SDTCisInt<1>,
+                                         SDTCisSameAs<1, 2>]>;
+def ARMvmulls    : SDNode<"ARMISD::VMULLs", SDTARMVMULL>;
+def ARMvmullu    : SDNode<"ARMISD::VMULLu", SDTARMVMULL>;
 
 def SDTARMVCMP    : SDTypeProfile<1, 3, [SDTCisInt<0>, SDTCisSameAs<1, 2>,
                                          SDTCisInt<3>]>;
@@ -2814,7 +2821,7 @@ multiclass AI2_ldridx<bit isByte, string opc,
 }
 
 let mayLoad = 1, hasSideEffects = 0 in {
-// FIXME: for LDR_PRE_REG etc. the itineray should be either IIC_iLoad_ru or
+// FIXME: for LDR_PRE_REG etc. the itinerary should be either IIC_iLoad_ru or
 // IIC_iLoad_siu depending on whether it the offset register is shifted.
 defm LDR  : AI2_ldridx<0, "ldr", IIC_iLoad_iu, IIC_iLoad_ru>;
 defm LDRB : AI2_ldridx<1, "ldrb", IIC_iLoad_bh_iu, IIC_iLoad_bh_ru>;
@@ -3095,7 +3102,7 @@ multiclass AI2_stridx<bit isByte, string opc,
 }
 
 let mayStore = 1, hasSideEffects = 0 in {
-// FIXME: for STR_PRE_REG etc. the itineray should be either IIC_iStore_ru or
+// FIXME: for STR_PRE_REG etc. the itinerary should be either IIC_iStore_ru or
 // IIC_iStore_siu depending on whether it the offset register is shifted.
 defm STR  : AI2_stridx<0, "str", IIC_iStore_iu, IIC_iStore_ru>;
 defm STRB : AI2_stridx<1, "strb", IIC_iStore_bh_iu, IIC_iStore_bh_ru>;
@@ -3829,9 +3836,8 @@ def QSUB16  : AAIIntrinsic<0b01100010, 0b11110111, "qsub16", int_arm_qsub16>;
 def QSUB8   : AAIIntrinsic<0b01100010, 0b11111111, "qsub8", int_arm_qsub8>;
 
 def QDADD   : AAIRevOpr<0b00010100, 0b00000101, "qdadd",
-              [(set GPRnopc:$Rd, (int_arm_qadd (int_arm_qadd GPRnopc:$Rm,
-                                                             GPRnopc:$Rm),
-                                  GPRnopc:$Rn))]>;
+              [(set GPRnopc:$Rd, (int_arm_qadd GPRnopc:$Rm,
+                                  (int_arm_qadd GPRnopc:$Rn, GPRnopc:$Rn)))]>;
 def QDSUB   : AAIRevOpr<0b00010110, 0b00000101, "qdsub",
               [(set GPRnopc:$Rd, (int_arm_qsub GPRnopc:$Rm,
                                   (int_arm_qadd GPRnopc:$Rn, GPRnopc:$Rn)))]>;
@@ -3846,7 +3852,7 @@ def : ARMV5TEPat<(saddsat GPR:$a, GPR:$b),
                  (QADD GPR:$a, GPR:$b)>;
 def : ARMV5TEPat<(ssubsat GPR:$a, GPR:$b),
                  (QSUB GPR:$a, GPR:$b)>;
-def : ARMV5TEPat<(saddsat(saddsat rGPR:$Rm, rGPR:$Rm), rGPR:$Rn),
+def : ARMV5TEPat<(saddsat rGPR:$Rm, (saddsat rGPR:$Rn, rGPR:$Rn)),
                  (QDADD rGPR:$Rm, rGPR:$Rn)>;
 def : ARMV5TEPat<(ssubsat rGPR:$Rm, (saddsat rGPR:$Rn, rGPR:$Rn)),
                  (QDSUB rGPR:$Rm, rGPR:$Rn)>;
@@ -5750,7 +5756,7 @@ def : ARMPat<(ARMthread_pointer), (MRC 15, 0, 13, 0, 3)>,
 //   when we get here from a longjmp(). We force everything out of registers
 //   except for our own input by listing the relevant registers in Defs. By
 //   doing so, we also cause the prologue/epilogue code to actively preserve
-//   all of the callee-saved resgisters, which is exactly what we want.
+//   all of the callee-saved registers, which is exactly what we want.
 //   A constant value is passed in $val, and we use the location as a scratch.
 //
 // These are pseudo-instructions and are lowered to individual MC-insts, so

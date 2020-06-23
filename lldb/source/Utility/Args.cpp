@@ -44,7 +44,7 @@ static llvm::StringRef ParseDoubleQuotes(llvm::StringRef quoted,
       break;
     }
 
-    // If the character after the backslash is not a whitelisted escapable
+    // If the character after the backslash is not an allowed escapable
     // character, we leave the character sequence untouched.
     if (strchr(k_escapable_characters, quoted.front()) == nullptr)
       result += '\\';
@@ -111,7 +111,7 @@ ParseSingleArgument(llvm::StringRef command) {
         break;
       }
 
-      // If the character after the backslash is not a whitelisted escapable
+      // If the character after the backslash is not an allowed escapable
       // character, we leave the character sequence untouched.
       if (strchr(" \t\\'\"`", command.front()) == nullptr)
         arg += '\\';
@@ -546,7 +546,7 @@ void Args::ExpandEscapedCharacters(const char *src, std::string &dst) {
   dst.clear();
   if (src) {
     for (const char *p = src; *p != '\0'; ++p) {
-      if (isprint(*p))
+      if (llvm::isPrint(*p))
         dst.append(1, *p);
       else {
         switch (*p) {
@@ -683,4 +683,21 @@ void OptionsWithRaw::SetFromString(llvm::StringRef arg_string) {
     found_suffix = true;
     m_suffix = std::string(original_args);
   }
+}
+
+void llvm::yaml::MappingTraits<Args::ArgEntry>::mapping(IO &io,
+                                                        Args::ArgEntry &v) {
+  MappingNormalization<NormalizedArgEntry, Args::ArgEntry> keys(io, v);
+  io.mapRequired("value", keys->value);
+  io.mapRequired("quote", keys->quote);
+}
+
+void llvm::yaml::MappingTraits<Args>::mapping(IO &io, Args &v) {
+  io.mapRequired("entries", v.m_entries);
+
+  // Recompute m_argv vector.
+  v.m_argv.clear();
+  for (auto &entry : v.m_entries)
+    v.m_argv.push_back(entry.data());
+  v.m_argv.push_back(nullptr);
 }

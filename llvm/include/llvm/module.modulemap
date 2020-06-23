@@ -75,6 +75,7 @@ module LLVM_BinaryFormat {
     textual header "BinaryFormat/ELFRelocs/RISCV.def"
     textual header "BinaryFormat/ELFRelocs/Sparc.def"
     textual header "BinaryFormat/ELFRelocs/SystemZ.def"
+    textual header "BinaryFormat/ELFRelocs/VE.def"
     textual header "BinaryFormat/ELFRelocs/x86_64.def"
     textual header "BinaryFormat/WasmRelocs.def"
     textual header "BinaryFormat/MsgPack.def"
@@ -118,6 +119,7 @@ module LLVM_DebugInfo_PDB {
   exclude header "DebugInfo/PDB/DIA/DIAEnumSourceFiles.h"
   exclude header "DebugInfo/PDB/DIA/DIAEnumSymbols.h"
   exclude header "DebugInfo/PDB/DIA/DIAEnumTables.h"
+  exclude header "DebugInfo/PDB/DIA/DIAError.h"
   exclude header "DebugInfo/PDB/DIA/DIAFrameData.h"
   exclude header "DebugInfo/PDB/DIA/DIAInjectedSource.h"
   exclude header "DebugInfo/PDB/DIA/DIALineNumber.h"
@@ -212,8 +214,8 @@ module LLVM_Pass {
     // PassSupport.h and PassAnalysisSupport.h are made available only through
     // Pass.h.
     header "Pass.h"
-    header "PassSupport.h"
-    header "PassAnalysisSupport.h"
+    textual header "PassSupport.h"
+    textual header "PassAnalysisSupport.h"
     export *
   }
 
@@ -234,7 +236,7 @@ module LLVM_intrinsic_gen {
     extern module LLVM_Extern_IR_Attributes_Gen "module.extern.modulemap"
     export *
   }
-  module IR_CallSite { header "IR/CallSite.h" export * }
+  module IR_AbstractCallSite { header "IR/AbstractCallSite.h" export * }
   module IR_ConstantFolder { header "IR/ConstantFolder.h" export * }
   module IR_GlobalVariable { header "IR/GlobalVariable.h" export * }
   module IR_NoFolder { header "IR/NoFolder.h" export * }
@@ -249,7 +251,6 @@ module LLVM_intrinsic_gen {
 
   // Intrinsics.h
   module IR_CFG { header "IR/CFG.h" export * }
-  module IR_CFGDiff { header "IR/CFGDiff.h" export * }
   module IR_ConstantRange { header "IR/ConstantRange.h" export * }
   module IR_Dominators { header "IR/Dominators.h" export * }
   module Analysis_PostDominators { header "Analysis/PostDominators.h" export * }
@@ -272,7 +273,6 @@ module LLVM_intrinsic_gen {
   module IR_PatternMatch { header "IR/PatternMatch.h" export * }
   module IR_SafepointIRVerifier { header "IR/SafepointIRVerifier.h" export * }
   module IR_Statepoint { header "IR/Statepoint.h" export * }
-  module IR_KnowledgeRetention { header "IR/KnowledgeRetention.h" export * }
 
   export *
 }

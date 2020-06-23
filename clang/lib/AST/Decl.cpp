@@ -892,6 +892,10 @@ LinkageComputer::getLVForNamespaceScopeDecl(const NamedDecl *D,
     if (!TD->getAnonDeclWithTypedefName(/*AnyRedecl*/true))
       return LinkageInfo::none();
 
+  } else if (isa<MSGuidDecl>(D)) {
+    // A GUID behaves like an inline variable with external linkage. Fall
+    // through.
+
   // Everything not covered here has no linkage.
   } else {
     return LinkageInfo::none();
@@ -1523,10 +1527,11 @@ void NamedDecl::printName(raw_ostream &os) const {
   os << Name;
 }
 
-std::string NamedDecl::getQualifiedNameAsString() const {
+std::string NamedDecl::getQualifiedNameAsString(bool WithGlobalNsPrefix) const {
   std::string QualName;
   llvm::raw_string_ostream OS(QualName);
-  printQualifiedName(OS, getASTContext().getPrintingPolicy());
+  printQualifiedName(OS, getASTContext().getPrintingPolicy(),
+                     WithGlobalNsPrefix);
   return OS.str();
 }
 
@@ -1534,18 +1539,27 @@ void NamedDecl::printQualifiedName(raw_ostream &OS) const {
   printQualifiedName(OS, getASTContext().getPrintingPolicy());
 }
 
-void NamedDecl::printQualifiedName(raw_ostream &OS,
-                                   const PrintingPolicy &P) const {
+void NamedDecl::printQualifiedName(raw_ostream &OS, const PrintingPolicy &P,
+                                   bool WithGlobalNsPrefix) const {
   if (getDeclContext()->isFunctionOrMethod()) {
     // We do not print '(anonymous)' for function parameters without name.
     printName(OS);
     return;
   }
-  printNestedNameSpecifier(OS, P);
-  if (getDeclName() || isa<DecompositionDecl>(this))
+  printNestedNameSpecifier(OS, P, WithGlobalNsPrefix);
+  if (getDeclName())
     OS << *this;
-  else
-    OS << "(anonymous)";
+  else {
+    // Give the printName override a chance to pick a different name before we
+    // fall back to "(anonymous)".
+    SmallString<64> NameBuffer;
+    llvm::raw_svector_ostream NameOS(NameBuffer);
+    printName(NameOS);
+    if (NameBuffer.empty())
+      OS << "(anonymous)";
+    else
+      OS << NameBuffer;
+  }
 }
 
 void NamedDecl::printNestedNameSpecifier(raw_ostream &OS) const {
@@ -1553,18 +1567,22 @@ void NamedDecl::printNestedNameSpecifier(raw_ostream &OS) const {
 }
 
 void NamedDecl::printNestedNameSpecifier(raw_ostream &OS,
-                                         const PrintingPolicy &P) const {
+                                         const PrintingPolicy &P,
+                                         bool WithGlobalNsPrefix) const {
   const DeclContext *Ctx = getDeclContext();
 
   // For ObjC methods and properties, look through categories and use the
   // interface as context.
-  if (auto *MD = dyn_cast<ObjCMethodDecl>(this))
+  if (auto *MD = dyn_cast<ObjCMethodDecl>(this)) {
     if (auto *ID = MD->getClassInterface())
       Ctx = ID;
-  if (auto *PD = dyn_cast<ObjCPropertyDecl>(this)) {
+  } else if (auto *PD = dyn_cast<ObjCPropertyDecl>(this)) {
     if (auto *MD = PD->getGetterMethodDecl())
       if (auto *ID = MD->getClassInterface())
         Ctx = ID;
+  } else if (auto *ID = dyn_cast<ObjCIvarDecl>(this)) {
+    if (auto *CI = ID->getContainingInterface())
+      Ctx = CI;
   }
 
   if (Ctx->isFunctionOrMethod())
@@ -1580,6 +1598,9 @@ void NamedDecl::printNestedNameSpecifier(raw_ostream &OS,
     Ctx = Ctx->getParent();
   }
 
+  if (WithGlobalNsPrefix)
+    OS << "::";
+
   for (const DeclContext *DC : llvm::reverse(Contexts)) {
     if (const auto *Spec = dyn_cast<ClassTemplateSpecializationDecl>(DC)) {
       OS << Spec->getName();
@@ -1592,8 +1613,7 @@ void NamedDecl::printNestedNameSpecifier(raw_ostream &OS,
       if (ND->isAnonymousNamespace()) {
         OS << (P.MSVCFormatting ? "`anonymous namespace\'"
                                 : "(anonymous namespace)");
-      }
-      else
+      } else
         OS << *ND;
     } else if (const auto *RD = dyn_cast<RecordDecl>(DC)) {
       if (!RD->getIdentifier())
@@ -3208,6 +3228,15 @@ unsigned FunctionDecl::getBuiltinID(bool ConsiderWrapperFunctions) const {
       !(BuiltinID == Builtin::BIprintf || BuiltinID == Builtin::BImalloc))
     return 0;
 
+  // As AMDGCN implementation of OpenMP does not have a device-side standard
+  // library, none of the predefined library functions except printf and malloc
+  // should be treated as a builtin i.e. 0 should be returned for them.
+  if (Context.getTargetInfo().getTriple().isAMDGCN() &&
+      Context.getLangOpts().OpenMPIsDevice &&
+      Context.BuiltinInfo.isPredefinedLibFunction(BuiltinID) &&
+      !(BuiltinID == Builtin::BIprintf || BuiltinID == Builtin::BImalloc))
+    return 0;
+
   return BuiltinID;
 }
 
@@ -3239,11 +3268,25 @@ unsigned FunctionDecl::getMinRequiredArguments() const {
   if (!getASTContext().getLangOpts().CPlusPlus)
     return getNumParams();
 
+  // Note that it is possible for a parameter with no default argument to
+  // follow a parameter with a default argument.
   unsigned NumRequiredArgs = 0;
-  for (auto *Param : parameters())
-    if (!Param->isParameterPack() && !Param->hasDefaultArg())
-      ++NumRequiredArgs;
+  unsigned MinParamsSoFar = 0;
+  for (auto *Param : parameters()) {
+    if (!Param->isParameterPack()) {
+      ++MinParamsSoFar;
+      if (!Param->hasDefaultArg())
+        NumRequiredArgs = MinParamsSoFar;
+    }
+  }
   return NumRequiredArgs;
+}
+
+bool FunctionDecl::hasOneParamOrDefaultArgs() const {
+  return getNumParams() == 1 ||
+         (getNumParams() > 1 &&
+          std::all_of(param_begin() + 1, param_end(),
+                      [](ParmVarDecl *P) { return P->hasDefaultArg(); }));
 }
 
 /// The combination of the extern and inline keywords under MSVC forces
@@ -4397,6 +4440,21 @@ void RecordDecl::setCapturedRecord() {
   addAttr(CapturedRecordAttr::CreateImplicit(getASTContext()));
 }
 
+bool RecordDecl::isOrContainsUnion() const {
+  if (isUnion())
+    return true;
+
+  if (const RecordDecl *Def = getDefinition()) {
+    for (const FieldDecl *FD : Def->fields()) {
+      const RecordType *RT = FD->getType()->getAs<RecordType>();
+      if (RT && RT->getDecl()->isOrContainsUnion())
+        return true;
+    }
+  }
+
+  return false;
+}
+
 RecordDecl::field_iterator RecordDecl::field_begin() const {
   if (hasExternalLexicalStorage() && !hasLoadedFieldsFromExternalStorage())
     LoadFieldsFromExternalStorage();
@@ -4468,11 +4526,11 @@ bool RecordDecl::mayInsertExtraPadding(bool EmitRemark) const {
     ReasonToReject = 5;  // is standard layout.
   else if (Blacklist.isBlacklistedLocation(EnabledAsanMask, getLocation(),
                                            "field-padding"))
-    ReasonToReject = 6;  // is in a blacklisted file.
+    ReasonToReject = 6;  // is in an excluded file.
   else if (Blacklist.isBlacklistedType(EnabledAsanMask,
                                        getQualifiedNameAsString(),
                                        "field-padding"))
-    ReasonToReject = 7;  // is blacklisted.
+    ReasonToReject = 7;  // The type is excluded.
 
   if (EmitRemark) {
     if (ReasonToReject >= 0)

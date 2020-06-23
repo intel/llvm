@@ -916,12 +916,11 @@ void HexagonInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
   DebugLoc DL = MBB.findDebugLoc(I);
   MachineFunction &MF = *MBB.getParent();
   MachineFrameInfo &MFI = MF.getFrameInfo();
-  unsigned SlotAlign = MFI.getObjectAlignment(FI);
   unsigned KillFlag = getKillRegState(isKill);
 
   MachineMemOperand *MMO = MF.getMachineMemOperand(
       MachinePointerInfo::getFixedStack(MF, FI), MachineMemOperand::MOStore,
-      MFI.getObjectSize(FI), SlotAlign);
+      MFI.getObjectSize(FI), MFI.getObjectAlign(FI));
 
   if (Hexagon::IntRegsRegClass.hasSubClassEq(RC)) {
     BuildMI(MBB, I, DL, get(Hexagon::S2_storeri_io))
@@ -963,11 +962,10 @@ void HexagonInstrInfo::loadRegFromStackSlot(
   DebugLoc DL = MBB.findDebugLoc(I);
   MachineFunction &MF = *MBB.getParent();
   MachineFrameInfo &MFI = MF.getFrameInfo();
-  unsigned SlotAlign = MFI.getObjectAlignment(FI);
 
   MachineMemOperand *MMO = MF.getMachineMemOperand(
       MachinePointerInfo::getFixedStack(MF, FI), MachineMemOperand::MOLoad,
-      MFI.getObjectSize(FI), SlotAlign);
+      MFI.getObjectSize(FI), MFI.getObjectAlign(FI));
 
   if (Hexagon::IntRegsRegClass.hasSubClassEq(RC)) {
     BuildMI(MBB, I, DL, get(Hexagon::L2_loadri_io), DestReg)
@@ -1027,10 +1025,9 @@ bool HexagonInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   auto UseAligned = [&] (const MachineInstr &MI, unsigned NeedAlign) {
     if (MI.memoperands().empty())
       return false;
-    return all_of(MI.memoperands(),
-                  [NeedAlign] (const MachineMemOperand *MMO) {
-                    return NeedAlign <= MMO->getAlignment();
-                  });
+    return all_of(MI.memoperands(), [NeedAlign](const MachineMemOperand *MMO) {
+      return MMO->getAlign() >= NeedAlign;
+    });
   };
 
   switch (Opc) {
@@ -1374,7 +1371,8 @@ bool HexagonInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       static const CrashPseudoSourceValue CrashPSV(*this);
       MachineMemOperand *MMO = MF.getMachineMemOperand(
           MachinePointerInfo(&CrashPSV),
-          MachineMemOperand::MOLoad | MachineMemOperand::MOVolatile, 8, 1);
+          MachineMemOperand::MOLoad | MachineMemOperand::MOVolatile, 8,
+          Align(1));
       BuildMI(MBB, MI, DL, get(Hexagon::PS_loadrdabs), Hexagon::D13)
         .addImm(0xBADC0FEE)  // Misaligned load.
         .addMemOperand(MMO);
@@ -1760,7 +1758,7 @@ unsigned HexagonInstrInfo::getInlineAsmLength(const char *Str,
     if (*Str == '\n' || strncmp(Str, MAI.getSeparatorString(),
                                 strlen(MAI.getSeparatorString())) == 0)
       atInsnStart = true;
-    if (atInsnStart && !std::isspace(static_cast<unsigned char>(*Str))) {
+    if (atInsnStart && !isSpace(static_cast<unsigned char>(*Str))) {
       Length += MaxInstLength;
       atInsnStart = false;
     }
@@ -1787,8 +1785,8 @@ HexagonInstrInfo::CreateTargetPostRAHazardRecognizer(
 /// \p SrcReg and \p SrcReg2 if having two register operands, and the value it
 /// compares against in CmpValue. Return true if the comparison instruction
 /// can be analyzed.
-bool HexagonInstrInfo::analyzeCompare(const MachineInstr &MI, unsigned &SrcReg,
-                                      unsigned &SrcReg2, int &Mask,
+bool HexagonInstrInfo::analyzeCompare(const MachineInstr &MI, Register &SrcReg,
+                                      Register &SrcReg2, int &Mask,
                                       int &Value) const {
   unsigned Opc = MI.getOpcode();
 
@@ -2965,12 +2963,12 @@ bool HexagonInstrInfo::addLatencyToSchedule(const MachineInstr &MI1,
 }
 
 /// Get the base register and byte offset of a load/store instr.
-bool HexagonInstrInfo::getMemOperandsWithOffset(
+bool HexagonInstrInfo::getMemOperandsWithOffsetWidth(
     const MachineInstr &LdSt, SmallVectorImpl<const MachineOperand *> &BaseOps,
-    int64_t &Offset, bool &OffsetIsScalable, const TargetRegisterInfo *TRI) const {
-  unsigned AccessSize = 0;
+    int64_t &Offset, bool &OffsetIsScalable, unsigned &Width,
+    const TargetRegisterInfo *TRI) const {
   OffsetIsScalable = false;
-  const MachineOperand *BaseOp = getBaseAndOffset(LdSt, Offset, AccessSize);
+  const MachineOperand *BaseOp = getBaseAndOffset(LdSt, Offset, Width);
   if (!BaseOp || !BaseOp->isReg())
     return false;
   BaseOps.push_back(BaseOp);

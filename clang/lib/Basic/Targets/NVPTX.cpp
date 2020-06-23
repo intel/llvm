@@ -16,6 +16,7 @@
 #include "clang/Basic/MacroBuilder.h"
 #include "clang/Basic/TargetBuiltins.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/Frontend/OpenMP/OMPGridValues.h"
 
 using namespace clang;
 using namespace clang::targets;
@@ -44,6 +45,8 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
     if (!Feature.startswith("+ptx"))
       continue;
     PTXVersion = llvm::StringSwitch<unsigned>(Feature)
+                     .Case("+ptx70", 70)
+                     .Case("+ptx65", 65)
                      .Case("+ptx64", 64)
                      .Case("+ptx63", 63)
                      .Case("+ptx61", 61)
@@ -61,7 +64,10 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
   TLSSupported = Triple.getEnvironment() == llvm::Triple::SYCLDevice;
   VLASupported = false;
   AddrSpaceMap = &NVPTXAddrSpaceMap;
+  GridValues = llvm::omp::NVPTXGpuGridValues;
   UseAddrSpaceMapMangling = true;
+  HasLegalHalfType = true;
+  HasFloat16 = true;
 
   // Define available target features
   // These must be defined in sorted order!
@@ -197,6 +203,7 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
       case CudaArch::GFX1010:
       case CudaArch::GFX1011:
       case CudaArch::GFX1012:
+      case CudaArch::GFX1030:
       case CudaArch::LAST:
         break;
       case CudaArch::UNKNOWN:
@@ -232,6 +239,8 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
         return "720";
       case CudaArch::SM_75:
         return "750";
+      case CudaArch::SM_80:
+        return "800";
       }
       llvm_unreachable("unhandled CudaArch");
     }();

@@ -41,12 +41,13 @@ bool isReferencedOutsideOfCallExpr(const FunctionDecl &Function,
 
 bool hasLoopStmtAncestor(const DeclRefExpr &DeclRef, const Decl &Decl,
                          ASTContext &Context) {
-  auto Matches =
-      match(decl(forEachDescendant(declRefExpr(
-                equalsNode(&DeclRef),
-                unless(hasAncestor(stmt(anyOf(forStmt(), cxxForRangeStmt(),
-                                              whileStmt(), doStmt()))))))),
-            Decl, Context);
+  auto Matches = match(
+      traverse(ast_type_traits::TK_AsIs,
+               decl(forEachDescendant(declRefExpr(
+                   equalsNode(&DeclRef),
+                   unless(hasAncestor(stmt(anyOf(forStmt(), cxxForRangeStmt(),
+                                                 whileStmt(), doStmt())))))))),
+      Decl, Context);
   return Matches.empty();
 }
 
@@ -67,8 +68,9 @@ bool isExplicitTemplateSpecialization(const FunctionDecl &Function) {
 UnnecessaryValueParamCheck::UnnecessaryValueParamCheck(
     StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      IncludeStyle(utils::IncludeSorter::parseIncludeStyle(
-          Options.getLocalOrGlobal("IncludeStyle", "llvm"))),
+      IncludeStyle(Options.getLocalOrGlobal("IncludeStyle",
+                                            utils::IncludeSorter::getMapping(),
+                                            utils::IncludeSorter::IS_LLVM)),
       AllowedTypes(
           utils::options::parseStringList(Options.get("AllowedTypes", ""))) {}
 
@@ -81,16 +83,20 @@ void UnnecessaryValueParamCheck::registerMatchers(MatchFinder *Finder) {
                            matchers::matchesAnyListedName(AllowedTypes))))))),
       decl().bind("param"));
   Finder->addMatcher(
-      functionDecl(hasBody(stmt()), isDefinition(), unless(isImplicit()),
-                   unless(cxxMethodDecl(anyOf(isOverride(), isFinal()))),
-                   has(typeLoc(forEach(ExpensiveValueParamDecl))),
-                   unless(isInstantiated()), decl().bind("functionDecl")),
+      traverse(
+          ast_type_traits::TK_AsIs,
+          functionDecl(hasBody(stmt()), isDefinition(), unless(isImplicit()),
+                       unless(cxxMethodDecl(anyOf(isOverride(), isFinal()))),
+                       has(typeLoc(forEach(ExpensiveValueParamDecl))),
+                       unless(isInstantiated()), decl().bind("functionDecl"))),
       this);
 }
 
 void UnnecessaryValueParamCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Param = Result.Nodes.getNodeAs<ParmVarDecl>("param");
   const auto *Function = Result.Nodes.getNodeAs<FunctionDecl>("functionDecl");
+
+  TraversalKindScope RAII(*Result.Context, ast_type_traits::TK_AsIs);
 
   FunctionParmMutationAnalyzer &Analyzer =
       MutationAnalyzers.try_emplace(Function, *Function, *Result.Context)
@@ -175,8 +181,8 @@ void UnnecessaryValueParamCheck::registerPPCallbacks(
 
 void UnnecessaryValueParamCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "IncludeStyle",
-                utils::IncludeSorter::toString(IncludeStyle));
+  Options.store(Opts, "IncludeStyle", IncludeStyle,
+                utils::IncludeSorter::getMapping());
   Options.store(Opts, "AllowedTypes",
                 utils::options::serializeStringList(AllowedTypes));
 }
@@ -199,11 +205,10 @@ void UnnecessaryValueParamCheck::handleMoveFix(const ParmVarDecl &Var,
   auto EndLoc = Lexer::getLocForEndOfToken(CopyArgument.getLocation(), 0, SM,
                                            Context.getLangOpts());
   Diag << FixItHint::CreateInsertion(CopyArgument.getBeginLoc(), "std::move(")
-       << FixItHint::CreateInsertion(EndLoc, ")");
-  if (auto IncludeFixit = Inserter->CreateIncludeInsertion(
-          SM.getFileID(CopyArgument.getBeginLoc()), "utility",
-          /*IsAngled=*/true))
-    Diag << *IncludeFixit;
+       << FixItHint::CreateInsertion(EndLoc, ")")
+       << Inserter->CreateIncludeInsertion(
+              SM.getFileID(CopyArgument.getBeginLoc()), "utility",
+              /*IsAngled=*/true);
 }
 
 } // namespace performance

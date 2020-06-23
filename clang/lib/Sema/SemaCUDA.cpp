@@ -211,6 +211,20 @@ Sema::IdentifyCUDAPreference(const FunctionDecl *Caller,
   llvm_unreachable("All cases should've been handled by now.");
 }
 
+template <typename AttrT> static bool hasImplicitAttr(const FunctionDecl *D) {
+  if (!D)
+    return false;
+  if (auto *A = D->getAttr<AttrT>())
+    return A->isImplicit();
+  return D->isImplicit();
+}
+
+bool Sema::isCUDAImplicitHostDeviceFunction(const FunctionDecl *D) {
+  bool IsImplicitDevAttr = hasImplicitAttr<CUDADeviceAttr>(D);
+  bool IsImplicitHostAttr = hasImplicitAttr<CUDAHostAttr>(D);
+  return IsImplicitDevAttr && IsImplicitHostAttr;
+}
+
 void Sema::EraseUnwantedCUDAMatches(
     const FunctionDecl *Caller,
     SmallVectorImpl<std::pair<DeclAccessPair, FunctionDecl *>> &Matches) {
@@ -426,6 +440,10 @@ bool Sema::isEmptyCudaConstructor(SourceLocation Loc, CXXConstructorDecl *CD) {
   if (CD->getParent()->isDynamicClass())
     return false;
 
+  // Union ctor does not call ctors of its data members.
+  if (CD->getParent()->isUnion())
+    return true;
+
   // The only form of initializer allowed is an empty constructor.
   // This will recursively check all base classes and member initializers
   if (!llvm::all_of(CD->inits(), [&](const CXXCtorInitializer *CI) {
@@ -464,6 +482,11 @@ bool Sema::isEmptyCudaDestructor(SourceLocation Loc, CXXDestructorDecl *DD) {
   // Its class has no virtual functions and no virtual base classes.
   if (ClassDecl->isDynamicClass())
     return false;
+
+  // Union does not have base class and union dtor does not call dtors of its
+  // data members.
+  if (DD->getParent()->isUnion())
+    return true;
 
   // Only empty destructors are allowed. This will recursively check
   // destructors for all base classes...
@@ -504,9 +527,14 @@ void Sema::checkAllowedCUDAInitializer(VarDecl *VD) {
     // constructor according to CUDA rules. This deviates from NVCC,
     // but allows us to handle things like constexpr constructors.
     if (!AllowedInit &&
-        (VD->hasAttr<CUDADeviceAttr>() || VD->hasAttr<CUDAConstantAttr>()))
-      AllowedInit = VD->getInit()->isConstantInitializer(
-          Context, VD->getType()->isReferenceType());
+        (VD->hasAttr<CUDADeviceAttr>() || VD->hasAttr<CUDAConstantAttr>())) {
+      auto *Init = VD->getInit();
+      AllowedInit =
+          ((VD->getType()->isDependentType() || Init->isValueDependent()) &&
+           VD->isConstexpr()) ||
+          Init->isConstantInitializer(Context,
+                                      VD->getType()->isReferenceType());
+    }
 
     // Also make sure that destructor, if there is one, is empty.
     if (AllowedInit)
@@ -601,6 +629,13 @@ void Sema::maybeAddCUDAHostDeviceAttrs(FunctionDecl *NewD,
 
   NewD->addAttr(CUDAHostAttr::CreateImplicit(Context));
   NewD->addAttr(CUDADeviceAttr::CreateImplicit(Context));
+}
+
+void Sema::MaybeAddCUDAConstantAttr(VarDecl *VD) {
+  if (getLangOpts().CUDAIsDevice && VD->isConstexpr() &&
+      (VD->isFileVarDecl() || VD->isStaticDataMember())) {
+    VD->addAttr(CUDAConstantAttr::CreateImplicit(getASTContext()));
+  }
 }
 
 Sema::DeviceDiagBuilder Sema::CUDADiagIfDeviceCode(SourceLocation Loc,

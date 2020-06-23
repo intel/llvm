@@ -29,7 +29,7 @@ OpFoldResult CastOp::fold(ArrayRef<Attribute> operands) {
 }
 
 /// This is an example of a c++ rewrite pattern for the TransposeOp. It
-/// optimizes the following scenario: transpose(transpose(x)) -> transpose(x)
+/// optimizes the following scenario: transpose(transpose(x)) -> x
 struct SimplifyRedundantTranspose : public mlir::OpRewritePattern<TransposeOp> {
   /// We register this pattern to match every toy.transpose in the IR.
   /// The "benefit" is used by the framework to order the patterns and process
@@ -45,8 +45,7 @@ struct SimplifyRedundantTranspose : public mlir::OpRewritePattern<TransposeOp> {
                   mlir::PatternRewriter &rewriter) const override {
     // Look through the input of the current transpose.
     mlir::Value transposeInput = op.getOperand();
-    TransposeOp transposeInputOp =
-        llvm::dyn_cast_or_null<TransposeOp>(transposeInput.getDefiningOp());
+    TransposeOp transposeInputOp = transposeInput.getDefiningOp<TransposeOp>();
 
     // Input defined by another transpose? If not, no match.
     if (!transposeInputOp)

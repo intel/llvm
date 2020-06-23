@@ -21,7 +21,6 @@
 #include "Writer.h"
 #include "lld/Common/Memory.h"
 #include "lld/Common/Strings.h"
-#include "lld/Common/Threads.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/ELF.h"
@@ -29,6 +28,7 @@
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Parallel.h"
 #include "llvm/Support/Path.h"
 #include <algorithm>
 #include <cassert>
@@ -43,10 +43,10 @@ using namespace llvm;
 using namespace llvm::ELF;
 using namespace llvm::object;
 using namespace llvm::support::endian;
+using namespace lld;
+using namespace lld::elf;
 
-namespace lld {
-namespace elf {
-LinkerScript *script;
+LinkerScript *elf::script;
 
 static uint64_t getOutputSectionVA(SectionBase *sec) {
   OutputSection *os = sec->getOutputSection();
@@ -407,14 +407,15 @@ static void sortInputSections(MutableArrayRef<InputSectionBase *> vec,
 
 // Compute and remember which sections the InputSectionDescription matches.
 std::vector<InputSectionBase *>
-LinkerScript::computeInputSections(const InputSectionDescription *cmd) {
+LinkerScript::computeInputSections(const InputSectionDescription *cmd,
+                                   ArrayRef<InputSectionBase *> sections) {
   std::vector<InputSectionBase *> ret;
 
   // Collects all sections that satisfy constraints of Cmd.
   for (const SectionPattern &pat : cmd->sectionPatterns) {
     size_t sizeBefore = ret.size();
 
-    for (InputSectionBase *sec : inputSections) {
+    for (InputSectionBase *sec : sections) {
       if (!sec->isLive() || sec->parent)
         continue;
 
@@ -465,13 +466,29 @@ void LinkerScript::discard(InputSectionBase *s) {
     discard(ds);
 }
 
+void LinkerScript::discardSynthetic(OutputSection &outCmd) {
+  for (Partition &part : partitions) {
+    if (!part.armExidx || !part.armExidx->isLive())
+      continue;
+    std::vector<InputSectionBase *> secs(part.armExidx->exidxSections.begin(),
+                                         part.armExidx->exidxSections.end());
+    for (BaseCommand *base : outCmd.sectionCommands)
+      if (auto *cmd = dyn_cast<InputSectionDescription>(base)) {
+        std::vector<InputSectionBase *> matches =
+            computeInputSections(cmd, secs);
+        for (InputSectionBase *s : matches)
+          discard(s);
+      }
+  }
+}
+
 std::vector<InputSectionBase *>
 LinkerScript::createInputSectionList(OutputSection &outCmd) {
   std::vector<InputSectionBase *> ret;
 
   for (BaseCommand *base : outCmd.sectionCommands) {
     if (auto *cmd = dyn_cast<InputSectionDescription>(base)) {
-      cmd->sectionBases = computeInputSections(cmd);
+      cmd->sectionBases = computeInputSections(cmd, inputSections);
       for (InputSectionBase *s : cmd->sectionBases)
         s->parent = &outCmd;
       ret.insert(ret.end(), cmd->sectionBases.begin(), cmd->sectionBases.end());
@@ -492,6 +509,7 @@ void LinkerScript::processSectionCommands() {
       if (sec->name == "/DISCARD/") {
         for (InputSectionBase *s : v)
           discard(s);
+        discardSynthetic(*sec);
         sec->sectionCommands.clear();
         continue;
       }
@@ -833,6 +851,8 @@ void LinkerScript::assignOffsets(OutputSection *sec) {
   if (!(sec->flags & SHF_ALLOC))
     dot = 0;
 
+  const bool sameMemRegion = ctx->memRegion == sec->memRegion;
+  const bool prevLMARegionIsDefault = ctx->lmaRegion == nullptr;
   ctx->memRegion = sec->memRegion;
   ctx->lmaRegion = sec->lmaRegion;
   if (ctx->memRegion)
@@ -851,19 +871,20 @@ void LinkerScript::assignOffsets(OutputSection *sec) {
 
   switchTo(sec);
 
-  ctx->lmaOffset = 0;
-
+  // ctx->lmaOffset is LMA minus VMA. If LMA is explicitly specified via AT() or
+  // AT>, recompute ctx->lmaOffset; otherwise, if both previous/current LMA
+  // region is the default, and the two sections are in the same memory region,
+  // reuse previous lmaOffset; otherwise, reset lmaOffset to 0. This emulates
+  // heuristics described in
+  // https://sourceware.org/binutils/docs/ld/Output-Section-LMA.html
   if (sec->lmaExpr)
     ctx->lmaOffset = sec->lmaExpr().getValue() - dot;
-  if (MemoryRegion *mr = sec->lmaRegion)
+  else if (MemoryRegion *mr = sec->lmaRegion)
     ctx->lmaOffset = alignTo(mr->curPos, sec->alignment) - dot;
+  else if (!sameMemRegion || !prevLMARegionIsDefault)
+    ctx->lmaOffset = 0;
 
-  // If neither AT nor AT> is specified for an allocatable section, the linker
-  // will set the LMA such that the difference between VMA and LMA for the
-  // section is the same as the preceding output section in the same region
-  // https://sourceware.org/binutils/docs-2.20/ld/Output-Section-LMA.html
-  // This, however, should only be done by the first "non-header" section
-  // in the segment.
+  // Propagate ctx->lmaOffset to the first "non-header" section.
   if (PhdrEntry *l = ctx->outSec->ptLoad)
     if (sec == findFirstSection(l))
       l->lmaOffset = ctx->lmaOffset;
@@ -1223,11 +1244,8 @@ std::vector<size_t> LinkerScript::getPhdrIndices(OutputSection *cmd) {
     if (Optional<size_t> idx = getPhdrIndex(phdrsCommands, s))
       ret.push_back(*idx);
     else if (s != "NONE")
-      error(cmd->location + ": section header '" + s +
+      error(cmd->location + ": program header '" + s +
             "' is not listed in PHDRS");
   }
   return ret;
 }
-
-} // namespace elf
-} // namespace lld

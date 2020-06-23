@@ -28,11 +28,11 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/GlobalsModRef.h"
+#include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueLattice.h"
 #include "llvm/Analysis/ValueLatticeUtils.h"
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
@@ -67,30 +67,41 @@ using namespace llvm;
 
 STATISTIC(NumInstRemoved, "Number of instructions removed");
 STATISTIC(NumDeadBlocks , "Number of basic blocks unreachable");
+STATISTIC(NumInstReplaced,
+          "Number of instructions replaced with (simpler) instruction");
 
 STATISTIC(IPNumInstRemoved, "Number of instructions removed by IPSCCP");
 STATISTIC(IPNumArgsElimed ,"Number of arguments constant propagated by IPSCCP");
 STATISTIC(IPNumGlobalConst, "Number of globals found to be constant by IPSCCP");
+STATISTIC(
+    IPNumInstReplaced,
+    "Number of instructions replaced with (simpler) instruction by IPSCCP");
 
+// The maximum number of range extensions allowed for operations requiring
+// widening.
+static const unsigned MaxNumRangeExtensions = 10;
+
+/// Returns MergeOptions with MaxWidenSteps set to MaxNumRangeExtensions.
+static ValueLatticeElement::MergeOptions getMaxWidenStepsOpts() {
+  return ValueLatticeElement::MergeOptions().setMaxWidenSteps(
+      MaxNumRangeExtensions);
+}
 namespace {
-
-// Use ValueLatticeElement as LatticeVal.
-using LatticeVal = ValueLatticeElement;
 
 // Helper to check if \p LV is either a constant or a constant
 // range with a single element. This should cover exactly the same cases as the
-// old LatticeVal::isConstant() and is intended to be used in the transition
-// from LatticeVal to LatticeValueElement.
-bool isConstant(const LatticeVal &LV) {
+// old ValueLatticeElement::isConstant() and is intended to be used in the
+// transition to ValueLatticeElement.
+bool isConstant(const ValueLatticeElement &LV) {
   return LV.isConstant() ||
          (LV.isConstantRange() && LV.getConstantRange().isSingleElement());
 }
 
 // Helper to check if \p LV is either overdefined or a constant range with more
 // than a single element. This should cover exactly the same cases as the old
-// LatticeVal::isOverdefined() and is intended to be used in the transition from
-// LatticeVal to LatticeValueElement.
-bool isOverdefined(const LatticeVal &LV) {
+// ValueLatticeElement::isOverdefined() and is intended to be used in the
+// transition to ValueLatticeElement.
+bool isOverdefined(const ValueLatticeElement &LV) {
   return LV.isOverdefined() ||
          (LV.isConstantRange() && !LV.getConstantRange().isSingleElement());
 }
@@ -104,26 +115,28 @@ class SCCPSolver : public InstVisitor<SCCPSolver> {
   const DataLayout &DL;
   std::function<const TargetLibraryInfo &(Function &)> GetTLI;
   SmallPtrSet<BasicBlock *, 8> BBExecutable; // The BBs that are executable.
-  DenseMap<Value *, LatticeVal> ValueState;  // The state each value is in.
+  DenseMap<Value *, ValueLatticeElement>
+      ValueState; // The state each value is in.
 
   /// StructValueState - This maintains ValueState for values that have
   /// StructType, for example for formal arguments, calls, insertelement, etc.
-  DenseMap<std::pair<Value *, unsigned>, LatticeVal> StructValueState;
+  DenseMap<std::pair<Value *, unsigned>, ValueLatticeElement> StructValueState;
 
   /// GlobalValue - If we are tracking any values for the contents of a global
   /// variable, we keep a mapping from the constant accessor to the element of
   /// the global, to the currently known value.  If the value becomes
   /// overdefined, it's entry is simply removed from this map.
-  DenseMap<GlobalVariable *, LatticeVal> TrackedGlobals;
+  DenseMap<GlobalVariable *, ValueLatticeElement> TrackedGlobals;
 
   /// TrackedRetVals - If we are tracking arguments into and the return
   /// value out of a function, it will have an entry in this map, indicating
   /// what the known return value for the function is.
-  MapVector<Function *, LatticeVal> TrackedRetVals;
+  MapVector<Function *, ValueLatticeElement> TrackedRetVals;
 
   /// TrackedMultipleRetVals - Same as TrackedRetVals, but used for functions
   /// that return multiple values.
-  MapVector<std::pair<Function *, unsigned>, LatticeVal> TrackedMultipleRetVals;
+  MapVector<std::pair<Function *, unsigned>, ValueLatticeElement>
+      TrackedMultipleRetVals;
 
   /// MRVFunctionsTracked - Each function in TrackedMultipleRetVals is
   /// represented here for efficient lookup.
@@ -203,7 +216,7 @@ public:
   void TrackValueOfGlobalVariable(GlobalVariable *GV) {
     // We only track the contents of scalar globals.
     if (GV->getValueType()->isSingleValueType()) {
-      LatticeVal &IV = TrackedGlobals[GV];
+      ValueLatticeElement &IV = TrackedGlobals[GV];
       if (!isa<UndefValue>(GV->getInitializer()))
         IV.markConstant(GV->getInitializer());
     }
@@ -217,10 +230,10 @@ public:
     if (auto *STy = dyn_cast<StructType>(F->getReturnType())) {
       MRVFunctionsTracked.insert(F);
       for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i)
-        TrackedMultipleRetVals.insert(std::make_pair(std::make_pair(F, i),
-                                                     LatticeVal()));
+        TrackedMultipleRetVals.insert(
+            std::make_pair(std::make_pair(F, i), ValueLatticeElement()));
     } else
-      TrackedRetVals.insert(std::make_pair(F, LatticeVal()));
+      TrackedRetVals.insert(std::make_pair(F, ValueLatticeElement()));
   }
 
   /// AddMustTailCallee - If the SCCP solver finds that this function is called
@@ -263,8 +276,8 @@ public:
   // block to the 'To' basic block is currently feasible.
   bool isEdgeFeasible(BasicBlock *From, BasicBlock *To);
 
-  std::vector<LatticeVal> getStructLatticeValueFor(Value *V) const {
-    std::vector<LatticeVal> StructValues;
+  std::vector<ValueLatticeElement> getStructLatticeValueFor(Value *V) const {
+    std::vector<ValueLatticeElement> StructValues;
     auto *STy = dyn_cast<StructType>(V->getType());
     assert(STy && "getStructLatticeValueFor() can be called only on structs");
     for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i) {
@@ -275,23 +288,26 @@ public:
     return StructValues;
   }
 
-  const LatticeVal &getLatticeValueFor(Value *V) const {
+  void removeLatticeValueFor(Value *V) { ValueState.erase(V); }
+
+  const ValueLatticeElement &getLatticeValueFor(Value *V) const {
     assert(!V->getType()->isStructTy() &&
            "Should use getStructLatticeValueFor");
-    DenseMap<Value *, LatticeVal>::const_iterator I = ValueState.find(V);
+    DenseMap<Value *, ValueLatticeElement>::const_iterator I =
+        ValueState.find(V);
     assert(I != ValueState.end() &&
            "V not found in ValueState nor Paramstate map!");
     return I->second;
   }
 
   /// getTrackedRetVals - Get the inferred return value map.
-  const MapVector<Function*, LatticeVal> &getTrackedRetVals() {
+  const MapVector<Function *, ValueLatticeElement> &getTrackedRetVals() {
     return TrackedRetVals;
   }
 
   /// getTrackedGlobals - Get and return the set of inferred initializers for
   /// global variables.
-  const DenseMap<GlobalVariable*, LatticeVal> &getTrackedGlobals() {
+  const DenseMap<GlobalVariable *, ValueLatticeElement> &getTrackedGlobals() {
     return TrackedGlobals;
   }
 
@@ -324,7 +340,7 @@ public:
     for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i) {
       const auto &It = TrackedMultipleRetVals.find(std::make_pair(F, i));
       assert(It != TrackedMultipleRetVals.end());
-      LatticeVal LV = It->second;
+      ValueLatticeElement LV = It->second;
       if (!isConstant(LV))
         return false;
     }
@@ -333,7 +349,7 @@ public:
 
   /// Helper to return a Constant if \p LV is either a constant or a constant
   /// range with a single element.
-  Constant *getConstant(const LatticeVal &LV) const {
+  Constant *getConstant(const ValueLatticeElement &LV) const {
     if (LV.isConstant())
       return LV.getConstant();
 
@@ -346,12 +362,12 @@ public:
   }
 
 private:
-  ConstantInt *getConstantInt(const LatticeVal &IV) const {
+  ConstantInt *getConstantInt(const ValueLatticeElement &IV) const {
     return dyn_cast_or_null<ConstantInt>(getConstant(IV));
   }
 
   // pushToWorkList - Helper for markConstant/markOverdefined
-  void pushToWorkList(LatticeVal &IV, Value *V) {
+  void pushToWorkList(ValueLatticeElement &IV, Value *V) {
     if (IV.isOverdefined())
       return OverdefinedInstWorkList.push_back(V);
     InstWorkList.push_back(V);
@@ -359,18 +375,18 @@ private:
 
   // Helper to push \p V to the worklist, after updating it to \p IV. Also
   // prints a debug message with the updated value.
-  void pushToWorkListMsg(LatticeVal &IV, Value *V) {
+  void pushToWorkListMsg(ValueLatticeElement &IV, Value *V) {
     LLVM_DEBUG(dbgs() << "updated " << IV << ": " << *V << '\n');
-    if (IV.isOverdefined())
-      return OverdefinedInstWorkList.push_back(V);
-    InstWorkList.push_back(V);
+    pushToWorkList(IV, V);
   }
 
   // markConstant - Make a value be marked as "constant".  If the value
   // is not already a constant, add it to the instruction work list so that
   // the users of the instruction are updated later.
-  bool markConstant(LatticeVal &IV, Value *V, Constant *C) {
-    if (!IV.markConstant(C)) return false;
+  bool markConstant(ValueLatticeElement &IV, Value *V, Constant *C,
+                    bool MayIncludeUndef = false) {
+    if (!IV.markConstant(C, MayIncludeUndef))
+      return false;
     LLVM_DEBUG(dbgs() << "markConstant: " << *C << ": " << *V << '\n');
     pushToWorkList(IV, V);
     return true;
@@ -384,7 +400,7 @@ private:
   // markOverdefined - Make a value be marked as "overdefined". If the
   // value is not already overdefined, add it to the overdefined instruction
   // work list so that the users of the instruction are updated later.
-  bool markOverdefined(LatticeVal &IV, Value *V) {
+  bool markOverdefined(ValueLatticeElement &IV, Value *V) {
     if (!IV.markOverdefined()) return false;
 
     LLVM_DEBUG(dbgs() << "markOverdefined: ";
@@ -396,17 +412,13 @@ private:
     return true;
   }
 
-  bool mergeInValue(LatticeVal &IV, Value *V, LatticeVal MergeWithV,
-                    bool Widen = true) {
-    // Do a simple form of widening, to avoid extending a range repeatedly in a
-    // loop. If IV is a constant range, it means we already set it once. If
-    // MergeWithV would extend IV, mark V as overdefined.
-    if (Widen && IV.isConstantRange() && MergeWithV.isConstantRange() &&
-        !IV.getConstantRange().contains(MergeWithV.getConstantRange())) {
-      markOverdefined(IV, V);
-      return true;
-    }
-    if (IV.mergeIn(MergeWithV, DL)) {
+  /// Merge \p MergeWithV into \p IV and push \p V to the worklist, if \p IV
+  /// changes.
+  bool mergeInValue(ValueLatticeElement &IV, Value *V,
+                    ValueLatticeElement MergeWithV,
+                    ValueLatticeElement::MergeOptions Opts = {
+                        /*MayIncludeUndef=*/false, /*CheckWiden=*/false}) {
+    if (IV.mergeIn(MergeWithV, Opts)) {
       pushToWorkList(IV, V);
       LLVM_DEBUG(dbgs() << "Merged " << MergeWithV << " into " << *V << " : "
                         << IV << "\n");
@@ -415,21 +427,22 @@ private:
     return false;
   }
 
-  bool mergeInValue(Value *V, LatticeVal MergeWithV, bool Widen = true) {
+  bool mergeInValue(Value *V, ValueLatticeElement MergeWithV,
+                    ValueLatticeElement::MergeOptions Opts = {
+                        /*MayIncludeUndef=*/false, /*CheckWiden=*/false}) {
     assert(!V->getType()->isStructTy() &&
            "non-structs should use markConstant");
-    return mergeInValue(ValueState[V], V, MergeWithV, Widen);
+    return mergeInValue(ValueState[V], V, MergeWithV, Opts);
   }
 
-  /// getValueState - Return the LatticeVal object that corresponds to the
-  /// value.  This function handles the case when the value hasn't been seen yet
-  /// by properly seeding constants etc.
-  LatticeVal &getValueState(Value *V) {
+  /// getValueState - Return the ValueLatticeElement object that corresponds to
+  /// the value.  This function handles the case when the value hasn't been seen
+  /// yet by properly seeding constants etc.
+  ValueLatticeElement &getValueState(Value *V) {
     assert(!V->getType()->isStructTy() && "Should use getStructValueState");
 
-    std::pair<DenseMap<Value*, LatticeVal>::iterator, bool> I =
-      ValueState.insert(std::make_pair(V, LatticeVal()));
-    LatticeVal &LV = I.first->second;
+    auto I = ValueState.insert(std::make_pair(V, ValueLatticeElement()));
+    ValueLatticeElement &LV = I.first->second;
 
     if (!I.second)
       return LV;  // Common case, already in the map.
@@ -441,36 +454,17 @@ private:
     return LV;
   }
 
-  LatticeVal toLatticeVal(const ValueLatticeElement &V, Type *T) {
-    LatticeVal Res;
-    if (V.isUnknownOrUndef())
-      return Res;
-
-    if (V.isConstant()) {
-      Res.markConstant(V.getConstant());
-      return Res;
-    }
-    if (V.isConstantRange() && V.getConstantRange().isSingleElement()) {
-      Res.markConstant(
-          ConstantInt::get(T, *V.getConstantRange().getSingleElement()));
-      return Res;
-    }
-    Res.markOverdefined();
-    return Res;
-  }
-
-  /// getStructValueState - Return the LatticeVal object that corresponds to the
-  /// value/field pair.  This function handles the case when the value hasn't
-  /// been seen yet by properly seeding constants etc.
-  LatticeVal &getStructValueState(Value *V, unsigned i) {
+  /// getStructValueState - Return the ValueLatticeElement object that
+  /// corresponds to the value/field pair.  This function handles the case when
+  /// the value hasn't been seen yet by properly seeding constants etc.
+  ValueLatticeElement &getStructValueState(Value *V, unsigned i) {
     assert(V->getType()->isStructTy() && "Should use getValueState");
     assert(i < cast<StructType>(V->getType())->getNumElements() &&
            "Invalid element #");
 
-    std::pair<DenseMap<std::pair<Value*, unsigned>, LatticeVal>::iterator,
-              bool> I = StructValueState.insert(
-                        std::make_pair(std::make_pair(V, i), LatticeVal()));
-    LatticeVal &LV = I.first->second;
+    auto I = StructValueState.insert(
+        std::make_pair(std::make_pair(V, i), ValueLatticeElement()));
+    ValueLatticeElement &LV = I.first->second;
 
     if (!I.second)
       return LV;  // Common case, already in the map.
@@ -535,8 +529,8 @@ private:
     // propagate the call arguments.
     if (isa<Function>(I)) {
       for (User *U : I->users()) {
-        if (auto CS = CallSite(U))
-          handleCallResult(CS);
+        if (auto *CB = dyn_cast<CallBase>(U))
+          handleCallResult(*CB);
       }
     } else {
       for (User *U : I->users())
@@ -551,9 +545,9 @@ private:
           OperandChangedState(UI);
     }
   }
-  void handleCallOverdefined(CallSite CS);
-  void handleCallResult(CallSite CS);
-  void handleCallArguments(CallSite CS);
+  void handleCallOverdefined(CallBase &CB);
+  void handleCallResult(CallBase &CB);
+  void handleCallArguments(CallBase &CB);
 
 private:
   friend class InstVisitor<SCCPSolver>;
@@ -588,20 +582,20 @@ private:
   void visitGetElementPtrInst(GetElementPtrInst &I);
 
   void visitCallInst      (CallInst &I) {
-    visitCallSite(&I);
+    visitCallBase(I);
   }
 
   void visitInvokeInst    (InvokeInst &II) {
-    visitCallSite(&II);
+    visitCallBase(II);
     visitTerminator(II);
   }
 
   void visitCallBrInst    (CallBrInst &CBI) {
-    visitCallSite(&CBI);
+    visitCallBase(CBI);
     visitTerminator(CBI);
   }
 
-  void visitCallSite      (CallSite CS);
+  void visitCallBase      (CallBase &CB);
   void visitResumeInst    (ResumeInst &I) { /*returns void*/ }
   void visitUnreachableInst(UnreachableInst &I) { /*returns void*/ }
   void visitFenceInst     (FenceInst &I) { /*returns void*/ }
@@ -627,7 +621,7 @@ void SCCPSolver::getFeasibleSuccessors(Instruction &TI,
       return;
     }
 
-    LatticeVal BCValue = getValueState(BI->getCondition());
+    ValueLatticeElement BCValue = getValueState(BI->getCondition());
     ConstantInt *CI = getConstantInt(BCValue);
     if (!CI) {
       // Overdefined condition variables, and branches on unfoldable constant
@@ -653,7 +647,7 @@ void SCCPSolver::getFeasibleSuccessors(Instruction &TI,
       Succs[0] = true;
       return;
     }
-    LatticeVal SCValue = getValueState(SI->getCondition());
+    ValueLatticeElement SCValue = getValueState(SI->getCondition());
     ConstantInt *CI = getConstantInt(SCValue);
 
     if (!CI) {   // Overdefined or unknown condition?
@@ -671,7 +665,7 @@ void SCCPSolver::getFeasibleSuccessors(Instruction &TI,
   // the target as executable.
   if (auto *IBR = dyn_cast<IndirectBrInst>(&TI)) {
     // Casts are folded by visitCastInst.
-    LatticeVal IBRValue = getValueState(IBR->getAddress());
+    ValueLatticeElement IBRValue = getValueState(IBR->getAddress());
     BlockAddress *Addr = dyn_cast_or_null<BlockAddress>(getConstant(IBRValue));
     if (!Addr) {   // Overdefined or unknown condition?
       // All destinations are executable!
@@ -747,41 +741,47 @@ void SCCPSolver::visitPHINode(PHINode &PN) {
   if (PN.getNumIncomingValues() > 64)
     return (void)markOverdefined(&PN);
 
+  unsigned NumActiveIncoming = 0;
+
   // Look at all of the executable operands of the PHI node.  If any of them
   // are overdefined, the PHI becomes overdefined as well.  If they are all
   // constant, and they agree with each other, the PHI becomes the identical
-  // constant.  If they are constant and don't agree, the PHI is overdefined.
-  // If there are no executable operands, the PHI remains unknown.
-  bool Changed = false;
+  // constant.  If they are constant and don't agree, the PHI is a constant
+  // range. If there are no executable operands, the PHI remains unknown.
+  ValueLatticeElement PhiState = getValueState(&PN);
   for (unsigned i = 0, e = PN.getNumIncomingValues(); i != e; ++i) {
-    LatticeVal IV = getValueState(PN.getIncomingValue(i));
     if (!isEdgeFeasible(PN.getIncomingBlock(i), PN.getParent()))
       continue;
 
-    LatticeVal &Res = getValueState(&PN);
-    Changed |= Res.mergeIn(IV, DL);
-    if (Res.isOverdefined())
+    ValueLatticeElement IV = getValueState(PN.getIncomingValue(i));
+    PhiState.mergeIn(IV);
+    NumActiveIncoming++;
+    if (PhiState.isOverdefined())
       break;
   }
-  if (Changed)
-    pushToWorkListMsg(ValueState[&PN], &PN);
+
+  // We allow up to 1 range extension per active incoming value and one
+  // additional extension. Note that we manually adjust the number of range
+  // extensions to match the number of active incoming values. This helps to
+  // limit multiple extensions caused by the same incoming value, if other
+  // incoming values are equal.
+  mergeInValue(&PN, PhiState,
+               ValueLatticeElement::MergeOptions().setMaxWidenSteps(
+                   NumActiveIncoming + 1));
+  ValueLatticeElement &PhiStateRef = getValueState(&PN);
+  PhiStateRef.setNumRangeExtensions(
+      std::max(NumActiveIncoming, PhiStateRef.getNumRangeExtensions()));
 }
 
 void SCCPSolver::visitReturnInst(ReturnInst &I) {
   if (I.getNumOperands() == 0) return;  // ret void
-
-  // ResolvedUndefsIn might mark I as overdefined. Bail out, even if we would
-  // discover a concrete value later.
-  if (isOverdefined(ValueState[&I]))
-    return (void)markOverdefined(&I);
 
   Function *F = I.getParent()->getParent();
   Value *ResultOp = I.getOperand(0);
 
   // If we are tracking the return value of this function, merge it in.
   if (!TrackedRetVals.empty() && !ResultOp->getType()->isStructTy()) {
-    MapVector<Function*, LatticeVal>::iterator TFRVI =
-      TrackedRetVals.find(F);
+    auto TFRVI = TrackedRetVals.find(F);
     if (TFRVI != TrackedRetVals.end()) {
       mergeInValue(TFRVI->second, F, getValueState(ResultOp));
       return;
@@ -813,10 +813,10 @@ void SCCPSolver::visitTerminator(Instruction &TI) {
 void SCCPSolver::visitCastInst(CastInst &I) {
   // ResolvedUndefsIn might mark I as overdefined. Bail out, even if we would
   // discover a concrete value later.
-  if (isOverdefined(ValueState[&I]))
-    return (void)markOverdefined(&I);
+  if (ValueState[&I].isOverdefined())
+    return;
 
-  LatticeVal OpSt = getValueState(I.getOperand(0));
+  ValueLatticeElement OpSt = getValueState(I.getOperand(0));
   if (Constant *OpC = getConstant(OpSt)) {
     // Fold the constant as we build.
     Constant *C = ConstantFoldCastOperand(I.getOpcode(), OpC, I.getType(), DL);
@@ -824,19 +824,26 @@ void SCCPSolver::visitCastInst(CastInst &I) {
       return;
     // Propagate constant value
     markConstant(&I, C);
+  } else if (OpSt.isConstantRange() && I.getDestTy()->isIntegerTy()) {
+    auto &LV = getValueState(&I);
+    ConstantRange OpRange = OpSt.getConstantRange();
+    Type *DestTy = I.getDestTy();
+    ConstantRange Res =
+        OpRange.castOp(I.getOpcode(), DL.getTypeSizeInBits(DestTy));
+    mergeInValue(LV, &I, ValueLatticeElement::getRange(Res));
   } else if (!OpSt.isUnknownOrUndef())
     markOverdefined(&I);
 }
 
 void SCCPSolver::visitExtractValueInst(ExtractValueInst &EVI) {
-  // ResolvedUndefsIn might mark I as overdefined. Bail out, even if we would
-  // discover a concrete value later.
-  if (isOverdefined(ValueState[&EVI]))
-    return (void)markOverdefined(&EVI);
-
   // If this returns a struct, mark all elements over defined, we don't track
   // structs in structs.
   if (EVI.getType()->isStructTy())
+    return (void)markOverdefined(&EVI);
+
+  // ResolvedUndefsIn might mark I as overdefined. Bail out, even if we would
+  // discover a concrete value later.
+  if (ValueState[&EVI].isOverdefined())
     return (void)markOverdefined(&EVI);
 
   // If this is extracting from more than one level of struct, we don't know.
@@ -846,7 +853,7 @@ void SCCPSolver::visitExtractValueInst(ExtractValueInst &EVI) {
   Value *AggVal = EVI.getAggregateOperand();
   if (AggVal->getType()->isStructTy()) {
     unsigned i = *EVI.idx_begin();
-    LatticeVal EltVal = getStructValueState(AggVal, i);
+    ValueLatticeElement EltVal = getStructValueState(AggVal, i);
     mergeInValue(getValueState(&EVI), &EVI, EltVal);
   } else {
     // Otherwise, must be extracting from an array.
@@ -876,7 +883,7 @@ void SCCPSolver::visitInsertValueInst(InsertValueInst &IVI) {
   for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i) {
     // This passes through all values that aren't the inserted element.
     if (i != Idx) {
-      LatticeVal EltVal = getStructValueState(Aggr, i);
+      ValueLatticeElement EltVal = getStructValueState(Aggr, i);
       mergeInValue(getStructValueState(&IVI, i), &IVI, EltVal);
       continue;
     }
@@ -886,7 +893,7 @@ void SCCPSolver::visitInsertValueInst(InsertValueInst &IVI) {
       // We don't track structs in structs.
       markOverdefined(getStructValueState(&IVI, i), &IVI);
     else {
-      LatticeVal InVal = getValueState(Val);
+      ValueLatticeElement InVal = getValueState(Val);
       mergeInValue(getStructValueState(&IVI, i), &IVI, InVal);
     }
   }
@@ -903,7 +910,7 @@ void SCCPSolver::visitSelectInst(SelectInst &I) {
   if (ValueState[&I].isOverdefined())
     return (void)markOverdefined(&I);
 
-  LatticeVal CondValue = getValueState(I.getCondition());
+  ValueLatticeElement CondValue = getValueState(I.getCondition());
   if (CondValue.isUnknownOrUndef())
     return;
 
@@ -916,20 +923,20 @@ void SCCPSolver::visitSelectInst(SelectInst &I) {
   // Otherwise, the condition is overdefined or a constant we can't evaluate.
   // See if we can produce something better than overdefined based on the T/F
   // value.
-  LatticeVal TVal = getValueState(I.getTrueValue());
-  LatticeVal FVal = getValueState(I.getFalseValue());
+  ValueLatticeElement TVal = getValueState(I.getTrueValue());
+  ValueLatticeElement FVal = getValueState(I.getFalseValue());
 
-  bool Changed = ValueState[&I].mergeIn(TVal, DL);
-  Changed |= ValueState[&I].mergeIn(FVal, DL);
+  bool Changed = ValueState[&I].mergeIn(TVal);
+  Changed |= ValueState[&I].mergeIn(FVal);
   if (Changed)
     pushToWorkListMsg(ValueState[&I], &I);
 }
 
 // Handle Unary Operators.
 void SCCPSolver::visitUnaryOperator(Instruction &I) {
-  LatticeVal V0State = getValueState(I.getOperand(0));
+  ValueLatticeElement V0State = getValueState(I.getOperand(0));
 
-  LatticeVal &IV = ValueState[&I];
+  ValueLatticeElement &IV = ValueState[&I];
   // ResolvedUndefsIn might mark I as overdefined. Bail out, even if we would
   // discover a concrete value later.
   if (isOverdefined(IV))
@@ -953,10 +960,10 @@ void SCCPSolver::visitUnaryOperator(Instruction &I) {
 
 // Handle Binary Operators.
 void SCCPSolver::visitBinaryOperator(Instruction &I) {
-  LatticeVal V1State = getValueState(I.getOperand(0));
-  LatticeVal V2State = getValueState(I.getOperand(1));
+  ValueLatticeElement V1State = getValueState(I.getOperand(0));
+  ValueLatticeElement V2State = getValueState(I.getOperand(1));
 
-  LatticeVal &IV = ValueState[&I];
+  ValueLatticeElement &IV = ValueState[&I];
   if (IV.isOverdefined())
     return;
 
@@ -967,19 +974,33 @@ void SCCPSolver::visitBinaryOperator(Instruction &I) {
   if (V1State.isOverdefined() && V2State.isOverdefined())
     return (void)markOverdefined(&I);
 
-  // Both operands are non-integer constants or constant expressions.
+  // If either of the operands is a constant, try to fold it to a constant.
   // TODO: Use information from notconstant better.
-  if (isConstant(V1State) && isConstant(V2State)) {
-    Constant *C = ConstantExpr::get(I.getOpcode(), getConstant(V1State),
-                                    getConstant(V2State));
-    // X op Y -> undef.
-    if (isa<UndefValue>(C))
-      return;
-    return (void)markConstant(IV, &I, C);
+  if ((V1State.isConstant() || V2State.isConstant())) {
+    Value *V1 = isConstant(V1State) ? getConstant(V1State) : I.getOperand(0);
+    Value *V2 = isConstant(V2State) ? getConstant(V2State) : I.getOperand(1);
+    Value *R = SimplifyBinOp(I.getOpcode(), V1, V2, SimplifyQuery(DL));
+    auto *C = dyn_cast_or_null<Constant>(R);
+    if (C) {
+      // X op Y -> undef.
+      if (isa<UndefValue>(C))
+        return;
+      // Conservatively assume that the result may be based on operands that may
+      // be undef. Note that we use mergeInValue to combine the constant with
+      // the existing lattice value for I, as different constants might be found
+      // after one of the operands go to overdefined, e.g. due to one operand
+      // being a special floating value.
+      ValueLatticeElement NewV;
+      NewV.markConstant(C, /*MayIncludeUndef=*/true);
+      return (void)mergeInValue(&I, NewV);
+    }
   }
 
-  // Operands are either constant ranges, notconstant, overdefined or one of the
-  // operands is a constant.
+  // Only use ranges for binary operators on integers.
+  if (!I.getType()->isIntegerTy())
+    return markOverdefined(&I);
+
+  // Try to simplify to a constant range.
   ConstantRange A = ConstantRange::getFull(I.getType()->getScalarSizeInBits());
   ConstantRange B = ConstantRange::getFull(I.getType()->getScalarSizeInBits());
   if (V1State.isConstantRange())
@@ -988,7 +1009,7 @@ void SCCPSolver::visitBinaryOperator(Instruction &I) {
     B = V2State.getConstantRange();
 
   ConstantRange R = A.binaryOp(cast<BinaryOperator>(&I)->getOpcode(), B);
-  mergeInValue(&I, LatticeVal::getRange(R));
+  mergeInValue(&I, ValueLatticeElement::getRange(R));
 
   // TODO: Currently we do not exploit special values that produce something
   // better than overdefined with an overdefined operand for vector or floating
@@ -1014,7 +1035,7 @@ void SCCPSolver::visitCmpInst(CmpInst &I) {
   if (C) {
     if (isa<UndefValue>(C))
       return;
-    LatticeVal CV;
+    ValueLatticeElement CV;
     CV.markConstant(C);
     mergeInValue(&I, CV);
     return;
@@ -1038,7 +1059,7 @@ void SCCPSolver::visitGetElementPtrInst(GetElementPtrInst &I) {
   Operands.reserve(I.getNumOperands());
 
   for (unsigned i = 0, e = I.getNumOperands(); i != e; ++i) {
-    LatticeVal State = getValueState(I.getOperand(i));
+    ValueLatticeElement State = getValueState(I.getOperand(i));
     if (State.isUnknownOrUndef())
       return;  // Operands are not resolved yet.
 
@@ -1070,19 +1091,15 @@ void SCCPSolver::visitStoreInst(StoreInst &SI) {
   if (TrackedGlobals.empty() || !isa<GlobalVariable>(SI.getOperand(1)))
     return;
 
-  // ResolvedUndefsIn might mark I as overdefined. Bail out, even if we would
-  // discover a concrete value later.
-  if (isOverdefined(ValueState[&SI]))
-    return (void)markOverdefined(&SI);
-
   GlobalVariable *GV = cast<GlobalVariable>(SI.getOperand(1));
-  DenseMap<GlobalVariable*, LatticeVal>::iterator I = TrackedGlobals.find(GV);
+  auto I = TrackedGlobals.find(GV);
   if (I == TrackedGlobals.end())
     return;
 
   // Get the value we are storing into the global, then merge it.
-  mergeInValue(I->second, GV, getValueState(SI.getOperand(0)));
-  if (isOverdefined(I->second))
+  mergeInValue(I->second, GV, getValueState(SI.getOperand(0)),
+               ValueLatticeElement::MergeOptions().setCheckWiden(false));
+  if (I->second.isOverdefined())
     TrackedGlobals.erase(I);      // No need to keep tracking this!
 }
 
@@ -1095,14 +1112,14 @@ void SCCPSolver::visitLoadInst(LoadInst &I) {
 
   // ResolvedUndefsIn might mark I as overdefined. Bail out, even if we would
   // discover a concrete value later.
-  if (isOverdefined(ValueState[&I]))
+  if (ValueState[&I].isOverdefined())
     return (void)markOverdefined(&I);
 
-  LatticeVal PtrVal = getValueState(I.getOperand(0));
+  ValueLatticeElement PtrVal = getValueState(I.getOperand(0));
   if (PtrVal.isUnknownOrUndef())
     return; // The pointer is not resolved yet!
 
-  LatticeVal &IV = ValueState[&I];
+  ValueLatticeElement &IV = ValueState[&I];
 
   if (!isConstant(PtrVal) || I.isVolatile())
     return (void)markOverdefined(IV, &I);
@@ -1121,10 +1138,9 @@ void SCCPSolver::visitLoadInst(LoadInst &I) {
   if (auto *GV = dyn_cast<GlobalVariable>(Ptr)) {
     if (!TrackedGlobals.empty()) {
       // If we are tracking this global, merge in the known value for it.
-      DenseMap<GlobalVariable*, LatticeVal>::iterator It =
-        TrackedGlobals.find(GV);
+      auto It = TrackedGlobals.find(GV);
       if (It != TrackedGlobals.end()) {
-        mergeInValue(IV, &I, It->second);
+        mergeInValue(IV, &I, It->second, getMaxWidenStepsOpts());
         return;
       }
     }
@@ -1142,58 +1158,55 @@ void SCCPSolver::visitLoadInst(LoadInst &I) {
   markOverdefined(IV, &I);
 }
 
-void SCCPSolver::visitCallSite(CallSite CS) {
-  handleCallResult(CS);
-  handleCallArguments(CS);
+void SCCPSolver::visitCallBase(CallBase &CB) {
+  handleCallResult(CB);
+  handleCallArguments(CB);
 }
 
-void SCCPSolver::handleCallOverdefined(CallSite CS) {
-  Function *F = CS.getCalledFunction();
-  Instruction *I = CS.getInstruction();
+void SCCPSolver::handleCallOverdefined(CallBase &CB) {
+  Function *F = CB.getCalledFunction();
 
   // Void return and not tracking callee, just bail.
-  if (I->getType()->isVoidTy())
+  if (CB.getType()->isVoidTy())
     return;
 
   // Otherwise, if we have a single return value case, and if the function is
   // a declaration, maybe we can constant fold it.
-  if (F && F->isDeclaration() && !I->getType()->isStructTy() &&
-      canConstantFoldCallTo(cast<CallBase>(CS.getInstruction()), F)) {
+  if (F && F->isDeclaration() && !CB.getType()->isStructTy() &&
+      canConstantFoldCallTo(&CB, F)) {
     SmallVector<Constant *, 8> Operands;
-    for (CallSite::arg_iterator AI = CS.arg_begin(), E = CS.arg_end(); AI != E;
-         ++AI) {
+    for (auto AI = CB.arg_begin(), E = CB.arg_end(); AI != E; ++AI) {
       if (AI->get()->getType()->isStructTy())
-        return markOverdefined(I); // Can't handle struct args.
-      LatticeVal State = getValueState(*AI);
+        return markOverdefined(&CB); // Can't handle struct args.
+      ValueLatticeElement State = getValueState(*AI);
 
       if (State.isUnknownOrUndef())
         return; // Operands are not resolved yet.
       if (isOverdefined(State))
-        return (void)markOverdefined(I);
+        return (void)markOverdefined(&CB);
       assert(isConstant(State) && "Unknown state!");
       Operands.push_back(getConstant(State));
     }
 
-    if (isOverdefined(getValueState(I)))
-      return (void)markOverdefined(I);
+    if (isOverdefined(getValueState(&CB)))
+      return (void)markOverdefined(&CB);
 
     // If we can constant fold this, mark the result of the call as a
     // constant.
-    if (Constant *C = ConstantFoldCall(cast<CallBase>(CS.getInstruction()), F,
-                                       Operands, &GetTLI(*F))) {
+    if (Constant *C = ConstantFoldCall(&CB, F, Operands, &GetTLI(*F))) {
       // call -> undef.
       if (isa<UndefValue>(C))
         return;
-      return (void)markConstant(I, C);
+      return (void)markConstant(&CB, C);
     }
   }
 
   // Otherwise, we don't know anything about this call, mark it overdefined.
-  return (void)markOverdefined(I);
+  return (void)markOverdefined(&CB);
 }
 
-void SCCPSolver::handleCallArguments(CallSite CS) {
-  Function *F = CS.getCalledFunction();
+void SCCPSolver::handleCallArguments(CallBase &CB) {
+  Function *F = CB.getCalledFunction();
   // If this is a local function that doesn't have its address taken, mark its
   // entry block executable and merge in the actual arguments to the call into
   // the formal arguments of the function.
@@ -1202,7 +1215,7 @@ void SCCPSolver::handleCallArguments(CallSite CS) {
     MarkBlockExecutable(&F->front());
 
     // Propagate information from this call site into the callee.
-    CallSite::arg_iterator CAI = CS.arg_begin();
+    auto CAI = CB.arg_begin();
     for (Function::arg_iterator AI = F->arg_begin(), E = F->arg_end(); AI != E;
          ++AI, ++CAI) {
       // If this argument is byval, and if the function is not readonly, there
@@ -1214,75 +1227,104 @@ void SCCPSolver::handleCallArguments(CallSite CS) {
 
       if (auto *STy = dyn_cast<StructType>(AI->getType())) {
         for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i) {
-          LatticeVal CallArg = getStructValueState(*CAI, i);
-          mergeInValue(getStructValueState(&*AI, i), &*AI, CallArg);
+          ValueLatticeElement CallArg = getStructValueState(*CAI, i);
+          mergeInValue(getStructValueState(&*AI, i), &*AI, CallArg,
+                       getMaxWidenStepsOpts());
         }
       } else
-        mergeInValue(&*AI, getValueState(*CAI), false);
+        mergeInValue(&*AI, getValueState(*CAI), getMaxWidenStepsOpts());
     }
   }
 }
 
-void SCCPSolver::handleCallResult(CallSite CS) {
-  Function *F = CS.getCalledFunction();
-  Instruction *I = CS.getInstruction();
+void SCCPSolver::handleCallResult(CallBase &CB) {
+  Function *F = CB.getCalledFunction();
 
-  if (auto *II = dyn_cast<IntrinsicInst>(I)) {
+  if (auto *II = dyn_cast<IntrinsicInst>(&CB)) {
     if (II->getIntrinsicID() == Intrinsic::ssa_copy) {
-      if (isOverdefined(ValueState[I]))
-        return (void)markOverdefined(I);
-
-      auto *PI = getPredicateInfoFor(I);
-      if (!PI)
+      if (ValueState[&CB].isOverdefined())
         return;
 
-      Value *CopyOf = I->getOperand(0);
-      auto *PBranch = dyn_cast<PredicateBranch>(PI);
-      if (!PBranch) {
-        mergeInValue(ValueState[I], I, getValueState(CopyOf));
+      Value *CopyOf = CB.getOperand(0);
+      auto *PI = getPredicateInfoFor(&CB);
+      auto *PBranch = dyn_cast_or_null<PredicateBranch>(PI);
+      ValueLatticeElement OriginalVal = getValueState(CopyOf);
+      if (!PI || !PBranch) {
+        mergeInValue(ValueState[&CB], &CB, OriginalVal);
         return;
       }
 
-      Value *Cond = PBranch->Condition;
-
       // Everything below relies on the condition being a comparison.
-      auto *Cmp = dyn_cast<CmpInst>(Cond);
+      auto *Cmp = dyn_cast<CmpInst>(PBranch->Condition);
       if (!Cmp) {
-        mergeInValue(ValueState[I], I, getValueState(CopyOf));
+        mergeInValue(ValueState[&CB], &CB, OriginalVal);
         return;
       }
 
       Value *CmpOp0 = Cmp->getOperand(0);
       Value *CmpOp1 = Cmp->getOperand(1);
       if (CopyOf != CmpOp0 && CopyOf != CmpOp1) {
-        mergeInValue(ValueState[I], I, getValueState(CopyOf));
+        mergeInValue(ValueState[&CB], &CB, OriginalVal);
         return;
       }
 
-      if (CmpOp0 != CopyOf)
+      auto Pred = Cmp->getPredicate();
+      if (CmpOp0 != CopyOf) {
         std::swap(CmpOp0, CmpOp1);
-
-      LatticeVal OriginalVal = getValueState(CopyOf);
-      LatticeVal EqVal = getValueState(CmpOp1);
-      LatticeVal &IV = ValueState[I];
-      if (PBranch->TrueEdge && Cmp->getPredicate() == CmpInst::ICMP_EQ) {
-        addAdditionalUser(CmpOp1, I);
-        if (isConstant(OriginalVal))
-          mergeInValue(IV, I, OriginalVal);
-        else
-          mergeInValue(IV, I, EqVal);
-        return;
+        Pred = Cmp->getSwappedPredicate();
       }
-      if (!PBranch->TrueEdge && Cmp->getPredicate() == CmpInst::ICMP_NE) {
-        addAdditionalUser(CmpOp1, I);
-        if (isConstant(OriginalVal))
-          mergeInValue(IV, I, OriginalVal);
-        else
-          mergeInValue(IV, I, EqVal);
+
+      // Wait until CmpOp1 is resolved.
+      if (getValueState(CmpOp1).isUnknown()) {
+        addAdditionalUser(CmpOp1, &CB);
         return;
       }
 
-      return (void)mergeInValue(IV, I, getValueState(CopyOf));
+      if (!PBranch->TrueEdge)
+        Pred = CmpInst::getInversePredicate(Pred);
+
+      ValueLatticeElement CondVal = getValueState(CmpOp1);
+      ValueLatticeElement &IV = ValueState[&CB];
+      if (CondVal.isConstantRange() || OriginalVal.isConstantRange()) {
+        auto NewCR =
+            ConstantRange::getFull(DL.getTypeSizeInBits(CopyOf->getType()));
+
+        // Get the range imposed by the condition.
+        if (CondVal.isConstantRange())
+          NewCR = ConstantRange::makeAllowedICmpRegion(
+              Pred, CondVal.getConstantRange());
+
+        // Combine range info for the original value with the new range from the
+        // condition.
+        auto OriginalCR = OriginalVal.isConstantRange()
+                              ? OriginalVal.getConstantRange()
+                              : ConstantRange::getFull(
+                                    DL.getTypeSizeInBits(CopyOf->getType()));
+        NewCR = NewCR.intersectWith(OriginalCR);
+
+        addAdditionalUser(CmpOp1, &CB);
+        // TODO: Actually filp MayIncludeUndef for the created range to false,
+        // once most places in the optimizer respect the branches on
+        // undef/poison are UB rule. The reason why the new range cannot be
+        // undef is as follows below:
+        // The new range is based on a branch condition. That guarantees that
+        // neither of the compare operands can be undef in the branch targets,
+        // unless we have conditions that are always true/false (e.g. icmp ule
+        // i32, %a, i32_max). For the latter overdefined/empty range will be
+        // inferred, but the branch will get folded accordingly anyways.
+        mergeInValue(
+            IV, &CB,
+            ValueLatticeElement::getRange(NewCR, /*MayIncludeUndef=*/true));
+        return;
+      } else if (Pred == CmpInst::ICMP_EQ && CondVal.isConstant()) {
+        // For non-integer values or integer constant expressions, only
+        // propagate equal constants.
+        addAdditionalUser(CmpOp1, &CB);
+        mergeInValue(IV, &CB, CondVal);
+        return;
+      }
+
+      return (void)mergeInValue(IV, &CB, OriginalVal);
     }
   }
 
@@ -1290,25 +1332,26 @@ void SCCPSolver::handleCallResult(CallSite CS) {
   // are not doing interprocedural analysis or the callee is indirect, or is
   // external.  Handle these cases first.
   if (!F || F->isDeclaration())
-    return handleCallOverdefined(CS);
+    return handleCallOverdefined(CB);
 
   // If this is a single/zero retval case, see if we're tracking the function.
   if (auto *STy = dyn_cast<StructType>(F->getReturnType())) {
     if (!MRVFunctionsTracked.count(F))
-      return handleCallOverdefined(CS); // Not tracking this callee.
+      return handleCallOverdefined(CB); // Not tracking this callee.
 
     // If we are tracking this callee, propagate the result of the function
     // into this call site.
     for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i)
-      mergeInValue(getStructValueState(I, i), I,
-                   TrackedMultipleRetVals[std::make_pair(F, i)]);
+      mergeInValue(getStructValueState(&CB, i), &CB,
+                   TrackedMultipleRetVals[std::make_pair(F, i)],
+                   getMaxWidenStepsOpts());
   } else {
-    MapVector<Function*, LatticeVal>::iterator TFRVI = TrackedRetVals.find(F);
+    auto TFRVI = TrackedRetVals.find(F);
     if (TFRVI == TrackedRetVals.end())
-      return handleCallOverdefined(CS); // Not tracking this callee.
+      return handleCallOverdefined(CB); // Not tracking this callee.
 
     // If so, propagate the return value of the callee into this call result.
-    mergeInValue(I, TFRVI->second);
+    mergeInValue(&CB, TFRVI->second, getMaxWidenStepsOpts());
   }
 }
 
@@ -1393,8 +1436,8 @@ bool SCCPSolver::ResolvedUndefsIn(Function &F) {
         // Only a few things that can be structs matter for undef.
 
         // Tracked calls must never be marked overdefined in ResolvedUndefsIn.
-        if (CallSite CS = CallSite(&I))
-          if (Function *F = CS.getCalledFunction())
+        if (auto *CB = dyn_cast<CallBase>(&I))
+          if (Function *F = CB->getCalledFunction())
             if (MRVFunctionsTracked.count(F))
               continue;
 
@@ -1405,14 +1448,14 @@ bool SCCPSolver::ResolvedUndefsIn(Function &F) {
         // Send the results of everything else to overdefined.  We could be
         // more precise than this but it isn't worth bothering.
         for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i) {
-          LatticeVal &LV = getStructValueState(&I, i);
+          ValueLatticeElement &LV = getStructValueState(&I, i);
           if (LV.isUnknownOrUndef())
             markOverdefined(LV, &I);
         }
         continue;
       }
 
-      LatticeVal &LV = getValueState(&I);
+      ValueLatticeElement &LV = getValueState(&I);
       if (!LV.isUnknownOrUndef())
         continue;
 
@@ -1421,8 +1464,8 @@ bool SCCPSolver::ResolvedUndefsIn(Function &F) {
       // 2. It could be constant-foldable.
       // Because of the way we solve return values, tracked calls must
       // never be marked overdefined in ResolvedUndefsIn.
-      if (CallSite CS = CallSite(&I))
-        if (Function *F = CS.getCalledFunction())
+      if (auto *CB = dyn_cast<CallBase>(&I))
+        if (Function *F = CB->getCalledFunction())
           if (TrackedRetVals.count(F))
             continue;
 
@@ -1525,20 +1568,21 @@ bool SCCPSolver::ResolvedUndefsIn(Function &F) {
 static bool tryToReplaceWithConstant(SCCPSolver &Solver, Value *V) {
   Constant *Const = nullptr;
   if (V->getType()->isStructTy()) {
-    std::vector<LatticeVal> IVs = Solver.getStructLatticeValueFor(V);
-    if (any_of(IVs, [](const LatticeVal &LV) { return isOverdefined(LV); }))
+    std::vector<ValueLatticeElement> IVs = Solver.getStructLatticeValueFor(V);
+    if (any_of(IVs,
+               [](const ValueLatticeElement &LV) { return isOverdefined(LV); }))
       return false;
     std::vector<Constant *> ConstVals;
     auto *ST = cast<StructType>(V->getType());
     for (unsigned i = 0, e = ST->getNumElements(); i != e; ++i) {
-      LatticeVal V = IVs[i];
+      ValueLatticeElement V = IVs[i];
       ConstVals.push_back(isConstant(V)
                               ? Solver.getConstant(V)
                               : UndefValue::get(ST->getElementType(i)));
     }
     Const = ConstantStruct::get(ST, ConstVals);
   } else {
-    const LatticeVal &IV = Solver.getLatticeValueFor(V);
+    const ValueLatticeElement &IV = Solver.getLatticeValueFor(V);
     if (isOverdefined(IV))
       return false;
 
@@ -1551,8 +1595,7 @@ static bool tryToReplaceWithConstant(SCCPSolver &Solver, Value *V) {
   // unless the call itself can be removed
   CallInst *CI = dyn_cast<CallInst>(V);
   if (CI && CI->isMustTailCall() && !CI->isSafeToRemove()) {
-    CallSite CS(CI);
-    Function *F = CS.getCalledFunction();
+    Function *F = CI->getCalledFunction();
 
     // Don't zap returns of the callee
     if (F)
@@ -1568,6 +1611,41 @@ static bool tryToReplaceWithConstant(SCCPSolver &Solver, Value *V) {
   // Replaces all of the uses of a variable with uses of the constant.
   V->replaceAllUsesWith(Const);
   return true;
+}
+
+static bool simplifyInstsInBlock(SCCPSolver &Solver, BasicBlock &BB,
+                                 SmallPtrSetImpl<Value *> &InsertedValues,
+                                 Statistic &InstRemovedStat,
+                                 Statistic &InstReplacedStat) {
+  bool MadeChanges = false;
+  for (Instruction &Inst : make_early_inc_range(BB)) {
+    if (Inst.getType()->isVoidTy())
+      continue;
+    if (tryToReplaceWithConstant(Solver, &Inst)) {
+      if (Inst.isSafeToRemove())
+        Inst.eraseFromParent();
+      // Hey, we just changed something!
+      MadeChanges = true;
+      ++InstRemovedStat;
+    } else if (isa<SExtInst>(&Inst)) {
+      Value *ExtOp = Inst.getOperand(0);
+      if (isa<Constant>(ExtOp) || InsertedValues.count(ExtOp))
+        continue;
+      const ValueLatticeElement &IV = Solver.getLatticeValueFor(ExtOp);
+      if (!IV.isConstantRange(/*UndefAllowed=*/false))
+        continue;
+      if (IV.getConstantRange().isAllNonNegative()) {
+        auto *ZExt = new ZExtInst(ExtOp, Inst.getType(), "", &Inst);
+        InsertedValues.insert(ZExt);
+        Inst.replaceAllUsesWith(ZExt);
+        Solver.removeLatticeValueFor(&Inst);
+        Inst.eraseFromParent();
+        InstReplacedStat++;
+        MadeChanges = true;
+      }
+    }
+  }
+  return MadeChanges;
 }
 
 // runSCCP() - Run the Sparse Conditional Constant Propagation algorithm,
@@ -1600,6 +1678,7 @@ static bool runSCCP(Function &F, const DataLayout &DL,
   // delete their contents now.  Note that we cannot actually delete the blocks,
   // as we cannot modify the CFG of the function.
 
+  SmallPtrSet<Value *, 32> InsertedValues;
   for (BasicBlock &BB : F) {
     if (!Solver.isBlockExecutable(&BB)) {
       LLVM_DEBUG(dbgs() << "  BasicBlock Dead:" << BB);
@@ -1611,21 +1690,8 @@ static bool runSCCP(Function &F, const DataLayout &DL,
       continue;
     }
 
-    // Iterate over all of the instructions in a function, replacing them with
-    // constants if we have found them to be of constant values.
-    for (BasicBlock::iterator BI = BB.begin(), E = BB.end(); BI != E;) {
-      Instruction *Inst = &*BI++;
-      if (Inst->getType()->isVoidTy() || Inst->isTerminator())
-        continue;
-
-      if (tryToReplaceWithConstant(Solver, Inst)) {
-        if (isInstructionTriviallyDead(Inst))
-          Inst->eraseFromParent();
-        // Hey, we just changed something!
-        MadeChanges = true;
-        ++NumInstRemoved;
-      }
-    }
+    MadeChanges |= simplifyInstsInBlock(Solver, BB, InsertedValues,
+                                        NumInstRemoved, NumInstReplaced);
   }
 
   return MadeChanges;
@@ -1715,12 +1781,13 @@ static void findReturnsToZap(Function &F,
                // uses (like blockaddresses) could stuck around, without being
                // used in the underlying IR, meaning we do not have lattice
                // values for them.
-               if (!CallSite(U))
+               if (!isa<CallBase>(U))
                  return true;
                if (U->getType()->isStructTy()) {
-                 return all_of(
-                     Solver.getStructLatticeValueFor(U),
-                     [](const LatticeVal &LV) { return !isOverdefined(LV); });
+                 return all_of(Solver.getStructLatticeValueFor(U),
+                               [](const ValueLatticeElement &LV) {
+                                 return !isOverdefined(LV);
+                               });
                }
                return !isOverdefined(Solver.getLatticeValueFor(U));
              }) &&
@@ -1853,30 +1920,21 @@ bool llvm::runIPSCCP(
         }
       }
 
-    for (Function::iterator BB = F.begin(), E = F.end(); BB != E; ++BB) {
-      if (!Solver.isBlockExecutable(&*BB)) {
-        LLVM_DEBUG(dbgs() << "  BasicBlock Dead:" << *BB);
+    SmallPtrSet<Value *, 32> InsertedValues;
+    for (BasicBlock &BB : F) {
+      if (!Solver.isBlockExecutable(&BB)) {
+        LLVM_DEBUG(dbgs() << "  BasicBlock Dead:" << BB);
         ++NumDeadBlocks;
 
         MadeChanges = true;
 
-        if (&*BB != &F.front())
-          BlocksToErase.push_back(&*BB);
+        if (&BB != &F.front())
+          BlocksToErase.push_back(&BB);
         continue;
       }
 
-      for (BasicBlock::iterator BI = BB->begin(), E = BB->end(); BI != E; ) {
-        Instruction *Inst = &*BI++;
-        if (Inst->getType()->isVoidTy())
-          continue;
-        if (tryToReplaceWithConstant(Solver, Inst)) {
-          if (Inst->isSafeToRemove())
-            Inst->eraseFromParent();
-          // Hey, we just changed something!
-          MadeChanges = true;
-          ++IPNumInstRemoved;
-        }
-      }
+      MadeChanges |= simplifyInstsInBlock(Solver, BB, InsertedValues,
+                                          IPNumInstRemoved, IPNumInstReplaced);
     }
 
     DomTreeUpdater DTU = Solver.getDTU(F);
@@ -1962,8 +2020,7 @@ bool llvm::runIPSCCP(
   // whether other functions are optimizable.
   SmallVector<ReturnInst*, 8> ReturnsToZap;
 
-  const MapVector<Function*, LatticeVal> &RV = Solver.getTrackedRetVals();
-  for (const auto &I : RV) {
+  for (const auto &I : Solver.getTrackedRetVals()) {
     Function *F = I.first;
     if (isOverdefined(I.second) || F->getReturnType()->isVoidTy())
       continue;
@@ -1986,17 +2043,16 @@ bool llvm::runIPSCCP(
 
   // If we inferred constant or undef values for globals variables, we can
   // delete the global and any stores that remain to it.
-  const DenseMap<GlobalVariable*, LatticeVal> &TG = Solver.getTrackedGlobals();
-  for (DenseMap<GlobalVariable*, LatticeVal>::const_iterator I = TG.begin(),
-         E = TG.end(); I != E; ++I) {
-    GlobalVariable *GV = I->first;
-    if (isOverdefined(I->second))
+  for (auto &I : make_early_inc_range(Solver.getTrackedGlobals())) {
+    GlobalVariable *GV = I.first;
+    if (isOverdefined(I.second))
       continue;
     LLVM_DEBUG(dbgs() << "Found that GV '" << GV->getName()
                       << "' is constant!\n");
     while (!GV->use_empty()) {
       StoreInst *SI = cast<StoreInst>(GV->user_back());
       SI->eraseFromParent();
+      MadeChanges = true;
     }
     M.getGlobalList().erase(GV);
     ++IPNumGlobalConst;

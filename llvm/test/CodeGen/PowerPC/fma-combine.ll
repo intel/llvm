@@ -176,22 +176,24 @@ define float @fma_combine_no_ice() {
 ; CHECK-NEXT:    addis 3, 2, .LCPI4_2@toc@ha
 ; CHECK-NEXT:    lfs 3, .LCPI4_1@toc@l(4)
 ; CHECK-NEXT:    lfs 1, .LCPI4_2@toc@l(3)
+; CHECK-NEXT:    fmr 4, 3
 ; CHECK-NEXT:    xsmaddasp 3, 2, 0
+; CHECK-NEXT:    xsnmaddasp 4, 2, 0
 ; CHECK-NEXT:    xsmaddasp 1, 2, 3
-; CHECK-NEXT:    xsnmsubasp 1, 3, 2
+; CHECK-NEXT:    xsmaddasp 1, 4, 2
 ; CHECK-NEXT:    blr
   %tmp = load float, float* undef, align 4
   %tmp2 = load float, float* undef, align 4
-  %tmp3 = fmul fast float %tmp, 0x3FE372D780000000
-  %tmp4 = fadd fast float %tmp3, 1.000000e+00
-  %tmp5 = fmul fast float %tmp2, %tmp4
+  %tmp3 = fmul reassoc float %tmp, 0x3FE372D780000000
+  %tmp4 = fadd reassoc float %tmp3, 1.000000e+00
+  %tmp5 = fmul reassoc float %tmp2, %tmp4
   %tmp6 = load float, float* undef, align 4
   %tmp7 = load float, float* undef, align 4
-  %tmp8 = fmul fast float %tmp7, 0x3FE372D780000000
-  %tmp9 = fsub fast float -1.000000e+00, %tmp8
-  %tmp10 = fmul fast float %tmp9, %tmp6
-  %tmp11 = fadd fast float %tmp5, 5.000000e-01
-  %tmp12 = fadd fast float %tmp11, %tmp10
+  %tmp8 = fmul reassoc float %tmp7, 0x3FE372D780000000
+  %tmp9 = fsub reassoc nsz float -1.000000e+00, %tmp8
+  %tmp10 = fmul reassoc float %tmp9, %tmp6
+  %tmp11 = fadd reassoc float %tmp5, 5.000000e-01
+  %tmp12 = fadd reassoc float %tmp11, %tmp10
   ret float %tmp12
 }
 
@@ -231,10 +233,10 @@ define double @getNegatedExpression_crash(double %x, double %y) {
 ; CHECK-NEXT:    xsmaddadp 0, 3, 2
 ; CHECK-NEXT:    fmr 1, 0
 ; CHECK-NEXT:    blr
-  %neg = fneg fast double %x
-  %fma = call fast double @llvm.fma.f64(double %neg, double 42.0, double -1.0)
-  %add = fadd fast double %x, 1.0
-  %fma1 = call fast double @llvm.fma.f64(double %fma, double %y, double %add)
+  %neg = fneg reassoc double %x
+  %fma = call reassoc nsz double @llvm.fma.f64(double %neg, double 42.0, double -1.0)
+  %add = fadd reassoc nsz double %x, 1.0
+  %fma1 = call reassoc nsz double @llvm.fma.f64(double %fma, double %y, double %add)
   ret double %fma1
 }
 declare double @llvm.fma.f64(double, double, double) nounwind readnone
