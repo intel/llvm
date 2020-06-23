@@ -4,12 +4,6 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 // XFAIL: level0
 
-#include <atomic>
-#include <condition_variable>
-#include <future>
-#include <mutex>
-#include <thread>
-
 #include <CL/sycl.hpp>
 #include <CL/sycl/backend/opencl.hpp>
 #include <CL/sycl/detail/cl.h>
