@@ -2804,32 +2804,144 @@ pi_result cuda_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
   return {};
 }
 
-/// \TODO Not implemented in CUDA, need untie from OpenCL
-pi_result cuda_piSamplerCreate(pi_context context,
-                               const cl_sampler_properties *sampler_properties,
-                               pi_sampler *result_sampler) {
-  cl::sycl::detail::pi::die("cuda_piSamplerCreate not implemented");
-  return {};
+_pi_sampler::_pi_sampler(pi_context context) {
+  context_ = context;
+
+  props_ = 0;
+  props_ |= CL_TRUE;
+  // Default filter mode to CL_FILTER_NEAREST
+  props_ |= (CL_ADDRESS_CLAMP % CL_ADDRESS_NONE) << 2;
 }
 
-/// \TODO Not implemented in CUDA, need untie from OpenCL
+/// Creates a PI sampler object
+///
+/// \param[in] context The context the sampler is created for.
+/// \param[in] sampler_properties The properties for the sampler.
+/// \param[out] result_sampler Set to the resulting sampler object.
+///
+/// \return PI_SUCCESS on success. PI_INVALID_VALUE if given an invalid property
+///         or if there is multiple of properties from the same category.
+pi_result cuda_piSamplerCreate(pi_context context,
+                               const pi_sampler_properties *sampler_properties,
+                               pi_sampler *result_sampler) {
+  std::unique_ptr<_pi_sampler> retImplSampl{new _pi_sampler(context)};
+
+  bool propSeen[3] = {false, false, false};
+  for (size_t i = 0; sampler_properties[i] != 0; i += 2) {
+    switch (sampler_properties[i])
+    {
+    case PI_SAMPLER_PROPERTIES_NORMALIZED_COORDS:
+      if (propSeen[0]) {
+        return PI_INVALID_VALUE;
+      }
+      propSeen[0] = true;
+      retImplSampl->props_ |= sampler_properties[i + 1];
+      break;
+    case PI_SAMPLER_PROPERTIES_FILTER_MODE:
+      if (propSeen[1]) {
+        return PI_INVALID_VALUE;
+      }
+      propSeen[1] = true;
+      retImplSampl->props_ |=
+          (sampler_properties[i + 1] % PI_SAMPLER_FILTER_MODE_NEAREST) << 1;
+      break;
+    case PI_SAMPLER_PROPERTIES_ADDRESSING_MODE:
+      if (propSeen[2]) {
+        return PI_INVALID_VALUE;
+      }
+      propSeen[2] = true;
+      retImplSampl->props_ |=
+          (sampler_properties[i + 1] % PI_SAMPLER_ADDRESSING_MODE_NONE) << 2;
+      break;
+    default:
+      return PI_INVALID_VALUE;
+    }
+  }
+
+  *result_sampler = retImplSampl.release();
+  return PI_SUCCESS;
+}
+
+/// Gets information from a PI sampler object
+///
+/// \param[in] sampler The sampler to get the information from.
+/// \param[in] param_name The name of the information to get.
+/// \param[in] param_value_size The size of the param_value.
+/// \param[out] param_value Set to information value.
+/// \param[out] param_value_size_ret Set to the size of the information value.
+///
+/// \return PI_SUCCESS on success.
 pi_result cuda_piSamplerGetInfo(pi_sampler sampler, cl_sampler_info param_name,
                                 size_t param_value_size, void *param_value,
                                 size_t *param_value_size_ret) {
-  cl::sycl::detail::pi::die("cuda_piSamplerGetInfo not implemented");
+  assert(sampler != nullptr);
+
+  switch (param_name) {
+  case PI_SAMPLER_INFO_REFERENCE_COUNT:
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   sampler->get_reference_count());
+  case PI_SAMPLER_INFO_CONTEXT:
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   sampler->context_);
+  case PI_SAMPLER_INFO_NORMALIZED_COORDS:
+  {
+    pi_bool norm_coords_prop = static_cast<pi_bool>(sampler->props_ & 0x1);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   norm_coords_prop);
+  }
+  case PI_SAMPLER_INFO_ADDRESSING_MODE:
+  {
+    pi_sampler_addressing_mode addressing_prop =
+        static_cast<pi_sampler_addressing_mode>(((sampler->props_ >> 1) & 0x1) +
+                                                PI_SAMPLER_FILTER_MODE_NEAREST);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   addressing_prop);
+  }
+  case PI_SAMPLER_INFO_FILTER_MODE:
+  {
+    pi_sampler_filter_mode filter_prop = static_cast<pi_sampler_filter_mode>(
+        (sampler->props_ >> 2) + PI_SAMPLER_ADDRESSING_MODE_NONE);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   filter_prop);
+  }
+  default:
+    PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+  }
   return {};
 }
 
-/// \TODO Not implemented in CUDA, need untie from OpenCL
+/// Retains a PI sampler object, incrementing its reference count.
+///
+/// \param[in] sampler The sampler to increment the reference count of.
+///
+/// \return PI_SUCCESS.
 pi_result cuda_piSamplerRetain(pi_sampler sampler) {
-  cl::sycl::detail::pi::die("cuda_piSamplerRetain not implemented");
-  return {};
+  assert(sampler != nullptr);
+  sampler->increment_reference_count();
+  return PI_SUCCESS;
 }
 
-/// \TODO Not implemented in CUDA, need untie from OpenCL
+/// Releases a PI sampler object, decrementing its reference count. If the
+/// reference count reaches zero, the sampler object is destroyed.
+///
+/// \param[in] sampler The sampler to decrement the reference count of.
+///
+/// \return PI_SUCCESS.
 pi_result cuda_piSamplerRelease(pi_sampler sampler) {
-  cl::sycl::detail::pi::die("cuda_piSamplerRelease not implemented");
-  return {};
+  assert(sampler != nullptr);
+
+  // double delete or someone is messing with the ref count.
+  // either way, cannot safely proceed.
+  cl::sycl::detail::pi::assertion(
+      sampler->get_reference_count() > 0,
+      "Reference count overflow detected in cuda_piSamplerRelease.");
+
+  // decrement ref count. If it is 0, delete the sampler.
+  if (sampler->decrement_reference_count() == 0) {
+    delete sampler;
+  }
+
+  return PI_SUCCESS;
 }
 
 /// General 3D memory copy operation.
