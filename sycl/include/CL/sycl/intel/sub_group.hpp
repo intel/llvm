@@ -460,8 +460,7 @@ struct sub_group {
 
   __SYCL_DEPRECATED("Sub-group barrier accepting fence_space is deprecated."
                     "Use barrier() without a fence_space instead.")
-  void barrier(access::fence_space accessSpace =
-                   access::fence_space::global_and_local) const {
+  void barrier(access::fence_space accessSpace) const {
 #ifdef __SYCL_DEVICE_ONLY__
     int32_t flags = sycl::detail::getSPIRVMemorySemanticsMask(accessSpace);
     __spirv_ControlBarrier(__spv::Scope::Subgroup, __spv::Scope::Subgroup,
