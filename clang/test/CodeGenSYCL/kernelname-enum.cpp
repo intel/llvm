@@ -208,4 +208,3 @@ int main() {
 // CHECK: template <> struct KernelInfo<::T1<::T2<static_cast<::type_argument_template_enum::E>(0)>>>
 // CHECK: template <> struct KernelInfo<::T1<::T3<::type_argument_template_enum::E>>>
 // CHECK: template <> struct KernelInfo<::dummy_functor_8<::EnumTypeOut, Baz>>
-
