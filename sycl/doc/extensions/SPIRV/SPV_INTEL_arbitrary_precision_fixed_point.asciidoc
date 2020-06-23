@@ -162,8 +162,10 @@ Modify Section 3.31, *Capability*, adding a row to the Capability table:
 2+^| Capability ^| Implicitly Declares
 | 5922 | *ArbitraryPrecisionFixedPointINTEL* +
 
-Enables arbitrary precision fixed-point math instructions
-| *INTELArbitraryPrecisionIntegers*
+Enables arbitrary precision fixed-point math instructions. +
+
+Note that this fixed-point type does not hold information about the sign in the type, but the information is rather encoded into the operations performed on this type.
+| *INTELArbitraryPrecisionIntegers*, *Kernel*
 |====
 
 === Instructions
@@ -183,7 +185,6 @@ _Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
 _S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
-Note that the operation does not use the signedness capabilities of `OpTypeInt`.
 
 _I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the input.
 
@@ -211,7 +212,6 @@ _Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
 _S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
-Note that the operation does not use the signedness capabilities of `OpTypeInt`.
 
 _I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the input.
 
@@ -240,7 +240,6 @@ _Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
 _S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
-Note that the operation does not use the signedness capabilities of `OpTypeInt`.
 
 _I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the input.
 
@@ -268,7 +267,6 @@ _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
 _S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
-Note that the operation does not use the signedness capabilities of `OpTypeInt`.
 
 _I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the input type.
 
@@ -296,7 +294,6 @@ _Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
 _S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
-Note that the operation does not use the signedness capabilities of `OpTypeInt`.
 
 _I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
 
@@ -325,7 +322,6 @@ The lower significant bits (`rW`) of the _Result_ are used to hold the cosine va
 
 _S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
-Note that the operation does not use the signedness capabilities of `OpTypeInt`.
 
 _I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
 
@@ -353,7 +349,6 @@ _Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
 _S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
-Note that the operation does not use the signedness capabilities of `OpTypeInt`.
 
 _I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
 
@@ -381,7 +376,6 @@ _Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
 _S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
-Note that the operation does not use the signedness capabilities of `OpTypeInt`.
 
 _I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
 
@@ -411,7 +405,6 @@ The lower significant bits (`rW`) of the _Result_ are used to hold the cosine va
 
 _S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
-Note that the operation does not use the signedness capabilities of `OpTypeInt`.
 
 _I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
 
@@ -439,7 +432,6 @@ _Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
 _S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
-Note that the operation does not use the signedness capabilities of `OpTypeInt`.
 
 _I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
 
@@ -467,7 +459,6 @@ _Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
 _S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
-Note that the operation does not use the signedness capabilities of `OpTypeInt`.
 
 _I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
 
