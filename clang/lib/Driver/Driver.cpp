@@ -4791,6 +4791,9 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     if (!UnbundlerInputs.empty()) {
       Action *PartialLink =
           C.MakeAction<PartialLinkJobAction>(UnbundlerInputs, types::TY_Object);
+      if (!LastArg)
+        LastArg = &(dyn_cast<InputAction>(UnbundlerInputs.back())->getInputArg());
+ 
       Action *Current = C.MakeAction<InputAction>(*LastArg, types::TY_Object);
       ActionList AL;
       AL.push_back(PartialLink);
