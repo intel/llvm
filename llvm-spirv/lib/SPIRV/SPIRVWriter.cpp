@@ -2884,8 +2884,8 @@ LLVMToSPIRV::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       Type *BoolTy = IntegerType::getInt1Ty(M->getContext());
       auto IsVector = ResultTy->isVectorTy();
       if (IsVector)
-        BoolTy = VectorType::get(BoolTy,
-                                 cast<VectorType>(ResultTy)->getNumElements());
+        BoolTy = FixedVectorType::get(
+            BoolTy, cast<VectorType>(ResultTy)->getNumElements());
       auto BBT = transType(BoolTy);
       SPIRVInstruction *Res;
       if (isCmpOpCode(OC)) {
