@@ -617,6 +617,26 @@ struct _pi_kernel {
   void clear_local_size() { args_.clear_local_size(); }
 };
 
+/// Implementation of samplers for CUDA
+///
+/// Sampler property layout:
+/// | 31 30 ... 6 5 |      4 3 2      |     1      |         0        |
+/// |      N/A      | addressing mode | fiter mode | normalize coords |
+struct _pi_sampler {
+  std::atomic_uint32_t refCount_;
+  pi_uint32 props_;
+  pi_context context_;
+
+  _pi_sampler(pi_context context)
+      : refCount_(1), props_(0), context_(context) {}
+
+  pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
+
+  pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
+
+  pi_uint32 get_reference_count() const noexcept { return refCount_; }
+};
+
 // -------------------------------------------------------------
 // Helper types and functions
 //

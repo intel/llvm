@@ -1655,10 +1655,10 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     }
     case kernel_param_kind_t::kind_sampler: {
       sampler *SamplerPtr = (sampler *)Arg.MPtr;
-      RT::PiSampler Sampler = detail::getSyclObjImpl(*SamplerPtr)
-                                  ->getOrCreateSampler(MQueue->get_context());
-      Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
-                                             sizeof(cl_sampler), &Sampler);
+      RT::PiSampler Sampler =
+          detail::getSyclObjImpl(*SamplerPtr)->getOrCreateSampler(MQueue->get_context());
+      Plugin.call<PiApiKind::piextKernelSetArgSampler>(Kernel, Arg.MIndex,
+                                                       &Sampler);
       break;
     }
     case kernel_param_kind_t::kind_pointer: {
