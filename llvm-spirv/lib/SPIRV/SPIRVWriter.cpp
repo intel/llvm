@@ -576,6 +576,7 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
   if (!BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
     return;
   auto BF = static_cast<SPIRVFunction *>(getTranslatedValue(F));
+  assert(BF && "The SPIRVFunction pointer shouldn't be nullptr");
   auto Attrs = F->getAttributes();
 
   if (Attrs.hasFnAttribute(kVCMetadata::VCStackCall))
