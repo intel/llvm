@@ -179,60 +179,124 @@ private:
 /// PI Mem mapping to a CUDA memory allocation
 ///
 struct _pi_mem {
-  using native_type = CUdeviceptr;
+
+  // TODO: Move as much shared data up as possible
   using pi_context = _pi_context *;
 
   pi_context context_;
-  pi_mem parent_;
-  native_type ptr_;
-
-  void *hostPtr_;
-  size_t size_;
-  size_t mapOffset_;
-  void *mapPtr_;
-  cl_map_flags mapFlags_;
   std::atomic_uint32_t refCount_;
-  /** alloc_mode
-   * classic: Just a normal buffer allocated on the device via cuda malloc
-   * use_host_ptr: Use an address on the host for the device
-   * copy_in: The data for the device comes from the host but the host pointer
-      is not available later for re-use
-   * alloc_host_ptr: Uses pinned-memory allocation
-  */
-  enum class alloc_mode {
-    classic,
-    use_host_ptr,
-    copy_in,
-    alloc_host_ptr
-  } allocMode_;
+  enum class mem_type { buffer, surface } mem_type_;
 
-  _pi_mem(pi_context ctxt, pi_mem parent, alloc_mode mode, CUdeviceptr ptr, void *host_ptr,
-          size_t size)
-      : context_{ctxt}, parent_{parent}, ptr_{ptr}, hostPtr_{host_ptr}, size_{size}, 
-        mapOffset_{0}, mapPtr_{nullptr}, mapFlags_{CL_MAP_WRITE}, refCount_{1}, allocMode_{mode} {
-      if (is_sub_buffer()) {
-        cuda_piMemRetain(parent_);
-      } else {
-	      cuda_piContextRetain(context_);
+  union mem_ {
+    struct buffer_mem_ {
+      using native_type = CUdeviceptr;
+
+      pi_mem parent_;
+      native_type ptr_;
+      void *hostPtr_;
+      size_t size_;
+
+      size_t mapOffset_;
+      void *mapPtr_;
+      cl_map_flags mapFlags_;
+      enum class alloc_mode { classic, use_host_ptr } allocMode_;
+
+      native_type get() const noexcept { return ptr_; }
+
+      size_t get_size() const noexcept { return size_; }
+
+      void *get_map_ptr() const noexcept { return mapPtr_; }
+
+      size_t get_map_offset(void *ptr) const noexcept { return mapOffset_; }
+
+      void *map_to_ptr(size_t offset, cl_map_flags flags) noexcept {
+        assert(mapPtr_ == nullptr);
+        mapOffset_ = offset;
+        mapFlags_ = flags;
+        if (hostPtr_) {
+          mapPtr_ = static_cast<char *>(hostPtr_) + offset;
+        } else {
+          // TODO: Allocate only what is needed based on the offset
+          mapPtr_ = static_cast<void *>(malloc(this->get_size()));
+        }
+        return mapPtr_;
       }
-	};
 
-   ~_pi_mem() { 
-     if (is_sub_buffer()) {
-       cuda_piMemRelease(parent_);
-     } else {
-      cuda_piContextRelease(context_); 
-     }
-   }
+      void unmap(void *ptr) noexcept {
+        assert(mapPtr_ != nullptr);
 
-   /// \TODO: Adapt once images are supported.
-   bool is_buffer() const noexcept { return true; }
+        if (mapPtr_ != hostPtr_) {
+          free(mapPtr_);
+        }
+        mapPtr_ = nullptr;
+        mapOffset_ = 0;
+      }
 
-   bool is_sub_buffer() const noexcept {
-     return (is_buffer() && (parent_ != nullptr));
-   }
+      cl_map_flags get_map_flags() const noexcept {
+        assert(mapPtr_ != nullptr);
+        return mapFlags_;
+      }
+    } buffer_mem_;
+    struct surface_mem_ {
+      CUarray array_;
+      CUsurfObject surfObj_;
+      pi_mem_type imageType_;
 
-  native_type get() const noexcept { return ptr_; }
+      CUarray get_array() const noexcept { return array_; }
+
+      CUsurfObject get_surface() const noexcept { return surfObj_; }
+
+      pi_mem_type get_image_type() const noexcept { return imageType_; }
+    } surface_mem_;
+  } mem_;
+
+  // Buffer constructor
+  _pi_mem(pi_context ctxt, pi_mem parent, mem_::buffer_mem_::alloc_mode mode,
+          CUdeviceptr ptr, void *host_ptr, size_t size)
+      : context_{ctxt}, refCount_{1}, mem_type_{mem_type::buffer} {
+    mem_.buffer_mem_.ptr_ = ptr;
+    mem_.buffer_mem_.parent_ = parent;
+    mem_.buffer_mem_.hostPtr_ = host_ptr;
+    mem_.buffer_mem_.size_ = size;
+    mem_.buffer_mem_.mapOffset_ = 0;
+    mem_.buffer_mem_.mapPtr_ = nullptr;
+    mem_.buffer_mem_.mapFlags_ = CL_MAP_WRITE;
+    mem_.buffer_mem_.allocMode_ = mode;
+    if (is_sub_buffer()) {
+      cuda_piMemRetain(mem_.buffer_mem_.parent_);
+    } else {
+      cuda_piContextRetain(context_);
+    }
+  };
+
+  // Surface constructor
+  _pi_mem(pi_context ctxt, CUarray array, CUsurfObject surf,
+          pi_mem_type image_type, void *host_ptr)
+      : context_{ctxt}, refCount_{1}, mem_type_{mem_type::surface} {
+    mem_.surface_mem_.array_ = array;
+    mem_.surface_mem_.surfObj_ = surf;
+    mem_.surface_mem_.imageType_ = image_type;
+    cuda_piContextRetain(context_);
+  }
+
+  ~_pi_mem() {
+    if (mem_type_ == mem_type::buffer) {
+      if (is_sub_buffer()) {
+        cuda_piMemRelease(mem_.buffer_mem_.parent_);
+        return;
+      }
+    }
+    cuda_piContextRelease(context_);
+  }
+
+  // TODO: Move as many shared funcs up as possible
+  bool is_buffer() const noexcept { return mem_type_ == mem_type::buffer; }
+
+  bool is_sub_buffer() const noexcept {
+    return (is_buffer() && (mem_.buffer_mem_.parent_ != nullptr));
+  }
+
+  bool is_image() const noexcept { return mem_type_ == mem_type::surface; }
 
   pi_context get_context() const noexcept { return context_; }
 
@@ -241,40 +305,6 @@ struct _pi_mem {
   pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
 
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
-
-  size_t get_size() const noexcept { return size_; }
-
-  void *get_map_ptr() const noexcept { return mapPtr_; }
-
-  size_t get_map_offset(void *ptr) const noexcept { return mapOffset_; }
-
-  void *map_to_ptr(size_t offset, cl_map_flags flags) noexcept {
-    assert(mapPtr_ == nullptr);
-    mapOffset_ = offset;
-    mapFlags_ = flags;
-    if (hostPtr_ && (allocMode_ != alloc_mode::copy_in)) {
-      mapPtr_ = static_cast<char *>(hostPtr_) + offset;
-    } else {
-      // TODO: Allocate only what is needed based on the offset
-      mapPtr_ = static_cast<void *>(malloc(this->get_size()));
-    }
-    return mapPtr_;
-  }
-
-  void unmap(void *ptr) noexcept {
-    assert(mapPtr_ != nullptr);
-
-    if (mapPtr_ != hostPtr_) {
-      free(mapPtr_);
-    }
-    mapPtr_ = nullptr;
-    mapOffset_ = 0;
-  }
-
-  cl_map_flags get_map_flags() const noexcept {
-    assert(mapPtr_ != nullptr);
-    return mapFlags_;
-  }
 };
 
 /// PI queue mapping on to CUstream objects.
