@@ -15,10 +15,12 @@ namespace sycl {
 namespace property {
 namespace detail {
 
-// Property base class
+// Base class for SYCL properties. This is used by property_list for
+// identifying SYCL properties to avoid ambiguities in constructors taking
+// a property_list parameter.
 class property_base {
 public:
-  ~property_base() = default;
+  virtual ~property_base() = default;
 };
 
 } // namespace detail
