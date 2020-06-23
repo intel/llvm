@@ -791,12 +791,12 @@ static void VisitField(CXXRecordDecl *Owner, RangeTy &&Item, QualType ItemTy,
                        Handlers &... handlers) {
   if (Util::isSyclAccessorType(ItemTy))
     KF_FOR_EACH(handleSyclAccessorType, Item, ItemTy);
-  if (Util::isSyclStreamType(ItemTy))
+  else if (Util::isSyclStreamType(ItemTy))
     KF_FOR_EACH(handleSyclStreamType, Item, ItemTy);
-  if (ItemTy->isStructureOrClassType())
+  else if (ItemTy->isStructureOrClassType())
     VisitRecord(Owner, Item, ItemTy->getAsCXXRecordDecl(),
                          handlers...);
-  if (ItemTy->isArrayType())
+  else if (ItemTy->isArrayType())
     VisitArrayElements(Item, ItemTy, handlers...);
 }
 
