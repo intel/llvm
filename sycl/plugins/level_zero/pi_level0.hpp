@@ -306,11 +306,19 @@ struct _pi_event : _pi_object {
 };
 
 struct _pi_program : _pi_object {
-  _pi_program(ze_module_handle_t Module, pi_context Context)
-      : ZeModule{Module}, Context{Context} {}
+  _pi_program(ze_module_handle_t Module, ze_module_desc_t ModuleDesc,
+              pi_context Context)
+      : ZeModuleDesc(ModuleDesc), ZeModule{Module},
+        ZeBuildLog{nullptr}, Context{Context} {}
+
+  // L0 module descriptor.
+  ze_module_desc_t ZeModuleDesc;
 
   // L0 module handle.
   ze_module_handle_t ZeModule;
+
+  // L0 build log.
+  ze_module_build_log_handle_t ZeBuildLog;
 
   // Keep the context of the program.
   pi_context Context;
