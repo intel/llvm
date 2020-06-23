@@ -1277,6 +1277,7 @@ class SyclKernelBodyCreator
   CXXRecordDecl *KernelObj;
   llvm::SmallVector<Expr *, 16> MemberExprBases;
   FunctionDecl *KernelCallerFunc;
+  bool ArrayState;
 
   // Using the statements/init expressions that we've created, this generates
   // the kernel body compound stmt. CompoundStmt needs to know its number of
@@ -1447,14 +1448,16 @@ class SyclKernelBodyCreator
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     // TODO: VarEntity is initialized entity for KernelObjClone, I guess we need
     // to create new one when enter new struct.
-    InitializedEntity Entity =
-        InitializedEntity::InitializeMember(FD, &VarEntity);
-    // Initialize with the default constructor.
-    InitializationKind InitKind =
-        InitializationKind::CreateDefault(SourceLocation());
-    InitializationSequence InitSeq(SemaRef, Entity, InitKind, None);
-    ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, None);
-    InitExprs.push_back(MemberInit.get());
+    if (!ArrayState) {
+      InitializedEntity Entity =
+          InitializedEntity::InitializeMember(FD, &VarEntity);
+      // Initialize with the default constructor.
+      InitializationKind InitKind =
+          InitializationKind::CreateDefault(SourceLocation());
+      InitializationSequence InitSeq(SemaRef, Entity, InitKind, None);
+      ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, None);
+      InitExprs.push_back(MemberInit.get());
+    }
     createSpecialMethodCall(RecordDecl, MemberExprBases.back(), InitMethodName,
                             FD);
     return true;
@@ -1486,7 +1489,8 @@ public:
         KernelObjClone(createKernelObjClone(S.getASTContext(),
                                             DC.getKernelDecl(), KernelObj)),
         VarEntity(InitializedEntity::InitializeVariable(KernelObjClone)),
-        KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc) {
+        KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc),
+        ArrayState(false) {
     markParallelWorkItemCalls();
 
     Stmt *DS = new (S.Context) DeclStmt(DeclGroupRef(KernelObjClone),
@@ -1628,6 +1632,7 @@ public:
   }
 
   void enterArray() final {
+    ArrayState = true;
     Expr *ArrayBase = MemberExprBases.back();
     ExprResult IndexExpr = SemaRef.ActOnIntegerConstant(SourceLocation(), 0);
     ExprResult ElementBase = SemaRef.CreateBuiltinArraySubscriptExpr(
@@ -1650,7 +1655,10 @@ public:
     MemberExprBases.push_back(ElementBase.get());
   }
 
-  void leaveArray(QualType, int64_t) final { MemberExprBases.pop_back(); }
+  void leaveArray(QualType, int64_t) final {
+    ArrayState = false;
+    MemberExprBases.pop_back();
+  }
 
   using SyclKernelFieldHandler::enterArray;
   using SyclKernelFieldHandler::enterField;
