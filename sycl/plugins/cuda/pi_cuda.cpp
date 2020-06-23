@@ -378,6 +378,18 @@ pi_result _pi_event::wait() {
   return retErr;
 }
 
+pi_result _pi_event::release() {
+  assert(queue_ != nullptr);
+  PI_CHECK_ERROR(cuEventDestroy(evEnd_));
+
+  if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
+    PI_CHECK_ERROR(cuEventDestroy(evQueued_));
+    PI_CHECK_ERROR(cuEventDestroy(evStart_));
+  }
+
+  return PI_SUCCESS;
+}
+
 // makes all future work submitted to queue wait for all work captured in event.
 pi_result enqueueEventWait(pi_queue queue, pi_event event) {
   // for native events, the cuStreamWaitEvent call is used.
@@ -2733,8 +2745,7 @@ pi_result cuda_piEventRelease(pi_event event) {
     pi_result result = PI_INVALID_EVENT;
     try {
       ScopedContext active(event->get_context());
-      auto cuEvent = event->get();
-      result = PI_CHECK_ERROR(cuEventDestroy(cuEvent));
+      result = event->release();
     } catch (...) {
       result = PI_OUT_OF_RESOURCES;
     }
