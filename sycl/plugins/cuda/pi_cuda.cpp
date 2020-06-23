@@ -2806,11 +2806,7 @@ pi_result cuda_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
 
 _pi_sampler::_pi_sampler(pi_context context) {
   context_ = context;
-
   props_ = 0;
-  props_ |= CL_TRUE;
-  // Default filter mode to CL_FILTER_NEAREST
-  props_ |= (CL_ADDRESS_CLAMP % CL_ADDRESS_NONE) << 2;
 }
 
 /// Creates a PI sampler object
@@ -2843,7 +2839,7 @@ pi_result cuda_piSamplerCreate(pi_context context,
       }
       propSeen[1] = true;
       retImplSampl->props_ |=
-          (sampler_properties[i + 1] % PI_SAMPLER_FILTER_MODE_NEAREST) << 1;
+          (sampler_properties[i + 1] - PI_SAMPLER_FILTER_MODE_NEAREST) << 1;
       break;
     case PI_SAMPLER_PROPERTIES_ADDRESSING_MODE:
       if (propSeen[2]) {
@@ -2851,11 +2847,19 @@ pi_result cuda_piSamplerCreate(pi_context context,
       }
       propSeen[2] = true;
       retImplSampl->props_ |=
-          (sampler_properties[i + 1] % PI_SAMPLER_ADDRESSING_MODE_NONE) << 2;
+          (sampler_properties[i + 1] - PI_SAMPLER_ADDRESSING_MODE_NONE) << 2;
       break;
     default:
       return PI_INVALID_VALUE;
     }
+  }
+
+  if(!propSeen[0]){
+    retImplSampl->props_ |= CL_TRUE;
+  }
+  // Default filter mode to CL_FILTER_NEAREST
+  if(!propSeen[2]) {
+    retImplSampl->props_ |= (CL_ADDRESS_CLAMP % CL_ADDRESS_NONE) << 2;
   }
 
   *result_sampler = retImplSampl.release();
@@ -2883,26 +2887,23 @@ pi_result cuda_piSamplerGetInfo(pi_sampler sampler, cl_sampler_info param_name,
   case PI_SAMPLER_INFO_CONTEXT:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    sampler->context_);
-  case PI_SAMPLER_INFO_NORMALIZED_COORDS:
-  {
+  case PI_SAMPLER_INFO_NORMALIZED_COORDS: {
     pi_bool norm_coords_prop = static_cast<pi_bool>(sampler->props_ & 0x1);
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    norm_coords_prop);
   }
-  case PI_SAMPLER_INFO_ADDRESSING_MODE:
-  {
-    pi_sampler_addressing_mode addressing_prop =
-        static_cast<pi_sampler_addressing_mode>(((sampler->props_ >> 1) & 0x1) +
-                                                PI_SAMPLER_FILTER_MODE_NEAREST);
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   addressing_prop);
-  }
-  case PI_SAMPLER_INFO_FILTER_MODE:
-  {
+  case PI_SAMPLER_INFO_FILTER_MODE: {
     pi_sampler_filter_mode filter_prop = static_cast<pi_sampler_filter_mode>(
-        (sampler->props_ >> 2) + PI_SAMPLER_ADDRESSING_MODE_NONE);
+        ((sampler->props_ >> 1) & 0x1) + PI_SAMPLER_FILTER_MODE_NEAREST);
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    filter_prop);
+  }
+  case PI_SAMPLER_INFO_ADDRESSING_MODE: {
+    pi_sampler_addressing_mode addressing_prop =
+        static_cast<pi_sampler_addressing_mode>(
+            (sampler->props_ >> 2) + PI_SAMPLER_ADDRESSING_MODE_NONE);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   addressing_prop);
   }
   default:
     PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
