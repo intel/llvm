@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -verify -ast-dump %s | FileCheck %s
 // expected-no-diagnostics
 
 // The kernel_single_task call is emitted as an OpenCL kernel function. The call
