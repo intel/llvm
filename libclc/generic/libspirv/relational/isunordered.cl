@@ -9,6 +9,6 @@
 #include <relational.h>
 #include <spirv/spirv.h>
 
-#define _CLC_SPIRV_BUILTIN __spirv_IsInf
-#define _CLC_BUILTIN_IMPL __builtin_isinf
-#include "genunary.inc"
+#define _CLC_SPIRV_BUILTIN __spirv_Unordered
+#define _CLC_BUILTIN_IMPL __builtin_isunordered
+#include "genbinrelational.inc"

@@ -9,6 +9,12 @@
 #include <relational.h>
 #include <spirv/spirv.h>
 
-#define _CLC_SPIRV_BUILTIN __spirv_IsInf
-#define _CLC_BUILTIN_IMPL __builtin_isinf
-#include "genunary.inc"
+#define _CLC_SPIRV_BUILTIN __spirv_FOrdLessThanEqual
+#define _CLC_BUILTIN_IMPL __builtin_islessequal
+#include "genbinrelational.inc"
+#undef _CLC_SPIRV_BUILTIN
+#undef _CLC_BUILTIN_IMPL
+
+#define _CLC_SPIRV_BUILTIN __spirv_FUnordLessThanEqual
+#define _CLC_BUILTIN_IMPL(X, Y) X <= Y
+#include "genbinrelational.inc"

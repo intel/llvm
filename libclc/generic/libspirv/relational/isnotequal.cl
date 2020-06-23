@@ -9,6 +9,12 @@
 #include <relational.h>
 #include <spirv/spirv.h>
 
-#define _CLC_SPIRV_BUILTIN __spirv_IsInf
-#define _CLC_BUILTIN_IMPL __builtin_isinf
-#include "genunary.inc"
+#define _CLC_SPIRV_BUILTIN __spirv_FUnordNotEqual
+#define _CLC_BUILTIN_IMPL(X, Y) ((__spirv_Unordered(X, Y)) || (X != Y))
+#include "genbinrelational.inc"
+#undef _CLC_SPIRV_BUILTIN
+#undef _CLC_BUILTIN_IMPL
+
+#define _CLC_SPIRV_BUILTIN __spirv_FOrdNotEqual
+#define _CLC_BUILTIN_IMPL(X, Y) ((__spirv_Ordered(X, Y)) && (X != Y))
+#include "genbinrelational.inc"
