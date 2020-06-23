@@ -4904,7 +4904,13 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     types::ID LinkType(types::TY_Image);
     if (Args.hasArg(options::OPT_fsycl_link_EQ))
       LinkType = types::TY_Archive;
-    Action *LA = C.MakeAction<LinkJobAction>(LinkerInputs, LinkType);
+    Action *LA;
+    // Check if this Linker Job should emit a static library.
+    if (ShouldEmitStaticLibrary(Args)) {
+      LA = C.MakeAction<StaticLibJobAction>(LinkerInputs, LinkType);
+    } else {
+      LA = C.MakeAction<LinkJobAction>(LinkerInputs, LinkType);
+    }
     LA = OffloadBuilder.processHostLinkAction(LA);
     Actions.push_back(LA);
   }
@@ -6593,6 +6599,13 @@ bool Driver::ShouldUseFlangCompiler(const JobAction &JA) const {
     return false;
 
   return true;
+}
+
+bool Driver::ShouldEmitStaticLibrary(const ArgList &Args) const {
+  // Only emit static library if the flag is set explicitly.
+  if (Args.hasArg(options::OPT_emit_static_lib))
+    return true;
+  return false;
 }
 
 /// GetReleaseVersion - Parse (([0-9]+)(.([0-9]+)(.([0-9]+)?))?)? and return the
