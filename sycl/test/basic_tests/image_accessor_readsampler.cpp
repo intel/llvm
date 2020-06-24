@@ -1,4 +1,5 @@
 // UNSUPPORTED: cuda
+// UNSUPPORTED: level0
 // CUDA cannot support SYCL 1.2.1 images.
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
@@ -23,7 +24,8 @@
 
 namespace s = cl::sycl;
 
-template <int unique_number> class kernel_class;
+template <int unique_number>
+class kernel_class;
 
 void validateReadData(s::cl_float4 ReadData, s::cl_float4 ExpectedColor,
                       s::cl_int precision = 1) {
