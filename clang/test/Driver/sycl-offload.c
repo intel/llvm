@@ -581,7 +581,7 @@
 // CHECK-LINK-SYCL: "{{.*}}link{{(.exe)?}}"
 // CHECK-LINK-SYCL: "-defaultlib:sycl.lib"
 
-/// Check for default linking of sycl.lib with -fsycl usage
+/// Check no SYCL runtime is linked with -nolibsycl
 // RUN: %clang -fsycl -nolibsycl -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOLIBSYCL %s
 // RUN: %clang_cl -fsycl -nolibsycl %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOLIBSYCL %s
 // CHECK-LINK-NOLIBSYCL: "{{.*}}link{{(.exe)?}}"
