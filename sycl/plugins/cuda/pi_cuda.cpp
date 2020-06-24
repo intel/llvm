@@ -2831,8 +2831,7 @@ pi_result cuda_piSamplerCreate(pi_context context,
 
   bool propSeen[3] = {false, false, false};
   for (size_t i = 0; sampler_properties[i] != 0; i += 2) {
-    switch (sampler_properties[i])
-    {
+    switch (sampler_properties[i]) {
     case PI_SAMPLER_PROPERTIES_NORMALIZED_COORDS:
       if (propSeen[0]) {
         return PI_INVALID_VALUE;
@@ -2861,11 +2860,11 @@ pi_result cuda_piSamplerCreate(pi_context context,
     }
   }
 
-  if(!propSeen[0]){
+  if (!propSeen[0]) {
     retImplSampl->props_ |= CL_TRUE;
   }
   // Default filter mode to CL_FILTER_NEAREST
-  if(!propSeen[2]) {
+  if (!propSeen[2]) {
     retImplSampl->props_ |= (CL_ADDRESS_CLAMP % CL_ADDRESS_NONE) << 2;
   }
 
