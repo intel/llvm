@@ -195,12 +195,16 @@ constexpr access::mode deduceAccessMode() {
                 std::is_same<MayBeTag2,
                              mode_tag_t<access::mode::read>>::value) {
     return access::mode::read;
-  } else if constexpr (std::is_same<MayBeTag1,
-                                    mode_tag_t<access::mode::write>>::value ||
-                       std::is_same<MayBeTag2,
-                                    mode_tag_t<access::mode::write>>::value) {
+  }
+
+  if constexpr (std::is_same<MayBeTag1,
+                             mode_tag_t<access::mode::write>>::value ||
+                std::is_same<MayBeTag2,
+                             mode_tag_t<access::mode::write>>::value) {
     return access::mode::write;
-  } else if constexpr (
+  }
+
+  if constexpr (
       std::is_same<MayBeTag1,
                    mode_target_tag_t<access::mode::read,
                                      access::target::constant_buffer>>::value ||
@@ -208,9 +212,9 @@ constexpr access::mode deduceAccessMode() {
                    mode_target_tag_t<access::mode::read,
                                      access::target::constant_buffer>>::value) {
     return access::mode::read;
-  } else {
-    return access::mode::read_write;
   }
+
+  return access::mode::read_write;
 }
 
 template <typename MayBeTag1, typename MayBeTag2>
@@ -223,9 +227,9 @@ constexpr access::target deduceAccessTarget(access::target defaultTarget) {
                    mode_target_tag_t<access::mode::read,
                                      access::target::constant_buffer>>::value) {
     return access::target::constant_buffer;
-  } else {
-    return defaultTarget;
   }
+
+  return defaultTarget;
 }
 
 #endif

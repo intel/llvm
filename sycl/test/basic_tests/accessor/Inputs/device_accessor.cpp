@@ -8,10 +8,6 @@
 #include <CL/sycl.hpp>
 #include <cassert>
 
-namespace sycl {
-using namespace cl::sycl;
-}
-
 int main() {
   // Non-placeholder accessors.
   {
