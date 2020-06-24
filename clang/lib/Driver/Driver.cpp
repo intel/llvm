@@ -400,6 +400,13 @@ DerivedArgList *Driver::TranslateInputArgs(const InputArgList &Args) const {
       continue;
     }
 
+    if (A->getOption().matches(options::OPT_offload_lib_Group)) {
+      if (!A->getNumValues()) {
+        Diag(clang::diag::warn_drv_unused_argument) << A->getSpelling();
+        continue;
+      }
+    }
+
     DAL->append(A);
   }
 
@@ -4788,7 +4795,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       }
     }
 
-    if (!UnbundlerInputs.empty()) {
+    if (!UnbundlerInputs.empty() && !PL.empty()) {
       Action *PartialLink =
           C.MakeAction<PartialLinkJobAction>(UnbundlerInputs, types::TY_Object);
       Action *Current = C.MakeAction<InputAction>(*LastArg, types::TY_Object);
@@ -4843,7 +4850,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         UnbundlerInput = LI;
       }
     }
-    if (UnbundlerInput) {
+    if (UnbundlerInput && !PL.empty()) {
       if (auto *IA = dyn_cast<InputAction>(UnbundlerInput)) {
         std::string FileName = IA->getInputArg().getAsString(Args);
         Arg *InputArg = MakeInputArg(Args, Opts, FileName);
