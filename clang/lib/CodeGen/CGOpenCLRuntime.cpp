@@ -37,6 +37,28 @@ llvm::Type *CGOpenCLRuntime::convertOpenCLSpecificType(const Type *T) {
   llvm::LLVMContext& Ctx = CGM.getLLVMContext();
   uint32_t AddrSpc = CGM.getContext().getTargetAddressSpace(
       CGM.getContext().getOpenCLTypeAddrSpace(T));
+
+  if (CGM.getTriple().isNVPTX()) {
+    switch (cast<BuiltinType>(T)->getKind()) {
+    default:
+      break;
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  case BuiltinType::Id:                                                        \
+    return llvm::IntegerType::getInt64Ty(CGM.getLLVMContext());
+#include "clang/Basic/OpenCLImageTypes.def"
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  case BuiltinType::Sampled##Id:                                               \
+    return llvm::StructType::get(                                              \
+        llvm::IntegerType::getInt64Ty(CGM.getLLVMContext()),                   \
+        llvm::IntegerType::getInt32Ty(CGM.getLLVMContext()));
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
+#include "clang/Basic/OpenCLImageTypes.def"
+    case BuiltinType::OCLSampler:
+      return llvm::IntegerType::getInt32Ty(CGM.getLLVMContext());
+    }
+  }
+
   switch (cast<BuiltinType>(T)->getKind()) {
   default:
     llvm_unreachable("Unexpected opencl builtin type!");
