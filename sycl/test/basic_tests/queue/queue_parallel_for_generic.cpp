@@ -18,11 +18,13 @@
 //===------------------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
+
+#include <cassert>
 #include <iostream>
 #include <type_traits>
 
 int main() {
-  sycl::queue q{};
+  sycl::queue q{sycl::property::queue::in_order()};
   auto dev = q.get_device();
   auto ctx = q.get_context();
   constexpr int N = 8;
@@ -67,8 +69,7 @@ int main() {
   q.wait();
 
   for (int i = 0; i < N; i++) {
-    if (A[i] != 5)
-      return 1;
+    assert(A[i] == 5);
   }
   sycl::free(A, ctx);
 }
