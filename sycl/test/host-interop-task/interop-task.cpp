@@ -2,7 +2,8 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-// XFAIL: level0, cuda
+// USUPPORTED: level0, cuda
+// REQUIRES: opencl
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/backend/opencl.hpp>
@@ -150,7 +151,7 @@ void test2() {
 }
 
 // A test that does a clEnqueueWait inside the interop scope, for an event
-// captured outside the command group. The OpenCl event can be set after the
+// captured outside the command group. The OpenCL event can be set after the
 // command group finishes. Must not deadlock according to implementation and
 // proposal
 void test3() {
