@@ -188,7 +188,9 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   for (event &Event : MUSMEvents) {
     Event.wait();
   }
+
   MEvents.clear();
+  MUSMEvents.clear();
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
