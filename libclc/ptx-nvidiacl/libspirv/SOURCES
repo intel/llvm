@@ -11,12 +11,17 @@ workitem/get_local_id.cl
 workitem/get_local_size.cl
 workitem/get_num_groups.cl
 math/acos.cl
+math/acosh.cl
 math/asin.cl
+math/asinh.cl
 math/atan.cl
+math/atanh.cl
 math/cbrt.cl
 math/ceil.cl
 math/cos.cl
+math/cosh.cl
 math/erf.cl
+math/erfc.cl
 math/exp.cl
 math/exp10.cl
 math/exp2.cl

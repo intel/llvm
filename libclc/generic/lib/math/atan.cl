@@ -21,7 +21,7 @@
  */
 
 #include "math.h"
-#include "../clcmacro.h"
+#include <clcmacro.h>
 
 #include <clc/clc.h>
 
