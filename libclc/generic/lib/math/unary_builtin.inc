@@ -1,4 +1,5 @@
-#include "../clcmacro.h"
+#include <clcmacro.h>
+
 #include "utils.h"
 
 #ifndef __CLC_BUILTIN

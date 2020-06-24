@@ -6,11 +6,23 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../../../generic/lib/clcmacro.h"
 #include "utils.h"
+#include <clcmacro.h>
+
+#ifndef __CLC_BUILTIN
+#define __CLC_BUILTIN __CLC_XCONCAT(__clc_, __CLC_FUNCTION)
+#endif
+
+#ifndef __CLC_BUILTIN_D
+#define __CLC_BUILTIN_D __CLC_BUILTIN
+#endif
 
 #ifndef __CLC_BUILTIN_F
-#define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
+#define __CLC_BUILTIN_F __CLC_BUILTIN
+#endif
+
+#ifndef __CLC_BUILTIN_H
+#define __CLC_BUILTIN_H __CLC_BUILTIN_F
 #endif
 
 _CLC_DEFINE_UNARY_BUILTIN(float, __CLC_FUNCTION, __CLC_BUILTIN_F, float)
@@ -21,7 +33,7 @@ _CLC_DEFINE_UNARY_BUILTIN(float, __CLC_FUNCTION, __CLC_BUILTIN_F, float)
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-_CLC_DEFINE_UNARY_BUILTIN(double, __CLC_FUNCTION, __CLC_BUILTIN, double)
+_CLC_DEFINE_UNARY_BUILTIN(double, __CLC_FUNCTION, __CLC_BUILTIN_D, double)
 
 #endif
 
@@ -29,12 +41,8 @@ _CLC_DEFINE_UNARY_BUILTIN(double, __CLC_FUNCTION, __CLC_BUILTIN, double)
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_UNARY_BUILTIN(half, __CLC_FUNCTION, __CLC_BUILTIN, half)
+_CLC_DEFINE_UNARY_BUILTIN(half, __CLC_FUNCTION, __CLC_BUILTIN_H, half)
 
 #endif
 
-#endif
-
-#undef __CLC_BUILTIN
-#undef __CLC_BUILTIN_F
-#undef __CLC_FUNCTION
+#endif // !__FLOAT_ONLY

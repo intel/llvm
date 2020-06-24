@@ -11,7 +11,7 @@
 #include "../../include/libdevice.h"
 #include <clcmacro.h>
 
-#define __CLC_FUNCTION __spirv_ocl_erf
-#define __CLC_BUILTIN __nv_erf
+#define __CLC_FUNCTION __spirv_ocl_acosh
+#define __CLC_BUILTIN __nv_acosh
 #define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
 #include <math/unary_builtin.inc>
