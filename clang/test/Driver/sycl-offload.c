@@ -570,11 +570,22 @@
 // CHECK-LD-SYCL: "{{.*}}ld{{(.exe)?}}"
 // CHECK-LD-SYCL: "-lsycl"
 
+/// Check no SYCL runtime is linked with -nolibsycl
+// RUN: %clang -fsycl -nolibsycl -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-NOLIBSYCL %s
+// CHECK-LD-NOLIBSYCL: "{{.*}}ld{{(.exe)?}}"
+// CHECK-LD-NOLIBSYCL-NOT: "-lsycl"
+
 /// Check for default linking of sycl.lib with -fsycl usage
 // RUN: %clang -fsycl -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL %s
 // RUN: %clang_cl -fsycl %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL %s
 // CHECK-LINK-SYCL: "{{.*}}link{{(.exe)?}}"
 // CHECK-LINK-SYCL: "-defaultlib:sycl.lib"
+
+/// Check for default linking of sycl.lib with -fsycl usage
+// RUN: %clang -fsycl -nolibsycl -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOLIBSYCL %s
+// RUN: %clang_cl -fsycl -nolibsycl %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-NOLIBSYCL %s
+// CHECK-LINK-NOLIBSYCL: "{{.*}}link{{(.exe)?}}"
+// CHECK-LINK-NOLIBSYCL-NOT: "-defaultlib:sycl.lib"
 
 /// Check sycld.lib is chosen with /MDd and /MTd
 // RUN:  %clang_cl -fsycl /MDd %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s

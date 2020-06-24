@@ -1249,7 +1249,7 @@ def finline_functions : Flag<["-"], "finline-functions">, Group<f_clang_Group>, 
 def finline_hint_functions: Flag<["-"], "finline-hint-functions">, Group<f_clang_Group>, Flags<[CC1Option]>,
   HelpText<"Inline functions which are (explicitly or implicitly) marked inline">;
 def finline : Flag<["-"], "finline">, Group<clang_ignored_f_Group>;
-def fglobal_isel : Flag<["-"], "fglobal-isel">, Group<f_clang_Group>, 
+def fglobal_isel : Flag<["-"], "fglobal-isel">, Group<f_clang_Group>,
   HelpText<"Enables the global instruction selector">;
 def fexperimental_isel : Flag<["-"], "fexperimental-isel">, Group<f_clang_Group>,
   Alias<fglobal_isel>;
@@ -2749,6 +2749,8 @@ def nostdincxx : Flag<["-"], "nostdinc++">, Flags<[CC1Option]>,
   HelpText<"Disable standard #include directories for the C++ standard library">;
 def nostdlib : Flag<["-"], "nostdlib">;
 def nostdlibxx : Flag<["-"], "nostdlib++">;
+def nolibsycl : Flag<["-"], "nolibsycl">, Flags<[DriverOption, CoreOption]>,
+  HelpText<"Do not link SYCL runtime library">;
 def object : Flag<["-"], "object">;
 def o : JoinedOrSeparate<["-"], "o">, Flags<[DriverOption, RenderAsInput, CC1Option, CC1AsOption]>,
   HelpText<"Write output to <file>">, MetaVarName<"<file>">;
