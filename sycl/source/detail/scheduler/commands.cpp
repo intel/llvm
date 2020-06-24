@@ -1804,6 +1804,18 @@ cl_int ExecCGCommand::enqueueImp() {
       assert(ExecKernel->MSyclKernel->get_info<info::kernel::context>() ==
              Context);
       Kernel = ExecKernel->MSyclKernel->getHandleRef();
+
+      auto SyclProg = detail::getSyclObjImpl(
+          ExecKernel->MSyclKernel->get_info<info::kernel::program>());
+      if (SyclProg->is_cacheable()) {
+        RT::PiKernel FoundKernel = nullptr;
+        std::tie(FoundKernel, KernelMutex) =
+            detail::ProgramManager::getInstance().getOrCreateKernel(
+                ExecKernel->MOSModuleHandle,
+                ExecKernel->MSyclKernel->get_info<info::kernel::context>(),
+                ExecKernel->MKernelName, SyclProg.get());
+        assert(FoundKernel == Kernel);
+      }
     } else {
       std::tie(Kernel, KernelMutex) =
           detail::ProgramManager::getInstance().getOrCreateKernel(
@@ -1873,6 +1885,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     pi_result Error = PI_SUCCESS;
     if (KernelMutex != nullptr) {
+      // For cacheable kernels, we use per-kernel mutex
       std::lock_guard<std::mutex> Lock(*KernelMutex);
       Error = SetKernelParamsAndLaunch();
     } else {
