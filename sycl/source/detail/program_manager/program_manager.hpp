@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-
+#include "llvm/Support/SYCLRTShared.h"
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/device_binary_image.hpp>
 #include <CL/sycl/detail/export.hpp>
@@ -44,13 +44,12 @@ class context_impl;
 using ContextImplPtr = std::shared_ptr<context_impl>;
 class program_impl;
 
-enum DeviceLibExt {
-  cl_intel_devicelib_assert = 0,
-  cl_intel_devicelib_math,
-  cl_intel_devicelib_math_fp64,
-  cl_intel_devicelib_complex,
-  cl_intel_devicelib_complex_fp64
-};
+using llvm::util::sycl::cl_intel_devicelib_assert;
+using llvm::util::sycl::cl_intel_devicelib_complex;
+using llvm::util::sycl::cl_intel_devicelib_complex_fp64;
+using llvm::util::sycl::cl_intel_devicelib_math;
+using llvm::util::sycl::cl_intel_devicelib_math_fp64;
+using llvm::util::sycl::DeviceLibExt;
 
 // Provides single loading and building OpenCL programs with unique contexts
 // that is necessary for no interoperability cases with lambda.

@@ -28,6 +28,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/PropertySetIO.h"
 #include "llvm/Support/SimpleTable.h"
+#include "llvm/Support/SYCLRTShared.h"
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Transforms/IPO.h"
@@ -36,6 +37,11 @@
 #include <memory>
 
 using namespace llvm;
+using llvm::util::sycl::cl_intel_devicelib_assert;
+using llvm::util::sycl::cl_intel_devicelib_complex;
+using llvm::util::sycl::cl_intel_devicelib_complex_fp64;
+using llvm::util::sycl::cl_intel_devicelib_math;
+using llvm::util::sycl::cl_intel_devicelib_math_fp64;
 
 using string_vector = std::vector<std::string>;
 using SpecIDMapTy = std::map<StringRef, unsigned>;
@@ -47,7 +53,7 @@ cl::OptionCategory PostLinkCat{"sycl-post-link options"};
 static constexpr char COL_CODE[] = "Code";
 static constexpr char COL_SYM[] = "Symbols";
 static constexpr char COL_PROPS[] = "Properties";
-
+static constexpr char DEVICELIB_FUNC_PREFIX[] = "__devicelib_";
 // InputFilename - The filename to read from.
 static cl::opt<std::string> InputFilename{
     cl::Positional, cl::desc("<input bitcode file>"), cl::init("-"),
@@ -113,69 +119,132 @@ struct ImagePropSaveInfo {
 // Please update DeviceLibFuncMap if any item is added to or removed from
 // fallback device libraries in libdevice.
 static std::map<std::string, uint32_t> DeviceLibFuncMap = {
-    {"__devicelib_acosf", 0x2},     {"__devicelib_acoshf", 0x2},
-    {"__devicelib_asinf", 0x2},     {"__devicelib_asinhf", 0x2},
-    {"__devicelib_atan2f", 0x2},    {"__devicelib_atanf", 0x2},
-    {"__devicelib_atanhf", 0x2},    {"__devicelib_cbrtf", 0x2},
-    {"__devicelib_cosf", 0x2},      {"__devicelib_coshf", 0x2},
-    {"__devicelib_erfcf", 0x2},     {"__devicelib_erff", 0x2},
-    {"__devicelib_exp2f", 0x2},     {"__devicelib_expf", 0x2},
-    {"__devicelib_expm1f", 0x2},    {"__devicelib_fdimf", 0x2},
-    {"__devicelib_fmaf", 0x2},      {"__devicelib_fmodf", 0x2},
-    {"__devicelib_frexpf", 0x2},    {"__devicelib_hypotf", 0x2},
-    {"__devicelib_ilogbf", 0x2},    {"__devicelib_ldexpf", 0x2},
-    {"__devicelib_lgammaf", 0x2},   {"__devicelib_log10f", 0x2},
-    {"__devicelib_log1pf", 0x2},    {"__devicelib_log2f", 0x2},
-    {"__devicelib_logbf", 0x2},     {"__devicelib_logf", 0x2},
-    {"__devicelib_modff", 0x2},     {"__devicelib_nextafterf", 0x2},
-    {"__devicelib_powf", 0x2},      {"__devicelib_remainderf", 0x2},
-    {"__devicelib_remquof", 0x2},   {"__devicelib_sinf", 0x2},
-    {"__devicelib_sinhf", 0x2},     {"__devicelib_sqrtf", 0x2},
-    {"__devicelib_tanf", 0x2},      {"__devicelib_tanhf", 0x2},
-    {"__devicelib_tgammaf", 0x2},   {"__devicelib_acos", 0x4},
-    {"__devicelib_acosh", 0x4},     {"__devicelib_asin", 0x4},
-    {"__devicelib_asinh", 0x4},     {"__devicelib_atan", 0x4},
-    {"__devicelib_atan2", 0x4},     {"__devicelib_atanh", 0x4},
-    {"__devicelib_cbrt", 0x4},      {"__devicelib_cos", 0x4},
-    {"__devicelib_cosh", 0x4},      {"__devicelib_erf", 0x4},
-    {"__devicelib_erfc", 0x4},      {"__devicelib_exp", 0x4},
-    {"__devicelib_exp2", 0x4},      {"__devicelib_expm1", 0x4},
-    {"__devicelib_fdim", 0x4},      {"__devicelib_fma", 0x4},
-    {"__devicelib_fmod", 0x4},      {"__devicelib_frexp", 0x4},
-    {"__devicelib_hypot", 0x4},     {"__devicelib_ilogb", 0x4},
-    {"__devicelib_ldexp", 0x4},     {"__devicelib_lgamma", 0x4},
-    {"__devicelib_log", 0x4},       {"__devicelib_log10", 0x4},
-    {"__devicelib_log1p", 0x4},     {"__devicelib_log2", 0x4},
-    {"__devicelib_logb", 0x4},      {"__devicelib_modf", 0x4},
-    {"__devicelib_nextafter", 0x4}, {"__devicelib_pow", 0x4},
-    {"__devicelib_remainder", 0x4}, {"__devicelib_remquo", 0x4},
-    {"__devicelib_sin", 0x4},       {"__devicelib_sinh", 0x4},
-    {"__devicelib_sqrt", 0x4},      {"__devicelib_tan", 0x4},
-    {"__devicelib_tanh", 0x4},      {"__devicelib_tgamma", 0x4},
-    {"__devicelib___divsc3", 0x8},  {"__devicelib___mulsc3", 0x8},
-    {"__devicelib_cabsf", 0x8},     {"__devicelib_cacosf", 0x8},
-    {"__devicelib_cacoshf", 0x8},   {"__devicelib_cargf", 0x8},
-    {"__devicelib_casinf", 0x8},    {"__devicelib_casinhf", 0x8},
-    {"__devicelib_catanf", 0x8},    {"__devicelib_catanhf", 0x8},
-    {"__devicelib_ccosf", 0x8},     {"__devicelib_ccoshf", 0x8},
-    {"__devicelib_cexpf", 0x8},     {"__devicelib_cimagf", 0x8},
-    {"__devicelib_clogf", 0x8},     {"__devicelib_cpolarf", 0x8},
-    {"__devicelib_cpowf", 0x8},     {"__devicelib_cprojf", 0x8},
-    {"__devicelib_crealf", 0x8},    {"__devicelib_csinf", 0x8},
-    {"__devicelib_csinhf", 0x8},    {"__devicelib_csqrtf", 0x8},
-    {"__devicelib_ctanf", 0x8},     {"__devicelib_ctanhf", 0x8},
-    {"__devicelib___divdc3", 0x10}, {"__devicelib___muldc3", 0x10},
-    {"__devicelib_cabs", 0x10},     {"__devicelib_cacos", 0x10},
-    {"__devicelib_cacosh", 0x10},   {"__devicelib_carg", 0x10},
-    {"__devicelib_casin", 0x10},    {"__devicelib_casinh", 0x10},
-    {"__devicelib_catan", 0x10},    {"__devicelib_catanh", 0x10},
-    {"__devicelib_ccos", 0x10},     {"__devicelib_ccosh", 0x10},
-    {"__devicelib_cexp", 0x10},     {"__devicelib_cimag", 0x10},
-    {"__devicelib_clog", 0x10},     {"__devicelib_cpolar", 0x10},
-    {"__devicelib_cpow", 0x10},     {"__devicelib_cproj", 0x10},
-    {"__devicelib_creal", 0x10},    {"__devicelib_csin", 0x10},
-    {"__devicelib_csinh", 0x10},    {"__devicelib_csqrt", 0x10},
-    {"__devicelib_ctan", 0x10},     {"__devicelib_ctanh", 0x10},
+    {"__devicelib_acosf", cl_intel_devicelib_math},
+    {"__devicelib_acoshf", cl_intel_devicelib_math},
+    {"__devicelib_asinf", cl_intel_devicelib_math},
+    {"__devicelib_asinhf", cl_intel_devicelib_math},
+    {"__devicelib_atan2f", cl_intel_devicelib_math},
+    {"__devicelib_atanf", cl_intel_devicelib_math},
+    {"__devicelib_atanhf", cl_intel_devicelib_math},
+    {"__devicelib_cbrtf", cl_intel_devicelib_math},
+    {"__devicelib_cosf", cl_intel_devicelib_math},
+    {"__devicelib_coshf", cl_intel_devicelib_math},
+    {"__devicelib_erfcf", cl_intel_devicelib_math},
+    {"__devicelib_erff", cl_intel_devicelib_math},
+    {"__devicelib_exp2f", cl_intel_devicelib_math},
+    {"__devicelib_expf", cl_intel_devicelib_math},
+    {"__devicelib_expm1f", cl_intel_devicelib_math},
+    {"__devicelib_fdimf", cl_intel_devicelib_math},
+    {"__devicelib_fmaf", cl_intel_devicelib_math},
+    {"__devicelib_fmodf", cl_intel_devicelib_math},
+    {"__devicelib_frexpf", cl_intel_devicelib_math},
+    {"__devicelib_hypotf", cl_intel_devicelib_math},
+    {"__devicelib_ilogbf", cl_intel_devicelib_math},
+    {"__devicelib_ldexpf", cl_intel_devicelib_math},
+    {"__devicelib_lgammaf", cl_intel_devicelib_math},
+    {"__devicelib_log10f", cl_intel_devicelib_math},
+    {"__devicelib_log1pf", cl_intel_devicelib_math},
+    {"__devicelib_log2f", cl_intel_devicelib_math},
+    {"__devicelib_logbf", cl_intel_devicelib_math},
+    {"__devicelib_logf", cl_intel_devicelib_math},
+    {"__devicelib_modff", cl_intel_devicelib_math},
+    {"__devicelib_nextafterf", cl_intel_devicelib_math},
+    {"__devicelib_powf", cl_intel_devicelib_math},
+    {"__devicelib_remainderf", cl_intel_devicelib_math},
+    {"__devicelib_remquof", cl_intel_devicelib_math},
+    {"__devicelib_sinf", cl_intel_devicelib_math},
+    {"__devicelib_sinhf", cl_intel_devicelib_math},
+    {"__devicelib_sqrtf", cl_intel_devicelib_math},
+    {"__devicelib_tanf", cl_intel_devicelib_math},
+    {"__devicelib_tanhf", cl_intel_devicelib_math},
+    {"__devicelib_tgammaf", cl_intel_devicelib_math},
+    {"__devicelib_acos", cl_intel_devicelib_math_fp64},
+    {"__devicelib_acosh", cl_intel_devicelib_math_fp64},
+    {"__devicelib_asin", cl_intel_devicelib_math_fp64},
+    {"__devicelib_asinh", cl_intel_devicelib_math_fp64},
+    {"__devicelib_atan", cl_intel_devicelib_math_fp64},
+    {"__devicelib_atan2", cl_intel_devicelib_math_fp64},
+    {"__devicelib_atanh", cl_intel_devicelib_math_fp64},
+    {"__devicelib_cbrt", cl_intel_devicelib_math_fp64},
+    {"__devicelib_cos", cl_intel_devicelib_math_fp64},
+    {"__devicelib_cosh", cl_intel_devicelib_math_fp64},
+    {"__devicelib_erf", cl_intel_devicelib_math_fp64},
+    {"__devicelib_erfc", cl_intel_devicelib_math_fp64},
+    {"__devicelib_exp", cl_intel_devicelib_math_fp64},
+    {"__devicelib_exp2", cl_intel_devicelib_math_fp64},
+    {"__devicelib_expm1", cl_intel_devicelib_math_fp64},
+    {"__devicelib_fdim", cl_intel_devicelib_math_fp64},
+    {"__devicelib_fma", cl_intel_devicelib_math_fp64},
+    {"__devicelib_fmod", cl_intel_devicelib_math_fp64},
+    {"__devicelib_frexp", cl_intel_devicelib_math_fp64},
+    {"__devicelib_hypot", cl_intel_devicelib_math_fp64},
+    {"__devicelib_ilogb", cl_intel_devicelib_math_fp64},
+    {"__devicelib_ldexp", cl_intel_devicelib_math_fp64},
+    {"__devicelib_lgamma", cl_intel_devicelib_math_fp64},
+    {"__devicelib_log", cl_intel_devicelib_math_fp64},
+    {"__devicelib_log10", cl_intel_devicelib_math_fp64},
+    {"__devicelib_log1p", cl_intel_devicelib_math_fp64},
+    {"__devicelib_log2", cl_intel_devicelib_math_fp64},
+    {"__devicelib_logb", cl_intel_devicelib_math_fp64},
+    {"__devicelib_modf", cl_intel_devicelib_math_fp64},
+    {"__devicelib_nextafter", cl_intel_devicelib_math_fp64},
+    {"__devicelib_pow", cl_intel_devicelib_math_fp64},
+    {"__devicelib_remainder", cl_intel_devicelib_math_fp64},
+    {"__devicelib_remquo", cl_intel_devicelib_math_fp64},
+    {"__devicelib_sin", cl_intel_devicelib_math_fp64},
+    {"__devicelib_sinh", cl_intel_devicelib_math_fp64},
+    {"__devicelib_sqrt", cl_intel_devicelib_math_fp64},
+    {"__devicelib_tan", cl_intel_devicelib_math_fp64},
+    {"__devicelib_tanh", cl_intel_devicelib_math_fp64},
+    {"__devicelib_tgamma", cl_intel_devicelib_math_fp64},
+    {"__devicelib___divsc3", cl_intel_devicelib_complex},
+    {"__devicelib___mulsc3", cl_intel_devicelib_complex},
+    {"__devicelib_cabsf", cl_intel_devicelib_complex},
+    {"__devicelib_cacosf", cl_intel_devicelib_complex},
+    {"__devicelib_cacoshf", cl_intel_devicelib_complex},
+    {"__devicelib_cargf", cl_intel_devicelib_complex},
+    {"__devicelib_casinf", cl_intel_devicelib_complex},
+    {"__devicelib_casinhf", cl_intel_devicelib_complex},
+    {"__devicelib_catanf", cl_intel_devicelib_complex},
+    {"__devicelib_catanhf", cl_intel_devicelib_complex},
+    {"__devicelib_ccosf", cl_intel_devicelib_complex},
+    {"__devicelib_ccoshf", cl_intel_devicelib_complex},
+    {"__devicelib_cexpf", cl_intel_devicelib_complex},
+    {"__devicelib_cimagf", cl_intel_devicelib_complex},
+    {"__devicelib_clogf", cl_intel_devicelib_complex},
+    {"__devicelib_cpolarf", cl_intel_devicelib_complex},
+    {"__devicelib_cpowf", cl_intel_devicelib_complex},
+    {"__devicelib_cprojf", cl_intel_devicelib_complex},
+    {"__devicelib_crealf", cl_intel_devicelib_complex},
+    {"__devicelib_csinf", cl_intel_devicelib_complex},
+    {"__devicelib_csinhf", cl_intel_devicelib_complex},
+    {"__devicelib_csqrtf", cl_intel_devicelib_complex},
+    {"__devicelib_ctanf", cl_intel_devicelib_complex},
+    {"__devicelib_ctanhf", cl_intel_devicelib_complex},
+    {"__devicelib___divdc3", cl_intel_devicelib_complex_fp64},
+    {"__devicelib___muldc3", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_cabs", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_cacos", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_cacosh", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_carg", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_casin", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_casinh", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_catan", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_catanh", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_ccos", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_ccosh", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_cexp", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_cimag", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_clog", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_cpolar", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_cpow", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_cproj", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_creal", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_csin", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_csinh", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_csqrt", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_ctan", cl_intel_devicelib_complex_fp64},
+    {"__devicelib_ctanh", cl_intel_devicelib_complex_fp64},
 };
 
 static void error(const Twine &Msg) {
@@ -383,7 +452,7 @@ static uint32_t getDeviceLibBits(const std::string &FuncName) {
   if (DeviceLibFuncMap.count(FuncName) == 0)
     return 0;
   else
-    return DeviceLibFuncMap[FuncName];
+    return 0x1 << (DeviceLibFuncMap[FuncName] - cl_intel_devicelib_assert);
 }
 
 // For each device image module, we go through all functions which meets
@@ -398,7 +467,7 @@ static uint32_t getModuleReqMask(const Module &M) {
   uint32_t ReqMask = 0x1;
   uint32_t DeviceLibBits = 0;
   for (const Function &SF : M) {
-    if (SF.getName().startswith("__devicelib_") &&
+    if (SF.getName().startswith(DEVICELIB_FUNC_PREFIX) &&
         (SF.getCallingConv() == CallingConv::SPIR_FUNC) && SF.isDeclaration()) {
       DeviceLibBits = getDeviceLibBits(SF.getName().str());
       ReqMask |= DeviceLibBits;
