@@ -22,7 +22,7 @@
 
 #include <clc/clc.h>
 
-#include "../clcmacro.h"
+#include <clcmacro.h>
 
 #define __CLC_BODY <bitselect.inc>
 #include <clc/integer/gentype.inc>
