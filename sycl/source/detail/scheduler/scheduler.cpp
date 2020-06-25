@@ -171,8 +171,8 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   }
 
   {
-    // This only needs a shared mutex as it only involves enqueueing and awaiting
-    // for events
+    // This only needs a shared mutex as it only involves enqueueing and
+    // awaiting for events
     std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
     waitForRecordToFinish(Record);
   }
