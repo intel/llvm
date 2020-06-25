@@ -4,8 +4,7 @@
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-// XFAIL:cpu
-// REQUIRES: host, cpu, accelerator
+// REQUIRES: host || cpu || accelerator
 
 #include <CL/sycl.hpp>
 #include <array>

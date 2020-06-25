@@ -4,7 +4,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-// XFAIL: cuda
+// XFAIL: cuda && gpu
 #include <CL/sycl.hpp>
 
 #include <cassert>

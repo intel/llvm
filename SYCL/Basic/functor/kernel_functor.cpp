@@ -3,7 +3,7 @@
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// REQUIRES: cpu, host, accelerator
+// REQUIRES: cpu || host || accelerator
 
 //==--- kernel_functor.cpp - Functors as SYCL kernel test ------------------==//
 //
