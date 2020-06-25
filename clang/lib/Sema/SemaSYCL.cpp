@@ -825,23 +825,17 @@ static void VisitRecordHelper(CXXRecordDecl *Owner,
                               clang::CXXRecordDecl::base_class_range Range,
                               Handlers &... handlers) {
   for (const auto &Base : Range) {
+    (void)std::initializer_list<int>{(handlers.enterField(Owner, Base), 0)...};
     QualType BaseTy = Base.getType();
     if (Util::isSyclAccessorType(BaseTy)) {
       (void)std::initializer_list<int>{
-          (handlers.enterField(Owner, Base), 0)...};
-      (void)std::initializer_list<int>{
           (handlers.handleSyclAccessorType(Base, BaseTy), 0)...};
-      (void)std::initializer_list<int>{
-          (handlers.leaveField(Owner, Base), 0)...};
     } else if (Util::isSyclStreamType(BaseTy)) {
       (void)std::initializer_list<int>{
-          (handlers.enterField(Owner, Base), 0)...};
-      (void)std::initializer_list<int>{
           (handlers.handleSyclStreamType(Base, BaseTy), 0)...};
-      (void)std::initializer_list<int>{
-          (handlers.leaveField(Owner, Base), 0)...};
     } else
       VisitRecord(Owner, Base, BaseTy->getAsCXXRecordDecl(), handlers...);
+    (void)std::initializer_list<int>{(handlers.leaveField(Owner, Base), 0)...};
   }
 }
 
