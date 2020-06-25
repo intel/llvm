@@ -24,37 +24,37 @@ namespace clang {
 namespace targets {
 
 static const unsigned SPIRAddrSpaceMap[] = {
-    0,  // Default
-    1,  // opencl_global
-    3,  // opencl_local
-    2,  // opencl_constant
-    0,  // opencl_private
-    4,  // opencl_generic
-    11, // opencl_global_device
-    12, // opencl_global_host
-    0,  // cuda_device
-    0,  // cuda_constant
-    0,  // cuda_shared
-    0,  // ptr32_sptr
-    0,  // ptr32_uptr
-    0   // ptr64
+    0, // Default
+    1, // opencl_global
+    3, // opencl_local
+    2, // opencl_constant
+    0, // opencl_private
+    4, // opencl_generic
+    5, // opencl_global_device
+    6, // opencl_global_host
+    0, // cuda_device
+    0, // cuda_constant
+    0, // cuda_shared
+    0, // ptr32_sptr
+    0, // ptr32_uptr
+    0  // ptr64
 };
 
 static const unsigned SYCLAddrSpaceMap[] = {
-    4,  // Default
-    1,  // opencl_global
-    3,  // opencl_local
-    2,  // opencl_constant
-    0,  // opencl_private
-    4,  // opencl_generic
-    11, // opencl_global_device
-    12, // opencl_global_host
-    0,  // cuda_device
-    0,  // cuda_constant
-    0,  // cuda_shared
-    0,  // ptr32_sptr
-    0,  // ptr32_uptr
-    0   // ptr64
+    4, // Default
+    1, // opencl_global
+    3, // opencl_local
+    2, // opencl_constant
+    0, // opencl_private
+    4, // opencl_generic
+    5, // opencl_global_device
+    6, // opencl_global_host
+    0, // cuda_device
+    0, // cuda_constant
+    0, // cuda_shared
+    0, // ptr32_sptr
+    0, // ptr32_uptr
+    0  // ptr64
 };
 
 class LLVM_LIBRARY_VISIBILITY SPIRTargetInfo : public TargetInfo {

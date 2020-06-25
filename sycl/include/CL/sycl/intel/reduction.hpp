@@ -1001,8 +1001,8 @@ reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
 
 /// Creates and returns an object implementing the reduction functionality.
 /// Accepts 3 arguments: the accessor to buffer to where the computed reduction
-/// must be stored \param Acc, identity value \param Identity, and the
-/// binary operation that must be used in the reduction \param Combiner.
+/// must be stored \param Acc, identity value \param Identity, and the binary
+/// operation used in the reduction.
 template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
           access::placeholder IsPH>
 detail::reduction_impl<T, BinaryOperation, Dims, false, AccMode, IsPH>
@@ -1015,8 +1015,7 @@ reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
 
 /// Creates and returns an object implementing the reduction functionality.
 /// Accepts 2 arguments: the accessor to buffer to where the computed reduction
-/// must be stored \param Acc and the binary operation that must be used
-/// in the reduction \param Combiner.
+/// must be stored \param Acc and the binary operation used in the reduction.
 /// The identity value is not passed to this version as it is statically known.
 template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
           access::placeholder IsPH>
@@ -1032,37 +1031,27 @@ reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
 
 /// Creates and returns an object implementing the reduction functionality.
 /// Accepts 3 arguments: the reference to the reduction variable to where
-/// the computed reduction must be stored \param VarRef, identity value
-/// \param Identity, and the binary operation that must be used
-/// in the reduction \param Combiner.
+/// the computed reduction must be stored \param VarPtr, identity value
+/// \param Identity, and the binary operation used in the reduction.
 template <typename T, class BinaryOperation>
-detail::reduction_impl<T, BinaryOperation, 0, true, access::mode::read_write,
-                       access::placeholder::true_t>
-reduction(T *VarPtr, const T &Identity, BinaryOperation Combiner) {
-  // The Combiner argument was needed only to define the BinaryOperation param.
-  (void)Combiner;
+detail::reduction_impl<T, BinaryOperation, 0, true, access::mode::read_write>
+reduction(T *VarPtr, const T &Identity, BinaryOperation) {
   return detail::reduction_impl<T, BinaryOperation, 0, true,
-                                access::mode::read_write,
-                                access::placeholder::true_t>(VarPtr, Identity);
+                                access::mode::read_write>(VarPtr, Identity);
 }
 
 /// Creates and returns an object implementing the reduction functionality.
-/// Accepts 3 arguments: the reference to the reduction variable to where
-/// the computed reduction must be stored \param VarRef, identity value
-/// \param Identity, and the binary operation that must be used
-/// in the reduction \param Combiner.
+/// Accepts 2 arguments: the reference to the reduction variable, to where
+/// the computed reduction must be stored \param VarPtr, and the binary
+/// operation used in the reduction.
 /// The identity value is not passed to this version as it is statically known.
 template <typename T, class BinaryOperation>
 detail::enable_if_t<detail::IsKnownIdentityOp<T, BinaryOperation>::value,
                     detail::reduction_impl<T, BinaryOperation, 0, true,
-                                           access::mode::read_write,
-                                           access::placeholder::true_t>>
-reduction(T *VarPtr, BinaryOperation Combiner) {
-  // The Combiner argument was needed only to define the BinaryOperation param.
-  (void)Combiner;
+                                           access::mode::read_write>>
+reduction(T *VarPtr, BinaryOperation) {
   return detail::reduction_impl<T, BinaryOperation, 0, true,
-                                access::mode::read_write,
-                                access::placeholder::true_t>(VarPtr);
+                                access::mode::read_write>(VarPtr);
 }
 
 } // namespace intel

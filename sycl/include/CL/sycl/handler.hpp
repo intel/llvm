@@ -983,7 +983,7 @@ public:
                                           RWAcc);
     this->finalize();
 
-    // Copy from RWAcc to some temp memory.
+    // Copy from RWAcc to user's reduction accessor.
     handler CopyHandler(QueueCopy, MIsHost);
     CopyHandler.saveCodeLoc(MCodeLoc);
 #ifndef __SYCL_DEVICE_ONLY__
