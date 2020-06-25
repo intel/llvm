@@ -212,7 +212,7 @@ void test5() {
   {
     auto Acc = Buffer2.get_access<mode::read>();
 
-    for (size_t Idx =0; Idx < Acc.get_count(); ++Idx) {
+    for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx) {
       std::cout << "Second buffer [" << Idx << "] = " << Acc[Idx] << std::endl;
       assert(Acc[Idx] == 123);
     }

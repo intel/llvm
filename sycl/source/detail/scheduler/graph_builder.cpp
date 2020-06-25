@@ -711,8 +711,10 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     bool isSameCtx = false;
 
     {
-      const QueueImplPtr &QueueForAlloca = isInteropHostTask(NewCmd) ?
-          static_cast<detail::CGHostTask &>(NewCmd->getCG()).MQueue : Queue;
+      const QueueImplPtr &QueueForAlloca =
+          isInteropHostTask(NewCmd)
+              ? static_cast<detail::CGHostTask &>(NewCmd->getCG()).MQueue
+              : Queue;
 
       Record = getOrInsertMemObjRecord(QueueForAlloca, Req);
       markModifiedIfWrite(Record, Req);
