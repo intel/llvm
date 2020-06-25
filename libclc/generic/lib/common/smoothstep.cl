@@ -23,7 +23,7 @@
 #include <clc/clc.h>
 #include <spirv/spirv.h>
 
-#include "../clcmacro.h"
+#include <clcmacro.h>
 
 _CLC_OVERLOAD _CLC_DEF float smoothstep(float edge0, float edge1, float x) {
   return __spirv_ocl_smoothstep(edge0, edge1, x);

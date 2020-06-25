@@ -126,11 +126,8 @@ bool llvm::ConstantFoldTerminator(BasicBlock *BB, bool DeleteDeadConditions,
       BasicBlock *OldDest     = Cond->getZExtValue() ? Dest2 : Dest1;
 
       // Let the basic block know that we are letting go of it.  Based on this,
-      // it will adjust its PHI nodes.
-      SmallVector<WeakTrackingVH, 8> MaybeDeadInstrs;
-      OldDest->removePredecessor(BB, false, &MaybeDeadInstrs);
-      RecursivelyDeleteTriviallyDeadInstructionsPermissive(MaybeDeadInstrs,
-                                                           TLI);
+      // it will adjust it's PHI nodes.
+      OldDest->removePredecessor(BB);
 
       // Replace the conditional branch with an unconditional one.
       Builder.CreateBr(Destination);
@@ -473,8 +470,8 @@ bool llvm::RecursivelyDeleteTriviallyDeadInstructionsPermissive(
     MemorySSAUpdater *MSSAU) {
   unsigned S = 0, E = DeadInsts.size(), Alive = 0;
   for (; S != E; ++S) {
-    auto *I = dyn_cast<Instruction>(DeadInsts[S]);
-    if (!I || !isInstructionTriviallyDead(I)) {
+    auto *I = cast<Instruction>(DeadInsts[S]);
+    if (!isInstructionTriviallyDead(I)) {
       DeadInsts[S] = nullptr;
       ++Alive;
     }
@@ -1988,6 +1985,18 @@ CallInst *llvm::createCallMatchingInvoke(InvokeInst *II) {
   NewCall->setAttributes(II->getAttributes());
   NewCall->setDebugLoc(II->getDebugLoc());
   NewCall->copyMetadata(*II);
+
+  // If the invoke had profile metadata, try converting them for CallInst.
+  uint64_t TotalWeight;
+  if (NewCall->extractProfTotalWeight(TotalWeight)) {
+    // Set the total weight if it fits into i32, otherwise reset.
+    MDBuilder MDB(NewCall->getContext());
+    auto NewWeights = uint32_t(TotalWeight) != TotalWeight
+                          ? nullptr
+                          : MDB.createBranchWeights({uint32_t(TotalWeight)});
+    NewCall->setMetadata(LLVMContext::MD_prof, NewWeights);
+  }
+
   return NewCall;
 }
 

@@ -224,6 +224,7 @@ void Writer::layoutMemory() {
     log("mem: stack base  = " + Twine(memoryPtr));
     memoryPtr += config->zStackSize;
     auto *sp = cast<DefinedGlobal>(WasmSym::stackPointer);
+    assert(sp->global->global.InitExpr.Opcode == WASM_OPCODE_I32_CONST);
     sp->global->global.InitExpr.Value.Int32 = memoryPtr;
     log("mem: stack top   = " + Twine(memoryPtr));
   };
@@ -256,10 +257,13 @@ void Writer::layoutMemory() {
 
     if (WasmSym::tlsSize && seg->name == ".tdata") {
       auto *tlsSize = cast<DefinedGlobal>(WasmSym::tlsSize);
+      assert(tlsSize->global->global.InitExpr.Opcode == WASM_OPCODE_I32_CONST);
       tlsSize->global->global.InitExpr.Value.Int32 = seg->size;
 
       auto *tlsAlign = cast<DefinedGlobal>(WasmSym::tlsAlign);
-      tlsAlign->global->global.InitExpr.Value.Int32 = 1U << seg->alignment;
+      assert(tlsAlign->global->global.InitExpr.Opcode == WASM_OPCODE_I32_CONST);
+      tlsAlign->global->global.InitExpr.Value.Int32 = int64_t{1}
+                                                      << seg->alignment;
     }
   }
 
@@ -909,6 +913,9 @@ void Writer::createCallCtorsFunction() {
     for (const WasmInitEntry &f : initFunctions) {
       writeU8(os, WASM_OPCODE_CALL, "CALL");
       writeUleb128(os, f.sym->getFunctionIndex(), "function index");
+      for (size_t i = 0; i < f.sym->signature->Returns.size(); i++) {
+        writeU8(os, WASM_OPCODE_DROP, "DROP");
+      }
     }
     writeU8(os, WASM_OPCODE_END, "END");
   }
@@ -973,8 +980,8 @@ void Writer::calculateInitFunctions() {
       if (sym->isDiscarded())
         continue;
       assert(sym->isLive());
-      if (*sym->signature != WasmSignature{{}, {}})
-        error("invalid signature for init func: " + toString(*sym));
+      if (sym->signature->Params.size() != 0)
+        error("constructor functions cannot take arguments: " + toString(*sym));
       LLVM_DEBUG(dbgs() << "initFunctions: " << toString(*sym) << "\n");
       initFunctions.emplace_back(WasmInitEntry{sym, f.Priority});
     }
