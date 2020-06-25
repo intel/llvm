@@ -1,4 +1,4 @@
-//===- TestBufferPlacement.cpp - Test for buffer placement 0----*- C++ -*-===//
+//===- TestBufferPlacement.cpp - Test for buffer placement ------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -21,17 +21,22 @@
 using namespace mlir;
 
 namespace {
-/// This pass tests the computeAllocPosition helper method and two provided
-/// operation converters, FunctionAndBlockSignatureConverter and
-/// BufferAssignmentReturnOpConverter. Furthermore, this pass converts linalg
-/// operations on tensors to linalg operations on buffers to prepare them for
-/// the BufferPlacement pass that can be applied afterwards.
+/// This pass tests the computeAllocPosition helper method and buffer assignment
+/// operation converters. Furthermore, this pass converts linalg operations on
+/// tensors to linalg operations on buffers to prepare them for the
+/// BufferPlacement pass that can be applied afterwards.
+/// `allowMemrefFunctionResults` informs the buffer placement to allow functions
+/// that have memref typed results. Buffer assignment operation converters will
+/// be adapted respectively. It will also allow memref typed results to escape
+/// from the deallocation.
+template <bool allowMemrefFunctionResults>
 struct TestBufferPlacementPreparationPass
-    : mlir::PassWrapper<TestBufferPlacementPreparationPass,
-                        OperationPass<ModuleOp>> {
+    : mlir::PassWrapper<
+          TestBufferPlacementPreparationPass<allowMemrefFunctionResults>,
+          OperationPass<ModuleOp>> {
 
-  /// Converts tensor-type generic linalg operations to memref ones using buffer
-  /// assignment.
+  /// Converts tensor-type generic linalg operations to memref ones using
+  /// buffer assignment.
   class GenericOpConverter
       : public BufferAssignmentOpConversionPattern<linalg::GenericOp> {
   public:
@@ -104,19 +109,14 @@ struct TestBufferPlacementPreparationPass
   void populateTensorLinalgToBufferLinalgConversionPattern(
       MLIRContext *context, BufferAssignmentPlacer *placer,
       TypeConverter *converter, OwningRewritePatternList *patterns) {
-    // clang-format off
-    patterns->insert<
-                   BufferAssignmentCallOpConverter,
-                   FunctionAndBlockSignatureConverter,
-                   GenericOpConverter,
-                   BufferAssignmentReturnOpConverter<
-                      ReturnOp, ReturnOp, linalg::CopyOp>
-    >(context, placer, converter);
-    // clang-format on
+    populateWithBufferAssignmentOpConversionPatterns<
+        mlir::ReturnOp, mlir::ReturnOp, linalg::CopyOp,
+        allowMemrefFunctionResults>(context, placer, converter, patterns);
+    patterns->insert<GenericOpConverter>(context, placer, converter);
   }
 
   void runOnOperation() override {
-    MLIRContext &context = getContext();
+    MLIRContext &context = this->getContext();
     ConversionTarget target(context);
     BufferAssignmentTypeConverter converter;
 
@@ -124,40 +124,35 @@ struct TestBufferPlacementPreparationPass
     target.addLegalDialect<StandardOpsDialect>();
 
     // Mark all Linalg operations illegal as long as they work on tensors.
-    auto isIllegalType = [&](Type type) { return !converter.isLegal(type); };
     auto isLegalOperation = [&](Operation *op) {
-      return llvm::none_of(op->getOperandTypes(), isIllegalType) &&
-             llvm::none_of(op->getResultTypes(), isIllegalType);
+      return converter.isLegal(op);
     };
-    target.addDynamicallyLegalDialect<linalg::LinalgDialect>(
-        Optional<ConversionTarget::DynamicLegalityCallbackFn>(
-            isLegalOperation));
+    target.addDynamicallyLegalDialect<linalg::LinalgDialect>(isLegalOperation);
 
     // Mark Standard Return operations illegal as long as one operand is tensor.
     target.addDynamicallyLegalOp<mlir::ReturnOp>([&](mlir::ReturnOp returnOp) {
-      return llvm::none_of(returnOp.getOperandTypes(), isIllegalType);
+      return converter.isLegal(returnOp.getOperandTypes());
     });
 
     // Mark Standard Call Operation illegal as long as it operates on tensor.
-    target.addDynamicallyLegalOp<mlir::CallOp>([&](mlir::CallOp callOp) {
-      return llvm::none_of(callOp.getOperandTypes(), isIllegalType) &&
-             llvm::none_of(callOp.getResultTypes(), isIllegalType);
-    });
+    target.addDynamicallyLegalOp<mlir::CallOp>(
+        [&](mlir::CallOp callOp) { return converter.isLegal(callOp); });
 
     // Mark the function whose arguments are in tensor-type illegal.
     target.addDynamicallyLegalOp<FuncOp>([&](FuncOp funcOp) {
-      return converter.isSignatureLegal(funcOp.getType());
+      return converter.isSignatureLegal(funcOp.getType()) &&
+             converter.isLegal(&funcOp.getBody());
     });
 
     // Walk over all the functions to apply buffer assignment.
-    getOperation().walk([&](FuncOp function) -> WalkResult {
+    this->getOperation().walk([&](FuncOp function) -> WalkResult {
       OwningRewritePatternList patterns;
       BufferAssignmentPlacer placer(function);
       populateTensorLinalgToBufferLinalgConversionPattern(
           &context, &placer, &converter, &patterns);
 
       // Applying full conversion
-      return applyFullConversion(function, target, patterns, &converter);
+      return applyFullConversion(function, target, patterns);
     });
   };
 };
@@ -165,9 +160,18 @@ struct TestBufferPlacementPreparationPass
 
 namespace mlir {
 void registerTestBufferPlacementPreparationPass() {
-  PassRegistration<TestBufferPlacementPreparationPass>(
+  PassRegistration<
+      TestBufferPlacementPreparationPass</*allowMemrefFunctionResults=*/false>>(
       "test-buffer-placement-preparation",
       "Tests buffer placement helper methods including its "
       "operation-conversion patterns");
+}
+
+void registerTestPreparationPassWithAllowedMemrefResults() {
+  PassRegistration<
+      TestBufferPlacementPreparationPass</*allowMemrefFunctionResults=*/true>>(
+      "test-buffer-placement-preparation-with-allowed-memref-results",
+      "Tests the helper operation converters of buffer placement for allowing "
+      "functions to have memref typed results.");
 }
 } // end namespace mlir

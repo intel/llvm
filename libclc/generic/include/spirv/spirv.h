@@ -146,22 +146,13 @@
 /* 6.11.2.1 Floating-point macros */
 #include <clc/float/definitions.h>
 
-/* 6.11.3 Integer Functions */
-#include <spirv/integer/clz.h>
-#include <spirv/integer/popcount.h>
-#include <spirv/integer/rotate.h>
-
 /* 6.11.3 Integer Definitions */
 #include <clc/integer/definitions.h>
 
-/* 6.11.2 and 6.11.3 Shared Integer/Math Functions */
-#include <spirv/shared/vload.h>
-#include <spirv/shared/vstore.h>
-
 /* 6.11.4 Common Functions */
 #include <spirv/common/degrees.h>
-#include <spirv/common/radians.h>
 #include <spirv/common/mix.h>
+#include <spirv/common/radians.h>
 #include <spirv/common/sign.h>
 #include <spirv/common/smoothstep.h>
 #include <spirv/common/step.h>
@@ -176,40 +167,20 @@
 #include <spirv/geometric/length.h>
 #include <spirv/geometric/normalize.h>
 
-/* 6.11.6 Relational Functions */
-#include <spirv/relational/all.h>
-#include <spirv/relational/any.h>
-#include <spirv/relational/bitselect.h>
-#include <spirv/relational/isequal.h>
-#include <spirv/relational/isfinite.h>
-#include <spirv/relational/isgreater.h>
-#include <spirv/relational/isgreaterequal.h>
-#include <spirv/relational/isinf.h>
-#include <spirv/relational/isless.h>
-#include <spirv/relational/islessequal.h>
-#include <spirv/relational/islessgreater.h>
-#include <spirv/relational/isnan.h>
-#include <spirv/relational/isnormal.h>
-#include <spirv/relational/isnotequal.h>
-#include <spirv/relational/isordered.h>
-#include <spirv/relational/isunordered.h>
-#include <spirv/relational/select.h>
-#include <spirv/relational/signbit.h>
-
 /* 6.11.11 Atomic Functions */
 #include <spirv/atomic/atomic_add.h>
 #include <spirv/atomic/atomic_and.h>
 #include <spirv/atomic/atomic_cmpxchg.h>
 #include <spirv/atomic/atomic_dec.h>
 #include <spirv/atomic/atomic_inc.h>
+#include <spirv/atomic/atomic_load.h>
 #include <spirv/atomic/atomic_max.h>
 #include <spirv/atomic/atomic_min.h>
 #include <spirv/atomic/atomic_or.h>
+#include <spirv/atomic/atomic_store.h>
 #include <spirv/atomic/atomic_sub.h>
 #include <spirv/atomic/atomic_xchg.h>
 #include <spirv/atomic/atomic_xor.h>
-#include <spirv/atomic/atomic_load.h>
-#include <spirv/atomic/atomic_store.h>
 
 /* cl_khr extension atomics are omitted from __spirv */
 

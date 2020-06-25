@@ -120,26 +120,26 @@ static bool queryLevelZero(cl_device_type deviceType, cl_uint &deviceCount,
   ze_result_t zeResult = zeInit(ZE_INIT_FLAG_NONE);
   if (zeResult != ZE_RESULT_SUCCESS) {
     msg = "ERROR: Level Zero initialization error";
-    return false;
+    return true;
   }
 
   uint32_t zeDriverCount = 0;
   zeResult = zeDriverGet(&zeDriverCount, nullptr);
   if (zeResult != ZE_RESULT_SUCCESS) {
     msg = "ERROR: Level Zero error querying driver count";
-    return false;
+    return true;
   }
 
   if (zeDriverCount == 0) {
     msg = "ERROR: Level Zero no driver found";
-    return false;
+    return true;
   }
 
   ze_driver_handle_t zeDriver;
   zeResult = zeDriverGet(&zeDriverCount, &zeDriver);
   if (zeResult != ZE_RESULT_SUCCESS) {
     msg = "ERROR: Level Zero error querying driver";
-    return false;
+    return true;
   }
 
   switch (deviceType) {
@@ -150,7 +150,7 @@ static bool queryLevelZero(cl_device_type deviceType, cl_uint &deviceCount,
     zeResult = zeDeviceGet(zeDriver, &zeDeviceCount, nullptr);
     if (zeResult != ZE_RESULT_SUCCESS) {
       msg = "ERROR: Level Zero error querying device count";
-      return false;
+      return true;
     }
     deviceCount = static_cast<cl_uint>(zeDeviceCount);
     msg = "level zero ";

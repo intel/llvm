@@ -325,6 +325,8 @@ public:
     return Table.slice(0, Size);
   }
 
+  Optional<DynRegionInfo> getDynSymRegion() const { return DynSymRegion; }
+
   Elf_Sym_Range dynamic_symbols() const {
     if (!DynSymRegion)
       return Elf_Sym_Range();
@@ -1082,6 +1084,9 @@ ELFDumper<ELFT>::getRelocationTarget(const Elf_Shdr *SymTab,
         Obj->getSection(Sym, SymTab, ShndxTable);
     if (!SecOrErr)
       return SecOrErr.takeError();
+    // A section symbol describes the section at index 0.
+    if (*SecOrErr == nullptr)
+      return std::make_pair(Sym, "");
 
     Expected<StringRef> NameOrErr = Obj->getSectionName(*SecOrErr);
     if (!NameOrErr)
@@ -1797,6 +1802,7 @@ static const EnumEntry<unsigned> ElfHeaderAMDGPUFlags[] = {
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1010),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1011),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1012),
+  LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1030),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_XNACK),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_SRAM_ECC)
 };
@@ -2712,6 +2718,40 @@ template <typename ELFT> void ELFDumper<ELFT>::printHashTable() {
   W.printList("Chains", HashTable->chains());
 }
 
+template <class ELFT>
+static Expected<ArrayRef<typename ELFT::Word>>
+getGnuHashTableChains(Optional<DynRegionInfo> DynSymRegion,
+                      const typename ELFT::GnuHash *GnuHashTable) {
+  if (!DynSymRegion)
+    return createError("no dynamic symbol table found");
+
+  ArrayRef<typename ELFT::Sym> DynSymTable =
+      DynSymRegion->getAsArrayRef<typename ELFT::Sym>();
+  size_t NumSyms = DynSymTable.size();
+  if (!NumSyms)
+    return createError("the dynamic symbol table is empty");
+
+  if (GnuHashTable->symndx < NumSyms)
+    return GnuHashTable->values(NumSyms);
+
+  // A normal empty GNU hash table section produced by linker might have
+  // symndx set to the number of dynamic symbols + 1 (for the zero symbol)
+  // and have dummy null values in the Bloom filter and in the buckets
+  // vector (or no values at all). It happens because the value of symndx is not
+  // important for dynamic loaders when the GNU hash table is empty. They just
+  // skip the whole object during symbol lookup. In such cases, the symndx value
+  // is irrelevant and we should not report a warning.
+  ArrayRef<typename ELFT::Word> Buckets = GnuHashTable->buckets();
+  if (!llvm::all_of(Buckets, [](typename ELFT::Word V) { return V == 0; }))
+    return createError("the first hashed symbol index (" +
+                       Twine(GnuHashTable->symndx) +
+                       ") is larger than the number of dynamic symbols (" +
+                       Twine(NumSyms) + ")");
+  // There is no way to represent an array of (dynamic symbols count - symndx)
+  // length.
+  return ArrayRef<typename ELFT::Word>();
+}
+
 template <typename ELFT>
 void ELFDumper<ELFT>::printGnuHashTable(const object::ObjectFile *Obj) {
   DictScope D(W, "GnuHashTable");
@@ -2739,44 +2779,17 @@ void ELFDumper<ELFT>::printGnuHashTable(const object::ObjectFile *Obj) {
   ArrayRef<Elf_Word> Buckets = GnuHashTable->buckets();
   W.printList("Buckets", Buckets);
 
-  if (!DynSymRegion) {
-    reportWarning(createError("unable to dump 'Values' for the SHT_GNU_HASH "
-                              "section: no dynamic symbol table found"),
-                  ObjF->getFileName());
+  Expected<ArrayRef<Elf_Word>> Chains =
+      getGnuHashTableChains<ELFT>(DynSymRegion, GnuHashTable);
+  if (!Chains) {
+    reportUniqueWarning(
+        createError("unable to dump 'Values' for the SHT_GNU_HASH "
+                    "section: " +
+                    toString(Chains.takeError())));
     return;
   }
 
-  size_t NumSyms = dynamic_symbols().size();
-  if (!NumSyms) {
-    reportWarning(createError("unable to dump 'Values' for the SHT_GNU_HASH "
-                              "section: the dynamic symbol table is empty"),
-                  ObjF->getFileName());
-    return;
-  }
-
-  if (GnuHashTable->symndx >= NumSyms) {
-    // A normal empty GNU hash table section produced by linker might have
-    // symndx set to the number of dynamic symbols + 1 (for the zero symbol)
-    // and have dummy null values in the Bloom filter and in the buckets
-    // vector. It happens because the value of symndx is not important for
-    // dynamic loaders when the GNU hash table is empty. They just skip the
-    // whole object during symbol lookup. In such cases, the symndx value is
-    // irrelevant and we should not report a warning.
-    bool IsEmptyHashTable =
-        llvm::all_of(Buckets, [](Elf_Word V) { return V == 0; });
-
-    if (!IsEmptyHashTable) {
-      reportWarning(
-          createError("the first hashed symbol index (" +
-                      Twine(GnuHashTable->symndx) +
-                      ") is larger than the number of dynamic symbols (" +
-                      Twine(NumSyms) + ")"),
-          ObjF->getFileName());
-      return;
-    }
-  }
-
-  W.printHexList("Values", GnuHashTable->values(NumSyms));
+  W.printHexList("Values", *Chains);
 }
 
 template <typename ELFT> void ELFDumper<ELFT>::printLoadName() {
@@ -3515,7 +3528,7 @@ void GNUStyle<ELFT>::printRelocation(const ELFO *Obj, const Elf_Sym *Sym,
   Obj->getRelocationTypeName(R.getType(Obj->isMips64EL()), RelocName);
   Fields[2].Str = RelocName.c_str();
 
-  if (Sym && (!SymbolName.empty() || Sym->getValue() != 0))
+  if (Sym)
     Fields[3].Str = to_string(format_hex_no_prefix(Sym->getValue(), Width));
 
   Fields[4].Str = std::string(SymbolName);
@@ -4308,7 +4321,7 @@ RelSymbol<ELFT> getSymbolForReloc(const ELFFile<ELFT> *Obj, StringRef FileName,
   if (!ErrOrName)
     return WarnAndReturn(Sym, toString(ErrOrName.takeError()));
 
-  return {Sym, maybeDemangle(*ErrOrName)};
+  return {Sym == FirstSym ? nullptr : Sym, maybeDemangle(*ErrOrName)};
 }
 } // namespace
 
@@ -4649,20 +4662,26 @@ void GNUStyle<ELFT>::printHashHistogram(const Elf_Hash &HashTable) {
 
 template <class ELFT>
 void GNUStyle<ELFT>::printGnuHashHistogram(const Elf_GnuHash &GnuHashTable) {
-  size_t NBucket = GnuHashTable.nbuckets;
-  ArrayRef<Elf_Word> Buckets = GnuHashTable.buckets();
-  unsigned NumSyms = this->dumper()->dynamic_symbols().size();
-  if (!NumSyms)
+  Expected<ArrayRef<Elf_Word>> ChainsOrErr = getGnuHashTableChains<ELFT>(
+      this->dumper()->getDynSymRegion(), &GnuHashTable);
+  if (!ChainsOrErr) {
+    this->reportUniqueWarning(
+        createError("unable to print the GNU hash table histogram: " +
+                    toString(ChainsOrErr.takeError())));
     return;
-  ArrayRef<Elf_Word> Chains = GnuHashTable.values(NumSyms);
+  }
+
+  ArrayRef<Elf_Word> Chains = *ChainsOrErr;
   size_t Symndx = GnuHashTable.symndx;
   size_t TotalSyms = 0;
   size_t MaxChain = 1;
   size_t CumulativeNonZero = 0;
 
+  size_t NBucket = GnuHashTable.nbuckets;
   if (Chains.empty() || NBucket == 0)
     return;
 
+  ArrayRef<Elf_Word> Buckets = GnuHashTable.buckets();
   std::vector<size_t> ChainLen(NBucket, 0);
   for (size_t B = 0; B < NBucket; B++) {
     if (!Buckets[B])

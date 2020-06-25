@@ -1,3 +1,14 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef __CLC_MACRO_H
+#define __CLC_MACRO_H
+
 #define _CLC_UNARY_VECTORIZE(DECLSPEC, RET_TYPE, FUNCTION, ARG1_TYPE)          \
   DECLSPEC RET_TYPE##2 FUNCTION(ARG1_TYPE##2 x) {                              \
     return (RET_TYPE##2)(FUNCTION(x.x), FUNCTION(x.y));                        \
@@ -177,3 +188,5 @@
 #define _CLC_DEFINE_UNARY_BUILTIN(RET_TYPE, FUNCTION, BUILTIN, ARG1_TYPE)      \
   _CLC_DEF _CLC_OVERLOAD RET_TYPE FUNCTION(ARG1_TYPE x) { return BUILTIN(x); } \
   _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, RET_TYPE, FUNCTION, ARG1_TYPE)
+
+#endif // !__CLC_MACRO_H

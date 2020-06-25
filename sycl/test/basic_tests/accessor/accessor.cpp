@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -13,10 +13,6 @@
 //===----------------------------------------------------------------------===//
 #include <CL/sycl.hpp>
 #include <cassert>
-
-namespace sycl {
-using namespace cl::sycl;
-}
 
 struct IdxID1 {
   int x;
@@ -75,9 +71,12 @@ int main() {
     assert(acc_src.get_count() == 2);
     assert(acc_src.get_range() == sycl::range<1>(2));
 
-    // Make sure that operator[] is defined for both size_t and id<1>.
+    // operator[] overload for size_t was intentionally removed
+    // to remove ambiguity, when passing item to operator[].
     // Implicit conversion from IdxSzT to size_t guarantees that no
-    // implicit conversion from size_t to id<1> will happen.
+    // implicit conversion from size_t to id<1> will happen,
+    // thus `acc_src[IdxSzT(0)]` will no longer compile.
+    // Replaced with acc_src[0].
     assert(acc_src[0] + acc_src[IdxID1(1)] == 10);
 
     acc_dst[0] = acc_src[0] + acc_src[IdxID1(0)];
@@ -92,6 +91,7 @@ int main() {
       data[i] = i;
     {
       sycl::buffer<int, 3> buf(data, sycl::range<3>(2, 3, 4));
+
       auto acc = buf.get_access<sycl::access::mode::read_write>();
 
       assert(!acc.is_placeholder());
@@ -399,7 +399,6 @@ int main() {
       sycl::accessor<int, 1, sycl::access::mode::read_write,
                      sycl::access::target::global_buffer>
           acc3(buf3, cgh, sycl::range<1>(1));
-
       cgh.single_task<class acc_alloc_buf>([=]() {
         acc1 *= 2;
         acc2[0] *= 2;
@@ -420,5 +419,78 @@ int main() {
     assert(acc4 == 2);
     assert(acc5[0] == 4);
     assert(acc6[0] == 6);
+  }
+
+  // Constant buffer accessor
+  {
+    try {
+      int data = -1;
+      int cnst = 399;
+
+      {
+        sycl::buffer<int, 1> d(&data, sycl::range<1>(1));
+        sycl::buffer<int, 1> c(&cnst, sycl::range<1>(1));
+
+        sycl::queue queue;
+        queue.submit([&](sycl::handler &cgh) {
+          sycl::accessor<int, 1, sycl::access::mode::write,
+                         sycl::access::target::global_buffer>
+              D(d, cgh);
+          sycl::accessor<int, 1, sycl::access::mode::read,
+                         sycl::access::target::constant_buffer>
+              C(c, cgh);
+
+          cgh.single_task<class acc_with_const>([=]() {
+            D[0] = C[0];
+          });
+        });
+
+        auto host_acc = d.get_access<sycl::access::mode::read>();
+        assert(host_acc[0] == 399);
+      }
+
+    } catch (sycl::exception e) {
+      std::cout << "SYCL exception caught: " << e.what();
+      return 1;
+    }
+  }
+
+  // Placeholder accessor
+  {
+    try {
+      int data = -1;
+      int cnst = 399;
+
+      {
+        sycl::buffer<int, 1> d(&data, sycl::range<1>(1));
+        sycl::buffer<int, 1> c(&cnst, sycl::range<1>(1));
+
+        sycl::accessor<int, 1, sycl::access::mode::write,
+                       sycl::access::target::global_buffer,
+                       sycl::access::placeholder::true_t>
+            D(d);
+        sycl::accessor<int, 1, sycl::access::mode::read,
+                       sycl::access::target::constant_buffer,
+                       sycl::access::placeholder::true_t>
+            C(c);
+
+        sycl::queue queue;
+        queue.submit([&](sycl::handler &cgh) {
+          cgh.require(D);
+          cgh.require(C);
+
+          cgh.single_task<class placeholder_acc>([=]() {
+            D[0] = C[0];
+          });
+        });
+
+        auto host_acc = d.get_access<sycl::access::mode::read>();
+        assert(host_acc[0] == 399);
+      }
+
+    } catch (sycl::exception e) {
+      std::cout << "SYCL exception caught: " << e.what();
+      return 1;
+    }
   }
 }

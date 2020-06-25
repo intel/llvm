@@ -205,12 +205,17 @@ static SDValue getCopyFromParts(SelectionDAG &DAG, const SDLoc &DL,
                                 MVT PartVT, EVT ValueVT, const Value *V,
                                 Optional<CallingConv::ID> CC = None,
                                 Optional<ISD::NodeType> AssertOp = None) {
+  // Let the target assemble the parts if it wants to
+  const TargetLowering &TLI = DAG.getTargetLoweringInfo();
+  if (SDValue Val = TLI.joinRegisterPartsIntoValue(DAG, DL, Parts, NumParts,
+                                                   PartVT, ValueVT, CC))
+    return Val;
+
   if (ValueVT.isVector())
     return getCopyFromPartsVector(DAG, DL, Parts, NumParts, PartVT, ValueVT, V,
                                   CC);
 
   assert(NumParts > 0 && "No parts to assemble!");
-  const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   SDValue Val = Parts[0];
 
   if (NumParts > 1) {
@@ -512,6 +517,11 @@ static void getCopyToParts(SelectionDAG &DAG, const SDLoc &DL, SDValue Val,
                            const Value *V,
                            Optional<CallingConv::ID> CallConv = None,
                            ISD::NodeType ExtendKind = ISD::ANY_EXTEND) {
+  // Let the target split the parts if it wants to
+  const TargetLowering &TLI = DAG.getTargetLoweringInfo();
+  if (TLI.splitValueIntoRegisterParts(DAG, DL, Val, Parts, NumParts, PartVT,
+                                      CallConv))
+    return;
   EVT ValueVT = Val.getValueType();
 
   // Handle the vector case separately.
@@ -7196,7 +7206,7 @@ static SDValue getMemCmpLoad(const Value *PtrVal, MVT LoadVT,
     Type *LoadTy =
         Type::getIntNTy(PtrVal->getContext(), LoadVT.getScalarSizeInBits());
     if (LoadVT.isVector())
-      LoadTy = VectorType::get(LoadTy, LoadVT.getVectorNumElements());
+      LoadTy = FixedVectorType::get(LoadTy, LoadVT.getVectorNumElements());
 
     LoadInput = ConstantExpr::getBitCast(const_cast<Constant *>(LoadInput),
                                          PointerType::getUnqual(LoadTy));
@@ -9606,6 +9616,10 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
   SDLoc dl = SDB->getCurSDLoc();
   const DataLayout &DL = DAG.getDataLayout();
   SmallVector<ISD::InputArg, 16> Ins;
+
+  // In Naked functions we aren't going to save any registers.
+  if (F.hasFnAttribute(Attribute::Naked))
+    return;
 
   if (!FuncInfo->CanLowerReturn) {
     // Put in an sret pointer parameter before all the other parameters.

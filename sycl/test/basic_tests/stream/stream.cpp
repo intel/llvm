@@ -4,9 +4,6 @@
 // RUN: %GPU_RUN_ON_LINUX_PLACEHOLDER %t.out %GPU_CHECK_ON_LINUX_PLACEHOLDER
 // RUN: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
 
-// TODO: ptxas fatal   : Unresolved extern function '_Z18__spirv_SignBitSetf'
-// XFAIL: cuda
-
 //==------------------ stream.cpp - SYCL stream basic test -----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

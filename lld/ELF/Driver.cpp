@@ -1002,6 +1002,8 @@ static void readConfigs(opt::InputArgList &args) {
       getOldNewOptions(args, OPT_thinlto_object_suffix_replace_eq);
   config->thinLTOPrefixReplace =
       getOldNewOptions(args, OPT_thinlto_prefix_replace_eq);
+  config->thinLTOModulesToCompile =
+      args::getStrings(args, OPT_thinlto_single_module_eq);
   config->timeTraceEnabled = args.hasArg(OPT_time_trace);
   config->timeTraceGranularity =
       args::getInteger(args, OPT_time_trace_granularity, 500);
@@ -1186,7 +1188,8 @@ static void readConfigs(opt::InputArgList &args) {
   // -Bsymbolic-functions (if STT_FUNC), --dynamic-list.
   for (auto *arg : args.filtered(OPT_export_dynamic_symbol))
     config->dynamicList.push_back(
-        {arg->getValue(), /*isExternCpp=*/false, /*hasWildcard=*/true});
+        {arg->getValue(), /*isExternCpp=*/false,
+         /*hasWildcard=*/hasWildcard(arg->getValue())});
 
   for (auto *arg : args.filtered(OPT_version_script))
     if (Optional<std::string> path = searchScript(arg->getValue())) {
@@ -1973,7 +1976,10 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   // Likewise, --plugin-opt=emit-llvm and --plugin-opt=emit-asm are the
   // options to create output files in bitcode or assembly code
   // repsectively. No object files are generated.
-  if (config->thinLTOIndexOnly || config->emitLLVM || config->ltoEmitAsm)
+  // Also bail out here when only certain thinLTO modules are specified for
+  // compilation. The intermediate object file are the expected output.
+  if (config->thinLTOIndexOnly || config->emitLLVM || config->ltoEmitAsm ||
+      !config->thinLTOModulesToCompile.empty())
     return;
 
   // Apply symbol renames for -wrap.

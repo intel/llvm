@@ -1,6 +1,6 @@
-// RUN: mlir-tblgen -gen-op-decls -I %S/../../include %s | FileCheck %s --check-prefix=DECL --dump-input-on-failure
-// RUN: mlir-tblgen -gen-op-defs -I %S/../../include %s | FileCheck %s --check-prefix=DEF --dump-input-on-failure
-// RUN: mlir-tblgen -print-records -I %S/../../include %s | FileCheck %s --check-prefix=RECORD --dump-input-on-failure
+// RUN: mlir-tblgen -gen-op-decls -I %S/../../include %s | FileCheck %s --check-prefix=DECL
+// RUN: mlir-tblgen -gen-op-defs -I %S/../../include %s | FileCheck %s --check-prefix=DEF
+// RUN: mlir-tblgen -print-records -I %S/../../include %s | FileCheck %s --check-prefix=RECORD
 
 include "mlir/IR/OpBase.td"
 
@@ -33,7 +33,7 @@ def AOp : NS_Op<"a_op", []> {
 // Test verify method
 // ---
 
-// DEF:      LogicalResult AOpOperandAdaptor::verify
+// DEF:      LogicalResult AOpAdaptor::verify
 // DEF:      auto tblgen_aAttr = odsAttrs.get("aAttr");
 // DEF-NEXT: if (!tblgen_aAttr) return emitError(loc, "'test.a_op' op ""requires attribute 'aAttr'");
 // DEF:        if (!((some-condition))) return emitError(loc, "'test.a_op' op ""attribute 'aAttr' failed to satisfy constraint: some attribute kind");
@@ -118,7 +118,7 @@ def BOp : NS_Op<"b_op", []> {
 // Test common attribute kinds' constraints
 // ---
 
-// DEF-LABEL: BOpOperandAdaptor::verify
+// DEF-LABEL: BOpAdaptor::verify
 // DEF: if (!((true)))
 // DEF: if (!((tblgen_bool_attr.isa<BoolAttr>())))
 // DEF: if (!(((tblgen_i32_attr.isa<IntegerAttr>())) && ((tblgen_i32_attr.cast<IntegerAttr>().getType().isSignlessInteger(32)))))

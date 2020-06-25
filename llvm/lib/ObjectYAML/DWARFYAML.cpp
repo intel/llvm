@@ -30,6 +30,14 @@ SetVector<StringRef> DWARFYAML::Data::getUsedSectionNames() const {
     SecNames.insert("debug_aranges");
   if (!DebugRanges.empty())
     SecNames.insert("debug_ranges");
+  if (!DebugLines.empty())
+    SecNames.insert("debug_line");
+  if (!DebugAddr.empty())
+    SecNames.insert("debug_addr");
+  if (!AbbrevDecls.empty())
+    SecNames.insert("debug_abbrev");
+  if (!CompileUnits.empty())
+    SecNames.insert("debug_info");
   return SecNames;
 }
 
@@ -50,12 +58,13 @@ void MappingTraits<DWARFYAML::Data>::mapping(IO &IO, DWARFYAML::Data &DWARF) {
   IO.mapOptional("debug_gnu_pubtypes", DWARF.GNUPubTypes);
   IO.mapOptional("debug_info", DWARF.CompileUnits);
   IO.mapOptional("debug_line", DWARF.DebugLines);
+  IO.mapOptional("debug_addr", DWARF.DebugAddr);
   IO.setContext(&oldContext);
 }
 
 void MappingTraits<DWARFYAML::Abbrev>::mapping(IO &IO,
                                                DWARFYAML::Abbrev &Abbrev) {
-  IO.mapRequired("Code", Abbrev.Code);
+  IO.mapOptional("Code", Abbrev.Code);
   IO.mapRequired("Tag", Abbrev.Tag);
   IO.mapRequired("Children", Abbrev.Children);
   IO.mapRequired("Attributes", Abbrev.Attributes);
@@ -94,8 +103,8 @@ void MappingTraits<DWARFYAML::RangeEntry>::mapping(
 
 void MappingTraits<DWARFYAML::Ranges>::mapping(IO &IO,
                                                DWARFYAML::Ranges &DebugRanges) {
-  IO.mapRequired("Offset", DebugRanges.Offset);
-  IO.mapRequired("AddrSize", DebugRanges.AddrSize);
+  IO.mapOptional("Offset", DebugRanges.Offset);
+  IO.mapOptional("AddrSize", DebugRanges.AddrSize);
   IO.mapRequired("Entries", DebugRanges.Entries);
 }
 
@@ -173,6 +182,7 @@ void MappingTraits<DWARFYAML::LineTableOpcode>::mapping(
 
 void MappingTraits<DWARFYAML::LineTable>::mapping(
     IO &IO, DWARFYAML::LineTable &LineTable) {
+  IO.mapOptional("Format", LineTable.Format, dwarf::DWARF32);
   IO.mapRequired("Length", LineTable.Length);
   IO.mapRequired("Version", LineTable.Version);
   IO.mapRequired("PrologueLength", LineTable.PrologueLength);
@@ -187,6 +197,22 @@ void MappingTraits<DWARFYAML::LineTable>::mapping(
   IO.mapRequired("IncludeDirs", LineTable.IncludeDirs);
   IO.mapRequired("Files", LineTable.Files);
   IO.mapRequired("Opcodes", LineTable.Opcodes);
+}
+
+void MappingTraits<DWARFYAML::SegAddrPair>::mapping(
+    IO &IO, DWARFYAML::SegAddrPair &SegAddrPair) {
+  IO.mapOptional("Segment", SegAddrPair.Segment, 0);
+  IO.mapOptional("Address", SegAddrPair.Address, 0);
+}
+
+void MappingTraits<DWARFYAML::AddrTableEntry>::mapping(
+    IO &IO, DWARFYAML::AddrTableEntry &AddrTable) {
+  IO.mapOptional("Format", AddrTable.Format, dwarf::DWARF32);
+  IO.mapOptional("Length", AddrTable.Length);
+  IO.mapRequired("Version", AddrTable.Version);
+  IO.mapOptional("AddressSize", AddrTable.AddrSize);
+  IO.mapOptional("SegmentSelectorSize", AddrTable.SegSelectorSize, 0);
+  IO.mapOptional("Entries", AddrTable.SegAddrPairs);
 }
 
 void MappingTraits<DWARFYAML::InitialLength>::mapping(

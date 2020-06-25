@@ -395,9 +395,6 @@ void AsmPrinter::emitLinkage(const GlobalValue *GV, MCSymbol *GVSym) const {
   GlobalValue::LinkageTypes Linkage = GV->getLinkage();
   switch (Linkage) {
   case GlobalValue::CommonLinkage:
-    assert(!TM.getTargetTriple().isOSBinFormatXCOFF() &&
-           "CommonLinkage of XCOFF should not come to this path.");
-    LLVM_FALLTHROUGH;
   case GlobalValue::LinkOnceAnyLinkage:
   case GlobalValue::LinkOnceODRLinkage:
   case GlobalValue::WeakAnyLinkage:
@@ -421,29 +418,13 @@ void AsmPrinter::emitLinkage(const GlobalValue *GV, MCSymbol *GVSym) const {
     }
     return;
   case GlobalValue::ExternalLinkage:
-    if (MAI->hasDotExternDirective() && GV->isDeclaration())
-      OutStreamer->emitSymbolAttribute(GVSym, MCSA_Extern);
-    else
-      OutStreamer->emitSymbolAttribute(GVSym, MCSA_Global);
+    OutStreamer->emitSymbolAttribute(GVSym, MCSA_Global);
     return;
   case GlobalValue::PrivateLinkage:
-    return;
   case GlobalValue::InternalLinkage:
-    if (MAI->hasDotLGloblDirective())
-      OutStreamer->emitSymbolAttribute(GVSym, MCSA_LGlobal);
     return;
   case GlobalValue::ExternalWeakLinkage:
-    if (TM.getTargetTriple().isOSBinFormatXCOFF()) {
-      OutStreamer->emitSymbolAttribute(GVSym, MCSA_Weak);
-      return;
-    }
-    LLVM_FALLTHROUGH;
   case GlobalValue::AvailableExternallyLinkage:
-    if (MAI->hasDotExternDirective()) {
-      OutStreamer->emitSymbolAttribute(GVSym, MCSA_Extern);
-      return;
-    }
-    LLVM_FALLTHROUGH;
   case GlobalValue::AppendingLinkage:
     llvm_unreachable("Should never emit this");
   }
@@ -700,7 +681,8 @@ void AsmPrinter::emitFunctionHeader() {
   MF->setSection(getObjFileLowering().SectionForGlobal(&F, TM));
   OutStreamer->SwitchSection(MF->getSection());
 
-  emitVisibility(CurrentFnSym, F.getVisibility());
+  if (!MAI->hasVisibilityOnlyWithLinkage())
+    emitVisibility(CurrentFnSym, F.getVisibility());
 
   if (MAI->needsFunctionDescriptors() &&
       F.getLinkage() != GlobalValue::InternalLinkage)
@@ -1517,23 +1499,29 @@ bool AsmPrinter::doFinalization(Module &M) {
 
     MCSymbol *Name = getSymbol(&F);
     // Function getSymbol gives us the function descriptor symbol for XCOFF.
-    if (TM.getTargetTriple().isOSBinFormatXCOFF() && !F.isIntrinsic()) {
 
-      // Get the function entry point symbol.
-      MCSymbol *FnEntryPointSym = TLOF.getFunctionEntryPointSymbol(&F, TM);
-      if (cast<MCSymbolXCOFF>(FnEntryPointSym)->hasRepresentedCsectSet())
-        // Emit linkage for the function entry point.
-        emitLinkage(&F, FnEntryPointSym);
+    if (!TM.getTargetTriple().isOSBinFormatXCOFF()) {
+      GlobalValue::VisibilityTypes V = F.getVisibility();
+      if (V == GlobalValue::DefaultVisibility)
+        continue;
 
-      // Emit linkage for the function descriptor.
-      emitLinkage(&F, Name);
+      emitVisibility(Name, V, false);
+      continue;
     }
 
-    GlobalValue::VisibilityTypes V = F.getVisibility();
-    if (V == GlobalValue::DefaultVisibility)
+    if (F.isIntrinsic())
       continue;
 
-    emitVisibility(Name, V, false);
+    // Handle the XCOFF case.
+    // Variable `Name` is the function descriptor symbol (see above). Get the
+    // function entry point symbol.
+    MCSymbol *FnEntryPointSym = TLOF.getFunctionEntryPointSymbol(&F, TM);
+    if (cast<MCSymbolXCOFF>(FnEntryPointSym)->hasRepresentedCsectSet())
+      // Emit linkage for the function entry point.
+      emitLinkage(&F, FnEntryPointSym);
+
+    // Emit linkage for the function descriptor.
+    emitLinkage(&F, Name);
   }
 
   // Emit the remarks section contents.
@@ -3169,11 +3157,10 @@ GCMetadataPrinter *AsmPrinter::GetOrCreateGCPrinter(GCStrategy &S) {
 
   auto Name = S.getName();
 
-  for (GCMetadataPrinterRegistry::iterator
-         I = GCMetadataPrinterRegistry::begin(),
-         E = GCMetadataPrinterRegistry::end(); I != E; ++I)
-    if (Name == I->getName()) {
-      std::unique_ptr<GCMetadataPrinter> GMP = I->instantiate();
+  for (const GCMetadataPrinterRegistry::entry &GCMetaPrinter :
+       GCMetadataPrinterRegistry::entries())
+    if (Name == GCMetaPrinter.getName()) {
+      std::unique_ptr<GCMetadataPrinter> GMP = GCMetaPrinter.instantiate();
       GMP->S = &S;
       auto IterBool = GCMap.insert(std::make_pair(&S, std::move(GMP)));
       return IterBool.first->second.get();
@@ -3247,14 +3234,17 @@ void AsmPrinter::emitXRayTable() {
     InstMap = OutContext.getELFSection("xray_instr_map", ELF::SHT_PROGBITS,
                                        Flags, 0, GroupName,
                                        MCSection::NonUniqueID, LinkedToSym);
-    FnSledIndex = OutContext.getELFSection("xray_fn_idx", ELF::SHT_PROGBITS,
-                                           Flags | ELF::SHF_WRITE, 0, GroupName,
-                                           MCSection::NonUniqueID, LinkedToSym);
+
+    if (!TM.Options.XRayOmitFunctionIndex)
+      FnSledIndex = OutContext.getELFSection(
+          "xray_fn_idx", ELF::SHT_PROGBITS, Flags | ELF::SHF_WRITE, 0,
+          GroupName, MCSection::NonUniqueID, LinkedToSym);
   } else if (MF->getSubtarget().getTargetTriple().isOSBinFormatMachO()) {
     InstMap = OutContext.getMachOSection("__DATA", "xray_instr_map", 0,
                                          SectionKind::getReadOnlyWithRel());
-    FnSledIndex = OutContext.getMachOSection("__DATA", "xray_fn_idx", 0,
-                                             SectionKind::getReadOnlyWithRel());
+    if (!TM.Options.XRayOmitFunctionIndex)
+      FnSledIndex = OutContext.getMachOSection(
+          "__DATA", "xray_fn_idx", 0, SectionKind::getReadOnlyWithRel());
   } else {
     llvm_unreachable("Unsupported target");
   }
@@ -3297,11 +3287,13 @@ void AsmPrinter::emitXRayTable() {
   // that bound the instrumentation map as the range for a specific function.
   // Each entry here will be 2 * word size aligned, as we're writing down two
   // pointers. This should work for both 32-bit and 64-bit platforms.
-  OutStreamer->SwitchSection(FnSledIndex);
-  OutStreamer->emitCodeAlignment(2 * WordSizeBytes);
-  OutStreamer->emitSymbolValue(SledsStart, WordSizeBytes, false);
-  OutStreamer->emitSymbolValue(SledsEnd, WordSizeBytes, false);
-  OutStreamer->SwitchSection(PrevSection);
+  if (FnSledIndex) {
+    OutStreamer->SwitchSection(FnSledIndex);
+    OutStreamer->emitCodeAlignment(2 * WordSizeBytes);
+    OutStreamer->emitSymbolValue(SledsStart, WordSizeBytes, false);
+    OutStreamer->emitSymbolValue(SledsEnd, WordSizeBytes, false);
+    OutStreamer->SwitchSection(PrevSection);
+  }
   Sleds.clear();
 }
 

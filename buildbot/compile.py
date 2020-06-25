@@ -32,7 +32,7 @@ def do_compile(args):
         "deploy-opencl-aot",
         "-j", str(cpu_count)]
 
-    print(cmake_cmd)
+    print("[Cmake Command]: {}".format(" ".join(cmake_cmd)))
 
     subprocess.check_call(cmake_cmd, cwd=abs_obj_dir)
 
