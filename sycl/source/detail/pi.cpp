@@ -12,6 +12,7 @@
 /// \ingroup sycl_pi
 
 #include "context_impl.hpp"
+#include "llvm/Support/SYCLRTShared.h"
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>

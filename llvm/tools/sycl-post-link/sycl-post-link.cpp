@@ -118,7 +118,7 @@ struct ImagePropSaveInfo {
 };
 // Please update DeviceLibFuncMap if any item is added to or removed from
 // fallback device libraries in libdevice.
-static std::map<std::string, uint32_t> DeviceLibFuncMap = {
+static std::unordered_map<std::string, uint32_t> DeviceLibFuncMap = {
     {"__devicelib_acosf", cl_intel_devicelib_math},
     {"__devicelib_acoshf", cl_intel_devicelib_math},
     {"__devicelib_asinf", cl_intel_devicelib_math},
@@ -448,11 +448,10 @@ saveResultModules(std::vector<std::unique_ptr<Module>> &ResModules) {
 // fallback-complex:      0x8
 // fallback-complex-fp64: 0x10
 static uint32_t getDeviceLibBits(const std::string &FuncName) {
-
-  if (DeviceLibFuncMap.count(FuncName) == 0)
-    return 0;
-  else
-    return 0x1 << (DeviceLibFuncMap[FuncName] - cl_intel_devicelib_assert);
+  auto DeviceLibFuncIter = DeviceLibFuncMap.find(FuncName);
+  return ((DeviceLibFuncIter == DeviceLibFuncMap.end())
+              ? 0
+              : 0x1 << (DeviceLibFuncIter->second - cl_intel_devicelib_assert));
 }
 
 // For each device image module, we go through all functions which meets
@@ -460,16 +459,18 @@ static uint32_t getDeviceLibBits(const std::string &FuncName) {
 // 2. The function has SPIR_FUNC calling convention
 // 3. The function is declaration which means it doesn't have function body
 static uint32_t getModuleReqMask(const Module &M) {
+  // Device libraries will be enabled only for spir-v module.
+  if (M.getTargetTriple().substr(0, 7) != "spir64-")
+    return 0;
   // 0x1 means sycl runtime will link and load libsycl-fallback-assert.spv as
   // default. In fact, default link assert spv is not necessary but dramatic
   // perf regression is observed if we don't link any device library. The perf
   // regression is caused by a clang issue.
   uint32_t ReqMask = 0x1;
-  uint32_t DeviceLibBits = 0;
   for (const Function &SF : M) {
     if (SF.getName().startswith(DEVICELIB_FUNC_PREFIX) &&
         (SF.getCallingConv() == CallingConv::SPIR_FUNC) && SF.isDeclaration()) {
-      DeviceLibBits = getDeviceLibBits(SF.getName().str());
+      uint32_t DeviceLibBits = getDeviceLibBits(SF.getName().str());
       ReqMask |= DeviceLibBits;
     }
   }

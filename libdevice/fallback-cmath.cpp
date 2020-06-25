@@ -13,6 +13,8 @@
 // To support fallback device libraries on-demand loading, please update the
 // DeviceLibFuncMap in llvm/tools/sycl-post-link/sycl-post-link.cpp if you add
 // or remove any item in this file.
+// TODO: generate the DeviceLibFuncMap in sycl-post-link.cpp automatically
+// during the build based on libdevice to avoid manually sync.
 DEVICE_EXTERN_C
 float __devicelib_scalbnf(float x, int n) { return __spirv_ocl_ldexp(x, n); }
 

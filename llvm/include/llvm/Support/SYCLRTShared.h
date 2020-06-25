@@ -7,6 +7,12 @@
 //===----------------------------------------------------------------------===//
 #ifndef LLVM_SUPPORT_SYCLRTSHARED_H
 #define LLVM_SUPPORT_SYCLRTSHARED_H
+/// Device binary image property set names recognized by the SYCL runtime.
+/// Name must be consistent with
+/// PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS defined in
+/// PropertySetIO.h
+#define PI_PROPERTY_SET_SPEC_CONST_MAP "SYCL/specialization constants"
+#define PI_PROPERTY_SET_DEVICELIB_REQ_MASK "SYCL/devicelib req mask"
 namespace llvm {
 namespace util {
 namespace sycl {

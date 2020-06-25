@@ -644,13 +644,6 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 /// PTX 64-bit image <-> "nvptx64", 64-bit NVIDIA PTX device
 #define PI_DEVICE_BINARY_TARGET_NVPTX64 "nvptx64"
 
-/// Device binary image property set names recognized by the SYCL runtime.
-/// Name must be consistent with
-/// PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS defined in
-/// PropertySetIO.h
-#define PI_PROPERTY_SET_SPEC_CONST_MAP "SYCL/specialization constants"
-#define PI_PROPERTY_SET_DEVICELIB_REQ_MASK "SYCL/devicelib req mask"
-
 /// This struct is a record of the device binary information. If the Kind field
 /// denotes a portable binary type (SPIR-V or LLVM IR), the DeviceTargetSpec
 /// field can still be specific and denote e.g. FPGA target. It must match the
