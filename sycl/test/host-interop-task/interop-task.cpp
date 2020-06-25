@@ -180,9 +180,24 @@ void test3() {
   });
 }
 
+// Check that a single host-interop-task with a buffer will work
+void test4() {
+  buffer<int, 1> Buffer{BUFFER_SIZE};
+
+  queue Q;
+
+  Q.submit([&](handler &CGH) {
+    auto Acc = Buffer.get_access<mode::write>(CGH);
+    CGH.codeplay_host_task([=](interop_handle IH) {
+      // A no-op
+    });
+  });
+}
+
 int main() {
   test1();
   test2();
   test3();
+  test4();
   return 0;
 }
