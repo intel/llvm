@@ -8,8 +8,11 @@
 
 #include <spirv/spirv.h>
 
-#include <math/clc_sqrt.h>
+_CLC_OVERLOAD _CLC_DEF float __spirv_ocl_fast_normalize(float p) {
+  return __spirv_ocl_normalize(p);
+}
 
-#define __CLC_BUILTIN __clc_sqrt
-#define __CLC_FUNCTION __spirv_ocl_sqrt
-#include "unary_builtin.inc"
+#define __CLC_BODY <fast_normalize.inc>
+#define __FLOAT_ONLY
+#include <clc/geometric/floatn.inc>
+#undef __FLOAT_ONLY

@@ -6,10 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <spirv/spirv.h>
-
-#include <math/clc_sqrt.h>
-
-#define __CLC_BUILTIN __clc_sqrt
-#define __CLC_FUNCTION __spirv_ocl_sqrt
-#include "unary_builtin.inc"
+_CLC_OVERLOAD _CLC_DEF __CLC_FLOAT __spirv_ocl_fast_distance(__CLC_FLOATN p0,
+                                                             __CLC_FLOATN p1) {
+  return __spirv_ocl_fast_length(p0 - p1);
+}

@@ -6,10 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <spirv/spirv.h>
+#ifndef __CLC_SCALAR
 
-#include <math/clc_sqrt.h>
+// Only handle vector implementations
+_CLC_OVERLOAD _CLC_DEF __CLC_FLOATN __spirv_ocl_fast_normalize(__CLC_FLOATN p) {
+  __CLC_FLOAT l2 = __spirv_Dot(p, p);
+  return l2 == 0.0f ? p : p * __spirv_ocl_half_rsqrt(l2);
+}
 
-#define __CLC_BUILTIN __clc_sqrt
-#define __CLC_FUNCTION __spirv_ocl_sqrt
-#include "unary_builtin.inc"
+#endif
