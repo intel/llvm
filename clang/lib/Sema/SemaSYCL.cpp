@@ -797,8 +797,7 @@ static void VisitField(CXXRecordDecl *Owner, RangeTy &&Item, QualType ItemTy,
   else if (Util::isSyclSamplerType(ItemTy))
     KF_FOR_EACH(handleSyclSamplerType, Item, ItemTy);
   else if (ItemTy->isStructureOrClassType())
-    VisitRecord(Owner, Item, ItemTy->getAsCXXRecordDecl(),
-                         handlers...);
+    VisitRecord(Owner, Item, ItemTy->getAsCXXRecordDecl(), handlers...);
   else if (ItemTy->isArrayType())
     VisitArrayElements(Item, ItemTy, handlers...);
 }
@@ -1669,8 +1668,8 @@ public:
 
   using SyclKernelFieldHandler::enterArray;
   using SyclKernelFieldHandler::enterField;
-  using SyclKernelFieldHandler::leaveField;
   using SyclKernelFieldHandler::handleSyclSamplerType;
+  using SyclKernelFieldHandler::leaveField;
 };
 
 class SyclKernelIntHeaderCreator
