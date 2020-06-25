@@ -1382,9 +1382,9 @@ static unsigned ArgInfoAddressSpace(LangAS AS) {
   case LangAS::opencl_generic:
     return 4; // Not in SPIR 2.0 specs.
   case LangAS::opencl_global_device:
-    return 11;
+    return 5;
   case LangAS::opencl_global_host:
-    return 12;
+    return 6;
   default:
     return 0; // Assume private.
   }
