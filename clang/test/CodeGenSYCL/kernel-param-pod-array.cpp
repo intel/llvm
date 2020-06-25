@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -I %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// XFAIL: *
 
 // This test checks a kernel with an argument that is a POD array.
 

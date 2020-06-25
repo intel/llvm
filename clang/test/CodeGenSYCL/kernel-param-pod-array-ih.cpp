@@ -1,5 +1,6 @@
 // RUN: %clang -I %S/Inputs -fsycl-device-only -Xclang -fsycl-int-header=%t.h %s -c -o %T/kernel.spv
 // RUN: FileCheck -input-file=%t.h %s
+// XFAIL: *
 
 // This test checks the integration header generated for a kernel
 // with an argument that is a POD array.

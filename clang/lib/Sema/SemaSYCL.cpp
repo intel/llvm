@@ -786,11 +786,16 @@ static void VisitField(CXXRecordDecl *Owner, RangeTy &&Item, QualType ItemTy,
     KF_FOR_EACH(handleSyclAccessorType, Item, ItemTy);
   else if (Util::isSyclStreamType(ItemTy))
     KF_FOR_EACH(handleSyclStreamType, Item, ItemTy);
+  else if (Util::isSyclSamplerType(ItemTy))
+    KF_FOR_EACH(handleSyclSamplerType, Item, ItemTy);
   else if (ItemTy->isStructureOrClassType())
     VisitAccessorWrapper(Owner, Item, ItemTy->getAsCXXRecordDecl(),
                          handlers...);
+#if 0
+  // FIXME Enable this when structs are replaced by their fields
   else if (ItemTy->isArrayType())
     VisitArrayElements(Item, ItemTy, handlers...);
+#endif
 }
 
 template <typename RangeTy, typename... Handlers>
