@@ -76,6 +76,10 @@ public:
   /// stream class.
   static bool isSyclStreamType(const QualType &Ty);
 
+  /// Checks whether given clang type is a full specialization of the SYCL
+  /// half class.
+  static bool isSyclHalfType(const QualType &Ty);
+
   /// Checks whether given clang type is a standard SYCL API class with given
   /// name.
   /// \param Ty    the clang type being checked
@@ -796,6 +800,8 @@ static void VisitField(CXXRecordDecl *Owner, RangeTy &&Item, QualType ItemTy,
     KF_FOR_EACH(handleSyclStreamType, Item, ItemTy);
   else if (Util::isSyclSamplerType(ItemTy))
     KF_FOR_EACH(handleSyclSamplerType, Item, ItemTy);
+  else if (Util::isSyclHalfType(ItemTy))
+    KF_FOR_EACH(handleSyclHalfType, Item, ItemTy);
   else if (ItemTy->isStructureOrClassType())
     VisitRecord(Owner, Item, ItemTy->getAsCXXRecordDecl(), handlers...);
   else if (ItemTy->isArrayType())
@@ -898,6 +904,8 @@ static void VisitRecordFields(CXXRecordDecl *Owner, Handlers &... handlers) {
       KF_FOR_EACH(handleSyclAccessorType, Field, FieldTy);
     else if (Util::isSyclSamplerType(FieldTy))
       KF_FOR_EACH(handleSyclSamplerType, Field, FieldTy);
+    else if (Util::isSyclHalfType(FieldTy))
+      KF_FOR_EACH(handleSyclHalfType, Field, FieldTy);
     else if (Util::isSyclSpecConstantType(FieldTy))
       KF_FOR_EACH(handleSyclSpecConstantType, Field, FieldTy);
     else if (Util::isSyclStreamType(FieldTy)) {
@@ -953,6 +961,10 @@ public:
     return true;
   }
   virtual bool handleSyclStreamType(FieldDecl *, QualType) { return true; }
+  virtual bool handleSyclHalfType(const CXXBaseSpecifier &, QualType) {
+    return true;
+  }
+  virtual bool handleSyclHalfType(FieldDecl *, QualType) { return true; }
   virtual bool handleStructType(FieldDecl *, QualType) { return true; }
   virtual bool handleReferenceType(FieldDecl *, QualType) { return true; }
   virtual bool handlePointerType(FieldDecl *, QualType) { return true; }
@@ -1244,6 +1256,11 @@ public:
     return true;
   }
 
+  bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
+    addParam(FD, FieldTy);
+    return true;
+  }
+
   bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
     addParam(FD, FieldTy);
     return true;
@@ -1264,6 +1281,7 @@ public:
                                    std::end(Params));
   }
   using SyclKernelFieldHandler::handleSyclSamplerType;
+  using SyclKernelFieldHandler::handleSyclHalfType;
 };
 
 class SyclKernelBodyCreator
@@ -1537,6 +1555,11 @@ public:
     return true;
   }
 
+  bool handleSyclHalfType(FieldDecl *FD, QualType Ty) final {
+    createExprForStructOrScalar(FD);
+    return true;
+  }
+
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
     createExprForStructOrScalar(FD);
     return true;
@@ -1663,6 +1686,7 @@ public:
   using SyclKernelFieldHandler::enterArray;
   using SyclKernelFieldHandler::enterField;
   using SyclKernelFieldHandler::handleSyclSamplerType;
+  using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::leaveField;
 };
 
@@ -1790,6 +1814,11 @@ public:
     return true;
   }
 
+  bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
+    addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
+    return true;
+  }
+
   void enterField(const CXXRecordDecl *RD, FieldDecl *FD) final {
     CurOffset += SemaRef.getASTContext().getFieldOffset(FD) / 8;
   }
@@ -1825,6 +1854,7 @@ public:
     CurOffset -= ArraySize;
   }
   using SyclKernelFieldHandler::handleSyclSamplerType;
+  using SyclKernelFieldHandler::handleSyclHalfType;
 };
 } // namespace
 
@@ -2657,6 +2687,17 @@ bool Util::isSyclSamplerType(const QualType &Ty) {
 
 bool Util::isSyclStreamType(const QualType &Ty) {
   return isSyclType(Ty, "stream");
+}
+
+bool Util::isSyclHalfType(const QualType &Ty) {
+  const StringRef &Name = "half";
+  std::array<DeclContextDesc, 5> Scopes = {
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "detail"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "half_impl"},
+      Util::DeclContextDesc{Decl::Kind::CXXRecord, Name}};
+  return matchQualifiedTypeName(Ty, Scopes);
 }
 
 bool Util::isSyclSpecConstantType(const QualType &Ty) {
