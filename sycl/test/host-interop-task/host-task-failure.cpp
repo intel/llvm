@@ -4,8 +4,6 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/backend/opencl.hpp>
-#include <CL/sycl/detail/cl.h>
 
 using namespace cl::sycl;
 using namespace cl::sycl::access;
