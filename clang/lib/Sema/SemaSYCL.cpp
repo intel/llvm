@@ -308,11 +308,12 @@ static void reportConflictingAttrs(Sema &S, FunctionDecl *F, const Attr *A1,
   F->setInvalidDecl();
 }
 
-// Returns the signed constant integer value represented by given expression.
-static int64_t getIntExprValue(Sema &S, const Expr *E) {
+/// Returns the signed constant integer value represented by given expression
+static int64_t getIntExprValue(const Expr *E, ASTContext &Ctx) {
   llvm::APSInt Val(32);
-  bool IsValid = E->isIntegerConstantExpr(Val, S.getASTContext());
+  bool IsValid = E->isIntegerConstantExpr(Val, Ctx);
   assert(IsValid && "expression must be constant integer");
+  (void)IsValid;
   return Val.getSExtValue();
 }
 
@@ -793,8 +794,8 @@ static void VisitField(CXXRecordDecl *Owner, RangeTy &&Item, QualType ItemTy,
 }
 
 template <typename RangeTy, typename... Handlers>
-static void VisitScalarField(CXXRecordDecl *Owner, RangeTy &&Item, QualType ItemTy,
-  Handlers &... handlers) {
+static void VisitScalarField(CXXRecordDecl *Owner, RangeTy &&Item,
+                             QualType ItemTy, Handlers &... handlers) {
   KF_FOR_EACH(handleScalarType, Item, ItemTy);
 }
 
@@ -900,6 +901,9 @@ public:
     return true;
   }
   virtual bool handleSyclAccessorType(FieldDecl *, QualType) { return true; }
+  virtual bool handleSyclSamplerType(const CXXBaseSpecifier &, QualType) {
+    return true;
+  }
   virtual bool handleSyclSamplerType(FieldDecl *, QualType) { return true; }
   virtual bool handleSyclSpecConstantType(FieldDecl *, QualType) {
     return true;
@@ -999,8 +1003,7 @@ class SyclKernelFieldChecker
 
 public:
   SyclKernelFieldChecker(Sema &S)
-      : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {
-  }
+      : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {}
   bool isValid() { return !IsInvalid; }
 
   bool handleReferenceType(FieldDecl *FD, QualType FieldTy) final {
@@ -1050,7 +1053,7 @@ class SyclKernelDeclCreator
 
   void addParam(const FieldDecl *FD, QualType FieldTy) {
     const ConstantArrayType *CAT =
-      SemaRef.getASTContext().getAsConstantArrayType(FieldTy);
+        SemaRef.getASTContext().getAsConstantArrayType(FieldTy);
     if (CAT)
       FieldTy = CAT->getElementType();
     ParamDesc newParamDesc = makeParamDesc(FD, FieldTy);
@@ -1131,8 +1134,7 @@ public:
       : SyclKernelFieldHandler(S),
         KernelDecl(createKernelDecl(S.getASTContext(), Name, Loc, IsInline,
                                     IsSIMDKernel)),
-        ArgChecker(ArgChecker), FuncContext(SemaRef, KernelDecl) {
-  }
+        ArgChecker(ArgChecker), FuncContext(SemaRef, KernelDecl) {}
 
   ~SyclKernelDeclCreator() {
     ASTContext &Ctx = SemaRef.getASTContext();
@@ -1195,7 +1197,7 @@ public:
     return true;
   }
 
-  //FIXME Remove this function when structs are replaced by their fields
+  // FIXME Remove this function when structs are replaced by their fields
   bool handleStructType(FieldDecl *FD, QualType FieldTy) final {
     addParam(FD, FieldTy);
     return true;
@@ -1222,6 +1224,7 @@ public:
   }
 
   using SyclKernelFieldHandler::handleScalarType;
+  using SyclKernelFieldHandler::handleSyclSamplerType;
 };
 
 class SyclKernelBodyCreator
@@ -1491,7 +1494,7 @@ public:
     return true;
   }
 
-  //FIXME Remove this function when structs are replaced by their fields
+  // FIXME Remove this function when structs are replaced by their fields
   bool handleStructType(FieldDecl *FD, QualType FieldTy) final {
     createExprForStructOrScalar(FD);
     return true;
@@ -1543,6 +1546,7 @@ public:
   using SyclKernelFieldHandler::enterArray;
   using SyclKernelFieldHandler::enterField;
   using SyclKernelFieldHandler::handleScalarType;
+  using SyclKernelFieldHandler::handleSyclSamplerType;
   using SyclKernelFieldHandler::leaveField;
 };
 
@@ -1638,7 +1642,7 @@ public:
     return true;
   }
 
-  //FIXME Remove this function when structs are replaced by their fields
+  // FIXME Remove this function when structs are replaced by their fields
   bool handleStructType(FieldDecl *FD, QualType FieldTy) final {
     addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
     return true;
@@ -1697,6 +1701,7 @@ public:
   }
 
   using SyclKernelFieldHandler::handleScalarType;
+  using SyclKernelFieldHandler::handleSyclSamplerType;
 };
 } // namespace
 
@@ -1787,15 +1792,16 @@ void Sema::MarkDevice(void) {
               KernelBody ? KernelBody->getAttr<SYCLSimdAttr>() : nullptr;
           if (auto *Existing =
                   SYCLKernel->getAttr<IntelReqdSubGroupSizeAttr>()) {
-            if (Existing->getSubGroupSize() != Attr->getSubGroupSize()) {
+            if (getIntExprValue(Existing->getSubGroupSize(), getASTContext()) !=
+                getIntExprValue(Attr->getSubGroupSize(), getASTContext())) {
               Diag(SYCLKernel->getLocation(),
                    diag::err_conflicting_sycl_kernel_attributes);
               Diag(Existing->getLocation(), diag::note_conflicting_attribute);
               Diag(Attr->getLocation(), diag::note_conflicting_attribute);
               SYCLKernel->setInvalidDecl();
             }
-          } else if (KBSimdAttr &&
-                     (getIntExprValue(*this, Attr->getSubGroupSize()) != 1)) {
+          } else if (KBSimdAttr && (getIntExprValue(Attr->getSubGroupSize(),
+                                                    getASTContext()) != 1)) {
             reportConflictingAttrs(*this, KernelBody, KBSimdAttr, Attr);
           } else {
             SYCLKernel->addAttr(A);
