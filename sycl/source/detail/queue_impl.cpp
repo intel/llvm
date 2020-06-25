@@ -10,6 +10,7 @@
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
+#include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
 
 #include <cstring>
@@ -39,16 +40,25 @@ template <> device queue_impl::get_info<info::queue::device>() const {
   return get_device();
 }
 
+static event prepareUSMEvent(shared_ptr_class<detail::queue_impl> QueueImpl,
+                             RT::PiEvent NativeEvent) {
+  auto EventImpl = std::make_shared<detail::event_impl>(QueueImpl);
+  EventImpl->getHandleRef() = NativeEvent;
+  EventImpl->setContextImpl(detail::getSyclObjImpl(QueueImpl->get_context()));
+  return detail::createSyclObjFromImpl<event>(EventImpl);
+}
+
 event queue_impl::memset(shared_ptr_class<detail::queue_impl> Impl, void *Ptr,
                          int Value, size_t Count) {
   context Context = get_context();
-  RT::PiEvent Event = nullptr;
-  MemoryManager::fill_usm(Ptr, Impl, Count, Value, /*DepEvents*/ {}, Event);
+  RT::PiEvent NativeEvent = nullptr;
+  MemoryManager::fill_usm(Ptr, Impl, Count, Value, /*DepEvents*/ {},
+                          NativeEvent);
 
   if (Context.is_host())
     return event();
 
-  event ResEvent{pi::cast<cl_event>(Event), Context};
+  event ResEvent = prepareUSMEvent(Impl, NativeEvent);
   addUSMEvent(ResEvent);
   return ResEvent;
 }
@@ -56,18 +66,20 @@ event queue_impl::memset(shared_ptr_class<detail::queue_impl> Impl, void *Ptr,
 event queue_impl::memcpy(shared_ptr_class<detail::queue_impl> Impl, void *Dest,
                          const void *Src, size_t Count) {
   context Context = get_context();
-  RT::PiEvent Event = nullptr;
-  MemoryManager::copy_usm(Src, Impl, Count, Dest, /*DepEvents*/ {}, Event);
+  RT::PiEvent NativeEvent = nullptr;
+  MemoryManager::copy_usm(Src, Impl, Count, Dest, /*DepEvents*/ {},
+                          NativeEvent);
 
   if (Context.is_host())
     return event();
 
-  event ResEvent{pi::cast<cl_event>(Event), Context};
+  event ResEvent = prepareUSMEvent(Impl, NativeEvent);
   addUSMEvent(ResEvent);
   return ResEvent;
 }
 
-event queue_impl::mem_advise(const void *Ptr, size_t Length,
+event queue_impl::mem_advise(shared_ptr_class<detail::queue_impl> Impl,
+                             const void *Ptr, size_t Length,
                              pi_mem_advice Advice) {
   context Context = get_context();
   if (Context.is_host()) {
@@ -75,12 +87,12 @@ event queue_impl::mem_advise(const void *Ptr, size_t Length,
   }
 
   // non-Host device
-  RT::PiEvent Event = nullptr;
+  RT::PiEvent NativeEvent = nullptr;
   const detail::plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(getHandleRef(), Ptr, Length,
-                                                   Advice, &Event);
+                                                   Advice, &NativeEvent);
 
-  event ResEvent{pi::cast<cl_event>(Event), Context};
+  event ResEvent = prepareUSMEvent(Impl, NativeEvent);
   addUSMEvent(ResEvent);
   return ResEvent;
 }
