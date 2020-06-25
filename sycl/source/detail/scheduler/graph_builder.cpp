@@ -679,6 +679,16 @@ Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
   return EmptyCmd;
 }
 
+static bool isInteropHostTask(const std::unique_ptr<ExecCGCommand> &Cmd) {
+  if (Cmd->getCG().getType() != CG::CGTYPE::CODEPLAY_HOST_TASK)
+    return false;
+
+  const detail::CGHostTask &HT =
+      static_cast<detail::CGHostTask &>(Cmd->getCG());
+
+  return HT.MHostTask->isInteropTask();
+}
+
 Command *
 Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                QueueImplPtr Queue) {
@@ -695,13 +705,27 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     printGraphAsDot("before_addCG");
 
   for (Requirement *Req : Reqs) {
-    MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req);
-    markModifiedIfWrite(Record, Req);
+    MemObjRecord *Record = nullptr;
+    AllocaCommandBase *AllocaCmd = nullptr;
 
-    AllocaCommandBase *AllocaCmd = getOrCreateAllocaForReq(Record, Req, Queue);
+    bool isSameCtx = false;
+
+    {
+      const QueueImplPtr &QueueForAlloca = isInteropHostTask(NewCmd) ?
+          static_cast<detail::CGHostTask &>(NewCmd->getCG()).MQueue : Queue;
+
+      Record = getOrInsertMemObjRecord(QueueForAlloca, Req);
+      markModifiedIfWrite(Record, Req);
+
+      AllocaCmd = getOrCreateAllocaForReq(Record, Req, QueueForAlloca);
+
+      isSameCtx =
+          sameCtx(QueueForAlloca->getContextImplPtr(), Record->MCurContext);
+    }
+
     // If there is alloca command we need to check if the latest memory is in
     // required context.
-    if (sameCtx(Queue->getContextImplPtr(), Record->MCurContext)) {
+    if (isSameCtx) {
       // If the memory is already in the required host context, check if the
       // required access mode is valid, remap if not.
       if (Record->MCurContext->is_host() &&
@@ -713,12 +737,11 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
       bool NeedMemMoveToHost = false;
       auto MemMoveTargetQueue = Queue;
 
-      if (CGType == CG::CGTYPE::CODEPLAY_HOST_TASK) {
+      if (isInteropHostTask(NewCmd)) {
         const detail::CGHostTask &HT =
             static_cast<detail::CGHostTask &>(NewCmd->getCG());
 
-        if (HT.MHostTask->isInteropTask() && !HT.MQueue->is_host() &&
-            !Record->MCurContext->is_host()) {
+        if (HT.MQueue->getContextImplPtr() != Record->MCurContext) {
           NeedMemMoveToHost = true;
           MemMoveTargetQueue = HT.MQueue;
         }
