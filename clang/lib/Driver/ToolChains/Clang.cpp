@@ -7649,7 +7649,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     // disable the storage classes will be lowered to CrossWorkgroup storage
     // class that is mapped to just global address space.
     if (!(getToolChain().getTriple().getSubArch() ==
-             llvm::Triple::SPIRSubArch_fpga &&
+              llvm::Triple::SPIRSubArch_fpga &&
           TCArgs.hasArg(options::OPT_fenable_usm_address_spaces)))
       ExtArg += ",-SPV_INTEL_usm_storage_classes";
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
