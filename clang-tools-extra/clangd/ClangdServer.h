@@ -23,8 +23,8 @@
 #include "refactor/Rename.h"
 #include "refactor/Tweak.h"
 #include "support/Cancellation.h"
-#include "support/FSProvider.h"
 #include "support/Function.h"
+#include "support/ThreadsafeFS.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/FunctionExtras.h"
@@ -121,7 +121,7 @@ public:
     ClangTidyOptionsBuilder GetClangTidyOptions;
 
     /// If true, turn on the `-frecovery-ast` clang flag.
-    bool BuildRecoveryAST = false;
+    bool BuildRecoveryAST = true;
 
     /// If true, turn on the `-frecovery-ast-type` clang flag.
     bool PreserveRecoveryASTType = false;
@@ -171,9 +171,8 @@ public:
   /// added file (i.e., when processing a first call to addDocument) and reuses
   /// those arguments for subsequent reparses. However, ClangdServer will check
   /// if compilation arguments changed on calls to forceReparse().
-  ClangdServer(const GlobalCompilationDatabase &CDB,
-               const FileSystemProvider &FSProvider, const Options &Opts,
-               Callbacks *Callbacks = nullptr);
+  ClangdServer(const GlobalCompilationDatabase &CDB, const ThreadsafeFS &TFS,
+               const Options &Opts, Callbacks *Callbacks = nullptr);
 
   /// Add a \p File to the list of tracked C++ files or update the contents if
   /// \p File is already tracked. Also schedules parsing of the AST for it on a
@@ -330,7 +329,7 @@ private:
   formatCode(llvm::StringRef Code, PathRef File,
              ArrayRef<tooling::Range> Ranges);
 
-  const FileSystemProvider &FSProvider;
+  const ThreadsafeFS &TFS;
 
   Path ResourceDir;
   // The index used to look up symbols. This could be:
@@ -354,7 +353,7 @@ private:
   bool SuggestMissingIncludes = false;
 
   // If true, preserve expressions in AST for broken code.
-  bool BuildRecoveryAST = false;
+  bool BuildRecoveryAST = true;
   // If true, preserve the type for recovery AST.
   bool PreserveRecoveryASTType = false;
 

@@ -565,6 +565,28 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
   return PI_SUCCESS;
 }
 
+pi_result piextPlatformGetNativeHandle(pi_platform Platform,
+                                       pi_native_handle *NativeHandle) {
+  assert(Platform);
+  assert(NativeHandle);
+
+  auto ZeDriver = pi_cast<ze_driver_handle_t *>(NativeHandle);
+  // Extract the L0 driver handle from the given PI platform
+  *ZeDriver = Platform->ZeDriver;
+  return PI_SUCCESS;
+}
+
+pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                              pi_platform *Platform) {
+  assert(NativeHandle);
+  assert(Platform);
+
+  // Create PI platform from the given L0 driver handle.
+  auto ZeDriver = pi_cast<ze_driver_handle_t>(NativeHandle);
+  *Platform = new _pi_platform(ZeDriver);
+  return PI_SUCCESS;
+}
+
 pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
                        pi_uint32 NumEntries, pi_device *Devices,
                        pi_uint32 *NumDevices) {
@@ -2177,7 +2199,7 @@ pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   ze_event_handle_t ZeEvent;
   ze_event_desc_t ZeEventDesc = {};
   ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_NONE;
-  ZeEventDesc.wait = ZE_EVENT_SCOPE_FLAG_NONE;
+  ZeEventDesc.wait = ZE_EVENT_SCOPE_FLAG_HOST;
   ZeEventDesc.version = ZE_EVENT_DESC_VERSION_CURRENT;
   ZeEventDesc.index = Index;
 

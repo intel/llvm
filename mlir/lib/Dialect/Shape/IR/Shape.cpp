@@ -13,10 +13,15 @@
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/StandardTypes.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace mlir;
 using namespace mlir::shape;
+
+namespace {
+#include "ShapeCanonicalization.inc"
+}
 
 ShapeDialect::ShapeDialect(MLIRContext *context)
     : Dialect(getDialectNamespace(), context) {
@@ -163,31 +168,36 @@ struct AssumingWithTrue : public OpRewritePattern<AssumingOp> {
     if (!witness || !witness.passingAttr())
       return failure();
 
-    auto *blockBeforeAssuming = rewriter.getInsertionBlock();
-    auto *assumingBlock = op.getBody();
-    auto initPosition = rewriter.getInsertionPoint();
-    auto *blockAfterAssuming =
-        rewriter.splitBlock(blockBeforeAssuming, initPosition);
-
-    // Remove the AssumingOp and AssumingYieldOp.
-    auto &yieldOp = assumingBlock->back();
-    rewriter.inlineRegionBefore(op.doRegion(), blockAfterAssuming);
-    rewriter.replaceOp(op, yieldOp.getOperands());
-    rewriter.eraseOp(&yieldOp);
-
-    // Merge blocks together as there was no branching behavior from the
-    // AssumingOp.
-    rewriter.mergeBlocks(assumingBlock, blockBeforeAssuming);
-    rewriter.mergeBlocks(blockAfterAssuming, blockBeforeAssuming);
+    AssumingOp::inlineRegionIntoParent(op, rewriter);
     return success();
   }
 };
-}; // namespace
+} // namespace
 
 void AssumingOp::getCanonicalizationPatterns(OwningRewritePatternList &patterns,
                                              MLIRContext *context) {
-  // If taking a passing witness, inline region
+  // If taking a passing witness, inline region.
   patterns.insert<AssumingWithTrue>(context);
+}
+
+void AssumingOp::inlineRegionIntoParent(AssumingOp &op,
+                                        PatternRewriter &rewriter) {
+  auto *blockBeforeAssuming = rewriter.getInsertionBlock();
+  auto *assumingBlock = op.getBody();
+  auto initPosition = rewriter.getInsertionPoint();
+  auto *blockAfterAssuming =
+      rewriter.splitBlock(blockBeforeAssuming, initPosition);
+
+  // Remove the AssumingOp and AssumingYieldOp.
+  auto &yieldOp = assumingBlock->back();
+  rewriter.inlineRegionBefore(op.doRegion(), blockAfterAssuming);
+  rewriter.replaceOp(op, yieldOp.getOperands());
+  rewriter.eraseOp(&yieldOp);
+
+  // Merge blocks together as there was no branching behavior from the
+  // AssumingOp.
+  rewriter.mergeBlocks(assumingBlock, blockBeforeAssuming);
+  rewriter.mergeBlocks(blockAfterAssuming, blockBeforeAssuming);
 }
 
 //===----------------------------------------------------------------------===//
@@ -212,6 +222,14 @@ OpFoldResult AssumingAllOp::fold(ArrayRef<Attribute> operands) {
   }
   // If this is reached, all inputs were statically known passing.
   return BoolAttr::get(true, getContext());
+}
+
+static LogicalResult verify(AssumingAllOp op) {
+  // Ensure that AssumingAllOp contains at least one operand
+  if (op.getNumOperands() == 0)
+    return op.emitOpError("no operands specified");
+
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -296,10 +314,65 @@ static ParseResult parseConstShapeOp(OpAsmParser &parser,
 OpFoldResult ConstShapeOp::fold(ArrayRef<Attribute>) { return shapeAttr(); }
 
 //===----------------------------------------------------------------------===//
+// CstrBroadcastableOp
+//===----------------------------------------------------------------------===//
+
+void CstrBroadcastableOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &patterns, MLIRContext *context) {
+  // If inputs are equal, return passing witness
+  patterns.insert<CstrBroadcastableEqOps>(context);
+}
+
+OpFoldResult CstrBroadcastableOp::fold(ArrayRef<Attribute> operands) {
+  if (!operands[0] || !operands[1])
+    return nullptr;
+  auto lhsShape = llvm::to_vector<6>(
+      operands[0].cast<DenseIntElementsAttr>().getValues<int64_t>());
+  auto rhsShape = llvm::to_vector<6>(
+      operands[1].cast<DenseIntElementsAttr>().getValues<int64_t>());
+  SmallVector<int64_t, 6> resultShape;
+  if (OpTrait::util::getBroadcastedShape(lhsShape, rhsShape, resultShape))
+    return BoolAttr::get(true, getContext());
+
+  // Because a failing witness result here represents an eventual assertion
+  // failure, we do not replace it with a constant witness.
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// CstrEqOp
+//===----------------------------------------------------------------------===//
+
+void CstrEqOp::getCanonicalizationPatterns(OwningRewritePatternList &patterns,
+                                           MLIRContext *context) {
+  // If inputs are equal, return passing witness
+  patterns.insert<CstrEqEqOps>(context);
+}
+
+OpFoldResult CstrEqOp::fold(ArrayRef<Attribute> operands) {
+  if (llvm::all_of(operands,
+                   [&](Attribute a) { return a && a == operands[0]; }))
+    return BoolAttr::get(true, getContext());
+
+  // Because a failing witness result here represents an eventual assertion
+  // failure, we do not try to replace it with a constant witness. Similarly, we
+  // cannot if there are any non-const inputs.
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // ConstSizeOp
 //===----------------------------------------------------------------------===//
 
 OpFoldResult ConstSizeOp::fold(ArrayRef<Attribute>) { return valueAttr(); }
+
+void ConstSizeOp::getAsmResultNames(
+    llvm::function_ref<void(Value, StringRef)> setNameFn) {
+  SmallString<4> buffer;
+  llvm::raw_svector_ostream os(buffer);
+  os << "c" << value();
+  setNameFn(getResult(), os.str());
+}
 
 //===----------------------------------------------------------------------===//
 // ConstWitnessOp
@@ -337,15 +410,31 @@ OpFoldResult FromExtentsOp::fold(ArrayRef<Attribute> operands) {
 // GetExtentOp
 //===----------------------------------------------------------------------===//
 
+Optional<int64_t> GetExtentOp::getConstantDim() {
+  if (auto constSizeOp = dim().getDefiningOp<ConstSizeOp>()) {
+    return constSizeOp.value().getLimitedValue();
+  }
+  return llvm::None;
+}
+
 OpFoldResult GetExtentOp::fold(ArrayRef<Attribute> operands) {
   auto elements = operands[0].dyn_cast_or_null<DenseIntElementsAttr>();
   if (!elements)
     return nullptr;
-  uint64_t dimToGet = dim().getLimitedValue();
-  // TODO: Constant fold this to some kind of constant error.
-  if (dimToGet >= (uint64_t)elements.getNumElements())
+  Optional<int64_t> dim = getConstantDim();
+  if (!dim.hasValue())
     return nullptr;
-  return elements.getValue({dimToGet});
+  if (dim.getValue() >= elements.getNumElements())
+    return nullptr;
+  return elements.getValue({(uint64_t)dim.getValue()});
+}
+
+void GetExtentOp::build(OpBuilder &builder, OperationState &result, Value shape,
+                        int64_t dim) {
+  auto loc = result.location;
+  auto dimAttr = builder.getIndexAttr(dim);
+  Value dimValue = builder.create<ConstSizeOp>(loc, dimAttr);
+  build(builder, result, shape, dimValue);
 }
 
 //===----------------------------------------------------------------------===//

@@ -432,10 +432,9 @@ public:
   /// \param NumWorkItems is a range that specifies the work space of the kernel
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            int Dims>
+  template <typename KernelName = detail::auto_name, typename KernelType>
   event parallel_for(
-      range<Dims> NumWorkItems, KernelType KernelFunc
+      range<1> NumWorkItems, KernelType KernelFunc
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
       ,
       const detail::code_location &CodeLoc = detail::code_location::current()
@@ -444,12 +443,47 @@ public:
 #ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
     const detail::code_location &CodeLoc = {};
 #endif
-    return submit(
-        [&](handler &CGH) {
-          CGH.template parallel_for<KernelName, KernelType>(NumWorkItems,
-                                                            KernelFunc);
-        },
-        CodeLoc);
+    return parallel_for_impl<KernelName>(NumWorkItems, KernelFunc, CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  event parallel_for(
+      range<2> NumWorkItems, KernelType KernelFunc
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      ,
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    return parallel_for_impl<KernelName>(NumWorkItems, KernelFunc, CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  event parallel_for(
+      range<3> NumWorkItems, KernelType KernelFunc
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+      ,
+      const detail::code_location &CodeLoc = detail::code_location::current()
+#endif
+  ) {
+#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
+    const detail::code_location &CodeLoc = {};
+#endif
+    return parallel_for_impl<KernelName>(NumWorkItems, KernelFunc, CodeLoc);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -703,8 +737,12 @@ private:
   pi_native_handle getNative() const;
 
   shared_ptr_class<detail::queue_impl> impl;
+  queue(shared_ptr_class<detail::queue_impl> impl) : impl(impl) {}
+
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
   /// A template-free version of submit.
   event submit_impl(function_class<void(handler &)> CGH,
@@ -712,6 +750,25 @@ private:
   /// A template-free version of submit.
   event submit_impl(function_class<void(handler &)> CGH, queue secondQueue,
                     const detail::code_location &CodeLoc);
+
+  /// parallel_for_impl with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
+  event parallel_for_impl(
+      range<Dims> NumWorkItems, KernelType KernelFunc,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    return submit(
+        [&](handler &CGH) {
+          CGH.template parallel_for<KernelName, KernelType>(NumWorkItems,
+                                                            KernelFunc);
+        },
+        CodeLoc);
+  }
 };
 
 } // namespace sycl

@@ -108,6 +108,10 @@ typedef half __clc_vec16_fp16_t __attribute__((ext_vector_type(16)));
 
 typedef __clc_int64_t __clc_size_t;
 
+#ifdef __SYCL_DEVICE_ONLY__
+typedef __ocl_event_t __clc_event_t;
+#else
 typedef event_t __clc_event_t;
+#endif
 
 #endif // CLC_LP64_TYPES

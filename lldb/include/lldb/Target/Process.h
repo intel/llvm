@@ -452,6 +452,8 @@ public:
 
     void Dump(Stream *s) const override;
 
+    virtual bool ShouldStop(Event *event_ptr, bool &found_valid_stopinfo);
+
     void DoOnRemoval(Event *event_ptr) override;
 
     static const Process::ProcessEventData *
@@ -1329,7 +1331,6 @@ public:
 
   virtual bool GetProcessInfo(ProcessInstanceInfo &info);
 
-public:
   /// Get the exit status for a process.
   ///
   /// \return

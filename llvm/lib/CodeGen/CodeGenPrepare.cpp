@@ -245,6 +245,10 @@ static cl::opt<bool>
                      cl::desc("Enable BFI update verification for "
                               "CodeGenPrepare."));
 
+static cl::opt<bool> OptimizePhiTypes(
+    "cgp-optimize-phi-types", cl::Hidden, cl::init(true),
+    cl::desc("Enable converting phi types in CodeGenPrepare"));
+
 namespace {
 
 enum ExtType {
@@ -407,6 +411,9 @@ class TypePromotionTransaction;
                           unsigned CreatedInstsCost = 0);
     bool mergeSExts(Function &F);
     bool splitLargeGEPOffsets();
+    bool optimizePhiType(PHINode *Inst, SmallPtrSetImpl<PHINode *> &Visited,
+                         SmallPtrSetImpl<Instruction *> &DeletedInstrs);
+    bool optimizePhiTypes(Function &F);
     bool performAddressTypePromotion(
         Instruction *&Inst,
         bool AllowPromotionWithoutCommonHeader,
@@ -515,6 +522,7 @@ bool CodeGenPrepare::runOnFunction(Function &F) {
       MadeChange |= mergeSExts(F);
     if (!LargeOffsetGEPMap.empty())
       MadeChange |= splitLargeGEPOffsets();
+    MadeChange |= optimizePhiTypes(F);
 
     if (MadeChange)
       eliminateFallThrough(F);
@@ -2443,6 +2451,9 @@ namespace {
 /// This class provides transaction based operation on the IR.
 /// Every change made through this class is recorded in the internal state and
 /// can be undone (rollback) until commit is called.
+/// CGP does not check if instructions could be speculatively executed when
+/// moved. Preserving the original location would pessimize the debugging
+/// experience, as well as negatively impact the quality of sample PGO.
 class TypePromotionTransaction {
   /// This represents the common interface of the individual transaction.
   /// Each class implements the logic for doing one specific modification on
@@ -2605,6 +2616,7 @@ class TypePromotionTransaction {
     /// trunc Opnd to Ty.
     TruncBuilder(Instruction *Opnd, Type *Ty) : TypePromotionAction(Opnd) {
       IRBuilder<> Builder(Opnd);
+      Builder.SetCurrentDebugLocation(DebugLoc());
       Val = Builder.CreateTrunc(Opnd, Ty, "promoted");
       LLVM_DEBUG(dbgs() << "Do: TruncBuilder: " << *Val << "\n");
     }
@@ -2657,6 +2669,7 @@ class TypePromotionTransaction {
     ZExtBuilder(Instruction *InsertPt, Value *Opnd, Type *Ty)
         : TypePromotionAction(InsertPt) {
       IRBuilder<> Builder(InsertPt);
+      Builder.SetCurrentDebugLocation(DebugLoc());
       Val = Builder.CreateZExt(Opnd, Ty, "promoted");
       LLVM_DEBUG(dbgs() << "Do: ZExtBuilder: " << *Val << "\n");
     }
@@ -5321,7 +5334,7 @@ bool CodeGenPrepare::optimizeGatherScatterInst(Instruction *MemoryInst,
   // and a vector GEP with all zeroes final index.
   if (!Ops[FinalIndex]->getType()->isVectorTy()) {
     NewAddr = Builder.CreateGEP(Ops[0], makeArrayRef(Ops).drop_front());
-    Type *IndexTy = VectorType::get(ScalarIndexTy, NumElts);
+    auto *IndexTy = FixedVectorType::get(ScalarIndexTy, NumElts);
     NewAddr = Builder.CreateGEP(NewAddr, Constant::getNullValue(IndexTy));
   } else {
     Value *Base = Ops[0];
@@ -5712,6 +5725,155 @@ bool CodeGenPrepare::splitLargeGEPOffsets() {
   return Changed;
 }
 
+bool CodeGenPrepare::optimizePhiType(
+    PHINode *I, SmallPtrSetImpl<PHINode *> &Visited,
+    SmallPtrSetImpl<Instruction *> &DeletedInstrs) {
+  // We are looking for a collection on interconnected phi nodes that together
+  // only use loads/bitcasts and are used by stores/bitcasts, and the bitcasts
+  // are of the same type. Convert the whole set of nodes to the type of the
+  // bitcast.
+  Type *PhiTy = I->getType();
+  Type *ConvertTy = nullptr;
+  if (Visited.count(I) ||
+      (!I->getType()->isIntegerTy() && !I->getType()->isFloatingPointTy()))
+    return false;
+
+  SmallVector<Instruction *, 4> Worklist;
+  Worklist.push_back(cast<Instruction>(I));
+  SmallPtrSet<PHINode *, 4> PhiNodes;
+  PhiNodes.insert(I);
+  Visited.insert(I);
+  SmallPtrSet<Instruction *, 4> Defs;
+  SmallPtrSet<Instruction *, 4> Uses;
+
+  while (!Worklist.empty()) {
+    Instruction *II = Worklist.pop_back_val();
+
+    if (auto *Phi = dyn_cast<PHINode>(II)) {
+      // Handle Defs, which might also be PHI's
+      for (Value *V : Phi->incoming_values()) {
+        if (auto *OpPhi = dyn_cast<PHINode>(V)) {
+          if (!PhiNodes.count(OpPhi)) {
+            if (Visited.count(OpPhi))
+              return false;
+            PhiNodes.insert(OpPhi);
+            Visited.insert(OpPhi);
+            Worklist.push_back(OpPhi);
+          }
+        } else if (auto *OpLoad = dyn_cast<LoadInst>(V)) {
+          if (!Defs.count(OpLoad)) {
+            Defs.insert(OpLoad);
+            Worklist.push_back(OpLoad);
+          }
+        } else if (auto *OpEx = dyn_cast<ExtractElementInst>(V)) {
+          if (!Defs.count(OpEx)) {
+            Defs.insert(OpEx);
+            Worklist.push_back(OpEx);
+          }
+        } else if (auto *OpBC = dyn_cast<BitCastInst>(V)) {
+          if (!ConvertTy)
+            ConvertTy = OpBC->getOperand(0)->getType();
+          if (OpBC->getOperand(0)->getType() != ConvertTy)
+            return false;
+          if (!Defs.count(OpBC)) {
+            Defs.insert(OpBC);
+            Worklist.push_back(OpBC);
+          }
+        } else if (!isa<UndefValue>(V))
+          return false;
+      }
+    }
+
+    // Handle uses which might also be phi's
+    for (User *V : II->users()) {
+      if (auto *OpPhi = dyn_cast<PHINode>(V)) {
+        if (!PhiNodes.count(OpPhi)) {
+          if (Visited.count(OpPhi))
+            return false;
+          PhiNodes.insert(OpPhi);
+          Visited.insert(OpPhi);
+          Worklist.push_back(OpPhi);
+        }
+      } else if (auto *OpStore = dyn_cast<StoreInst>(V)) {
+        if (OpStore->getOperand(0) != II)
+          return false;
+        Uses.insert(OpStore);
+      } else if (auto *OpBC = dyn_cast<BitCastInst>(V)) {
+        if (!ConvertTy)
+          ConvertTy = OpBC->getType();
+        if (OpBC->getType() != ConvertTy)
+          return false;
+        Uses.insert(OpBC);
+      } else
+        return false;
+    }
+  }
+
+  if (!ConvertTy || !TLI->shouldConvertPhiType(PhiTy, ConvertTy))
+    return false;
+
+  LLVM_DEBUG(dbgs() << "Converting " << *I << "\n  and connected nodes to "
+                    << *ConvertTy << "\n");
+
+  // Create all the new phi nodes of the new type, and bitcast any loads to the
+  // correct type.
+  ValueToValueMap ValMap;
+  ValMap[UndefValue::get(PhiTy)] = UndefValue::get(ConvertTy);
+  for (Instruction *D : Defs) {
+    if (isa<BitCastInst>(D))
+      ValMap[D] = D->getOperand(0);
+    else
+      ValMap[D] =
+          new BitCastInst(D, ConvertTy, D->getName() + ".bc", D->getNextNode());
+  }
+  for (PHINode *Phi : PhiNodes)
+    ValMap[Phi] = PHINode::Create(ConvertTy, Phi->getNumIncomingValues(),
+                                  Phi->getName() + ".tc", Phi);
+  // Pipe together all the PhiNodes.
+  for (PHINode *Phi : PhiNodes) {
+    PHINode *NewPhi = cast<PHINode>(ValMap[Phi]);
+    for (int i = 0, e = Phi->getNumIncomingValues(); i < e; i++)
+      NewPhi->addIncoming(ValMap[Phi->getIncomingValue(i)],
+                          Phi->getIncomingBlock(i));
+  }
+  // And finally pipe up the stores and bitcasts
+  for (Instruction *U : Uses) {
+    if (isa<BitCastInst>(U)) {
+      DeletedInstrs.insert(U);
+      U->replaceAllUsesWith(ValMap[U->getOperand(0)]);
+    } else
+      U->setOperand(0,
+                    new BitCastInst(ValMap[U->getOperand(0)], PhiTy, "bc", U));
+  }
+
+  // Save the removed phis to be deleted later.
+  for (PHINode *Phi : PhiNodes)
+    DeletedInstrs.insert(Phi);
+  return true;
+}
+
+bool CodeGenPrepare::optimizePhiTypes(Function &F) {
+  if (!OptimizePhiTypes)
+    return false;
+
+  bool Changed = false;
+  SmallPtrSet<PHINode *, 4> Visited;
+  SmallPtrSet<Instruction *, 4> DeletedInstrs;
+
+  // Attempt to optimize all the phis in the functions to the correct type.
+  for (auto &BB : F)
+    for (auto &Phi : BB.phis())
+      Changed |= optimizePhiType(&Phi, Visited, DeletedInstrs);
+
+  // Remove any old phi's that have been converted.
+  for (auto *I : DeletedInstrs) {
+    I->replaceAllUsesWith(UndefValue::get(I->getType()));
+    I->eraseFromParent();
+  }
+
+  return Changed;
+}
+
 /// Return true, if an ext(load) can be formed from an extension in
 /// \p MovedExts.
 bool CodeGenPrepare::canFormExtLd(
@@ -5797,16 +5959,8 @@ bool CodeGenPrepare::optimizeExt(Instruction *&Inst) {
   if (canFormExtLd(SpeculativelyMovedExts, LI, ExtFedByLoad, HasPromoted)) {
     assert(LI && ExtFedByLoad && "Expect a valid load and extension");
     TPT.commit();
-    // Move the extend into the same block as the load
+    // Move the extend into the same block as the load.
     ExtFedByLoad->moveAfter(LI);
-    // CGP does not check if the zext would be speculatively executed when moved
-    // to the same basic block as the load. Preserving its original location
-    // would pessimize the debugging experience, as well as negatively impact
-    // the quality of sample pgo. We don't want to use "line 0" as that has a
-    // size cost in the line-table section and logically the zext can be seen as
-    // part of the load. Therefore we conservatively reuse the same debug
-    // location for the load and the zext.
-    ExtFedByLoad->setDebugLoc(LI->getDebugLoc());
     ++NumExtsMoved;
     Inst = ExtFedByLoad;
     return true;
@@ -6471,7 +6625,8 @@ bool CodeGenPrepare::optimizeShuffleVectorInst(ShuffleVectorInst *SVI) {
   assert(!NewType->isVectorTy() && "Expected a scalar type!");
   assert(NewType->getScalarSizeInBits() == SVIVecType->getScalarSizeInBits() &&
          "Expected a type of the same size!");
-  Type *NewVecType = VectorType::get(NewType, SVIVecType->getNumElements());
+  auto *NewVecType =
+      FixedVectorType::get(NewType, SVIVecType->getNumElements());
 
   // Create a bitcast (shuffle (insert (bitcast(..))))
   IRBuilder<> Builder(SVI->getContext());

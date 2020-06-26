@@ -141,6 +141,23 @@ void goo() {
   // no diagnostics are expected
   [[intelfpga::ivdep(2, a)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  int *ptr;
+  // no diagnostics are expected
+  [[intelfpga::ivdep(2, ptr)]] for (int i = 0; i != 10; ++i)
+      ptr[i] = 0;
+
+  struct S {
+    int arr[10];
+    int *ptr;
+  } s;
+
+  // no diagnostics are expected
+  [[intelfpga::ivdep(2, s.arr)]] for (int i = 0; i != 10; ++i)
+      s.arr[i] = 0;
+  // no diagnostics are expected
+  [[intelfpga::ivdep(2, s.ptr)]] for (int i = 0; i != 10; ++i)
+      s.ptr[i] = 0;
 }
 
 // Test for Intel FPGA loop attributes duplication

@@ -96,7 +96,9 @@ inline bool isCmpOpCode(Op OpCode) {
 
 inline bool isCvtOpCode(Op OpCode) {
   return ((unsigned)OpCode >= OpConvertFToU && (unsigned)OpCode <= OpBitcast) ||
-         OpCode == OpSatConvertSToU || OpCode == OpSatConvertUToS;
+         OpCode == OpSatConvertSToU || OpCode == OpSatConvertUToS ||
+         OpCode == OpPtrCastToCrossWorkgroupINTEL ||
+         OpCode == OpCrossWorkgroupCastToPtrINTEL;
 }
 
 inline bool isCvtToUnsignedOpCode(Op OpCode) {
@@ -136,9 +138,30 @@ inline bool hasGroupOperation(Op OpCode) {
          (OpGroupNonUniformIAdd <= OC && OC <= OpGroupNonUniformLogicalXor);
 }
 
+inline bool isUniformArithmeticOpCode(Op OpCode) {
+  unsigned OC = OpCode;
+  return (OpGroupIAdd <= OC && OC <= OpGroupSMax);
+}
+
+inline bool isNonUniformArithmeticOpCode(Op OpCode) {
+  unsigned OC = OpCode;
+  return (OpGroupNonUniformIAdd <= OC && OC <= OpGroupNonUniformLogicalXor);
+}
+
+inline bool isGroupLogicalOpCode(Op OpCode) {
+  unsigned OC = OpCode;
+  return OC == OpGroupNonUniformLogicalAnd ||
+         OC == OpGroupNonUniformLogicalOr || OC == OpGroupNonUniformLogicalXor;
+}
+
 inline bool isGroupOpCode(Op OpCode) {
   unsigned OC = OpCode;
   return OpGroupAll <= OC && OC <= OpGroupSMax;
+}
+
+inline bool isGroupNonUniformOpcode(Op OpCode) {
+  unsigned OC = OpCode;
+  return OpGroupNonUniformElect <= OC && OC <= OpGroupNonUniformQuadSwap;
 }
 
 inline bool isMediaBlockINTELOpcode(Op OpCode) {

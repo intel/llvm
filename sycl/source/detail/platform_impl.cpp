@@ -126,6 +126,9 @@ static std::vector<DevDescT> getAllowListDesc() {
       valuePtr = &decDescs.back().devDriverVer;
       size = &decDescs.back().devDriverVerSize;
       str += sizeof(driverVerStr) - 1;
+    } else {
+      throw sycl::runtime_error("Unrecognized key in device allowlist",
+                                PI_INVALID_VALUE);
     }
 
     if (':' != *str)
@@ -274,6 +277,13 @@ bool platform_impl::has_extension(const string_class &ExtensionName) const {
       get_platform_info<string_class, info::platform::extensions>::get(
           MPlatform, getPlugin());
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
+}
+
+pi_native_handle platform_impl::getNative() const {
+  const auto &Plugin = getPlugin();
+  pi_native_handle Handle;
+  Plugin.call<PiApiKind::piextPlatformGetNativeHandle>(getHandleRef(), &Handle);
+  return Handle;
 }
 
 template <info::platform param>

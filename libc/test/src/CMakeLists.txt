@@ -9,13 +9,10 @@ add_subdirectory(sys)
 add_subdirectory(threads)
 add_subdirectory(unistd)
 
-include("${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/${LIBC_TARGET_MACHINE}/entrypoints.txt")
-include("${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/${LIBC_TARGET_MACHINE}/headers.txt")
-
 set(public_test ${CMAKE_CURRENT_BINARY_DIR}/public_integration_test.cpp)
 
 set(entrypoints_name_list "")
-foreach(entry IN LISTS LIBC_ENTRYPOINTS LIBM_ENTRYPOINTS)
+foreach(entry IN LISTS TARGET_LIBC_ENTRYPOINTS TARGET_LIBM_ENTRYPOINTS)
   get_target_property(entry_name ${entry} "ENTRYPOINT_NAME")
   list(APPEND entrypoints_name_list ${entry_name})
 endforeach()
@@ -33,7 +30,7 @@ add_custom_command(
           ${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/api.td
 
   DEPENDS ${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/api.td
-          libc-prototype-testgen ${PUBLIC_HEADERS}
+          libc-prototype-testgen ${TARGET_PUBLIC_HEADERS}
           llvmlibc llvmlibm
 )
 
