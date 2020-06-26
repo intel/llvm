@@ -1511,6 +1511,10 @@ pi_result cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags,
           cuMemHostRegister(host_ptr, size, CU_MEMHOSTREGISTER_DEVICEMAP));
       retErr = PI_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, host_ptr, 0));
       allocMode = _pi_mem::alloc_mode::use_host_ptr;
+    } else if (flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) {
+      retErr = PI_CHECK_ERROR(cuMemAllocHost(&host_ptr, size));
+      retErr = PI_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, host_ptr, 0));
+      allocMode = _pi_mem::alloc_mode::alloc_host_ptr;
     } else {
       retErr = PI_CHECK_ERROR(cuMemAlloc(&ptr, size));
       if (flags & PI_MEM_FLAGS_HOST_PTR_COPY) {
@@ -1582,6 +1586,8 @@ pi_result cuda_piMemRelease(pi_mem memObj) {
       case _pi_mem::alloc_mode::use_host_ptr:
         ret = PI_CHECK_ERROR(cuMemHostUnregister(uniqueMemObj->hostPtr_));
         break;
+      case _pi_mem::alloc_mode::alloc_host_ptr:
+        ret = PI_CHECK_ERROR(cuMemFreeHost(uniqueMemObj->hostPtr_));
       };
     }
 

@@ -508,6 +508,7 @@ constexpr pi_mem_flags PI_MEM_FLAGS_ACCESS_RW = CL_MEM_READ_WRITE;
 // Host pointer
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_USE = CL_MEM_USE_HOST_PTR;
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
+constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_ALLOC = CL_MEM_ALLOC_HOST_PTR;
 
 // NOTE: queue properties are implemented this way to better support bit
 // manipulations
