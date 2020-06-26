@@ -1,5 +1,4 @@
 // RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
-// XFAIL: *
 
 // This test checks that compiler generates correct kernel arguments for
 // arrays, Accessor arrays, and structs containing Accessors.
@@ -19,7 +18,7 @@ int main() {
       accessor<int, 1, access::mode::read_write, access::target::global_buffer>;
 
   Accessor acc[2];
-  int a[100];
+  int a[2];
   struct struct_acc_t {
     Accessor member_acc[4];
   } struct_acc;
@@ -31,7 +30,7 @@ int main() {
 
   a_kernel<class kernel_B>(
       [=]() {
-        int local = a[3];
+        int local = a[1];
       });
 
   a_kernel<class kernel_C>(
@@ -41,8 +40,7 @@ int main() {
 }
 
 // Check kernel_A parameters
-// CHECK: FunctionDecl {{.*}}kernel_A{{.*}} 'void (wrapped_array, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'wrapped_array'
+// CHECK: FunctionDecl {{.*}}kernel_A{{.*}} 'void (__global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ '__global int *'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'cl::sycl::range<1>'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'cl::sycl::range<1>'
@@ -56,41 +54,38 @@ int main() {
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}}__init
 
-// CHECK kernel_B parameters
-// CHECK: FunctionDecl {{.*}}kernel_B{{.*}} 'void (wrapped_array)'
-// CHECK-NEXT: ParmVarDecl {{.*}} 'wrapped_array'
-// CHECK-NEXT: CompoundStmt
-// CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl
-// CHECK-NEXT: InitListExpr
-// CHECK-NEXT: ArrayInitLoopExpr {{.*}} 'int [100]'
+// Check kernel_B parameters
+// CHECK: FunctionDecl {{.*}}kernel_B{{.*}} 'void (int, int)'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'int'
 
-// CHECK kernel_C parameters
-// CHECK: FunctionDecl {{.*}}kernel_C{{.*}} 'void (struct {{.*}}, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
-// CHECK-NEXT: ParmVarDecl {{.*}} 'struct {{.*}}'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
+// Correct and enable after struct mebers are extracted into separate parameters
+// C HECK kernel_C parameters
+// C HECK: FunctionDecl {{.*}}kernel_C{{.*}} 'void (struct {{.*}}, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
+// C HECK-NEXT: ParmVarDecl {{.*}} 'struct {{.*}}'
+// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
+// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
+// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
+// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
+// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
+// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
+// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
+// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
+// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
+// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
+// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
+// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
+// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
+// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
+// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
+// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
 
-// CHECK that four accessor init functions are called
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}}__init
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}}__init
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}}__init
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}}__init
+// C HECK that four accessor init functions are called
+// C HECK: CXXMemberCallExpr {{.*}} 'void'
+// C HECK-NEXT: MemberExpr {{.*}}__init
+// C HECK: CXXMemberCallExpr {{.*}} 'void'
+// C HECK-NEXT: MemberExpr {{.*}}__init
+// C HECK: CXXMemberCallExpr {{.*}} 'void'
+// C HECK-NEXT: MemberExpr {{.*}}__init
+// C HECK: CXXMemberCallExpr {{.*}} 'void'
+// C HECK-NEXT: MemberExpr {{.*}}__init
