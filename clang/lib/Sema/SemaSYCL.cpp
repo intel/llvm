@@ -883,13 +883,11 @@ static void VisitStreamRecord(CXXRecordDecl *Owner, ParentTy &Parent,
   (void)std::initializer_list<int>{(handlers.leaveStruct(Owner, Parent), 0)...};
 }
 
-
 template <typename... Handlers>
-static void VisitFunctorBases(CXXRecordDecl *KernelFunctor,
-                              Handlers &... handlers) {
+static void VisitRecordBases(CXXRecordDecl *KernelFunctor,
+                             Handlers &... handlers) {
   VisitRecordHelper(KernelFunctor, KernelFunctor->bases(), handlers...);
 }
-
 
 // A visitor function that dispatches to functions as defined in
 // SyclKernelFieldHandler for the purposes of kernel generation.
@@ -1252,7 +1250,6 @@ public:
   }
 
   bool handleStructType(FieldDecl *FD, QualType FieldTy) final {
-    // addParam(FD, FieldTy);
     return true;
   }
 
@@ -1280,8 +1277,8 @@ public:
     return ArrayRef<ParmVarDecl *>(std::begin(Params) + LastParamIndex,
                                    std::end(Params));
   }
-  using SyclKernelFieldHandler::handleSyclSamplerType;
   using SyclKernelFieldHandler::handleSyclHalfType;
+  using SyclKernelFieldHandler::handleSyclSamplerType;
 };
 
 class SyclKernelBodyCreator
@@ -1426,11 +1423,6 @@ class SyclKernelBodyCreator
                                               VK_LValue, SourceLocation());
     }
 
-    /*Expr *SpecialObjME = Base;
-    if (Field)
-      SpecialObjME = BuildMemberExpr(Base, Field);
-
-    MemberExpr *MethodME = BuildMemberExpr(SpecialObjME, Method);*/
     MemberExpr *MethodME = BuildMemberExpr(Base, Method);
     QualType ResultTy = Method->getReturnType();
     ExprValueKind VK = Expr::getValueKindForType(ResultTy);
@@ -1566,7 +1558,6 @@ public:
   }
 
   bool handleStructType(FieldDecl *FD, QualType FieldTy) final {
-    // createExprForStructOrScalar(FD);
     return true;
   }
 
@@ -1581,7 +1572,6 @@ public:
   }
 
   void enterStruct(const CXXRecordDecl *, FieldDecl *FD) final {
-    // MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
   }
 
   void enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
@@ -1635,7 +1625,6 @@ public:
           InitExprs.pop_back();
       }
     }
-    // MemberExprBases.pop_back();
   }
 
   void leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
@@ -1793,7 +1782,6 @@ public:
   }
 
   bool handleStructType(FieldDecl *FD, QualType FieldTy) final {
-    // addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
     return true;
   }
 
@@ -1904,8 +1892,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       StableName);
 
   ConstructingOpenCLKernel = true;
-  VisitFunctorBases(KernelLambda, checker, kernel_decl, kernel_body,
-                    int_header);
+  VisitRecordBases(KernelLambda, checker, kernel_decl, kernel_body, int_header);
   VisitRecordFields(KernelLambda, checker, kernel_decl, kernel_body,
                     int_header);
   ConstructingOpenCLKernel = false;
