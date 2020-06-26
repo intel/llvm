@@ -3180,17 +3180,158 @@ pi_result cuda_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
     return PI_ERROR_UNKNOWN;
   }
 }
-/// \TODO Not implemented in CUDA, requires untie from OpenCL
+
+static size_t imageElementByteSize(CUDA_ARRAY_DESCRIPTOR array_desc) {
+  switch(array_desc.Format) {
+    case CU_AD_FORMAT_UNSIGNED_INT8:
+    case CU_AD_FORMAT_SIGNED_INT8:
+      return 1;
+    case CU_AD_FORMAT_UNSIGNED_INT16:
+    case CU_AD_FORMAT_SIGNED_INT16:
+    case CU_AD_FORMAT_HALF:
+      return 2;
+    case CU_AD_FORMAT_UNSIGNED_INT32:
+    case CU_AD_FORMAT_SIGNED_INT32:
+    case CU_AD_FORMAT_FLOAT:
+      return 4;
+  }
+  cl::sycl::detail::pi::die("Invalid iamge format.");
+  return 0;
+}
+
+/// General ND memory copy operation for images (where N > 1).
+/// This function requires the corresponding CUDA context to be at the top of
+/// the context stack
+/// If the source and/or destination is an array, src_ptr and/or dst_ptr
+/// must be a pointer to a CUarray
+static pi_result commonEnqueueMemImageNDCopy(
+    CUstream cu_stream, pi_mem_type img_type, const size_t *region,
+    const void *src_ptr, const CUmemorytype_enum src_type,
+    const size_t *src_offset, void *dst_ptr, const CUmemorytype_enum dst_type,
+    const size_t *dst_offset) {
+  assert(region != nullptr);
+
+  assert(src_type == CU_MEMORYTYPE_ARRAY || src_type == CU_MEMORYTYPE_HOST);
+  assert(dst_type == CU_MEMORYTYPE_ARRAY || dst_type == CU_MEMORYTYPE_HOST);
+
+  if (img_type == PI_MEM_TYPE_IMAGE2D) {
+    CUDA_MEMCPY2D cpyDesc;
+    memset(&cpyDesc, 0, sizeof(cpyDesc));
+    cpyDesc.srcMemoryType = src_type;
+    if (src_type == CU_MEMORYTYPE_ARRAY) {
+      cpyDesc.srcArray = *static_cast<const CUarray *>(src_ptr);
+      cpyDesc.srcXInBytes = src_offset[0];
+      cpyDesc.srcY = src_offset[1];
+    } else {
+      cpyDesc.srcHost = src_ptr;
+    }
+    cpyDesc.dstMemoryType = dst_type;
+    if (dst_type == CU_MEMORYTYPE_ARRAY) {
+      cpyDesc.dstArray = *static_cast<CUarray *>(dst_ptr);
+      cpyDesc.dstXInBytes = dst_offset[0];
+      cpyDesc.dstY = dst_offset[1];
+    } else {
+      cpyDesc.dstHost = dst_ptr;
+    }
+    cpyDesc.WidthInBytes = region[0];
+    cpyDesc.Height = region[1];
+    return PI_CHECK_ERROR(cuMemcpy2DAsync(&cpyDesc, cu_stream));
+  }
+  if (img_type == PI_MEM_TYPE_IMAGE3D) {
+    CUDA_MEMCPY3D cpyDesc;
+    memset(&cpyDesc, 0, sizeof(cpyDesc));
+    cpyDesc.srcMemoryType = src_type;
+    if (src_type == CU_MEMORYTYPE_ARRAY) {
+      cpyDesc.srcArray = *static_cast<const CUarray *>(src_ptr);
+      cpyDesc.srcXInBytes = src_offset[0];
+      cpyDesc.srcY = src_offset[1];
+      cpyDesc.srcZ = src_offset[2];
+    } else {
+      cpyDesc.srcHost = src_ptr;
+    }
+    cpyDesc.dstMemoryType = dst_type;
+    if (dst_type == CU_MEMORYTYPE_ARRAY) {
+      cpyDesc.dstArray = *static_cast<CUarray *>(dst_ptr);
+      cpyDesc.dstXInBytes = dst_offset[0];
+      cpyDesc.dstY = dst_offset[1];
+      cpyDesc.dstZ = dst_offset[2];
+    } else {
+      cpyDesc.dstHost = dst_ptr;
+    }
+    cpyDesc.WidthInBytes = region[0];
+    cpyDesc.Height = region[1];
+    cpyDesc.Depth = region[2];
+    return PI_CHECK_ERROR(cuMemcpy3DAsync(&cpyDesc, cu_stream));
+  }
+  return PI_INVALID_VALUE;
+}
+
 pi_result cuda_piEnqueueMemImageRead(
     pi_queue command_queue, pi_mem image, pi_bool blocking_read,
     const size_t *origin, const size_t *region, size_t row_pitch,
     size_t slice_pitch, void *ptr, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
-  cl::sycl::detail::pi::die("cuda_piEnqueueMemImageRead not implemented");
-  return {};
+  assert(command_queue != nullptr);
+  assert(image != nullptr);
+  assert(image->mem_type_ == _pi_mem::mem_type::surface);
+
+  pi_result retErr = PI_SUCCESS;
+  CUstream cuStream = command_queue->get();
+  
+  try {
+    ScopedContext active(command_queue->get_context());
+
+    if (event_wait_list) {
+      cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                          event_wait_list, nullptr);
+    }
+
+    CUarray array = image->mem_.surface_mem_.get_array();
+
+    CUDA_ARRAY_DESCRIPTOR arrayDesc;
+    retErr = PI_CHECK_ERROR(cuArrayGetDescriptor(&arrayDesc, array));
+
+    int elementByteSize = imageElementByteSize(arrayDesc);
+
+    size_t byteOffsetX = origin[0] * elementByteSize * arrayDesc.NumChannels;
+    size_t bytesToCopy = elementByteSize * arrayDesc.NumChannels * region[0];
+
+    pi_mem_type imgType = image->mem_.surface_mem_.get_image_type();
+    if (imgType == PI_MEM_TYPE_IMAGE1D) {
+      retErr = PI_CHECK_ERROR(
+          cuMemcpyAtoHAsync(ptr, array, byteOffsetX, bytesToCopy, cuStream));
+    } else {
+      size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
+      size_t srcOffset[3] = {byteOffsetX, origin[1], origin[2]};
+
+      retErr = commonEnqueueMemImageNDCopy(
+          cuStream, imgType, adjustedRegion, &array, CU_MEMORYTYPE_ARRAY,
+          srcOffset, ptr, CU_MEMORYTYPE_HOST, nullptr);
+
+      if (retErr != PI_SUCCESS) {
+        return retErr;
+      }
+    }
+
+    if (event) {
+      auto new_event =
+          _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_READ, command_queue);
+      new_event->record();
+      *event = new_event;
+    }
+
+    if (blocking_read) {
+      retErr = PI_CHECK_ERROR(cuStreamSynchronize(cuStream));
+    }
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  return retErr;
 }
 
-/// \TODO Not implemented in CUDA, requires untie from OpenCL
 pi_result
 cuda_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
                             pi_bool blocking_write, const size_t *origin,
@@ -3198,11 +3339,63 @@ cuda_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
                             size_t input_slice_pitch, const void *ptr,
                             pi_uint32 num_events_in_wait_list,
                             const pi_event *event_wait_list, pi_event *event) {
-  cl::sycl::detail::pi::die("cuda_piEnqueueMemImageWrite not implemented");
-  return {};
+  assert(command_queue != nullptr);
+  assert(image != nullptr);
+  assert(image->mem_type_ == _pi_mem::mem_type::surface);
+
+  pi_result retErr = PI_SUCCESS;
+  CUstream cuStream = command_queue->get();
+
+  try {
+    ScopedContext active(command_queue->get_context());
+
+    if (event_wait_list) {
+      cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                               event_wait_list, nullptr);
+    }
+
+    CUarray array = image->mem_.surface_mem_.get_array();
+
+    CUDA_ARRAY_DESCRIPTOR arrayDesc;
+    retErr = PI_CHECK_ERROR(cuArrayGetDescriptor(&arrayDesc, array));
+
+    int elementByteSize = imageElementByteSize(arrayDesc);
+
+    size_t byteOffsetX = origin[0] * elementByteSize * arrayDesc.NumChannels;
+    size_t bytesToCopy = elementByteSize * arrayDesc.NumChannels * region[0];
+
+    pi_mem_type imgType = image->mem_.surface_mem_.get_image_type();
+    if (imgType == PI_MEM_TYPE_IMAGE1D) {
+      retErr = PI_CHECK_ERROR(
+          cuMemcpyHtoAAsync(array, byteOffsetX, ptr, bytesToCopy, cuStream));
+    } else {
+      size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
+      size_t dstOffset[3] = {byteOffsetX, origin[1], origin[2]};
+
+      retErr = commonEnqueueMemImageNDCopy(
+          cuStream, imgType, adjustedRegion, ptr, CU_MEMORYTYPE_HOST, nullptr,
+          &array, CU_MEMORYTYPE_ARRAY, dstOffset);
+
+      if (retErr != PI_SUCCESS) {
+        return retErr;
+      }
+    }
+
+    if (event) {
+      auto new_event =
+          _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_WRITE, command_queue);
+      new_event->record();
+      *event = new_event;
+    }
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  return retErr;
 }
 
-/// \TODO Not implemented in CUDA, requires untie from OpenCL
 pi_result cuda_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
                                      pi_mem dst_image, const size_t *src_origin,
                                      const size_t *dst_origin,
@@ -3210,8 +3403,72 @@ pi_result cuda_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
                                      pi_uint32 num_events_in_wait_list,
                                      const pi_event *event_wait_list,
                                      pi_event *event) {
-  cl::sycl::detail::pi::die("cuda_piEnqueueMemImageCopy not implemented");
-  return {};
+  assert(src_image->mem_type_ == _pi_mem::mem_type::surface);
+  assert(dst_image->mem_type_ == _pi_mem::mem_type::surface);
+  assert(src_image->mem_.surface_mem_.get_image_type() ==
+         dst_image->mem_.surface_mem_.get_image_type());
+
+  pi_result retErr = PI_SUCCESS;
+  CUstream cuStream = command_queue->get();
+
+  try {
+    ScopedContext active(command_queue->get_context());
+
+    if (event_wait_list) {
+      cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                               event_wait_list, nullptr);
+    }
+
+    CUarray srcArray = src_image->mem_.surface_mem_.get_array();
+    CUarray dstArray = dst_image->mem_.surface_mem_.get_array();
+
+    CUDA_ARRAY_DESCRIPTOR srcArrayDesc;
+    retErr = PI_CHECK_ERROR(cuArrayGetDescriptor(&srcArrayDesc, srcArray));
+    CUDA_ARRAY_DESCRIPTOR dstArrayDesc;
+    retErr = PI_CHECK_ERROR(cuArrayGetDescriptor(&dstArrayDesc, dstArray));
+
+    assert(srcArrayDesc.Format == dstArrayDesc.Format);
+    assert(srcArrayDesc.NumChannels == dstArrayDesc.NumChannels);
+
+    int elementByteSize = imageElementByteSize(srcArrayDesc);
+
+    size_t dstByteOffsetX =
+        dst_origin[0] * elementByteSize * srcArrayDesc.NumChannels;
+    size_t srcByteOffsetX =
+        src_origin[0] * elementByteSize * dstArrayDesc.NumChannels;
+    size_t bytesToCopy = elementByteSize * srcArrayDesc.NumChannels * region[0];
+
+    pi_mem_type imgType = src_image->mem_.surface_mem_.get_image_type();
+    if (imgType == PI_MEM_TYPE_IMAGE1D) {
+      retErr = PI_CHECK_ERROR(cuMemcpyAtoA(dstArray, dstByteOffsetX, srcArray,
+                                           srcByteOffsetX, bytesToCopy));
+    } else {
+      size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
+      size_t srcOffset[3] = {srcByteOffsetX, src_origin[1], src_origin[2]};
+      size_t dstOffset[3] = {dstByteOffsetX, dst_origin[1], dst_origin[2]};
+
+      retErr = commonEnqueueMemImageNDCopy(
+          cuStream, imgType, adjustedRegion, &srcArray, CU_MEMORYTYPE_ARRAY,
+          srcOffset, &dstArray, CU_MEMORYTYPE_ARRAY, dstOffset);
+
+      if (retErr != PI_SUCCESS) {
+        return retErr;
+      }
+    }
+
+    if (event) {
+      auto new_event =
+          _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_COPY, command_queue);
+      new_event->record();
+      *event = new_event;
+    }
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  return retErr;
 }
 
 /// \TODO Not implemented in CUDA, requires untie from OpenCL
