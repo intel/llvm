@@ -34,15 +34,13 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-// Forward declaration
+// Forward declarations
 class queue;
 namespace detail {
 class queue_impl;
 } // namespace detail
 
 namespace detail {
-
-using namespace cl;
 
 class stream_impl;
 /// Base class for all types of command groups.

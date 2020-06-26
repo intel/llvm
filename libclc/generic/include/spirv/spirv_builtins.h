@@ -6,6 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+//
+// Automatically generated file, do not edit!
+//
+
 #include <func.h>
 #include <spirv/spirv_types.h>
 
@@ -8266,6 +8270,43 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
     __spirv_ConvertUToF_Rhalf_rtz(__clc_uint64_t);
 #endif
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_Dot(__clc_vec2_fp32_t, __clc_vec2_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_Dot(__clc_vec3_fp32_t, __clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_Dot(__clc_vec4_fp32_t, __clc_vec4_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_Dot(__clc_vec8_fp32_t, __clc_vec8_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_Dot(__clc_vec16_fp32_t, __clc_vec16_fp32_t);
+
+#ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
+    __spirv_Dot(__clc_vec2_fp64_t, __clc_vec2_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
+    __spirv_Dot(__clc_vec3_fp64_t, __clc_vec3_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
+    __spirv_Dot(__clc_vec4_fp64_t, __clc_vec4_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
+    __spirv_Dot(__clc_vec8_fp64_t, __clc_vec8_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
+    __spirv_Dot(__clc_vec16_fp64_t, __clc_vec16_fp64_t);
+#endif
+
+#ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
+    __spirv_Dot(__clc_vec2_fp16_t, __clc_vec2_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
+    __spirv_Dot(__clc_vec3_fp16_t, __clc_vec3_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
+    __spirv_Dot(__clc_vec4_fp16_t, __clc_vec4_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
+    __spirv_Dot(__clc_vec8_fp16_t, __clc_vec8_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
+    __spirv_Dot(__clc_vec16_fp16_t, __clc_vec16_fp16_t);
+#endif
+
 #ifdef cl_khr_fp64
 _CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_fp64_t __spirv_FConvert_Rdouble(__clc_fp32_t);
@@ -12643,6 +12684,68 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
     __spirv_ocl_clz(__clc_vec16_uint64_t);
 
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_ocl_copysign(__clc_fp32_t, __clc_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
+    __spirv_ocl_copysign(__clc_vec2_fp32_t, __clc_vec2_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ocl_copysign(__clc_vec3_fp32_t, __clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ocl_copysign(__clc_vec4_fp32_t, __clc_vec4_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
+    __spirv_ocl_copysign(__clc_vec8_fp32_t, __clc_vec8_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
+    __spirv_ocl_copysign(__clc_vec16_fp32_t, __clc_vec16_fp32_t);
+
+#ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
+    __spirv_ocl_copysign(__clc_fp64_t, __clc_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
+    __spirv_ocl_copysign(__clc_vec2_fp64_t, __clc_vec2_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
+    __spirv_ocl_copysign(__clc_vec3_fp64_t, __clc_vec3_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
+    __spirv_ocl_copysign(__clc_vec4_fp64_t, __clc_vec4_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
+    __spirv_ocl_copysign(__clc_vec8_fp64_t, __clc_vec8_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
+    __spirv_ocl_copysign(__clc_vec16_fp64_t, __clc_vec16_fp64_t);
+#endif
+
+#ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
+    __spirv_ocl_copysign(__clc_fp16_t, __clc_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
+    __spirv_ocl_copysign(__clc_vec2_fp16_t, __clc_vec2_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
+    __spirv_ocl_copysign(__clc_vec3_fp16_t, __clc_vec3_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
+    __spirv_ocl_copysign(__clc_vec4_fp16_t, __clc_vec4_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
+    __spirv_ocl_copysign(__clc_vec8_fp16_t, __clc_vec8_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
+    __spirv_ocl_copysign(__clc_vec16_fp16_t, __clc_vec16_fp16_t);
+#endif
+
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ocl_cross(__clc_vec3_fp32_t, __clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ocl_cross(__clc_vec4_fp32_t, __clc_vec4_fp32_t);
+
+#ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
+    __spirv_ocl_cross(__clc_vec3_fp64_t, __clc_vec3_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
+    __spirv_ocl_cross(__clc_vec4_fp64_t, __clc_vec4_fp64_t);
+#endif
+
+#ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
+    __spirv_ocl_cross(__clc_vec3_fp16_t, __clc_vec3_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
+    __spirv_ocl_cross(__clc_vec4_fp16_t, __clc_vec4_fp16_t);
+#endif
+
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_char_t __spirv_ocl_ctz(__clc_char_t);
 _CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_vec2_char_t __spirv_ocl_ctz(__clc_vec2_char_t);
@@ -12750,6 +12853,107 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
     __spirv_ocl_ctz(__clc_vec16_uint64_t);
 
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp32_t __spirv_ocl_degrees(__clc_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
+    __spirv_ocl_degrees(__clc_vec2_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ocl_degrees(__clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ocl_degrees(__clc_vec4_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
+    __spirv_ocl_degrees(__clc_vec8_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
+    __spirv_ocl_degrees(__clc_vec16_fp32_t);
+
+#ifdef cl_khr_fp64
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp64_t __spirv_ocl_degrees(__clc_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
+    __spirv_ocl_degrees(__clc_vec2_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
+    __spirv_ocl_degrees(__clc_vec3_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
+    __spirv_ocl_degrees(__clc_vec4_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
+    __spirv_ocl_degrees(__clc_vec8_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
+    __spirv_ocl_degrees(__clc_vec16_fp64_t);
+#endif
+
+#ifdef cl_khr_fp16
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp16_t __spirv_ocl_degrees(__clc_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
+    __spirv_ocl_degrees(__clc_vec2_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
+    __spirv_ocl_degrees(__clc_vec3_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
+    __spirv_ocl_degrees(__clc_vec4_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
+    __spirv_ocl_degrees(__clc_vec8_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
+    __spirv_ocl_degrees(__clc_vec16_fp16_t);
+#endif
+
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_ocl_distance(__clc_fp32_t, __clc_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_ocl_distance(__clc_vec2_fp32_t, __clc_vec2_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_ocl_distance(__clc_vec3_fp32_t, __clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_ocl_distance(__clc_vec4_fp32_t, __clc_vec4_fp32_t);
+
+#ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
+    __spirv_ocl_distance(__clc_fp64_t, __clc_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
+    __spirv_ocl_distance(__clc_vec2_fp64_t, __clc_vec2_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
+    __spirv_ocl_distance(__clc_vec3_fp64_t, __clc_vec3_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
+    __spirv_ocl_distance(__clc_vec4_fp64_t, __clc_vec4_fp64_t);
+#endif
+
+#ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
+    __spirv_ocl_distance(__clc_fp16_t, __clc_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
+    __spirv_ocl_distance(__clc_vec2_fp16_t, __clc_vec2_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
+    __spirv_ocl_distance(__clc_vec3_fp16_t, __clc_vec3_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
+    __spirv_ocl_distance(__clc_vec4_fp16_t, __clc_vec4_fp16_t);
+#endif
+
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_ocl_fast_distance(__clc_fp32_t, __clc_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_ocl_fast_distance(__clc_vec2_fp32_t, __clc_vec2_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_ocl_fast_distance(__clc_vec3_fp32_t, __clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_ocl_fast_distance(__clc_vec4_fp32_t, __clc_vec4_fp32_t);
+
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp32_t __spirv_ocl_fast_length(__clc_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_ocl_fast_length(__clc_vec2_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_ocl_fast_length(__clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_ocl_fast_length(__clc_vec4_fp32_t);
+
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_ocl_fast_normalize(__clc_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
+    __spirv_ocl_fast_normalize(__clc_vec2_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ocl_fast_normalize(__clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ocl_fast_normalize(__clc_vec4_fp32_t);
+
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
     __spirv_ocl_fclamp(__clc_fp32_t, __clc_fp32_t, __clc_fp32_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
@@ -12791,6 +12995,166 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
     __spirv_ocl_fclamp(__clc_vec8_fp16_t, __clc_vec8_fp16_t, __clc_vec8_fp16_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t __spirv_ocl_fclamp(
     __clc_vec16_fp16_t, __clc_vec16_fp16_t, __clc_vec16_fp16_t);
+#endif
+
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp32_t __spirv_ocl_half_rsqrt(__clc_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
+    __spirv_ocl_half_rsqrt(__clc_vec2_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ocl_half_rsqrt(__clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ocl_half_rsqrt(__clc_vec4_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
+    __spirv_ocl_half_rsqrt(__clc_vec8_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
+    __spirv_ocl_half_rsqrt(__clc_vec16_fp32_t);
+
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp32_t __spirv_ocl_half_sqrt(__clc_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
+    __spirv_ocl_half_sqrt(__clc_vec2_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ocl_half_sqrt(__clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ocl_half_sqrt(__clc_vec4_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
+    __spirv_ocl_half_sqrt(__clc_vec8_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
+    __spirv_ocl_half_sqrt(__clc_vec16_fp32_t);
+
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp32_t __spirv_ocl_length(__clc_fp32_t);
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp32_t __spirv_ocl_length(__clc_vec2_fp32_t);
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp32_t __spirv_ocl_length(__clc_vec3_fp32_t);
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp32_t __spirv_ocl_length(__clc_vec4_fp32_t);
+
+#ifdef cl_khr_fp64
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp64_t __spirv_ocl_length(__clc_fp64_t);
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp64_t __spirv_ocl_length(__clc_vec2_fp64_t);
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp64_t __spirv_ocl_length(__clc_vec3_fp64_t);
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp64_t __spirv_ocl_length(__clc_vec4_fp64_t);
+#endif
+
+#ifdef cl_khr_fp16
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp16_t __spirv_ocl_length(__clc_fp16_t);
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp16_t __spirv_ocl_length(__clc_vec2_fp16_t);
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp16_t __spirv_ocl_length(__clc_vec3_fp16_t);
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp16_t __spirv_ocl_length(__clc_vec4_fp16_t);
+#endif
+
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t __spirv_ocl_mix(__clc_fp32_t,
+                                                                  __clc_fp32_t,
+                                                                  __clc_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
+    __spirv_ocl_mix(__clc_vec2_fp32_t, __clc_vec2_fp32_t, __clc_vec2_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ocl_mix(__clc_vec3_fp32_t, __clc_vec3_fp32_t, __clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ocl_mix(__clc_vec4_fp32_t, __clc_vec4_fp32_t, __clc_vec4_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
+    __spirv_ocl_mix(__clc_vec8_fp32_t, __clc_vec8_fp32_t, __clc_vec8_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
+    __spirv_ocl_mix(__clc_vec16_fp32_t, __clc_vec16_fp32_t, __clc_vec16_fp32_t);
+
+#ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t __spirv_ocl_mix(__clc_fp64_t,
+                                                                  __clc_fp64_t,
+                                                                  __clc_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
+    __spirv_ocl_mix(__clc_vec2_fp64_t, __clc_vec2_fp64_t, __clc_vec2_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
+    __spirv_ocl_mix(__clc_vec3_fp64_t, __clc_vec3_fp64_t, __clc_vec3_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
+    __spirv_ocl_mix(__clc_vec4_fp64_t, __clc_vec4_fp64_t, __clc_vec4_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
+    __spirv_ocl_mix(__clc_vec8_fp64_t, __clc_vec8_fp64_t, __clc_vec8_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
+    __spirv_ocl_mix(__clc_vec16_fp64_t, __clc_vec16_fp64_t, __clc_vec16_fp64_t);
+#endif
+
+#ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t __spirv_ocl_mix(__clc_fp16_t,
+                                                                  __clc_fp16_t,
+                                                                  __clc_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
+    __spirv_ocl_mix(__clc_vec2_fp16_t, __clc_vec2_fp16_t, __clc_vec2_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
+    __spirv_ocl_mix(__clc_vec3_fp16_t, __clc_vec3_fp16_t, __clc_vec3_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
+    __spirv_ocl_mix(__clc_vec4_fp16_t, __clc_vec4_fp16_t, __clc_vec4_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
+    __spirv_ocl_mix(__clc_vec8_fp16_t, __clc_vec8_fp16_t, __clc_vec8_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
+    __spirv_ocl_mix(__clc_vec16_fp16_t, __clc_vec16_fp16_t, __clc_vec16_fp16_t);
+#endif
+
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp32_t __spirv_ocl_native_rsqrt(__clc_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
+    __spirv_ocl_native_rsqrt(__clc_vec2_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ocl_native_rsqrt(__clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ocl_native_rsqrt(__clc_vec4_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
+    __spirv_ocl_native_rsqrt(__clc_vec8_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
+    __spirv_ocl_native_rsqrt(__clc_vec16_fp32_t);
+
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp32_t __spirv_ocl_native_sqrt(__clc_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
+    __spirv_ocl_native_sqrt(__clc_vec2_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ocl_native_sqrt(__clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ocl_native_sqrt(__clc_vec4_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
+    __spirv_ocl_native_sqrt(__clc_vec8_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
+    __spirv_ocl_native_sqrt(__clc_vec16_fp32_t);
+
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp32_t __spirv_ocl_normalize(__clc_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
+    __spirv_ocl_normalize(__clc_vec2_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ocl_normalize(__clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ocl_normalize(__clc_vec4_fp32_t);
+
+#ifdef cl_khr_fp64
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp64_t __spirv_ocl_normalize(__clc_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
+    __spirv_ocl_normalize(__clc_vec2_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
+    __spirv_ocl_normalize(__clc_vec3_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
+    __spirv_ocl_normalize(__clc_vec4_fp64_t);
+#endif
+
+#ifdef cl_khr_fp16
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp16_t __spirv_ocl_normalize(__clc_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
+    __spirv_ocl_normalize(__clc_vec2_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
+    __spirv_ocl_normalize(__clc_vec3_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
+    __spirv_ocl_normalize(__clc_vec4_fp16_t);
 #endif
 
 _CLC_OVERLOAD
@@ -13053,6 +13417,49 @@ _CLC_OVERLOAD _CLC_DECL void
 __spirv_ocl_prefetch(__clc_vec16_fp16_t const __global *, __clc_size_t);
 #endif
 
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp32_t __spirv_ocl_radians(__clc_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
+    __spirv_ocl_radians(__clc_vec2_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ocl_radians(__clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ocl_radians(__clc_vec4_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
+    __spirv_ocl_radians(__clc_vec8_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
+    __spirv_ocl_radians(__clc_vec16_fp32_t);
+
+#ifdef cl_khr_fp64
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp64_t __spirv_ocl_radians(__clc_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
+    __spirv_ocl_radians(__clc_vec2_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
+    __spirv_ocl_radians(__clc_vec3_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
+    __spirv_ocl_radians(__clc_vec4_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
+    __spirv_ocl_radians(__clc_vec8_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
+    __spirv_ocl_radians(__clc_vec16_fp64_t);
+#endif
+
+#ifdef cl_khr_fp16
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp16_t __spirv_ocl_radians(__clc_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
+    __spirv_ocl_radians(__clc_vec2_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
+    __spirv_ocl_radians(__clc_vec3_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
+    __spirv_ocl_radians(__clc_vec4_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
+    __spirv_ocl_radians(__clc_vec8_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
+    __spirv_ocl_radians(__clc_vec16_fp16_t);
+#endif
+
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_char_t
     __spirv_ocl_rotate(__clc_char_t, __clc_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_char_t
@@ -13161,6 +13568,49 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint64_t
     __spirv_ocl_rotate(__clc_vec8_uint64_t, __clc_vec8_uint64_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
     __spirv_ocl_rotate(__clc_vec16_uint64_t, __clc_vec16_uint64_t);
+
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp32_t __spirv_ocl_rsqrt(__clc_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
+    __spirv_ocl_rsqrt(__clc_vec2_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ocl_rsqrt(__clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ocl_rsqrt(__clc_vec4_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
+    __spirv_ocl_rsqrt(__clc_vec8_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
+    __spirv_ocl_rsqrt(__clc_vec16_fp32_t);
+
+#ifdef cl_khr_fp64
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp64_t __spirv_ocl_rsqrt(__clc_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
+    __spirv_ocl_rsqrt(__clc_vec2_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
+    __spirv_ocl_rsqrt(__clc_vec3_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
+    __spirv_ocl_rsqrt(__clc_vec4_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
+    __spirv_ocl_rsqrt(__clc_vec8_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
+    __spirv_ocl_rsqrt(__clc_vec16_fp64_t);
+#endif
+
+#ifdef cl_khr_fp16
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp16_t __spirv_ocl_rsqrt(__clc_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
+    __spirv_ocl_rsqrt(__clc_vec2_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
+    __spirv_ocl_rsqrt(__clc_vec3_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
+    __spirv_ocl_rsqrt(__clc_vec4_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
+    __spirv_ocl_rsqrt(__clc_vec8_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
+    __spirv_ocl_rsqrt(__clc_vec16_fp16_t);
+#endif
 
 _CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_uint8_t __spirv_ocl_s_abs(__clc_int8_t);
@@ -14118,6 +14568,178 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t __spirv_ocl_select(
     __clc_vec16_fp16_t, __clc_vec16_fp16_t, __clc_vec16_int16_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t __spirv_ocl_select(
     __clc_vec16_fp16_t, __clc_vec16_fp16_t, __clc_vec16_uint16_t);
+#endif
+
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp32_t __spirv_ocl_sign(__clc_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
+    __spirv_ocl_sign(__clc_vec2_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ocl_sign(__clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ocl_sign(__clc_vec4_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
+    __spirv_ocl_sign(__clc_vec8_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
+    __spirv_ocl_sign(__clc_vec16_fp32_t);
+
+#ifdef cl_khr_fp64
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp64_t __spirv_ocl_sign(__clc_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
+    __spirv_ocl_sign(__clc_vec2_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
+    __spirv_ocl_sign(__clc_vec3_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
+    __spirv_ocl_sign(__clc_vec4_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
+    __spirv_ocl_sign(__clc_vec8_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
+    __spirv_ocl_sign(__clc_vec16_fp64_t);
+#endif
+
+#ifdef cl_khr_fp16
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp16_t __spirv_ocl_sign(__clc_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
+    __spirv_ocl_sign(__clc_vec2_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
+    __spirv_ocl_sign(__clc_vec3_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
+    __spirv_ocl_sign(__clc_vec4_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
+    __spirv_ocl_sign(__clc_vec8_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
+    __spirv_ocl_sign(__clc_vec16_fp16_t);
+#endif
+
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_ocl_smoothstep(__clc_fp32_t, __clc_fp32_t, __clc_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t __spirv_ocl_smoothstep(
+    __clc_vec2_fp32_t, __clc_vec2_fp32_t, __clc_vec2_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t __spirv_ocl_smoothstep(
+    __clc_vec3_fp32_t, __clc_vec3_fp32_t, __clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t __spirv_ocl_smoothstep(
+    __clc_vec4_fp32_t, __clc_vec4_fp32_t, __clc_vec4_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t __spirv_ocl_smoothstep(
+    __clc_vec8_fp32_t, __clc_vec8_fp32_t, __clc_vec8_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t __spirv_ocl_smoothstep(
+    __clc_vec16_fp32_t, __clc_vec16_fp32_t, __clc_vec16_fp32_t);
+
+#ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
+    __spirv_ocl_smoothstep(__clc_fp64_t, __clc_fp64_t, __clc_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t __spirv_ocl_smoothstep(
+    __clc_vec2_fp64_t, __clc_vec2_fp64_t, __clc_vec2_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t __spirv_ocl_smoothstep(
+    __clc_vec3_fp64_t, __clc_vec3_fp64_t, __clc_vec3_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t __spirv_ocl_smoothstep(
+    __clc_vec4_fp64_t, __clc_vec4_fp64_t, __clc_vec4_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t __spirv_ocl_smoothstep(
+    __clc_vec8_fp64_t, __clc_vec8_fp64_t, __clc_vec8_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t __spirv_ocl_smoothstep(
+    __clc_vec16_fp64_t, __clc_vec16_fp64_t, __clc_vec16_fp64_t);
+#endif
+
+#ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
+    __spirv_ocl_smoothstep(__clc_fp16_t, __clc_fp16_t, __clc_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t __spirv_ocl_smoothstep(
+    __clc_vec2_fp16_t, __clc_vec2_fp16_t, __clc_vec2_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t __spirv_ocl_smoothstep(
+    __clc_vec3_fp16_t, __clc_vec3_fp16_t, __clc_vec3_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t __spirv_ocl_smoothstep(
+    __clc_vec4_fp16_t, __clc_vec4_fp16_t, __clc_vec4_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t __spirv_ocl_smoothstep(
+    __clc_vec8_fp16_t, __clc_vec8_fp16_t, __clc_vec8_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t __spirv_ocl_smoothstep(
+    __clc_vec16_fp16_t, __clc_vec16_fp16_t, __clc_vec16_fp16_t);
+#endif
+
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp32_t __spirv_ocl_sqrt(__clc_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
+    __spirv_ocl_sqrt(__clc_vec2_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ocl_sqrt(__clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ocl_sqrt(__clc_vec4_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
+    __spirv_ocl_sqrt(__clc_vec8_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
+    __spirv_ocl_sqrt(__clc_vec16_fp32_t);
+
+#ifdef cl_khr_fp64
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp64_t __spirv_ocl_sqrt(__clc_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
+    __spirv_ocl_sqrt(__clc_vec2_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
+    __spirv_ocl_sqrt(__clc_vec3_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
+    __spirv_ocl_sqrt(__clc_vec4_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
+    __spirv_ocl_sqrt(__clc_vec8_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
+    __spirv_ocl_sqrt(__clc_vec16_fp64_t);
+#endif
+
+#ifdef cl_khr_fp16
+_CLC_OVERLOAD
+_CLC_DECL _CLC_CONSTFN __clc_fp16_t __spirv_ocl_sqrt(__clc_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
+    __spirv_ocl_sqrt(__clc_vec2_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
+    __spirv_ocl_sqrt(__clc_vec3_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
+    __spirv_ocl_sqrt(__clc_vec4_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
+    __spirv_ocl_sqrt(__clc_vec8_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
+    __spirv_ocl_sqrt(__clc_vec16_fp16_t);
+#endif
+
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
+    __spirv_ocl_step(__clc_fp32_t, __clc_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp32_t
+    __spirv_ocl_step(__clc_vec2_fp32_t, __clc_vec2_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp32_t
+    __spirv_ocl_step(__clc_vec3_fp32_t, __clc_vec3_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp32_t
+    __spirv_ocl_step(__clc_vec4_fp32_t, __clc_vec4_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp32_t
+    __spirv_ocl_step(__clc_vec8_fp32_t, __clc_vec8_fp32_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp32_t
+    __spirv_ocl_step(__clc_vec16_fp32_t, __clc_vec16_fp32_t);
+
+#ifdef cl_khr_fp64
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
+    __spirv_ocl_step(__clc_fp64_t, __clc_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp64_t
+    __spirv_ocl_step(__clc_vec2_fp64_t, __clc_vec2_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp64_t
+    __spirv_ocl_step(__clc_vec3_fp64_t, __clc_vec3_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp64_t
+    __spirv_ocl_step(__clc_vec4_fp64_t, __clc_vec4_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp64_t
+    __spirv_ocl_step(__clc_vec8_fp64_t, __clc_vec8_fp64_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp64_t
+    __spirv_ocl_step(__clc_vec16_fp64_t, __clc_vec16_fp64_t);
+#endif
+
+#ifdef cl_khr_fp16
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp16_t
+    __spirv_ocl_step(__clc_fp16_t, __clc_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_fp16_t
+    __spirv_ocl_step(__clc_vec2_fp16_t, __clc_vec2_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_fp16_t
+    __spirv_ocl_step(__clc_vec3_fp16_t, __clc_vec3_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_fp16_t
+    __spirv_ocl_step(__clc_vec4_fp16_t, __clc_vec4_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_fp16_t
+    __spirv_ocl_step(__clc_vec8_fp16_t, __clc_vec8_fp16_t);
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_fp16_t
+    __spirv_ocl_step(__clc_vec16_fp16_t, __clc_vec16_fp16_t);
 #endif
 
 _CLC_OVERLOAD
