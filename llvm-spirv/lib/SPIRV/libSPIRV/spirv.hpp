@@ -198,6 +198,8 @@ enum StorageClass {
     StorageClassPhysicalStorageBufferEXT = 5349,
     StorageClassDeviceOnlyINTEL = 5936,
     StorageClassHostOnlyINTEL = 5937,
+    //TODO to remove
+    StorageClangFormatTrigger = 9999,
     StorageClassMax = 0x7fffffff,
 };
 
