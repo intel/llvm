@@ -581,7 +581,8 @@ struct _pi_sampler {
   pi_uint32 props_;
   pi_context context_;
 
-  _pi_sampler(pi_context context);
+  _pi_sampler(pi_context context)
+      : refCount_(1), props_(0), context_(context) {}
 
   pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
 

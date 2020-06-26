@@ -2811,11 +2811,6 @@ pi_result cuda_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
   return {};
 }
 
-_pi_sampler::_pi_sampler(pi_context context) {
-  context_ = context;
-  props_ = 0;
-}
-
 /// Creates a PI sampler object
 ///
 /// \param[in] context The context the sampler is created for.
@@ -2940,7 +2935,7 @@ pi_result cuda_piSamplerRelease(pi_sampler sampler) {
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
   cl::sycl::detail::pi::assertion(
-      sampler->get_reference_count() > 0,
+      sampler->get_reference_count() != 0,
       "Reference count overflow detected in cuda_piSamplerRelease.");
 
   // decrement ref count. If it is 0, delete the sampler.
