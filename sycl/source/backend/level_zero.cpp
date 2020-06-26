@@ -1,4 +1,4 @@
-//==------- Intel_level0.cpp - SYCL Level-Zero backend ---------------------==//
+//==--------- level_zero.cpp - SYCL Level-Zero backend ---------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
