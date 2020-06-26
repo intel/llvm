@@ -1617,6 +1617,65 @@ static void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
   }
 }
 
+pi_result ExecCGCommand::SetKernelParamsAndLaunch(
+    CGExecKernel *ExecKernel, RT::PiKernel Kernel, NDRDescT &NDRDesc,
+    std::vector<RT::PiEvent> &RawEvents, RT::PiEvent &Event) {
+  const detail::plugin &Plugin = MQueue->getPlugin();
+  for (ArgDesc &Arg : ExecKernel->MArgs) {
+    switch (Arg.MType) {
+    case kernel_param_kind_t::kind_accessor: {
+      Requirement *Req = (Requirement *)(Arg.MPtr);
+      AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+      RT::PiMem MemArg = (RT::PiMem)AllocaCmd->getMemAllocation();
+      if (Plugin.getBackend() == backend::opencl) {
+        Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
+                                               sizeof(RT::PiMem), &MemArg);
+      } else {
+        Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, Arg.MIndex,
+                                                        &MemArg);
+      }
+      break;
+    }
+    case kernel_param_kind_t::kind_std_layout: {
+      Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex, Arg.MSize,
+                                             Arg.MPtr);
+      break;
+    }
+    case kernel_param_kind_t::kind_sampler: {
+      sampler *SamplerPtr = (sampler *)Arg.MPtr;
+      RT::PiSampler Sampler = detail::getSyclObjImpl(*SamplerPtr)
+                                  ->getOrCreateSampler(MQueue->get_context());
+      Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
+                                             sizeof(cl_sampler), &Sampler);
+      break;
+    }
+    case kernel_param_kind_t::kind_pointer: {
+      Plugin.call<PiApiKind::piextKernelSetArgPointer>(Kernel, Arg.MIndex,
+                                                       Arg.MSize, Arg.MPtr);
+      break;
+    }
+    }
+  }
+
+  adjustNDRangePerKernel(NDRDesc, Kernel,
+                         *(detail::getSyclObjImpl(MQueue->get_device())));
+
+  // Some PI Plugins (like OpenCL) require this call to enable USM
+  // For others, PI will turn this into a NOP.
+  Plugin.call<PiApiKind::piKernelSetExecInfo>(Kernel, PI_USM_INDIRECT_ACCESS,
+                                              sizeof(pi_bool), &PI_TRUE);
+
+  // Remember this information before the range dimensions are reversed
+  const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
+
+  ReverseRangeDimensionsForKernel(NDRDesc);
+  pi_result Error = Plugin.call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
+      MQueue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
+      &NDRDesc.GlobalSize[0], HasLocalSize ? &NDRDesc.LocalSize[0] : nullptr,
+      RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0], &Event);
+  return Error;
+}
+
 // The function initialize accessors and calls lambda.
 // The function is used as argument to piEnqueueNativeKernel which requires
 // that the passed function takes one void* argument.
@@ -1823,73 +1882,15 @@ cl_int ExecCGCommand::enqueueImp() {
               nullptr);
     }
 
-    auto SetKernelParamsAndLaunch = [this, &ExecKernel, &Kernel, &NDRDesc,
-                                     &RawEvents, &Event] {
-      const detail::plugin &Plugin = MQueue->getPlugin();
-      for (ArgDesc &Arg : ExecKernel->MArgs) {
-        switch (Arg.MType) {
-        case kernel_param_kind_t::kind_accessor: {
-          Requirement *Req = (Requirement *)(Arg.MPtr);
-          AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-          RT::PiMem MemArg = (RT::PiMem)AllocaCmd->getMemAllocation();
-          if (Plugin.getBackend() == backend::opencl) {
-            Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
-                                                   sizeof(RT::PiMem), &MemArg);
-          } else {
-            Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, Arg.MIndex,
-                                                            &MemArg);
-          }
-          break;
-        }
-        case kernel_param_kind_t::kind_std_layout: {
-          Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex, Arg.MSize,
-                                                 Arg.MPtr);
-          break;
-        }
-        case kernel_param_kind_t::kind_sampler: {
-          sampler *SamplerPtr = (sampler *)Arg.MPtr;
-          RT::PiSampler Sampler =
-              detail::getSyclObjImpl(*SamplerPtr)
-                  ->getOrCreateSampler(MQueue->get_context());
-          Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
-                                                 sizeof(cl_sampler), &Sampler);
-          break;
-        }
-        case kernel_param_kind_t::kind_pointer: {
-          Plugin.call<PiApiKind::piextKernelSetArgPointer>(Kernel, Arg.MIndex,
-                                                           Arg.MSize, Arg.MPtr);
-          break;
-        }
-        }
-      }
-
-      adjustNDRangePerKernel(NDRDesc, Kernel,
-                             *(detail::getSyclObjImpl(MQueue->get_device())));
-
-      // Some PI Plugins (like OpenCL) require this call to enable USM
-      // For others, PI will turn this into a NOP.
-      Plugin.call<PiApiKind::piKernelSetExecInfo>(
-          Kernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
-
-      // Remember this information before the range dimensions are reversed
-      const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
-
-      ReverseRangeDimensionsForKernel(NDRDesc);
-      pi_result Error = Plugin.call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
-          MQueue->getHandleRef(), Kernel, NDRDesc.Dims,
-          &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
-          HasLocalSize ? &NDRDesc.LocalSize[0] : nullptr, RawEvents.size(),
-          RawEvents.empty() ? nullptr : &RawEvents[0], &Event);
-      return Error;
-    };
-
     pi_result Error = PI_SUCCESS;
     if (KernelMutex != nullptr) {
       // For cacheable kernels, we use per-kernel mutex
       std::lock_guard<std::mutex> Lock(*KernelMutex);
-      Error = SetKernelParamsAndLaunch();
+      Error = SetKernelParamsAndLaunch(ExecKernel, Kernel, NDRDesc, RawEvents,
+                                       Event);
     } else {
-      Error = SetKernelParamsAndLaunch();
+      Error = SetKernelParamsAndLaunch(ExecKernel, Kernel, NDRDesc, RawEvents,
+                                       Event);
     }
 
     if (PI_SUCCESS != Error) {
