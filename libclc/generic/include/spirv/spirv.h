@@ -59,17 +59,16 @@
 #include <spirv/math/atanh.h>
 #include <spirv/math/atanpi.h>
 #include <spirv/math/cbrt.h>
-#include <spirv/math/copysign.h>
+#include <spirv/math/ceil.h>
 #include <spirv/math/cos.h>
 #include <spirv/math/cosh.h>
 #include <spirv/math/cospi.h>
-#include <spirv/math/ceil.h>
 #include <spirv/math/erf.h>
 #include <spirv/math/erfc.h>
 #include <spirv/math/exp.h>
-#include <spirv/math/expm1.h>
 #include <spirv/math/exp10.h>
 #include <spirv/math/exp2.h>
+#include <spirv/math/expm1.h>
 #include <spirv/math/fabs.h>
 #include <spirv/math/fdim.h>
 #include <spirv/math/floor.h>
@@ -89,9 +88,7 @@
 #include <spirv/math/half_log2.h>
 #include <spirv/math/half_powr.h>
 #include <spirv/math/half_recip.h>
-#include <spirv/math/half_rsqrt.h>
 #include <spirv/math/half_sin.h>
-#include <spirv/math/half_sqrt.h>
 #include <spirv/math/half_tan.h>
 #include <spirv/math/hypot.h>
 #include <spirv/math/ilogb.h>
@@ -108,6 +105,18 @@
 #include <spirv/math/minmag.h>
 #include <spirv/math/modf.h>
 #include <spirv/math/nan.h>
+#include <spirv/math/native_cos.h>
+#include <spirv/math/native_divide.h>
+#include <spirv/math/native_exp.h>
+#include <spirv/math/native_exp10.h>
+#include <spirv/math/native_exp2.h>
+#include <spirv/math/native_log.h>
+#include <spirv/math/native_log10.h>
+#include <spirv/math/native_log2.h>
+#include <spirv/math/native_powr.h>
+#include <spirv/math/native_recip.h>
+#include <spirv/math/native_sin.h>
+#include <spirv/math/native_tan.h>
 #include <spirv/math/nextafter.h>
 #include <spirv/math/pow.h>
 #include <spirv/math/pown.h>
@@ -121,80 +130,17 @@
 #include <spirv/math/sincos.h>
 #include <spirv/math/sinh.h>
 #include <spirv/math/sinpi.h>
-#include <spirv/math/sqrt.h>
 #include <spirv/math/tan.h>
 #include <spirv/math/tanh.h>
 #include <spirv/math/tanpi.h>
 #include <spirv/math/tgamma.h>
 #include <spirv/math/trunc.h>
-#include <spirv/math/native_cos.h>
-#include <spirv/math/native_divide.h>
-#include <spirv/math/native_exp.h>
-#include <spirv/math/native_exp10.h>
-#include <spirv/math/native_exp2.h>
-#include <spirv/math/native_log.h>
-#include <spirv/math/native_log10.h>
-#include <spirv/math/native_log2.h>
-#include <spirv/math/native_powr.h>
-#include <spirv/math/native_recip.h>
-#include <spirv/math/native_sin.h>
-#include <spirv/math/native_sqrt.h>
-#include <spirv/math/native_rsqrt.h>
-#include <spirv/math/native_tan.h>
-#include <spirv/math/rsqrt.h>
 
 /* 6.11.2.1 Floating-point macros */
 #include <clc/float/definitions.h>
 
-/* 6.11.3 Integer Functions */
-#include <spirv/integer/clz.h>
-#include <spirv/integer/popcount.h>
-#include <spirv/integer/rotate.h>
-
 /* 6.11.3 Integer Definitions */
 #include <clc/integer/definitions.h>
-
-/* 6.11.2 and 6.11.3 Shared Integer/Math Functions */
-#include <spirv/shared/vload.h>
-#include <spirv/shared/vstore.h>
-
-/* 6.11.4 Common Functions */
-#include <spirv/common/degrees.h>
-#include <spirv/common/radians.h>
-#include <spirv/common/mix.h>
-#include <spirv/common/sign.h>
-#include <spirv/common/smoothstep.h>
-#include <spirv/common/step.h>
-
-/* 6.11.5 Geometric Functions */
-#include <spirv/geometric/cross.h>
-#include <spirv/geometric/distance.h>
-#include <spirv/geometric/dot.h>
-#include <spirv/geometric/fast_distance.h>
-#include <spirv/geometric/fast_length.h>
-#include <spirv/geometric/fast_normalize.h>
-#include <spirv/geometric/length.h>
-#include <spirv/geometric/normalize.h>
-
-/* 6.11.6 Relational Functions */
-#include <spirv/relational/all.h>
-#include <spirv/relational/any.h>
-#include <spirv/relational/bitselect.h>
-#include <spirv/relational/isequal.h>
-#include <spirv/relational/isfinite.h>
-#include <spirv/relational/isgreater.h>
-#include <spirv/relational/isgreaterequal.h>
-#include <spirv/relational/isinf.h>
-#include <spirv/relational/isless.h>
-#include <spirv/relational/islessequal.h>
-#include <spirv/relational/islessgreater.h>
-#include <spirv/relational/isnan.h>
-#include <spirv/relational/isnormal.h>
-#include <spirv/relational/isnotequal.h>
-#include <spirv/relational/isordered.h>
-#include <spirv/relational/isunordered.h>
-#include <spirv/relational/select.h>
-#include <spirv/relational/signbit.h>
 
 /* 6.11.11 Atomic Functions */
 #include <spirv/atomic/atomic_add.h>
@@ -202,14 +148,14 @@
 #include <spirv/atomic/atomic_cmpxchg.h>
 #include <spirv/atomic/atomic_dec.h>
 #include <spirv/atomic/atomic_inc.h>
+#include <spirv/atomic/atomic_load.h>
 #include <spirv/atomic/atomic_max.h>
 #include <spirv/atomic/atomic_min.h>
 #include <spirv/atomic/atomic_or.h>
+#include <spirv/atomic/atomic_store.h>
 #include <spirv/atomic/atomic_sub.h>
 #include <spirv/atomic/atomic_xchg.h>
 #include <spirv/atomic/atomic_xor.h>
-#include <spirv/atomic/atomic_load.h>
-#include <spirv/atomic/atomic_store.h>
 
 /* cl_khr extension atomics are omitted from __spirv */
 

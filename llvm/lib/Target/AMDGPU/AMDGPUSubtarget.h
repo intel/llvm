@@ -67,6 +67,8 @@ private:
 protected:
   bool Has16BitInsts;
   bool HasMadMixInsts;
+  bool HasMadMacF32Insts;
+  bool HasDsSrc2Insts;
   bool HasSDWA;
   bool HasVOP3PInsts;
   bool HasMulI24;
@@ -140,12 +142,24 @@ public:
     return isAmdHsaOS() || isMesaKernel(F);
   }
 
+  bool isGCN() const {
+    return TargetTriple.getArch() == Triple::amdgcn;
+  }
+
   bool has16BitInsts() const {
     return Has16BitInsts;
   }
 
   bool hasMadMixInsts() const {
     return HasMadMixInsts;
+  }
+
+  bool hasMadMacF32Insts() const {
+    return HasMadMacF32Insts || !isGCN();
+  }
+
+  bool hasDsSrc2Insts() const {
+    return HasDsSrc2Insts;
   }
 
   bool hasSDWA() const {
@@ -325,6 +339,7 @@ protected:
   bool GFX8Insts;
   bool GFX9Insts;
   bool GFX10Insts;
+  bool GFX10_3Insts;
   bool GFX7GFX8GFX9Insts;
   bool SGPRInitBug;
   bool HasSMemRealTime;
@@ -345,6 +360,7 @@ protected:
   bool HasGFX10A16;
   bool HasG16;
   bool HasNSAEncoding;
+  bool GFX10_BEncoding;
   bool HasDLInsts;
   bool HasDot1Insts;
   bool HasDot2Insts;
@@ -359,6 +375,8 @@ protected:
   bool DoesNotSupportSRAMECC;
   bool HasNoSdstCMPX;
   bool HasVscnt;
+  bool HasGetWaveIdInst;
+  bool HasSMemTimeInst;
   bool HasRegisterBanking;
   bool HasVOP3Literal;
   bool HasNoDataDepHazard;
@@ -721,6 +739,14 @@ public:
     return ScalarFlatScratchInsts;
   }
 
+  bool hasGlobalAddTidInsts() const {
+    return GFX10_BEncoding;
+  }
+
+  bool hasAtomicCSub() const {
+    return GFX10_BEncoding;
+  }
+
   bool hasMultiDwordFlatScratchAddressing() const {
     return getGeneration() >= GFX9;
   }
@@ -854,6 +880,14 @@ public:
     return HasVscnt;
   }
 
+  bool hasGetWaveIdInst() const {
+    return HasGetWaveIdInst;
+  }
+
+  bool hasSMemTimeInst() const {
+    return HasSMemTimeInst;
+  }
+
   bool hasRegisterBanking() const {
     return HasRegisterBanking;
   }
@@ -972,6 +1006,14 @@ public:
     return HasNSAEncoding;
   }
 
+  bool hasGFX10_BEncoding() const {
+    return GFX10_BEncoding;
+  }
+
+  bool hasGFX10_3Insts() const {
+    return GFX10_3Insts;
+  }
+
   bool hasMadF16() const;
 
   bool enableSIScheduler() const {
@@ -1058,7 +1100,7 @@ public:
   /// registers if provided.
   /// Note, occupancy can be affected by the scratch allocation as well, but
   /// we do not have enough information to compute it.
-  unsigned computeOccupancy(const MachineFunction &MF, unsigned LDSSize = 0,
+  unsigned computeOccupancy(const Function &F, unsigned LDSSize = 0,
                             unsigned NumSGPRs = 0, unsigned NumVGPRs = 0) const;
 
   /// \returns true if the flat_scratch register should be initialized with the

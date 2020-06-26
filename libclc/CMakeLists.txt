@@ -164,9 +164,9 @@ install( DIRECTORY generic/include/clc DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} )
 
 if( ENABLE_RUNTIME_SUBNORMAL )
 	add_library( subnormal_use_default STATIC
-		generic/lib/subnormal_use_default.ll )
+		generic/libspirv/subnormal_use_default.ll )
 	add_library( subnormal_disable STATIC
-		generic/lib/subnormal_disable.ll )
+		generic/libspirv/subnormal_disable.ll )
 	install( TARGETS subnormal_use_default subnormal_disable ARCHIVE
 		DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
 endif()
@@ -227,8 +227,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 		LIB_DIR lib
 		DIRS ${dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS}
 		DEPS convert-clc.cl )
-	set( libspirv_files )
-	libclc_configure_lib_source(libspirv_files
+	set( libspirv_files_base )
+	libclc_configure_lib_source(libspirv_files_base
 		LIB_DIR libspirv
 		DIRS ${dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS}
 		DEPS convert-spirv.cl convert-core.cl)
@@ -243,6 +243,17 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 			set( arch_suffix "${d}-${t}" )
 		endif()
 		message( "    DEVICE: ${d} ( ${${d}_aliases} )" )
+
+		# FIXME: this is a hack, remove once we can use sycldevice in the triple
+		#        without changing the language
+		# see issue: https://github.com/intel/llvm/issues/1814
+		set(libspirv_files ${libspirv_files_base})
+		if( ${ARCH} STREQUAL nvptx OR ${ARCH} STREQUAL nvptx64 )
+			add_libclc_sycl_binding(libspirv_files
+				TRIPLE ${t}
+				COMPILE_OPT ${mcpu}
+				FILES generic/libspirv/sycldevice-binding.cpp)
+		endif()
 
 		add_libclc_builtin_set(libspirv-${arch_suffix}
 			TRIPLE ${t}

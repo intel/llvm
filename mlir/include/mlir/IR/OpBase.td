@@ -1684,6 +1684,9 @@ class SingleBlockImplicitTerminator<string op>
 class HasParent<string op>
     : ParamNativeOpTrait<"HasParent", op>;
 
+class ParentOneOf<list<string> ops>
+    : ParamNativeOpTrait<"HasParent", StrJoin<ops>.result>;
+
 // Op result type is derived from the first attribute. If the attribute is an
 // subclass of `TypeAttrBase`, its value is used, otherwise, the type of the
 // attribute content is used.
@@ -2070,7 +2073,7 @@ class ElementTypeIs<string name, Type type> : PredOpTrait<
 // Type Constraint operand `i`'s Element type is Same As operand `j`'s Element
 // type.
 class TCopVTEtIsSameAs<int i, int j> : And<[
-    CPred<"$_op.getNumOperands() > std::max(" # i # "u," # j # "u)">,
+    CPred<"$_op.getNumOperands() > " # !if(!gt(i,j),i,j)>,
     SubstLeaves<"$_self", "$_op.getOperand(" # i # ").getType()",
       IsShapedTypePred>,
     SubstLeaves<"$_self", "$_op.getOperand(" # j # ").getType()",

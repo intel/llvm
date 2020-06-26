@@ -293,7 +293,7 @@ bool PPCTTIImpl::mightUseCTR(BasicBlock *BB, TargetLibraryInfo *LibInfo,
         if (F->getIntrinsicID() != Intrinsic::not_intrinsic) {
           switch (F->getIntrinsicID()) {
           default: continue;
-          // If we have a call to ppc_is_decremented_ctr_nonzero, or ppc_mtctr
+          // If we have a call to loop_decrement or set_loop_iterations,
           // we're definitely using CTR.
           case Intrinsic::set_loop_iterations:
           case Intrinsic::loop_decrement:
@@ -429,8 +429,9 @@ bool PPCTTIImpl::mightUseCTR(BasicBlock *BB, TargetLibraryInfo *LibInfo,
 
       return true;
     } else if (isa<BinaryOperator>(J) &&
-               J->getType()->getScalarType()->isPPC_FP128Ty()) {
-      // Most operations on ppc_f128 values become calls.
+               (J->getType()->getScalarType()->isFP128Ty() ||
+                J->getType()->getScalarType()->isPPC_FP128Ty())) {
+      // Most operations on f128 or ppc_f128 values become calls.
       return true;
     } else if (isa<UIToFPInst>(J) || isa<SIToFPInst>(J) ||
                isa<FPToUIInst>(J) || isa<FPToSIInst>(J)) {
@@ -765,6 +766,13 @@ int PPCTTIImpl::getShuffleCost(TTI::ShuffleKind Kind, Type *Tp, int Index,
   // structured types of shuffles covered by TTI::ShuffleKind).
   return vectorCostAdjustment(LT.first, Instruction::ShuffleVector, Tp,
                               nullptr);
+}
+
+int PPCTTIImpl::getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind) {
+  if (CostKind != TTI::TCK_RecipThroughput)
+    return Opcode == Instruction::PHI ? 0 : 1;
+  // Branches are assumed to be predicted.
+  return CostKind == TTI::TCK_RecipThroughput ? 0 : 1;
 }
 
 int PPCTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,

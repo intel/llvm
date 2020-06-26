@@ -56,10 +56,6 @@ typedef uint32_t SPIRVId;
 
 inline bool isValidId(SPIRVId Id) { return Id != SPIRVID_INVALID && Id != 0; }
 
-inline SPIRVWord mkWord(unsigned WordCount, Op OpCode) {
-  return (WordCount << 16) | OpCode;
-}
-
 const static unsigned KSpirvMemOrderSemanticMask = 0x1F;
 
 enum SPIRVGeneratorKind {
@@ -270,6 +266,8 @@ template <> inline void SPIRVMap<SPIRVStorageClassKind, SPIRVCapVec>::init() {
   ADD_VEC_INIT(StorageClassGeneric, {CapabilityGenericPointer});
   ADD_VEC_INIT(StorageClassPushConstant, {CapabilityShader});
   ADD_VEC_INIT(StorageClassAtomicCounter, {CapabilityAtomicStorage});
+  ADD_VEC_INIT(StorageClassDeviceOnlyINTEL, {CapabilityUSMStorageClassesINTEL});
+  ADD_VEC_INIT(StorageClassHostOnlyINTEL, {CapabilityUSMStorageClassesINTEL});
 }
 
 template <> inline void SPIRVMap<SPIRVImageDimKind, SPIRVCapVec>::init() {

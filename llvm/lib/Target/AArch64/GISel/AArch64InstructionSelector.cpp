@@ -31,6 +31,7 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/IntrinsicsAArch64.h"
 #include "llvm/Support/Debug.h"
@@ -144,8 +145,9 @@ private:
   bool selectBrJT(MachineInstr &I, MachineRegisterInfo &MRI) const;
   bool selectTLSGlobalValue(MachineInstr &I, MachineRegisterInfo &MRI) const;
 
-  unsigned emitConstantPoolEntry(Constant *CPVal, MachineFunction &MF) const;
-  MachineInstr *emitLoadFromConstantPool(Constant *CPVal,
+  unsigned emitConstantPoolEntry(const Constant *CPVal,
+                                 MachineFunction &MF) const;
+  MachineInstr *emitLoadFromConstantPool(const Constant *CPVal,
                                          MachineIRBuilder &MIRBuilder) const;
 
   // Emit a vector concat operation.
@@ -2046,6 +2048,20 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
       if (emitFMovForFConstant(I, MRI))
         return true;
 
+      // For 64b values, emit a constant pool load instead.
+      if (DefSize == 64) {
+        auto *FPImm = I.getOperand(1).getFPImm();
+        MachineIRBuilder MIB(I);
+        auto *LoadMI = emitLoadFromConstantPool(FPImm, MIB);
+        if (!LoadMI) {
+          LLVM_DEBUG(dbgs() << "Failed to load double constant pool entry\n");
+          return false;
+        }
+        MIB.buildCopy({DefReg}, {LoadMI->getOperand(0).getReg()});
+        I.eraseFromParent();
+        return RBI.constrainGenericRegister(DefReg, FPRRC, MRI);
+      }
+
       // Nope. Emit a copy and use a normal mov instead.
       const Register DefGPRReg = MRI.createVirtualRegister(&GPRRC);
       MachineOperand &RegOp = I.getOperand(0);
@@ -2562,15 +2578,21 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
   }
 
   case TargetOpcode::G_ZEXT:
+  case TargetOpcode::G_SEXT_INREG:
   case TargetOpcode::G_SEXT: {
     unsigned Opcode = I.getOpcode();
-    const bool IsSigned = Opcode == TargetOpcode::G_SEXT;
+    const bool IsSigned = Opcode != TargetOpcode::G_ZEXT;
     const Register DefReg = I.getOperand(0).getReg();
-    const Register SrcReg = I.getOperand(1).getReg();
+    Register SrcReg = I.getOperand(1).getReg();
     const LLT DstTy = MRI.getType(DefReg);
     const LLT SrcTy = MRI.getType(SrcReg);
     unsigned DstSize = DstTy.getSizeInBits();
     unsigned SrcSize = SrcTy.getSizeInBits();
+
+    // SEXT_INREG has the same src reg size as dst, the size of the value to be
+    // extended is encoded in the imm.
+    if (Opcode == TargetOpcode::G_SEXT_INREG)
+      SrcSize = I.getOperand(2).getImm();
 
     if (DstTy.isVector())
       return false; // Should be handled by imported patterns.
@@ -2590,31 +2612,65 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
     // %v2(s32) = G_ZEXT %v(s8)
     if (!IsSigned) {
       auto *LoadMI = getOpcodeDef(TargetOpcode::G_LOAD, SrcReg, MRI);
-      if (LoadMI &&
-          RBI.getRegBank(SrcReg, MRI, TRI)->getID() == AArch64::GPRRegBankID) {
+      bool IsGPR =
+          RBI.getRegBank(SrcReg, MRI, TRI)->getID() == AArch64::GPRRegBankID;
+      if (LoadMI && IsGPR) {
         const MachineMemOperand *MemOp = *LoadMI->memoperands_begin();
         unsigned BytesLoaded = MemOp->getSize();
         if (BytesLoaded < 4 && SrcTy.getSizeInBytes() == BytesLoaded)
           return selectCopy(I, TII, MRI, TRI, RBI);
       }
-    }
 
-    if (DstSize == 64) {
-      // FIXME: Can we avoid manually doing this?
-      if (!RBI.constrainGenericRegister(SrcReg, AArch64::GPR32RegClass, MRI)) {
-        LLVM_DEBUG(dbgs() << "Failed to constrain " << TII.getName(Opcode)
-                          << " operand\n");
-        return false;
-      }
-
-      auto SubregToReg =
-          MIB.buildInstr(AArch64::SUBREG_TO_REG, {&AArch64::GPR64RegClass}, {})
+      // If we are zero extending from 32 bits to 64 bits, it's possible that
+      // the instruction implicitly does the zero extend for us. In that case,
+      // we can just emit a SUBREG_TO_REG.
+      if (IsGPR && SrcSize == 32 && DstSize == 64) {
+        // Unlike with the G_LOAD case, we don't want to look through copies
+        // here.
+        MachineInstr *Def = MRI.getVRegDef(SrcReg);
+        if (Def && isDef32(*Def)) {
+          MIB.buildInstr(AArch64::SUBREG_TO_REG, {DefReg}, {})
               .addImm(0)
               .addUse(SrcReg)
               .addImm(AArch64::sub_32);
 
+          if (!RBI.constrainGenericRegister(DefReg, AArch64::GPR64RegClass,
+                                            MRI)) {
+            LLVM_DEBUG(dbgs() << "Failed to constrain G_ZEXT destination\n");
+            return false;
+          }
+
+          if (!RBI.constrainGenericRegister(SrcReg, AArch64::GPR32RegClass,
+                                            MRI)) {
+            LLVM_DEBUG(dbgs() << "Failed to constrain G_ZEXT source\n");
+            return false;
+          }
+
+          I.eraseFromParent();
+          return true;
+        }
+      }
+    }
+
+    if (DstSize == 64) {
+      if (Opcode != TargetOpcode::G_SEXT_INREG) {
+        // FIXME: Can we avoid manually doing this?
+        if (!RBI.constrainGenericRegister(SrcReg, AArch64::GPR32RegClass,
+                                          MRI)) {
+          LLVM_DEBUG(dbgs() << "Failed to constrain " << TII.getName(Opcode)
+                            << " operand\n");
+          return false;
+        }
+        SrcReg = MIB.buildInstr(AArch64::SUBREG_TO_REG,
+                                {&AArch64::GPR64RegClass}, {})
+                     .addImm(0)
+                     .addUse(SrcReg)
+                     .addImm(AArch64::sub_32)
+                     .getReg(0);
+      }
+
       ExtI = MIB.buildInstr(IsSigned ? AArch64::SBFMXri : AArch64::UBFMXri,
-                             {DefReg}, {SubregToReg})
+                             {DefReg}, {SrcReg})
                   .addImm(0)
                   .addImm(SrcSize - 1);
     } else if (DstSize <= 32) {
@@ -3572,7 +3628,7 @@ bool AArch64InstructionSelector::selectConcatVectors(
 }
 
 unsigned
-AArch64InstructionSelector::emitConstantPoolEntry(Constant *CPVal,
+AArch64InstructionSelector::emitConstantPoolEntry(const Constant *CPVal,
                                                   MachineFunction &MF) const {
   Type *CPTy = CPVal->getType();
   Align Alignment = MF.getDataLayout().getPrefTypeAlign(CPTy);
@@ -3582,7 +3638,7 @@ AArch64InstructionSelector::emitConstantPoolEntry(Constant *CPVal,
 }
 
 MachineInstr *AArch64InstructionSelector::emitLoadFromConstantPool(
-    Constant *CPVal, MachineIRBuilder &MIRBuilder) const {
+    const Constant *CPVal, MachineIRBuilder &MIRBuilder) const {
   unsigned CPIdx = emitConstantPoolEntry(CPVal, MIRBuilder.getMF());
 
   auto Adrp =
@@ -5255,7 +5311,11 @@ AArch64_AM::ShiftExtendType AArch64InstructionSelector::getExtendTypeForInst(
 
   // Handle explicit extend instructions first.
   if (Opc == TargetOpcode::G_SEXT || Opc == TargetOpcode::G_SEXT_INREG) {
-    unsigned Size = MRI.getType(MI.getOperand(1).getReg()).getSizeInBits();
+    unsigned Size;
+    if (Opc == TargetOpcode::G_SEXT)
+      Size = MRI.getType(MI.getOperand(1).getReg()).getSizeInBits();
+    else
+      Size = MI.getOperand(2).getImm();
     assert(Size != 64 && "Extend from 64 bits?");
     switch (Size) {
     case 8:

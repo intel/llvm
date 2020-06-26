@@ -951,12 +951,15 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    size_t{4000u});
   }
   case PI_DEVICE_INFO_MEM_BASE_ADDR_ALIGN: {
-    // TODO: is this config consistent across all NVIDIA GPUs?
-    // "The minimum value is the size (in bits) of the largest OpenCL built-in
-    // data type supported by the device"
-    // Hard coded to value returned by clinfo for OpenCL 1.2 CUDA | GeForce GTX
-    // 1060 3GB
-    return getInfo(param_value_size, param_value, param_value_size_ret, 4096u);
+    int mem_base_addr_align = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&mem_base_addr_align,
+                             CU_DEVICE_ATTRIBUTE_TEXTURE_ALIGNMENT,
+                             device->get()) == CUDA_SUCCESS);
+    // Multiply by 8 as clGetDeviceInfo returns this value in bits
+    mem_base_addr_align *= 8;
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   mem_base_addr_align);
   }
   case PI_DEVICE_INFO_HALF_FP_CONFIG: {
     // TODO: is this config consistent across all NVIDIA GPUs?
@@ -1512,6 +1515,9 @@ pi_result cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags,
       allocMode = _pi_mem::alloc_mode::use_host_ptr;
     } else {
       retErr = PI_CHECK_ERROR(cuMemAlloc(&ptr, size));
+      if (flags & PI_MEM_FLAGS_HOST_PTR_COPY) {
+        allocMode = _pi_mem::alloc_mode::copy_in;
+      }
     }
 
     if (retErr == PI_SUCCESS) {
@@ -1571,6 +1577,7 @@ pi_result cuda_piMemRelease(pi_mem memObj) {
       ScopedContext active(uniqueMemObj->get_context());
 
       switch (uniqueMemObj->allocMode_) {
+      case _pi_mem::alloc_mode::copy_in:
       case _pi_mem::alloc_mode::classic:
         ret = PI_CHECK_ERROR(cuMemFree(uniqueMemObj->ptr_));
         break;

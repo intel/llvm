@@ -50,11 +50,13 @@ namespace opencl {
 // Note that they take opaque pi_native_handle that real OpenCL handles
 // are casted to.
 //
-platform make_platform(pi_native_handle NativeHandle);
-device make_device(pi_native_handle NativeHandle);
-context make_context(pi_native_handle NativeHandle);
-program make_program(const context &Context, pi_native_handle NativeHandle);
-queue make_queue(const context &Context, pi_native_handle InteropHandle);
+__SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle);
+__SYCL_EXPORT device make_device(pi_native_handle NativeHandle);
+__SYCL_EXPORT context make_context(pi_native_handle NativeHandle);
+__SYCL_EXPORT program make_program(const context &Context,
+                                   pi_native_handle NativeHandle);
+__SYCL_EXPORT queue make_queue(const context &Context,
+                               pi_native_handle InteropHandle);
 
 // Construction of SYCL platform.
 template <typename T, typename std::enable_if<

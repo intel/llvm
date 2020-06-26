@@ -56,7 +56,7 @@ struct CustomVecPlus {
 template <typename T>
 T getMinimumFPValue() {
   return std::numeric_limits<T>::has_infinity
-             ? -std::numeric_limits<T>::infinity()
+             ? static_cast<T>(-std::numeric_limits<T>::infinity())
              : std::numeric_limits<T>::lowest();
 }
 

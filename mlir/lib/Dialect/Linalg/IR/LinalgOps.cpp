@@ -70,6 +70,58 @@ static LogicalResult foldMemRefCast(Operation *op) {
 // GenericOps
 //===----------------------------------------------------------------------===//
 
+void GenericOp::build(
+    OpBuilder &builder, OperationState &result, ArrayRef<Type> resultTypes,
+    ValueRange args, int64_t inputCount, int64_t outputCount,
+    ArrayRef<AffineMap> indexingMaps, ArrayRef<StringRef> iteratorTypes,
+    function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild) {
+  build(builder, result, resultTypes, args,
+        builder.getI64IntegerAttr(inputCount),
+        builder.getI64IntegerAttr(outputCount),
+        builder.getAffineMapArrayAttr(indexingMaps),
+        builder.getStrArrayAttr(iteratorTypes),
+        /*doc=*/nullptr, /*library_call=*/nullptr);
+  if (!bodyBuild)
+    return;
+
+  SmallVector<Type, 4> blockArgTypes;
+  for (Value arg : args)
+    blockArgTypes.push_back(arg.getType().cast<ShapedType>().getElementType());
+
+  OpBuilder::InsertionGuard guard(builder);
+  auto &region = *result.regions.front();
+  Block *bodyBlock = builder.createBlock(&region, region.end(), blockArgTypes);
+  bodyBuild(builder, result.location, bodyBlock->getArguments());
+}
+
+void IndexedGenericOp::build(
+    OpBuilder &builder, OperationState &result, ArrayRef<Type> resultTypes,
+    ValueRange args, int64_t inputCount, int64_t outputCount,
+    ArrayRef<AffineMap> indexingMaps, ArrayRef<StringRef> iteratorTypes,
+    function_ref<void(OpBuilder &, Location, ValueRange, ValueRange)>
+        bodyBuild) {
+  build(builder, result, resultTypes, args,
+        builder.getI64IntegerAttr(inputCount),
+        builder.getI64IntegerAttr(outputCount),
+        builder.getAffineMapArrayAttr(indexingMaps),
+        builder.getStrArrayAttr(iteratorTypes),
+        /*doc=*/nullptr, /*library_call=*/nullptr);
+  if (!bodyBuild)
+    return;
+
+  unsigned nLoops = iteratorTypes.size();
+  SmallVector<Type, 4> blockArgTypes(nLoops, builder.getIndexType());
+  for (Value arg : args)
+    blockArgTypes.push_back(arg.getType().cast<ShapedType>().getElementType());
+
+  OpBuilder::InsertionGuard guard(builder);
+  auto &region = *result.regions.front();
+  Block *bodyBlock = builder.createBlock(&region, region.end(), blockArgTypes);
+  bodyBuild(builder, result.location,
+            bodyBlock->getArguments().take_front(nLoops),
+            bodyBlock->getArguments().drop_front(nLoops));
+}
+
 template <typename GenericOpType>
 static void printGenericOp(OpAsmPrinter &p, GenericOpType op) {
   auto attrNames = op.linalgTraitAttrNames();
@@ -202,7 +254,7 @@ static LogicalResult verifyGenericOp(GenericOpType op) {
            << " inputs (tensor or buffer) and output buffer operands";
 
   auto &region = op.region();
-  if (region.getBlocks().size() != 1)
+  if (!llvm::hasSingleElement(region))
     return op.emitOpError("expected region with 1 block");
   if (failed(BlockArgsVerifier<GenericOpType>::verify(op, region.front())))
     return failure();
@@ -1124,14 +1176,6 @@ LogicalResult IndexedGenericOp::fold(ArrayRef<Attribute>,
                                      SmallVectorImpl<OpFoldResult> &) {
   return foldMemRefCast(*this);
 }
-LogicalResult MatvecOp::fold(ArrayRef<Attribute>,
-                             SmallVectorImpl<OpFoldResult> &) {
-  return foldMemRefCast(*this);
-}
-LogicalResult MatmulOp::fold(ArrayRef<Attribute>,
-                             SmallVectorImpl<OpFoldResult> &) {
-  return foldMemRefCast(*this);
-}
 OpFoldResult ReshapeOp::fold(ArrayRef<Attribute>) {
   if (succeeded(foldMemRefCast(*this)))
     return getResult();
@@ -1193,7 +1237,7 @@ static void printNamedStructuredOp(OpAsmPrinter &p, NamedStructuredOpType op) {
   p << op.getOperationName() << ' ';
   p.printOptionalAttrDict(op.getAttrs(), silentAttrNames);
   p << ' ' << op.getOperands();
-  p << ": (" << op.getOperandTypes() << ")";
+  p << " : (" << op.getOperandTypes() << ")";
   auto outputTensorTypes = op.getResultTypes();
   if (!outputTensorTypes.empty())
     p << " -> (" << outputTensorTypes << ")";
@@ -1205,8 +1249,8 @@ static ParseResult parseNamedStructuredOp(OpAsmParser &parser,
   SmallVector<OpAsmParser::OperandType, 8> operandsInfo;
 
   // Optional attributes may be added.
-  if (parser.parseOptionalAttrDict(result.attributes) ||
-      parser.parseOperandList(operandsInfo))
+  if (parser.parseOperandList(operandsInfo) ||
+      parser.parseOptionalAttrDict(result.attributes))
     return failure();
 
   SmallVector<Type, 8> operandTypes;
@@ -1240,5 +1284,13 @@ static LogicalResult verifyNamedStructuredOp(NamedStructuredOpType op) {
 // TODO: Determine whether we can generate the folders and verifiers.
 LogicalResult BatchMatmulOp::fold(ArrayRef<Attribute>,
                                   SmallVectorImpl<OpFoldResult> &) {
+  return foldMemRefCast(*this);
+}
+LogicalResult MatmulOp::fold(ArrayRef<Attribute>,
+                             SmallVectorImpl<OpFoldResult> &) {
+  return foldMemRefCast(*this);
+}
+LogicalResult MatvecOp::fold(ArrayRef<Attribute>,
+                             SmallVectorImpl<OpFoldResult> &) {
   return foldMemRefCast(*this);
 }

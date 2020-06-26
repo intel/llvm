@@ -1527,10 +1527,11 @@ void NamedDecl::printName(raw_ostream &os) const {
   os << Name;
 }
 
-std::string NamedDecl::getQualifiedNameAsString() const {
+std::string NamedDecl::getQualifiedNameAsString(bool WithGlobalNsPrefix) const {
   std::string QualName;
   llvm::raw_string_ostream OS(QualName);
-  printQualifiedName(OS, getASTContext().getPrintingPolicy());
+  printQualifiedName(OS, getASTContext().getPrintingPolicy(),
+                     WithGlobalNsPrefix);
   return OS.str();
 }
 
@@ -4525,11 +4526,11 @@ bool RecordDecl::mayInsertExtraPadding(bool EmitRemark) const {
     ReasonToReject = 5;  // is standard layout.
   else if (Blacklist.isBlacklistedLocation(EnabledAsanMask, getLocation(),
                                            "field-padding"))
-    ReasonToReject = 6;  // is in a blacklisted file.
+    ReasonToReject = 6;  // is in an excluded file.
   else if (Blacklist.isBlacklistedType(EnabledAsanMask,
                                        getQualifiedNameAsString(),
                                        "field-padding"))
-    ReasonToReject = 7;  // is blacklisted.
+    ReasonToReject = 7;  // The type is excluded.
 
   if (EmitRemark) {
     if (ReasonToReject >= 0)

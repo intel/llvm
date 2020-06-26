@@ -516,6 +516,10 @@ public:
     return PredictableSelectIsExpensive;
   }
 
+  virtual bool fallBackToDAGISel(const Instruction &Inst) const {
+    return false;
+  }
+
   /// If a branch or a select condition is skewed in one direction by more than
   /// this factor, it is very likely to be predicted correctly.
   virtual BranchProbability getPredictableBranchThreshold() const;
@@ -2364,6 +2368,14 @@ public:
     return nullptr;
   }
 
+  /// Given a set in interconnected phis of type 'From' that are loaded/stored
+  /// or bitcast to type 'To', return true if the set should be converted to
+  /// 'To'.
+  virtual bool shouldConvertPhiType(Type *From, Type *To) const {
+    return (From->isIntegerTy() || From->isFloatingPointTy()) &&
+           (To->isIntegerTy() || To->isFloatingPointTy());
+  }
+
   /// Returns true if the opcode is a commutative binary operation.
   virtual bool isCommutativeBinOp(unsigned Opcode) const {
     // FIXME: This should get its info from the td file.
@@ -3599,6 +3611,24 @@ public:
   // Lowering methods - These methods must be implemented by targets so that
   // the SelectionDAGBuilder code knows how to lower these.
   //
+
+  /// Target-specific splitting of values into parts that fit a register
+  /// storing a legal type
+  virtual bool splitValueIntoRegisterParts(SelectionDAG &DAG, const SDLoc &DL,
+                                           SDValue Val, SDValue *Parts,
+                                           unsigned NumParts, MVT PartVT,
+                                           Optional<CallingConv::ID> CC) const {
+    return false;
+  }
+
+  /// Target-specific combining of register parts into its original value
+  virtual SDValue
+  joinRegisterPartsIntoValue(SelectionDAG &DAG, const SDLoc &DL,
+                             const SDValue *Parts, unsigned NumParts,
+                             MVT PartVT, EVT ValueVT,
+                             Optional<CallingConv::ID> CC) const {
+    return SDValue();
+  }
 
   /// This hook must be implemented to lower the incoming (formal) arguments,
   /// described by the Ins array, into the specified DAG. The implementation

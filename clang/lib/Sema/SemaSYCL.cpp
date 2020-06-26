@@ -308,11 +308,12 @@ static void reportConflictingAttrs(Sema &S, FunctionDecl *F, const Attr *A1,
   F->setInvalidDecl();
 }
 
-// Returns the signed constant integer value represented by given expression.
-static int64_t getIntExprValue(Sema &S, const Expr *E) {
+/// Returns the signed constant integer value represented by given expression
+static int64_t getIntExprValue(const Expr *E, ASTContext &Ctx) {
   llvm::APSInt Val(32);
-  bool IsValid = E->isIntegerConstantExpr(Val, S.getASTContext());
+  bool IsValid = E->isIntegerConstantExpr(Val, Ctx);
   assert(IsValid && "expression must be constant integer");
+  (void)IsValid;
   return Val.getSExtValue();
 }
 
@@ -783,12 +784,14 @@ static void VisitField(CXXRecordDecl *Owner, RangeTy &&Item, QualType ItemTy,
                        Handlers &... handlers) {
   if (Util::isSyclAccessorType(ItemTy))
     KF_FOR_EACH(handleSyclAccessorType, Item, ItemTy);
-  if (Util::isSyclStreamType(ItemTy))
+  else if (Util::isSyclStreamType(ItemTy))
     KF_FOR_EACH(handleSyclStreamType, Item, ItemTy);
-  if (ItemTy->isStructureOrClassType())
+  else if (Util::isSyclSamplerType(ItemTy))
+    KF_FOR_EACH(handleSyclSamplerType, Item, ItemTy);
+  else if (ItemTy->isStructureOrClassType())
     VisitAccessorWrapper(Owner, Item, ItemTy->getAsCXXRecordDecl(),
                          handlers...);
-  if (ItemTy->isArrayType())
+  else if (ItemTy->isArrayType())
     VisitArrayElements(Item, ItemTy, handlers...);
 }
 
@@ -891,6 +894,9 @@ public:
     return true;
   }
   virtual bool handleSyclAccessorType(FieldDecl *, QualType) { return true; }
+  virtual bool handleSyclSamplerType(const CXXBaseSpecifier &, QualType) {
+    return true;
+  }
   virtual bool handleSyclSamplerType(FieldDecl *, QualType) { return true; }
   virtual bool handleSyclSpecConstantType(FieldDecl *, QualType) {
     return true;
@@ -1203,6 +1209,7 @@ public:
     return ArrayRef<ParmVarDecl *>(std::begin(Params) + LastParamIndex,
                                    std::end(Params));
   }
+  using SyclKernelFieldHandler::handleSyclSamplerType;
 };
 
 class SyclKernelBodyCreator
@@ -1457,6 +1464,7 @@ public:
   }
 
   using SyclKernelFieldHandler::enterStruct;
+  using SyclKernelFieldHandler::handleSyclSamplerType;
   using SyclKernelFieldHandler::leaveStruct;
 };
 
@@ -1606,6 +1614,7 @@ public:
     CurOffset -= Layout.getBaseClassOffset(BS.getType()->getAsCXXRecordDecl())
                      .getQuantity();
   }
+  using SyclKernelFieldHandler::handleSyclSamplerType;
 };
 } // namespace
 
@@ -1696,15 +1705,16 @@ void Sema::MarkDevice(void) {
               KernelBody ? KernelBody->getAttr<SYCLSimdAttr>() : nullptr;
           if (auto *Existing =
                   SYCLKernel->getAttr<IntelReqdSubGroupSizeAttr>()) {
-            if (Existing->getSubGroupSize() != Attr->getSubGroupSize()) {
+            if (getIntExprValue(Existing->getSubGroupSize(), getASTContext()) !=
+                getIntExprValue(Attr->getSubGroupSize(), getASTContext())) {
               Diag(SYCLKernel->getLocation(),
                    diag::err_conflicting_sycl_kernel_attributes);
               Diag(Existing->getLocation(), diag::note_conflicting_attribute);
               Diag(Attr->getLocation(), diag::note_conflicting_attribute);
               SYCLKernel->setInvalidDecl();
             }
-          } else if (KBSimdAttr &&
-                     (getIntExprValue(*this, Attr->getSubGroupSize()) != 1)) {
+          } else if (KBSimdAttr && (getIntExprValue(Attr->getSubGroupSize(),
+                                                    getASTContext()) != 1)) {
             reportConflictingAttrs(*this, KernelBody, KBSimdAttr, Attr);
           } else {
             SYCLKernel->addAttr(A);
@@ -1820,19 +1830,12 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
   if (Callee->getTemplatedKind() == FunctionDecl::TK_FunctionTemplate)
     return;
 
-  bool RedeclHasAttr = false;
-
-  for (const Decl *Redecl : Callee->redecls()) {
-    if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(Redecl)) {
-      if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>()) {
-        RedeclHasAttr = true;
-        break;
-      }
-    }
-  }
+  Callee = Callee->getMostRecentDecl();
+  bool HasAttr =
+      Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>();
 
   // Disallow functions with neither definition nor SYCL_EXTERNAL mark
-  bool NotDefinedNoAttr = !Callee->isDefined() && !RedeclHasAttr;
+  bool NotDefinedNoAttr = !Callee->isDefined() && !HasAttr;
 
   if (NotDefinedNoAttr && !Callee->getBuiltinID()) {
     Diag(Loc, diag::err_sycl_restrict)
@@ -2145,7 +2148,9 @@ static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
 
     if (ET) {
       const llvm::APSInt &Val = Arg.getAsIntegral();
-      ArgOS << "static_cast<" << ET->getDecl()->getQualifiedNameAsString()
+      ArgOS << "static_cast<"
+            << ET->getDecl()->getQualifiedNameAsString(
+                   /*WithGlobalNsPrefix*/ true)
             << ">"
             << "(" << Val << ")";
     } else {
@@ -2214,6 +2219,10 @@ static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
   if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
     SmallString<64> Buf;
     llvm::raw_svector_ostream ArgOS(Buf);
+
+    // Print the qualifiers for the type.
+    FullyQualifiedType.getQualifiers().print(ArgOS, TypePolicy,
+                                             /*appendSpaceIfNotEmpty*/ true);
 
     // Print template class name
     TSD->printQualifiedName(ArgOS, TypePolicy, /*WithGlobalNsPrefix*/ true);

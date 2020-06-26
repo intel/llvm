@@ -3,6 +3,11 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.errno.__errno_location
 
     # string.h entrypoints
+    libc.src.string.bzero
+    libc.src.string.memcpy
+    libc.src.string.memset
+    libc.src.string.strcpy
+    libc.src.string.strcat
     libc.src.string.strlen
 )
 
@@ -17,6 +22,7 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.exp2f
     libc.src.math.fabs
     libc.src.math.fabsf
+    libc.src.math.fabsl
     libc.src.math.floor
     libc.src.math.floorf
     libc.src.math.frexp
@@ -31,4 +37,5 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.sinf
     libc.src.math.trunc
     libc.src.math.truncf
+    libc.src.math.truncl
 )

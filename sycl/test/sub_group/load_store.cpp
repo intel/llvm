@@ -22,7 +22,7 @@ template <typename T, int N> class sycl_subgr;
 using namespace cl::sycl;
 
 template <typename T, int N> void check(queue &Queue) {
-  const int G = 1024, L = 64;
+  const int G = 1024, L = 128;
   try {
     nd_range<1> NdRange(G, L);
     buffer<T> syclbuf(G);

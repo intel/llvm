@@ -127,6 +127,9 @@ static std::vector<DevDescT> getAllowListDesc() {
       valuePtr = &decDescs.back().devDriverVer;
       size = &decDescs.back().devDriverVerSize;
       str += sizeof(driverVerStr) - 1;
+    } else {
+      throw sycl::runtime_error("Unrecognized key in device allowlist",
+                                PI_INVALID_VALUE);
     }
 
     if (':' != *str)
