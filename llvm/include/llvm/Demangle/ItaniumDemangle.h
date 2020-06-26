@@ -1199,7 +1199,7 @@ public:
 
   template<typename Fn> void match(Fn F) const { F(Params); }
 
-  NodeArray getParams() { return Params; }
+  const NodeArray &getParams() const { return Params; }
 
   void printLeft(OutputStream &S) const override {
     S += "<";
