@@ -21,6 +21,54 @@ namespace detail {
 
 namespace enqueue_kernel_launch {
 
+bool l0HandleInvalidWorkGroupSize(const device_impl &DeviceImpl,
+                                   pi_kernel Kernel, const NDRDescT &NDRDesc) {
+  const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
+
+  const plugin &Plugin = DeviceImpl.getPlugin();
+  RT::PiDevice Device = DeviceImpl.getHandleRef();
+
+  size_t CompileWGSize[3] = {0};
+  Plugin.call<PiApiKind::piKernelGetGroupInfo>(
+      Kernel, Device, PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+      sizeof(size_t) * 3, CompileWGSize, nullptr);
+
+  if (CompileWGSize[0] != 0) {
+    // PI_INVALID_WORK_GROUP_SIZE if local_work_size is specified and does not
+    // match the required work-group size for kernel in the program source.
+    if (NDRDesc.LocalSize[0] != CompileWGSize[0] ||
+        NDRDesc.LocalSize[1] != CompileWGSize[1] ||
+        NDRDesc.LocalSize[2] != CompileWGSize[2])
+      throw sycl::nd_range_error(
+          "Specified local size doesn't match the required work-group size "
+          "specified in the program source",
+          PI_INVALID_WORK_GROUP_SIZE);
+  }
+
+  if (HasLocalSize) {
+    const bool NonUniformWGs =
+        (NDRDesc.LocalSize[0] != 0 &&
+         NDRDesc.GlobalSize[0] % NDRDesc.LocalSize[0] != 0) ||
+        (NDRDesc.LocalSize[1] != 0 &&
+         NDRDesc.GlobalSize[1] % NDRDesc.LocalSize[1] != 0) ||
+        (NDRDesc.LocalSize[2] != 0 &&
+         NDRDesc.GlobalSize[2] % NDRDesc.LocalSize[2] != 0);
+
+    // PI_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
+    // number of workitems specified by global_work_size is not evenly
+    // divisible by size of work-group given by local_work_size
+    if (NonUniformWGs)
+      throw sycl::nd_range_error(
+         "Non-uniform work-groups are not supported by the target device",
+          PI_INVALID_WORK_GROUP_SIZE);
+  }
+
+  // Fallback
+  constexpr pi_result Error = PI_INVALID_WORK_GROUP_SIZE;
+  throw sycl::runtime_error(
+      "Level0 API failed. Level0 API returns: " + codeToString(Error), Error);
+}
+
 bool oclHandleInvalidWorkGroupSize(const device_impl &DeviceImpl,
                                    pi_kernel Kernel, const NDRDescT &NDRDesc) {
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
@@ -228,6 +276,10 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
       DeviceImpl.get_platform().get_info<info::platform::name>();
   if (PlatformName.find("OpenCL") != std::string::npos) {
     return oclHandleInvalidWorkGroupSize(DeviceImpl, Kernel, NDRDesc);
+  }
+
+  if (PlatformName.find("Level-Zero") != std::string::npos) {
+    return l0HandleInvalidWorkGroupSize(DeviceImpl, Kernel, NDRDesc);
   }
 
   // Fallback

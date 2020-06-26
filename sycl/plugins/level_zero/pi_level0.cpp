@@ -2142,7 +2142,11 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   assert(GlobalWorkSize[1] == (ZeThreadGroupDimensions.groupCountY * WG[1]));
   assert(GlobalWorkSize[2] == (ZeThreadGroupDimensions.groupCountZ * WG[2]));
 
-  ZE_CALL(zeKernelSetGroupSize(Kernel->ZeKernel, WG[0], WG[1], WG[2]));
+  ze_result_t res = ZE_CALL_NOCHECK(zeKernelSetGroupSize(Kernel->ZeKernel, WG[0], WG[1], WG[2]));
+
+  if (res == ZE_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION) {
+    return PI_INVALID_WORK_GROUP_SIZE;
+  }
 
   // Get a new command list to be used on this call
   ze_command_list_handle_t ZeCommandList = nullptr;
