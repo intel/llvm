@@ -22,6 +22,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AssumeBundleQueries.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/InstructionSimplify.h"
@@ -42,13 +43,13 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
-#include "llvm/IR/IntrinsicsX86.h"
-#include "llvm/IR/IntrinsicsARM.h"
 #include "llvm/IR/IntrinsicsAArch64.h"
+#include "llvm/IR/IntrinsicsAMDGPU.h"
+#include "llvm/IR/IntrinsicsARM.h"
 #include "llvm/IR/IntrinsicsHexagon.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
-#include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/IntrinsicsPowerPC.h"
+#include "llvm/IR/IntrinsicsX86.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/PatternMatch.h"
@@ -4210,11 +4211,16 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     break;
   case Intrinsic::assume: {
     Value *IIOperand = II->getArgOperand(0);
+    SmallVector<OperandBundleDef, 4> OpBundles;
+    II->getOperandBundlesAsDefs(OpBundles);
+    bool HasOpBundles = !OpBundles.empty();
     // Remove an assume if it is followed by an identical assume.
     // TODO: Do we need this? Unless there are conflicting assumptions, the
     // computeKnownBits(IIOperand) below here eliminates redundant assumes.
     Instruction *Next = II->getNextNonDebugInstruction();
-    if (match(Next, m_Intrinsic<Intrinsic::assume>(m_Specific(IIOperand))))
+    if (HasOpBundles &&
+        match(Next, m_Intrinsic<Intrinsic::assume>(m_Specific(IIOperand))) &&
+        !cast<IntrinsicInst>(Next)->hasOperandBundles())
       return eraseInstFromFunction(CI);
 
     // Canonicalize assume(a && b) -> assume(a); assume(b);
@@ -4224,14 +4230,15 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     Value *AssumeIntrinsic = II->getCalledOperand();
     Value *A, *B;
     if (match(IIOperand, m_And(m_Value(A), m_Value(B)))) {
-      Builder.CreateCall(AssumeIntrinsicTy, AssumeIntrinsic, A, II->getName());
+      Builder.CreateCall(AssumeIntrinsicTy, AssumeIntrinsic, A, OpBundles,
+                         II->getName());
       Builder.CreateCall(AssumeIntrinsicTy, AssumeIntrinsic, B, II->getName());
       return eraseInstFromFunction(*II);
     }
     // assume(!(a || b)) -> assume(!a); assume(!b);
     if (match(IIOperand, m_Not(m_Or(m_Value(A), m_Value(B))))) {
       Builder.CreateCall(AssumeIntrinsicTy, AssumeIntrinsic,
-                         Builder.CreateNot(A), II->getName());
+                         Builder.CreateNot(A), OpBundles, II->getName());
       Builder.CreateCall(AssumeIntrinsicTy, AssumeIntrinsic,
                          Builder.CreateNot(B), II->getName());
       return eraseInstFromFunction(*II);
@@ -4247,7 +4254,8 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
         isValidAssumeForContext(II, LHS, &DT)) {
       MDNode *MD = MDNode::get(II->getContext(), None);
       LHS->setMetadata(LLVMContext::MD_nonnull, MD);
-      return eraseInstFromFunction(*II);
+      if (!HasOpBundles)
+        return eraseInstFromFunction(*II);
 
       // TODO: apply nonnull return attributes to calls and invokes
       // TODO: apply range metadata for range check patterns?

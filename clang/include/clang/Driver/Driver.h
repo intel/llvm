@@ -661,6 +661,7 @@ public:
   static bool GetReleaseVersion(StringRef Str,
                                 MutableArrayRef<unsigned> Digits);
   /// Compute the default -fmodule-cache-path.
+<<<<<<< HEAD
   static void getDefaultModuleCachePath(SmallVectorImpl<char> &Result);
 
   bool getOffloadStaticLibSeen() const { return OffloadStaticLibSeen; };
@@ -676,6 +677,10 @@ public:
   const std::string getFPGATempDepFile(const std::string &FileName) const {
     return FPGATempDepFiles[FileName];
   }
+=======
+  /// \return True if the system provides a default cache directory.
+  static bool getDefaultModuleCachePath(SmallVectorImpl<char> &Result);
+>>>>>>> bb26838ceffb5feaa18186f55f7525a08084899e
 };
 
 /// \return True if the last defined optimization level is -Ofast.

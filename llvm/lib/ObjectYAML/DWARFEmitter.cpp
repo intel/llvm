@@ -209,12 +209,16 @@ protected:
   void onStartCompileUnit(const DWARFYAML::Unit &CU) override {
     writeInitialLength(CU.Length, OS, DebugInfo.IsLittleEndian);
     writeInteger((uint16_t)CU.Version, OS, DebugInfo.IsLittleEndian);
-    if(CU.Version >= 5) {
+    if (CU.Version >= 5) {
       writeInteger((uint8_t)CU.Type, OS, DebugInfo.IsLittleEndian);
       writeInteger((uint8_t)CU.AddrSize, OS, DebugInfo.IsLittleEndian);
-      writeInteger((uint32_t)CU.AbbrOffset, OS, DebugInfo.IsLittleEndian);
-    }else {
-      writeInteger((uint32_t)CU.AbbrOffset, OS, DebugInfo.IsLittleEndian);
+      cantFail(writeVariableSizedInteger(CU.AbbrOffset,
+                                         CU.Length.isDWARF64() ? 8 : 4, OS,
+                                         DebugInfo.IsLittleEndian));
+    } else {
+      cantFail(writeVariableSizedInteger(CU.AbbrOffset,
+                                         CU.Length.isDWARF64() ? 8 : 4, OS,
+                                         DebugInfo.IsLittleEndian));
       writeInteger((uint8_t)CU.AddrSize, OS, DebugInfo.IsLittleEndian);
     }
   }

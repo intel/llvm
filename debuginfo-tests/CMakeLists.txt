@@ -16,10 +16,26 @@ set(DEBUGINFO_TEST_DEPS
   clang
   FileCheck
   count
+  llvm-config
   llvm-objdump
   check-gdb-llvm-support
   not
   )
+
+if("compiler-rt" IN_LIST LLVM_ENABLE_PROJECTS)
+  # llgdb-tests/asan.c and other asan* files.
+  if(TARGET asan)
+    list(APPEND DEBUGINFO_TEST_DEPS asan)
+  endif()
+  # llgdb-tests/safestack.c
+  if(TARGET safestack)
+    list(APPEND DEBUGINFO_TEST_DEPS safestack)
+  endif()
+endif()
+# Many dexter tests depend on lldb.
+if("lldb" IN_LIST LLVM_ENABLE_PROJECTS)
+  list(APPEND DEBUGINFO_TEST_DEPS lldb lldb-server)
+endif()
 
 # The Windows builder scripts pass -fuse-ld=lld.
 if (WIN32)

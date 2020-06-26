@@ -374,10 +374,12 @@
 
 // RUN: %clang -target i386-unknown-unknown -march=atom -m3dnow -x c -E -dM -o - %s | FileCheck -match-full-lines --check-prefix=3DNOWPRFCHW %s
 
-// 3DNOWPRFCHW: #define __PRFCHW__ 1
+// 3DNOWPRFCHW: #define __3dNOW__ 1
+// 3DNOWPRFCHW-NOT: #define __PRFCHW__ 1
 
 // RUN: %clang -target i386-unknown-unknown -march=atom -mno-prfchw -m3dnow -x c -E -dM -o - %s | FileCheck -match-full-lines --check-prefix=3DNOWNOPRFCHW %s
 
+// 3DNOWNOPRFCHW: #define __3dNOW__ 1
 // 3DNOWNOPRFCHW-NOT: #define __PRFCHW__ 1
 
 // RUN: %clang -target i386-unknown-unknown -march=atom -mprfchw -mno-3dnow -x c -E -dM -o - %s | FileCheck -match-full-lines --check-prefix=NO3DNOWPRFCHW %s
@@ -415,9 +417,11 @@
 // XSAVES: #define __XSAVES__ 1
 // XSAVES: #define __XSAVE__ 1
 
-// RUN: %clang -target i386-unknown-unknown -march=atom -mxsaveopt -mno-xsave -x c -E -dM -o - %s | FileCheck -match-full-lines --check-prefix=NOXSAVE %s
+// RUN: %clang -target i386-unknown-unknown -march=atom -mxsaveopt -mxsavec -mxsaves -mno-xsave -x c -E -dM -o - %s | FileCheck -match-full-lines --check-prefix=NOXSAVE %s
 
+// NOXSAVE-NOT: #define __XSAVEC__ 1
 // NOXSAVE-NOT: #define __XSAVEOPT__ 1
+// NOXSAVE-NOT: #define __XSAVES__ 1
 // NOXSAVE-NOT: #define __XSAVE__ 1
 
 // RUN: %clang -target i386-unknown-unknown -march=atom -mclflushopt -x c -E -dM -o - %s | FileCheck -match-full-lines --check-prefix=CLFLUSHOPT %s

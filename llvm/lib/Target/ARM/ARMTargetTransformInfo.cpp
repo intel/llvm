@@ -580,7 +580,7 @@ bool ARMTTIImpl::isProfitableLSRChainElement(Instruction *I) {
   return false;
 }
 
-bool ARMTTIImpl::isLegalMaskedLoad(Type *DataTy, MaybeAlign Alignment) {
+bool ARMTTIImpl::isLegalMaskedLoad(Type *DataTy, Align Alignment) {
   if (!EnableMaskedLoadStores || !ST->hasMVEIntegerOps())
     return false;
 
@@ -596,12 +596,11 @@ bool ARMTTIImpl::isLegalMaskedLoad(Type *DataTy, MaybeAlign Alignment) {
   }
 
   unsigned EltWidth = DataTy->getScalarSizeInBits();
-  return (EltWidth == 32 && (!Alignment || *Alignment >= 4)) ||
-         (EltWidth == 16 && (!Alignment || *Alignment >= 2)) ||
-         (EltWidth == 8);
+  return (EltWidth == 32 && Alignment >= 4) ||
+         (EltWidth == 16 && Alignment >= 2) || (EltWidth == 8);
 }
 
-bool ARMTTIImpl::isLegalMaskedGather(Type *Ty, MaybeAlign Alignment) {
+bool ARMTTIImpl::isLegalMaskedGather(Type *Ty, Align Alignment) {
   if (!EnableMaskedGatherScatters || !ST->hasMVEIntegerOps())
     return false;
 
@@ -618,8 +617,8 @@ bool ARMTTIImpl::isLegalMaskedGather(Type *Ty, MaybeAlign Alignment) {
     return false;
 
   unsigned EltWidth = Ty->getScalarSizeInBits();
-  return ((EltWidth == 32 && (!Alignment || *Alignment >= 4)) ||
-          (EltWidth == 16 && (!Alignment || *Alignment >= 2)) || EltWidth == 8);
+  return ((EltWidth == 32 && Alignment >= 4) ||
+          (EltWidth == 16 && Alignment >= 2) || EltWidth == 8);
 }
 
 int ARMTTIImpl::getMemcpyCost(const Instruction *I) {
@@ -914,8 +913,7 @@ int ARMTTIImpl::getMemoryOpCost(unsigned Opcode, Type *Src,
 
 int ARMTTIImpl::getInterleavedMemoryOpCost(
     unsigned Opcode, Type *VecTy, unsigned Factor, ArrayRef<unsigned> Indices,
-    unsigned Alignment, unsigned AddressSpace,
-    TTI::TargetCostKind CostKind,
+    Align Alignment, unsigned AddressSpace, TTI::TargetCostKind CostKind,
     bool UseMaskForCond, bool UseMaskForGaps) {
   assert(Factor >= 2 && "Invalid interleave factor");
   assert(isa<VectorType>(VecTy) && "Expect a vector type");
@@ -954,7 +952,7 @@ int ARMTTIImpl::getInterleavedMemoryOpCost(
 
 unsigned ARMTTIImpl::getGatherScatterOpCost(unsigned Opcode, Type *DataTy,
                                             const Value *Ptr, bool VariableMask,
-                                            unsigned Alignment,
+                                            Align Alignment,
                                             TTI::TargetCostKind CostKind,
                                             const Instruction *I) {
   using namespace PatternMatch;
