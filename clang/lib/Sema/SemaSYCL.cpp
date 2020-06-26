@@ -2160,7 +2160,11 @@ static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
     TypePolicy.SuppressTypedefs = true;
     TypePolicy.SuppressTagKeyword = true;
     QualType T = Arg.getAsType();
-    ArgOS << getKernelNameTypeString(T, Ctx, TypePolicy);
+    if (T->isEnumeralType())
+      ArgOS << "::"
+            << T->getAs<EnumType>()->getDecl()->getQualifiedNameAsString();
+    else
+      ArgOS << getKernelNameTypeString(T, Ctx, TypePolicy);
     break;
   }
   case TemplateArgument::ArgKind::Template: {
@@ -2201,8 +2205,6 @@ static void printTemplateArguments(ASTContext &Ctx, raw_ostream &ArgOS,
 static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
                                            const PrintingPolicy &TypePolicy) {
 
-  QualType FullyQualifiedType = TypeName::getFullyQualifiedType(T, Ctx, true);
-
   const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
 
   if (!RD)
@@ -2217,8 +2219,8 @@ static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
     llvm::raw_svector_ostream ArgOS(Buf);
 
     // Print the qualifiers for the type.
-    FullyQualifiedType.getQualifiers().print(ArgOS, TypePolicy,
-                                             /*appendSpaceIfNotEmpty*/ true);
+    T.getCanonicalType().getQualifiers().print(ArgOS, TypePolicy,
+                                               /*appendSpaceIfNotEmpty*/ true);
 
     // Print template class name
     TSD->printQualifiedName(ArgOS, TypePolicy, /*WithGlobalNsPrefix*/ true);
@@ -2230,8 +2232,29 @@ static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
 
     return eraseAnonNamespace(ArgOS.str().str());
   }
-
-  return eraseAnonNamespace(FullyQualifiedType.getAsString(TypePolicy));
+  if (const auto *D = dyn_cast<CXXRecordDecl>(RD)) {
+    std::string NSStr = "";
+    const DeclContext *DC = D->getDeclContext();
+    SmallString<64> Buf;
+    llvm::raw_svector_ostream OS(Buf);
+    while (DC) {
+      auto *NS = dyn_cast<NamespaceDecl>(DC);
+      if (!NS || (NS && NS->getName().empty())) {
+        if (DC->isTranslationUnit())
+          NSStr.append(Twine("::" + D->getName()).str());
+        else
+          NSStr.append(T.getCanonicalType().getAsString(TypePolicy));
+        break;
+      }
+      NSStr.insert(0, Twine("::" + NS->getName()).str());
+      DC = NS->getDeclContext();
+    }
+    T.getCanonicalType().getQualifiers().print(OS, TypePolicy,
+                                               /*appendSpaceIfNotEmpty*/ true);
+    OS << NSStr;
+    return eraseAnonNamespace(OS.str().str());
+  }
+  return eraseAnonNamespace(T.getCanonicalType().getAsString(TypePolicy));
 }
 
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
