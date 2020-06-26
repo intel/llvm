@@ -1273,8 +1273,8 @@ public:
     return ArrayRef<ParmVarDecl *>(std::begin(Params) + LastParamIndex,
                                    std::end(Params));
   }
-  using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::handleScalarType;
+  using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::handleSyclSamplerType;
 };
 
@@ -1685,9 +1685,9 @@ public:
 
   using SyclKernelFieldHandler::enterArray;
   using SyclKernelFieldHandler::enterField;
-  using SyclKernelFieldHandler::handleSyclSamplerType;
-  using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::handleScalarType;
+  using SyclKernelFieldHandler::handleSyclHalfType;
+  using SyclKernelFieldHandler::handleSyclSamplerType;
   using SyclKernelFieldHandler::leaveField;
 };
 
@@ -1844,8 +1844,8 @@ public:
     }
     CurOffset -= ArraySize;
   }
-  using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::handleScalarType;
+  using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::handleSyclSamplerType;
 };
 } // namespace
