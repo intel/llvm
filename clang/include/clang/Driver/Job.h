@@ -154,9 +154,6 @@ public:
 
   const llvm::opt::ArgStringList &getArguments() const { return Arguments; }
 
-  /// Print a command argument, and optionally quote it.
-  static void printArg(llvm::raw_ostream &OS, StringRef Arg, bool Quote);
-
 protected:
   /// Optionally print the filenames to be compiled
   void PrintFileNames() const;

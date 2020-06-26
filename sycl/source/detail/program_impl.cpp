@@ -304,23 +304,24 @@ kernel program_impl::get_kernel(string_class KernelName,
 
 vector_class<vector_class<char>> program_impl::get_binaries() const {
   throw_if_state_is(program_state::none);
+  if (is_host())
+    return {};
+
   vector_class<vector_class<char>> Result;
   const detail::plugin &Plugin = getPlugin();
-  if (!is_host()) {
-    vector_class<size_t> BinarySizes(MDevices.size());
-    Plugin.call<PiApiKind::piProgramGetInfo>(
-        MProgram, PI_PROGRAM_INFO_BINARY_SIZES,
-        sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
+  vector_class<size_t> BinarySizes(MDevices.size());
+  Plugin.call<PiApiKind::piProgramGetInfo>(
+      MProgram, PI_PROGRAM_INFO_BINARY_SIZES,
+      sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
 
-    vector_class<char *> Pointers;
-    for (size_t I = 0; I < BinarySizes.size(); ++I) {
-      Result.emplace_back(BinarySizes[I]);
-      Pointers.push_back(Result[I].data());
-    }
-    Plugin.call<PiApiKind::piProgramGetInfo>(MProgram, PI_PROGRAM_INFO_BINARIES,
-                                             sizeof(char *) * Pointers.size(),
-                                             Pointers.data(), nullptr);
+  vector_class<char *> Pointers;
+  for (size_t I = 0; I < BinarySizes.size(); ++I) {
+    Result.emplace_back(BinarySizes[I]);
+    Pointers.push_back(Result[I].data());
   }
+  Plugin.call<PiApiKind::piProgramGetInfo>(MProgram, PI_PROGRAM_INFO_BINARIES,
+                                           sizeof(char *) * Pointers.size(),
+                                           Pointers.data(), nullptr);
   return Result;
 }
 
@@ -476,6 +477,9 @@ vector_class<device> program_impl::get_info<info::program::devices>() const {
 
 void program_impl::set_spec_constant_impl(const char *Name, const void *ValAddr,
                                           size_t ValSize) {
+  if (MState != program_state::none)
+    throw cl::sycl::experimental::spec_const_error("Invalid program state",
+                                                   PI_INVALID_PROGRAM);
   // Reuse cached programs lock as opposed to introducing a new lock.
   auto LockGuard = MContext->getKernelProgramCache().acquireCachedPrograms();
   spec_constant_impl &SC = SpecConstRegistry[Name];

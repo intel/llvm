@@ -218,25 +218,25 @@ void LaunchOp::build(OpBuilder &builder, OperationState &result,
 }
 
 KernelDim3 LaunchOp::getBlockIds() {
-  assert(!body().getBlocks().empty() && "FuncOp body must not be empty.");
-  auto args = body().getBlocks().front().getArguments();
+  assert(!body().empty() && "LaunchOp body must not be empty.");
+  auto args = body().front().getArguments();
   return KernelDim3{args[0], args[1], args[2]};
 }
 
 KernelDim3 LaunchOp::getThreadIds() {
-  assert(!body().getBlocks().empty() && "FuncOp body must not be empty.");
-  auto args = body().getBlocks().front().getArguments();
+  assert(!body().empty() && "LaunchOp body must not be empty.");
+  auto args = body().front().getArguments();
   return KernelDim3{args[3], args[4], args[5]};
 }
 
 KernelDim3 LaunchOp::getGridSize() {
-  assert(!body().getBlocks().empty() && "FuncOp body must not be empty.");
-  auto args = body().getBlocks().front().getArguments();
+  assert(!body().empty() && "LaunchOp body must not be empty.");
+  auto args = body().front().getArguments();
   return KernelDim3{args[6], args[7], args[8]};
 }
 
 KernelDim3 LaunchOp::getBlockSize() {
-  assert(!body().getBlocks().empty() && "FuncOp body must not be empty.");
+  assert(!body().empty() && "LaunchOp body must not be empty.");
   auto args = body().getBlocks().front().getArguments();
   return KernelDim3{args[9], args[10], args[11]};
 }
@@ -675,13 +675,10 @@ static LogicalResult verifyAttributions(Operation *op,
 LogicalResult GPUFuncOp::verifyBody() {
   unsigned numFuncArguments = getNumArguments();
   unsigned numWorkgroupAttributions = getNumWorkgroupAttributions();
-  unsigned numPrivateAttributions = getNumPrivateAttributions();
   unsigned numBlockArguments = front().getNumArguments();
-  if (numBlockArguments <
-      numFuncArguments + numWorkgroupAttributions + numPrivateAttributions)
+  if (numBlockArguments < numFuncArguments + numWorkgroupAttributions)
     return emitOpError() << "expected at least "
-                         << numFuncArguments + numWorkgroupAttributions +
-                                numPrivateAttributions
+                         << numFuncArguments + numWorkgroupAttributions
                          << " arguments to body region";
 
   ArrayRef<Type> funcArgTypes = getType().getInputs();
@@ -782,7 +779,7 @@ static void print(OpAsmPrinter &p, GPUModuleOp op) {
                 /*printBlockTerminators=*/false);
 }
 
-// Namespace avoids ambiguous ReturnOpOperandAdaptor.
+// Namespace avoids ambiguous ReturnOpAdaptor.
 namespace mlir {
 namespace gpu {
 #define GET_OP_CLASSES

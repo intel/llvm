@@ -1,4 +1,4 @@
-//=== lib/CodeGen/GlobalISel/AArch64PostLegalizerCombiner.cpp -------------===//
+ //=== lib/CodeGen/GlobalISel/AArch64PostLegalizerCombiner.cpp -------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -95,6 +95,64 @@ static bool isREVMask(ArrayRef<int> M, unsigned EltSize, unsigned NumElts,
   return true;
 }
 
+/// Determines if \p M is a shuffle vector mask for a TRN of \p NumElts.
+/// Whether or not G_TRN1 or G_TRN2 should be used is stored in \p WhichResult.
+static bool isTRNMask(ArrayRef<int> M, unsigned NumElts,
+                      unsigned &WhichResult) {
+  if (NumElts % 2 != 0)
+    return false;
+  WhichResult = (M[0] == 0 ? 0 : 1);
+  for (unsigned i = 0; i < NumElts; i += 2) {
+    if ((M[i] >= 0 && static_cast<unsigned>(M[i]) != i + WhichResult) ||
+        (M[i + 1] >= 0 &&
+         static_cast<unsigned>(M[i + 1]) != i + NumElts + WhichResult))
+      return false;
+  }
+  return true;
+}
+
+/// Check if a G_EXT instruction can handle a shuffle mask \p M when the vector
+/// sources of the shuffle are different.
+static Optional<std::pair<bool, uint64_t>> getExtMask(ArrayRef<int> M,
+                                                      unsigned NumElts) {
+  // Look for the first non-undef element.
+  auto FirstRealElt = find_if(M, [](int Elt) { return Elt >= 0; });
+  if (FirstRealElt == M.end())
+    return None;
+
+  // Use APInt to handle overflow when calculating expected element.
+  unsigned MaskBits = APInt(32, NumElts * 2).logBase2();
+  APInt ExpectedElt = APInt(MaskBits, *FirstRealElt + 1);
+
+  // The following shuffle indices must be the successive elements after the
+  // first real element.
+  if (any_of(
+          make_range(std::next(FirstRealElt), M.end()),
+          [&ExpectedElt](int Elt) { return Elt != ExpectedElt++ && Elt >= 0; }))
+    return None;
+
+  // The index of an EXT is the first element if it is not UNDEF.
+  // Watch out for the beginning UNDEFs. The EXT index should be the expected
+  // value of the first element.  E.g.
+  // <-1, -1, 3, ...> is treated as <1, 2, 3, ...>.
+  // <-1, -1, 0, 1, ...> is treated as <2*NumElts-2, 2*NumElts-1, 0, 1, ...>.
+  // ExpectedElt is the last mask index plus 1.
+  uint64_t Imm = ExpectedElt.getZExtValue();
+  bool ReverseExt = false;
+
+  // There are two difference cases requiring to reverse input vectors.
+  // For example, for vector <4 x i32> we have the following cases,
+  // Case 1: shufflevector(<4 x i32>,<4 x i32>,<-1, -1, -1, 0>)
+  // Case 2: shufflevector(<4 x i32>,<4 x i32>,<-1, -1, 7, 0>)
+  // For both cases, we finally use mask <5, 6, 7, 0>, which requires
+  // to reverse two input vectors.
+  if (Imm < NumElts)
+    ReverseExt = true;
+  else
+    Imm -= NumElts;
+  return std::make_pair(ReverseExt, Imm);
+}
+
 /// Determines if \p M is a shuffle vector mask for a UZP of \p NumElts.
 /// Whether or not G_UZP1 or G_UZP2 should be used is stored in \p WhichResult.
 static bool isUZPMask(ArrayRef<int> M, unsigned NumElts,
@@ -159,10 +217,28 @@ static bool matchREV(MachineInstr &MI, MachineRegisterInfo &MRI,
 }
 
 /// \return true if a G_SHUFFLE_VECTOR instruction \p MI can be replaced with
+/// a G_TRN1 or G_TRN2 instruction.
+static bool matchTRN(MachineInstr &MI, MachineRegisterInfo &MRI,
+                     ShuffleVectorPseudo &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_SHUFFLE_VECTOR);
+  unsigned WhichResult;
+  ArrayRef<int> ShuffleMask = MI.getOperand(3).getShuffleMask();
+  Register Dst = MI.getOperand(0).getReg();
+  unsigned NumElts = MRI.getType(Dst).getNumElements();
+  if (!isTRNMask(ShuffleMask, NumElts, WhichResult))
+    return false;
+  unsigned Opc = (WhichResult == 0) ? AArch64::G_TRN1 : AArch64::G_TRN2;
+  Register V1 = MI.getOperand(1).getReg();
+  Register V2 = MI.getOperand(2).getReg();
+  MatchInfo = ShuffleVectorPseudo(Opc, Dst, {V1, V2});
+  return true;
+}
+
+/// \return true if a G_SHUFFLE_VECTOR instruction \p MI can be replaced with
 /// a G_UZP1 or G_UZP2 instruction.
 ///
 /// \param [in] MI - The shuffle vector instruction.
-/// \param [out] Opc - Either G_UZP1 or G_UZP2 on success.
+/// \param [out] MatchInfo - Either G_UZP1 or G_UZP2 on success.
 static bool matchUZP(MachineInstr &MI, MachineRegisterInfo &MRI,
                      ShuffleVectorPseudo &MatchInfo) {
   assert(MI.getOpcode() == TargetOpcode::G_SHUFFLE_VECTOR);
@@ -232,13 +308,29 @@ static bool matchDup(MachineInstr &MI, MachineRegisterInfo &MRI,
     return false;
 
   Register Dst = MI.getOperand(0).getReg();
-  if (MRI.getType(Dst).getScalarSizeInBits() < 32) {
-    LLVM_DEBUG(dbgs() << "Could not optimize splat pattern < 32b elts yet");
-    return false;
-  }
-
   MatchInfo =
       ShuffleVectorPseudo(AArch64::G_DUP, Dst, {InsMI->getOperand(2).getReg()});
+  return true;
+}
+
+static bool matchEXT(MachineInstr &MI, MachineRegisterInfo &MRI,
+                     ShuffleVectorPseudo &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_SHUFFLE_VECTOR);
+  Register Dst = MI.getOperand(0).getReg();
+  auto ExtInfo = getExtMask(MI.getOperand(3).getShuffleMask(),
+                            MRI.getType(Dst).getNumElements());
+  if (!ExtInfo)
+    return false;
+  bool ReverseExt;
+  uint64_t Imm;
+  std::tie(ReverseExt, Imm) = *ExtInfo;
+  Register V1 = MI.getOperand(1).getReg();
+  Register V2 = MI.getOperand(2).getReg();
+  if (ReverseExt)
+    std::swap(V1, V2);
+  uint64_t ExtFactor = MRI.getType(V1).getScalarSizeInBits() / 8;
+  Imm *= ExtFactor;
+  MatchInfo = ShuffleVectorPseudo(AArch64::G_EXT, Dst, {V1, V2, Imm});
   return true;
 }
 
@@ -248,6 +340,20 @@ static bool applyShuffleVectorPseudo(MachineInstr &MI,
                                      ShuffleVectorPseudo &MatchInfo) {
   MachineIRBuilder MIRBuilder(MI);
   MIRBuilder.buildInstr(MatchInfo.Opc, {MatchInfo.Dst}, MatchInfo.SrcOps);
+  MI.eraseFromParent();
+  return true;
+}
+
+/// Replace a G_SHUFFLE_VECTOR instruction with G_EXT.
+/// Special-cased because the constant operand must be emitted as a G_CONSTANT
+/// for the imported tablegen patterns to work.
+static bool applyEXT(MachineInstr &MI, ShuffleVectorPseudo &MatchInfo) {
+  MachineIRBuilder MIRBuilder(MI);
+  // Tablegen patterns expect an i32 G_CONSTANT as the final op.
+  auto Cst =
+      MIRBuilder.buildConstant(LLT::scalar(32), MatchInfo.SrcOps[2].getImm());
+  MIRBuilder.buildInstr(MatchInfo.Opc, {MatchInfo.Dst},
+                        {MatchInfo.SrcOps[0], MatchInfo.SrcOps[1], Cst});
   MI.eraseFromParent();
   return true;
 }
@@ -266,7 +372,7 @@ class AArch64PostLegalizerCombinerInfo : public CombinerInfo {
   MachineDominatorTree *MDT;
 
 public:
-  AArch64GenPostLegalizerCombinerHelper Generated;
+  AArch64GenPostLegalizerCombinerHelperRuleConfig GeneratedRuleCfg;
 
   AArch64PostLegalizerCombinerInfo(bool EnableOpt, bool OptSize, bool MinSize,
                                    GISelKnownBits *KB,
@@ -274,7 +380,7 @@ public:
       : CombinerInfo(/*AllowIllegalOps*/ true, /*ShouldLegalizeIllegal*/ false,
                      /*LegalizerInfo*/ nullptr, EnableOpt, OptSize, MinSize),
         KB(KB), MDT(MDT) {
-    if (!Generated.parseCommandLineOption())
+    if (!GeneratedRuleCfg.parseCommandLineOption())
       report_fatal_error("Invalid rule identifier");
   }
 
@@ -288,6 +394,7 @@ bool AArch64PostLegalizerCombinerInfo::combine(GISelChangeObserver &Observer,
   const auto *LI =
       MI.getParent()->getParent()->getSubtarget().getLegalizerInfo();
   CombinerHelper Helper(Observer, B, KB, MDT, LI);
+  AArch64GenPostLegalizerCombinerHelper Generated(GeneratedRuleCfg);
   return Generated.tryCombineAll(Observer, MI, B, Helper);
 }
 

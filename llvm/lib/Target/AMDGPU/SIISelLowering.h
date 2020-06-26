@@ -119,6 +119,7 @@ private:
   /// Custom lowering for ISD::FP_ROUND for MVT::f16.
   SDValue lowerFP_ROUND(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFMINNUM_FMAXNUM(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerXMULO(SDValue Op, SelectionDAG &DAG) const;
 
   SDValue getSegmentAperture(unsigned AS, const SDLoc &DL,
                              SelectionDAG &DAG) const;
@@ -407,6 +408,9 @@ public:
                                      KnownBits &Known,
                                      const MachineFunction &MF) const override;
 
+  Align computeKnownAlignForTargetInstr(GISelKnownBits &Analysis, Register R,
+                                        const MachineRegisterInfo &MRI,
+                                        unsigned Depth = 0) const override;
   bool isSDNodeSourceOfDivergence(const SDNode *N,
     FunctionLoweringInfo *FLI, LegacyDivergenceAnalysis *DA) const override;
 

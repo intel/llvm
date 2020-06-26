@@ -1314,6 +1314,17 @@ Instruction *InstCombiner::visitAdd(BinaryOperator &I) {
   // X % C0 + (( X / C0 ) % C1) * C0 => X % (C0 * C1)
   if (Value *V = SimplifyAddWithRemainder(I)) return replaceInstUsesWith(I, V);
 
+  // ((X s/ C1) << C2) + X => X s% -C1 where -C1 is 1 << C2
+  const APInt *C1, *C2;
+  if (match(LHS, m_Shl(m_SDiv(m_Specific(RHS), m_APInt(C1)), m_APInt(C2)))) {
+    APInt one(C2->getBitWidth(), 1);
+    APInt minusC1 = -(*C1);
+    if (minusC1 == (one << *C2)) {
+      Constant *NewRHS = ConstantInt::get(RHS->getType(), minusC1);
+      return BinaryOperator::CreateSRem(RHS, NewRHS);
+    }
+  }
+
   // A+B --> A|B iff A and B have no bits set in common.
   if (haveNoCommonBitsSet(LHS, RHS, DL, &AC, &I, &DT))
     return BinaryOperator::CreateOr(LHS, RHS);
@@ -2215,6 +2226,23 @@ Instruction *InstCombiner::visitFSub(BinaryOperator &I) {
       Value *XZ = Builder.CreateFAddFMF(X, Z, &I);
       Value *YW = Builder.CreateFAddFMF(Y, Op1, &I);
       return BinaryOperator::CreateFSubFMF(XZ, YW, &I);
+    }
+
+    auto m_FaddRdx = [](Value *&Sum, Value *&Vec) {
+      return m_OneUse(
+          m_Intrinsic<Intrinsic::experimental_vector_reduce_v2_fadd>(
+              m_Value(Sum), m_Value(Vec)));
+    };
+    Value *A0, *A1, *V0, *V1;
+    if (match(Op0, m_FaddRdx(A0, V0)) && match(Op1, m_FaddRdx(A1, V1)) &&
+        V0->getType() == V1->getType()) {
+      // Difference of sums is sum of differences:
+      // add_rdx(A0, V0) - add_rdx(A1, V1) --> add_rdx(A0, V0 - V1) - A1
+      Value *Sub = Builder.CreateFSubFMF(V0, V1, &I);
+      Value *Rdx = Builder.CreateIntrinsic(
+          Intrinsic::experimental_vector_reduce_v2_fadd,
+          {A0->getType(), Sub->getType()}, {A0, Sub}, &I);
+      return BinaryOperator::CreateFSubFMF(Rdx, A1, &I);
     }
 
     if (Instruction *F = factorizeFAddFSub(I, Builder))

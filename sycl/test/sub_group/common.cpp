@@ -31,8 +31,9 @@ void check(queue &Queue, unsigned int G, unsigned int L) {
   try {
     nd_range<1> NdRange(G, L);
     buffer<struct Data, 1> syclbuf(G);
-
+    buffer<size_t> sgsizebuf(1);
     Queue.submit([&](handler &cgh) {
+      auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       auto syclacc = syclbuf.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<class sycl_subgr>(NdRange, [=](nd_item<1> NdItem) {
         intel::sub_group SG = NdItem.get_sub_group();
@@ -43,27 +44,22 @@ void check(queue &Queue, unsigned int G, unsigned int L) {
             SG.get_max_local_range().get(0);
         syclacc[NdItem.get_global_id()].group_id = SG.get_group_id().get(0);
         syclacc[NdItem.get_global_id()].group_range = SG.get_group_range().get(0);
+        if (NdItem.get_global_id(0) == 0)
+          sgsizeacc[0] = SG.get_max_local_range()[0];
       });
     });
     auto syclacc = syclbuf.get_access<access::mode::read_write>();
-    unsigned int max_sg = get_sg_size(Queue.get_device());
-    unsigned int num_sg = L / max_sg + (L % max_sg ? 1 : 0);
+    auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>();
+    unsigned int sg_size = sgsizeacc[0];
+    unsigned int num_sg = L / sg_size + (L % sg_size ? 1 : 0);
     for (int j = 0; j < G; j++) {
-      unsigned int group_id = j % L / max_sg;
+      unsigned int group_id = j % L / sg_size;
       unsigned int local_range =
-          (group_id + 1 == num_sg) ? (L - group_id * max_sg) : max_sg;
-      exit_if_not_equal(syclacc[j].local_id, j % L % max_sg, "local_id");
+          (group_id + 1 == num_sg) ? (L - group_id * sg_size) : sg_size;
+      exit_if_not_equal(syclacc[j].local_id, j % L % sg_size, "local_id");
       exit_if_not_equal(syclacc[j].local_range, local_range, "local_range");
-      // TODO: Currently workgroup size affects this paramater on CPU and does
-      // not on GPU. Remove if when it is aligned.
-      if (Queue.get_device().get_info<info::device::device_type>() ==
-          info::device_type::cpu) {
-        exit_if_not_equal(syclacc[j].max_local_range, std::min(max_sg, L),
-                          "max_local_range");
-      } else {
-        exit_if_not_equal(syclacc[j].max_local_range, max_sg,
-                          "max_local_range");
-      }
+      exit_if_not_equal(syclacc[j].max_local_range,
+                        syclacc[0].max_local_range, "max_local_range");
       exit_if_not_equal(syclacc[j].group_id, group_id, "group_id");
       exit_if_not_equal(syclacc[j].group_range, num_sg, "group_range");
     }

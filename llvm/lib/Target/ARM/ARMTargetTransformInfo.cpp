@@ -57,13 +57,13 @@ bool ARMTTIImpl::areInlineCompatible(const Function *Caller,
   const FeatureBitset &CalleeBits =
       TM.getSubtargetImpl(*Callee)->getFeatureBits();
 
-  // To inline a callee, all features not in the whitelist must match exactly.
-  bool MatchExact = (CallerBits & ~InlineFeatureWhitelist) ==
-                    (CalleeBits & ~InlineFeatureWhitelist);
-  // For features in the whitelist, the callee's features must be a subset of
+  // To inline a callee, all features not in the allowed list must match exactly.
+  bool MatchExact = (CallerBits & ~InlineFeaturesAllowed) ==
+                    (CalleeBits & ~InlineFeaturesAllowed);
+  // For features in the allowed list, the callee's features must be a subset of
   // the callers'.
-  bool MatchSubset = ((CallerBits & CalleeBits) & InlineFeatureWhitelist) ==
-                     (CalleeBits & InlineFeatureWhitelist);
+  bool MatchSubset = ((CallerBits & CalleeBits) & InlineFeaturesAllowed) ==
+                     (CalleeBits & InlineFeaturesAllowed);
   return MatchExact && MatchSubset;
 }
 
@@ -508,6 +508,10 @@ int ARMTTIImpl::getVectorInstrCost(unsigned Opcode, Type *ValTy,
 int ARMTTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy,
                                    TTI::TargetCostKind CostKind,
                                    const Instruction *I) {
+  // TODO: Handle other cost kinds.
+  if (CostKind != TTI::TCK_RecipThroughput)
+    return BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, CostKind, I);
+
   int ISD = TLI->InstructionOpcodeToISD(Opcode);
   // On NEON a vector select gets lowered to vbsl.
   if (ST->hasNEON() && ValTy->isVectorTy() && ISD == ISD::SELECT) {
@@ -755,6 +759,12 @@ int ARMTTIImpl::getArithmeticInstrCost(unsigned Opcode, Type *Ty,
                                        TTI::OperandValueProperties Opd2PropInfo,
                                        ArrayRef<const Value *> Args,
                                        const Instruction *CxtI) {
+  // TODO: Handle more cost kinds.
+  if (CostKind != TTI::TCK_RecipThroughput)
+    return BaseT::getArithmeticInstrCost(Opcode, Ty, CostKind, Op1Info,
+                                         Op2Info, Opd1PropInfo,
+                                         Opd2PropInfo, Args, CxtI);
+
   int ISDOpcode = TLI->InstructionOpcodeToISD(Opcode);
   std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, Ty);
 
@@ -881,6 +891,11 @@ int ARMTTIImpl::getMemoryOpCost(unsigned Opcode, Type *Src,
   // TODO: Handle other cost kinds.
   if (CostKind != TTI::TCK_RecipThroughput)
     return 1;
+
+  // Type legalization can't handle structs
+  if (TLI->getValueType(DL, Src,  true) == MVT::Other)
+    return BaseT::getMemoryOpCost(Opcode, Src, Alignment, AddressSpace,
+                                  CostKind);
 
   std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, Src);
 
@@ -1397,13 +1412,15 @@ bool ARMTTIImpl::preferPredicateOverEpilogue(Loop *L, LoopInfo *LI,
   return canTailPredicateLoop(L, LI, SE, DL, LAI);
 }
 
-bool ARMTTIImpl::emitGetActiveLaneMask(Loop *L, LoopInfo *LI,
-    ScalarEvolution &SE, bool TailFolded) const {
-  // TODO: if this loop is tail-folded, we want to emit the
-  // llvm.get.active.lane.mask intrinsic so that this can be picked up in the
-  // MVETailPredication pass that needs to know the number of elements
-  // processed by this vector loop.
-  return false;
+bool ARMTTIImpl::emitGetActiveLaneMask() const {
+  if (!ST->hasMVEIntegerOps() || DisableTailPredication)
+    return false;
+
+  // Intrinsic @llvm.get.active.lane.mask is supported.
+  // It is used in the MVETailPredication pass, which requires the number of
+  // elements processed by this vector loop to setup the tail-predicated
+  // loop.
+  return true;
 }
 void ARMTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
                                          TTI::UnrollingPreferences &UP) {
@@ -1479,27 +1496,5 @@ void ARMTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
 
 bool ARMTTIImpl::useReductionIntrinsic(unsigned Opcode, Type *Ty,
                                        TTI::ReductionFlags Flags) const {
-  assert(isa<VectorType>(Ty) && "Expected Ty to be a vector type");
-  unsigned ScalarBits = Ty->getScalarSizeInBits();
-  if (!ST->hasMVEIntegerOps())
-    return false;
-
-  switch (Opcode) {
-  case Instruction::FAdd:
-  case Instruction::FMul:
-  case Instruction::And:
-  case Instruction::Or:
-  case Instruction::Xor:
-  case Instruction::Mul:
-  case Instruction::FCmp:
-    return false;
-  case Instruction::ICmp:
-  case Instruction::Add:
-    return ScalarBits < 64 &&
-           (ScalarBits * cast<FixedVectorType>(Ty)->getNumElements()) % 128 ==
-               0;
-  default:
-    llvm_unreachable("Unhandled reduction opcode");
-  }
-  return false;
+  return ST->hasMVEIntegerOps();
 }

@@ -76,6 +76,8 @@ class ObjCAtTryStmt;
 class ObjCAtThrowStmt;
 class ObjCAtSynchronizedStmt;
 class ObjCAutoreleasePoolStmt;
+class OMPUseDevicePtrClause;
+class OMPUseDeviceAddrClause;
 class ReturnsNonNullAttr;
 class SVETypeFlags;
 
@@ -442,6 +444,10 @@ public:
   /// This is invalid if sret is not in use.
   Address ReturnValuePointer = Address::invalid();
 
+  /// If a return statement is being visited, this holds the return statment's
+  /// result expression.
+  const Expr *RetExpr = nullptr;
+
   /// Return true if a label was seen in the current scope.
   bool hasLabelBeenSeenInCurrentScope() const {
     if (CurLexicalScope)
@@ -646,9 +652,6 @@ public:
 
   unsigned NextCleanupDestIndex = 1;
 
-  /// FirstBlockInfo - The head of a singly-linked-list of block layouts.
-  CGBlockInfo *FirstBlockInfo = nullptr;
-
   /// EHResumeBlock - Unified block containing a call to llvm.eh.resume.
   llvm::BasicBlock *EHResumeBlock = nullptr;
 
@@ -703,6 +706,18 @@ public:
   typename DominatingValue<T>::saved_type saveValueInCond(T value) {
     return DominatingValue<T>::save(*this, value);
   }
+
+  class CGFPOptionsRAII {
+  public:
+    CGFPOptionsRAII(CodeGenFunction &CGF, FPOptions FPFeatures);
+    ~CGFPOptionsRAII();
+
+  private:
+    CodeGenFunction &CGF;
+    FPOptions OldFPFeatures;
+    Optional<CGBuilderTy::FastMathFlagGuard> FMFGuard;
+  };
+  FPOptions CurFPFeatures;
 
 public:
   /// ObjCEHValueStack - Stack of Objective-C exception values, used for
@@ -1911,7 +1926,6 @@ public:
   /// information about the block, including the block invoke function, the
   /// captured variables, etc.
   llvm::Value *EmitBlockLiteral(const BlockExpr *);
-  static void destroyBlockInfos(CGBlockInfo *info);
 
   llvm::Function *GenerateBlockFunction(GlobalDecl GD,
                                         const CGBlockInfo &Info,
@@ -3173,7 +3187,10 @@ public:
   void EmitOMPPrivateClause(const OMPExecutableDirective &D,
                             OMPPrivateScope &PrivateScope);
   void EmitOMPUseDevicePtrClause(
-      const OMPClause &C, OMPPrivateScope &PrivateScope,
+      const OMPUseDevicePtrClause &C, OMPPrivateScope &PrivateScope,
+      const llvm::DenseMap<const ValueDecl *, Address> &CaptureDeviceAddrMap);
+  void EmitOMPUseDeviceAddrClause(
+      const OMPUseDeviceAddrClause &C, OMPPrivateScope &PrivateScope,
       const llvm::DenseMap<const ValueDecl *, Address> &CaptureDeviceAddrMap);
   /// Emit code for copyin clause in \a D directive. The next code is
   /// generated at the start of outlined functions for directives:
@@ -3389,8 +3406,8 @@ public:
   /// \param PostIncGen Genrator for post-increment code (required for ordered
   /// loop directvies).
   void EmitOMPInnerLoop(
-      const Stmt &S, bool RequiresCleanup, const Expr *LoopCond,
-      const Expr *IncExpr,
+      const OMPExecutableDirective &S, bool RequiresCleanup,
+      const Expr *LoopCond, const Expr *IncExpr,
       const llvm::function_ref<void(CodeGenFunction &)> BodyGen,
       const llvm::function_ref<void(CodeGenFunction &)> PostIncGen);
 
@@ -3906,7 +3923,6 @@ public:
                                    QualType RTy);
   llvm::Value *EmitCMSEClearRecord(llvm::Value *V, llvm::ArrayType *ATy,
                                    QualType RTy);
-  llvm::Value *EmitCMSEClearFP16(llvm::Value *V);
 
   llvm::Value *EmitCommonNeonBuiltinExpr(unsigned BuiltinID,
                                          unsigned LLVMIntrinsic,
@@ -3939,6 +3955,7 @@ public:
   llvm::Type *SVEBuiltinMemEltTy(SVETypeFlags TypeFlags);
 
   SmallVector<llvm::Type *, 2> getSVEOverloadTypes(SVETypeFlags TypeFlags,
+                                                   llvm::Type *ReturnType,
                                                    ArrayRef<llvm::Value *> Ops);
   llvm::Type *getEltType(SVETypeFlags TypeFlags);
   llvm::ScalableVectorType *getSVEType(const SVETypeFlags &TypeFlags);
@@ -3973,6 +3990,11 @@ public:
   llvm::Value *EmitSVEGatherPrefetch(SVETypeFlags TypeFlags,
                                      SmallVectorImpl<llvm::Value *> &Ops,
                                      unsigned IntID);
+  llvm::Value *EmitSVEStructLoad(SVETypeFlags TypeFlags,
+                                 SmallVectorImpl<llvm::Value *> &Ops, unsigned IntID);
+  llvm::Value *EmitSVEStructStore(SVETypeFlags TypeFlags,
+                                  SmallVectorImpl<llvm::Value *> &Ops,
+                                  unsigned IntID);
   llvm::Value *EmitAArch64SVEBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
 
   llvm::Value *EmitAArch64BuiltinExpr(unsigned BuiltinID, const CallExpr *E,
@@ -3988,6 +4010,9 @@ public:
   llvm::Value *EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
                                           const CallExpr *E);
   llvm::Value *EmitHexagonBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
+  bool ProcessOrderScopeAMDGCN(llvm::Value *Order, llvm::Value *Scope,
+                               llvm::AtomicOrdering &AO,
+                               llvm::SyncScope::ID &SSID);
 
   RValue EmitIntelFPGARegBuiltin(const CallExpr *E,
                                  ReturnValueSlot ReturnValue);
@@ -4122,6 +4147,10 @@ public:
   /// aggregate type into a temporary LValue.
   LValue EmitAggExprToLValue(const Expr *E);
 
+  /// Build all the stores needed to initialize an aggregate at Dest with the
+  /// value Val.
+  void EmitAggregateStore(llvm::Value *Val, Address Dest, bool DestIsVolatile);
+
   /// EmitExtendGCLifetime - Given a pointer to an Objective-C object,
   /// make sure it survives garbage collection until this point.
   void EmitExtendGCLifetime(llvm::Value *object);
@@ -4172,6 +4201,9 @@ public:
   /// Call atexit() with function dtorStub.
   void registerGlobalDtorWithAtExit(llvm::Constant *dtorStub);
 
+  /// Call unatexit() with function dtorStub.
+  llvm::Value *unregisterGlobalDtorWithUnAtExit(llvm::Function *dtorStub);
+
   /// Emit code in this function to perform a guarded variable
   /// initialization.  Guarded initializations are used when it's not
   /// possible to prove that an initialization will be done exactly
@@ -4195,12 +4227,12 @@ public:
                             ArrayRef<llvm::Function *> CXXThreadLocals,
                             ConstantAddress Guard = ConstantAddress::invalid());
 
-  /// GenerateCXXGlobalDtorsFunc - Generates code for destroying global
+  /// GenerateCXXGlobalCleanUpFunc - Generates code for cleaning up global
   /// variables.
-  void GenerateCXXGlobalDtorsFunc(
+  void GenerateCXXGlobalCleanUpFunc(
       llvm::Function *Fn,
       const std::vector<std::tuple<llvm::FunctionType *, llvm::WeakTrackingVH,
-                                   llvm::Constant *>> &DtorsAndObjects);
+                                   llvm::Constant *>> &DtorsOrStermFinalizers);
 
   void GenerateCXXGlobalVarDeclInitFunc(llvm::Function *Fn,
                                         const VarDecl *D,
@@ -4210,14 +4242,6 @@ public:
   void EmitCXXConstructExpr(const CXXConstructExpr *E, AggValueSlot Dest);
 
   void EmitSynthesizedCXXCopyCtor(Address Dest, Address Src, const Expr *Exp);
-
-  void enterFullExpression(const FullExpr *E) {
-    if (const auto *EWC = dyn_cast<ExprWithCleanups>(E))
-      if (EWC->getNumObjects() == 0)
-        return;
-    enterNonTrivialFullExpression(E);
-  }
-  void enterNonTrivialFullExpression(const FullExpr *E);
 
   void EmitCXXThrowExpr(const CXXThrowExpr *E, bool KeepInsertionPoint = true);
 

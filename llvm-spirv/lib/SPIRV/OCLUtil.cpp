@@ -349,6 +349,10 @@ static SPIR::TypeAttributeEnum mapAddrSpaceEnums(SPIRAddressSpace Addrspace) {
     return SPIR::ATTR_LOCAL;
   case SPIRAS_Generic:
     return SPIR::ATTR_GENERIC;
+  case SPIRAS_GlobalDevice:
+    return SPIR::ATTR_GLOBAL_DEVICE;
+  case SPIRAS_GlobalHost:
+    return SPIR::ATTR_GLOBAL_HOST;
   default:
     llvm_unreachable("Invalid addrspace enum member");
   }
@@ -761,6 +765,22 @@ public:
     } else if (UnmangledName.find("intel_sub_group_media_block_write") !=
                std::string::npos) {
       addUnsignedArg(3);
+    } else if (UnmangledName.find(kOCLBuiltinName::SubGroupPrefix) !=
+               std::string::npos) {
+      if (UnmangledName.find("ballot") != std::string::npos) {
+        if (UnmangledName.find("inverse") != std::string::npos ||
+            UnmangledName.find("bit_count") != std::string::npos ||
+            UnmangledName.find("inclusive_scan") != std::string::npos ||
+            UnmangledName.find("exclusive_scan") != std::string::npos ||
+            UnmangledName.find("find_lsb") != std::string::npos ||
+            UnmangledName.find("find_msb") != std::string::npos)
+          addUnsignedArg(0);
+        else if (UnmangledName.find("bit_extract") != std::string::npos) {
+          addUnsignedArgs(0, 1);
+        }
+      } else if (UnmangledName.find("shuffle") != std::string::npos ||
+                 UnmangledName.find("clustered") != std::string::npos)
+        addUnsignedArg(1);
     }
   }
   // Auxiliarry information, it is expected that it is relevant at the moment
