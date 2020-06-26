@@ -1373,13 +1373,12 @@ pi_result piQueueFinish(pi_queue Queue) {
   return PI_SUCCESS;
 }
 
-
 pi_result piextQueueGetNativeHandle(pi_queue Queue,
                                     pi_native_handle *NativeHandle) {
   assert(Queue);
   assert(NativeHandle);
 
-  auto ZeQueue = pi_cast<ze_command_queue_handle_t*>(NativeHandle);
+  auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
   // Extract the L0 queue handle from the given PI queue
   *ZeQueue = Queue->ZeCommandQueue;
   return PI_SUCCESS;

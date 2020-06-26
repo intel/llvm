@@ -39,7 +39,7 @@ struct interop<backend::level0, accessor<DataT, Dimensions, AccessMode,
 
 namespace level0 {
 
-// Implementation of varios "make" functions resides in libsycl.so
+// Implementation of various "make" functions resides in libsycl.so
 platform make_platform(pi_native_handle NativeHandle);
 device make_device(const platform &Platform, pi_native_handle NativeHandle);
 program make_program(const context &Context, pi_native_handle NativeHandle);
