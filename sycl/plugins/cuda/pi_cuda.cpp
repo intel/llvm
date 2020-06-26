@@ -3182,18 +3182,18 @@ pi_result cuda_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
 }
 
 static size_t imageElementByteSize(CUDA_ARRAY_DESCRIPTOR array_desc) {
-  switch(array_desc.Format) {
-    case CU_AD_FORMAT_UNSIGNED_INT8:
-    case CU_AD_FORMAT_SIGNED_INT8:
-      return 1;
-    case CU_AD_FORMAT_UNSIGNED_INT16:
-    case CU_AD_FORMAT_SIGNED_INT16:
-    case CU_AD_FORMAT_HALF:
-      return 2;
-    case CU_AD_FORMAT_UNSIGNED_INT32:
-    case CU_AD_FORMAT_SIGNED_INT32:
-    case CU_AD_FORMAT_FLOAT:
-      return 4;
+  switch (array_desc.Format) {
+  case CU_AD_FORMAT_UNSIGNED_INT8:
+  case CU_AD_FORMAT_SIGNED_INT8:
+    return 1;
+  case CU_AD_FORMAT_UNSIGNED_INT16:
+  case CU_AD_FORMAT_SIGNED_INT16:
+  case CU_AD_FORMAT_HALF:
+    return 2;
+  case CU_AD_FORMAT_UNSIGNED_INT32:
+  case CU_AD_FORMAT_SIGNED_INT32:
+  case CU_AD_FORMAT_FLOAT:
+    return 4;
   }
   cl::sycl::detail::pi::die("Invalid iamge format.");
   return 0;
@@ -3277,13 +3277,13 @@ pi_result cuda_piEnqueueMemImageRead(
 
   pi_result retErr = PI_SUCCESS;
   CUstream cuStream = command_queue->get();
-  
+
   try {
     ScopedContext active(command_queue->get_context());
 
     if (event_wait_list) {
       cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                          event_wait_list, nullptr);
+                               event_wait_list, nullptr);
     }
 
     CUarray array = image->mem_.surface_mem_.get_array();
