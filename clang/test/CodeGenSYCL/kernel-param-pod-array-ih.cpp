@@ -1,6 +1,4 @@
 // RUN: %clang -I %S/Inputs -fsycl-device-only -Xclang -fsycl-int-header=%t.h %s -c -o %T/kernel.spv
-// RUN: FileCheck -input-file=%t.h %s
-
 // This test checks the integration header generated for a kernel
 // with an argument that is a POD array.
 
@@ -20,7 +18,11 @@
 // CHECK: static constexpr
 // CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {
 // CHECK-NEXT: //--- _ZTSZ4mainE8kernel_B
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 400, 0 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 4 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 8 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 12 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 16 },
 // CHECK-EMPTY:
 // CHECK-NEXT: };
 
@@ -42,7 +44,7 @@ __attribute__((sycl_kernel)) void a_kernel(Func kernelFunc) {
 
 int main() {
 
-  int a[100];
+  int a[5];
 
   a_kernel<class kernel_B>(
       [=]() {

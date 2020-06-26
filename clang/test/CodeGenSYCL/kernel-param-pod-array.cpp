@@ -13,26 +13,31 @@ __attribute__((sycl_kernel)) void a_kernel(Func kernelFunc) {
 
 int main() {
 
-  int a[100];
+  int a[2];
 
   a_kernel<class kernel_B>(
       [=]() {
-        int local = a[3];
+        int local = a[1];
       });
 }
 
 // Check kernel_B parameters
 // CHECK: define spir_kernel void @{{.*}}kernel_B
-// CHECK-SAME: %struct.{{.*}}.wrapped_array* byval{{.*}}align 4 [[ARG_STRUCT:%[a-zA-Z0-9_]+]]
+// CHECK-SAME: i32 [[ELEM_ARG0:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: i32 [[ELEM_ARG1:%[a-zA-Z_]+_[0-9]+]])
 
 // Check local lambda object alloca
-// CHECK: [[LOCAL_OBJECT:%0]] = alloca %"class.{{.*}}.anon", align 4
+// CHECK: [[LOCAL_OBJECT:%[0-9]+]] = alloca %"class.{{.*}}.anon", align 4
+
+// Check local variables created for parameters
+// CHECK: store i32 [[ELEM_ARG0]], i32* [[ELEM_L0:%[a-zA-Z_]+.addr]], align 4
+// CHECK: store i32 [[ELEM_ARG1]], i32* [[ELEM_L1:%[a-zA-Z_]+.addr[0-9]*]], align 4
 
 // Check init of local array
-// CHECK: [[ARRAY1:%[a-zA-Z0-9_]+]] = getelementptr inbounds %"class.{{.*}}.anon", %"class.{{.*}}.anon"* [[LOCAL_OBJECT]], i32 0, i32 0
-
-// CHECK: [[ARRAY2:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct.{{.*}}.wrapped_array, %struct.{{.*}}.wrapped_array* [[ARG_STRUCT]], i32 0, i32 0
-
-// CHECK: %{{[a-zA-Z0-9._]+}} = getelementptr inbounds [100 x i32], [100 x i32]* [[ARRAY1]], i64 0, i64 0
-
-// CHECK: %{{[a-zA-Z0-9_]+}} = getelementptr inbounds [100 x i32], [100 x i32]* [[ARRAY2]], i64 0, i64
+// CHECK: [[ARRAY:%[0-9]*]] = getelementptr inbounds %"class.{{.*}}.anon", %"class.{{.*}}.anon"* [[LOCAL_OBJECT]], i32 0, i32 0
+// CHECK: [[ARRAY_BEGIN:%[a-zA-Z_.]+]] = getelementptr inbounds [2 x i32], [2 x i32]* [[ARRAY]], i64 0, i64 0
+// CHECK: [[ARRAY0:%[0-9]*]] = load i32, i32* [[ELEM_L0]], align 4
+// CHECK: store i32 [[ARRAY0]], i32* [[ARRAY_BEGIN]], align 4
+// CHECK: [[ARRAY_ELEMENT:%[a-zA-Z_.]+]] = getelementptr inbounds i32, i32* %arrayinit.begin, i64 1
+// CHECK: [[ARRAY1:%[0-9]*]] = load i32, i32* [[ELEM_L1]], align 4
+// CHECK: store i32 [[ARRAY1]], i32* [[ARRAY_ELEMENT]], align 4

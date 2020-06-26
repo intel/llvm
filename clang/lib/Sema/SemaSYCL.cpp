@@ -693,22 +693,6 @@ static ParamDesc makeParamDesc(ASTContext &Ctx, const CXXBaseSpecifier &Src,
                          Ctx.getTrivialTypeSourceInfo(Ty));
 }
 
-// Create a new class around a field - used to wrap arrays.
-static RecordDecl *wrapAnArray(ASTContext &Ctx, const QualType ArgTy,
-                               FieldDecl *&Field) {
-  RecordDecl *NewClass = Ctx.buildImplicitRecord("wrapped_array");
-  NewClass->startDefinition();
-  Field = FieldDecl::Create(
-      Ctx, NewClass, SourceLocation(), SourceLocation(),
-      /*Id=*/nullptr, ArgTy,
-      Ctx.getTrivialTypeSourceInfo(ArgTy, SourceLocation()),
-      /*BW=*/nullptr, /*Mutable=*/false, /*InitStyle=*/ICIS_NoInit);
-  Field->setAccess(AS_public);
-  NewClass->addDecl(Field);
-  NewClass->completeDefinition();
-  return NewClass;
-}
-
 /// \return the target of given SYCL accessor type
 static target getAccessTarget(const ClassTemplateSpecializationDecl *AccTy) {
   return static_cast<target>(
@@ -804,8 +788,17 @@ static void VisitField(CXXRecordDecl *Owner, RangeTy &&Item, QualType ItemTy,
     KF_FOR_EACH(handleSyclHalfType, Item, ItemTy);
   else if (ItemTy->isStructureOrClassType())
     VisitRecord(Owner, Item, ItemTy->getAsCXXRecordDecl(), handlers...);
+#if 0
+  // FIXME Enable this when structs are replaced by their fields
   else if (ItemTy->isArrayType())
     VisitArrayElements(Item, ItemTy, handlers...);
+#endif
+}
+
+template <typename RangeTy, typename... Handlers>
+static void VisitScalarField(CXXRecordDecl *Owner, RangeTy &&Item,
+                             QualType ItemTy, Handlers &... handlers) {
+  KF_FOR_EACH(handleScalarType, Item, ItemTy);
 }
 
 template <typename RangeTy, typename... Handlers>
@@ -816,7 +809,10 @@ static void VisitArrayElements(RangeTy Item, QualType FieldTy,
   int64_t ElemCount = CAT->getSize().getSExtValue();
   std::initializer_list<int>{(handlers.enterArray(), 0)...};
   for (int64_t Count = 0; Count < ElemCount; Count++) {
-    VisitField(nullptr, Item, ET, handlers...);
+    if (ET->isScalarType())
+      VisitScalarField(nullptr, Item, ET, handlers...);
+    else
+      VisitField(nullptr, Item, ET, handlers...);
     (void)std::initializer_list<int>{(handlers.nextElement(ET), 0)...};
   }
   (void)std::initializer_list<int>{(handlers.leaveArray(ET, ElemCount), 0)...};
@@ -967,6 +963,9 @@ public:
   virtual bool handleReferenceType(FieldDecl *, QualType) { return true; }
   virtual bool handlePointerType(FieldDecl *, QualType) { return true; }
   virtual bool handleArrayType(FieldDecl *, QualType) { return true; }
+  virtual bool handleScalarType(const CXXBaseSpecifier &, QualType) {
+    return true;
+  }
   virtual bool handleScalarType(FieldDecl *, QualType) { return true; }
   // Most handlers shouldn't be handling this, just the field checker.
   virtual bool handleOtherType(FieldDecl *, QualType) { return true; }
@@ -1100,6 +1099,10 @@ class SyclKernelDeclCreator
   size_t LastParamIndex = 0;
 
   void addParam(const FieldDecl *FD, QualType FieldTy) {
+    const ConstantArrayType *CAT =
+        SemaRef.getASTContext().getAsConstantArrayType(FieldTy);
+    if (CAT)
+      FieldTy = CAT->getElementType();
     ParamDesc newParamDesc = makeParamDesc(FD, FieldTy);
     addParam(newParamDesc, FieldTy);
   }
@@ -1116,7 +1119,6 @@ class SyclKernelDeclCreator
         SemaRef.getASTContext(), KernelDecl, SourceLocation(), SourceLocation(),
         std::get<1>(newParamDesc), std::get<0>(newParamDesc),
         std::get<2>(newParamDesc), SC_None, /*DefArg*/ nullptr);
-
     NewParam->setScopeInfo(0, Params.size());
     NewParam->setIsUsed();
 
@@ -1237,18 +1239,12 @@ public:
     return true;
   }
 
-  bool handleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    RecordDecl *NewClass = wrapAnArray(SemaRef.getASTContext(), FieldTy, FD);
-    QualType ST = SemaRef.getASTContext().getRecordType(NewClass);
-    addParam(FD, ST);
-    return true;
-  }
-
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
     addParam(FD, FieldTy);
     return true;
   }
 
+  // FIXME Remove this function when structs are replaced by their fields
   bool handleStructType(FieldDecl *FD, QualType FieldTy) final {
     return true;
   }
@@ -1278,6 +1274,7 @@ public:
                                    std::end(Params));
   }
   using SyclKernelFieldHandler::handleSyclHalfType;
+  using SyclKernelFieldHandler::handleScalarType;
   using SyclKernelFieldHandler::handleSyclSamplerType;
 };
 
@@ -1364,11 +1361,9 @@ class SyclKernelBodyCreator
     return Result;
   }
 
-  void createExprForStructOrScalar(FieldDecl *FD) {
+  Expr *createInitExpr(FieldDecl *FD) {
     ParmVarDecl *KernelParameter =
         DeclCreator.getParamVarDeclsForCurrentField()[0];
-    InitializedEntity Entity =
-        InitializedEntity::InitializeMember(FD, &VarEntity);
     QualType ParamType = KernelParameter->getOriginalType();
     Expr *DRE = SemaRef.BuildDeclRefExpr(KernelParameter, ParamType, VK_LValue,
                                          SourceLocation());
@@ -1378,32 +1373,49 @@ class SyclKernelBodyCreator
       DRE = ImplicitCastExpr::Create(SemaRef.Context, FD->getType(),
                                      CK_AddressSpaceConversion, DRE, nullptr,
                                      VK_RValue);
+    return DRE;
+  }
+
+  void createExprForStructOrScalar(FieldDecl *FD) {
+    InitializedEntity Entity =
+        InitializedEntity::InitializeMember(FD, &VarEntity);
     InitializationKind InitKind =
         InitializationKind::CreateCopy(SourceLocation(), SourceLocation());
+    Expr *DRE = createInitExpr(FD);
     InitializationSequence InitSeq(SemaRef, Entity, InitKind, DRE);
-
     ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, DRE);
     InitExprs.push_back(MemberInit.get());
   }
 
-  void createExprForArray(FieldDecl *FD) {
-    ParmVarDecl *KernelParameter =
-        DeclCreator.getParamVarDeclsForCurrentField()[0];
-    QualType ParamType = KernelParameter->getOriginalType();
-    CXXRecordDecl *WrapperStruct = ParamType->getAsCXXRecordDecl();
-    // The first and only field of the wrapper struct is the array
-    FieldDecl *Array = *(WrapperStruct->field_begin());
-    Expr *DRE = SemaRef.BuildDeclRefExpr(KernelParameter, ParamType, VK_LValue,
-                                         SourceLocation());
-    Expr *InitExpr = BuildMemberExpr(DRE, Array);
-    InitializationKind InitKind = InitializationKind::CreateDirect(
-        SourceLocation(), SourceLocation(), SourceLocation());
-    InitializedEntity Entity = InitializedEntity::InitializeLambdaCapture(
-        nullptr, Array->getType(), SourceLocation());
-    InitializationSequence InitSeq(SemaRef, Entity, InitKind, InitExpr);
-    ExprResult MemberInit =
-        InitSeq.Perform(SemaRef, Entity, InitKind, InitExpr);
-    InitExprs.push_back(MemberInit.get());
+  void createExprForScalarElement(FieldDecl *FD, QualType FieldTy) {
+    InitializedEntity ArrayEntity =
+        InitializedEntity::InitializeMember(FD, &VarEntity);
+    InitializationKind InitKind =
+        InitializationKind::CreateCopy(SourceLocation(), SourceLocation());
+    Expr *DRE = createInitExpr(FD);
+    Expr *Idx = dyn_cast<ArraySubscriptExpr>(MemberExprBases.back())->getIdx();
+    llvm::APSInt Result;
+    SemaRef.VerifyIntegerConstantExpression(Idx, &Result);
+    uint64_t IntIdx = Result.getZExtValue();
+    InitializedEntity Entity = InitializedEntity::InitializeElement(
+        SemaRef.getASTContext(), IntIdx, ArrayEntity);
+    InitializationSequence InitSeq(SemaRef, Entity, InitKind, DRE);
+    ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, DRE);
+    llvm::SmallVector<Expr *, 16> ArrayInitExprs;
+    if (IntIdx > 0) {
+      // Continue with the current InitList
+      InitListExpr *ILE = cast<InitListExpr>(InitExprs.back());
+      InitExprs.pop_back();
+      llvm::ArrayRef<Expr *> L = ILE->inits();
+      for (size_t I = 0; I < L.size(); I++)
+        ArrayInitExprs.push_back(L[I]);
+    }
+    ArrayInitExprs.push_back(MemberInit.get());
+    Expr *ILE = new (SemaRef.getASTContext())
+        InitListExpr(SemaRef.getASTContext(), SourceLocation(), ArrayInitExprs,
+                     SourceLocation());
+    ILE->setType(FD->getType());
+    InitExprs.push_back(ILE);
   }
 
   void createSpecialMethodCall(const CXXRecordDecl *SpecialClass, Expr *Base,
@@ -1557,17 +1569,16 @@ public:
     return true;
   }
 
+  // FIXME Remove this function when structs are replaced by their fields
   bool handleStructType(FieldDecl *FD, QualType FieldTy) final {
     return true;
   }
 
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
-    createExprForStructOrScalar(FD);
-    return true;
-  }
-
-  bool handleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    createExprForArray(FD);
+    if (dyn_cast<ArraySubscriptExpr>(MemberExprBases.back()))
+      createExprForScalarElement(FD, FieldTy);
+    else
+      createExprForStructOrScalar(FD);
     return true;
   }
 
@@ -1676,6 +1687,7 @@ public:
   using SyclKernelFieldHandler::enterField;
   using SyclKernelFieldHandler::handleSyclSamplerType;
   using SyclKernelFieldHandler::handleSyclHalfType;
+  using SyclKernelFieldHandler::handleScalarType;
   using SyclKernelFieldHandler::leaveField;
 };
 
@@ -1692,13 +1704,9 @@ class SyclKernelIntHeaderCreator
     uint64_t Size;
     const ConstantArrayType *CAT =
         SemaRef.getASTContext().getAsConstantArrayType(ArgTy);
-    if (CAT) {
-      QualType ET = CAT->getElementType();
-      Size = static_cast<size_t>(CAT->getSize().getZExtValue()) *
-             SemaRef.getASTContext().getTypeSizeInChars(ET).getQuantity();
-    } else {
-      Size = SemaRef.getASTContext().getTypeSizeInChars(ArgTy).getQuantity();
-    }
+    if (CAT)
+      ArgTy = CAT->getElementType();
+    Size = SemaRef.getASTContext().getTypeSizeInChars(ArgTy).getQuantity();
     Header.addParamDesc(Kind, static_cast<unsigned>(Size),
                         static_cast<unsigned>(CurOffset));
   }
@@ -1775,12 +1783,7 @@ public:
     return true;
   }
 
-  bool handleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    wrapAnArray(SemaRef.getASTContext(), FieldTy, FD);
-    addParam(FD, FD->getType(), SYCLIntegrationHeader::kind_std_layout);
-    return true;
-  }
-
+  // FIXME Remove this function when structs are replaced by their fields
   bool handleStructType(FieldDecl *FD, QualType FieldTy) final {
     return true;
   }
@@ -1841,8 +1844,9 @@ public:
     }
     CurOffset -= ArraySize;
   }
-  using SyclKernelFieldHandler::handleSyclSamplerType;
   using SyclKernelFieldHandler::handleSyclHalfType;
+  using SyclKernelFieldHandler::handleScalarType;
+  using SyclKernelFieldHandler::handleSyclSamplerType;
 };
 } // namespace
 
