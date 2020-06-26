@@ -1,5 +1,11 @@
 # Explicit SIMD Programming Extension for DPC++
 
+Note:
+_This document describes current design and API for the Intel Explicit SIMD
+extension to DPC++. This is initial experimental version to try out functionality
+and performance. We are going to work with the community on incrementally improving
+the APIs to bring them closer to std C++ and SYCL in the next several months._
+
 ## Introduction
 
 The main motivation for introducing the Explicit SIMD Programming (ESP) DPC++
@@ -40,8 +46,8 @@ functions will always return `1`.
 
 *Functor kernel*
 ```cpp
-using AccTy = cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
-                                 cl::sycl::access::target::global_buffer>;
+using AccTy = sycl::accessor<int, 1, sycl::access::mode::read_write,
+                                 sycl::access::target::global_buffer>;
 class Functor {
 public:
   Functor(int X, AccTy &Acc) : X(X), Acc(Acc) {}
@@ -57,13 +63,13 @@ private:
 *Lambda kernel and function*
 ```cpp
 SYCL_EXTERNAL
-void sycl_device_f(cl::sycl::global_ptr<int> ptr, sycl::intel::gpu::simd<float, 8> X) [[intel::sycl_explicit_simd]] {
+void sycl_device_f(sycl::global_ptr<int> ptr, sycl::intel::gpu::simd<float, 8> X) [[intel::sycl_explicit_simd]] {
   sycl::intel::gpu::flat_block_write(*ptr.get(), X);
 }
 ...
-  Q.submit([&](cl::sycl::handler &Cgh) {
-    auto Acc1 = Buf1.get_access<cl::sycl::access::mode::read>(Cgh);
-    auto Acc2 = Buf2.get_access<cl::sycl::access::mode::read_write>(Cgh);
+  Q.submit([&](sycl::handler &Cgh) {
+    auto Acc1 = Buf1.get_access<sycl::access::mode::read>(Cgh);
+    auto Acc2 = Buf2.get_access<sycl::access::mode::read_write>(Cgh);
 
     Cgh.single_task<class KernelID>([=] () [[intel::sycl_explicit_simd]] {
       sycl::intel::gpu::simd<float, 8> Val = sycl::intel::gpu::flat_block_read(Acc1.get_pointer());
@@ -95,7 +101,10 @@ efficient mapping to SIMD vector operations on Intel GPU architectures.
 
 ### SIMD vector class
 
-The `sycl::intel::gpu::simd` class is a vector templated on some element type. The element type must be vectorizable type. The set of vectorizable types is the set of fundamental SYCL arithmetic types (C++ arithmetic types or `half` type) excluding `bool`. The length of the vector is the second template parameter.
+The `sycl::intel::gpu::simd` class is a vector templated on some element type.
+The element type must be vectorizable type. The set of vectorizable types is the
+set of fundamental SYCL arithmetic types (C++ arithmetic types or `half` type)
+excluding `bool`. The length of the vector is the second template parameter.
 
 ESIMD compiler back-end does the best it can to map each `simd` class object to a consecutive block
 of registers in the general register file (GRF).
@@ -672,7 +681,7 @@ INTEL_GPU_PRIVATE INTEL_GPU_REGISTER(32) simd<int, 16> vc;
 #include <CL/sycl.hpp>
 #include <sycl_esimd.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main(void) {
   constexpr unsigned Size = 128;
