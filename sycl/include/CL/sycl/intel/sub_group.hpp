@@ -55,11 +55,9 @@ __SYCL_SG_GENERATE_BODY_2ARG(shuffle_up, SubgroupShuffleUpINTEL)
 
 #undef __SYCL_SG_GENERATE_BODY_2ARG
 
-// Selects 8-bit, 16-bit or 32-bit type depending on size of T. If T doesn't
-// maps to mentioned types, then void is returned
+// Selects 8, 16, 32, or 64-bit type depending on size of scalar type T.
 template <typename T>
-using SelectBlockT =
-    select_apply_cl_scalar_t<T, uint8_t, uint16_t, uint32_t, void>;
+using SelectBlockT = select_cl_scalar_integral_unsigned_t<T>;
 
 template <typename T, access::address_space Space>
 using AcceptableForGlobalLoadStore =
