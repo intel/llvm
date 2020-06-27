@@ -17,12 +17,6 @@ additional features:
   further widening by the compiler, as with traditional SPMD programming.
 - Low-level APIs efficiently mapped to Gen architecture, such as block reads.
 
-Here are some future directions in which this API is intended to evolve:
-- enabling this extension for other architectures, such as x86, with extracting
-  and clearly marking generic and target-dependent API portions
-- aligning with `std::simd` and maybe providing `std::simd` implementation atop
-  `sycl::intel::gpu`
-
 ## Explicit SIMD execution model
 
 Explicit SIMD execution model is basically an equivalent of the base SYCL
@@ -108,106 +102,6 @@ excluding `bool`. The length of the vector is the second template parameter.
 
 ESIMD compiler back-end does the best it can to map each `simd` class object to a consecutive block
 of registers in the general register file (GRF).
-
-```cpp
-namespace sycl {
-namespace intel {
-namespace gpu {
-
-// vector_type, using clang vector type extension.
-template <typename Ty, int N> struct vector_type {
-  static_assert(!std::is_const<Ty>::value, "const element type not supported");
-  static_assert(is_vectorizable_v<Ty>::value, "element type not supported");
-  static_assert(N > 0, "zero-element vector not supported");
-
-  static constexpr int length = N;
-  using type = Ty attribute((ext_vector_type(N)));
-};
-
-template <int N>
-using mask_type_t = typename vector_type<uint16_t, N>::type;
-
-template <typename Ty, int N> class simd {
-public:
-  using value_type = simd<Ty, N, 0>;
-  using element_type = Ty;
-  using vector_type = vector_type_t<Ty, N>;
-  static constexpr int length = N;
-
-  // Constructors.
-  constexpr simd();
-  constexpr simd(const simd &other);
-  constexpr simd(simd &&other);
-  constexpr simd(const vector_type &Val);
-  constexpr simd(std::initializer_list<Ty> Ilist) noexcept;
-  constexpr simd(Ty Val, Ty Step = Ty()) noexcept;
-
-  // Assignment operators.
-  constexpr simd &operator=(const simd &) &;
-  constexpr simd &operator=(simd &&) &;
-
-  // Subscript operators.
-  Ty operator[](int i) const;
-
-  // Unary operators.
-  simd &operator++();
-  simd operator++(int);
-  simd &operator--();
-  simd operator--(int);
-
-  // Binary operators.
-  auto operator +(const simd &RHS) const;
-  auto operator -(const simd &RHS) const;
-  auto operator *(const simd &RHS) const;
-  auto operator /(const simd &RHS) const;
-  simd operator &(const simd &RHS) const;
-  simd operator |(const simd &RHS) const;
-  simd operator ^(const simd &RHS) const;
-
-  // Compound assignment.
-  simd &operator +=(const simd &RHS);
-  simd &operator -=(const simd &RHS);
-  simd &operator *=(const simd &RHS);
-  simd &operator /=(const simd &RHS);
-  simd &operator &=(const simd &RHS);
-  simd &operator |=(const simd &RHS);
-  simd &operator ^=(const simd &RHS);
-
-  // Compare operators.
-  simd<uint16_t, N> operator >(const simd &RHS) const;
-  simd<uint16_t, N> operator >=(const simd &RHS) const;
-  simd<uint16_t, N> operator <(const simd &RHS) const;
-  simd<uint16_t, N> operator <=(const simd &RHS) const;
-  simd<uint16_t, N> operator ==(const simd &RHS) const;
-  simd<uint16_t, N> operator !=(const simd &RHS) const;
-
-  // Select operations.
-  template <int Size, int Stride>
-  simd<Ty, Size> select(uint16_t Offset = 0) &&;
-  template <int Size, int Stride>
-  simd_view<simd, region1d_t<Ty, Size, Stride>>
-  select(uint16_t i = 0) &;
-
-  // Replicate operations.
-  template <int Rep> simd<Ty, Rep * N> replicate();
-  template <int Rep, int W> simd<Ty, Rep * W> replicate(uint16_t i);
-  template <int Rep, int VS, int W>
-  simd<Ty, Rep * W> replicate(uint16_t i);
-  template <int Rep, int VS, int W, int HS>
-  simd<Ty, Rep * W> replicate(uint16_t i);
-
-  // Format operations.
-  template <typename EltTy> auto format() &;
-  template <typename EltTy, int Height, int Width> auto format() &;
-
-  // Merge operations.
-  void merge(const value_type &Val, const mask_type_t<N> &Mask);
-  void merge(const value_type &Val1, value_type Val2,
-             const mask_type_t<N> &Mask);
-} // namespace gpu
-} // namespace intel
-} // namespace sycl
-```
 
 Every specialization of ```sycl::intel::gpu::simd``` shall be a complete type. The term
 simd type refers to all supported specialization of the simd class template.
@@ -333,130 +227,6 @@ different shapes and dimensions as illustrated below (`auto` resolves to a
 <p align="center">
 <img src="images/simd_view.svg" title="1D select example" width="800" height="300"/>
 </p>
-
-```cpp
-namespace sycl {
-namespace intel {
-namespace gpu {
-template <typename BaseTy, typename RegionTy> class simd_view {
-public:
-  using ShapeTy = typename shape_type<RegionTy>::type;
-  static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
-  using value_type = simd<typename ShapeTy::element_type, length>;
-  using vector_type = vector_type_t<typename ShapeTy::element_type, length>;
-  using region_type = RegionTy;
-  using element_type = typename ShapeTy::element_type;
-
-  // Constructors.
-  simd_view(BaseTy &Base, RegionTy Region);
-  simd_view(BaseTy &&Base, RegionTy Region);
-  simd_view(simd_view &Other);
-  simd_view(simd_view &&Other);
-
-  // Assignment operators.
-  simd_view &operator=(const simd_view &Other);
-  simd_view &operator=(const value_type &Val);
-
-  // Region accessors.
-  static constexpr bool is1D();
-  static constexpr bool is2D();
-  static constexpr int getSizeX();
-  static constexpr int getStrideX();
-  static constexpr int getSizeY();
-  static constexpr int getStrideY();
-  constexpr uint16_t getOffsetX();
-  constexpr uint16_t getOffsetY();
-  template <int Dim = 0> static constexpr int getSize();
-  template <int Dim = 0> static constexpr int getStride();
-  template <int Dim = 0> constexpr uint16_t getOffset() const;
-
-  // Subscript operators.
-  element_type operator[](int i) const;
-
-  // Row/column operator.
-  template <typename T = simd_view, typename = std::enable_if_t<T::is2D()>>
-  auto row(int i);
-  template <typename T = simd_view, typename = std::enable_if_t<T::is2D()>>
-  auto column(int i);
-
-  // Unary operators.
-  simd_view &operator++();
-  simd_view operator++(int);
-  simd_view &operator--();
-  simd_view operator--(int);
-
-  // Binary operators.
-  auto operator +(const simd_view &RHS) const;
-  auto operator -(const simd_view &RHS) const;
-  auto operator *(const simd_view &RHS) const;
-  auto operator /(const simd_view &RHS) const;
-  simd_view operator &(const simd_view &RHS) const;
-  simd_view operator |(const simd_view &RHS) const;
-  simd_view operator ^(const simd_view &RHS) const;
-
-  // Compound assignment.
-  simd_view &operator +=(const simd_view &RHS);
-  simd_view &operator -=(const simd_view &RHS);
-  simd_view &operator *=(const simd_view &RHS);
-  simd_view &operator /=(const simd_view &RHS);
-  simd_view &operator &=(const simd_view &RHS);
-  simd_view &operator |=(const simd_view &RHS);
-  simd_view &operator ^=(const simd_view &RHS);
-
-  // Compare operators.
-  simd<uint16_t, N> operator >(const simd_view &RHS) const;
-  simd<uint16_t, N> operator >=(const simd_view &RHS) const;
-  simd<uint16_t, N> operator <(const simd_view &RHS) const;
-  simd<uint16_t, N> operator <=(const simd_view &RHS) const;
-  simd<uint16_t, N> operator ==(const simd_view &RHS) const;
-  simd<uint16_t, N> operator !=(const simd_view &RHS) const;
-
-  // Select operations.
-  template <int Size, int Stride, typename T = simd_view,
-            typename = std::enable_if_t<T::is1D()>>
-  auto select(uint16_t Offset = 0) &;
-  template <int Size, int Stride, typename T = simd_view,
-            typename = std::enable_if_t<T::is1D()>>
-  auto select(uint16_t Offset = 0) &&;
-  template <int SizeY, int StrideY, int SizeX, int StrideX,
-            typename T = simd_view, typename = std::enable_if_t<T::is2D()>>
-  auto select(uint16_t OffsetY = 0, uint16_t OffsetX = 0) &;
-  template <int SizeY, int StrideY, int SizeX, int StrideX,
-            typename T = simd_view, typename = std::enable_if_t<T::is2D()>>
-  auto select(uint16_t OffsetY = 0, uint16_t OffsetX = 0) &&;
-
-  // Replicate operations.
-  template <int Rep> simd<element_type, Rep> replicate();
-  template <int Rep, int W>
-  simd<element_type, Rep * W> replicate(uint16_t OffsetX);
-  template <int Rep, int W>
-  simd<element_type, Rep * W> replicate(uint16_t OffsetY,
-                                        uint16_t OffsetX);
-  template <int Rep, int VS, int W>
-  simd<element_type, Rep * W> replicate(uint16_t OffsetX);
-  template <int Rep, int VS, int W>
-  simd<element_type, Rep * W> replicate(uint16_t OffsetY,
-                                        uint16_t OffsetX);
-  template <int Rep, int VS, int W, int HS>
-  simd<element_type, Rep * W> replicate(uint16_t OffsetX);
-  template <int Rep, int VS, int W, int HS>
-  simd<element_type, Rep * W> replicate(uint16_t OffsetY,
-                                        uint16_t OffsetX);
-
-  // Format operations.
-  template <typename EltTy> auto format();
-  template <typename EltTy> auto format() &&;
-  template <typename EltTy, int Height, int Width> auto format() &;
-  template <typename EltTy, int Height, int Width> auto format() &&;
-
-  // Merge operations.
-  void merge(const value_type &Val, const mask_type_t<length> &Mask);
-  void merge(const value_type &Val1, value_type Val2,
-             const mask_type_t<length> &Mask);
-} // namespace gpu
-} // namespace intel
-} // namespace sycl
-```
 
 ```sycl::intel::gpu::simd_view``` class supports all the element-wise operations and
 other utility functions defined for ```sycl::intel::gpu::simd``` class. It also
@@ -696,7 +466,7 @@ int main(void) {
   float* B = static_cast<float*>(malloc_shared(Size*sizeof(float), dev, ctxt));
   float* C = static_cast<float*>(malloc_shared(Size*sizeof(float), dev, ctxt));
 
-  for (unsigned i = 0; i < Size; ++i) {
+  for (auo i = 0; i != Size; i++) {
     A[i] = B[i] = i;
   }
 
@@ -715,23 +485,7 @@ int main(void) {
     });
   });
   e.wait();
-  int err_cnt = 0;
-
-  for (unsigned i = 0; i < Size; ++i) {
-    if (A[i] + B[i] != C[i]) {
-      if (++err_cnt < 10) {
-        std::cout << "failed at index " << i << ", " << C[i] << " != " << A[i]
-          << " + " << B[i] << "\n";
-      }
-    }
-  }
-  if (err_cnt > 0) {
-    std::cout << "  pass rate: " << ((float)(Size - err_cnt) / (float)Size)*100.0f <<
-      "% (" << (Size - err_cnt) << "/" << Size << ")\n";
-  }
-
-  std::cout << (err_cnt > 0 ? "FAILED\n" : "Passed\n");
-  return err_cnt > 0 ? 1 : 0;
+  return 0;
 }
 ```
 
@@ -742,44 +496,66 @@ int main(void) {
 
 ### TODOs
 
-- Design interoperability with SPMD context
+- Design interoperability with SPMD context - e.g. invocation of ESIMD functions
+  from a standard SYCL code
 - Generate sycl::intel::gpu API documentation from sources
 - Section covering 2D use cases
 - A bridge from `std::simd` to `sycl::intel::gpu::simd`
 - Describe `simd_view` class restrictions
-
-
-Address review comments:
+- Support intermixing SYCL and ESIMD kernels in the same source.
+- Support OpenCL and L0 interop for ESIMD kernels
 - Consider auto-inclusion of sycl_explicit_simd.hpp under -fsycl-explicit-simd option
 - Add example showing the mapping between an ND-range and the number of
 thread-groups and EU threads, and showing the usage of explicit SIMD together
 with work-group barriers and SLM.
 
-- (@Pennycook)
-1. A user providing cache hints has to provide a lot more template arguments than required. Could we make this nicer by providing the hints as tag-type arguments?
+### Discussion topics
+1. Inter-relation with `std::simd`.
 
-```cpp
-// This works
-float* p;
-simd<uint32_t, 16> offsets;
-auto result = flat_load(p, offsets);
+- @rolandschulz suggests __not__ to imeplement `std::simd` for Intel GPU based on
+`sycl::intel::gpu`, but directly on top of clang vectors.
+> Implementing it on top of `gpu::simd` is the strategy which requires a reimplementation
+> of `std::simd` features missing from `gpu::simd`. On the other hand there is an existing
+> implementation directly on top of gcc/clang vector: https://github.com/VcDevel/std-simd.
+> We should explore how we can reuse most of that implementation also for the GPU.
 
-// Adding cache hints makes it much more complex
-float* p;
-simd<uint32_t, 16> offsets;
-auto result = flat_load<uint32_t, 16, 1, CacheHint::Foo, CacheHint::Bar>(p, offsets);
-```
+- @mattkretz suggests to consider making `std::simd` good enough for GPU programming
+ instead of creating a highly specific extension.
+> A SIMD type that doesn't allow you to reach full performance is a failure
+> (or hopefully just buggy and needs to be fixed). Performance is the reason why we use it.
 
-2. I find the existing names quite confusing. I'd much prefer that the names were more obvious (e.g. flat_load could be called gather if that's all it does) and/or used overloading where appropriate to minimize the number of times a reader of code has to check documentation to figure out what a function is supposed to be doing.
+...
 
-- (@rolandschulz)
-1. I suggest that replicate return an (implementation defined) replicate expression. And that allows to add the extra info (width, vstride, hstride). The replicate expression would have those 3 methods (each taking one template-arg) and the implicit conversion to the simd class. The simd class would only have the 1 replicate method taking the single REP template-arg and the i arg.
-The user would use (any of the extra method calls are optional)
+> I guess what I'd like to discuss is: If you deviate from the Parallelism TS 2, why?
+> Is it to simplify your implementation, is it because of missing functionality, is it
+> because of performance, or? This is important feedback to the C++ committee when merging
+> the TS into the IS is discussed.
 
-```cpp
-s.replicate<R>(i).width<W>().vstride<VS>().hstride<HS>()
-```
-2. The mask should also be a wrapper around the clang-vector type rather than the clang-vector type itself.
-The internal storage should be implementation defined. uint16_t is a bad choice for some HW.
-Nor is it how clang-vector types works (using the same size int as the corresponding vector
-type used for comparison (e.g. long for double and int for float)).
+
+2. Invocation API
+`Cgh.single_task<class KernelID>([=] () EXPLICIT_SIMD`
+- @Ruyk suggests to use different handler API to invoke ESIMD kernels rather
+  than using attributes to mark lambda/functor type:
+> Well we could have a single "parallel_for" for everything but sometimes is
+> better to distinguish entry points, specially if the programming model is very
+> different. That macro in the lambda is easy to miss, specially if the kernel
+> lambda is defined elsewhere.
+
+...
+
+> One of my concerns is that you could have the kernel separated from the
+> single_task point of entry, and you may not even know what kind of kernel is
+> that you are dispatching, just a SYCL kernel. Without a way for a C++
+> developer to identify the usage of this different API inside, they will be
+> reduced to random runtime errors if the wrong kernel is used in the wrong device.
+
+- @keryell suggests to use kernel properties and avoid macros:
+https://www.youtube.com/watch?v=Fp8DuVWesT4 and https://gitlab.khronos.org/sycl/Specification/issues/296
+
+- @kbobrovs mentioned that there was another suggestion from @rolandschulz to
+  use some extra "executor" template parameter, which would be set to "ESIMD"
+  for ESIMD kernels.
+
+3. Enabling this extension for other architectures, such as x86, with extracting
+  and clearly marking generic and target-dependent API portions
+
