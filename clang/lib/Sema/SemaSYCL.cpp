@@ -2241,7 +2241,7 @@ static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
       auto *NS = dyn_cast<NamespaceDecl>(DC);
       if (!NS || (NS && NS->getName().empty())) {
         if (DC->isTranslationUnit())
-          NSStr.append(Twine("::" + D->getName()).str());
+	  NSStr.append(Twine("::").str() + D->getName().str());
         else
           NSStr.append(T.getCanonicalType().getAsString(TypePolicy));
         break;
