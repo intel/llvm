@@ -32,13 +32,8 @@ int main() {
   /* Check info::device parameters. */
   Device.get_info<info::device::sub_group_independent_forward_progress>();
   Device.get_info<info::device::max_num_sub_groups>();
-  /* sub_group_sizes can be quared only of cl_intel_required_subgroup_size
-   * extention is supported by device*/
-  if (Device.has_extension("cl_intel_required_subgroup_size"))
-    Device.get_info<info::device::sub_group_sizes>();
 
   try {
-    size_t max_sg_num = get_sg_size(Device);
     size_t max_wg_size = Device.get_info<info::device::max_work_group_size>();
     program Prog(Queue.get_context());
     /* TODO: replace with pure SYCL code when fixed problem with consumption
@@ -56,13 +51,19 @@ int main() {
                            "global double* c) {*a=*b+*c; }\n");
     kernel Kernel = Prog.get_kernel("kernel_sg");
     uint32_t Res = 0;
-    for (auto r : {range<3>(3, 4, 5), range<3>(1, 1, 1), range<3>(4, 2, 1),
-                   range<3>(32, 3, 4), range<3>(7, 9, 11)}) {
-      Res = Kernel.get_sub_group_info<
-          info::kernel_sub_group::max_sub_group_size>(Device, r);
-      bool Expected = (Res == r.size() || Res == max_sg_num);
-      exit_if_not_equal<bool>(Expected, true,
-                              "max_sub_group_size");
+
+    /* sub_group_sizes can be quared only of cl_intel_required_subgroup_size
+     * extention is supported by device*/
+    if (Device.has_extension("cl_intel_required_subgroup_size")) {
+      auto sg_sizes = Device.get_info<info::device::sub_group_sizes>();
+      for (auto r : {range<3>(3, 4, 5), range<3>(1, 1, 1), range<3>(4, 2, 1),
+                     range<3>(32, 3, 4), range<3>(7, 9, 11)}) {
+        Res = Kernel.get_sub_group_info<
+            info::kernel_sub_group::max_sub_group_size>(Device, r);
+        bool Expected =
+            std::find(sg_sizes.begin(), sg_sizes.end(), Res) != sg_sizes.end();
+        exit_if_not_equal<bool>(Expected, true, "max_sub_group_size");
+      }
     }
 
     Res = Kernel.get_sub_group_info<

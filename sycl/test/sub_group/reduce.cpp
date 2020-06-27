@@ -30,7 +30,9 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
   try {
     nd_range<1> NdRange(G, L);
     buffer<T> buf(G);
+    buffer<size_t> sgsizebuf(1);
     Queue.submit([&](handler &cgh) {
+      auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       auto acc = buf.template get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<sycl_subgr<T, BinaryOperation>>(
           NdRange, [=](nd_item<1> NdItem) {
@@ -42,10 +44,13 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
               acc[NdItem.get_global_id(0)] =
                   reduce(sg, T(NdItem.get_global_id(0)), init, op);
             }
+            if (NdItem.get_global_id(0) == 0)
+              sgsizeacc[0] = sg.get_max_local_range()[0];
           });
     });
     auto acc = buf.template get_access<access::mode::read_write>();
-    size_t sg_size = get_sg_size(Queue.get_device());
+    auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>();
+    size_t sg_size = sgsizeacc[0];
     int WGid = -1, SGid = 0;
     T result = init;
     for (int j = 0; j < G; j++) {

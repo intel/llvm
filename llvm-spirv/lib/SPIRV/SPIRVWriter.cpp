@@ -307,6 +307,14 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
       return nullptr;
     auto ST = dyn_cast<StructType>(ET);
     auto AddrSpc = T->getPointerAddressSpace();
+    // Lower global_device and global_host address spaces that were added in
+    // SYCL as part of SYCL_INTEL_usm_address_spaces extension to just global
+    // address space if device doesn't support SPV_INTEL_usm_storage_classes
+    // extension
+    if (!BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_usm_storage_classes) &&
+        ((AddrSpc == SPIRAS_GlobalDevice) || (AddrSpc == SPIRAS_GlobalHost)))
+      AddrSpc = SPIRAS_Global;
     if (ST && !ST->isSized()) {
       Op OpCode;
       StringRef STName = ST->getName();
@@ -760,14 +768,47 @@ SPIRV::SPIRVInstruction *LLVMToSPIRV::transUnaryInst(UnaryInstruction *U,
   Op BOC = OpNop;
   SPIRVValue *Op = nullptr;
   if (auto Cast = dyn_cast<AddrSpaceCastInst>(U)) {
-    if (Cast->getDestTy()->getPointerAddressSpace() == SPIRAS_Generic) {
-      assert(Cast->getSrcTy()->getPointerAddressSpace() != SPIRAS_Constant &&
+    const auto SrcAddrSpace = Cast->getSrcTy()->getPointerAddressSpace();
+    const auto DestAddrSpace = Cast->getDestTy()->getPointerAddressSpace();
+    if (DestAddrSpace == SPIRAS_Generic) {
+      assert(SrcAddrSpace != SPIRAS_Constant &&
              "Casts from constant address space to generic are illegal");
       BOC = OpPtrCastToGeneric;
+      // In SPIR-V only casts to/from generic are allowed. But with
+      // SPV_INTEL_usm_storage_classes we can also have casts from global_device
+      // and global_host to global addr space and vice versa.
+    } else if (SrcAddrSpace == SPIRAS_GlobalDevice ||
+               SrcAddrSpace == SPIRAS_GlobalHost) {
+      assert(
+          (DestAddrSpace == SPIRAS_Global || DestAddrSpace == SPIRAS_Generic) &&
+          "Casts from global_device/global_host only allowed to \
+             global/generic");
+      if (!BM->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_usm_storage_classes)) {
+        if (DestAddrSpace == SPIRAS_Global)
+          return nullptr;
+        BOC = OpPtrCastToGeneric;
+      } else {
+        BOC = OpPtrCastToCrossWorkgroupINTEL;
+      }
+    } else if (DestAddrSpace == SPIRAS_GlobalDevice ||
+               DestAddrSpace == SPIRAS_GlobalHost) {
+      assert(
+          (SrcAddrSpace == SPIRAS_Global || SrcAddrSpace == SPIRAS_Generic) &&
+          "Casts to global_device/global_host only allowed from \
+             global/generic");
+      if (!BM->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_usm_storage_classes)) {
+        if (SrcAddrSpace == SPIRAS_Global)
+          return nullptr;
+        BOC = OpGenericCastToPtr;
+      } else {
+        BOC = OpCrossWorkgroupCastToPtrINTEL;
+      }
     } else {
-      assert(Cast->getDestTy()->getPointerAddressSpace() != SPIRAS_Constant &&
+      assert(DestAddrSpace != SPIRAS_Constant &&
              "Casts from generic address space to constant are illegal");
-      assert(Cast->getSrcTy()->getPointerAddressSpace() == SPIRAS_Generic);
+      assert(SrcAddrSpace == SPIRAS_Generic);
       BOC = OpGenericCastToPtr;
     }
   } else {
@@ -1056,8 +1097,18 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     if (IsVectorCompute)
       StorageClass =
           VectorComputeUtil::getVCGlobalVarStorageClass(AddressSpace);
-    else
+    else {
+      // Lower global_device and global_host address spaces that were added in
+      // SYCL as part of SYCL_INTEL_usm_address_spaces extension to just global
+      // address space if device doesn't support SPV_INTEL_usm_storage_classes
+      // extension
+      if ((AddressSpace == SPIRAS_GlobalDevice ||
+           AddressSpace == SPIRAS_GlobalHost) &&
+          !BM->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_usm_storage_classes))
+        AddressSpace = SPIRAS_Global;
       StorageClass = SPIRSPIRVAddrSpaceMap::map(AddressSpace);
+    }
 
     auto BVar = static_cast<SPIRVVariable *>(
         BM->addVariable(transType(Ty), GV->isConstant(), transLinkageType(GV),
@@ -1315,7 +1366,8 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
   if (UnaryInstruction *U = dyn_cast<UnaryInstruction>(V)) {
     if (isSpecialTypeInitializer(U))
       return mapValue(V, transValue(U->getOperand(0), BB));
-    return mapValue(V, transUnaryInst(U, BB));
+    auto UI = transUnaryInst(U, BB);
+    return mapValue(V, UI ? UI : transValue(U->getOperand(0), BB));
   }
 
   if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(V)) {

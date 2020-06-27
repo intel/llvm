@@ -931,8 +931,18 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
   switch (BC->getOpCode()) {
   case OpPtrCastToGeneric:
   case OpGenericCastToPtr:
+  case OpPtrCastToCrossWorkgroupINTEL:
+  case OpCrossWorkgroupCastToPtrINTEL: {
+    // If module has pointers with DeviceOnlyINTEL and HostOnlyINTEL storage
+    // classes there will be a situation, when global_device/global_host
+    // address space will be lowered to just global address space. If there also
+    // is an addrspacecast - we need to replace it with source pointer.
+    if (Src->getType()->getPointerAddressSpace() ==
+        Dst->getPointerAddressSpace())
+      return Src;
     CO = Instruction::AddrSpaceCast;
     break;
+  }
   case OpSConvert:
     CO = IsExt ? Instruction::SExt : Instruction::Trunc;
     break;
@@ -3359,7 +3369,7 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
   if (F->getCallingConv() != CallingConv::SPIR_KERNEL)
     return true;
 
-  // Generate metadata for kernel_arg_address_spaces
+  // Generate metadata for kernel_arg_addr_space
   addOCLKernelArgumentMetadata(
       Context, SPIR_MD_KERNEL_ARG_ADDR_SPACE, BF, F,
       [=](SPIRVFunctionParameter *Arg) {
