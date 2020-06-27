@@ -175,16 +175,18 @@ As described earlier, each variable captured by a lambda that comprises a
 SYCL kernel becomes a parameter of the kernel caller function.
 For arrays, simply allowing them through would result in a
 function parameter of array type. This is not supported in C++.
-Therefore, the array needing capture is wrapped in a struct for
-the purposes of passing to the device. Once received on the device
-within its wrapper, the array is copied into the local capture object.
-All references to the array within the kernel body are directed to
-the non-wrapped array which is a member of the local capture object.
+Therefore, the array needing capture is decomposed into its elements for
+the purposes of passing to the device. Each array element is passed as a
+separate parameter. The array elements received on the device
+are copied into the array within the local capture object.
 
 <h4>Source code fragment:</h4>
 
 ```C++
-  int array[100];
+  constexpr int num_items = 2;
+  int array[num_items];
+  int output[num_items];
+
   auto outBuf = buffer<int, 1>(&output[0], num_items);
 
   myQueue.submit([&](handler &cgh) {
@@ -200,10 +202,13 @@ the non-wrapped array which is a member of the local capture object.
 ```C++
 static constexpr
 const kernel_param_desc_t kernel_signatures[] = {
-  //--- _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE16->18clES2_E6Worker
+  //--- _ZTSZZ1fRN2cl4sycl5queueEENK3$_0clERNS0_7handlerEE6Worker
   { kernel_param_kind_t::kind_accessor, 4062, 0 },
-  { kernel_param_kind_t::kind_std_layout, 400, 32 },
+  { kernel_param_kind_t::kind_std_layout, 4, 32 },
+  { kernel_param_kind_t::kind_std_layout, 4, 36 },
+
 };
+
 ```
 
 <h4>The changes to device code made to support this extension, in pseudo-code:</h4>
@@ -211,21 +216,19 @@ const kernel_param_desc_t kernel_signatures[] = {
 ```C++
 struct Capture {
     sycl::accessor outAcc;
-    int array[100];
+    int array[num_items];
     () {
         // Body
     }
 }
 
-struct wrapper {
-    int array[100];
-};
 spir_kernel void caller(
     __global int* AccData, // arg1 of accessor init function
     range<1> AccR1,        // arg2 of accessor init function
     range<1> AccR2,        // arg3 of accessor init function
     id<1> I,               // arg4 of accessor init function
-    struct wrapper w_s     // Pass the array wrapped in a struct
+    int p_array_0;         // Pass array element 0
+    int p_array_1;         // Pass array element 1
 )
 {
     // Local capture object
@@ -233,7 +236,8 @@ spir_kernel void caller(
 
     // Reassemble capture object from parts
     // Initialize array using existing clang Initialization mechanisms
-    local.array = w_s; 
+    local.array[0] = p_array_0;
+    local.array[1] = p_array_1; 
     // Call accessor’s init function
     sycl::accessor::init(&local.outAcc, AccData, AccR1, AccR2, I);
 
