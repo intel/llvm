@@ -43,12 +43,6 @@ namespace detail {
 class context_impl;
 using ContextImplPtr = std::shared_ptr<context_impl>;
 class program_impl;
-
-using llvm::util::sycl::cl_intel_devicelib_assert;
-using llvm::util::sycl::cl_intel_devicelib_complex;
-using llvm::util::sycl::cl_intel_devicelib_complex_fp64;
-using llvm::util::sycl::cl_intel_devicelib_math;
-using llvm::util::sycl::cl_intel_devicelib_math_fp64;
 using llvm::util::sycl::DeviceLibExt;
 
 // Provides single loading and building OpenCL programs with unique contexts

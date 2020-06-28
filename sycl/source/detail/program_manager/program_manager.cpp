@@ -510,15 +510,15 @@ static bool loadDeviceLib(const ContextImplPtr Context, const char *Name,
 
 static const char *getDeviceLibFilename(DeviceLibExt Extension) {
   switch (Extension) {
-  case cl_intel_devicelib_assert:
+  case DeviceLibExt::cl_intel_devicelib_assert:
     return "libsycl-fallback-cassert.spv";
-  case cl_intel_devicelib_math:
+  case DeviceLibExt::cl_intel_devicelib_math:
     return "libsycl-fallback-cmath.spv";
-  case cl_intel_devicelib_math_fp64:
+  case DeviceLibExt::cl_intel_devicelib_math_fp64:
     return "libsycl-fallback-cmath-fp64.spv";
-  case cl_intel_devicelib_complex:
+  case DeviceLibExt::cl_intel_devicelib_complex:
     return "libsycl-fallback-complex.spv";
-  case cl_intel_devicelib_complex_fp64:
+  case DeviceLibExt::cl_intel_devicelib_complex_fp64:
     return "libsycl-fallback-complex-fp64.spv";
   }
   throw compile_program_error("Unhandled (new?) device library extension",
@@ -527,15 +527,15 @@ static const char *getDeviceLibFilename(DeviceLibExt Extension) {
 
 static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
   switch (Extension) {
-  case cl_intel_devicelib_assert:
+  case DeviceLibExt::cl_intel_devicelib_assert:
     return "cl_intel_devicelib_assert";
-  case cl_intel_devicelib_math:
+  case DeviceLibExt::cl_intel_devicelib_math:
     return "cl_intel_devicelib_math";
-  case cl_intel_devicelib_math_fp64:
+  case DeviceLibExt::cl_intel_devicelib_math_fp64:
     return "cl_intel_devicelib_math_fp64";
-  case cl_intel_devicelib_complex:
+  case DeviceLibExt::cl_intel_devicelib_complex:
     return "cl_intel_devicelib_complex";
-  case cl_intel_devicelib_complex_fp64:
+  case DeviceLibExt::cl_intel_devicelib_complex_fp64:
     return "cl_intel_devicelib_complex_fp64";
   }
   throw compile_program_error("Unhandled (new?) device library extension",
@@ -678,7 +678,9 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
 }
 
 static bool isDeviceLibRequired(DeviceLibExt Ext, uint32_t DeviceLibReqMask) {
-  uint32_t Mask = 0x1 << (Ext - cl_intel_devicelib_assert);
+  uint32_t Mask =
+      0x1 << (static_cast<uint32_t>(Ext) -
+              static_cast<uint32_t>(DeviceLibExt::cl_intel_devicelib_assert));
   return ((DeviceLibReqMask & Mask) == Mask);
 }
 
@@ -690,11 +692,12 @@ getDeviceLibPrograms(const ContextImplPtr Context,
   std::vector<RT::PiProgram> Programs;
 
   std::pair<DeviceLibExt, bool> RequiredDeviceLibExt[] = {
-      {cl_intel_devicelib_assert, /* is fallback loaded? */ false},
-      {cl_intel_devicelib_math, false},
-      {cl_intel_devicelib_math_fp64, false},
-      {cl_intel_devicelib_complex, false},
-      {cl_intel_devicelib_complex_fp64, false}};
+      {DeviceLibExt::cl_intel_devicelib_assert,
+       /* is fallback loaded? */ false},
+      {DeviceLibExt::cl_intel_devicelib_math, false},
+      {DeviceLibExt::cl_intel_devicelib_math_fp64, false},
+      {DeviceLibExt::cl_intel_devicelib_complex, false},
+      {DeviceLibExt::cl_intel_devicelib_complex_fp64, false}};
 
   // Disable all devicelib extensions requiring fp64 support if at least
   // one underlying device doesn't support cl_khr_fp64.
@@ -724,8 +727,8 @@ getDeviceLibPrograms(const ContextImplPtr Context,
       if (!isDeviceLibRequired(Ext, DeviceLibReqMask)) {
         continue;
       }
-      if ((Ext == cl_intel_devicelib_math_fp64 ||
-           Ext == cl_intel_devicelib_complex_fp64) &&
+      if ((Ext == DeviceLibExt::cl_intel_devicelib_math_fp64 ||
+           Ext == DeviceLibExt::cl_intel_devicelib_complex_fp64) &&
           !fp64Support) {
         continue;
       }
