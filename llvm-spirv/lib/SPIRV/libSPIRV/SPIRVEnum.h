@@ -266,6 +266,8 @@ template <> inline void SPIRVMap<SPIRVStorageClassKind, SPIRVCapVec>::init() {
   ADD_VEC_INIT(StorageClassGeneric, {CapabilityGenericPointer});
   ADD_VEC_INIT(StorageClassPushConstant, {CapabilityShader});
   ADD_VEC_INIT(StorageClassAtomicCounter, {CapabilityAtomicStorage});
+  ADD_VEC_INIT(StorageClassDeviceOnlyINTEL, {CapabilityUSMStorageClassesINTEL});
+  ADD_VEC_INIT(StorageClassHostOnlyINTEL, {CapabilityUSMStorageClassesINTEL});
 }
 
 template <> inline void SPIRVMap<SPIRVImageDimKind, SPIRVCapVec>::init() {
