@@ -18,7 +18,7 @@ void test1() {
 
   Q.submit([&](handler &CGH) {
     auto Acc = Buffer.get_access<mode::write>(CGH);
-    CGH.codeplay_host_task([=]() {
+    CGH.codeplay_host_task([=] {
       // A no-op
     });
   });
@@ -41,7 +41,7 @@ void test2() {
     auto AccSrc = Buffer1.template get_access<mode::read>(CGH);
     auto AccDst = Buffer2.template get_access<mode::write>(CGH);
 
-    CGH.codeplay_host_task([=]() {
+    CGH.codeplay_host_task([=] {
       for (size_t Idx = 0; Idx < AccDst.get_count(); ++Idx)
         AccDst[Idx] = AccSrc[Idx];
     });

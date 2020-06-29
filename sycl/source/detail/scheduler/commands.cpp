@@ -1969,8 +1969,7 @@ cl_int ExecCGCommand::enqueueImp() {
           if (HostTask->MQueue == AllocaCmd->getQueue()) {
             auto MemArg =
                 reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
-            interop_handle::ReqToMem ReqToMemEl = std::make_pair(Req, MemArg);
-            ReqToMem.emplace_back(ReqToMemEl);
+            ReqToMem.emplace_back(std::make_pair(Req, MemArg));
 
             return;
           }
