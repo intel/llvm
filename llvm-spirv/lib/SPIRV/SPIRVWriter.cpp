@@ -1299,11 +1299,26 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
             transValue(Sel->getFalseValue(), BB, true, FuncTransMode::Pointer),
             BB));
 
-  if (AllocaInst *Alc = dyn_cast<AllocaInst>(V))
+  if (AllocaInst *Alc = dyn_cast<AllocaInst>(V)) {
+    if (Alc->isArrayAllocation()) {
+      if (!BM->checkExtension(ExtensionID::SPV_INTEL_variable_length_array,
+                              SPIRVEC_InvalidInstruction,
+                              toString(Alc) +
+                                  "\nTranslation of dynamic alloca requires "
+                                  "SPV_INTEL_variable_length_array extension."))
+        return nullptr;
+
+      SPIRVValue *Length = transValue(Alc->getArraySize(), BB);
+      assert(Length && "Couldn't translate array size!");
+      return mapValue(V, BM->addInstTemplate(OpVariableLengthArrayINTEL,
+                                             {Length->getId()}, BB,
+                                             transType(Alc->getType())));
+    }
     return mapValue(
         V, BM->addVariable(transType(Alc->getType()), false,
                            SPIRVLinkageTypeKind::LinkageTypeInternal, nullptr,
                            Alc->getName().str(), StorageClassFunction, BB));
+  }
 
   if (auto *Switch = dyn_cast<SwitchInst>(V)) {
     std::vector<SPIRVSwitch::PairTy> Pairs;
@@ -2267,6 +2282,33 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
       }
     }
     return nullptr;
+  }
+  case Intrinsic::stacksave: {
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_variable_length_array)) {
+      auto *Ty = transType(II->getType());
+      return BM->addInstTemplate(OpSaveMemoryINTEL, BB, Ty);
+    }
+    BM->getErrorLog().checkError(
+        BM->isSPIRVAllowUnknownIntrinsicsEnabled(), SPIRVEC_InvalidFunctionCall,
+        toString(II) + "\nTranslation of llvm.stacksave intrinsic requires "
+                       "SPV_INTEL_variable_length_array extension or "
+                       "-spirv-allow-unknown-intrinsics option.");
+    break;
+  }
+  case Intrinsic::stackrestore: {
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_variable_length_array)) {
+      auto *Ptr = transValue(II->getArgOperand(0), BB);
+      return BM->addInstTemplate(OpRestoreMemoryINTEL, {Ptr->getId()}, BB,
+                                 nullptr);
+    }
+    BM->getErrorLog().checkError(
+        BM->isSPIRVAllowUnknownIntrinsicsEnabled(), SPIRVEC_InvalidFunctionCall,
+        toString(II) + "\nTranslation of llvm.restore intrinsic requires "
+                       "SPV_INTEL_variable_length_array extension or "
+                       "-spirv-allow-unknown-intrinsics option.");
+    break;
   }
   // We can just ignore/drop some intrinsics, like optimizations hint.
   case Intrinsic::invariant_start:
