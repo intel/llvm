@@ -788,17 +788,10 @@ static void VisitField(CXXRecordDecl *Owner, RangeTy &&Item, QualType ItemTy,
     KF_FOR_EACH(handleSyclHalfType, Item, ItemTy);
   else if (ItemTy->isStructureOrClassType())
     VisitRecord(Owner, Item, ItemTy->getAsCXXRecordDecl(), handlers...);
-#if 0
-  // FIXME Enable this when structs are replaced by their fields
   else if (ItemTy->isArrayType())
     VisitArrayElements(Item, ItemTy, handlers...);
-#endif
-}
-
-template <typename RangeTy, typename... Handlers>
-static void VisitScalarField(CXXRecordDecl *Owner, RangeTy &&Item,
-                             QualType ItemTy, Handlers &... handlers) {
-  KF_FOR_EACH(handleScalarType, Item, ItemTy);
+  else if (ItemTy->isScalarType())
+    KF_FOR_EACH(handleScalarType, Item, ItemTy);
 }
 
 template <typename RangeTy, typename... Handlers>
@@ -809,13 +802,11 @@ static void VisitArrayElements(RangeTy Item, QualType FieldTy,
   int64_t ElemCount = CAT->getSize().getSExtValue();
   std::initializer_list<int>{(handlers.enterArray(), 0)...};
   for (int64_t Count = 0; Count < ElemCount; Count++) {
-    if (ET->isScalarType())
-      VisitScalarField(nullptr, Item, ET, handlers...);
-    else
-      VisitField(nullptr, Item, ET, handlers...);
+    VisitField(nullptr, Item, ET, handlers...);
     (void)std::initializer_list<int>{(handlers.nextElement(ET), 0)...};
   }
-  (void)std::initializer_list<int>{(handlers.leaveArray(ET, ElemCount), 0)...};
+  (void)std::initializer_list<int>{
+      (handlers.leaveArray(Item, ET, ElemCount), 0)...};
 }
 
 template <typename ParentTy, typename... Handlers>
@@ -974,20 +965,31 @@ public:
   // class/field graph. Int Headers use this to calculate offset, most others
   // don't have a need for these.
 
-  virtual void enterStruct(const CXXRecordDecl *, FieldDecl *) {}
-  virtual void leaveStruct(const CXXRecordDecl *, FieldDecl *) {}
-  virtual void enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &) {}
-  virtual void leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &) {}
+  virtual bool enterStruct(const CXXRecordDecl *, FieldDecl *) { return true; }
+  virtual bool leaveStruct(const CXXRecordDecl *, FieldDecl *) { return true; }
+  virtual bool enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &) {
+    return true;
+  }
+  virtual bool leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &) {
+    return true;
+  }
 
   // The following are used for stepping through array elements.
 
-  virtual void enterField(const CXXRecordDecl *, const CXXBaseSpecifier &) {}
-  virtual void leaveField(const CXXRecordDecl *, const CXXBaseSpecifier &) {}
-  virtual void enterField(const CXXRecordDecl *, FieldDecl *) {}
-  virtual void leaveField(const CXXRecordDecl *, FieldDecl *) {}
-  virtual void enterArray() {}
-  virtual void nextElement(QualType) {}
-  virtual void leaveArray(QualType, int64_t) {}
+  virtual bool enterField(const CXXRecordDecl *, const CXXBaseSpecifier &) {
+    return true;
+  }
+  virtual bool leaveField(const CXXRecordDecl *, const CXXBaseSpecifier &) {
+    return true;
+  }
+  virtual bool enterField(const CXXRecordDecl *, FieldDecl *) { return true; }
+  virtual bool leaveField(const CXXRecordDecl *, FieldDecl *) { return true; }
+  virtual bool enterArray() { return true; }
+  virtual bool nextElement(QualType) { return true; }
+  virtual bool leaveArray(const CXXBaseSpecifier &, QualType, int64_t) {
+    return true;
+  }
+  virtual bool leaveArray(FieldDecl *, QualType, int64_t) { return true; }
 };
 
 // A type to check the validity of all of the argument types.
@@ -1288,6 +1290,7 @@ class SyclKernelBodyCreator
   InitializedEntity VarEntity;
   CXXRecordDecl *KernelObj;
   llvm::SmallVector<Expr *, 16> MemberExprBases;
+  uint64_t ArrayIndex;
   FunctionDecl *KernelCallerFunc;
   bool ArrayState;
 
@@ -1387,30 +1390,27 @@ class SyclKernelBodyCreator
     InitExprs.push_back(MemberInit.get());
   }
 
-  void createExprForScalarElement(FieldDecl *FD, QualType FieldTy) {
+  void createExprForScalarElement(FieldDecl *FD) {
     InitializedEntity ArrayEntity =
         InitializedEntity::InitializeMember(FD, &VarEntity);
     InitializationKind InitKind =
         InitializationKind::CreateCopy(SourceLocation(), SourceLocation());
     Expr *DRE = createInitExpr(FD);
-    Expr *Idx = dyn_cast<ArraySubscriptExpr>(MemberExprBases.back())->getIdx();
-    llvm::APSInt Result;
-    SemaRef.VerifyIntegerConstantExpression(Idx, &Result);
-    uint64_t IntIdx = Result.getZExtValue();
     InitializedEntity Entity = InitializedEntity::InitializeElement(
-        SemaRef.getASTContext(), IntIdx, ArrayEntity);
+        SemaRef.getASTContext(), ArrayIndex, ArrayEntity);
+    ArrayIndex++;
     InitializationSequence InitSeq(SemaRef, Entity, InitKind, DRE);
     ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, DRE);
+    InitExprs.push_back(MemberInit.get());
+  }
+
+  void addArrayInit(FieldDecl *FD, int64_t Count) {
     llvm::SmallVector<Expr *, 16> ArrayInitExprs;
-    if (IntIdx > 0) {
-      // Continue with the current InitList
-      InitListExpr *ILE = cast<InitListExpr>(InitExprs.back());
+    for (int64_t I = 0; I < Count; I++) {
+      ArrayInitExprs.push_back(InitExprs.back());
       InitExprs.pop_back();
-      llvm::ArrayRef<Expr *> L = ILE->inits();
-      for (size_t I = 0; I < L.size(); I++)
-        ArrayInitExprs.push_back(L[I]);
     }
-    ArrayInitExprs.push_back(MemberInit.get());
+    std::reverse(ArrayInitExprs.begin(), ArrayInitExprs.end());
     Expr *ILE = new (SemaRef.getASTContext())
         InitListExpr(SemaRef.getASTContext(), SourceLocation(), ArrayInitExprs,
                      SourceLocation());
@@ -1470,7 +1470,6 @@ class SyclKernelBodyCreator
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     // TODO: VarEntity is initialized entity for KernelObjClone, I guess we need
     // to create new one when enter new struct.
-    if (!ArrayState) {
       InitializedEntity Entity =
           InitializedEntity::InitializeMember(FD, &VarEntity);
       // Initialize with the default constructor.
@@ -1479,7 +1478,7 @@ class SyclKernelBodyCreator
       InitializationSequence InitSeq(SemaRef, Entity, InitKind, None);
       ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, None);
       InitExprs.push_back(MemberInit.get());
-    }
+    
     createSpecialMethodCall(RecordDecl, MemberExprBases.back(), InitMethodName,
                             FD);
     return true;
@@ -1576,16 +1575,16 @@ public:
 
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
     if (dyn_cast<ArraySubscriptExpr>(MemberExprBases.back()))
-      createExprForScalarElement(FD, FieldTy);
+      createExprForScalarElement(FD);
     else
       createExprForStructOrScalar(FD);
     return true;
   }
 
-  void enterStruct(const CXXRecordDecl *, FieldDecl *FD) final {
+  bool enterStruct(const CXXRecordDecl *, FieldDecl *FD) final {
   }
 
-  void enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
+  bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
     CXXCastPath BasePath;
     QualType DerivedTy(RD->getTypeForDecl(), 0);
     QualType BaseTy = BS.getType();
@@ -1622,7 +1621,7 @@ public:
 
   }
 
-  void leaveStruct(const CXXRecordDecl *, FieldDecl *FD) final {
+  bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD) final {
     const CXXRecordDecl *RD = FD->getType()->getAsCXXRecordDecl();
 
     // Initializers for accessors inside stream not added.
@@ -1638,32 +1637,37 @@ public:
     }
   }
 
-  void leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
+  bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
     const CXXRecordDecl *BaseClass = BS.getType()->getAsCXXRecordDecl();
     addStructInit(BaseClass);
     MemberExprBases.pop_back();
   }
 
-  void enterField(const CXXRecordDecl *RD, FieldDecl *FD) final {
+  bool enterField(const CXXRecordDecl *RD, FieldDecl *FD) final {
     if (!FD->getType()->isReferenceType())
       MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
+    return true;
   }
 
-  void leaveField(const CXXRecordDecl *, FieldDecl *FD) final {
+  bool leaveField(const CXXRecordDecl *, FieldDecl *FD) final {
     if (!FD->getType()->isReferenceType())
       MemberExprBases.pop_back();
+    return true;
   }
 
-  void enterArray() final {
-    ArrayState = true;
+  bool enterArray() final {
     Expr *ArrayBase = MemberExprBases.back();
     ExprResult IndexExpr = SemaRef.ActOnIntegerConstant(SourceLocation(), 0);
     ExprResult ElementBase = SemaRef.CreateBuiltinArraySubscriptExpr(
         ArrayBase, SourceLocation(), IndexExpr.get(), SourceLocation());
     MemberExprBases.push_back(ElementBase.get());
+    ArrayIndex = 0;
+    return true;
   }
 
-  void nextElement(QualType) final {
+  bool nextElement(QualType ET) final {
+    if (ET->isScalarType())
+      return true;
     ArraySubscriptExpr *LastArrayRef =
         dyn_cast<ArraySubscriptExpr>(MemberExprBases.back());
     MemberExprBases.pop_back();
@@ -1676,11 +1680,13 @@ public:
     ExprResult ElementBase = SemaRef.CreateBuiltinArraySubscriptExpr(
         ArrayBase, SourceLocation(), IndexExpr.get(), SourceLocation());
     MemberExprBases.push_back(ElementBase.get());
+    return true;
   }
 
-  void leaveArray(QualType, int64_t) final {
-    ArrayState = false;
+  bool leaveArray(FieldDecl *FD, QualType, int64_t Count) final {
+    addArrayInit(FD, Count);
     MemberExprBases.pop_back();
+    return true;
   }
 
   using SyclKernelFieldHandler::enterArray;
@@ -1688,6 +1694,7 @@ public:
   using SyclKernelFieldHandler::handleScalarType;
   using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::handleSyclSamplerType;
+  using SyclKernelFieldHandler::leaveArray;
   using SyclKernelFieldHandler::leaveField;
 };
 
@@ -1810,43 +1817,50 @@ public:
     return true;
   }
 
-  void enterField(const CXXRecordDecl *RD, FieldDecl *FD) final {
+  bool enterField(const CXXRecordDecl *RD, FieldDecl *FD) final {
     CurOffset += SemaRef.getASTContext().getFieldOffset(FD) / 8;
+    return true;
   }
 
-  void leaveField(const CXXRecordDecl *, FieldDecl *FD) final {
+  bool leaveField(const CXXRecordDecl *, FieldDecl *FD) final {
     CurOffset -= SemaRef.getASTContext().getFieldOffset(FD) / 8;
+    return true;
   }
 
-  void enterField(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
+  bool enterField(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
     const ASTRecordLayout &Layout =
         SemaRef.getASTContext().getASTRecordLayout(RD);
     CurOffset += Layout.getBaseClassOffset(BS.getType()->getAsCXXRecordDecl())
                      .getQuantity();
+    return true;
   }
 
-  void leaveField(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
+  bool leaveField(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
     const ASTRecordLayout &Layout =
         SemaRef.getASTContext().getASTRecordLayout(RD);
     CurOffset -= Layout.getBaseClassOffset(BS.getType()->getAsCXXRecordDecl())
                      .getQuantity();
+    return true;
   }
 
-  void nextElement(QualType ET) final {
+  bool nextElement(QualType ET) final {
     CurOffset += SemaRef.getASTContext().getTypeSizeInChars(ET).getQuantity();
+    return true;
   }
 
-  void leaveArray(QualType ET, int64_t Count) final {
+  bool leaveArray(FieldDecl *, QualType ET, int64_t Count) final {
     int64_t ArraySize =
         SemaRef.getASTContext().getTypeSizeInChars(ET).getQuantity();
     if (!ET->isArrayType()) {
       ArraySize *= Count;
     }
     CurOffset -= ArraySize;
+    return true;
   }
   using SyclKernelFieldHandler::handleScalarType;
   using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::handleSyclSamplerType;
+  using SyclKernelFieldHandler::leaveArray;
 };
 } // namespace
 

@@ -58,8 +58,18 @@ int main() {
 // CHECK: FunctionDecl {{.*}}kernel_B{{.*}} 'void (int, int)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'int'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'int'
+// Check kernel_B inits
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: DeclStmt
+// CHECK-NEXT: VarDecl {{.*}} cinit
+// CHECK-NEXT: InitListExpr
+// CHECK-NEXT: InitListExpr {{.*}} 'int [2]'
+// CHECK: ImplicitCastExpr
+// CHECK: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
+// CHECK: ImplicitCastExpr
+// CHECK: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
 
-// Correct and enable after struct mebers are extracted into separate parameters
+// Correct and enable after struct members are extracted into separate parameters
 // C HECK kernel_C parameters
 // C HECK: FunctionDecl {{.*}}kernel_C{{.*}} 'void (struct {{.*}}, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
 // C HECK-NEXT: ParmVarDecl {{.*}} 'struct {{.*}}'

@@ -49,26 +49,30 @@ int main() {
 // CHECK: [[MEM_RANGE2:%[a-zA-Z0-9_.]+]] = alloca %"struct.{{.*}}.cl::sycl::range"
 // CHECK: [[OFFSET2:%[a-zA-Z0-9_.]+]] = alloca %"struct.{{.*}}.cl::sycl::id"
 
-// CHECK accessor array GEP for acc[0]
+// CHECK accessor array default inits
 // CHECK: [[ACCESSOR_ARRAY1:%[a-zA-Z0-9_]+]] = getelementptr inbounds %"class.{{.*}}.anon", %"class.{{.*}}.anon"* [[LOCAL_OBJECT]], i32 0, i32 0
-// CHECK: [[Z0:%[a-zA-Z0-9_]*]] = getelementptr inbounds{{.*}}[[ACCESSOR_ARRAY1]], i64 0, i64 0
+// CHECK: [[BEGIN:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x [[ACCESSOR:.*]]], [2 x [[ACCESSOR]]]* [[ACCESSOR_ARRAY1]], i64 0, i64 0
+// CHECK: [[END:%[a-zA-Z0-9._]*]] = getelementptr inbounds [[ACCESSOR:.*]], [[ACCESSOR]]* [[BEGIN]], i64 2
+// CHECK: [[NEXT0:%[a-zA-Z0-9._]*]] = getelementptr inbounds [[ACCESSOR]], [[ACCESSOR]]* {{.*}}, i64 1
+// CHECK: [[ELEMENT:%[a-zA-Z0-9._]*]] = getelementptr inbounds [[ACCESSOR]], [[ACCESSOR]]* {{.*}}, i64 1
+// CHECK: [[ELEMENT:%[a-zA-Z0-9._]*]] = getelementptr inbounds [[ACCESSOR]], [[ACCESSOR]]* {{.*}}, i64 2
+// CHECK: [[NEXT1:%[a-zA-Z0-9._]*]] = getelementptr inbounds [[ACCESSOR]], [[ACCESSOR]]* {{.*}}, i64 1
+
+// CHECK: [[ACCESSOR_ARRAY2:%[a-zA-Z0-9_]+]] = getelementptr inbounds %"class.{{.*}}.anon", %"class.{{.*}}.anon"* [[LOCAL_OBJECT]], i32 0, i32 0
+// CHECK: [[INDEX:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x [[ACCESSOR]]], [2 x [[ACCESSOR]]]* [[ACCESSOR_ARRAY2]], i64 0, i64 0
 
 // CHECK load from kernel pointer argument alloca
 // CHECK: [[MEM_LOAD1:%[a-zA-Z0-9_]+]] = load i32 addrspace(1)*, i32 addrspace(1)** [[MEM_ARG1]]
 
+// CHECK: [[ACC_CAST1:%[0-9]+]] = addrspacecast [[ACCESSOR]]* {{.*}} to [[ACCESSOR]] addrspace(4)*
+
 // CHECK acc[0] __init method call
-// CHECK: [[ACC_CAST1:%[0-9]+]] = addrspacecast %"class{{.*}}accessor"* [[Z0]] to %"class{{.*}}accessor" addrspace(4)*
-
 // CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor" addrspace(4)* [[ACC_CAST1]], i32 addrspace(1)* [[MEM_LOAD1]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE1]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE1]], %"struct.{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET1]])
-
-// CHECK accessor array GEP for acc[1]
-// CHECK: [[ACCESSOR_ARRAY2:%[a-zA-Z0-9_]+]] = getelementptr inbounds %"class.{{.*}}.anon", %"class.{{.*}}.anon"* [[LOCAL_OBJECT]], i32 0, i32 0
-// CHECK: [[Z1:%[a-zA-Z0-9_]*]] = getelementptr inbounds{{.*}}[[ACCESSOR_ARRAY2]], i64 0, i64 1
 
 // CHECK load from kernel pointer argument alloca
 // CHECK: [[MEM_LOAD2:%[a-zA-Z0-9_]+]] = load i32 addrspace(1)*, i32 addrspace(1)** [[MEM_ARG2]]
 
-// CHECK acc[1] __init method call
-// CHECK: [[ACC_CAST2:%[0-9]+]] = addrspacecast %"class{{.*}}accessor"* [[Z1]] to %"class{{.*}}accessor" addrspace(4)*
+// CHECK: [[ACC_CAST2:%[0-9]+]] = addrspacecast [[ACCESSOR]]* {{.*}} to [[ACCESSOR]] addrspace(4)*
 
+// CHECK acc[1] __init method call
 // CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor" addrspace(4)* [[ACC_CAST2]], i32 addrspace(1)* [[MEM_LOAD2]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE2]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE2]], %"struct.{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET2]])
