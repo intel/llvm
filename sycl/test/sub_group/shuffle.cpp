@@ -2,9 +2,10 @@
 // CUDA compilation and runtime do not yet support sub-groups.
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -std=c++14 -D SG_GPU %s -o %t_gpu.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUNx: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //
 //==------------ shuffle.cpp - SYCL sub_group shuffle test -----*- C++ -*---==//
@@ -17,7 +18,8 @@
 
 #include "helper.hpp"
 #include <CL/sycl.hpp>
-template <typename T, int N> class sycl_subgr;
+template <typename T, int N>
+class sycl_subgr;
 
 using namespace cl::sycl;
 
@@ -132,7 +134,8 @@ void check(queue &Queue, size_t G = 240, size_t L = 60) {
   }
 }
 
-template <typename T> void check(queue &Queue, size_t G = 240, size_t L = 60) {
+template <typename T>
+void check(queue &Queue, size_t G = 240, size_t L = 60) {
   try {
     nd_range<1> NdRange(G, L);
     buffer<T> buf2(G);
@@ -253,9 +256,12 @@ int main() {
   check<unsigned int, 16>(Queue);
   check<long>(Queue);
   check<unsigned long>(Queue);
+  // shuffle half type is not supported in OCL CPU RT
+#ifdef SG_GPU
   if (Queue.get_device().has_extension("cl_khr_fp16")) {
     check<half>(Queue);
   }
+#endif
   check<float>(Queue);
   if (Queue.get_device().has_extension("cl_khr_fp64")) {
     check<double>(Queue);
