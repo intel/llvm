@@ -21,6 +21,35 @@ namespace detail {
 
 namespace enqueue_kernel_launch {
 
+bool L0HandleInvalidWorkGroupSize(const device_impl &DeviceImpl,
+                                  pi_kernel Kernel, const NDRDescT &NDRDesc) {
+
+  const plugin &Plugin = DeviceImpl.getPlugin();
+  RT::PiDevice Device = DeviceImpl.getHandleRef();
+
+  size_t CompileWGSize[3] = {0};
+  Plugin.call<PiApiKind::piKernelGetGroupInfo>(
+      Kernel, Device, PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+      sizeof(size_t) * 3, CompileWGSize, nullptr);
+
+  if (CompileWGSize[0] != 0) {
+    // PI_INVALID_WORK_GROUP_SIZE if local_work_size is specified and does not
+    // match the required work-group size for kernel in the program source.
+    if (NDRDesc.LocalSize[0] != CompileWGSize[0] ||
+        NDRDesc.LocalSize[1] != CompileWGSize[1] ||
+        NDRDesc.LocalSize[2] != CompileWGSize[2])
+      throw sycl::nd_range_error(
+          "Specified local size doesn't match the required work-group size "
+          "specified in the program source",
+          PI_INVALID_WORK_GROUP_SIZE);
+  }
+
+  // Fallback
+  constexpr pi_result Error = PI_INVALID_WORK_GROUP_SIZE;
+  throw runtime_error(
+      "OpenCL API failed. OpenCL API returns: " + codeToString(Error), Error);
+}
+
 bool oclHandleInvalidWorkGroupSize(const device_impl &DeviceImpl,
                                    pi_kernel Kernel, const NDRDescT &NDRDesc) {
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
@@ -86,7 +115,7 @@ bool oclHandleInvalidWorkGroupSize(const device_impl &DeviceImpl,
               std::to_string(MaxWGSize),
           PI_INVALID_WORK_GROUP_SIZE);
   } else {
-    // OpenCL 2.x:
+    // RELEVENT // OpenCL 2.x:
     // PI_INVALID_WORK_GROUP_SIZE if local_work_size is specified and the
     // total number of work-items in the work-group computed as
     // local_work_size[0] * ... * local_work_size[work_dim – 1] is greater
@@ -228,6 +257,8 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
       DeviceImpl.get_platform().get_info<info::platform::name>();
   if (PlatformName.find("OpenCL") != std::string::npos) {
     return oclHandleInvalidWorkGroupSize(DeviceImpl, Kernel, NDRDesc);
+  } else if (PlatformName.find("Level-Zero") != std::string::npos) {
+    return L0HandleInvalidWorkGroupSize(DeviceImpl, Kernel, NDRDesc);
   }
 
   // Fallback
@@ -308,8 +339,9 @@ bool handleError(pi_result Error, const device_impl &DeviceImpl,
     // TODO: Handle other error codes
 
   default:
-    throw runtime_error(
-        "OpenCL API failed. OpenCL API returns: " + codeToString(Error), Error);
+    throw runtime_error("OpenCL API failed2. OpenCL API returns: " +
+                            codeToString(Error),
+                        Error);
   }
 }
 
