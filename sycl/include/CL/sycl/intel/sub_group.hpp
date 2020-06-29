@@ -475,32 +475,61 @@ struct sub_group {
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
                     "sycl::intel::broadcast instead.")
   EnableIfIsScalarArithmetic<T> broadcast(T x, id<1> local_id) const {
+#ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::spirv::GroupBroadcast<sub_group>(x, local_id);
+#else
+    (void)x;
+    (void)local_id;
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
   }
 
   template <typename T, class BinaryOperation>
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
                     "sycl::intel::reduce instead.")
   EnableIfIsScalarArithmetic<T> reduce(T x, BinaryOperation op) const {
+#ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::calc<T, __spv::GroupOperation::Reduce,
                               __spv::Scope::Subgroup>(
         typename sycl::detail::GroupOpTag<T>::type(), x, op);
+#else
+    (void)x;
+    (void)op;
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
   }
 
   template <typename T, class BinaryOperation>
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
                     "sycl::intel::reduce instead.")
   EnableIfIsScalarArithmetic<T> reduce(T x, T init, BinaryOperation op) const {
+#ifdef __SYCL_DEVICE_ONLY__
     return op(init, reduce(x, op));
+#else
+    (void)x;
+    (void)init;
+    (void)op;
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
   }
 
   template <typename T, class BinaryOperation>
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
                     "sycl::intel::exclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> exclusive_scan(T x, BinaryOperation op) const {
+#ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::calc<T, __spv::GroupOperation::ExclusiveScan,
                               __spv::Scope::Subgroup>(
         typename sycl::detail::GroupOpTag<T>::type(), x, op);
+#else
+    (void)x;
+    (void)op;
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
   }
 
   template <typename T, class BinaryOperation>
@@ -508,6 +537,7 @@ struct sub_group {
                     "sycl::intel::exclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> exclusive_scan(T x, T init,
                                                BinaryOperation op) const {
+#ifdef __SYCL_DEVICE_ONLY__
     if (get_local_id().get(0) == 0) {
       x = op(init, x);
     }
@@ -516,15 +546,29 @@ struct sub_group {
       scan = init;
     }
     return scan;
+#else
+    (void)x;
+    (void)init;
+    (void)op;
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
   }
 
   template <typename T, class BinaryOperation>
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
                     "sycl::intel::inclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op) const {
+#ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::calc<T, __spv::GroupOperation::InclusiveScan,
                               __spv::Scope::Subgroup>(
         typename sycl::detail::GroupOpTag<T>::type(), x, op);
+#else
+    (void)x;
+    (void)op;
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
   }
 
   template <typename T, class BinaryOperation>
@@ -532,10 +576,18 @@ struct sub_group {
                     "sycl::intel::inclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op,
                                                T init) const {
+#ifdef __SYCL_DEVICE_ONLY__
     if (get_local_id().get(0) == 0) {
       x = op(init, x);
     }
     return inclusive_scan(x, op);
+#else
+    (void)x;
+    (void)op;
+    (void)init;
+    throw runtime_error("Sub-groups are not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
   }
 
 protected:
