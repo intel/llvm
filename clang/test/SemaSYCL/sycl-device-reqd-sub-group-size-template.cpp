@@ -21,4 +21,5 @@ int main() {
 // CHECK: CXXRecordDecl {{.*}} {{.*}} implicit class KernelFunctor
 // CHECK: IntelReqdSubGroupSizeAttr {{.*}}
 // CHECK: SubstNonTypeTemplateParmExpr {{.*}}
+// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}10{{$}}
