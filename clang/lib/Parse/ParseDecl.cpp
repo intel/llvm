@@ -6539,8 +6539,8 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
     else if (RequiresArg)
       Diag(Tok, diag::err_argument_required_after_attribute);
 
-    HasProto = ParamInfo.size() || getLangOpts().CPlusPlus
-                                || getLangOpts().OpenCL;
+    HasProto = ParamInfo.size() || getLangOpts().CPlusPlus ||
+               getLangOpts().OpenCL || getLangOpts().C17;
 
     // If we have the closing ')', eat it.
     Tracker.consumeClose();
