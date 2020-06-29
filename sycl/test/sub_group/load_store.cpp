@@ -158,7 +158,8 @@ template <typename T> void check(queue &Queue) {
 int main() {
   queue Queue;
   if (!Queue.get_device().has_extension("cl_intel_subgroups") &&
-      !Queue.get_device().has_extension("cl_intel_subgroups_short")) {
+      !Queue.get_device().has_extension("cl_intel_subgroups_short") &&
+      !Queue.get_device().has_extension("cl_intel_subgroups_long")) {
     std::cout << "Skipping test\n";
     return 0;
   }
@@ -199,6 +200,26 @@ int main() {
       check<aligned_half, 4>(Queue);
       check<aligned_half, 8>(Queue);
     }
+  }
+  if (Queue.get_device().has_extension("cl_intel_subgroups_long")) {
+    typedef long aligned_long __attribute__((aligned(16)));
+    check<aligned_long>(Queue);
+    check<aligned_long, 1>(Queue);
+    check<aligned_long, 2>(Queue);
+    check<aligned_long, 4>(Queue);
+    check<aligned_long, 8>(Queue);
+    typedef unsigned long aligned_ulong __attribute__((aligned(16)));
+    check<aligned_ulong>(Queue);
+    check<aligned_ulong, 1>(Queue);
+    check<aligned_ulong, 2>(Queue);
+    check<aligned_ulong, 4>(Queue);
+    check<aligned_ulong, 8>(Queue);
+    typedef double aligned_double __attribute__((aligned(16)));
+    check<aligned_double>(Queue);
+    check<aligned_double, 1>(Queue);
+    check<aligned_double, 2>(Queue);
+    check<aligned_double, 4>(Queue);
+    check<aligned_double, 8>(Queue);
   }
   std::cout << "Test passed." << std::endl;
   return 0;
