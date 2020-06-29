@@ -1557,8 +1557,6 @@ public:
   }
 
   bool nextElement(QualType ET) final {
-    if (ET->isScalarType())
-      return true;
     ArraySubscriptExpr *LastArrayRef =
         dyn_cast<ArraySubscriptExpr>(MemberExprBases.back());
     MemberExprBases.pop_back();
