@@ -1470,15 +1470,15 @@ class SyclKernelBodyCreator
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     // TODO: VarEntity is initialized entity for KernelObjClone, I guess we need
     // to create new one when enter new struct.
-      InitializedEntity Entity =
-          InitializedEntity::InitializeMember(FD, &VarEntity);
-      // Initialize with the default constructor.
-      InitializationKind InitKind =
-          InitializationKind::CreateDefault(SourceLocation());
-      InitializationSequence InitSeq(SemaRef, Entity, InitKind, None);
-      ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, None);
-      InitExprs.push_back(MemberInit.get());
-    
+    InitializedEntity Entity =
+        InitializedEntity::InitializeMember(FD, &VarEntity);
+    // Initialize with the default constructor.
+    InitializationKind InitKind =
+        InitializationKind::CreateDefault(SourceLocation());
+    InitializationSequence InitSeq(SemaRef, Entity, InitKind, None);
+    ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, None);
+    InitExprs.push_back(MemberInit.get());
+
     createSpecialMethodCall(RecordDecl, MemberExprBases.back(), InitMethodName,
                             FD);
     return true;
@@ -1581,8 +1581,7 @@ public:
     return true;
   }
 
-  bool enterStruct(const CXXRecordDecl *, FieldDecl *FD) final {
-  }
+  bool enterStruct(const CXXRecordDecl *, FieldDecl *FD) final {}
 
   bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
     CXXCastPath BasePath;
@@ -1597,7 +1596,7 @@ public:
     MemberExprBases.push_back(Cast);
   }
 
-  void addStructInit(const CXXRecordDecl *RD){
+  void addStructInit(const CXXRecordDecl *RD) {
     if (!RD)
       return;
 
@@ -1618,7 +1617,6 @@ public:
                      SourceLocation());
     ILE->setType(QualType(RD->getTypeForDecl(), 0));
     InitExprs.push_back(ILE);
-
   }
 
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD) final {
