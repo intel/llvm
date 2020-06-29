@@ -123,7 +123,8 @@
   __MAKE_1V(Fun, Call, 2, Ret, Arg1)                                           \
   __MAKE_1V(Fun, Call, 3, Ret, Arg1)                                           \
   __MAKE_1V(Fun, Call, 4, Ret, Arg1)                                           \
-  __MAKE_1V(Fun, Call, 8, Ret, Arg1) __MAKE_1V(Fun, Call, 16, Ret, Arg1)
+  __MAKE_1V(Fun, Call, 8, Ret, Arg1)                                           \
+  __MAKE_1V(Fun, Call, 16, Ret, Arg1)
 
 #define MAKE_1V_2V(Fun, Ret, Arg1, Arg2)                                       \
   MAKE_1V_2V_FUNC(Fun, Fun, Ret, Arg1, Arg2)
@@ -165,7 +166,8 @@
   __MAKE_1V_2S(Fun, 2, Ret, Arg1, Arg2)                                        \
   __MAKE_1V_2S(Fun, 3, Ret, Arg1, Arg2)                                        \
   __MAKE_1V_2S(Fun, 4, Ret, Arg1, Arg2)                                        \
-  __MAKE_1V_2S(Fun, 8, Ret, Arg1, Arg2) __MAKE_1V_2S(Fun, 16, Ret, Arg1, Arg2)
+  __MAKE_1V_2S(Fun, 8, Ret, Arg1, Arg2)                                        \
+  __MAKE_1V_2S(Fun, 16, Ret, Arg1, Arg2)
 
 #define MAKE_1V_2S_3S(Fun, Ret, Arg1, Arg2, Arg3)                              \
   __MAKE_1V_2S_3S(Fun, 1, Ret, Arg1, Arg2, Arg3)                               \
@@ -196,13 +198,16 @@
   __MAKE_1V_2P(Fun, 2, Ret, Arg1, Arg2)                                        \
   __MAKE_1V_2P(Fun, 3, Ret, Arg1, Arg2)                                        \
   __MAKE_1V_2P(Fun, 4, Ret, Arg1, Arg2)                                        \
-  __MAKE_1V_2P(Fun, 8, Ret, Arg1, Arg2) __MAKE_1V_2P(Fun, 16, Ret, Arg1, Arg2)
+  __MAKE_1V_2P(Fun, 8, Ret, Arg1, Arg2)                                        \
+  __MAKE_1V_2P(Fun, 16, Ret, Arg1, Arg2)
 
 #define MAKE_GEO_1V_2V_RS(Fun, Call, Ret, Arg1, Arg2)                          \
   __MAKE_1V_2V_RS(Fun, Call, 1, Ret, Arg1, Arg2)                               \
   __MAKE_1V_2V_RS(Fun, Call, 2, Ret, Arg1, Arg2)                               \
   __MAKE_1V_2V_RS(Fun, Call, 3, Ret, Arg1, Arg2)                               \
-  __MAKE_1V_2V_RS(Fun, Call, 4, Ret, Arg1, Arg2)
+  __MAKE_1V_2V_RS(Fun, Call, 4, Ret, Arg1, Arg2)                               \
+  __MAKE_1V_2V_RS(Fun, Call, 8, Ret, Arg1, Arg2)                               \
+  __MAKE_1V_2V_RS(Fun, Call, 16, Ret, Arg1, Arg2)
 
 #define MAKE_1V_2V_3P(Fun, Ret, Arg1, Arg2, Arg3)                              \
   __MAKE_1V_2V_3P(Fun, 1, Ret, Arg1, Arg2, Arg3)                               \
