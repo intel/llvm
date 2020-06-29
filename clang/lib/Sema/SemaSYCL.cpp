@@ -2239,9 +2239,11 @@ static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
     llvm::raw_svector_ostream OS(Buf);
     while (DC) {
       auto *NS = dyn_cast<NamespaceDecl>(DC);
-      if (!NS || (NS && NS->getName().empty())) {
+      if (!NS || (NS && NS->isAnonymousNamespace())) {
+        // Declarations with no namespace or anonymous namespace
+        // follow the same printing rules.
         if (DC->isTranslationUnit())
-	  NSStr.append(Twine("::").str() + D->getName().str());
+          NSStr.append("::" + D->getName().str());
         else
           NSStr.append(T.getCanonicalType().getAsString(TypePolicy));
         break;
