@@ -1822,6 +1822,9 @@ def fstrict_vtable_pointers: Flag<["-"], "fstrict-vtable-pointers">,
 def fstrict_overflow : Flag<["-"], "fstrict-overflow">, Group<f_Group>;
 def fintelfpga : Flag<["-"], "fintelfpga">, Group<f_Group>,
   Flags<[CC1Option, CoreOption]>, HelpText<"Perform ahead of time compilation for FPGA">;
+def fsycl_enable_usm_address_spaces : Flag<["-"], "fsycl-enable-usm-address-spaces">,
+ Group<f_Group>, Flags<[CC1Option, CoreOption]>,
+ HelpText<"Enable SPV_INTEL_usm_storage_classes extension">;
 def fsycl_device_only : Flag<["-"], "fsycl-device-only">, Flags<[CoreOption]>,
   HelpText<"Compile SYCL kernels for device">;
 def fsycl_targets_EQ : CommaJoined<["-"], "fsycl-targets=">, Flags<[DriverOption, CC1Option, CoreOption]>,
