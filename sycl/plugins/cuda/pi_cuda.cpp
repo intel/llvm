@@ -64,8 +64,8 @@ inline void assign_result(pi_result *ptr, pi_result value) noexcept {
 }
 
 // Iterates over the event wait list, returns correct pi_result error codes.
-// Invokes the callback for each event in the wait list. The callback must take
-// a single pi_event argument and return a pi_result.
+// Invokes the callback for the latest event of each queue in the wait list.
+// The callback must take a single pi_event argument and return a pi_result.
 template <typename Func>
 pi_result forLatestEvents(const pi_event *event_wait_list,
                           std::size_t num_events_in_wait_list, Func &&f) {
@@ -92,14 +92,12 @@ pi_result forLatestEvents(const pi_event *event_wait_list,
   bool first = true;
   CUstream lastSeenStream = 0;
   for (pi_event event : events) {
-    CUstream stream = event->get_queue()->stream_;
-
-    if (!event || (!first && stream == lastSeenStream)) {
+    if (!event || (!first && event->get_queue()->stream_ == lastSeenStream)) {
       continue;
     }
 
     first = false;
-    lastSeenStream = stream;
+    lastSeenStream = event->get_queue()->stream_;
 
     auto result = f(event);
     if (result != PI_SUCCESS) {
