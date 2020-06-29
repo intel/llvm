@@ -22,6 +22,16 @@ or, in case of Windows:
    clang++ -fsycl -c main.cpp -o main.obj
    clang++ -fsycl main.obj %SYCL_INSTALL%/lib/libsycl-msvc.o -o a.exe
 
+For Ahead-Of-Time compilation (AOT), fallback libraries (object files)
+must be linked as well:
+
+.. code:
+   clang++ -fsycl -c  -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice \
+       main.cpp -o main.o
+   clang++ -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice \
+       main.o $(SYCL_INSTALL)/lib/libsycl-glibc.o                         \
+              $(SYCL_INSTALL)/lib/libsycl-fallback-cassert.o -o a.out
+
 List of supported functions from C standard library:
   - assert macro          (from <assert.h> or <cassert>)
   - logf, log             (from <math.h> or <cmath>)
@@ -270,6 +280,6 @@ Every set of functions is implemented in a separate fallback
 library. For example, a fallback for `cl_intel_devicelib_cassert`
 extension is provided as `libsycl-fallback-cassert.spv`
 
-NOTE that AOT compilation is not yet supported. Driver will have to
-check for extension support and link the corresponding SPIR-V fallback
-implementation, but this is not implemented yet.
+For AOT compilation, fallback libraries are also provided as object
+files (e.g. `libsycl-fallback-cassert.o`). Device code in these object
+files is identical to the the `*.spv` files.
