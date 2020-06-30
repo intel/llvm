@@ -4875,11 +4875,16 @@ bool DAGCombiner::isLegalNarrowLdSt(LSBaseSDNode *LDST,
     return false;
 
   // Ensure that this isn't going to produce an unsupported memory access.
-  if (ShAmt &&
-      !TLI.allowsMemoryAccess(*DAG.getContext(), DAG.getDataLayout(), MemVT,
-                              LDST->getAddressSpace(), ShAmt / 8,
-                              LDST->getMemOperand()->getFlags()))
-    return false;
+  if (ShAmt) {
+    assert(ShAmt % 8 == 0 && "ShAmt is byte offset");
+    const unsigned ByteShAmt = ShAmt / 8;
+    const Align LDSTAlign = LDST->getAlign();
+    const Align NarrowAlign = commonAlignment(LDSTAlign, ByteShAmt);
+    if (!TLI.allowsMemoryAccess(*DAG.getContext(), DAG.getDataLayout(), MemVT,
+                                LDST->getAddressSpace(), NarrowAlign.value(),
+                                LDST->getMemOperand()->getFlags()))
+      return false;
+  }
 
   // It's not possible to generate a constant of extended or untyped type.
   EVT PtrType = LDST->getBasePtr().getValueType();
@@ -17906,6 +17911,11 @@ SDValue DAGCombiner::reduceBuildVecExtToExtBuildVec(SDNode *N) {
   // Create a new simpler BUILD_VECTOR sequence which other optimizations can
   // turn into a single shuffle instruction.
   if (!ValidTypes)
+    return SDValue();
+
+  // If we already have a splat buildvector, then don't fold it if it means
+  // introducing zeros.
+  if (!AllAnyExt && DAG.isSplatValue(SDValue(N, 0), /*AllowUndefs*/ true))
     return SDValue();
 
   bool isLE = DAG.getDataLayout().isLittleEndian();
