@@ -476,15 +476,38 @@ static void addImpliedArgs(const llvm::Triple &Triple,
                            llvm::opt::ArgStringList &CmdArgs) {
   // Current implied args are for debug information and disabling of
   // optimizations.
-  // TODO: Add support for other architectures (gen, x86_64) as those are
-  // being defined.
-  if (Triple.getSubArch() == llvm::Triple::NoSubArch ||
-      Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+  auto addArgs = [&](llvm::opt::ArgStringList &CurArgList, bool IsGen = false) {
     if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
       if (!A->getOption().matches(options::OPT_g0))
-        CmdArgs.push_back("-g");
+        CurArgList.push_back("-g");
     if (Args.getLastArg(options::OPT_O0))
-      CmdArgs.push_back("-cl-opt-disable");
+      CurArgList.push_back(IsGen ? "-O0" : "-cl-opt-disable");
+  };
+  // For FPGA and default device, pass along -g -cl-opt-disable
+  if (Triple.getSubArch() == llvm::Triple::NoSubArch ||
+      Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+    addArgs(CmdArgs);
+    return;
+  }
+  bool IsGen = Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
+  // For CPU/Gen pass option list
+  if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64 || IsGen) {
+    llvm::opt::ArgStringList BeArgs;
+    addArgs(BeArgs, IsGen);
+    if (!BeArgs.empty()) {
+      SmallString<128> BeOpt;
+      if (IsGen)
+        CmdArgs.push_back("-options");
+      else
+        BeOpt = "--bo=";
+      for (unsigned I = 0; I < BeArgs.size(); ++I) {
+        if (I)
+          BeOpt += ' ';
+        BeOpt += BeArgs[I];
+      }
+      CmdArgs.push_back(Args.MakeArgString(BeOpt));
+    }
+    return;
   }
 }
 
