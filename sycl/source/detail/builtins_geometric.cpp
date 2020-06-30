@@ -275,7 +275,8 @@ __SYCL_EXPORT s::cl_float4 fast_normalize(s::cl_float4 p) {
 __SYCL_EXPORT s::cl_float fast_distance(s::cl_float p0, s::cl_float p1) {
   return fast_length(p0 - p1);
 }
-__SYCL_EXPORT s::cl_float fast_distance(s::vec<float, 1> p0, s::vec<float, 1> p1) {
+__SYCL_EXPORT s::cl_float fast_distance(s::vec<float, 1> p0,
+                                        s::vec<float, 1> p1) {
   return fast_length(p0 - p1);
 }
 __SYCL_EXPORT s::cl_float fast_distance(s::cl_float2 p0, s::cl_float2 p1) {
