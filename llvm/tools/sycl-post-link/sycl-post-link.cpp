@@ -485,7 +485,7 @@ static string_vector saveDeviceImageProperty(
     if (ImgPSInfo.NeedDeviceLibReqMask) {
       uint32_t MRMask = getModuleReqMask(*ResultModules[I]);
       std::map<StringRef, uint32_t> RMEntry = {{"DeviceLibReqMask", MRMask}};
-      PropSet.add(llvm::util::sycl::SYCL_DEVICELIB_REQ_MASK, RMEntry);
+      PropSet.add(PROP_SYCL_DEVICELIB_REQ_MASK, RMEntry);
     }
     if (ImgPSInfo.DoSpecConst && ImgPSInfo.SetSpecConstAtRT) {
       // extract spec constant maps per each module
@@ -493,7 +493,7 @@ static string_vector saveDeviceImageProperty(
       if (ImgPSInfo.SpecConstsMet)
         SpecConstantsPass::collectSpecConstantMetadata(*ResultModules[I].get(),
                                                        TmpSpecIDMap);
-      PropSet.add(llvm::util::sycl::SYCL_SPECIALIZATION_CONSTANTS,
+      PropSet.add(PROP_SYCL_SPECIALIZATION_CONSTANTS,
                   TmpSpecIDMap);
     }
     std::error_code EC;
