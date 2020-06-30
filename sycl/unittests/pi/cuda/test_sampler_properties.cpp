@@ -32,7 +32,7 @@ protected:
   pi_sampler_filter_mode filterMode_;
   pi_sampler_addressing_mode addressMode_;
 
-  SamplerPropertiesTest(){};
+  SamplerPropertiesTest() = default;
 
   ~SamplerPropertiesTest() override = default;
 
