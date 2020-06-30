@@ -161,6 +161,70 @@ class 8LS_DForm_R_SI34_XT6_RA5<bits<5> opcode, dag OOL, dag IOL, string asmstr,
   let Inst{48-63} = D_RA{15-0}; // d1
 }
 
+// X-Form: [PO T IMM VRB XO TX]
+class XForm_XT6_IMM5_VB5<bits<6> opcode, bits<10> xo, dag OOL, dag IOL,
+                         string asmstr, InstrItinClass itin, list<dag> pattern>
+  : I<opcode, OOL, IOL, asmstr, itin> {
+  bits<6> XT;
+  bits<5> VRB;
+  bits<5> IMM;
+
+  let Pattern = pattern;
+  let Inst{6-10} = XT{4-0};
+  let Inst{11-15} = IMM;
+  let Inst{16-20} = VRB;
+  let Inst{21-30} = xo;
+  let Inst{31} = XT{5};
+}
+
+class 8RR_XX4Form_IMM8_XTAB6<bits<6> opcode, bits<2> xo,
+                             dag OOL, dag IOL, string asmstr,
+                             InstrItinClass itin, list<dag> pattern>
+  : PI<1, opcode, OOL, IOL, asmstr, itin> {
+    bits<6> XT;
+    bits<6> XA;
+    bits<6> XB;
+    bits<6> XC;
+    bits<8> IMM;
+
+    let Pattern = pattern;
+
+    // The prefix.
+    let Inst{6-7} = 1;
+    let Inst{8} = 0;
+    let Inst{9-11} = 0;
+    let Inst{12-13} = 0;
+    let Inst{14-23} = 0;
+    let Inst{24-31} = IMM;
+
+    // The instruction.
+    let Inst{38-42} = XT{4-0};
+    let Inst{43-47} = XA{4-0};
+    let Inst{48-52} = XB{4-0};
+    let Inst{53-57} = XC{4-0};
+    let Inst{58-59} = xo;
+    let Inst{60} = XC{5};
+    let Inst{61} = XA{5};
+    let Inst{62} = XB{5};
+    let Inst{63} = XT{5};
+}
+
+class VXForm_RD5_N3_VB5<bits<11> xo, dag OOL, dag IOL, string asmstr,
+                        InstrItinClass itin, list<dag> pattern>
+  : I<4, OOL, IOL, asmstr, itin> {
+  bits<5> RD;
+  bits<5> VB;
+  bits<3> N;
+
+  let Pattern = pattern;
+
+  let Inst{6-10}  = RD;
+  let Inst{11-12} = 0;
+  let Inst{13-15} = N;
+  let Inst{16-20} = VB;
+  let Inst{21-31} = xo;
+}
+
 multiclass MLS_DForm_R_SI34_RTA5_MEM_p<bits<6> opcode, dag OOL, dag IOL,
                                        dag PCRel_IOL, string asmstr,
                                        InstrItinClass itin> {
@@ -190,8 +254,8 @@ multiclass 8LS_DForm_R_SI34_XT6_RA5_p<bits<5> opcode, dag OOL, dag IOL,
                                     isPCRel;
 }
 
-def PrefixInstrs : Predicate<"PPCSubTarget->hasPrefixInstrs()">;
-def IsISA3_1 : Predicate<"PPCSubTarget->isISA3_1()">;
+def PrefixInstrs : Predicate<"Subtarget->hasPrefixInstrs()">;
+def IsISA3_1 : Predicate<"Subtarget->isISA3_1()">;
 
 let Predicates = [PrefixInstrs] in {
   let Interpretation64Bit = 1, isCodeGenOnly = 1 in {
@@ -516,6 +580,51 @@ let Predicates = [IsISA3_1] in {
    def PEXTD : XForm_6<31, 188, (outs g8rc:$rA), (ins g8rc:$rS, g8rc:$rB),
                        "pextd $rA, $rS, $rB", IIC_IntGeneral,
                        [(set i64:$rA, (int_ppc_pextd i64:$rS, i64:$rB))]>;
+   def VCFUGED : VXForm_1<1357, (outs vrrc:$vD), (ins vrrc:$vA, vrrc:$vB),
+                          "vcfuged $vD, $vA, $vB", IIC_VecGeneral,
+                          [(set v2i64:$vD,
+                          (int_ppc_altivec_vcfuged v2i64:$vA, v2i64:$vB))]>;
+   def VGNB : VXForm_RD5_N3_VB5<1228, (outs g8rc:$rD), (ins vrrc:$vB, u3imm:$N),
+                                "vgnb $rD, $vB, $N", IIC_VecGeneral,
+                                [(set i64:$rD,
+                                (int_ppc_altivec_vgnb v1i128:$vB, timm:$N))]>;
+   def CFUGED : XForm_6<31, 220, (outs g8rc:$rA), (ins g8rc:$rS, g8rc:$rB),
+                        "cfuged $rA, $rS, $rB", IIC_IntGeneral,
+                        [(set i64:$rA, (int_ppc_cfuged i64:$rS, i64:$rB))]>;
+   def XXEVAL :
+     8RR_XX4Form_IMM8_XTAB6<34, 1, (outs vsrc:$XT), (ins vsrc:$XA, vsrc:$XB,
+                            vsrc:$XC, u8imm:$IMM),
+                            "xxeval $XT, $XA, $XB, $XC, $IMM", IIC_VecGeneral,
+                            [(set v2i64:$XT, (int_ppc_vsx_xxeval v2i64:$XA,
+                                  v2i64:$XB, v2i64:$XC, timm:$IMM))]>;
+   def VCLZDM : VXForm_1<1924, (outs vrrc:$vD), (ins vrrc:$vA, vrrc:$vB),
+                         "vclzdm $vD, $vA, $vB", IIC_VecGeneral,
+                         [(set v2i64:$vD,
+                         (int_ppc_altivec_vclzdm v2i64:$vA, v2i64:$vB))]>;
+   def VCTZDM : VXForm_1<1988, (outs vrrc:$vD), (ins vrrc:$vA, vrrc:$vB),
+                         "vctzdm $vD, $vA, $vB", IIC_VecGeneral,
+                         [(set v2i64:$vD,
+                         (int_ppc_altivec_vctzdm v2i64:$vA, v2i64:$vB))]>;
+   def CNTLZDM : XForm_6<31, 59, (outs g8rc:$rA), (ins g8rc:$rS, g8rc:$rB),
+                         "cntlzdm $rA, $rS, $rB", IIC_IntGeneral,
+                         [(set i64:$rA,
+                         (int_ppc_cntlzdm i64:$rS, i64:$rB))]>;
+   def CNTTZDM : XForm_6<31, 571, (outs g8rc:$rA), (ins g8rc:$rS, g8rc:$rB),
+                         "cnttzdm $rA, $rS, $rB", IIC_IntGeneral,
+                         [(set i64:$rA,
+                         (int_ppc_cnttzdm i64:$rS, i64:$rB))]>;
+   def XXGENPCVBM :
+     XForm_XT6_IMM5_VB5<60, 916, (outs vsrc:$XT), (ins vrrc:$VRB, s5imm:$IMM),
+                        "xxgenpcvbm $XT, $VRB, $IMM", IIC_VecGeneral, []>;
+   def XXGENPCVHM :
+     XForm_XT6_IMM5_VB5<60, 917, (outs vsrc:$XT), (ins vrrc:$VRB, s5imm:$IMM),
+                        "xxgenpcvhm $XT, $VRB, $IMM", IIC_VecGeneral, []>;
+   def XXGENPCVWM :
+     XForm_XT6_IMM5_VB5<60, 948, (outs vsrc:$XT), (ins vrrc:$VRB, s5imm:$IMM),
+                        "xxgenpcvwm $XT, $VRB, $IMM", IIC_VecGeneral, []>;
+   def XXGENPCVDM :
+     XForm_XT6_IMM5_VB5<60, 949, (outs vsrc:$XT), (ins vrrc:$VRB, s5imm:$IMM),
+                        "xxgenpcvdm $XT, $VRB, $IMM", IIC_VecGeneral, []>;
    def VCLRLB : VXForm_1<397, (outs vrrc:$vD), (ins vrrc:$vA, gprc:$rB),
                          "vclrlb $vD, $vA, $rB", IIC_VecGeneral,
                          [(set v16i8:$vD,
@@ -524,4 +633,16 @@ let Predicates = [IsISA3_1] in {
                          "vclrrb $vD, $vA, $rB", IIC_VecGeneral,
                          [(set v16i8:$vD,
                                (int_ppc_altivec_vclrrb v16i8:$vA, i32:$rB))]>;
+}
+
+//---------------------------- Anonymous Patterns ----------------------------//
+let Predicates = [IsISA3_1] in {
+  def : Pat<(v16i8 (int_ppc_vsx_xxgenpcvbm v16i8:$VRB, imm:$IMM)),
+            (v16i8 (COPY_TO_REGCLASS (XXGENPCVBM $VRB, imm:$IMM), VRRC))>;
+  def : Pat<(v8i16 (int_ppc_vsx_xxgenpcvhm v8i16:$VRB, imm:$IMM)),
+            (v8i16 (COPY_TO_REGCLASS (XXGENPCVHM $VRB, imm:$IMM), VRRC))>;
+  def : Pat<(v4i32 (int_ppc_vsx_xxgenpcvwm v4i32:$VRB, imm:$IMM)),
+            (v4i32 (COPY_TO_REGCLASS (XXGENPCVWM $VRB, imm:$IMM), VRRC))>;
+  def : Pat<(v2i64 (int_ppc_vsx_xxgenpcvdm v2i64:$VRB, imm:$IMM)),
+            (v2i64 (COPY_TO_REGCLASS (XXGENPCVDM $VRB, imm:$IMM), VRRC))>;
 }
