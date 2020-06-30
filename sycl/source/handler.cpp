@@ -85,9 +85,10 @@ event handler::finalize() {
     break;
   case detail::CG::CODEPLAY_HOST_TASK:
     CommandGroup.reset(new detail::CGHostTask(
-        std::move(MHostTask), std::move(MArgs), std::move(MArgsStorage),
-        std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
+        std::move(MHostTask), MQueue, MQueue->getContextImplPtr(),
+        std::move(MArgs), std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MCGType, MCodeLoc));
     break;
   case detail::CG::BARRIER:
   case detail::CG::BARRIER_WAITLIST:

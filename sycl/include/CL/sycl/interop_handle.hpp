@@ -84,8 +84,13 @@ public:
   template <backend BackendName = backend::opencl>
   auto get_native_queue() const noexcept ->
       typename interop<BackendName, queue>::type {
+#ifndef __SYCL_DEVICE_ONLY__
     return reinterpret_cast<typename interop<BackendName, queue>::type>(
         getNativeQueue());
+#else
+    // we believe this won't be ever called on device side
+    return nullptr;
+#endif
   }
 
   /// Returns an underlying OpenCL device associated with the SYCL queue used
@@ -94,8 +99,13 @@ public:
   template <backend BackendName = backend::opencl>
   auto get_native_device() const noexcept ->
       typename interop<BackendName, device>::type {
+#ifndef __SYCL_DEVICE_ONLY__
     return reinterpret_cast<typename interop<BackendName, device>::type>(
         getNativeDevice());
+#else
+    // we believe this won't be ever called on device side
+    return nullptr;
+#endif
   }
 
   /// Returns an underlying OpenCL context associated with the SYCL queue used
@@ -104,14 +114,20 @@ public:
   template <backend BackendName = backend::opencl>
   auto get_native_context() const noexcept ->
       typename interop<BackendName, context>::type {
+#ifndef __SYCL_DEVICE_ONLY__
     return reinterpret_cast<typename interop<BackendName, context>::type>(
         getNativeContext());
+#else
+    // we believe this won't be ever called on device side
+    return nullptr;
+#endif
   }
 
 private:
+  friend class detail::ExecCGCommand;
+  friend class detail::DispatchHostTask;
   using ReqToMem = std::pair<detail::Requirement *, pi_mem>;
 
-public:
   // TODO set c-tor private
   interop_handle(std::vector<ReqToMem> MemObjs,
                  const std::shared_ptr<detail::queue_impl> &Queue,
@@ -131,10 +147,10 @@ private:
         getNativeMem(Req));
   }
 
-  pi_native_handle getNativeMem(detail::Requirement *Req) const;
-  pi_native_handle getNativeQueue() const;
-  pi_native_handle getNativeDevice() const;
-  pi_native_handle getNativeContext() const;
+  __SYCL_EXPORT pi_native_handle getNativeMem(detail::Requirement *Req) const;
+  __SYCL_EXPORT pi_native_handle getNativeQueue() const;
+  __SYCL_EXPORT pi_native_handle getNativeDevice() const;
+  __SYCL_EXPORT pi_native_handle getNativeContext() const;
 
   std::shared_ptr<detail::queue_impl> MQueue;
   std::shared_ptr<detail::device_impl> MDevice;
