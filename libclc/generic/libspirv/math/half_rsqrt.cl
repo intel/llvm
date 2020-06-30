@@ -10,4 +10,4 @@
 
 #define __CLC_BUILTIN __spirv_ocl_rsqrt
 #define __CLC_FUNCTION __spirv_ocl_half_rsqrt
-#include "unary_builtin.inc"
+#include <math/unary_builtin.inc>
