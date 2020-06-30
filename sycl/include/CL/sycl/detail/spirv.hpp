@@ -375,7 +375,9 @@ EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, T y, id<1> local_id) {
 }
 
 // Generic shuffles may require multiple calls to SPIR-V SubgroupShuffle
-// intrinsics, and should use the fewest shuffles possible
+// intrinsics, and should use the fewest shuffles possible:
+// - Loop over 64-bit chunks until remaining bytes < 64-bit
+// - At most one 32-bit, 16-bit and 8-bit chunk left over
 template <typename T>
 using EnableIfGenericShuffle =
     detail::enable_if_t<!detail::is_arithmetic<T>::value &&
@@ -389,34 +391,29 @@ EnableIfGenericShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
   T Result;
   char *XBytes = reinterpret_cast<char *>(&x);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
-  int Offset = 0;
-#pragma unroll
-  for (; Offset < sizeof(T); Offset += sizeof(uint64_t)) {
+  auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     uint64_t ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, sizeof(uint64_t));
+    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = SubgroupShuffle(ShuffleX, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, sizeof(uint64_t));
+    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+  };
+  if (sizeof(T) >= sizeof(uint64_t)) {
+#pragma unroll
+    for (size_t Offset = 0; Offset < sizeof(T); Offset += sizeof(uint64_t)) {
+      ShuffleBytes(Offset, sizeof(uint64_t));
+    }
   }
   if (sizeof(T) % sizeof(uint64_t) >= sizeof(uint32_t)) {
-    uint32_t ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, sizeof(uint32_t));
-    ShuffleResult = SubgroupShuffle(ShuffleX, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, sizeof(uint32_t));
-    Offset += 4;
+    size_t Offset = sizeof(T) / sizeof(uint64_t) * sizeof(uint64_t);
+    ShuffleBytes(Offset, sizeof(uint32_t));
   }
-  if ((sizeof(T) % sizeof(uint64_t)) % sizeof(uint32_t) >= sizeof(uint16_t)) {
-    uint16_t ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, sizeof(uint16_t));
-    ShuffleResult = SubgroupShuffle(ShuffleX, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, sizeof(uint16_t));
-    Offset += 2;
+  if (sizeof(T) % sizeof(uint32_t) >= sizeof(uint16_t)) {
+    size_t Offset = sizeof(T) / sizeof(uint32_t) * sizeof(uint32_t);
+    ShuffleBytes(Offset, sizeof(uint16_t));
   }
-  if (((sizeof(T) % sizeof(uint64_t)) % sizeof(uint32_t)) % sizeof(uint16_t)) {
-    uint8_t ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, sizeof(uint8_t));
-    ShuffleResult = SubgroupShuffle(ShuffleX, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, sizeof(uint8_t));
-    Offset += 1;
+  if (sizeof(T) % sizeof(uint16_t) >= sizeof(uint8_t)) {
+    size_t Offset = sizeof(T) / sizeof(uint16_t) * sizeof(uint16_t);
+    ShuffleBytes(Offset, sizeof(uint8_t));
   }
   return Result;
 }
@@ -426,34 +423,29 @@ EnableIfGenericShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
   T Result;
   char *XBytes = reinterpret_cast<char *>(&x);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
-  int Offset = 0;
-#pragma unroll
-  for (; Offset < sizeof(T); Offset += sizeof(uint64_t)) {
+  auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     uint64_t ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, sizeof(uint64_t));
+    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = SubgroupShuffleXor(ShuffleX, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, sizeof(uint64_t));
+    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+  };
+  if (sizeof(T) >= sizeof(uint64_t)) {
+#pragma unroll
+    for (size_t Offset = 0; Offset < sizeof(T); Offset += sizeof(uint64_t)) {
+      ShuffleBytes(Offset, sizeof(uint64_t));
+    }
   }
   if (sizeof(T) % sizeof(uint64_t) >= sizeof(uint32_t)) {
-    uint32_t ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, sizeof(uint32_t));
-    ShuffleResult = SubgroupShuffleXor(ShuffleX, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, sizeof(uint32_t));
-    Offset += 4;
+    size_t Offset = sizeof(T) / sizeof(uint64_t) * sizeof(uint64_t);
+    ShuffleBytes(Offset, sizeof(uint32_t));
   }
-  if ((sizeof(T) % sizeof(uint64_t)) % sizeof(uint32_t) >= sizeof(uint16_t)) {
-    uint16_t ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, sizeof(uint16_t));
-    ShuffleResult = SubgroupShuffleXor(ShuffleX, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, sizeof(uint16_t));
-    Offset += 2;
+  if (sizeof(T) % sizeof(uint32_t) >= sizeof(uint16_t)) {
+    size_t Offset = sizeof(T) / sizeof(uint32_t) * sizeof(uint32_t);
+    ShuffleBytes(Offset, sizeof(uint16_t));
   }
-  if (((sizeof(T) % sizeof(uint64_t)) % sizeof(uint32_t)) % sizeof(uint16_t)) {
-    uint8_t ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, sizeof(uint8_t));
-    ShuffleResult = SubgroupShuffleXor(ShuffleX, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, sizeof(uint8_t));
-    Offset += 1;
+  if (sizeof(T) % sizeof(uint16_t) >= sizeof(uint8_t)) {
+    size_t Offset = sizeof(T) / sizeof(uint16_t) * sizeof(uint16_t);
+    ShuffleBytes(Offset, sizeof(uint8_t));
   }
   return Result;
 }
@@ -464,38 +456,30 @@ EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, T y, id<1> local_id) {
   char *XBytes = reinterpret_cast<char *>(&x);
   char *YBytes = reinterpret_cast<char *>(&y);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
-  int Offset = 0;
-#pragma unroll
-  for (; Offset < sizeof(T); Offset += sizeof(uint64_t)) {
+  auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     uint64_t ShuffleX, ShuffleY, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, sizeof(uint64_t));
-    detail::memcpy(&ShuffleY, YBytes + Offset, sizeof(uint64_t));
+    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
+    detail::memcpy(&ShuffleY, YBytes + Offset, Size);
     ShuffleResult = SubgroupShuffleDown(ShuffleX, ShuffleY, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, sizeof(uint64_t));
+    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+  };
+  if (sizeof(T) >= sizeof(uint64_t)) {
+#pragma unroll
+    for (size_t Offset = 0; Offset < sizeof(T); Offset += sizeof(uint64_t)) {
+      ShuffleBytes(Offset, sizeof(uint64_t));
+    }
   }
   if (sizeof(T) % sizeof(uint64_t) >= sizeof(uint32_t)) {
-    uint32_t ShuffleX, ShuffleY, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, sizeof(uint32_t));
-    detail::memcpy(&ShuffleY, YBytes + Offset, sizeof(uint32_t));
-    ShuffleResult = SubgroupShuffleDown(ShuffleX, ShuffleY, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, sizeof(uint32_t));
-    Offset += 4;
+    size_t Offset = sizeof(T) / sizeof(uint64_t) * sizeof(uint64_t);
+    ShuffleBytes(Offset, sizeof(uint32_t));
   }
-  if ((sizeof(T) % sizeof(uint64_t)) % sizeof(uint32_t) >= sizeof(uint16_t)) {
-    uint16_t ShuffleX, ShuffleY, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, sizeof(uint16_t));
-    detail::memcpy(&ShuffleY, YBytes + Offset, sizeof(uint16_t));
-    ShuffleResult = SubgroupShuffleDown(ShuffleX, ShuffleY, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, sizeof(uint16_t));
-    Offset += 2;
+  if (sizeof(T) % sizeof(uint32_t) >= sizeof(uint16_t)) {
+    size_t Offset = sizeof(T) / sizeof(uint32_t) * sizeof(uint32_t);
+    ShuffleBytes(Offset, sizeof(uint16_t));
   }
-  if (((sizeof(T) % sizeof(uint64_t)) % sizeof(uint32_t)) % sizeof(uint16_t)) {
-    uint8_t ShuffleX, ShuffleY, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, sizeof(uint8_t));
-    detail::memcpy(&ShuffleY, YBytes + Offset, sizeof(uint8_t));
-    ShuffleResult = SubgroupShuffleDown(ShuffleX, ShuffleY, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, sizeof(uint8_t));
-    Offset += 1;
+  if (sizeof(T) % sizeof(uint16_t) >= sizeof(uint8_t)) {
+    size_t Offset = sizeof(T) / sizeof(uint16_t) * sizeof(uint16_t);
+    ShuffleBytes(Offset, sizeof(uint8_t));
   }
   return Result;
 }
@@ -506,38 +490,30 @@ EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, T y, id<1> local_id) {
   char *XBytes = reinterpret_cast<char *>(&x);
   char *YBytes = reinterpret_cast<char *>(&y);
   char *ResultBytes = reinterpret_cast<char *>(&Result);
-  int Offset = 0;
-#pragma unroll
-  for (; Offset < sizeof(T); Offset += sizeof(uint64_t)) {
+  auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     uint64_t ShuffleX, ShuffleY, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, sizeof(uint64_t));
-    detail::memcpy(&ShuffleY, YBytes + Offset, sizeof(uint64_t));
+    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
+    detail::memcpy(&ShuffleY, YBytes + Offset, Size);
     ShuffleResult = SubgroupShuffleUp(ShuffleX, ShuffleY, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, sizeof(uint64_t));
+    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+  };
+  if (sizeof(T) >= sizeof(uint64_t)) {
+#pragma unroll
+    for (size_t Offset = 0; Offset < sizeof(T); Offset += sizeof(uint64_t)) {
+      ShuffleBytes(Offset, sizeof(uint64_t));
+    }
   }
   if (sizeof(T) % sizeof(uint64_t) >= sizeof(uint32_t)) {
-    uint32_t ShuffleX, ShuffleY, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, sizeof(uint32_t));
-    detail::memcpy(&ShuffleY, YBytes + Offset, sizeof(uint32_t));
-    ShuffleResult = SubgroupShuffleUp(ShuffleX, ShuffleY, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, sizeof(uint32_t));
-    Offset += 4;
+    size_t Offset = sizeof(T) / sizeof(uint64_t) * sizeof(uint64_t);
+    ShuffleBytes(Offset, sizeof(uint32_t));
   }
-  if ((sizeof(T) % sizeof(uint64_t)) % sizeof(uint32_t) >= sizeof(uint16_t)) {
-    uint16_t ShuffleX, ShuffleY, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, sizeof(uint16_t));
-    detail::memcpy(&ShuffleY, YBytes + Offset, sizeof(uint16_t));
-    ShuffleResult = SubgroupShuffleUp(ShuffleX, ShuffleY, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, sizeof(uint16_t));
-    Offset += 2;
+  if (sizeof(T) % sizeof(uint32_t) >= sizeof(uint16_t)) {
+    size_t Offset = sizeof(T) / sizeof(uint32_t) * sizeof(uint32_t);
+    ShuffleBytes(Offset, sizeof(uint16_t));
   }
-  if (((sizeof(T) % sizeof(uint64_t)) % sizeof(uint32_t)) % sizeof(uint16_t)) {
-    uint8_t ShuffleX, ShuffleY, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, sizeof(uint8_t));
-    detail::memcpy(&ShuffleY, YBytes + Offset, sizeof(uint8_t));
-    ShuffleResult = SubgroupShuffleUp(ShuffleX, ShuffleY, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, sizeof(uint8_t));
-    Offset += 1;
+  if (sizeof(T) % sizeof(uint16_t) >= sizeof(uint8_t)) {
+    size_t Offset = sizeof(T) / sizeof(uint16_t) * sizeof(uint16_t);
+    ShuffleBytes(Offset, sizeof(uint8_t));
   }
   return Result;
 }
