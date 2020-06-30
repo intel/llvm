@@ -56,7 +56,7 @@ public:
 #else
     (void)Acc;
     // we believe this won't be ever called on device side
-    return nullptr;
+    return 0;
 #endif
   }
 
@@ -89,7 +89,7 @@ public:
         getNativeQueue());
 #else
     // we believe this won't be ever called on device side
-    return nullptr;
+    return 0;
 #endif
   }
 
@@ -104,7 +104,7 @@ public:
         getNativeDevice());
 #else
     // we believe this won't be ever called on device side
-    return nullptr;
+    return 0;
 #endif
   }
 
@@ -119,7 +119,7 @@ public:
         getNativeContext());
 #else
     // we believe this won't be ever called on device side
-    return nullptr;
+    return 0;
 #endif
   }
 
@@ -142,8 +142,26 @@ private:
   auto getMemImpl(detail::Requirement *Req) const ->
       typename interop<BackendName,
                        accessor<DataT, Dims, Mode, Target, IsPlh>>::type {
-    return reinterpret_cast<typename interop<
-        BackendName, accessor<DataT, Dims, Mode, Target, IsPlh>>::type>(
+    /*
+      Do not update this cast: a C-style cast is required here.
+
+      This function tries to cast pi_native_handle to the native handle type.
+      pi_native_handle is a typedef of uintptr_t. It is used to store opaque
+      pointers, such as cl_device, and integer handles, such as CUdevice. To
+      convert a uintptr_t to a pointer type, such as cl_device, reinterpret_cast
+      must be used. However, reinterpret_cast cannot be used to convert
+      uintptr_t to a different integer type, such as CUdevice. For this,
+      static_cast must be used. This function must employ a cast that is capable
+      of reinterpret_cast and static_cast depending on the arguments passed to
+      it. A C-style cast will achieve this. The compiler will attempt to
+      interpret it as a static_cast, and will fall back to reinterpret_cast
+      where appropriate.
+
+      https://en.cppreference.com/w/cpp/language/reinterpret_cast
+      https://en.cppreference.com/w/cpp/language/explicit_cast
+      */
+    return (typename interop<BackendName,
+                             accessor<DataT, Dims, Mode, Target, IsPlh>>::type)(
         getNativeMem(Req));
   }
 
