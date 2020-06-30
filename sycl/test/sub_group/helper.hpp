@@ -122,7 +122,7 @@ void exit_if_not_equal(std::complex<T> val, std::complex<T> ref, const char *nam
 }
 
 template <typename T>
-void exit_if_not_equal(T* val, T* ref, const char *name) {
+void exit_if_not_equal(T *val, T *ref, const char *name) {
   if ((val - ref) != 0) {
     std::cout << "Unexpected result for " << name << ": " << val
               << " expected value: " << ref << std::endl;
