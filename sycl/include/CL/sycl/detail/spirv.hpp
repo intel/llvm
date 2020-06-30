@@ -334,8 +334,7 @@ using EnableIfBitcastShuffle =
                         T>;
 
 template <typename T>
-using ConvertToNativeShuffleType_t =
-    select_apply_cl_scalar_t<T, uint8_t, uint16_t, uint32_t, uint64_t>;
+using ConvertToNativeShuffleType_t = select_cl_scalar_integral_unsigned_t<T>;
 
 template <typename T>
 EnableIfBitcastShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
