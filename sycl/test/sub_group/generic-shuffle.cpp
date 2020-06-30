@@ -15,9 +15,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "helper.hpp"
 #include <CL/sycl.hpp>
 #include <complex>
-#include <helper.hpp>
 template <typename T>
 class pointer_kernel;
 
