@@ -493,8 +493,7 @@ static string_vector saveDeviceImageProperty(
       if (ImgPSInfo.SpecConstsMet)
         SpecConstantsPass::collectSpecConstantMetadata(*ResultModules[I].get(),
                                                        TmpSpecIDMap);
-      PropSet.add(PROP_SYCL_SPECIALIZATION_CONSTANTS,
-                  TmpSpecIDMap);
+      PropSet.add(PROP_SYCL_SPECIALIZATION_CONSTANTS, TmpSpecIDMap);
     }
     std::error_code EC;
     std::string SCFile = makeResultFileName(".prop", I);
