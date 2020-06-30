@@ -386,17 +386,8 @@ using EnableIfGenericShuffle =
                                sizeof(T) == 4 || sizeof(T) == 8)),
                         T>;
 
-template <typename T>
-EnableIfGenericShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
-  T Result;
-  char *XBytes = reinterpret_cast<char *>(&x);
-  char *ResultBytes = reinterpret_cast<char *>(&Result);
-  auto ShuffleBytes = [=](size_t Offset, size_t Size) {
-    uint64_t ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
-    ShuffleResult = SubgroupShuffle(ShuffleX, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
-  };
+template <typename T, typename ShuffleFunctor>
+void GenericShuffle(ShuffleFunctor ShuffleBytes) {
   if (sizeof(T) >= sizeof(uint64_t)) {
 #pragma unroll
     for (size_t Offset = 0; Offset < sizeof(T); Offset += sizeof(uint64_t)) {
@@ -415,6 +406,20 @@ EnableIfGenericShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
     size_t Offset = sizeof(T) / sizeof(uint16_t) * sizeof(uint16_t);
     ShuffleBytes(Offset, sizeof(uint8_t));
   }
+}
+
+template <typename T>
+EnableIfGenericShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
+  T Result;
+  char *XBytes = reinterpret_cast<char *>(&x);
+  char *ResultBytes = reinterpret_cast<char *>(&Result);
+  auto ShuffleBytes = [=](size_t Offset, size_t Size) {
+    uint64_t ShuffleX, ShuffleResult;
+    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
+    ShuffleResult = SubgroupShuffle(ShuffleX, local_id);
+    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+  };
+  GenericShuffle<T>(ShuffleBytes);
   return Result;
 }
 
@@ -429,24 +434,7 @@ EnableIfGenericShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
     ShuffleResult = SubgroupShuffleXor(ShuffleX, local_id);
     detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
-  if (sizeof(T) >= sizeof(uint64_t)) {
-#pragma unroll
-    for (size_t Offset = 0; Offset < sizeof(T); Offset += sizeof(uint64_t)) {
-      ShuffleBytes(Offset, sizeof(uint64_t));
-    }
-  }
-  if (sizeof(T) % sizeof(uint64_t) >= sizeof(uint32_t)) {
-    size_t Offset = sizeof(T) / sizeof(uint64_t) * sizeof(uint64_t);
-    ShuffleBytes(Offset, sizeof(uint32_t));
-  }
-  if (sizeof(T) % sizeof(uint32_t) >= sizeof(uint16_t)) {
-    size_t Offset = sizeof(T) / sizeof(uint32_t) * sizeof(uint32_t);
-    ShuffleBytes(Offset, sizeof(uint16_t));
-  }
-  if (sizeof(T) % sizeof(uint16_t) >= sizeof(uint8_t)) {
-    size_t Offset = sizeof(T) / sizeof(uint16_t) * sizeof(uint16_t);
-    ShuffleBytes(Offset, sizeof(uint8_t));
-  }
+  GenericShuffle<T>(ShuffleBytes);
   return Result;
 }
 
@@ -463,24 +451,7 @@ EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, T y, id<1> local_id) {
     ShuffleResult = SubgroupShuffleDown(ShuffleX, ShuffleY, local_id);
     detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
-  if (sizeof(T) >= sizeof(uint64_t)) {
-#pragma unroll
-    for (size_t Offset = 0; Offset < sizeof(T); Offset += sizeof(uint64_t)) {
-      ShuffleBytes(Offset, sizeof(uint64_t));
-    }
-  }
-  if (sizeof(T) % sizeof(uint64_t) >= sizeof(uint32_t)) {
-    size_t Offset = sizeof(T) / sizeof(uint64_t) * sizeof(uint64_t);
-    ShuffleBytes(Offset, sizeof(uint32_t));
-  }
-  if (sizeof(T) % sizeof(uint32_t) >= sizeof(uint16_t)) {
-    size_t Offset = sizeof(T) / sizeof(uint32_t) * sizeof(uint32_t);
-    ShuffleBytes(Offset, sizeof(uint16_t));
-  }
-  if (sizeof(T) % sizeof(uint16_t) >= sizeof(uint8_t)) {
-    size_t Offset = sizeof(T) / sizeof(uint16_t) * sizeof(uint16_t);
-    ShuffleBytes(Offset, sizeof(uint8_t));
-  }
+  GenericShuffle<T>(ShuffleBytes);
   return Result;
 }
 
@@ -497,24 +468,7 @@ EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, T y, id<1> local_id) {
     ShuffleResult = SubgroupShuffleUp(ShuffleX, ShuffleY, local_id);
     detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
-  if (sizeof(T) >= sizeof(uint64_t)) {
-#pragma unroll
-    for (size_t Offset = 0; Offset < sizeof(T); Offset += sizeof(uint64_t)) {
-      ShuffleBytes(Offset, sizeof(uint64_t));
-    }
-  }
-  if (sizeof(T) % sizeof(uint64_t) >= sizeof(uint32_t)) {
-    size_t Offset = sizeof(T) / sizeof(uint64_t) * sizeof(uint64_t);
-    ShuffleBytes(Offset, sizeof(uint32_t));
-  }
-  if (sizeof(T) % sizeof(uint32_t) >= sizeof(uint16_t)) {
-    size_t Offset = sizeof(T) / sizeof(uint32_t) * sizeof(uint32_t);
-    ShuffleBytes(Offset, sizeof(uint16_t));
-  }
-  if (sizeof(T) % sizeof(uint16_t) >= sizeof(uint8_t)) {
-    size_t Offset = sizeof(T) / sizeof(uint16_t) * sizeof(uint16_t);
-    ShuffleBytes(Offset, sizeof(uint8_t));
-  }
+  GenericShuffle<T>(ShuffleBytes);
   return Result;
 }
 
