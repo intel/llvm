@@ -20,7 +20,7 @@ int main() {
   Accessor acc[2];
   int a[2];
   struct struct_acc_t {
-    Accessor member_acc[4];
+    Accessor member_acc[2];
   } struct_acc;
 
   a_kernel<class kernel_A>(
@@ -69,33 +69,27 @@ int main() {
 // CHECK: ImplicitCastExpr
 // CHECK: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
 
-// Correct and enable after struct members are extracted into separate parameters
-// C HECK kernel_C parameters
-// C HECK: FunctionDecl {{.*}}kernel_C{{.*}} 'void (struct {{.*}}, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
-// C HECK-NEXT: ParmVarDecl {{.*}} 'struct {{.*}}'
-// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
-// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
-// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
-// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
-// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
-// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
-// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
-// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
-// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
-// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
-// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
-// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
-// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
-// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
-// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
-// C HECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
+// Check kernel_C parameters
+// CHECK: FunctionDecl {{.*}}kernel_C{{.*}} 'void (__global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global int *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>)'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::range<1>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: DeclStmt
+// CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}array-kernel-param.cpp:37:7)' cinit
+// CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp:37:7)'
+// CHECK-NEXT: InitListExpr {{.*}} 'struct_acc_t'
+// CHECK-NEXT: InitListExpr {{.*}} 'Accessor [2]'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'Accessor [2]'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'Accessor [2]'
 
-// C HECK that four accessor init functions are called
-// C HECK: CXXMemberCallExpr {{.*}} 'void'
-// C HECK-NEXT: MemberExpr {{.*}}__init
-// C HECK: CXXMemberCallExpr {{.*}} 'void'
-// C HECK-NEXT: MemberExpr {{.*}}__init
-// C HECK: CXXMemberCallExpr {{.*}} 'void'
-// C HECK-NEXT: MemberExpr {{.*}}__init
-// C HECK: CXXMemberCallExpr {{.*}} 'void'
-// C HECK-NEXT: MemberExpr {{.*}}__init
+// Check __init functions are called
+// CHECK: CXXMemberCallExpr {{.*}} 'void'
+// CHECK-NEXT: MemberExpr {{.*}}__init
+// CHECK: CXXMemberCallExpr {{.*}} 'void'
+// CHECK-NEXT: MemberExpr {{.*}}__init
