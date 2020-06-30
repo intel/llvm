@@ -6540,7 +6540,7 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
       Diag(Tok, diag::err_argument_required_after_attribute);
 
     HasProto = ParamInfo.size() || getLangOpts().CPlusPlus ||
-               getLangOpts().OpenCL || getLangOpts().C17;
+               getLangOpts().OpenCL || getLangOpts().SYCLIsDevice;
 
     // If we have the closing ')', eat it.
     Tracker.consumeClose();
