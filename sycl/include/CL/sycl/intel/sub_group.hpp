@@ -46,28 +46,6 @@ using AcceptableForLocalLoadStore =
                   Space == access::address_space::local_space>;
 
 #ifdef __SYCL_DEVICE_ONLY__
-#define __SYCL_SG_GENERATE_BODY_1ARG(name, SPIRVOperation)                     \
-  template <typename T> T name(T x, id<1> local_id) {                          \
-    using OCLT = sycl::detail::ConvertToOpenCLType_t<T>;                       \
-    return __spirv_##SPIRVOperation(OCLT(x), local_id.get(0));                 \
-  }
-
-__SYCL_SG_GENERATE_BODY_1ARG(shuffle, SubgroupShuffleINTEL)
-__SYCL_SG_GENERATE_BODY_1ARG(shuffle_xor, SubgroupShuffleXorINTEL)
-
-#undef __SYCL_SG_GENERATE_BODY_1ARG
-
-#define __SYCL_SG_GENERATE_BODY_2ARG(name, SPIRVOperation)                     \
-  template <typename T> T name(T A, T B, uint32_t Delta) {                     \
-    using OCLT = sycl::detail::ConvertToOpenCLType_t<T>;                       \
-    return __spirv_##SPIRVOperation(OCLT(A), OCLT(B), Delta);                  \
-  }
-
-__SYCL_SG_GENERATE_BODY_2ARG(shuffle_down, SubgroupShuffleDownINTEL)
-__SYCL_SG_GENERATE_BODY_2ARG(shuffle_up, SubgroupShuffleUpINTEL)
-
-#undef __SYCL_SG_GENERATE_BODY_2ARG
-
 template <typename T, access::address_space Space>
 T load(const multi_ptr<T, Space> src) {
   using BlockT = SelectBlockT<T>;
