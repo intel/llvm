@@ -1,5 +1,6 @@
 // RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s -fsyntax-only
 // RUN: FileCheck -input-file=%t.h %s
+// XFAIL for now due to : https://github.com/intel/llvm/issues/2018 
 // XFAIL: *
 
 // This test checks the integration header when kernel argument
