@@ -166,11 +166,11 @@ public:
     if (original_ != desired) {
       // Sets the desired context as the active one for the thread
       PI_CHECK_ERROR(cuCtxSetCurrent(desired));
-      if (original_ == nullptr && ctxt->is_primary()) {
-        // No context is installed and the suggested context is primary
+      if (original_ == nullptr) {
+        // No context is installed on the current thread
         // This is the most common case. We can activate the context in the
         // thread and leave it there until all the PI context referring to the
-        // same underlying CUDA primary context are destroyed. This emulates
+        // same underlying CUDA context are destroyed. This emulates
         // the behaviour of the CUDA runtime api, and avoids costly context
         // switches. No action is required on this side of the if.
       } else {
