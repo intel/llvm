@@ -19,16 +19,20 @@ namespace d = s::detail;
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace __host_std {
 
+__SYCL_EXPORT s::cl_float Dot(s::vec<float, 1>, s::vec<float, 1>);
 __SYCL_EXPORT s::cl_float Dot(s::cl_float2, s::cl_float2);
 __SYCL_EXPORT s::cl_float Dot(s::cl_float3, s::cl_float3);
 __SYCL_EXPORT s::cl_float Dot(s::cl_float4, s::cl_float4);
+__SYCL_EXPORT s::cl_double Dot(s::vec<double, 1>, s::vec<double, 1>);
 __SYCL_EXPORT s::cl_double Dot(s::cl_double2, s::cl_double2);
 __SYCL_EXPORT s::cl_double Dot(s::cl_double3, s::cl_double3);
 __SYCL_EXPORT s::cl_double Dot(s::cl_double4, s::cl_double4);
+__SYCL_EXPORT s::cl_half Dot(s::vec<half, 1>, s::vec<half, 1>);
 __SYCL_EXPORT s::cl_half Dot(s::cl_half2, s::cl_half2);
 __SYCL_EXPORT s::cl_half Dot(s::cl_half3, s::cl_half3);
 __SYCL_EXPORT s::cl_half Dot(s::cl_half4, s::cl_half4);
 
+__SYCL_EXPORT s::cl_int All(s::vec<int, 1>);
 __SYCL_EXPORT s::cl_int All(s::cl_int2);
 __SYCL_EXPORT s::cl_int All(s::cl_int3);
 __SYCL_EXPORT s::cl_int All(s::cl_int4);
@@ -144,18 +148,24 @@ MAKE_GEO_1V_2V_RS(Dot, __FMul_impl, s::cl_half, s::cl_half, s::cl_half)
 __SYCL_EXPORT s::cl_float length(s::cl_float p) { return __length(p); }
 __SYCL_EXPORT s::cl_double length(s::cl_double p) { return __length(p); }
 __SYCL_EXPORT s::cl_half length(s::cl_half p) { return __length(p); }
+__SYCL_EXPORT s::cl_float length(s::vec<float, 1> p) { return __length(p); }
 __SYCL_EXPORT s::cl_float length(s::cl_float2 p) { return __length(p); }
 __SYCL_EXPORT s::cl_float length(s::cl_float3 p) { return __length(p); }
 __SYCL_EXPORT s::cl_float length(s::cl_float4 p) { return __length(p); }
+__SYCL_EXPORT s::cl_double length(s::vec<double, 1> p) { return __length(p); }
 __SYCL_EXPORT s::cl_double length(s::cl_double2 p) { return __length(p); }
 __SYCL_EXPORT s::cl_double length(s::cl_double3 p) { return __length(p); }
 __SYCL_EXPORT s::cl_double length(s::cl_double4 p) { return __length(p); }
+__SYCL_EXPORT s::cl_half length(s::vec<half, 1> p) { return __length(p); }
 __SYCL_EXPORT s::cl_half length(s::cl_half2 p) { return __length(p); }
 __SYCL_EXPORT s::cl_half length(s::cl_half3 p) { return __length(p); }
 __SYCL_EXPORT s::cl_half length(s::cl_half4 p) { return __length(p); }
 
 // distance
 __SYCL_EXPORT s::cl_float distance(s::cl_float p0, s::cl_float p1) {
+  return length(p0 - p1);
+}
+__SYCL_EXPORT s::cl_float distance(s::vec<float, 1> p0, s::vec<float, 1> p1) {
   return length(p0 - p1);
 }
 __SYCL_EXPORT s::cl_float distance(s::cl_float2 p0, s::cl_float2 p1) {
@@ -170,6 +180,9 @@ __SYCL_EXPORT s::cl_float distance(s::cl_float4 p0, s::cl_float4 p1) {
 __SYCL_EXPORT s::cl_double distance(s::cl_double p0, s::cl_double p1) {
   return length(p0 - p1);
 }
+__SYCL_EXPORT s::cl_float distance(s::vec<double, 1> p0, s::vec<double, 1> p1) {
+  return length(p0 - p1);
+}
 __SYCL_EXPORT s::cl_double distance(s::cl_double2 p0, s::cl_double2 p1) {
   return length(p0 - p1);
 }
@@ -180,6 +193,9 @@ __SYCL_EXPORT s::cl_double distance(s::cl_double4 p0, s::cl_double4 p1) {
   return length(p0 - p1);
 }
 __SYCL_EXPORT s::cl_half distance(s::cl_half p0, s::cl_half p1) {
+  return length(p0 - p1);
+}
+__SYCL_EXPORT s::cl_float distance(s::vec<half, 1> p0, s::vec<half, 1> p1) {
   return length(p0 - p1);
 }
 __SYCL_EXPORT s::cl_half distance(s::cl_half2 p0, s::cl_half2 p1) {
@@ -194,10 +210,16 @@ __SYCL_EXPORT s::cl_half distance(s::cl_half4 p0, s::cl_half4 p1) {
 
 // normalize
 __SYCL_EXPORT s::cl_float normalize(s::cl_float p) { return __normalize(p); }
+__SYCL_EXPORT s::cl_float normalize(s::vec<float, 1> p) {
+  return __normalize(p);
+}
 __SYCL_EXPORT s::cl_float2 normalize(s::cl_float2 p) { return __normalize(p); }
 __SYCL_EXPORT s::cl_float3 normalize(s::cl_float3 p) { return __normalize(p); }
 __SYCL_EXPORT s::cl_float4 normalize(s::cl_float4 p) { return __normalize(p); }
 __SYCL_EXPORT s::cl_double normalize(s::cl_double p) { return __normalize(p); }
+__SYCL_EXPORT s::cl_double normalize(s::vec<double, 1> p) {
+  return __normalize(p);
+}
 __SYCL_EXPORT s::cl_double2 normalize(s::cl_double2 p) {
   return __normalize(p);
 }
@@ -214,6 +236,9 @@ __SYCL_EXPORT s::cl_half4 normalize(s::cl_half4 p) { return __normalize(p); }
 
 // fast_length
 __SYCL_EXPORT s::cl_float fast_length(s::cl_float p) {
+  return __fast_length(p);
+}
+__SYCL_EXPORT s::cl_float fast_length(s::vec<float, 1> p) {
   return __fast_length(p);
 }
 __SYCL_EXPORT s::cl_float fast_length(s::cl_float2 p) {
@@ -233,6 +258,9 @@ __SYCL_EXPORT s::cl_float fast_normalize(s::cl_float p) {
   s::cl_float r = std::sqrt(FMul(p, p));
   return p / r;
 }
+__SYCL_EXPORT s::cl_float fast_normalize(s::vec<float, 1> p) {
+  return __fast_normalize(p);
+}
 __SYCL_EXPORT s::cl_float2 fast_normalize(s::cl_float2 p) {
   return __fast_normalize(p);
 }
@@ -245,6 +273,9 @@ __SYCL_EXPORT s::cl_float4 fast_normalize(s::cl_float4 p) {
 
 // fast_distance
 __SYCL_EXPORT s::cl_float fast_distance(s::cl_float p0, s::cl_float p1) {
+  return fast_length(p0 - p1);
+}
+__SYCL_EXPORT s::cl_float fast_distance(s::vec<float, 1> p0, s::vec<float, 1> p1) {
   return fast_length(p0 - p1);
 }
 __SYCL_EXPORT s::cl_float fast_distance(s::cl_float2 p0, s::cl_float2 p1) {
