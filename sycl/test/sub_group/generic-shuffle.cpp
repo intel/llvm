@@ -103,7 +103,7 @@ void check_pointer(queue &Queue, size_t G = 240, size_t L = 60) {
 }
 
 template <typename T, typename Generator>
-void check_struct(queue &Queue, Generator& Gen, size_t G = 240, size_t L = 60) {
+void check_struct(queue &Queue, Generator &Gen, size_t G = 240, size_t L = 60) {
 
   // Fill a vector with values that will be shuffled
   std::vector<T> values(G);
