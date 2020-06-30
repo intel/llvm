@@ -24,7 +24,6 @@ struct Data {
   unsigned int max_local_range;
   unsigned int group_id;
   unsigned int group_range;
-  unsigned int uniform_group_range;
 };
 
 void check(queue &Queue, unsigned int G, unsigned int L) {
@@ -44,9 +43,7 @@ void check(queue &Queue, unsigned int G, unsigned int L) {
         syclacc[NdItem.get_global_id()].max_local_range =
             SG.get_max_local_range().get(0);
         syclacc[NdItem.get_global_id()].group_id = SG.get_group_id().get(0);
-        syclacc[NdItem.get_global_id()].group_range = SG.get_group_range();
-        syclacc[NdItem.get_global_id()].uniform_group_range =
-            SG.get_uniform_group_range();
+        syclacc[NdItem.get_global_id()].group_range = SG.get_group_range().get(0);
         if (NdItem.get_global_id(0) == 0)
           sgsizeacc[0] = SG.get_max_local_range()[0];
       });
@@ -65,8 +62,6 @@ void check(queue &Queue, unsigned int G, unsigned int L) {
                         syclacc[0].max_local_range, "max_local_range");
       exit_if_not_equal(syclacc[j].group_id, group_id, "group_id");
       exit_if_not_equal(syclacc[j].group_range, num_sg, "group_range");
-      exit_if_not_equal(syclacc[j].uniform_group_range, num_sg,
-                        "uniform_group_range");
     }
   } catch (exception e) {
     std::cout << "SYCL exception caught: " << e.what();

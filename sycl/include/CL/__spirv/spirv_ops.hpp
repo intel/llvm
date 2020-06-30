@@ -206,6 +206,15 @@ __spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint32_t *Ptr,
                                 dataT Data) noexcept;
 
 template <typename dataT>
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL dataT __spirv_SubgroupBlockReadINTEL(
+    const __attribute__((opencl_global)) uint64_t *Ptr) noexcept;
+
+template <typename dataT>
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL void
+__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint64_t *Ptr,
+                                dataT Data) noexcept;
+
+template <typename dataT>
 extern SYCL_EXTERNAL int32_t __spirv_ReadPipe(RPipeTy<dataT> Pipe, dataT *Data,
                                               int32_t Size,
                                               int32_t Alignment) noexcept;

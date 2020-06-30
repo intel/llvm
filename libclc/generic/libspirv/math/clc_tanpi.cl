@@ -22,9 +22,9 @@
 #include <spirv/spirv.h>
 
 #include "sincos_helpers.h"
-#include "../../lib/math/math.h"
 #include "tables.h"
-#include "../../lib/clcmacro.h"
+#include <clcmacro.h>
+#include <math/math.h>
 
 _CLC_DEF _CLC_OVERLOAD float __clc_tanpi(float x)
 {
@@ -143,4 +143,15 @@ _CLC_DEF _CLC_OVERLOAD double __clc_tanpi(double x)
     return as_double(ir);
 }
 _CLC_UNARY_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, double, __clc_tanpi, double);
+#endif
+
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_DEF _CLC_OVERLOAD half __clc_tanpi(half x) {
+  return __clc_tanpi((float)x);
+}
+
+_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __clc_tanpi, half)
+
 #endif
