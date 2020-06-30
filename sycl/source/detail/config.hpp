@@ -120,7 +120,7 @@ public:
     const char *ValStr = BaseT::getRawValue();
     const std::array<std::pair<std::string, backend>, 3> SyclBeMap = {
         {{"PI_OPENCL", backend::opencl},
-         {"PI_LEVEL0", backend::level0},
+         {"PI_LEVEL0", backend::level_zero},
          {"PI_CUDA", backend::cuda}}};
     if (ValStr) {
       auto It = std::find_if(
@@ -161,6 +161,6 @@ public:
   }
 };
 
-} // __SYCL_INLINE_NAMESPACE(cl)
-} // namespace sycl
 } // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)

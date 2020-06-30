@@ -766,7 +766,7 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
   // is built during piProgramCreate.
   // TODO: remove this check as soon as piProgramCompile/piProgramLink will be
   // implemented in L0 plugin.
-  if (Context->getPlugin().getBackend() == backend::level0) {
+  if (Context->getPlugin().getBackend() == backend::level_zero) {
     LinkDeviceLibs = false;
   }
 

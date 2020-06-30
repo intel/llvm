@@ -215,7 +215,7 @@ bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
   // env only.
   //
   PluginNames.emplace_back(OPENCL_PLUGIN_NAME, backend::opencl);
-  PluginNames.emplace_back(LEVEL0_PLUGIN_NAME, backend::level0);
+  PluginNames.emplace_back(LEVEL0_PLUGIN_NAME, backend::level_zero);
   PluginNames.emplace_back(CUDA_PLUGIN_NAME, backend::cuda);
   return true;
 }
