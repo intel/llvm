@@ -7306,6 +7306,9 @@ let CategoryName = "Lambda Issue" in {
     "here">;
   def note_var_explicitly_captured_here : Note<"variable %0 is"
     "%select{| explicitly}1 captured here">;
+  def err_implicit_this_capture : Error<
+    "implicit capture of 'this' with a capture default of '=' is not allowed "
+    "for kernel functions in SYCL 1.2.1">;
 
   // C++14 lambda init-captures.
   def warn_cxx11_compat_init_capture : Warning<
