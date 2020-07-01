@@ -1246,11 +1246,6 @@ public:
     return true;
   }
 
-  // FIXME Remove this function when structs are replaced by their fields
-  bool handleStructType(FieldDecl *FD, QualType FieldTy) final {
-    return true;
-  }
-
   bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
     addParam(FD, FieldTy);
     return true;
@@ -1568,11 +1563,6 @@ public:
     return true;
   }
 
-  // FIXME Remove this function when structs are replaced by their fields
-  bool handleStructType(FieldDecl *FD, QualType FieldTy) final {
-    return true;
-  }
-
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
     if (dyn_cast<ArraySubscriptExpr>(MemberExprBases.back()))
       createExprForScalarElement(FD);
@@ -1580,8 +1570,6 @@ public:
       createExprForStructOrScalar(FD);
     return true;
   }
-
-  bool enterStruct(const CXXRecordDecl *, FieldDecl *FD) final {}
 
   bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
     CXXCastPath BasePath;
@@ -1594,6 +1582,7 @@ public:
         SemaRef.Context, BaseTy, CK_DerivedToBase, MemberExprBases.back(),
         /* CXXCastPath=*/&BasePath, VK_LValue);
     MemberExprBases.push_back(Cast);
+    return true;
   }
 
   void addStructInit(const CXXRecordDecl *RD) {
@@ -1633,12 +1622,14 @@ public:
           InitExprs.pop_back();
       }
     }
+    return true;
   }
 
   bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
     const CXXRecordDecl *BaseClass = BS.getType()->getAsCXXRecordDecl();
     addStructInit(BaseClass);
     MemberExprBases.pop_back();
+    return true;
   }
 
   bool enterField(const CXXRecordDecl *RD, FieldDecl *FD) final {
@@ -1687,11 +1678,13 @@ public:
 
   using SyclKernelFieldHandler::enterArray;
   using SyclKernelFieldHandler::enterField;
+  using SyclKernelFieldHandler::enterStruct;
   using SyclKernelFieldHandler::handleScalarType;
   using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::handleSyclSamplerType;
   using SyclKernelFieldHandler::leaveArray;
   using SyclKernelFieldHandler::leaveField;
+  using SyclKernelFieldHandler::leaveStruct;
 };
 
 class SyclKernelIntHeaderCreator
@@ -1783,11 +1776,6 @@ public:
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
     addParam(FD, FieldTy, SYCLIntegrationHeader::kind_pointer);
-    return true;
-  }
-
-  // FIXME Remove this function when structs are replaced by their fields
-  bool handleStructType(FieldDecl *FD, QualType FieldTy) final {
     return true;
   }
 

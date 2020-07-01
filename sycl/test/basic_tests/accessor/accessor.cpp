@@ -513,10 +513,8 @@ int main() {
         sycl::buffer<int, 1> B(&cnst, sycl::range<1>(1));
         sycl::buffer<int, 1> C(&data, sycl::range<1>(1));
 
-
         sycl::queue queue;
         queue.submit([&](sycl::handler &cgh) {
-
           sycl::accessor<int, 1, sycl::access::mode::write,
                          sycl::access::target::global_buffer>
               AccA(A, cgh);

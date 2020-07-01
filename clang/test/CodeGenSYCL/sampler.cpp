@@ -14,7 +14,7 @@
 
 // CHECK: define spir_kernel void @{{[a-zA-Z0-9_]+}}(%opencl.sampler_t addrspace(2)* [[SAMPLER_ARG_WRAPPED:%[a-zA-Z0-9_]+]], i32 [[ARG_A:%[a-zA-Z0-9_]+]])
 
-// Check alloca 
+// Check alloca
 // CHECK: [[SAMPLER_ARG_WRAPPED]].addr = alloca %opencl.sampler_t addrspace(2)*, align 8
 // CHECK: [[ARG_A]].addr = alloca i32, align 4
 // CHECK: [[LAMBDA:%[0-9]+]] = alloca %"class.{{.*}}.anon.0", align 8
