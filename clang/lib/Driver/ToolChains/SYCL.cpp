@@ -476,7 +476,8 @@ static void addImpliedArgs(const llvm::Triple &Triple,
                            llvm::opt::ArgStringList &CmdArgs) {
   // Current implied args are for debug information and disabling of
   // optimizations.
-  auto addArgs = [&](llvm::opt::ArgStringList &CurArgList, bool IsGen = false) {
+  auto addOptDebugArgs = [&](llvm::opt::ArgStringList &CurArgList,
+                             bool IsGen = false) {
     if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
       if (!A->getOption().matches(options::OPT_g0))
         CurArgList.push_back("-g");
@@ -486,14 +487,14 @@ static void addImpliedArgs(const llvm::Triple &Triple,
   // For FPGA and default device, pass along -g -cl-opt-disable
   if (Triple.getSubArch() == llvm::Triple::NoSubArch ||
       Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
-    addArgs(CmdArgs);
+    addOptDebugArgs(CmdArgs);
     return;
   }
   bool IsGen = Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
   // For CPU/Gen pass option list
   if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64 || IsGen) {
     llvm::opt::ArgStringList BeArgs;
-    addArgs(BeArgs, IsGen);
+    addOptDebugArgs(BeArgs, IsGen);
     if (!BeArgs.empty()) {
       SmallString<128> BeOpt;
       if (IsGen)
