@@ -22,22 +22,22 @@
 #define DEBUG_TYPE "loweresimdvloadvstore"
 
 #include "llvm/GenXIntrinsics/GenXIntrinsics.h"
+#include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
+#include "llvm/SYCLLowerIR/LowerESIMD.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Scalar.h"
-#include "llvm/SYCLLowerIR/LowerESIMD.h"
 
 #include "llvm/Pass.h"
 
 using namespace llvm;
 
 namespace llvm {
-  void initializeESIMDLowerLoadStorePass(PassRegistry&);
+void initializeESIMDLowerLoadStorePass(PassRegistry &);
 }
 
 namespace {
@@ -52,7 +52,7 @@ public:
     AU.setPreservesCFG();
   }
 
-  virtual bool runOnFunction(Function &F) override  {
+  virtual bool runOnFunction(Function &F) override {
     FunctionAnalysisManager FAM;
     auto PA = Impl.run(F, FAM);
     return !PA.areAllPreserved();
@@ -71,7 +71,7 @@ INITIALIZE_PASS(ESIMDLowerLoadStore, "ESIMDLowerLoadStore",
 // Lower non-volatilE vload/vstore intrinsic calls into normal load/store
 // instructions.
 PreservedAnalyses ESIMDLowerLoadStorePass::run(Function &F,
-                                FunctionAnalysisManager &FAM) {
+                                               FunctionAnalysisManager &FAM) {
   std::vector<Instruction *> ToErase;
   for (Instruction &Inst : instructions(F)) {
     if (!GenXIntrinsic::isVLoadStore(&Inst))
@@ -94,8 +94,7 @@ PreservedAnalyses ESIMDLowerLoadStorePass::run(Function &F,
         Inst.replaceAllUsesWith(LI);
       }
       ToErase.push_back(&Inst);
-    }
-    else {
+    } else {
       // change to vload/vstore that has the same address space as
       // the global-var in order to clean up unnecessary addr-cast.
       auto AS1 = GV->getType()->getAddressSpace();
@@ -105,20 +104,18 @@ PreservedAnalyses ESIMDLowerLoadStorePass::run(Function &F,
           auto PtrTy = cast<PointerType>(Inst.getOperand(1)->getType());
           PtrTy = PointerType::get(PtrTy->getElementType(), AS1);
           auto PtrCast = Builder.CreateAddrSpaceCast(Inst.getOperand(1), PtrTy);
-          Type *Tys[] = {Inst.getOperand(0)->getType(),
-                          PtrCast->getType()};
+          Type *Tys[] = {Inst.getOperand(0)->getType(), PtrCast->getType()};
           Value *Args[] = {Inst.getOperand(0), PtrCast};
           Function *Fn = GenXIntrinsic::getGenXDeclaration(
-                            F.getParent(), GenXIntrinsic::genx_vstore, Tys);
+              F.getParent(), GenXIntrinsic::genx_vstore, Tys);
           Builder.CreateCall(Fn, Args, Inst.getName());
-        }
-        else {
+        } else {
           auto PtrTy = cast<PointerType>(Inst.getOperand(0)->getType());
           PtrTy = PointerType::get(PtrTy->getElementType(), AS1);
           auto PtrCast = Builder.CreateAddrSpaceCast(Inst.getOperand(0), PtrTy);
           Type *Tys[] = {Inst.getType(), PtrCast->getType()};
           Function *Fn = GenXIntrinsic::getGenXDeclaration(
-                            F.getParent(), GenXIntrinsic::genx_vload, Tys);
+              F.getParent(), GenXIntrinsic::genx_vload, Tys);
           Value *VLoad = Builder.CreateCall(Fn, PtrCast, Inst.getName());
           Inst.replaceAllUsesWith(VLoad);
         }
@@ -132,11 +129,11 @@ PreservedAnalyses ESIMDLowerLoadStorePass::run(Function &F,
   }
 
   return !ToErase.empty() ? PreservedAnalyses::none()
-                           : PreservedAnalyses::all();
+                          : PreservedAnalyses::all();
 }
 
 namespace llvm {
-  FunctionPass* createESIMDLowerLoadStorePass() {
-    return new ESIMDLowerLoadStore;
-  }
+FunctionPass *createESIMDLowerLoadStorePass() {
+  return new ESIMDLowerLoadStore;
 }
+} // namespace llvm
