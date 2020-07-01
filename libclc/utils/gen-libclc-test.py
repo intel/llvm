@@ -12,52 +12,26 @@ import re
 from spirv_common import ignore_overload, emit_guards, close_guards, clang_format
 
 def ignore_function(fun):
-    whitelist = [
-        "_All",
-        "_Any",
-        "abs",
-        "abs_diff",
-        "add_sat",
-        "BitCount",
-        "bitselect",
-        "clz",
-        "ControlBarrier",
-        "ctz",
-        "Equal",
-        "GreaterThan",
-        "GreaterThanEqual",
-        "GroupAsyncCopy",
-        "GroupWaitEvents",
-        "hadd",
-        "IsFinite",
-        "IsInf",
-        "IsNan",
-        "IsNormal",
-        "LessOrGreater",
-        "LessThan",
-        "LessThanEqual",
-        "mad24",
-        "mad_hi",
-        "mad_sat",
-        "MemoryBarrier",
-        "mul24",
-        "mul_hi",
-        "NotEqual",
-        "Ordered",
-        "popcount",
-        "prefetch",
-        "rhadd",
-        "rotate",
-        "select",
-        "SignBitSet",
-        "sub_sat",
-        "Unordered",
-        "upsample",
-        "vload",
-        "vstore"
+    blacklist = [
+        "Convert",
+        "GenericCastToPtrExplicit",
+        "GenericPtrMemSemantics",
+        "GroupAll",
+        "GroupAny",
+        "GroupBroadcast",
+        "GroupFAdd",
+        "GroupFMax",
+        "GroupFMin",
+        "GroupIAdd",
+        "GroupSMax",
+        "GroupSMin",
+        "GroupUMax",
+        "GroupUMin",
+        "printf",
+        "VectorTimesScalar",
+        "shuffle"
     ]
-
-    return not any([fun.find(b) != -1 for b in whitelist])
+    return any([fun.find(b) != -1 for b in blacklist])
 
 def get_builtin_name(func):
     func = func.replace("__spirv_", "")

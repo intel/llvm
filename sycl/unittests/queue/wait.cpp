@@ -18,6 +18,7 @@ struct TestCtx {
 
   context &Ctx;
   int NEventsWaitedFor = 0;
+  int EventReferenceCount = 0;
 };
 
 std::unique_ptr<TestCtx> TestContext;
@@ -29,6 +30,7 @@ pi_result redefinedUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
                                     pi_event *event) {
   // Provide a dummy non-nullptr value
   *event = reinterpret_cast<pi_event>(1);
+  TestContext->EventReferenceCount = 1;
   return PI_SUCCESS;
 }
 
@@ -50,9 +52,15 @@ pi_result redefinedEventGetInfo(pi_event event, pi_event_info param_name,
   return PI_SUCCESS;
 }
 
-pi_result redefinedEventRetain(pi_event event) { return PI_SUCCESS; }
+pi_result redefinedEventRetain(pi_event event) {
+  ++TestContext->EventReferenceCount;
+  return PI_SUCCESS;
+}
 
-pi_result redefinedEventRelease(pi_event event) { return PI_SUCCESS; }
+pi_result redefinedEventRelease(pi_event event) {
+  --TestContext->EventReferenceCount;
+  return PI_SUCCESS;
+}
 
 // Check that the USM events are cleared from the queue upon call to wait(),
 // so that they are not waited for multiple times.
@@ -87,6 +95,7 @@ TEST(QueueWaitTest, USMEventClear) {
   Q.memset(HostAlloc, 42, 1);
   Q.wait();
   ASSERT_EQ(TestContext->NEventsWaitedFor, 1);
+  ASSERT_EQ(TestContext->EventReferenceCount, 0);
   Q.wait();
   ASSERT_EQ(TestContext->NEventsWaitedFor, 1);
 }

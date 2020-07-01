@@ -323,19 +323,26 @@ struct _pi_program : _pi_object {
   // L0 build log.
   ze_module_build_log_handle_t ZeBuildLog;
 
+  // L0 build log.
+  ze_module_build_log_handle_t ZeBuildLog;
+
   // Keep the context of the program.
   pi_context Context;
 };
 
 struct _pi_kernel : _pi_object {
-  _pi_kernel(ze_kernel_handle_t Kernel, pi_program Program)
-      : ZeKernel{Kernel}, Program{Program} {}
+  _pi_kernel(ze_kernel_handle_t Kernel, pi_program Program,
+             const char *KernelName)
+      : ZeKernel{Kernel}, Program{Program}, KernelName(KernelName) {}
 
   // L0 function handle.
   ze_kernel_handle_t ZeKernel;
 
   // Keep the program of the kernel.
   pi_program Program;
+
+  // TODO: remove when bug in the L0 runtime will be fixed.
+  std::string KernelName;
 };
 
 struct _pi_sampler : _pi_object {

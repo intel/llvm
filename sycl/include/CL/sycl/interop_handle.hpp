@@ -56,7 +56,7 @@ public:
 #else
     (void)Acc;
     // we believe this won't be ever called on device side
-    return nullptr;
+    return 0;
 #endif
   }
 
@@ -84,8 +84,13 @@ public:
   template <backend BackendName = backend::opencl>
   auto get_native_queue() const noexcept ->
       typename interop<BackendName, queue>::type {
+#ifndef __SYCL_DEVICE_ONLY__
     return reinterpret_cast<typename interop<BackendName, queue>::type>(
         getNativeQueue());
+#else
+    // we believe this won't be ever called on device side
+    return 0;
+#endif
   }
 
   /// Returns an underlying OpenCL device associated with the SYCL queue used
@@ -94,8 +99,13 @@ public:
   template <backend BackendName = backend::opencl>
   auto get_native_device() const noexcept ->
       typename interop<BackendName, device>::type {
+#ifndef __SYCL_DEVICE_ONLY__
     return reinterpret_cast<typename interop<BackendName, device>::type>(
         getNativeDevice());
+#else
+    // we believe this won't be ever called on device side
+    return 0;
+#endif
   }
 
   /// Returns an underlying OpenCL context associated with the SYCL queue used
@@ -104,14 +114,20 @@ public:
   template <backend BackendName = backend::opencl>
   auto get_native_context() const noexcept ->
       typename interop<BackendName, context>::type {
+#ifndef __SYCL_DEVICE_ONLY__
     return reinterpret_cast<typename interop<BackendName, context>::type>(
         getNativeContext());
+#else
+    // we believe this won't be ever called on device side
+    return 0;
+#endif
   }
 
 private:
+  friend class detail::ExecCGCommand;
+  friend class detail::DispatchHostTask;
   using ReqToMem = std::pair<detail::Requirement *, pi_mem>;
 
-public:
   // TODO set c-tor private
   interop_handle(std::vector<ReqToMem> MemObjs,
                  const std::shared_ptr<detail::queue_impl> &Queue,
@@ -126,15 +142,33 @@ private:
   auto getMemImpl(detail::Requirement *Req) const ->
       typename interop<BackendName,
                        accessor<DataT, Dims, Mode, Target, IsPlh>>::type {
-    return reinterpret_cast<typename interop<
-        BackendName, accessor<DataT, Dims, Mode, Target, IsPlh>>::type>(
+    /*
+      Do not update this cast: a C-style cast is required here.
+
+      This function tries to cast pi_native_handle to the native handle type.
+      pi_native_handle is a typedef of uintptr_t. It is used to store opaque
+      pointers, such as cl_device, and integer handles, such as CUdevice. To
+      convert a uintptr_t to a pointer type, such as cl_device, reinterpret_cast
+      must be used. However, reinterpret_cast cannot be used to convert
+      uintptr_t to a different integer type, such as CUdevice. For this,
+      static_cast must be used. This function must employ a cast that is capable
+      of reinterpret_cast and static_cast depending on the arguments passed to
+      it. A C-style cast will achieve this. The compiler will attempt to
+      interpret it as a static_cast, and will fall back to reinterpret_cast
+      where appropriate.
+
+      https://en.cppreference.com/w/cpp/language/reinterpret_cast
+      https://en.cppreference.com/w/cpp/language/explicit_cast
+      */
+    return (typename interop<BackendName,
+                             accessor<DataT, Dims, Mode, Target, IsPlh>>::type)(
         getNativeMem(Req));
   }
 
-  pi_native_handle getNativeMem(detail::Requirement *Req) const;
-  pi_native_handle getNativeQueue() const;
-  pi_native_handle getNativeDevice() const;
-  pi_native_handle getNativeContext() const;
+  __SYCL_EXPORT pi_native_handle getNativeMem(detail::Requirement *Req) const;
+  __SYCL_EXPORT pi_native_handle getNativeQueue() const;
+  __SYCL_EXPORT pi_native_handle getNativeDevice() const;
+  __SYCL_EXPORT pi_native_handle getNativeContext() const;
 
   std::shared_ptr<detail::queue_impl> MQueue;
   std::shared_ptr<detail::device_impl> MDevice;

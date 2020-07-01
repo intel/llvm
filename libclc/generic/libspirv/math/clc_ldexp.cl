@@ -23,10 +23,10 @@
 #include <core/clc_core.h>
 #include <spirv/spirv.h>
 
-#include "../../lib/clcmacro.h"
-#include "../../lib/math/math.h"
-#include "config.h"
 #include "tables.h"
+#include <clcmacro.h>
+#include <config.h>
+#include <math/math.h>
 
 _CLC_DEF _CLC_OVERLOAD float __clc_ldexp(float x, int n) {
 
@@ -39,7 +39,7 @@ _CLC_DEF _CLC_OVERLOAD float __clc_ldexp(float x, int n) {
     int s = i & 0x80000000;
     int v = __clc_add_sat(e, n);
     v = __clc_clamp(v, 0, 0xff);
-    int mr = e == 0 | v == 0 | v == 0xff ? 0 : m;
+    int mr = e == 0 || v == 0 || v == 0xff ? 0 : m;
     int c = e == 0xff;
     mr = c ? m : mr;
     int er = c ? e : v;
@@ -92,7 +92,7 @@ _CLC_DEF _CLC_OVERLOAD float __clc_ldexp(float x, int n) {
   val_ui = dexp == 0 ? dval_ui : val_ui;
   val_f = as_float(val_ui);
 
-  val_f = __spirv_IsNan(x) | __spirv_IsInf(x) | val_x == 0 ? x : val_f;
+  val_f = __spirv_IsNan(x) || __spirv_IsInf(x) || val_x == 0 ? x : val_f;
   return val_f;
 }
 
