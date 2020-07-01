@@ -33,7 +33,6 @@
 #include <cctype>
 #include <cstring>
 #include <unordered_map>
-#include <iostream>
 
 using namespace llvm;
 namespace id = itanium_demangle;
@@ -1212,9 +1211,9 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
            DstTy->getScalarType()->getPrimitiveSizeInBits() < 32)) {
         IRBuilder<> Builder(&I);
         llvm::Value *Src = CastOp->getOperand(0);
-        auto TmpTy =
-            llvm::FixedVectorType::get(llvm::Type::getInt32Ty(DstTy->getContext()),
-                                  cast<VectorType>(DstTy)->getNumElements());
+        auto TmpTy = llvm::FixedVectorType::get(
+            llvm::Type::getInt32Ty(DstTy->getContext()),
+            cast<VectorType>(DstTy)->getNumElements());
         Src = Builder.CreateFPToSI(Src, TmpTy);
 
         llvm::Instruction::CastOps TruncOp = llvm::Instruction::Trunc;
