@@ -81,7 +81,6 @@ class QualType<string _Name, bit _IsAbstract=0> {
   // no corresponding AST QualType, e.g. a GenType or an `image2d_t` type
   // without access qualifiers.
   bit IsAbstract = _IsAbstract;
-  bit IsFunctionCall = 0;
 }
 
 // List of integers.
