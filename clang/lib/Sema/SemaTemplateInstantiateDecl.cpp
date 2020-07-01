@@ -5255,7 +5255,10 @@ void Sema::InstantiateVariableDefinition(SourceLocation PointOfInstantiation,
       // Do not explicitly emit non-const static data member definitions
       // on SYCL device.
       if (!SemaRef.getLangOpts().SYCLIsDevice || !Var->isStaticDataMember() ||
-          Var->isConstexpr() || Var->getType().isConstQualified())
+          Var->isConstexpr() ||
+          (Var->getType().isConstQualified() && Var->getInit() &&
+           Var->getInit()->isConstantInitializer(SemaRef.getASTContext(),
+                                                 false)))
         Consumer.HandleCXXStaticMemberVarInstantiation(Var);
     }
   } PassToConsumerRAII(*this, Consumer, Var);
