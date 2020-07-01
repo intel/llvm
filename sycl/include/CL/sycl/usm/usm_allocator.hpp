@@ -149,6 +149,20 @@ public:
     }
   }
 
+  template <class U, usm::alloc AllocKindU, size_t AlignmentU>
+  friend bool operator==(const usm_allocator<T, AllocKind, Alignment> &One,
+                         const usm_allocator<U, AllocKindU, AlignmentU> &Two) {
+    return ((AllocKind == AllocKindU) && (One.MContext == Two.MContext) &&
+            (One.MDevice == Two.MDevice));
+  }
+
+  template <class U, usm::alloc AllocKindU, size_t AlignmentU>
+  friend bool operator!=(const usm_allocator<T, AllocKind, Alignment> &One,
+                         const usm_allocator<U, AllocKindU, AlignmentU> &Two) {
+    return !((AllocKind == AllocKindU) && (One.MContext == Two.MContext) &&
+            (One.MDevice == Two.MDevice));
+  }
+
 private:
   constexpr size_t getAlignment() const {
     /*
@@ -160,7 +174,7 @@ private:
     */
     return Alignment;
   }
-  
+
   template <class U, usm::alloc AllocKindU, size_t AlignmentU>
   friend class usm_allocator;
 

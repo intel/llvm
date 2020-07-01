@@ -1,0 +1,59 @@
+// XFAIL: cuda
+// piextUSM*Alloc functions for CUDA are not behaving as described in
+// https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/USM/USM.adoc
+// https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/USM/cl_intel_unified_shared_memory.asciidoc
+//
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
+// RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
+// RUN: %CPU_RUN_PLACEHOLDER %t1.out
+// RUN: %GPU_RUN_PLACEHOLDER %t1.out
+
+//==---- allocator_shared.cpp - Allocate Shared test -------------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include <CL/sycl.hpp>
+
+#include <memory>
+
+using namespace cl::sycl;
+
+int main() {
+  queue q;
+  auto dev = q.get_device();
+  auto ctxt = q.get_context();
+
+  // Test ability to create a shared pointer.
+  if (dev.get_info<info::device::usm_host_allocations>()) {
+    usm_allocator<int, usm::alloc::host> alloc(ctxt, dev);
+    auto ptr1 = std::allocate_shared<int>(alloc);
+
+    // Test construction
+    auto ptr2 = std::allocate_shared<int>(alloc, 42);
+    assert(*ptr2 == 42);
+  }
+
+  if (dev.get_info<info::device::usm_shared_allocations>()) {
+    usm_allocator<int, usm::alloc::shared> alloc(ctxt, dev);
+    auto ptr1 = std::allocate_shared<int>(alloc);
+
+    // Test construction
+    auto ptr2 = std::allocate_shared<int>(alloc, 42);
+    assert(*ptr2 == 42);
+  }
+
+  if (dev.get_info<info::device::usm_device_allocations>()) {
+    usm_allocator<int, usm::alloc::device> alloc(ctxt, dev);
+    auto ptr1 = std::allocate_shared<int>(alloc);
+
+    // Test construction
+    auto ptr2 = std::allocate_shared<int>(alloc, 42);
+    // Cannot actually construct value for device pointers, but should not die.
+  }
+
+  return 0;
+}
