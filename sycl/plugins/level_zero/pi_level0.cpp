@@ -1906,12 +1906,27 @@ pi_result piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
   assert(Context);
   assert(Program);
 
-  auto ZeModule = pi_cast<ze_module_handle_t *>(NativeHandle);
-  assert(*ZeModule);
-  // Create PI program from the given L0 module handle
-  auto ZePIProgram = new _pi_program(*ZeModule, Context);
+  auto ZeModule = pi_cast<ze_module_handle_t>(NativeHandle);
 
-  *Program = pi_cast<pi_program>(ZePIProgram);
+  // Create PI program from the given L0 module handle.
+  //
+  // TODO: We don't have the real L0 module descriptor with
+  // which it was created, but that's only needed for zeModuleCreate,
+  // which we don't expect to be called on the interop program.
+  //
+  ze_module_desc_t ZeModuleDesc = {};
+  ZeModuleDesc.version = ZE_MODULE_DESC_VERSION_CURRENT;
+  ZeModuleDesc.format = ZE_MODULE_FORMAT_NATIVE;
+  ZeModuleDesc.inputSize = 0;
+  ZeModuleDesc.pInputModule = nullptr;
+
+  try {
+    *Program = new _pi_program(ZeModule, ZeModuleDesc, Context);
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
   return PI_SUCCESS;
 }
 
