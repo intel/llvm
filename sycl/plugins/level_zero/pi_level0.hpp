@@ -323,9 +323,6 @@ struct _pi_program : _pi_object {
   // L0 build log.
   ze_module_build_log_handle_t ZeBuildLog;
 
-  // L0 build log.
-  ze_module_build_log_handle_t ZeBuildLog;
-
   // Keep the context of the program.
   pi_context Context;
 };
