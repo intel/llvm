@@ -124,6 +124,7 @@ set(SYCL_SOURCES
     "detail/queue_impl.cpp"
     "detail/os_util.cpp"
     "detail/platform_util.cpp"
+    "detail/reduction.cpp"
     "detail/sampler_impl.cpp"
     "detail/stream_impl.cpp"
     "detail/scheduler/commands.cpp"

@@ -179,6 +179,7 @@ template <typename T, class BinaryOperation, int Dims, bool IsUSM,
 class reduction_impl;
 
 using cl::sycl::detail::enable_if_t;
+using cl::sycl::detail::queue_impl;
 
 template <typename KernelName, typename KernelType, int Dims, class Reduction,
           typename OutputT>
@@ -191,10 +192,14 @@ enable_if_t<!Reduction::has_fast_atomics>
 reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
            Reduction &Redu);
 
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<!Reduction::has_fast_atomics>
-reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
+template <typename KernelName, typename KernelType, class Reduction>
+enable_if_t<!Reduction::has_fast_atomics, size_t>
+reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
               Reduction &Redu);
+
+__SYCL_EXPORT size_t reduGetMaxWGSize(shared_ptr_class<queue_impl> Queue,
+                                      size_t LocalMemBytesPerWorkItem);
+
 } // namespace detail
 } // namespace intel
 
@@ -1048,37 +1053,26 @@ public:
     shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     this->finalize();
 
-    // 2. Run the additional aux kernel as many times as needed to reduce
-    // all partial sums into one scalar.
+    // 2. Find the maximal work group size usable for the additional kernel(s).
+    size_t MaxWGSize;
+    if (NWorkGroups > 1) {
+      constexpr bool HFR = Reduction::has_fast_reduce;
+      size_t OneElemSize = HFR ? 0 : sizeof(typename Reduction::result_type);
+      MaxWGSize = intel::detail::reduGetMaxWGSize(QueueCopy, OneElemSize);
+      assert(MaxWGSize > 1 &&
+             "Work group size must be greater than 1 to avoid endless loop.");
+    }
 
-    // TODO: user's nd_range and the work-group size specified there must
-    // be honored only for the main kernel that calls user's lambda functions.
-    // There is no need in using the same work-group size in these additional
-    // kernels. Thus, the better strategy here is to make the work-group size
-    // as big as possible to converge/reduce the partial sums into the last
-    // sum faster.
-    size_t WGSize = Range.get_local_range().size();
+    // 3. Run the additional kernel as many times as needed to reduce
+    // all partial sums into one scalar.
     size_t NWorkItems = NWorkGroups;
     while (NWorkItems > 1) {
-      WGSize = std::min(WGSize, NWorkItems);
-      NWorkGroups = NWorkItems / WGSize;
-      // The last group may be not fully loaded. Still register it as a group.
-      if ((NWorkItems % WGSize) != 0)
-        ++NWorkGroups;
-      nd_range<1> Range(range<1>(WGSize * NWorkGroups), range<1>(WGSize));
-
       handler AuxHandler(QueueCopy, MIsHost);
       AuxHandler.saveCodeLoc(MCodeLoc);
 
-      // The last kernel DOES write to user's accessor passed to reduction.
-      // Associate it with handler manually.
-      if (NWorkGroups == 1 && !Reduction::is_usm)
-        Redu.associateWithHandler(AuxHandler);
-      intel::detail::reduAuxCGFunc<KernelName, KernelType>(AuxHandler, Range,
-                                                           NWorkItems, Redu);
+      NWorkItems = intel::detail::reduAuxCGFunc<KernelName, KernelType>(
+          AuxHandler, NWorkItems, MaxWGSize, Redu);
       MLastEvent = AuxHandler.finalize();
-
-      NWorkItems = NWorkGroups;
     } // end while (NWorkItems > 1)
   }
 

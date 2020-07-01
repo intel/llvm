@@ -113,6 +113,7 @@ int main() {
   test<float, 0, intel::maximum<>>(getMinimumFPValue<float>(), 7, 7 * 5);
   test<signed char, 0, intel::plus<>>(0, 7, 49);
   test<unsigned char, 1, std::multiplies<>>(1, 4, 16);
+  test<unsigned short, 0, intel::plus<>>(0, 1, 512 + 32);
 #endif // __cplusplus >= 201402L
 
   std::cout << "Test passed\n";
