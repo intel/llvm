@@ -505,7 +505,7 @@ private:
             access::placeholder IsPH>
   detail::enable_if_t<Dim == 0 && Mode == access::mode::atomic, T>
   readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) const {
-    atomic<T, access::address_space::global_device_space> AtomicSrc = Src;
+    atomic<T, access::address_space::global_space> AtomicSrc = Src;
     return AtomicSrc.load();
   }
 
@@ -528,7 +528,7 @@ private:
             access::placeholder IsPH>
   detail::enable_if_t<Dim == 0 && Mode == access::mode::atomic, void>
   writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) const {
-    atomic<T, access::address_space::global_device_space> AtomicDst = Dst;
+    atomic<T, access::address_space::global_space> AtomicDst = Dst;
     AtomicDst.store(V);
   }
 
