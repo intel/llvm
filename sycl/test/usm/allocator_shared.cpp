@@ -34,7 +34,7 @@ int main() {
 
     // Test construction
     auto ptr2 = std::allocate_shared<int>(alloc, 42);
-    assert(*ptr2 == 42);
+    assert((*ptr2 == 42) && "Host construct passed.");
   }
 
   if (dev.get_info<info::device::usm_shared_allocations>()) {
@@ -43,7 +43,7 @@ int main() {
 
     // Test construction
     auto ptr2 = std::allocate_shared<int>(alloc, 42);
-    assert(*ptr2 == 42);
+    assert((*ptr2 == 42) && "Shared construct passed.");
   }
 
   if (dev.get_info<info::device::usm_device_allocations>()) {
