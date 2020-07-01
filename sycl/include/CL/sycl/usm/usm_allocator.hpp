@@ -160,7 +160,7 @@ public:
   friend bool operator!=(const usm_allocator<T, AllocKind, Alignment> &One,
                          const usm_allocator<U, AllocKindU, AlignmentU> &Two) {
     return !((AllocKind == AllocKindU) && (One.MContext == Two.MContext) &&
-            (One.MDevice == Two.MDevice));
+             (One.MDevice == Two.MDevice));
   }
 
 private:
