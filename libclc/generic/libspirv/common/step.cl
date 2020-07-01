@@ -8,7 +8,7 @@
 
 #include <spirv/spirv.h>
 
-#include "../../lib/clcmacro.h"
+#include <clcmacro.h>
 
 #define STEP_DEF(TYPE, TYPOSTFIX)                                              \
   _CLC_OVERLOAD _CLC_DEF TYPE __spirv_ocl_step(TYPE edge, TYPE x) {            \

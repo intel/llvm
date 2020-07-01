@@ -102,6 +102,11 @@ public:
   /// \return a vector of all available SYCL platforms.
   static vector_class<platform> get_platforms();
 
+  /// Returns the backend associated with this platform.
+  ///
+  /// \return the backend associated with this platform
+  backend get_backend() const noexcept;
+
   /// Gets the native handle of the SYCL platform.
   ///
   /// \return a native handle, the type of which defined by the backend.

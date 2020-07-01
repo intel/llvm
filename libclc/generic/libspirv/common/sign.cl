@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../../lib/clcmacro.h"
+#include <clcmacro.h>
 #include <spirv/spirv.h>
 
 #define SIGN(TYPE, F)                                                          \

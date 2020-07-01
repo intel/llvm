@@ -24,8 +24,8 @@
 #include <spirv/spirv.h>
 
 #include "sincos_helpers.h"
-#include "../../lib/math/math.h"
 #include "tables.h"
+#include <math/math.h>
 
 #define bitalign(hi, lo, shift) ((hi) << (32 - (shift))) | ((lo) >> (shift));
 
@@ -94,7 +94,7 @@ _CLC_DEF float __clc_cosf_piby4(float x, float y) {
 
   //  0.78125 > |x| >= 0.3
   float xby4 = as_float(ix - 0x01000000);
-  qx = (ix >= 0x3e99999a) & (ix <= 0x3f480000) ? xby4 : qx;
+  qx = (ix >= 0x3e99999a) && (ix <= 0x3f480000) ? xby4 : qx;
 
   // x > 0.78125
   qx = ix > 0x3f480000 ? 0.28125f : qx;
