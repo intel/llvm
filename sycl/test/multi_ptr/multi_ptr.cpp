@@ -152,7 +152,7 @@ void testMultPtrArrowOperator() {
         auto x1 = ptr_1->x;
         auto x2 = ptr_2->x;
         auto x3 = ptr_3->x;
-        auto x4 = ptr_4 -> x;
+        auto x4 = ptr_4->x;
 
         static_assert(std::is_same<decltype(x1), T>::value,
                       "Expected decltype(ptr_1->x) == T");
