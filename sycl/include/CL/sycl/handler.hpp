@@ -1033,8 +1033,6 @@ public:
             int Dims, typename Reduction>
   detail::enable_if_t<!Reduction::has_fast_atomics>
   parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
-    size_t NWorkGroups = Range.get_group_range().size();
-
     // This parallel_for() is lowered to the following sequence:
     // 1) Call a kernel that a) call user's lambda function and b) performs
     //    one iteration of reduction, storing the partial reductions/sums
@@ -1048,24 +1046,36 @@ public:
     // 2) Call an aux kernel (if necessary, i.e. if N2 > 1) as many times as
     //    necessary to reduce all partial sums into one final sum.
 
+    // Before running the kernels, check that device has enough local memory
+    // to hold local arrays that may be required for the reduction algorithm.
+    // TODO: If the work-group-size is limited by the local memory, then
+    // a special version of the main kernel may be created. The one that would
+    // not use local accessors, which means it would not do the reduction in
+    // the main kernel, but simply generate Range.get_global_range.size() number
+    // of partial sums, leaving the reduction work to the additional/aux
+    // kernels.
+    constexpr bool HFR = Reduction::has_fast_reduce;
+    size_t OneElemSize = HFR ? 0 : sizeof(typename Reduction::result_type);
+    // TODO: currently the maximal work group size is determined for the given
+    // queue/device, while it may be safer to use queries to the kernel compiled
+    // for the device.
+    size_t MaxWGSize = intel::detail::reduGetMaxWGSize(QueueCopy, OneElemSize);
+    assert(MaxWGSize >= Range.get_local_range().size() &&
+           "This reduction implementation requires more device resources.");
+
     // 1. Call the kernel that includes user's lambda function.
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
     shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     this->finalize();
 
-    // 2. Find the maximal work group size usable for the additional kernel(s).
-    size_t MaxWGSize;
-    if (NWorkGroups > 1) {
-      constexpr bool HFR = Reduction::has_fast_reduce;
-      size_t OneElemSize = HFR ? 0 : sizeof(typename Reduction::result_type);
-      MaxWGSize = intel::detail::reduGetMaxWGSize(QueueCopy, OneElemSize);
-      assert(MaxWGSize > 1 &&
-             "Work group size must be greater than 1 to avoid endless loop.");
-    }
-
-    // 3. Run the additional kernel as many times as needed to reduce
+    // 2. Run the additional kernel as many times as needed to reduce
     // all partial sums into one scalar.
-    size_t NWorkItems = NWorkGroups;
+
+    // TODO: Create a special slow/sequential version of the kernel that would
+    // handle the reduction instead of reporting an assert below.
+    assert(MaxWGSize > 1 &&
+           "Work group size must be greater than 1 to avoid endless loop.");
+    size_t NWorkItems = Range.get_group_range().size();
     while (NWorkItems > 1) {
       handler AuxHandler(QueueCopy, MIsHost);
       AuxHandler.saveCodeLoc(MCodeLoc);
