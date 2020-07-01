@@ -1059,7 +1059,7 @@ public:
     // TODO: currently the maximal work group size is determined for the given
     // queue/device, while it may be safer to use queries to the kernel compiled
     // for the device.
-    size_t MaxWGSize = intel::detail::reduGetMaxWGSize(QueueCopy, OneElemSize);
+    size_t MaxWGSize = intel::detail::reduGetMaxWGSize(MQueue, OneElemSize);
     assert(MaxWGSize >= Range.get_local_range().size() &&
            "This reduction implementation requires more device resources.");
 
