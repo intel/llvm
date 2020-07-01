@@ -26,7 +26,7 @@ struct InnerField : public InnerFieldBase {
 };
 
 struct Base {
-  Base (int _B, int _C, int _D) : B(_B), InnerObj(_C, _D) {}
+  Base(int _B, int _C, int _D) : B(_B), InnerObj(_C, _D) {}
   int B;
   InnerField InnerObj;
 };
@@ -35,7 +35,7 @@ struct Derived : public Base, public SecondBase {
   Derived(
       int _A, int _B, int _C, int _D, int _E,
       cl::sycl::accessor<int, 1, sycl_read_write, sycl_global_buffer> &_Acc)
-      : A(_A), Acc(_Acc), /*Out(_Out),*/ Base(_B, _C, _D), SecondBase(_E)  {}
+      : A(_A), Acc(_Acc), /*Out(_Out),*/ Base(_B, _C, _D), SecondBase(_E) {}
   void operator()() {
     Acc[0] = this->A + this->B + this->InnerObj.C + this->InnerObj.D + this->E;
   }
@@ -45,18 +45,17 @@ struct Derived : public Base, public SecondBase {
 };
 
 int main() {
-  int A[] = { 10 };
+  int A[] = {10};
   {
     cl::sycl::queue Q;
     cl::sycl::buffer<int, 1> Buf(A, 1);
 
     Q.submit([&](cl::sycl::handler &cgh) {
       auto Acc = Buf.get_access<sycl_read_write, sycl_global_buffer>(cgh);
-      Derived F = {1, 2, 3, 4, 5, Acc/*, Out*/};
+      Derived F = {1, 2, 3, 4, 5, Acc /*, Out*/};
       cgh.single_task(F);
     });
   }
   assert(A[0] == 15);
   return 0;
 }
-
