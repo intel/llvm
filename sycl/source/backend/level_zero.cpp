@@ -17,29 +17,10 @@ namespace sycl {
 namespace level0 {
 using namespace detail;
 
-// Get the L0 plugin.
-static const plugin &getPlugin() {
-  static const plugin *L0Plugin = nullptr;
-  if (L0Plugin)
-    return *L0Plugin;
-
-  const vector_class<plugin> &Plugins = pi::initialize();
-  for (const auto &Plugin : Plugins)
-    if (Plugin.getBackend() == backend::level0) {
-      L0Plugin = &Plugin;
-      break;
-    }
-  if (!L0Plugin) {
-    throw runtime_error("sycl::level0 - no Level-Zero plugin",
-                        PI_INVALID_OPERATION);
-  }
-  return *L0Plugin;
-}
-
 //----------------------------------------------------------------------------
 // Implementation of level0::make<platform>
 __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle) {
-  const auto &Plugin = getPlugin();
+  const auto &Plugin = pi::getPlugin<backend::level0>();
   // Create PI platform first.
   pi::PiPlatform PiPlatform;
   Plugin.call<PiApiKind::piextPlatformCreateWithNativeHandle>(NativeHandle,
@@ -54,7 +35,7 @@ __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle) {
 // Implementation of level0::make<device>
 __SYCL_EXPORT device make_device(const platform &Platform,
                                  pi_native_handle NativeHandle) {
-  const auto &Plugin = getPlugin();
+  const auto &Plugin = pi::getPlugin<backend::level0>();
   const auto &PlatformImpl = getSyclObjImpl(Platform);
   // Create PI device first.
   pi::PiDevice PiDevice;
@@ -80,7 +61,7 @@ __SYCL_EXPORT program make_program(const context &Context,
 // Implementation of level0::make<queue>
 __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle NativeHandle) {
-  const auto &Plugin = getPlugin();
+  const auto &Plugin = pi::getPlugin<backend::level0>();
   const auto &ContextImpl = getSyclObjImpl(Context);
   // Create PI queue first.
   pi::PiQueue PiQueue;
