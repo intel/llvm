@@ -28,8 +28,8 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
 
   const plugin &Plugin = DeviceImpl.getPlugin();
   RT::PiDevice Device = DeviceImpl.getHandleRef();
-  // std::string Platform = DeviceImpl.get_platform();
   cl::sycl::platform Platform = DeviceImpl.get_platform();
+
   if (HasLocalSize) {
     size_t MaxThreadsPerBlock[3] = {};
     Plugin.call<PiApiKind::piDeviceGetInfo>(
