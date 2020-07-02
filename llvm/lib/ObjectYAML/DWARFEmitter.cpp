@@ -191,7 +191,7 @@ Error DWARFYAML::emitPubSection(raw_ostream &OS,
   for (auto Entry : Sect.Entries) {
     writeInteger((uint32_t)Entry.DieOffset, OS, IsLittleEndian);
     if (Sect.IsGNUStyle)
-      writeInteger((uint32_t)Entry.Descriptor, OS, IsLittleEndian);
+      writeInteger((uint8_t)Entry.Descriptor, OS, IsLittleEndian);
     OS.write(Entry.Name.data(), Entry.Name.size());
     OS.write('\0');
   }
@@ -209,12 +209,16 @@ protected:
   void onStartCompileUnit(const DWARFYAML::Unit &CU) override {
     writeInitialLength(CU.Length, OS, DebugInfo.IsLittleEndian);
     writeInteger((uint16_t)CU.Version, OS, DebugInfo.IsLittleEndian);
-    if(CU.Version >= 5) {
+    if (CU.Version >= 5) {
       writeInteger((uint8_t)CU.Type, OS, DebugInfo.IsLittleEndian);
       writeInteger((uint8_t)CU.AddrSize, OS, DebugInfo.IsLittleEndian);
-      writeInteger((uint32_t)CU.AbbrOffset, OS, DebugInfo.IsLittleEndian);
-    }else {
-      writeInteger((uint32_t)CU.AbbrOffset, OS, DebugInfo.IsLittleEndian);
+      cantFail(writeVariableSizedInteger(CU.AbbrOffset,
+                                         CU.Length.isDWARF64() ? 8 : 4, OS,
+                                         DebugInfo.IsLittleEndian));
+    } else {
+      cantFail(writeVariableSizedInteger(CU.AbbrOffset,
+                                         CU.Length.isDWARF64() ? 8 : 4, OS,
+                                         DebugInfo.IsLittleEndian));
       writeInteger((uint8_t)CU.AddrSize, OS, DebugInfo.IsLittleEndian);
     }
   }
@@ -267,9 +271,7 @@ public:
 
 Error DWARFYAML::emitDebugInfo(raw_ostream &OS, const DWARFYAML::Data &DI) {
   DumpVisitor Visitor(DI, OS);
-  Visitor.traverseDebugInfo();
-
-  return Error::success();
+  return Visitor.traverseDebugInfo();
 }
 
 static void emitFileEntry(raw_ostream &OS, const DWARFYAML::File &File) {
@@ -483,7 +485,8 @@ DWARFYAML::emitDebugSections(StringRef YAMLString, bool ApplyFixups,
 
   if (ApplyFixups) {
     DIEFixupVisitor DIFixer(DI);
-    DIFixer.traverseDebugInfo();
+    if (Error Err = DIFixer.traverseDebugInfo())
+      return std::move(Err);
   }
 
   StringMap<std::unique_ptr<MemoryBuffer>> DebugSections;

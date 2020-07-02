@@ -15,6 +15,7 @@
 #include "Arch/RISCV.h"
 #include "Arch/Sparc.h"
 #include "Arch/SystemZ.h"
+#include "Arch/VE.h"
 #include "Arch/X86.h"
 #include "CommonArgs.h"
 #include "Hexagon.h"
@@ -378,27 +379,14 @@ static void getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
     break;
   case llvm::Triple::msp430:
     msp430::getMSP430TargetFeatures(D, Args, Features);
+    break;
+  case llvm::Triple::ve:
+    ve::getVETargetFeatures(D, Args, Features);
   }
 
-  // Find the last of each feature.
-  llvm::StringMap<unsigned> LastOpt;
-  for (unsigned I = 0, N = Features.size(); I < N; ++I) {
-    StringRef Name = Features[I];
-    assert(Name[0] == '-' || Name[0] == '+');
-    LastOpt[Name.drop_front(1)] = I;
-  }
-
-  for (unsigned I = 0, N = Features.size(); I < N; ++I) {
-    // If this feature was overridden, ignore it.
-    StringRef Name = Features[I];
-    llvm::StringMap<unsigned>::iterator LastI = LastOpt.find(Name.drop_front(1));
-    assert(LastI != LastOpt.end());
-    unsigned Last = LastI->second;
-    if (Last != I)
-      continue;
-
+  for (auto Feature : unifyTargetFeatures(Features)) {
     CmdArgs.push_back(IsAux ? "-aux-target-feature" : "-target-feature");
-    CmdArgs.push_back(Name.data());
+    CmdArgs.push_back(Feature.data());
   }
 }
 
@@ -741,38 +729,6 @@ static void addDashXForInput(const ArgList &Args, const InputInfo &Input,
     }
     CmdArgs.push_back(ClangType);
   }
-}
-
-static void appendUserToPath(SmallVectorImpl<char> &Result) {
-#ifdef LLVM_ON_UNIX
-  const char *Username = getenv("LOGNAME");
-#else
-  const char *Username = getenv("USERNAME");
-#endif
-  if (Username) {
-    // Validate that LoginName can be used in a path, and get its length.
-    size_t Len = 0;
-    for (const char *P = Username; *P; ++P, ++Len) {
-      if (!clang::isAlphanumeric(*P) && *P != '_') {
-        Username = nullptr;
-        break;
-      }
-    }
-
-    if (Username && Len > 0) {
-      Result.append(Username, Username + Len);
-      return;
-    }
-  }
-
-// Fallback to user id.
-#ifdef LLVM_ON_UNIX
-  std::string UID = llvm::utostr(getuid());
-#else
-  // FIXME: Windows seems to have an 'SID' that might work.
-  std::string UID = "9999";
-#endif
-  Result.append(UID.begin(), UID.end());
 }
 
 static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
@@ -1138,6 +1094,16 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   else
     ArgM = ArgMD;
 
+  auto createFPGATempDepFile = [&](const char *&DepFile) {
+    // Generate dependency files as temporary. These will be used for the
+    // aoc call/bundled during fat object creation
+    std::string BaseName(Clang::getBaseInputName(Args, Inputs[0]));
+    std::string DepTmpName =
+        C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseName), "d");
+    DepFile = C.addTempFile(C.getArgs().MakeArgString(DepTmpName));
+    C.getDriver().addFPGATempDepFile(DepFile, BaseName);
+  };
+
   if (ArgM) {
     // Determine the output location.
     const char *DepFile;
@@ -1148,16 +1114,9 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       DepFile = Output.getFilename();
     } else if (!ArgMD) {
       DepFile = "-";
-    } else if (ArgMD->getOption().matches(options::OPT_MMD) &&
-               Args.hasArg(options::OPT_fintelfpga) &&
+    } else if (Args.hasArg(options::OPT_fintelfpga) &&
                JA.isDeviceOffloading(Action::OFK_SYCL)) {
-      // Generate dependency files as temporary. These will be used for the
-      // aoc call/bundled during fat object creation
-      std::string BaseName(Clang::getBaseInputName(Args, Inputs[0]));
-      std::string DepTmpName =
-          C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseName), "d");
-      DepFile = C.addTempFile(C.getArgs().MakeArgString(DepTmpName));
-      C.getDriver().addFPGATempDepFile(DepFile, BaseName);
+      createFPGATempDepFile(DepFile);
     } else {
       DepFile = getDependencyFileName(Args, Inputs);
       C.addFailureResultFile(DepFile, &JA);
@@ -1210,6 +1169,22 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
          !Args.hasArg(options::OPT_fno_module_file_deps)) ||
         Args.hasArg(options::OPT_fmodule_file_deps))
       CmdArgs.push_back("-module-file-deps");
+  }
+
+  if (!ArgM && Args.hasArg(options::OPT_fintelfpga) &&
+      JA.isDeviceOffloading(Action::OFK_SYCL)) {
+    // No dep generation option was provided, add all of the needed options
+    // to ensure a successful dep generation.
+    const char *DepFile;
+    createFPGATempDepFile(DepFile);
+    CmdArgs.push_back("-dependency-file");
+    CmdArgs.push_back(DepFile);
+    CmdArgs.push_back("-MT");
+    SmallString<128> P(Inputs[0].getBaseInput());
+    llvm::sys::path::replace_extension(P, "o");
+    SmallString<128> Quoted;
+    QuoteTarget(llvm::sys::path::filename(P), Quoted);
+    CmdArgs.push_back(Args.MakeArgString(Quoted));
   }
 
   if (Args.hasArg(options::OPT_MG)) {
@@ -1686,6 +1661,10 @@ void Clang::RenderTargetOptions(const llvm::Triple &EffectiveTriple,
   case llvm::Triple::wasm32:
   case llvm::Triple::wasm64:
     AddWebAssemblyTargetArgs(Args, CmdArgs);
+    break;
+
+  case llvm::Triple::ve:
+    AddVETargetArgs(Args, CmdArgs);
     break;
   }
 }
@@ -2182,6 +2161,12 @@ void Clang::AddWebAssemblyTargetArgs(const ArgList &Args,
     CmdArgs.push_back("-fvisibility");
     CmdArgs.push_back("hidden");
   }
+}
+
+void Clang::AddVETargetArgs(const ArgList &Args, ArgStringList &CmdArgs) const {
+  // Floating point operations and argument passing are hard.
+  CmdArgs.push_back("-mfloat-abi");
+  CmdArgs.push_back("hard");
 }
 
 void Clang::DumpCompilationDatabase(Compilation &C, StringRef Filename,
@@ -3227,11 +3212,13 @@ static void RenderBuiltinOptions(const ToolChain &TC, const llvm::Triple &T,
     CmdArgs.push_back("-fno-math-builtin");
 }
 
-void Driver::getDefaultModuleCachePath(SmallVectorImpl<char> &Result) {
-  llvm::sys::path::system_temp_directory(/*erasedOnReboot=*/false, Result);
-  llvm::sys::path::append(Result, "org.llvm.clang.");
-  appendUserToPath(Result);
-  llvm::sys::path::append(Result, "ModuleCache");
+bool Driver::getDefaultModuleCachePath(SmallVectorImpl<char> &Result) {
+  if (llvm::sys::path::cache_directory(Result)) {
+    llvm::sys::path::append(Result, "clang");
+    llvm::sys::path::append(Result, "ModuleCache");
+    return true;
+  }
+  return false;
 }
 
 static void RenderModulesOptions(Compilation &C, const Driver &D,
@@ -3288,6 +3275,7 @@ static void RenderModulesOptions(Compilation &C, const Driver &D,
     if (Arg *A = Args.getLastArg(options::OPT_fmodules_cache_path))
       Path = A->getValue();
 
+    bool HasPath = true;
     if (C.isForDiagnostics()) {
       // When generating crash reports, we want to emit the modules along with
       // the reproduction sources, so we ignore any provided module path.
@@ -3296,12 +3284,16 @@ static void RenderModulesOptions(Compilation &C, const Driver &D,
       llvm::sys::path::append(Path, "modules");
     } else if (Path.empty()) {
       // No module path was provided: use the default.
-      Driver::getDefaultModuleCachePath(Path);
+      HasPath = Driver::getDefaultModuleCachePath(Path);
     }
 
-    const char Arg[] = "-fmodules-cache-path=";
-    Path.insert(Path.begin(), Arg, Arg + strlen(Arg));
-    CmdArgs.push_back(Args.MakeArgString(Path));
+    // `HasPath` will only be false if getDefaultModuleCachePath() fails.
+    // That being said, that failure is unlikely and not caching is harmless.
+    if (HasPath) {
+      const char Arg[] = "-fmodules-cache-path=";
+      Path.insert(Path.begin(), Arg, Arg + strlen(Arg));
+      CmdArgs.push_back(Args.MakeArgString(Path));
+    }
   }
 
   if (HaveModules) {
@@ -5349,6 +5341,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       if (Args.hasFlag(options::OPT_fopenmp_cuda_mode,
                        options::OPT_fno_openmp_cuda_mode, /*Default=*/false))
         CmdArgs.push_back("-fopenmp-cuda-mode");
+
+      // When in OpenMP offloading mode with NVPTX target, forward
+      // cuda-parallel-target-regions flag
+      if (Args.hasFlag(options::OPT_fopenmp_cuda_parallel_target_regions,
+                       options::OPT_fno_openmp_cuda_parallel_target_regions,
+                       /*Default=*/true))
+        CmdArgs.push_back("-fopenmp-cuda-parallel-target-regions");
 
       // When in OpenMP offloading mode with NVPTX target, check if full runtime
       // is required.
@@ -7623,7 +7622,17 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   TranslatorArgs.push_back(Output.getFilename());
   if (getToolChain().getTriple().isSYCLDeviceEnvironment()) {
     TranslatorArgs.push_back("-spirv-max-version=1.1");
-    TranslatorArgs.push_back("-spirv-ext=+all");
+    std::string ExtArg("-spirv-ext=+all");
+    // Disable SPV_INTEL_usm_storage_classes by default since it adds new
+    // storage classes that represent global_device and global_host address
+    // spaces, which are not supported for all targets. With the extension
+    // disable the storage classes will be lowered to CrossWorkgroup storage
+    // class that is mapped to just global address space.
+    if (!(getToolChain().getTriple().getSubArch() ==
+              llvm::Triple::SPIRSubArch_fpga &&
+          TCArgs.hasArg(options::OPT_fsycl_enable_usm_address_spaces)))
+      ExtArg += ",-SPV_INTEL_usm_storage_classes";
+    TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
   }
   for (auto I : Inputs) {
     std::string Filename(I.getFilename());

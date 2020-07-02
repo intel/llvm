@@ -8,8 +8,9 @@
 
 #include <detail/error_handling/error_handling.hpp>
 
-#include "CL/sycl/access/access.hpp"
+#include <CL/sycl/access/access.hpp>
 #include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/detail/cg_types.hpp>
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
@@ -159,6 +160,7 @@ getPiEvents(const std::vector<EventImplPtr> &EventImpls) {
 
 class DispatchHostTask {
   ExecCGCommand *MThisCmd;
+  std::vector<interop_handle::ReqToMem> MReqToMem;
 
   void waitForEvents() const {
     std::map<const detail::plugin *, std::vector<EventImplPtr>>
@@ -187,7 +189,9 @@ class DispatchHostTask {
   }
 
 public:
-  DispatchHostTask(ExecCGCommand *ThisCmd) : MThisCmd{ThisCmd} {}
+  DispatchHostTask(ExecCGCommand *ThisCmd,
+                   std::vector<interop_handle::ReqToMem> ReqToMem)
+      : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)) {}
 
   void operator()() const {
     waitForEvents();
@@ -197,7 +201,15 @@ public:
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
 
     // we're ready to call the user-defined lambda now
-    HostTask.MHostTask->call();
+    if (HostTask.MHostTask->isInteropTask()) {
+      interop_handle IH{MReqToMem, HostTask.MQueue,
+                        getSyclObjImpl(HostTask.MQueue->get_device()),
+                        HostTask.MQueue->getContextImplPtr()};
+
+      HostTask.MHostTask->call(IH);
+    } else
+      HostTask.MHostTask->call();
+
     HostTask.MHostTask.reset();
 
     // unblock user empty command here
@@ -1973,7 +1985,38 @@ cl_int ExecCGCommand::enqueueImp() {
       }
     }
 
-    MQueue->getThreadPool().submit<DispatchHostTask>(DispatchHostTask(this));
+    std::vector<interop_handle::ReqToMem> ReqToMem;
+
+    if (HostTask->MHostTask->isInteropTask()) {
+      // Extract the Mem Objects for all Requirements, to ensure they are
+      // available if a user asks for them inside the interop task scope
+      const std::vector<Requirement *> &HandlerReq = HostTask->MRequirements;
+      auto ReqToMemConv = [&ReqToMem, HostTask](Requirement *Req) {
+        const std::vector<AllocaCommandBase *> &AllocaCmds =
+            Req->MSYCLMemObj->MRecord->MAllocaCommands;
+
+        for (AllocaCommandBase *AllocaCmd : AllocaCmds)
+          if (HostTask->MQueue == AllocaCmd->getQueue()) {
+            auto MemArg =
+                reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
+            ReqToMem.emplace_back(std::make_pair(Req, MemArg));
+
+            return;
+          }
+
+        assert(false &&
+               "Can't get memory object due to no allocation available");
+
+        throw runtime_error(
+            "Can't get memory object due to no allocation available",
+            PI_INVALID_MEM_OBJECT);
+      };
+      std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
+      std::sort(std::begin(ReqToMem), std::end(ReqToMem));
+    }
+
+    MQueue->getThreadPool().submit<DispatchHostTask>(
+        DispatchHostTask(this, std::move(ReqToMem)));
 
     MShouldCompleteEventIfPossible = false;
 

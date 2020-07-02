@@ -321,6 +321,9 @@ public:
   /// \return true if caching is allowed for this program.
   bool is_cacheable() const { return MProgramAndKernelCachingAllowed; }
 
+  /// Returns the native plugin handle.
+  pi_native_handle getNative() const;
+
 private:
   // Deligating Constructor used in Implementation.
   program_impl(ContextImplPtr Context, pi_native_handle InteropProgram,

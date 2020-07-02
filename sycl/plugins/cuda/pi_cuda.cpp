@@ -64,21 +64,40 @@ inline void assign_result(pi_result *ptr, pi_result value) noexcept {
 }
 
 // Iterates over the event wait list, returns correct pi_result error codes.
-// Invokes the callback for each event in the wait list. The callback must take
-// a single pi_event argument and return a pi_result.
+// Invokes the callback for the latest event of each queue in the wait list.
+// The callback must take a single pi_event argument and return a pi_result.
 template <typename Func>
-pi_result forEachEvent(const pi_event *event_wait_list,
-                       std::size_t num_events_in_wait_list, Func &&f) {
+pi_result forLatestEvents(const pi_event *event_wait_list,
+                          std::size_t num_events_in_wait_list, Func &&f) {
 
   if (event_wait_list == nullptr || num_events_in_wait_list == 0) {
     return PI_INVALID_EVENT_WAIT_LIST;
   }
 
-  for (size_t i = 0; i < num_events_in_wait_list; i++) {
-    auto event = event_wait_list[i];
-    if (event == nullptr) {
-      return PI_INVALID_EVENT_WAIT_LIST;
+  // Fast path if we only have a single event
+  if (num_events_in_wait_list == 1) {
+    return f(event_wait_list[0]);
+  }
+
+  std::vector<pi_event> events{event_wait_list,
+                               event_wait_list + num_events_in_wait_list};
+  std::sort(events.begin(), events.end(), [](pi_event e0, pi_event e1) {
+    // Tiered sort creating sublists of streams (smallest value first) in which
+    // the corresponding events are sorted into a sequence of newest first.
+    return e0->get_queue()->stream_ < e1->get_queue()->stream_ ||
+           (e0->get_queue()->stream_ == e1->get_queue()->stream_ &&
+            e0->get_event_id() > e1->get_event_id());
+  });
+
+  bool first = true;
+  CUstream lastSeenStream = 0;
+  for (pi_event event : events) {
+    if (!event || (!first && event->get_queue()->stream_ == lastSeenStream)) {
+      continue;
     }
+
+    first = false;
+    lastSeenStream = event->get_queue()->stream_;
 
     auto result = f(event);
     if (result != PI_SUCCESS) {
@@ -276,9 +295,12 @@ _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue)
 
   assert(type != PI_COMMAND_TYPE_USER);
 
-  PI_CHECK_ERROR(cuEventCreate(&evEnd_, CU_EVENT_DEFAULT));
+  bool profilingEnabled = queue_->properties_ & PI_QUEUE_PROFILING_ENABLE;
 
-  if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
+  PI_CHECK_ERROR(cuEventCreate(
+      &evEnd_, profilingEnabled ? CU_EVENT_DEFAULT : CU_EVENT_DISABLE_TIMING));
+
+  if (profilingEnabled) {
     PI_CHECK_ERROR(cuEventCreate(&evQueued_, CU_EVENT_DEFAULT));
     PI_CHECK_ERROR(cuEventCreate(&evStart_, CU_EVENT_DEFAULT));
   }
@@ -354,6 +376,11 @@ pi_result _pi_event::record() {
   CUstream cuStream = queue_->get();
 
   try {
+    eventId_ = queue_->get_next_event_id();
+    if (eventId_ == 0) {
+      cl::sycl::detail::pi::die(
+          "Unrecoverable program state reached in event identifier overflow");
+    }
     result = PI_CHECK_ERROR(cuEventRecord(evEnd_, cuStream));
   } catch (pi_result error) {
     result = error;
@@ -1311,10 +1338,12 @@ pi_result cuda_piextDeviceGetNativeHandle(pi_device device,
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI device object from.
+/// \param[in] platform is the PI platform of the device.
 /// \param[out] device Set to the PI device object created from native handle.
 ///
 /// \return TBD
 pi_result cuda_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                 pi_platform platform,
                                                  pi_device *device) {
   cl::sycl::detail::pi::die(
       "Creation of PI device from native handle not implemented");
@@ -1852,10 +1881,12 @@ pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI queue object from.
+/// \param[in] context is the PI context of the queue.
 /// \param[out] queue Set to the PI queue object created from native handle.
 ///
 /// \return TBD
 pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                pi_context context,
                                                 pi_queue *queue) {
   cl::sycl::detail::pi::die(
       "Creation of PI queue from native handle not implemented");
@@ -1958,8 +1989,8 @@ pi_result cuda_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
 pi_result cuda_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
 
   try {
-    pi_result err = PI_SUCCESS;
-
+    assert(num_events != 0);
+    assert(event_list);
     if (num_events == 0) {
       return PI_INVALID_VALUE;
     }
@@ -1971,11 +2002,7 @@ pi_result cuda_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
     auto context = event_list[0]->get_context();
     ScopedContext active(context);
 
-    for (pi_uint32 count = 0; count < num_events && (err == PI_SUCCESS);
-         count++) {
-
-      auto event = event_list[count];
-
+    auto waitFunc = [context](pi_event event) -> pi_result {
       if (!event) {
         return PI_INVALID_EVENT;
       }
@@ -1984,9 +2011,9 @@ pi_result cuda_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
         return PI_INVALID_CONTEXT;
       }
 
-      err = event->wait();
-    }
-    return err;
+      return event->wait();
+    };
+    return forLatestEvents(event_list, num_events, waitFunc);
   } catch (pi_result err) {
     return err;
   } catch (...) {
@@ -2466,10 +2493,12 @@ pi_result cuda_piextProgramGetNativeHandle(pi_program program,
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI program object from.
+/// \param[in] context The PI context of the program.
 /// \param[out] program Set to the PI program object created from native handle.
 ///
 /// \return TBD
 pi_result cuda_piextProgramCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                  pi_context context,
                                                   pi_program *program) {
   cl::sycl::detail::pi::die(
       "Creation of PI program from native handle not implemented");
@@ -2760,10 +2789,10 @@ pi_result cuda_piEnqueueEventsWait(pi_queue command_queue,
 
     if (event_wait_list) {
       auto result =
-          forEachEvent(event_wait_list, num_events_in_wait_list,
-                       [command_queue](pi_event event) -> pi_result {
-                         return enqueueEventWait(command_queue, event);
-                       });
+          forLatestEvents(event_wait_list, num_events_in_wait_list,
+                          [command_queue](pi_event event) -> pi_result {
+                            return enqueueEventWait(command_queue, event);
+                          });
 
       if (result != PI_SUCCESS) {
         return result;

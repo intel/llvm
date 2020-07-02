@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.14)
 
 project(sycl-solution)
 # Requirements
@@ -8,10 +8,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(SYCL_ENABLE_WERROR "Treat all warnings as errors in SYCL project" OFF)
 option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
 
-set(SYCL_MAJOR_VERSION 1)
-set(SYCL_MINOR_VERSION 0)
+set(SYCL_MAJOR_VERSION 2)
+set(SYCL_MINOR_VERSION 1)
 set(SYCL_PATCH_VERSION 0)
-set(SYCL_DEV_ABI_VERSION 1)
+set(SYCL_DEV_ABI_VERSION 0)
 if (SYCL_ADD_DEV_VERSION_POSTFIX)
   set(SYCL_VERSION_POSTFIX "-${SYCL_DEV_ABI_VERSION}")
 endif()
@@ -183,6 +183,35 @@ install(DIRECTORY ${OPENCL_INCLUDE}/CL
   DESTINATION ${SYCL_INCLUDE_DEPLOY_DIR}
   COMPONENT opencl-headers
 )
+
+# vc-intrinsics could have been added earlier from llvm/projects
+if (NOT TARGET LLVMGenXIntrinsics)
+  if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
+    message(STATUS "vc-intrinsics are missing. Will try to download them from github.com")
+
+    include(FetchContent)
+    FetchContent_Declare(vc-intrinsics
+      GIT_REPOSITORY https://github.com/intel/vc-intrinsics.git
+      GIT_TAG        cce6e48c28eb850d7dadd30841c0d95f009bbca1
+    )
+    FetchContent_MakeAvailable(vc-intrinsics)
+    FetchContent_GetProperties(vc-intrinsics)
+
+    set(LLVMGenXIntrinsics_SOURCE_DIR ${vc-intrinsics_SOURCE_DIR})
+    set(LLVMGenXIntrinsics_BINARY_DIR ${vc-intrinsics_BINARY_DIR})
+  else()
+    # -DLLVMGenXIntrinsics_SOURCE_DIR is provided
+    message(STATUS "vc-intrinsics are added manually ${LLVMGenXIntrinsics_SOURCE_DIR}")
+
+    set(LLVMGenXIntrinsics_BINARY_DIR ${CMAKE_BINARY_DIR}/vc-intrinsics-build)
+    add_subdirectory(${LLVMGenXIntrinsics_SOURCE_DIR} ${LLVMGenXIntrinsics_BINARY_DIR})
+  endif()
+
+  target_include_directories(LLVMGenXIntrinsics
+    PUBLIC $<BUILD_INTERFACE:${LLVMGenXIntrinsics_SOURCE_DIR}/GenXIntrinsics/include>
+    PUBLIC $<BUILD_INTERFACE:${LLVMGenXIntrinsics_BINARY_DIR}/GenXIntrinsics/include>
+  )
+endif()
 
 option(SYCL_BUILD_PI_CUDA
   "Enables the CUDA backend for the Plugin Interface" OFF)

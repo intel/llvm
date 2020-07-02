@@ -8,8 +8,8 @@
 
 #include <spirv/spirv.h>
 
-#include "../../lib/math/math.h"
-#include "math/clc_fma.h"
+#include <math/clc_fma.h>
+#include <math/math.h>
 
 #define __CLC_BODY <fma.inc>
 #include <clc/math/gentype.inc>
