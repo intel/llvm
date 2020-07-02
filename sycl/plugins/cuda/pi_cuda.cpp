@@ -2703,6 +2703,11 @@ pi_result cuda_piEventGetProfilingInfo(pi_event event,
 
   assert(event != nullptr);
 
+  pi_queue queue = event->get_queue();
+  if (queue == nullptr || !(queue->properties_ & PI_QUEUE_PROFILING_ENABLE)) {
+    return PI_PROFILING_INFO_NOT_AVAILABLE;
+  }
+
   switch (param_name) {
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
