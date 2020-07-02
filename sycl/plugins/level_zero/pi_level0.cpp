@@ -1182,10 +1182,16 @@ pi_result piextDeviceGetNativeHandle(pi_device Device,
 }
 
 pi_result piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                            pi_platform Platform,
                                             pi_device *Device) {
+  assert(NativeHandle);
+  assert(Device);
+  assert(Platform);
+
   // Create PI device from the given L0 device handle.
-  die("piextDeviceCreateWithNativeHandle: not supported");
-  return PI_SUCCESS;
+  auto ZeDevice = pi_cast<ze_device_handle_t>(NativeHandle);
+  *Device = new _pi_device(ZeDevice, Platform);
+  return (*Device)->initialize();
 }
 
 pi_result piContextCreate(const pi_context_properties *Properties,
@@ -1370,13 +1376,24 @@ pi_result piQueueFinish(pi_queue Queue) {
 
 pi_result piextQueueGetNativeHandle(pi_queue Queue,
                                     pi_native_handle *NativeHandle) {
-  die("piextQueueGetNativeHandle: not supported");
+  assert(Queue);
+  assert(NativeHandle);
+
+  auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
+  // Extract the L0 queue handle from the given PI queue
+  *ZeQueue = Queue->ZeCommandQueue;
   return PI_SUCCESS;
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                           pi_context Context,
                                            pi_queue *Queue) {
-  die("piextQueueCreateWithNativeHandle: not supported");
+  assert(NativeHandle);
+  assert(Context);
+  assert(Queue);
+
+  auto ZeQueue = pi_cast<ze_command_queue_handle_t>(NativeHandle);
+  *Queue = new _pi_queue(ZeQueue, Context);
   return PI_SUCCESS;
 }
 
@@ -1873,13 +1890,43 @@ pi_result piProgramRelease(pi_program Program) {
 
 pi_result piextProgramGetNativeHandle(pi_program Program,
                                       pi_native_handle *NativeHandle) {
-  die("piextProgramGetNativeHandle: not supported");
+  assert(Program);
+  assert(NativeHandle);
+
+  auto ZeModule = pi_cast<ze_module_handle_t *>(NativeHandle);
+  // Extract the L0 module handle from the given PI program
+  *ZeModule = Program->ZeModule;
   return PI_SUCCESS;
 }
 
 pi_result piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                             pi_context Context,
                                              pi_program *Program) {
-  die("piextProgramCreateWithNativeHandle: not supported");
+  assert(NativeHandle);
+  assert(Context);
+  assert(Program);
+
+  auto ZeModule = pi_cast<ze_module_handle_t>(NativeHandle);
+
+  // Create PI program from the given L0 module handle.
+  //
+  // TODO: We don't have the real L0 module descriptor with
+  // which it was created, but that's only needed for zeModuleCreate,
+  // which we don't expect to be called on the interop program.
+  //
+  ze_module_desc_t ZeModuleDesc = {};
+  ZeModuleDesc.version = ZE_MODULE_DESC_VERSION_CURRENT;
+  ZeModuleDesc.format = ZE_MODULE_FORMAT_NATIVE;
+  ZeModuleDesc.inputSize = 0;
+  ZeModuleDesc.pInputModule = nullptr;
+
+  try {
+    *Program = new _pi_program(ZeModule, ZeModuleDesc, Context);
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
   return PI_SUCCESS;
 }
 

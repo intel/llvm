@@ -1,4 +1,4 @@
-//==------- opencl.cpp - SYCL OpenCL backend -------------------------------==//
+//==--------- level_zero.cpp - SYCL Level-Zero backend ---------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,13 +14,13 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace opencl {
+namespace level0 {
 using namespace detail;
 
 //----------------------------------------------------------------------------
-// Implementation of opencl::make<platform>
+// Implementation of level0::make<platform>
 __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle) {
-  const auto &Plugin = pi::getPlugin<backend::opencl>();
+  const auto &Plugin = pi::getPlugin<backend::level0>();
   // Create PI platform first.
   pi::PiPlatform PiPlatform;
   Plugin.call<PiApiKind::piextPlatformCreateWithNativeHandle>(NativeHandle,
@@ -32,33 +32,22 @@ __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle) {
 }
 
 //----------------------------------------------------------------------------
-// Implementation of opencl::make<device>
-__SYCL_EXPORT device make_device(pi_native_handle NativeHandle) {
-  const auto &Plugin = pi::getPlugin<backend::opencl>();
+// Implementation of level0::make<device>
+__SYCL_EXPORT device make_device(const platform &Platform,
+                                 pi_native_handle NativeHandle) {
+  const auto &Plugin = pi::getPlugin<backend::level0>();
+  const auto &PlatformImpl = getSyclObjImpl(Platform);
   // Create PI device first.
   pi::PiDevice PiDevice;
-  Plugin.call<PiApiKind::piextDeviceCreateWithNativeHandle>(NativeHandle,
-                                                            nullptr, &PiDevice);
+  Plugin.call<PiApiKind::piextDeviceCreateWithNativeHandle>(
+      NativeHandle, PlatformImpl->getHandleRef(), &PiDevice);
   // Construct the SYCL device from PI device.
   return detail::createSyclObjFromImpl<device>(
-      std::make_shared<device_impl>(PiDevice, Plugin));
+      std::make_shared<device_impl>(PiDevice, PlatformImpl));
 }
 
 //----------------------------------------------------------------------------
-// Implementation of opencl::make<context>
-__SYCL_EXPORT context make_context(pi_native_handle NativeHandle) {
-  const auto &Plugin = pi::getPlugin<backend::opencl>();
-  // Create PI context first.
-  pi::PiContext PiContext;
-  Plugin.call<PiApiKind::piextContextCreateWithNativeHandle>(NativeHandle,
-                                                             &PiContext);
-  // Construct the SYCL context from PI context.
-  return detail::createSyclObjFromImpl<context>(
-      std::make_shared<context_impl>(PiContext, async_handler{}, Plugin));
-}
-
-//----------------------------------------------------------------------------
-// Implementation of opencl::make<program>
+// Implementation of level0::make<program>
 __SYCL_EXPORT program make_program(const context &Context,
                                    pi_native_handle NativeHandle) {
   // Construct the SYCL program from native program.
@@ -69,10 +58,10 @@ __SYCL_EXPORT program make_program(const context &Context,
 }
 
 //----------------------------------------------------------------------------
-// Implementation of opencl::make<queue>
+// Implementation of level0::make<queue>
 __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle NativeHandle) {
-  const auto &Plugin = pi::getPlugin<backend::opencl>();
+  const auto &Plugin = pi::getPlugin<backend::level0>();
   const auto &ContextImpl = getSyclObjImpl(Context);
   // Create PI queue first.
   pi::PiQueue PiQueue;
@@ -83,6 +72,6 @@ __SYCL_EXPORT queue make_queue(const context &Context,
       PiQueue, ContextImpl, ContextImpl->get_async_handler()));
 }
 
-} // namespace opencl
+} // namespace level0
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
