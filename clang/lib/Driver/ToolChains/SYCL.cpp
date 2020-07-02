@@ -486,25 +486,25 @@ static void addImpliedArgs(const llvm::Triple &Triple,
       BeArgs.push_back("-g");
   if (Args.getLastArg(options::OPT_O0))
     BeArgs.push_back(IsGen ? "-O0" : "-cl-opt-disable");
+  if (BeArgs.empty())
+    return;
   if (Triple.getSubArch() == llvm::Triple::NoSubArch ||
       Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
     for (StringRef A : BeArgs)
       CmdArgs.push_back(Args.MakeArgString(A));
     return;
   }
-  if (!BeArgs.empty()) {
-    SmallString<128> BeOpt;
-    if (IsGen)
-      CmdArgs.push_back("-options");
-    else
-      BeOpt = "--bo=";
-    for (unsigned I = 0; I < BeArgs.size(); ++I) {
-      if (I)
-        BeOpt += ' ';
-      BeOpt += BeArgs[I];
-    }
-    CmdArgs.push_back(Args.MakeArgString(BeOpt));
+  SmallString<128> BeOpt;
+  if (IsGen)
+    CmdArgs.push_back("-options");
+  else
+    BeOpt = "--bo=";
+  for (unsigned I = 0; I < BeArgs.size(); ++I) {
+    if (I)
+      BeOpt += ' ';
+    BeOpt += BeArgs[I];
   }
+  CmdArgs.push_back(Args.MakeArgString(BeOpt));
 }
 
 void SYCLToolChain::TranslateBackendTargetArgs(const llvm::opt::ArgList &Args,
