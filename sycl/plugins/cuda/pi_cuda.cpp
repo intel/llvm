@@ -1338,10 +1338,12 @@ pi_result cuda_piextDeviceGetNativeHandle(pi_device device,
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI device object from.
+/// \param[in] platform is the PI platform of the device.
 /// \param[out] device Set to the PI device object created from native handle.
 ///
 /// \return TBD
 pi_result cuda_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                 pi_platform platform,
                                                  pi_device *device) {
   cl::sycl::detail::pi::die(
       "Creation of PI device from native handle not implemented");
@@ -1879,10 +1881,12 @@ pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI queue object from.
+/// \param[in] context is the PI context of the queue.
 /// \param[out] queue Set to the PI queue object created from native handle.
 ///
 /// \return TBD
 pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                pi_context context,
                                                 pi_queue *queue) {
   cl::sycl::detail::pi::die(
       "Creation of PI queue from native handle not implemented");
@@ -2489,10 +2493,12 @@ pi_result cuda_piextProgramGetNativeHandle(pi_program program,
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI program object from.
+/// \param[in] context The PI context of the program.
 /// \param[out] program Set to the PI program object created from native handle.
 ///
 /// \return TBD
 pi_result cuda_piextProgramCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                  pi_context context,
                                                   pi_program *program) {
   cl::sycl::detail::pi::die(
       "Creation of PI program from native handle not implemented");

@@ -67,12 +67,6 @@
 #include <spirv/atomic/atomic_xchg.h>
 #include <spirv/atomic/atomic_xor.h>
 
-/* cl_khr extension atomics are omitted from __spirv */
-
-/* 6.12.12 Miscellaneous Vector Functions */
-#include <spirv/misc/shuffle.h>
-#include <spirv/misc/shuffle2.h>
-
 /* 6.11.13 Image Read and Write Functions */
 #include <spirv/image/image_defines.h>
 #include <spirv/image/image.h>

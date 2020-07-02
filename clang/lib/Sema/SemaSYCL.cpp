@@ -1429,8 +1429,8 @@ class SyclKernelBodyCreator
       ParamDREs[I] = SemaRef.BuildDeclRefExpr(KernelParameters[I], ParamType,
                                               VK_LValue, SourceLocation());
     }
-
     MemberExpr *MethodME = BuildMemberExpr(Base, Method);
+
     QualType ResultTy = Method->getReturnType();
     ExprValueKind VK = Expr::getValueKindForType(ResultTy);
     ResultTy = ResultTy.getNonLValueExprType(SemaRef.Context);

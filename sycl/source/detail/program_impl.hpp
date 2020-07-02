@@ -318,6 +318,9 @@ public:
   /// Tells whether a specialization constant has been set for this program.
   bool hasSetSpecConstants() const { return !SpecConstRegistry.empty(); }
 
+  /// Returns the native plugin handle.
+  pi_native_handle getNative() const;
+
 private:
   // Deligating Constructor used in Implementation.
   program_impl(ContextImplPtr Context, pi_native_handle InteropProgram,
