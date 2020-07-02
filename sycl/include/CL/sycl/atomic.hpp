@@ -184,6 +184,7 @@ class atomic {
       detail::GetSpirvMemoryScope<addressSpace>::scope;
 
 public:
+  using AtomicPtrType = typename detail::PtrValueType<T, addressSpace>::type;
   template <typename pointerT>
 #ifdef __SYCL_DEVICE_ONLY__
   atomic(multi_ptr<pointerT, addressSpace> ptr)
@@ -195,6 +196,37 @@ public:
   {
     static_assert(sizeof(T) == sizeof(pointerT),
                   "T and pointerT must be same size");
+  }
+
+#ifdef __SYCL_DEVICE_ONLY__
+  AtomicPtrType *getPtr() const { return Ptr; }
+#else
+  std::atomic<T> *getPtr() const { return Ptr; }
+#endif
+
+  // Create atomic in global_space with one from global_device_space
+  template <access::address_space _Space = addressSpace,
+            typename = typename std::enable_if<
+                _Space == addressSpace &&
+                addressSpace == access::address_space::global_space>::type>
+  atomic(const atomic<T, access::address_space::global_device_space> &RHS) {
+#ifdef __SYCL_DEVICE_ONLY__
+    Ptr = RHS.getPtr();
+#else
+    Ptr = reinterpret_cast<std::atomic<T> *>(RHS.getPtr());
+#endif
+  }
+
+  template <access::address_space _Space = addressSpace,
+            typename = typename std::enable_if<
+                _Space == addressSpace &&
+                addressSpace == access::address_space::global_space>::type>
+  atomic(const atomic<T, access::address_space::global_device_space> &&RHS) {
+#ifdef __SYCL_DEVICE_ONLY__
+    Ptr = RHS.getPtr();
+#else
+    Ptr = reinterpret_cast<std::atomic<T> *>(RHS.getPtr());
+#endif
   }
 
   void store(T Operand, memory_order Order = memory_order::relaxed) {
@@ -299,7 +331,7 @@ public:
 
 private:
 #ifdef __SYCL_DEVICE_ONLY__
-  typename detail::PtrValueType<T, addressSpace>::type *Ptr;
+  AtomicPtrType *Ptr;
 #else
   std::atomic<T> *Ptr;
 #endif

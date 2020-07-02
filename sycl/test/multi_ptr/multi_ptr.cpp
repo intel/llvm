@@ -98,6 +98,8 @@ template <typename T> void testMultPtr() {
         global_ptr<void> ptr_8 = global_ptr<void>(ptr_7);
         host_ptr<void> ptr_9((void *)RawPtr);
         global_ptr<void> ptr_10 = global_ptr<void>(ptr_9);
+        device_ptr<T> ptr_11(accessorData_1);
+        global_ptr<T> ptr_12 = global_ptr<T>(ptr_11);
 
         innerFunc<T>(wiID.get(0), ptr_1, ptr_2, local_ptr);
       });
