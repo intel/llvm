@@ -280,6 +280,7 @@ Every set of functions is implemented in a separate fallback
 library. For example, a fallback for `cl_intel_devicelib_cassert`
 extension is provided as `libsycl-fallback-cassert.spv`
 
-For AOT compilation, fallback libraries are also provided as object
-files (e.g. `libsycl-fallback-cassert.o`). Device code in these object
-files is identical to the the `*.spv` files.
+For AOT compilation, fallback libraries are provided as object files
+(e.g. `libsycl-fallback-cassert.o`) which contain device code in LLVM
+IR format. Device code in these object files is equivalent to device
+code in the `*.spv` files.
