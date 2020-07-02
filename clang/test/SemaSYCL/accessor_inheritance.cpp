@@ -20,7 +20,7 @@ int main() {
 }
 
 // Check kernel parameters
-// CHECK: FunctionDecl {{.*}}kernel 'void (int, int, __global char *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global char *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, int)'
+// CHECK: FunctionDecl {{.*}}kernel{{.*}} 'void (int, int, __global char *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, __global char *, cl::sycl::range<1>, cl::sycl::range<1>, cl::sycl::id<1>, int)'
 // CHECK: ParmVarDecl{{.*}} used _arg_A 'int'
 // CHECK: ParmVarDecl{{.*}} used _arg_B 'int'
 // CHECK: ParmVarDecl{{.*}} used _arg_AccField '__global char *'
