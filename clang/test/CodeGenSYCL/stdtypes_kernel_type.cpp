@@ -45,7 +45,8 @@ class T;
 class U;
 } // namespace std
 
-template <typename T> struct Templated_kernel_name;
+template <typename T>
+struct Templated_kernel_name;
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
@@ -54,10 +55,10 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
 
 int main() {
 #ifdef CHECK_ERROR
-  kernel_single_task<std::nullptr_t>([=]() {}); // expected-error {{kernel name cannot be a type in the "std" namespace}}
-  kernel_single_task<std::T>([=]() {}); // expected-error {{kernel name cannot be a type in the "std" namespace}}
+  kernel_single_task<std::nullptr_t>([=]() {});                        // expected-error {{kernel name cannot be a type in the "std" namespace}}
+  kernel_single_task<std::T>([=]() {});                                // expected-error {{kernel name cannot be a type in the "std" namespace}}
   kernel_single_task<Templated_kernel_name<std::nullptr_t>>([=]() {}); // expected-error {{kernel name cannot be a type in the "std" namespace}}
-  kernel_single_task<Templated_kernel_name<std::U>>([=]() {}); // expected-error {{kernel name cannot be a type in the "std" namespace}}
+  kernel_single_task<Templated_kernel_name<std::U>>([=]() {});         // expected-error {{kernel name cannot be a type in the "std" namespace}}
 #endif
 
   // Although in the std namespace, these resolve to builtins such as `int` that are allowed in kernel names
