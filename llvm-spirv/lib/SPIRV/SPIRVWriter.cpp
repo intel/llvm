@@ -576,6 +576,7 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
   if (!BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
     return;
   auto BF = static_cast<SPIRVFunction *>(getTranslatedValue(F));
+  assert(BF && "The SPIRVFunction pointer shouldn't be nullptr");
   auto Attrs = F->getAttributes();
 
   if (Attrs.hasFnAttribute(kVCMetadata::VCStackCall))
@@ -1495,8 +1496,13 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_inline_assembly))
       return mapValue(V, transAsmINTEL(IA));
 
-  if (CallInst *CI = dyn_cast<CallInst>(V))
+  if (CallInst *CI = dyn_cast<CallInst>(V)) {
+    if (auto Alias =
+            dyn_cast_or_null<llvm::GlobalAlias>(CI->getCalledOperand())) {
+      CI->setCalledFunction(cast<Function>(Alias->getAliasee()));
+    }
     return mapValue(V, transCallInst(CI, BB));
+  }
 
   // FIXME: this is not valid translation of freeze instruction
   if (FreezeInst *FI = dyn_cast<FreezeInst>(V))
@@ -2878,8 +2884,8 @@ LLVMToSPIRV::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       Type *BoolTy = IntegerType::getInt1Ty(M->getContext());
       auto IsVector = ResultTy->isVectorTy();
       if (IsVector)
-        BoolTy = VectorType::get(BoolTy,
-                                 cast<VectorType>(ResultTy)->getNumElements());
+        BoolTy = FixedVectorType::get(
+            BoolTy, cast<VectorType>(ResultTy)->getNumElements());
       auto BBT = transType(BoolTy);
       SPIRVInstruction *Res;
       if (isCmpOpCode(OC)) {
@@ -3008,6 +3014,7 @@ void addPassesForSPIRV(legacy::PassManager &PassMgr,
   PassMgr.add(createSPIRVLowerConstExpr());
   PassMgr.add(createSPIRVLowerBool());
   PassMgr.add(createSPIRVLowerMemmove());
+  PassMgr.add(createSPIRVLowerSaddWithOverflow());
 }
 
 bool isValidLLVMModule(Module *M, SPIRVErrorLog &ErrorLog) {

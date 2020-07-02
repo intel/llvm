@@ -43,6 +43,8 @@ vector_class<platform> platform::get_platforms() {
   return detail::platform_impl::get_platforms();
 }
 
+backend platform::get_backend() const noexcept { return impl->get_backend(); }
+
 template <info::platform param>
 typename info::param_traits<info::platform, param>::return_type
 platform::get_info() const {

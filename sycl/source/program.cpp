@@ -35,6 +35,9 @@ program::program(const context &context, cl_program clProgram)
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
   clRetainProgram(clProgram);
 }
+
+pi_native_handle program::getNative() const { return impl->getNative(); }
+
 program::program(std::shared_ptr<detail::program_impl> impl) : impl(impl) {}
 
 cl_program program::get() const { return impl->get(); }

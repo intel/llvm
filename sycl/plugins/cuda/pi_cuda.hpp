@@ -281,11 +281,12 @@ struct _pi_queue {
   _pi_device *device_;
   pi_queue_properties properties_;
   std::atomic_uint32_t refCount_;
+  std::atomic_uint32_t eventCount_;
 
   _pi_queue(CUstream stream, _pi_context *context, _pi_device *device,
             pi_queue_properties properties)
       : stream_{stream}, context_{context}, device_{device},
-        properties_{properties}, refCount_{1} {
+        properties_{properties}, refCount_{1}, eventCount_{0} {
     cuda_piContextRetain(context_);
     cuda_piDeviceRetain(device_);
   }
@@ -304,6 +305,8 @@ struct _pi_queue {
   pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
 
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
+
+  pi_uint32 get_next_event_id() noexcept { return ++eventCount_; }
 };
 
 typedef void (*pfn_notify)(pi_event event, pi_int32 eventCommandStatus,
@@ -352,6 +355,8 @@ public:
 
   pi_uint32 decrement_reference_count() { return --refCount_; }
 
+  pi_uint32 get_event_id() const noexcept { return eventId_; }
+
   // Returns the counter time when the associated command(s) were enqueued
   //
   pi_uint64 get_queued_time() const;
@@ -388,6 +393,8 @@ private:
   bool isStarted_;  // Signifies wether the operation associated with the
                     // PI event has started or not
                     //
+
+  pi_uint32 eventId_; // Queue identifier of the event.
 
   native_type evEnd_; // CUDA event handle. If this _pi_event represents a user
                       // event, this will be nullptr.

@@ -110,7 +110,7 @@ option(LIBCXX_INCLUDE_TESTS "Build the libc++ tests." ${LLVM_INCLUDE_TESTS})
 option(LIBCXX_ENABLE_PARALLEL_ALGORITHMS "Enable the parallel algorithms library. This requires the PSTL to be available." OFF)
 option(LIBCXX_TEST_GDB_PRETTY_PRINTERS "Test gdb pretty printers." OFF)
 set(LIBCXX_TEST_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/test/lit.site.cfg.in" CACHE STRING
-    "The Lit testing configuration to use when running the tests")
+    "The Lit testing configuration to use when running the tests.")
 
 # Benchmark options -----------------------------------------------------------
 option(LIBCXX_INCLUDE_BENCHMARKS "Build the libc++ benchmarks and their dependencies" ON)
@@ -873,23 +873,13 @@ if (DEFINED WIN32 AND LIBCXX_ENABLE_STATIC AND NOT LIBCXX_ENABLE_SHARED)
   config_define(ON _LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS)
 endif()
 
-set(site_config_path "${LIBCXX_BINARY_DIR}/__config_site")
-if (LIBCXX_NEEDS_SITE_CONFIG)
-  configure_file("include/__config_site.in"
-                 "${site_config_path}"
-                 @ONLY)
-elseif(EXISTS "${site_config_path}")
-  message(STATUS "Removing stale site configuration ${site_config_path}")
-  file(REMOVE "${site_config_path}")
-endif()
-
+# We generate a __config_site header (see libcxx/include/CMakeLists.txt) and
+# we make sure to include it when building the library.
 function(cxx_add_config_site target)
-  if (LIBCXX_NEEDS_SITE_CONFIG)
-    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC" OR "${CMAKE_CXX_SIMULATE_ID}" STREQUAL "MSVC")
-      target_compile_options(${target} PUBLIC /FI "${site_config_path}")
-    else()
-      target_compile_options(${target} PUBLIC -include "${site_config_path}")
-    endif()
+  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC" OR "${CMAKE_CXX_SIMULATE_ID}" STREQUAL "MSVC")
+    target_compile_options(${target} PUBLIC /FI "${LIBCXX_BINARY_DIR}/__config_site")
+  else()
+    target_compile_options(${target} PUBLIC -include "${LIBCXX_BINARY_DIR}/__config_site")
   endif()
 endfunction()
 
