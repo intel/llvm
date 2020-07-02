@@ -1896,8 +1896,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
 
   ConstructingOpenCLKernel = true;
   VisitRecordBases(KernelObj, checker, kernel_decl, kernel_body, int_header);
-  VisitRecordFields(KernelObj, checker, kernel_decl, kernel_body,
-                    int_header);
+  VisitRecordFields(KernelObj, checker, kernel_decl, kernel_body, int_header);
   ConstructingOpenCLKernel = false;
 }
 
