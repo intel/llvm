@@ -482,6 +482,11 @@ private:
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
+  pi_result SetKernelParamsAndLaunch(CGExecKernel *ExecKernel,
+                                     RT::PiKernel Kernel, NDRDescT &NDRDesc,
+                                     std::vector<RT::PiEvent> &RawEvents,
+                                     RT::PiEvent &Event);
+
   std::unique_ptr<detail::CG> MCommandGroup;
 
   friend class Command;
