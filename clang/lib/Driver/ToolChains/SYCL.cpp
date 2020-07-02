@@ -475,40 +475,35 @@ static void addImpliedArgs(const llvm::Triple &Triple,
                            const llvm::opt::ArgList &Args,
                            llvm::opt::ArgStringList &CmdArgs) {
   // Current implied args are for debug information and disabling of
-  // optimizations.
-  auto addOptDebugArgs = [&](llvm::opt::ArgStringList &CurArgList,
-                             bool IsGen = false) {
-    if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
-      if (!A->getOption().matches(options::OPT_g0))
-        CurArgList.push_back("-g");
-    if (Args.getLastArg(options::OPT_O0))
-      CurArgList.push_back(IsGen ? "-O0" : "-cl-opt-disable");
-  };
-  // For FPGA and default device, pass along -g -cl-opt-disable
+  // optimizations.  They are passed along to the respective areas as follows:
+  //  FPGA and default device:  -g -cl-opt-disable
+  //  GEN:  -options "-g -O0"
+  //  CPU:  "--bo=-g -cl-opt-disable"
+  llvm::opt::ArgStringList BeArgs;
+  bool IsGen = Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
+  if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
+    if (!A->getOption().matches(options::OPT_g0))
+      BeArgs.push_back("-g");
+  if (Args.getLastArg(options::OPT_O0))
+    BeArgs.push_back(IsGen ? "-O0" : "-cl-opt-disable");
   if (Triple.getSubArch() == llvm::Triple::NoSubArch ||
       Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
-    addOptDebugArgs(CmdArgs);
+    for (StringRef A : BeArgs)
+      CmdArgs.push_back(Args.MakeArgString(A));
     return;
   }
-  bool IsGen = Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
-  // For CPU/Gen pass option list
-  if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64 || IsGen) {
-    llvm::opt::ArgStringList BeArgs;
-    addOptDebugArgs(BeArgs, IsGen);
-    if (!BeArgs.empty()) {
-      SmallString<128> BeOpt;
-      if (IsGen)
-        CmdArgs.push_back("-options");
-      else
-        BeOpt = "--bo=";
-      for (unsigned I = 0; I < BeArgs.size(); ++I) {
-        if (I)
-          BeOpt += ' ';
-        BeOpt += BeArgs[I];
-      }
-      CmdArgs.push_back(Args.MakeArgString(BeOpt));
+  if (!BeArgs.empty()) {
+    SmallString<128> BeOpt;
+    if (IsGen)
+      CmdArgs.push_back("-options");
+    else
+      BeOpt = "--bo=";
+    for (unsigned I = 0; I < BeArgs.size(); ++I) {
+      if (I)
+        BeOpt += ' ';
+      BeOpt += BeArgs[I];
     }
-    return;
+    CmdArgs.push_back(Args.MakeArgString(BeOpt));
   }
 }
 
