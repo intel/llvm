@@ -820,13 +820,16 @@ static void VisitRecordHelper(CXXRecordDecl *Owner,
   for (const auto &Base : Range) {
     (void)std::initializer_list<int>{(handlers.enterField(Owner, Base), 0)...};
     QualType BaseTy = Base.getType();
+    // Handle accessor class as base
     if (Util::isSyclAccessorType(BaseTy)) {
       (void)std::initializer_list<int>{
           (handlers.handleSyclAccessorType(Base, BaseTy), 0)...};
     } else if (Util::isSyclStreamType(BaseTy)) {
+      // Handle stream class as base
       (void)std::initializer_list<int>{
           (handlers.handleSyclStreamType(Base, BaseTy), 0)...};
     } else
+      // For all other bases, visit the record
       VisitRecord(Owner, Base, BaseTy->getAsCXXRecordDecl(), handlers...);
     (void)std::initializer_list<int>{(handlers.leaveField(Owner, Base), 0)...};
   }
@@ -1287,7 +1290,6 @@ class SyclKernelBodyCreator
   llvm::SmallVector<Expr *, 16> MemberExprBases;
   uint64_t ArrayIndex;
   FunctionDecl *KernelCallerFunc;
-  bool ArrayState;
 
   // Using the statements/init expressions that we've created, this generates
   // the kernel body compound stmt. CompoundStmt needs to know its number of
@@ -1505,8 +1507,7 @@ public:
         KernelObjClone(createKernelObjClone(S.getASTContext(),
                                             DC.getKernelDecl(), KernelObj)),
         VarEntity(InitializedEntity::InitializeVariable(KernelObjClone)),
-        KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc),
-        ArrayState(false) {
+        KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc) {
     markParallelWorkItemCalls();
 
     Stmt *DS = new (S.Context) DeclStmt(DeclGroupRef(KernelObjClone),
@@ -1615,6 +1616,7 @@ public:
     if (!Util::isSyclStreamType(FD->getType()))
       addStructInit(RD);
     // Pop out unused initializers created in handleSyclAccesorType
+    // for accessors inside stream class.
     else {
       for (const auto &Field : RD->fields()) {
         QualType FieldTy = Field->getType();
