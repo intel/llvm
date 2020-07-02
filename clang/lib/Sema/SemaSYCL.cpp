@@ -1914,6 +1914,13 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
       }
       break;
     }
+
+    if (NS->isStdNamespace()) {
+      Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named)
+          << /* name cannot be a type in the std namespace */ 3;
+      return;
+    }
+
     ++NamespaceCnt;
     const StringRef NSInlinePrefix = NS->isInline() ? "inline " : "";
     NSStr.insert(
@@ -1997,12 +2004,9 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
   const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
 
   if (!RD) {
-    // Most non-class types such as `int` can safely skip forward declarations,
-    // but `std::nullptr_t` is a special case that doesn't behave well.
-    if (T->isNullPtrType()) {
+    if (T->isNullPtrType())
       Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named)
-          << /* name cannot be or use std::nullptr_t */ 3;
-    }
+          << /* name cannot be a type in the std namespace */ 3;
 
     return;
   }

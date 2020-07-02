@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-int-header=%t.h -DNULLPTRT_CHECK -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-int-header=%t.h -DCHECK_ERROR -verify %s
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-int-header=%t.h %s
 // RUN: FileCheck -input-file=%t.h %s
 //
@@ -41,7 +41,11 @@ typedef long unsigned int size_t;
 typedef long int ptrdiff_t;
 typedef decltype(nullptr) nullptr_t;
 enum class byte : unsigned char {};
+class T;
+class U;
 } // namespace std
+
+template <typename T> struct Templated_kernel_name;
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
@@ -49,12 +53,17 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
 }
 
 int main() {
-#ifdef NULLPTRT_CHECK
-  // expected-error@+1 {{kernel name cannot be or use std::nullptr_t}}
-  kernel_single_task<std::nullptr_t>([=]() {});
+#ifdef CHECK_ERROR
+  kernel_single_task<std::nullptr_t>([=]() {}); // expected-error {{kernel name cannot be a type in the "std" namespace}}
+  kernel_single_task<std::T>([=]() {}); // expected-error {{kernel name cannot be a type in the "std" namespace}}
+  kernel_single_task<Templated_kernel_name<std::nullptr_t>>([=]() {}); // expected-error {{kernel name cannot be a type in the "std" namespace}}
+  kernel_single_task<Templated_kernel_name<std::U>>([=]() {}); // expected-error {{kernel name cannot be a type in the "std" namespace}}
 #endif
+
+  // Although in the std namespace, these resolve to builtins such as `int` that are allowed in kernel names
   kernel_single_task<std::byte>([=]() {});
   kernel_single_task<std::size_t>([=]() {});
   kernel_single_task<std::ptrdiff_t>([=]() {});
+
   return 0;
 }

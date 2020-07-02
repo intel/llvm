@@ -10835,7 +10835,7 @@ def err_sycl_kernel_incorrectly_named : Error<
   "kernel %select{name is missing"
   "|needs to have a globally-visible name"
   "|name is invalid. Unscoped enum requires fixed underlying type"
-  "|name cannot be or use std::nullptr_t"
+  "|name cannot be a type in the \"std\" namespace"
   "}0">;
 def err_sycl_restrict : Error<
   "SYCL kernel cannot "
