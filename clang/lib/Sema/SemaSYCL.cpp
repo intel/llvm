@@ -1471,7 +1471,7 @@ public:
 class SyclKernelIntHeaderCreator
     : public SyclKernelFieldHandler<SyclKernelIntHeaderCreator> {
   SYCLIntegrationHeader &Header;
-  const CXXRecordDecl *KernelLambda;
+  const CXXRecordDecl *KernelObj;
   // Necessary to figure out the offset of the base class.
   const CXXRecordDecl *CurStruct = nullptr;
   int64_t CurOffset = 0;
@@ -1497,11 +1497,10 @@ class SyclKernelIntHeaderCreator
 
 public:
   SyclKernelIntHeaderCreator(Sema &S, SYCLIntegrationHeader &H,
-                             const CXXRecordDecl *KernelLambda,
-                             QualType NameType, StringRef Name,
-                             StringRef StableName)
-      : SyclKernelFieldHandler(S), Header(H), KernelLambda(KernelLambda) {
-    Header.startKernel(Name, NameType, StableName, KernelLambda->getLocation());
+                             const CXXRecordDecl *KernelObj, QualType NameType,
+                             StringRef Name, StringRef StableName)
+      : SyclKernelFieldHandler(S), Header(H), KernelObj(KernelObj) {
+    Header.startKernel(Name, NameType, StableName, KernelObj->getLocation());
   }
 
   bool handleSyclAccessorType(const CXXBaseSpecifier &BC,
@@ -1643,8 +1642,8 @@ public:
 void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
                                  MangleContext &MC) {
   // The first argument to the KernelCallerFunc is the lambda object.
-  CXXRecordDecl *KernelLambda = getKernelObjectType(KernelCallerFunc);
-  assert(KernelLambda && "invalid kernel caller");
+  CXXRecordDecl *KernelObj = getKernelObjectType(KernelCallerFunc);
+  assert(KernelObj && "invalid kernel caller");
 
   // Calculate both names, since Integration headers need both.
   std::string CalculatedName, StableName;
@@ -1654,17 +1653,17 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
                                                        : CalculatedName);
   SyclKernelFieldChecker checker(*this);
   SyclKernelDeclCreator kernel_decl(
-      *this, checker, KernelName, KernelLambda->getLocation(),
+      *this, checker, KernelName, KernelObj->getLocation(),
       KernelCallerFunc->isInlined(), KernelCallerFunc->hasAttr<SYCLSimdAttr>());
-  SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelLambda,
+  SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelObj,
                                     KernelCallerFunc);
   SyclKernelIntHeaderCreator int_header(
-      *this, getSyclIntegrationHeader(), KernelLambda,
+      *this, getSyclIntegrationHeader(), KernelObj,
       calculateKernelNameType(Context, KernelCallerFunc), KernelName,
       StableName);
 
   ConstructingOpenCLKernel = true;
-  VisitRecordFields(KernelLambda->fields(), checker, kernel_decl, kernel_body,
+  VisitRecordFields(KernelObj->fields(), checker, kernel_decl, kernel_body,
                     int_header);
   ConstructingOpenCLKernel = false;
 }
