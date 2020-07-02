@@ -402,8 +402,9 @@ RT::PiKernel program_impl::get_pi_kernel(const string_class &KernelName) const {
   RT::PiKernel Kernel;
 
   if (is_cacheable()) {
-    Kernel = ProgramManager::getInstance().getOrCreateKernel(
-        MProgramModuleHandle, get_context(), KernelName, this);
+    std::tie(Kernel, std::ignore) =
+        ProgramManager::getInstance().getOrCreateKernel(
+            MProgramModuleHandle, get_context(), KernelName, this);
     getPlugin().call<PiApiKind::piKernelRetain>(Kernel);
   } else {
     const detail::plugin &Plugin = getPlugin();
