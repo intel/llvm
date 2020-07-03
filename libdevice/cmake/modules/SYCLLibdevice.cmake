@@ -111,7 +111,7 @@ add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-complex.spv
                            ${CMAKE_CURRENT_SOURCE_DIR}/fallback-complex.cpp
                            -o ${binary_dir}/libsycl-fallback-complex.spv
                    MAIN_DEPENDENCY fallback-complex.cpp
-                   DEPENDS device_math.h device_complex.h device.h clang llvm-spirv clang-offload-bundler
+                   DEPENDS device_math.h device_complex.h device.h clang llvm-spirv
                    VERBATIM)
 
 add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-complex.o
