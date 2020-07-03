@@ -40,7 +40,7 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
       if (MaxThreadsPerBlock[I] < NDRDesc.LocalSize[I]) {
         throw sycl::nd_range_error(
             "The number of work-items in each dimension of a work-group cannot "
-            "exceed info::device::max_work_item_sizes which is {" +
+            "exceed {" +
                 std::to_string(MaxThreadsPerBlock[0]) + ", " +
                 std::to_string(MaxThreadsPerBlock[1]) + ", " +
                 std::to_string(MaxThreadsPerBlock[2]) + "} for this device",
