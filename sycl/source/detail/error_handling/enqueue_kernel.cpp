@@ -105,7 +105,7 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
           NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
       if (TotalNumberOfWIs > MaxWGSize)
         throw sycl::nd_range_error(
-            "Total number of work-items in a work-group cannot exceed "
+            "Total number of work-items in a work-group cannot exceed " +
                 std::to_string(MaxWGSize),
             PI_INVALID_WORK_GROUP_SIZE);
     } else {
@@ -123,7 +123,7 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
           NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
       if (TotalNumberOfWIs > KernelWGSize)
         throw sycl::nd_range_error(
-            "Total number of work-items in a work-group cannot exceed "
+            "Total number of work-items in a work-group cannot exceed " +
                 std::to_string(KernelWGSize) + " for this kernel",
             PI_INVALID_WORK_GROUP_SIZE);
     }
