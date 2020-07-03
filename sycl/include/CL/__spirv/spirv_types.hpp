@@ -113,4 +113,5 @@ __SYCL_SPV_IMAGE_TYPE(image1d_array_wo);
 __SYCL_SPV_IMAGE_TYPE(image2d_array_wo);
 
 #undef __SYCL_SPV_IMAGE_TYPE
+#undef __SYCL_SPV_SAMPLED_AND_IMAGE_TYPE
 #endif

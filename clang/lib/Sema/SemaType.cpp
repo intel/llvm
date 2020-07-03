@@ -4952,12 +4952,11 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
       if (LangOpts.OpenCL || LangOpts.SYCLIsDevice) {
         // OpenCL v2.0 s6.12.5 - A block cannot be the return value of a
         // function.
-        if (T->isBlockPointerType() || T->isImageType() || T->isSamplerT()) {
-          if (!T->isSampledImageType()) {
-            S.Diag(D.getIdentifierLoc(), diag::err_opencl_invalid_return)
-                << T << 1 /*hint off*/;
-            D.setInvalidType(true);
-          }
+        if (!T->isSampledImageType() &&
+            (T->isBlockPointerType() || T->isImageType() || T->isSamplerT())) {
+          S.Diag(D.getIdentifierLoc(), diag::err_opencl_invalid_return)
+              << T << 1 /*hint off*/;
+          D.setInvalidType(true);
         }
         // OpenCL doesn't support variadic functions and blocks
         // (s6.9.e and s6.12.5 OpenCL v2.0) except for printf.
