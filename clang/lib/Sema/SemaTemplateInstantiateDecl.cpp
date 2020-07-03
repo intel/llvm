@@ -5101,6 +5101,10 @@ void Sema::InstantiateVariableInitializer(
 
   if (getLangOpts().CUDA)
     checkAllowedCUDAInitializer(Var);
+
+  if (getLangOpts().SYCLIsDevice && !checkAllowedSYCLInitializer(Var))
+    SYCLDiagIfDeviceCode(Var->getLocation(), diag::err_sycl_restrict)
+                         << Sema::KernelConstStaticDataVariable;
 }
 
 /// Instantiate the definition of the given variable from its

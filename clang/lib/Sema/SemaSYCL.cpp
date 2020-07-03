@@ -1845,6 +1845,27 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
   }
 }
 
+bool Sema::checkAllowedSYCLInitializer(VarDecl *VD, bool CheckValueDependent) {
+  assert(getLangOpts().SYCLIsDevice &&
+         "Should only be called during SYCL compilation");
+
+  if (VD->isInvalidDecl() || !VD->hasInit() || !VD->hasGlobalStorage())
+    return true;
+
+  const Expr *Init = VD->getInit();
+  bool ValueDependent = CheckValueDependent && Init->isValueDependent();
+  bool isZeroInit = Init && !ValueDependent &&
+                    Init->isIntegerConstantExpr(Context) &&
+                    Init->EvaluateKnownConstInt(Context) == 0;
+  bool isConstantInit = Init && !ValueDependent &&
+                        Init->isConstantInitializer(Context, false);
+  if (!VD->isConstexpr() && Init && !ValueDependent && !isZeroInit &&
+      !isConstantInit)
+    return false;
+
+  return true;
+}
+
 // -----------------------------------------------------------------------------
 // Integration header functionality implementation
 // -----------------------------------------------------------------------------

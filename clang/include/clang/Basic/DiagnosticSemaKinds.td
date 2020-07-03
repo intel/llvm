@@ -10850,6 +10850,8 @@ def err_sycl_restrict : Error<
   "|call a dllimport function"
   "|call a variadic function"
   "|call an undefined function without SYCL_EXTERNAL attribute"
+  "|use a const static data variable that is neither zero-initialized "
+  "nor constant-initialized"
   "}0">;
 def err_sycl_virtual_types : Error<
   "No class with a vtable can be used in a SYCL kernel or any code included in the kernel">;

@@ -223,6 +223,13 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
                VD->hasGlobalStorage() && !isa<ParmVarDecl>(VD))
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelGlobalVariable;
+      // Disallow const static data members that are not zero-initialized
+      // or constant-initialized
+      else if (IsConst && VD->isStaticDataMember() &&
+               !VD->isConstexpr() &&
+               !checkAllowedSYCLInitializer(VD, /*checkValueDependent =*/true))
+        SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
+            << Sema::KernelConstStaticDataVariable;
     }
   }
 
