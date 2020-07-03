@@ -475,17 +475,36 @@ static void addImpliedArgs(const llvm::Triple &Triple,
                            const llvm::opt::ArgList &Args,
                            llvm::opt::ArgStringList &CmdArgs) {
   // Current implied args are for debug information and disabling of
-  // optimizations.
-  // TODO: Add support for other architectures (gen, x86_64) as those are
-  // being defined.
+  // optimizations.  They are passed along to the respective areas as follows:
+  //  FPGA and default device:  -g -cl-opt-disable
+  //  GEN:  -options "-g -O0"
+  //  CPU:  "--bo=-g -cl-opt-disable"
+  llvm::opt::ArgStringList BeArgs;
+  bool IsGen = Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
+  if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
+    if (!A->getOption().matches(options::OPT_g0))
+      BeArgs.push_back("-g");
+  if (Args.getLastArg(options::OPT_O0))
+    BeArgs.push_back(IsGen ? "-O0" : "-cl-opt-disable");
+  if (BeArgs.empty())
+    return;
   if (Triple.getSubArch() == llvm::Triple::NoSubArch ||
       Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
-    if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
-      if (!A->getOption().matches(options::OPT_g0))
-        CmdArgs.push_back("-g");
-    if (Args.getLastArg(options::OPT_O0))
-      CmdArgs.push_back("-cl-opt-disable");
+    for (StringRef A : BeArgs)
+      CmdArgs.push_back(Args.MakeArgString(A));
+    return;
   }
+  SmallString<128> BeOpt;
+  if (IsGen)
+    CmdArgs.push_back("-options");
+  else
+    BeOpt = "--bo=";
+  for (unsigned I = 0; I < BeArgs.size(); ++I) {
+    if (I)
+      BeOpt += ' ';
+    BeOpt += BeArgs[I];
+  }
+  CmdArgs.push_back(Args.MakeArgString(BeOpt));
 }
 
 void SYCLToolChain::TranslateBackendTargetArgs(const llvm::opt::ArgList &Args,
