@@ -89,6 +89,9 @@ BUILTIN(__nvvm_read_ptx_sreg_pm1, "i", "n")
 BUILTIN(__nvvm_read_ptx_sreg_pm2, "i", "n")
 BUILTIN(__nvvm_read_ptx_sreg_pm3, "i", "n")
 
+// SYCL
+BUILTIN(__builtin_ptx_implicit_offset, "Ui*", "nc")
+
 // MISC
 
 BUILTIN(__nvvm_prmt, "UiUiUiUi", "")

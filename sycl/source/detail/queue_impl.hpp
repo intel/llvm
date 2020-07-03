@@ -344,10 +344,12 @@ public:
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
   ///
+  /// \param Impl is a shared_ptr to this queue.
   /// \param Ptr is a USM pointer to the allocation.
   /// \param Length is a number of bytes in the allocation.
   /// \param Advice is a device-defined advice for the specified allocation.
-  event mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice);
+  event mem_advise(shared_ptr_class<queue_impl> Impl, const void *Ptr,
+                   size_t Length, pi_mem_advice Advice);
 
   /// Puts exception to the list of asynchronous ecxeptions.
   ///

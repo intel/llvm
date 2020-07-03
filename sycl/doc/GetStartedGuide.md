@@ -22,7 +22,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
 ## Prerequisites
 
 * `git` - [Download](https://git-scm.com/downloads)
-* `cmake` version 3.2 or later - [Download](http://www.cmake.org/download/)
+* `cmake` version 3.14 or later - [Download](http://www.cmake.org/download/)
 * `python` - [Download](https://www.python.org/downloads/release/python-2716/)
 * `ninja` -
 [Download](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages)
@@ -123,7 +123,7 @@ To enable support for CUDA devices, follow the instructions for the Linux
 DPC++ toolchain, but add the `--cuda` flag to `configure.py`
 
 Enabling this flag requires an installation of
-[CUDA 10.1](https://developer.nvidia.com/cuda-10.1-download-archive-update2) on
+[CUDA 10.2](https://developer.nvidia.com/cuda-10.2-download-archive) on
 the system, refer to
 [NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html).
 

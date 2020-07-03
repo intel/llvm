@@ -2185,7 +2185,6 @@ void Parser::HandleMemberFunctionDeclDelays(Declarator& DeclaratorInfo,
     // declarations.
     auto LateMethod = new LateParsedMethodDeclaration(this, ThisDecl);
     getCurrentClass().LateParsedDeclarations.push_back(LateMethod);
-    LateMethod->TemplateScope = getCurScope()->isTemplateParamScope();
 
     // Stash the exception-specification tokens in the late-pased method.
     LateMethod->ExceptionSpecTokens = FTI.ExceptionSpecTokens;
@@ -3372,8 +3371,10 @@ void Parser::ParseCXXMemberSpecification(SourceLocation RecordLoc,
     // to the levels specified on the command line.  Previous level
     // will be restored when the RAII object is destroyed.
     Sema::FPFeaturesStateRAII SaveFPFeaturesState(Actions);
-    FPOptions fpOptions(getLangOpts());
-    Actions.CurFPFeatures.getFromOpaqueInt(fpOptions.getAsOpaqueInt());
+    FPOptionsOverride NewOverrides;
+    Actions.CurFPFeatures = NewOverrides.applyOverrides(getLangOpts());
+    Actions.FpPragmaStack.Act(Tok.getLocation(), Sema::PSK_Reset, StringRef(),
+                              0 /*unused*/);
 
     SourceLocation SavedPrevTokLocation = PrevTokLocation;
     ParseLexedPragmas(getCurrentClass());
@@ -3931,8 +3932,8 @@ void Parser::PopParsingClass(Sema::ParsingClassState state) {
   // after the top-level class is completely defined. Therefore, add
   // it to the list of nested classes within its parent.
   assert(getCurScope()->isClassScope() && "Nested class outside of class scope?");
-  ClassStack.top()->LateParsedDeclarations.push_back(new LateParsedClass(this, Victim));
-  Victim->TemplateScope = getCurScope()->getParent()->isTemplateParamScope();
+  ClassStack.top()->LateParsedDeclarations.push_back(
+      new LateParsedClass(this, Victim));
 }
 
 /// Try to parse an 'identifier' which appears within an attribute-token.

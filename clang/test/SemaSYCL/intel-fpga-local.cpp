@@ -645,6 +645,7 @@ void check_template_parameters() {
   //CHECK-NEXT: IntelFPGANumBanksAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: SubstNonTypeTemplateParmExpr
+  //CHECK-NEXT: NonTypeTemplateParmDecl
   //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
   [[intelfpga::numbanks(C)]] unsigned int numbanks;
 
@@ -653,6 +654,7 @@ void check_template_parameters() {
   //CHECK: IntelFPGAPrivateCopiesAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: SubstNonTypeTemplateParmExpr
+  //CHECK-NEXT: NonTypeTemplateParmDecl
   //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
   [[intelfpga::private_copies(C)]] unsigned int private_copies;
 
@@ -663,12 +665,14 @@ void check_template_parameters() {
   //CHECK-NEXT: IntelFPGABankBitsAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: SubstNonTypeTemplateParmExpr
+  //CHECK-NEXT: NonTypeTemplateParmDecl
   //CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: IntegerLiteral{{.*}}3{{$}}
   //CHECK: IntelFPGABankWidthAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: SubstNonTypeTemplateParmExpr
+  //CHECK-NEXT: NonTypeTemplateParmDecl
   //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
   [[intelfpga::bank_bits(A,3), intelfpga::bankwidth(C)]]
   unsigned int bank_bits_width;
@@ -715,6 +719,7 @@ void check_template_parameters() {
   //CHECK: IntelFPGAForcePow2DepthAttr
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: SubstNonTypeTemplateParmExpr
+  //CHECK-NEXT: NonTypeTemplateParmDecl
   //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
   //CHECK: IntelFPGAForcePow2DepthAttr
   //CHECK: ConstantExpr
@@ -730,6 +735,7 @@ struct templ_st {
   //CHECK: IntelFPGAForcePow2DepthAttr
   //CHECK: ConstantExpr
   //CHECK-NEXT: SubstNonTypeTemplateParmExpr
+  //CHECK-NEXT: NonTypeTemplateParmDecl
   //CHECK-NEXT: IntegerLiteral{{.*}}0{{$}}
   [[intelfpga::force_pow2_depth(A)]] unsigned int templ_force_p2d_field[64];
 };
