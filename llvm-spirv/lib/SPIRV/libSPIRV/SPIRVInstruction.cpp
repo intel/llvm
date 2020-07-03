@@ -183,6 +183,8 @@ bool isSpecConstantOpAllowedOp(Op OC) {
       OpConvertUToPtr,
       OpGenericCastToPtr,
       OpPtrCastToGeneric,
+      OpCrossWorkgroupCastToPtrINTEL,
+      OpPtrCastToCrossWorkgroupINTEL,
       OpBitcast,
       OpQuantizeToF16,
       OpSNegate,

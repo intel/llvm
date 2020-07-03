@@ -390,6 +390,7 @@ template <backend BE> const plugin &getPlugin() {
 }
 
 template const plugin &getPlugin<backend::opencl>();
+template const plugin &getPlugin<backend::level0>();
 
 // Report error and no return (keeps compiler from printing warnings).
 // TODO: Probably change that to throw a catchable exception,

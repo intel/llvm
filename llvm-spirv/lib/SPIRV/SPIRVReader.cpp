@@ -391,8 +391,9 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
                transType(T->getPointerElementType(), IsClassMember),
                SPIRSPIRVAddrSpaceMap::rmap(T->getPointerStorageClass())));
   case OpTypeVector:
-    return mapType(T, VectorType::get(transType(T->getVectorComponentType()),
-                                      T->getVectorComponentCount()));
+    return mapType(T,
+                   FixedVectorType::get(transType(T->getVectorComponentType()),
+                                        T->getVectorComponentCount()));
   case OpTypeMatrix:
     return mapType(T, ArrayType::get(transType(T->getMatrixColumnType()),
                                      T->getMatrixColumnCount()));
@@ -931,8 +932,18 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
   switch (BC->getOpCode()) {
   case OpPtrCastToGeneric:
   case OpGenericCastToPtr:
+  case OpPtrCastToCrossWorkgroupINTEL:
+  case OpCrossWorkgroupCastToPtrINTEL: {
+    // If module has pointers with DeviceOnlyINTEL and HostOnlyINTEL storage
+    // classes there will be a situation, when global_device/global_host
+    // address space will be lowered to just global address space. If there also
+    // is an addrspacecast - we need to replace it with source pointer.
+    if (Src->getType()->getPointerAddressSpace() ==
+        Dst->getPointerAddressSpace())
+      return Src;
     CO = Instruction::AddrSpaceCast;
     break;
+  }
   case OpSConvert:
     CO = IsExt ? Instruction::SExt : Instruction::Trunc;
     break;
@@ -1169,7 +1180,7 @@ Instruction *SPIRVToLLVM::postProcessOCLReadImage(SPIRVInstruction *BI,
       [=](CallInst *NewCI) -> Instruction * {
         if (IsDepthImage)
           return InsertElementInst::Create(
-              UndefValue::get(VectorType::get(NewCI->getType(), 4)), NewCI,
+              UndefValue::get(FixedVectorType::get(NewCI->getType(), 4)), NewCI,
               getSizet(M, 0), "", NewCI->getParent());
         return NewCI;
       },
@@ -1815,7 +1826,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     unsigned M = Mat->getType()->getArrayNumElements();
 
     auto *VecTy = cast<VectorType>(Vec->getType());
-    VectorType *VTy = VectorType::get(VecTy->getElementType(), M);
+    VectorType *VTy = FixedVectorType::get(VecTy->getElementType(), M);
     auto ETy = VTy->getElementType();
     unsigned N = VecTy->getNumElements();
     Value *V = Builder.CreateVectorSplat(M, ConstantFP::get(ETy, 0.0));
@@ -1946,7 +1957,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     (void)C1;
     assert(C1 == R2 && "Unmatched matrix");
 
-    auto VTy = VectorType::get(ETy, R1);
+    auto VTy = FixedVectorType::get(ETy, R1);
     auto ResultTy = ArrayType::get(VTy, C2);
 
     Value *Res = UndefValue::get(ResultTy);
@@ -1980,7 +1991,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         cast<VectorType>(cast<ArrayType>(Matrix->getType())->getElementType());
     unsigned RowNum = ColTy->getNumElements();
 
-    auto VTy = VectorType::get(ColTy->getElementType(), ColNum);
+    auto VTy = FixedVectorType::get(ColTy->getElementType(), ColNum);
     auto ResultTy = ArrayType::get(VTy, RowNum);
     Value *V = UndefValue::get(ResultTy);
 
@@ -2503,7 +2514,7 @@ void SPIRVToLLVM::transOCLBuiltinFromInstPreproc(
     if (BT->isTypeBool())
       RetTy = IntegerType::getInt32Ty(*Context);
     else if (BT->isTypeVectorBool())
-      RetTy = VectorType::get(
+      RetTy = FixedVectorType::get(
           IntegerType::get(
               *Context,
               Args[0]->getType()->getVectorComponentType()->getBitWidth()),
@@ -3359,7 +3370,7 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
   if (F->getCallingConv() != CallingConv::SPIR_KERNEL)
     return true;
 
-  // Generate metadata for kernel_arg_address_spaces
+  // Generate metadata for kernel_arg_addr_space
   addOCLKernelArgumentMetadata(
       Context, SPIR_MD_KERNEL_ARG_ADDR_SPACE, BF, F,
       [=](SPIRVFunctionParameter *Arg) {
@@ -3737,7 +3748,7 @@ Instruction *SPIRVToLLVM::transOCLAllAny(SPIRVInstruction *I, BasicBlock *BB) {
              [=](CallInst *, std::vector<Value *> &Args, llvm::Type *&RetTy) {
                Type *Int32Ty = Type::getInt32Ty(*Context);
                auto OldArg = CI->getOperand(0);
-               auto NewArgTy = VectorType::get(
+               auto NewArgTy = FixedVectorType::get(
                    Int32Ty,
                    cast<VectorType>(OldArg->getType())->getNumElements());
                auto NewArg =
@@ -3773,7 +3784,7 @@ Instruction *SPIRVToLLVM::transOCLRelational(SPIRVInstruction *I,
                          ->getElementType()
                          ->isHalfTy())
                    IntTy = Type::getInt16Ty(*Context);
-                 RetTy = VectorType::get(
+                 RetTy = FixedVectorType::get(
                      IntTy, cast<VectorType>(CI->getType())->getNumElements());
                }
                return CI->getCalledFunction()->getName().str();
@@ -3781,7 +3792,7 @@ Instruction *SPIRVToLLVM::transOCLRelational(SPIRVInstruction *I,
              [=](CallInst *NewCI) -> Instruction * {
                Type *RetTy = Type::getInt1Ty(*Context);
                if (NewCI->getType()->isVectorTy())
-                 RetTy = VectorType::get(
+                 RetTy = FixedVectorType::get(
                      Type::getInt1Ty(*Context),
                      cast<VectorType>(NewCI->getType())->getNumElements());
                return CastInst::CreateTruncOrBitCast(NewCI, RetTy, "",

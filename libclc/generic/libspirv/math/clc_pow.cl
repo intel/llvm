@@ -22,10 +22,10 @@
 
 #include <spirv/spirv.h>
 
-#include "config.h"
 #include "tables.h"
-#include "../../lib/math/math.h"
-#include "../../lib/clcmacro.h"
+#include <clcmacro.h>
+#include <config.h>
+#include <math/math.h>
 
 /*
  compute pow using log and exp
@@ -199,10 +199,10 @@ _CLC_DEF _CLC_OVERLOAD float __clc_pow(float x, float y)
 
     /* Corner case handling */
     ret = (!xpos & (inty == 0)) ? QNANBITPATT_SP32 : ret;
-    ret = ax < 0x3f800000 & iy == NINFBITPATT_SP32 ? PINFBITPATT_SP32 : ret;
-    ret = ax > 0x3f800000 & iy == NINFBITPATT_SP32 ? 0 : ret;
-    ret = ax < 0x3f800000 & iy == PINFBITPATT_SP32 ? 0 : ret;
-    ret = ax > 0x3f800000 & iy == PINFBITPATT_SP32 ? PINFBITPATT_SP32 : ret;
+    ret = ax < 0x3f800000 && iy == NINFBITPATT_SP32 ? PINFBITPATT_SP32 : ret;
+    ret = ax > 0x3f800000 && iy == NINFBITPATT_SP32 ? 0 : ret;
+    ret = ax < 0x3f800000 && iy == PINFBITPATT_SP32 ? 0 : ret;
+    ret = ax > 0x3f800000 && iy == PINFBITPATT_SP32 ? PINFBITPATT_SP32 : ret;
     int xinf = xpos ? PINFBITPATT_SP32 : NINFBITPATT_SP32;
     ret = ((ax == 0) & !ypos & (inty == 1)) ? xinf : ret;
     ret = ((ax == 0) & !ypos & (inty != 1)) ? PINFBITPATT_SP32 : ret;
@@ -360,19 +360,21 @@ _CLC_DEF _CLC_OVERLOAD double __clc_pow(double x, double y)
         long mask = (1L << (53 - yexp)) - 1L;
         int inty1 = (((ay & ~mask) >> (53 - yexp)) & 1L) == 1L ? 1 : 2;
         inty1 = (ay & mask) != 0 ? 0 : inty1;
-        inty = !(yexp < 1) & !(yexp > 53) ? inty1 : inty;
+        inty = !(yexp < 1) && !(yexp > 53) ? inty1 : inty;
     }
 
-    expv *= (inty == 1) & !xpos ? -1.0 : 1.0;
+    expv *= (inty == 1) && !xpos ? -1.0 : 1.0;
 
     long ret = as_long(expv);
 
     // Now all the edge cases
-    ret = !xpos & (inty == 0) ? QNANBITPATT_DP64 : ret;
-    ret = ax < 0x3ff0000000000000L & uy == NINFBITPATT_DP64 ? PINFBITPATT_DP64 : ret;
-    ret = ax > 0x3ff0000000000000L & uy == NINFBITPATT_DP64 ? 0L : ret;
-    ret = ax < 0x3ff0000000000000L & uy == PINFBITPATT_DP64 ? 0L : ret;
-    ret = ax > 0x3ff0000000000000L & uy == PINFBITPATT_DP64 ? PINFBITPATT_DP64 : ret;
+    ret = !xpos && (inty == 0) ? QNANBITPATT_DP64 : ret;
+    ret = ax < 0x3ff0000000000000L && uy == NINFBITPATT_DP64 ? PINFBITPATT_DP64
+                                                             : ret;
+    ret = ax > 0x3ff0000000000000L && uy == NINFBITPATT_DP64 ? 0L : ret;
+    ret = ax < 0x3ff0000000000000L && uy == PINFBITPATT_DP64 ? 0L : ret;
+    ret = ax > 0x3ff0000000000000L && uy == PINFBITPATT_DP64 ? PINFBITPATT_DP64
+                                                             : ret;
     long xinf = xpos ? PINFBITPATT_DP64 : NINFBITPATT_DP64;
     ret = ((ax == 0L) & !ypos & (inty == 1)) ? xinf : ret;
     ret = ((ax == 0L) & !ypos & (inty != 1)) ? PINFBITPATT_DP64 : ret;
@@ -385,7 +387,7 @@ _CLC_DEF _CLC_OVERLOAD double __clc_pow(double x, double y)
     ret = ((ux == NINFBITPATT_DP64) & !ypos & (inty != 1)) ? 0L : ret;
     ret = ((ux == NINFBITPATT_DP64) & ypos & (inty == 1)) ? NINFBITPATT_DP64 : ret;
     ret = ((ux == NINFBITPATT_DP64) & ypos & (inty != 1)) ? PINFBITPATT_DP64 : ret;
-    ret = (ux == PINFBITPATT_DP64) & !ypos ? 0L : ret;
+    ret = (ux == PINFBITPATT_DP64) && !ypos ? 0L : ret;
     ret = (ux == PINFBITPATT_DP64) & ypos ? PINFBITPATT_DP64 : ret;
     ret = ax > PINFBITPATT_DP64 ? ux : ret;
     ret = ay > PINFBITPATT_DP64 ? uy : ret;
@@ -395,4 +397,14 @@ _CLC_DEF _CLC_OVERLOAD double __clc_pow(double x, double y)
     return as_double(ret);
 }
 _CLC_BINARY_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, double, __clc_pow, double, double)
+#endif
+
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_DEF _CLC_OVERLOAD half __clc_pow(half x, half y) {
+  return __clc_pow((float)x, (float)y);
+}
+
+_CLC_BINARY_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, half, __clc_pow, half, half)
 #endif

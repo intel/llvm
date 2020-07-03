@@ -13,6 +13,7 @@ add_llvm_library(LLVMSPIRVLib
   SPIRVLowerConstExpr.cpp
   SPIRVLowerMemmove.cpp
   SPIRVLowerOCLBlocks.cpp
+  SPIRVLowerSaddWithOverflow.cpp
   SPIRVLowerSPIRBlocks.cpp
   SPIRVReader.cpp
   SPIRVRegularizeLLVM.cpp
@@ -38,6 +39,8 @@ add_llvm_library(LLVMSPIRVLib
     Analysis
     BitWriter
     Core
+    IRReader
+    Linker
     Support
     TransformUtils
   DEPENDS

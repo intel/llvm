@@ -290,6 +290,9 @@ def err_invalid_vector_float_decl_spec : Error<
 def err_invalid_vector_double_decl_spec : Error <
   "use of 'double' with '__vector' requires VSX support to be enabled "
   "(available on POWER7 or later)">;
+def err_invalid_vector_bool_int128_decl_spec : Error <
+  "use of '__int128' with '__vector bool' requires VSX support enabled (on "
+  "POWER10 or later)">;
 def err_invalid_vector_long_long_decl_spec : Error <
   "use of 'long long' with '__vector bool' requires VSX support (available on "
   "POWER7 or later) or extended Altivec support (available on POWER8 or later) "
@@ -1442,7 +1445,8 @@ def warn_cxx14_compat_inline_variable : Warning<
   DefaultIgnore, InGroup<CXXPre17Compat>;
 
 def warn_inline_namespace_reopened_noninline : Warning<
-  "inline namespace reopened as a non-inline namespace">;
+  "inline namespace reopened as a non-inline namespace">,
+  InGroup<InlineNamespaceReopenedNoninline>;
 def err_inline_namespace_mismatch : Error<
   "non-inline namespace cannot be reopened as inline">;
 
@@ -10564,7 +10568,13 @@ def err_await_suspend_invalid_return_type : Error<
 def note_await_ready_no_bool_conversion : Note<
   "return type of 'await_ready' is required to be contextually convertible to 'bool'"
 >;
-}
+def err_coroutine_promise_final_suspend_requires_nothrow : Error<
+  "the expression 'co_await __promise.final_suspend()' is required to be non-throwing"
+>;
+def note_coroutine_function_declare_noexcept : Note<
+  "must be declared with 'noexcept'"
+>;
+} // end of coroutines issue category
 
 let CategoryName = "Documentation Issue" in {
 def warn_not_a_doxygen_trailing_member_comment : Warning<
@@ -10821,6 +10831,19 @@ def err_matrix_separate_incomplete_index: Error<
   "matrix row and column subscripts cannot be separated by any expression">;
 def err_matrix_subscript_comma: Error<
   "comma expressions are not allowed as indices in matrix subscript expressions">;
+def err_builtin_matrix_arg: Error<"1st argument must be a matrix">;
+def err_builtin_matrix_scalar_unsigned_arg: Error<
+  "%0 argument must be a constant unsigned integer expression">;
+def err_builtin_matrix_pointer_arg: Error<
+  "%ordinal0 argument must be a pointer to a valid matrix element type">;
+def err_builtin_matrix_pointer_arg_mismatch: Error<
+  "the pointee of the 2nd argument must match the element type of the 1st argument (%0 != %1)">;
+def err_builtin_matrix_store_to_const: Error<
+  "cannot store matrix to read-only pointer">;
+def err_builtin_matrix_stride_too_small: Error<
+  "stride must be greater or equal to the number of rows">;
+def err_builtin_matrix_invalid_dimension: Error<
+  "%0 dimension is outside the allowed range [1, %1]">;
 
 def warn_mismatched_import : Warning<
   "import %select{module|name}0 (%1) does not match the import %select{module|name}0 (%2) of the "
@@ -10830,7 +10853,39 @@ def warn_import_on_definition : Warning<
   "import %select{module|name}0 cannot be applied to a function with a definition">,
   InGroup<IgnoredAttributes>;
 
+def err_preserve_field_info_not_field : Error<
+  "__builtin_preserve_field_info argument %0 not a field access">;
+def err_preserve_field_info_not_const: Error<
+  "__builtin_preserve_field_info argument %0 not a constant">;
+def err_btf_type_id_not_const: Error<
+  "__builtin_btf_type_id argument %0 not a constant">;
+
+def err_bit_cast_non_trivially_copyable : Error<
+  "__builtin_bit_cast %select{source|destination}0 type must be trivially copyable">;
+def err_bit_cast_type_size_mismatch : Error<
+  "__builtin_bit_cast source size does not equal destination size (%0 vs %1)">;
+
 // SYCL-specific diagnostics
+def warn_sycl_kernel_num_of_template_params : Warning<
+  "'sycl_kernel' attribute only applies to a function template with at least"
+  " two template parameters">, InGroup<IgnoredAttributes>;
+def warn_sycl_kernel_invalid_template_param_type : Warning<
+  "template parameter of a function template with the 'sycl_kernel' attribute"
+  " cannot be a non-type template parameter">, InGroup<IgnoredAttributes>;
+def warn_sycl_kernel_num_of_function_params : Warning<
+  "function template with 'sycl_kernel' attribute must have a single parameter">,
+  InGroup<IgnoredAttributes>;
+def warn_sycl_kernel_return_type : Warning<
+  "function template with 'sycl_kernel' attribute must have a 'void' return type">,
+  InGroup<IgnoredAttributes>;
+
+def err_ext_int_bad_size : Error<"%select{signed|unsigned}0 _ExtInt must "
+                                 "have a bit size of at least %select{2|1}0">;
+def err_ext_int_max_size : Error<"%select{signed|unsigned}0 _ExtInt of bit "
+                                 "sizes greater than %1 not supported">;
+def err_esimd_glob_cant_init : Error<
+  "SYCL explicit SIMD does not permit private global variable to have an initializer">;
+
 def err_sycl_kernel_incorrectly_named : Error<
   "kernel %select{name is missing"
   "|needs to have a globally-visible name"
@@ -10898,56 +10953,12 @@ def err_ivdep_declrefexpr_arg : Error<
 def warn_ivdep_redundant : Warning <"ignoring redundant Intel FPGA loop "
   "attribute 'ivdep': safelen %select{INF|%1}0 >= safelen %select{INF|%3}2">,
   InGroup<IgnoredAttributes>;
-def err_builtin_matrix_arg: Error<"first argument must be a matrix">;
 
-def err_builtin_matrix_scalar_unsigned_arg: Error<
-  "%0 argument must be a constant unsigned integer expression">;
-
-def err_builtin_matrix_pointer_arg: Error<
-  "%0 argument must be a pointer to a valid matrix element type">;
-
-def err_builtin_matrix_pointer_arg_mismatch: Error<
-  "the pointee of the second argument must match the element type of the first argument (%0 != %1)">;
-
-def err_builtin_matrix_store_to_const: Error<
-  "cannot store matrix to read-only pointer">;
-
-def err_builtin_matrix_stride_too_small: Error<
-  "stride must be greater or equal to the number of rows">;
-
-def err_builtin_matrix_invalid_dimension: Error<
-  "%0 dimension is outside the allowed range [1, %1]">;
-
-def err_preserve_field_info_not_field : Error<
-  "__builtin_preserve_field_info argument %0 not a field access">;
-def err_preserve_field_info_not_const: Error<
-  "__builtin_preserve_field_info argument %0 not a constant">;
-def err_btf_type_id_not_const: Error<
-  "__builtin_btf_type_id argument %0 not a constant">;
-
-def err_bit_cast_non_trivially_copyable : Error<
-  "__builtin_bit_cast %select{source|destination}0 type must be trivially copyable">;
-def err_bit_cast_type_size_mismatch : Error<
-  "__builtin_bit_cast source size does not equal destination size (%0 vs %1)">;
-
-// SYCL-specific diagnostics
-def warn_sycl_kernel_num_of_template_params : Warning<
-  "'sycl_kernel' attribute only applies to a function template with at least"
-  " two template parameters">, InGroup<IgnoredAttributes>;
-def warn_sycl_kernel_invalid_template_param_type : Warning<
-  "template parameter of a function template with the 'sycl_kernel' attribute"
-  " cannot be a non-type template parameter">, InGroup<IgnoredAttributes>;
-def warn_sycl_kernel_num_of_function_params : Warning<
-  "function template with 'sycl_kernel' attribute must have a single parameter">,
-  InGroup<IgnoredAttributes>;
-def warn_sycl_kernel_return_type : Warning<
-  "function template with 'sycl_kernel' attribute must have a 'void' return type">,
-  InGroup<IgnoredAttributes>;
-
-def err_ext_int_bad_size : Error<"%select{signed|unsigned}0 _ExtInt must "
-                                 "have a bit size of at least %select{2|1}0">;
-def err_ext_int_max_size : Error<"%select{signed|unsigned}0 _ExtInt of bit "
-                                 "sizes greater than %1 not supported">;
-def err_esimd_glob_cant_init : Error<
-  "SYCL explicit SIMD does not permit private global variable to have an initializer">;
+// errors of expect.with.probability
+def err_probability_not_constant_float : Error<
+   "probability argument to __builtin_expect_with_probability must be constant "
+   "floating-point expression">;
+def err_probability_out_of_range : Error<
+   "probability argument to __builtin_expect_with_probability is outside the "
+   "range [0.0, 1.0]">;
 } // end of sema component.

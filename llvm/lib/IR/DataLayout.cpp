@@ -260,8 +260,8 @@ void DataLayout::parseSpecifier(StringRef Desc) {
 
     switch (Specifier) {
     case 's':
-      // Ignored for backward compatibility.
-      // FIXME: remove this on LLVM 4.0.
+      // Deprecated, but ignoring here to preserve loading older textual llvm
+      // ASM file
       break;
     case 'E':
       BigEndian = true;
@@ -792,7 +792,7 @@ Type *DataLayout::getIntPtrType(Type *Ty) const {
   unsigned NumBits = getPointerTypeSizeInBits(Ty);
   IntegerType *IntTy = IntegerType::get(Ty->getContext(), NumBits);
   if (VectorType *VecTy = dyn_cast<VectorType>(Ty))
-    return FixedVectorType::get(IntTy, VecTy->getNumElements());
+    return VectorType::get(IntTy, VecTy);
   return IntTy;
 }
 
@@ -814,7 +814,7 @@ Type *DataLayout::getIndexType(Type *Ty) const {
   unsigned NumBits = getIndexTypeSizeInBits(Ty);
   IntegerType *IntTy = IntegerType::get(Ty->getContext(), NumBits);
   if (VectorType *VecTy = dyn_cast<VectorType>(Ty))
-    return FixedVectorType::get(IntTy, VecTy->getNumElements());
+    return VectorType::get(IntTy, VecTy);
   return IntTy;
 }
 

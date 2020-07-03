@@ -108,17 +108,18 @@ public:
     return reinterpret_cast<ReturnPtr>(m_Pointer)[index];
   }
 
-  // Only if Space == global_space
+  // Only if Space == global_space || global_device_space
   template <int dimensions, access::mode Mode,
             access::placeholder isPlaceholder,
             access::address_space _Space = Space,
             typename = typename std::enable_if<
                 _Space == Space &&
-                Space == access::address_space::global_space>::type>
+                (Space == access::address_space::global_space ||
+                 Space == access::address_space::global_device_space)>::type>
   multi_ptr(accessor<ElementType, dimensions, Mode,
                      access::target::global_buffer, isPlaceholder>
                 Accessor) {
-    m_Pointer = (pointer_t)(Accessor.get_pointer().m_Pointer);
+    m_Pointer = (pointer_t)(Accessor.get_pointer().get());
   }
 
   // Only if Space == local_space
@@ -152,14 +153,17 @@ public:
   //    2. from multi_ptr<ElementType, Space> to multi_ptr<const ElementType,
   //    Space>
 
-  // Only if Space == global_space and element type is const
-  template <
-      int dimensions, access::mode Mode, access::placeholder isPlaceholder,
-      access::address_space _Space = Space, typename ET = ElementType,
-      typename = typename std::enable_if<
-          _Space == Space && Space == access::address_space::global_space &&
-          std::is_const<ET>::value &&
-          std::is_same<ET, ElementType>::value>::type>
+  // Only if Space == global_space || global_device_space and element type is
+  // const
+  template <int dimensions, access::mode Mode,
+            access::placeholder isPlaceholder,
+            access::address_space _Space = Space, typename ET = ElementType,
+            typename = typename std::enable_if<
+                _Space == Space &&
+                (Space == access::address_space::global_space ||
+                 Space == access::address_space::global_device_space) &&
+                std::is_const<ET>::value &&
+                std::is_same<ET, ElementType>::value>::type>
   multi_ptr(accessor<typename std::remove_const<ET>::type, dimensions, Mode,
                      access::target::global_buffer, isPlaceholder>
                 Accessor)
@@ -345,12 +349,13 @@ public:
     return *this;
   }
 
-  // Only if Space == global_space
+  // Only if Space == global_space || global_device_space
   template <typename ElementType, int dimensions, access::mode Mode,
             access::address_space _Space = Space,
             typename = typename std::enable_if<
                 _Space == Space &&
-                Space == access::address_space::global_space>::type>
+                (Space == access::address_space::global_space ||
+                 Space == access::address_space::global_device_space)>::type>
   multi_ptr(
       accessor<ElementType, dimensions, Mode, access::target::global_buffer,
                access::placeholder::false_t>
@@ -466,12 +471,13 @@ public:
     return *this;
   }
 
-  // Only if Space == global_space
+  // Only if Space == global_space || global_device_space
   template <typename ElementType, int dimensions, access::mode Mode,
             access::address_space _Space = Space,
             typename = typename std::enable_if<
                 _Space == Space &&
-                Space == access::address_space::global_space>::type>
+                (Space == access::address_space::global_space ||
+                 Space == access::address_space::global_device_space)>::type>
   multi_ptr(
       accessor<ElementType, dimensions, Mode, access::target::global_buffer,
                access::placeholder::false_t>

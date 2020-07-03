@@ -106,7 +106,10 @@ public:
 
   bool ClearBit(uint32_t bit);
 
-  const void *GetBytes() const;
+  /// Store the binary representation of this value into the given storage.
+  /// Exactly GetByteSize() bytes will be stored, and the buffer must be large
+  /// enough to hold this data.
+  void GetBytes(llvm::MutableArrayRef<uint8_t> storage) const;
 
   size_t GetByteSize() const;
 
@@ -130,8 +133,8 @@ public:
     return (m_type >= e_sint) && (m_type <= e_long_double);
   }
 
-  /// Convert integer to \p type, limited to \p bits size.
-  void TruncOrExtendTo(Scalar::Type type, uint16_t bits);
+  /// Convert to an integer with \p bits and the given signedness.
+  void TruncOrExtendTo(uint16_t bits, bool sign);
 
   bool Promote(Scalar::Type type);
 

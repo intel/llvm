@@ -20,6 +20,7 @@
 #include <string>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include <level_zero/zet_api.h>
 
@@ -259,7 +260,8 @@ static pi_result mapError(ze_result_t ZeResult) {
       {ZE_RESULT_ERROR_INVALID_NATIVE_BINARY, PI_INVALID_BINARY},
       {ZE_RESULT_ERROR_INVALID_KERNEL_NAME, PI_INVALID_KERNEL_NAME},
       {ZE_RESULT_ERROR_INVALID_FUNCTION_NAME, PI_BUILD_PROGRAM_FAILURE},
-      {ZE_RESULT_ERROR_OVERLAPPING_REGIONS, PI_INVALID_OPERATION}};
+      {ZE_RESULT_ERROR_OVERLAPPING_REGIONS, PI_INVALID_OPERATION},
+      {ZE_RESULT_ERROR_MODULE_BUILD_FAILURE, PI_BUILD_PROGRAM_FAILURE}};
   auto It = ErrorMapping.find(ZeResult);
   if (It == ErrorMapping.end()) {
     return PI_ERROR_UNKNOWN;
@@ -1181,10 +1183,16 @@ pi_result piextDeviceGetNativeHandle(pi_device Device,
 }
 
 pi_result piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                            pi_platform Platform,
                                             pi_device *Device) {
+  assert(NativeHandle);
+  assert(Device);
+  assert(Platform);
+
   // Create PI device from the given L0 device handle.
-  die("piextDeviceCreateWithNativeHandle: not supported");
-  return PI_SUCCESS;
+  auto ZeDevice = pi_cast<ze_device_handle_t>(NativeHandle);
+  *Device = new _pi_device(ZeDevice, Platform);
+  return (*Device)->initialize();
 }
 
 pi_result piContextCreate(const pi_context_properties *Properties,
@@ -1369,13 +1377,24 @@ pi_result piQueueFinish(pi_queue Queue) {
 
 pi_result piextQueueGetNativeHandle(pi_queue Queue,
                                     pi_native_handle *NativeHandle) {
-  die("piextQueueGetNativeHandle: not supported");
+  assert(Queue);
+  assert(NativeHandle);
+
+  auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
+  // Extract the L0 queue handle from the given PI queue
+  *ZeQueue = Queue->ZeCommandQueue;
   return PI_SUCCESS;
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                           pi_context Context,
                                            pi_queue *Queue) {
-  die("piextQueueCreateWithNativeHandle: not supported");
+  assert(NativeHandle);
+  assert(Context);
+  assert(Queue);
+
+  auto ZeQueue = pi_cast<ze_command_queue_handle_t>(NativeHandle);
+  *Queue = new _pi_queue(ZeQueue, Context);
   return PI_SUCCESS;
 }
 
@@ -1634,22 +1653,20 @@ pi_result piProgramCreate(pi_context Context, const void *IL, size_t Length,
 
   assert(Context);
   assert(Program);
-  ze_device_handle_t ZeDevice = Context->Device->ZeDevice;
 
+  // NOTE: the L0 module creation is also building the program, so we are
+  // deferring it until the program is ready to be built in piProgramBuild
+  // and piProgramCompile. Also it is only then we know the build options.
+  //
   ze_module_desc_t ZeModuleDesc = {};
   ZeModuleDesc.version = ZE_MODULE_DESC_VERSION_CURRENT;
   ZeModuleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
   ZeModuleDesc.inputSize = Length;
-  ZeModuleDesc.pInputModule = pi_cast<const uint8_t *>(IL);
-  ZeModuleDesc.pBuildFlags = nullptr;
-
-  ze_module_handle_t ZeModule;
-  ZE_CALL(zeModuleCreate(ZeDevice, &ZeModuleDesc, &ZeModule,
-                         0)); // TODO: handle build log
+  ZeModuleDesc.pInputModule = new uint8_t[Length];
+  memcpy(const_cast<uint8_t *>(ZeModuleDesc.pInputModule), IL, Length);
 
   try {
-    auto ZePiProgram = new _pi_program(ZeModule, Context);
-    *Program = pi_cast<pi_program>(ZePiProgram);
+    *Program = new _pi_program(nullptr, ZeModuleDesc, Context);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1670,7 +1687,6 @@ pi_result piProgramCreateWithBinary(pi_context Context, pi_uint32 NumDevices,
   assert(Context);
   assert(RetProgram);
   assert(DeviceList && DeviceList[0] == Context->Device);
-  ze_device_handle_t ZeDevice = Context->Device->ZeDevice;
 
   // Check the binary too.
   assert(Lengths && Lengths[0] != 0);
@@ -1682,15 +1698,11 @@ pi_result piProgramCreateWithBinary(pi_context Context, pi_uint32 NumDevices,
   ZeModuleDesc.version = ZE_MODULE_DESC_VERSION_CURRENT;
   ZeModuleDesc.format = ZE_MODULE_FORMAT_NATIVE;
   ZeModuleDesc.inputSize = Length;
-  ZeModuleDesc.pInputModule = Binary;
-  ZeModuleDesc.pBuildFlags = nullptr;
-
-  ze_module_handle_t ZeModule;
-  ZE_CALL(zeModuleCreate(ZeDevice, &ZeModuleDesc, &ZeModule, 0));
+  ZeModuleDesc.pInputModule = new uint8_t[Length];
+  memcpy(const_cast<uint8_t *>(ZeModuleDesc.pInputModule), Binary, Length);
 
   try {
-    auto ZePiProgram = new _pi_program(ZeModule, Context);
-    *RetProgram = pi_cast<pi_program>(ZePiProgram);
+    *RetProgram = new _pi_program(nullptr, ZeModuleDesc, Context);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1777,14 +1789,7 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
                         const pi_program *InputPrograms,
                         void (*PFnNotify)(pi_program Program, void *UserData),
                         void *UserData, pi_program *RetProgram) {
-  die("piProgramLink: Program Linking is not supported yet in Level0");
-
-  // TODO: L0 builds the program at the time of piProgramCreate.
-  // But build options are not available at that time, so we must
-  // stop building it there, but move it here. The problem though
-  // is that this would mean moving zeModuleCreate here entirely,
-  // and so L0 module creation would be deferred until
-  // piProgramCompile/piProgramLink/piProgramBuild.
+  // TODO: L0 does not [yet] support linking so dummy implementation here.
   assert(NumInputPrograms == 1 && InputPrograms);
   assert(RetProgram);
   *RetProgram = InputPrograms[0];
@@ -1797,32 +1802,56 @@ pi_result piProgramCompile(
     const pi_program *InputHeaders, const char **HeaderIncludeNames,
     void (*PFnNotify)(pi_program Program, void *UserData), void *UserData) {
 
-  // TODO: L0 builds the program at the time of piProgramCreate.
-  // But build options are not available at that time, so we must
-  // stop building it there, but move it here. The problem though
-  // is that this would mean moving zeModuleCreate here entirely,
-  // and so L0 module creation would be deferred until
-  // piProgramCompile/piProgramLink/piProgramBuild.
-  //
-  // It is expected that program was successfully built during piProgramCreate
-  assert(Program && Program->ZeModule);
-  return PI_SUCCESS;
+  // Assert on unsupported arguments.
+  assert(NumInputHeaders == 0);
+  assert(!InputHeaders);
+
+  // There is no support foe linking yet in L0 so "compile" actually
+  // does the "build".
+  return piProgramBuild(Program, NumDevices, DeviceList, Options, PFnNotify,
+                        UserData);
 }
 
 pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
                          const pi_device *DeviceList, const char *Options,
                          void (*PFnNotify)(pi_program Program, void *UserData),
                          void *UserData) {
+  assert(Program);
+  assert(NumDevices == 1);
+  assert(DeviceList && DeviceList[0] == Program->Context->Device);
+  assert(!PFnNotify);
+  assert(!UserData);
 
-  // TODO: L0 builds the program at the time of piProgramCreate.
-  // But build options are not available at that time, so we must
-  // stop building it there, but move it here. The problem though
-  // is that this would mean moving zeModuleCreate here entirely,
-  // and so L0 module creation would be deferred until
-  // piProgramCompile/piProgramLink/piProgramBuild.
-  //
-  // It is expected that program was successfully built during piProgramCreate
-  assert(Program && Program->ZeModule);
+  // Check that the program wasn't already built.
+  assert(!Program->ZeModule);
+
+  // Translate collected specialization constants.
+  ze_module_constants_t ZeSpecConstants = {};
+  std::vector<uint32_t> ZeSpecContantsIds(Program->ZeSpecConstants.size());
+  std::vector<uint64_t> ZeSpecContantsValues(Program->ZeSpecConstants.size());
+  {
+    std::lock_guard<std::mutex> ZeSpecConstantsMutexGuard(
+        Program->ZeSpecConstantsMutex);
+    ZeSpecConstants.numConstants = Program->ZeSpecConstants.size();
+    auto ZeSpecContantsIdsIt = ZeSpecContantsIds.begin();
+    auto ZeSpecContantsValuesIt = ZeSpecContantsValues.begin();
+    for (auto &SpecConstant : Program->ZeSpecConstants) {
+      *ZeSpecContantsIdsIt = SpecConstant.first;
+      ZeSpecContantsIdsIt++;
+      *ZeSpecContantsValuesIt = SpecConstant.second;
+      ZeSpecContantsValuesIt++;
+    }
+    ZeSpecConstants.pConstantIds = ZeSpecContantsIds.data();
+    ZeSpecConstants.pConstantValues = ZeSpecContantsValues.data();
+  }
+
+  // Complete the module's descriptor
+  Program->ZeModuleDesc.pBuildFlags = Options;
+  Program->ZeModuleDesc.pConstants = &ZeSpecConstants;
+
+  ze_device_handle_t ZeDevice = Program->Context->Device->ZeDevice;
+  ZE_CALL(zeModuleCreate(ZeDevice, &Program->ZeModuleDesc, &Program->ZeModule,
+                         &Program->ZeBuildLog));
   return PI_SUCCESS;
 }
 
@@ -1846,9 +1875,19 @@ pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
     // return for programs that were built outside and registered
     // with piProgramRegister?
     return ReturnValue("");
+  } else if (ParamName == CL_PROGRAM_BUILD_LOG) {
+    assert(Program->ZeBuildLog);
+    size_t LogSize = ParamValueSize;
+    ZE_CALL(zeModuleBuildLogGetString(Program->ZeBuildLog, &LogSize,
+                                      pi_cast<char *>(ParamValue)));
+    if (ParamValueSizeRet) {
+      *ParamValueSizeRet = LogSize;
+    }
+  } else {
+    zePrint("piProgramGetBuildInfo: unsupported ParamName\n");
+    return PI_INVALID_VALUE;
   }
-  zePrint("piProgramGetBuildInfo: unsupported ParamName\n");
-  return PI_INVALID_VALUE;
+  return PI_SUCCESS;
 }
 
 pi_result piProgramRetain(pi_program Program) {
@@ -1861,6 +1900,9 @@ pi_result piProgramRelease(pi_program Program) {
   assert(Program);
   assert((Program->RefCount > 0) && "Program is already released.");
   if (--(Program->RefCount) == 0) {
+    delete[] Program->ZeModuleDesc.pInputModule;
+    if (Program->ZeBuildLog)
+      zeModuleBuildLogDestroy(Program->ZeBuildLog);
     // TODO: call zeModuleDestroy for non-interop L0 modules
     delete Program;
   }
@@ -1869,13 +1911,43 @@ pi_result piProgramRelease(pi_program Program) {
 
 pi_result piextProgramGetNativeHandle(pi_program Program,
                                       pi_native_handle *NativeHandle) {
-  die("piextProgramGetNativeHandle: not supported");
+  assert(Program);
+  assert(NativeHandle);
+
+  auto ZeModule = pi_cast<ze_module_handle_t *>(NativeHandle);
+  // Extract the L0 module handle from the given PI program
+  *ZeModule = Program->ZeModule;
   return PI_SUCCESS;
 }
 
 pi_result piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                             pi_context Context,
                                              pi_program *Program) {
-  die("piextProgramCreateWithNativeHandle: not supported");
+  assert(NativeHandle);
+  assert(Context);
+  assert(Program);
+
+  auto ZeModule = pi_cast<ze_module_handle_t>(NativeHandle);
+
+  // Create PI program from the given L0 module handle.
+  //
+  // TODO: We don't have the real L0 module descriptor with
+  // which it was created, but that's only needed for zeModuleCreate,
+  // which we don't expect to be called on the interop program.
+  //
+  ze_module_desc_t ZeModuleDesc = {};
+  ZeModuleDesc.version = ZE_MODULE_DESC_VERSION_CURRENT;
+  ZeModuleDesc.format = ZE_MODULE_FORMAT_NATIVE;
+  ZeModuleDesc.inputSize = 0;
+  ZeModuleDesc.pInputModule = nullptr;
+
+  try {
+    *Program = new _pi_program(ZeModule, ZeModuleDesc, Context);
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
   return PI_SUCCESS;
 }
 
@@ -1895,7 +1967,7 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
                          &ZeKernelDesc, &ZeKernel));
 
   try {
-    auto ZePiKernel = new _pi_kernel(ZeKernel, Program);
+    auto ZePiKernel = new _pi_kernel(ZeKernel, Program, KernelName);
     *RetKernel = pi_cast<pi_kernel>(ZePiKernel);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
@@ -1961,7 +2033,12 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
   case PI_KERNEL_INFO_PROGRAM:
     return ReturnValue(pi_program{Kernel->Program});
   case PI_KERNEL_INFO_FUNCTION_NAME:
-    return ReturnValue(ZeKernelProperties.name);
+    // TODO: Replace with the line in the comment once bug in the L0 driver will
+    // be fixed. Problem is that currently L0 driver truncates name of the
+    // returned kernel if it is longer than 256 symbols.
+    //
+    // return ReturnValue(ZeKernelProperties.name);
+    return ReturnValue(Kernel->KernelName.c_str());
   case PI_KERNEL_INFO_NUM_ARGS:
     return ReturnValue(pi_uint32{ZeKernelProperties.numKernelArgs});
   case PI_KERNEL_INFO_REFERENCE_COUNT:
@@ -3657,12 +3734,20 @@ pi_result piKernelSetExecInfo(pi_kernel Kernel, pi_kernel_exec_info ParamName,
 }
 
 pi_result piextProgramSetSpecializationConstant(pi_program Prog,
-                                                pi_uint32 SpecID,
-                                                size_t SpecSize,
+                                                pi_uint32 SpecID, size_t,
                                                 const void *SpecValue) {
-  // TODO: implement
-  die("piextProgramSetSpecializationConstant: not implemented");
-  return {};
+  // Level Zero sets spec constants when creating modules,
+  // so save them for when program is built.
+  std::lock_guard<std::mutex> ZeSpecConstantsMutexGuard(
+      Prog->ZeSpecConstantsMutex);
+
+  // Pass SpecValue pointer. Spec constant value is retrieved
+  // by Level-Zero when creating the modul
+  //
+  // NOTE: SpecSize is unused in L0, the size is known from SPIR-V by SpecID.
+  Prog->ZeSpecConstants[SpecID] = reinterpret_cast<uint64_t>(SpecValue);
+
+  return PI_SUCCESS;
 }
 
 pi_result piPluginInit(pi_plugin *PluginInit) {

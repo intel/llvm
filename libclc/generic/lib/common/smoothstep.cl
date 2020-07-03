@@ -23,27 +23,31 @@
 #include <clc/clc.h>
 #include <spirv/spirv.h>
 
-#include "../clcmacro.h"
+#include <clcmacro.h>
 
-_CLC_OVERLOAD _CLC_DEF float smoothstep(float edge0, float edge1, float x) {
-  return __spirv_ocl_smoothstep(edge0, edge1, x);
-}
+#define SMOOTH_STEP_DEF(edge_type, x_type, impl)                               \
+  _CLC_OVERLOAD _CLC_DEF x_type smoothstep(edge_type edge0, edge_type edge1,   \
+                                           x_type x) {                         \
+    return __spirv_ocl_smoothstep((x_type)edge0, (x_type)edge1, x);            \
+  }
 
-_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, smoothstep, float, float, float);
+SMOOTH_STEP_DEF(float, float, SMOOTH_STEP_IMPL_D);
 
-_CLC_V_S_S_V_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, smoothstep, float, float, float);
+_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, smoothstep, float, float,
+                       float);
+
+_CLC_V_S_S_V_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, smoothstep, float, float,
+                       float);
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-#define SMOOTH_STEP_DEF(edge_type, x_type, impl) \
-  _CLC_OVERLOAD _CLC_DEF x_type smoothstep(edge_type edge0, edge_type edge1, x_type x) { \
-    return __spirv_ocl_smoothstep(edge0, edge1, x); \
- }
-
 SMOOTH_STEP_DEF(double, double, SMOOTH_STEP_IMPL_D);
 
-_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, smoothstep, double, double, double);
+_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, smoothstep, double,
+                       double, double);
+_CLC_V_S_S_V_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, smoothstep, double,
+                       double, double);
 
 SMOOTH_STEP_DEF(float, double, SMOOTH_STEP_IMPL_D);
 SMOOTH_STEP_DEF(double, float, SMOOTH_STEP_IMPL_D);

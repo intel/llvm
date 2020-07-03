@@ -281,11 +281,12 @@ struct _pi_queue {
   _pi_device *device_;
   pi_queue_properties properties_;
   std::atomic_uint32_t refCount_;
+  std::atomic_uint32_t eventCount_;
 
   _pi_queue(CUstream stream, _pi_context *context, _pi_device *device,
             pi_queue_properties properties)
       : stream_{stream}, context_{context}, device_{device},
-        properties_{properties}, refCount_{1} {
+        properties_{properties}, refCount_{1}, eventCount_{0} {
     cuda_piContextRetain(context_);
     cuda_piDeviceRetain(device_);
   }
@@ -304,6 +305,8 @@ struct _pi_queue {
   pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
 
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
+
+  pi_uint32 get_next_event_id() noexcept { return ++eventCount_; }
 };
 
 typedef void (*pfn_notify)(pi_event event, pi_int32 eventCommandStatus,
@@ -352,6 +355,8 @@ public:
 
   pi_uint32 decrement_reference_count() { return --refCount_; }
 
+  pi_uint32 get_event_id() const noexcept { return eventId_; }
+
   // Returns the counter time when the associated command(s) were enqueued
   //
   pi_uint64 get_queued_time() const;
@@ -388,6 +393,8 @@ private:
   bool isStarted_;  // Signifies wether the operation associated with the
                     // PI event has started or not
                     //
+
+  pi_uint32 eventId_; // Queue identifier of the event.
 
   native_type evEnd_; // CUDA event handle. If this _pi_event represents a user
                       // event, this will be nullptr.
@@ -459,6 +466,7 @@ struct _pi_kernel {
   using native_type = CUfunction;
 
   native_type function_;
+  native_type functionWithOffsetParam_;
   std::string name_;
   pi_context context_;
   pi_program program_;
@@ -481,14 +489,23 @@ struct _pi_kernel {
     args_index_t indices_;
     args_size_t offsetPerIndex_;
 
+    std::uint32_t implicitOffsetArgs_[3] = {0, 0, 0};
+
+    arguments() {
+      // Place the implicit offset index at the end of the indicies collection
+      indices_.emplace_back(&implicitOffsetArgs_);
+    }
+
     /// Adds an argument to the kernel.
     /// If the argument existed before, it is replaced.
     /// Otherwise, it is added.
     /// Gaps are filled with empty arguments.
+    /// Implicit offset argument is kept at the back of the indices collection.
     void add_arg(size_t index, size_t size, const void *arg,
                  size_t localSize = 0) {
-      if (index + 1 > indices_.size()) {
-        indices_.resize(index + 1);
+      if (index + 2 > indices_.size()) {
+        // Move implicit offset argument index with the end
+        indices_.resize(index + 2, indices_.back());
         // Ensure enough space for the new argument
         paramSizes_.resize(index + 1);
         offsetPerIndex_.resize(index + 1);
@@ -508,6 +525,11 @@ struct _pi_kernel {
       add_arg(index, sizeof(size_t), (const void *)&(localOffset), size);
     }
 
+    void set_implicit_offset(size_t size, std::uint32_t *implicitOffset) {
+      assert(size == sizeof(std::uint32_t) * 3);
+      std::memcpy(implicitOffsetArgs_, implicitOffset, size);
+    }
+
     void clear_local_size() {
       std::fill(std::begin(offsetPerIndex_), std::end(offsetPerIndex_), 0);
     }
@@ -520,13 +542,17 @@ struct _pi_kernel {
     }
   } args_;
 
-  _pi_kernel(CUfunction func, const char *name, pi_program program,
-             pi_context ctxt)
-      : function_{func}, name_{name}, context_{ctxt}, program_{program},
-        refCount_{1} {
+  _pi_kernel(CUfunction func, CUfunction funcWithOffsetParam, const char *name,
+             pi_program program, pi_context ctxt)
+      : function_{func}, functionWithOffsetParam_{funcWithOffsetParam},
+        name_{name}, context_{ctxt}, program_{program}, refCount_{1} {
     cuda_piProgramRetain(program_);
     cuda_piContextRetain(context_);
   }
+
+  _pi_kernel(CUfunction func, const char *name, pi_program program,
+             pi_context ctxt)
+      : _pi_kernel{func, nullptr, name, program, ctxt} {}
 
   ~_pi_kernel()
   {
@@ -544,15 +570,23 @@ struct _pi_kernel {
 
   native_type get() const noexcept { return function_; };
 
+  native_type get_with_offset_parameter() const noexcept {
+    return functionWithOffsetParam_;
+  };
+
+  bool has_with_offset_parameter() const noexcept {
+    return functionWithOffsetParam_ != nullptr;
+  }
+
   pi_context get_context() const noexcept { return context_; };
 
   const char *get_name() const noexcept { return name_.c_str(); }
 
-  /// Returns the number of arguments.
+  /// Returns the number of arguments, excluding the implicit global offset.
   /// Note this only returns the current known number of arguments, not the
   /// real one required by the kernel, since this cannot be queried from
   /// the CUDA Driver API
-  pi_uint32 get_num_args() const noexcept { return args_.indices_.size(); }
+  pi_uint32 get_num_args() const noexcept { return args_.indices_.size() - 1; }
 
   void set_kernel_arg(int index, size_t size, const void *arg) {
     args_.add_arg(index, size, arg);
@@ -560,6 +594,10 @@ struct _pi_kernel {
 
   void set_kernel_local_arg(int index, size_t size) {
     args_.add_local_arg(index, size);
+  }
+
+  void set_implicit_offset_arg(size_t size, std::uint32_t *implicitOffset) {
+    args_.set_implicit_offset(size, implicitOffset);
   }
 
   arguments::args_index_t get_arg_indices() const {
