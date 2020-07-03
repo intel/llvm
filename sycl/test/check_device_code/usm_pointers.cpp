@@ -7,13 +7,13 @@
 // CHECK: %[[HOSTPTR_T:.*]] = type { i8 addrspace(6)* }
 //
 // CHECK-LABEL: define {{.*}} spir_func i8 addrspace(4)* @{{.*}}multi_ptr{{.*}}
-// CHECK: %m_Pointer = getelementptr inbounds %[[DEVPTR_T]]
-// CHECK-NEXT: %[[DEVLOAD:[0-9]+]] = load i8 addrspace(5)*, i8 addrspace(5)* addrspace(4)* %m_Pointer
+// CHECK: %[[M_PTR:.*]] = getelementptr inbounds %[[DEVPTR_T]]
+// CHECK-NEXT: %[[DEVLOAD:[0-9]+]] = load i8 addrspace(5)*, i8 addrspace(5)* addrspace(4)* %[[M_PTR]]
 // CHECK-NEXT: %[[DEVCAST:[0-9]+]] = addrspacecast i8 addrspace(5)* %[[DEVLOAD]] to i8 addrspace(4)*
 // ret i8 addrspace(4)* %[[DEVCAST]]
 //
 // CHECK-LABEL: define {{.*}} spir_func i8 addrspace(4)* @{{.*}}multi_ptr{{.*}}
-// CHECK: %[[M_PTR:.*]] = getelementptr inbounds %[[HOSTPTR_T]]
+// CHECK: %[[M_PTR]] = getelementptr inbounds %[[HOSTPTR_T]]
 // CHECK-NEXT: %[[HOSTLOAD:[0-9]+]] = load i8 addrspace(6)*, i8 addrspace(6)* addrspace(4)* %[[M_PTR]]
 // CHECK-NEXT: %[[HOSTCAST:[0-9]+]] = addrspacecast i8 addrspace(6)* %[[HOSTLOAD]] to i8 addrspace(4)*
 // ret i8 addrspace(4)* %[[HOSTCAST]]
