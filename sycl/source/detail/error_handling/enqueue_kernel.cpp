@@ -139,7 +139,7 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
         (NDRDesc.LocalSize[2] != 0 &&
          NDRDesc.GlobalSize[2] % NDRDesc.LocalSize[2] != 0);
     // Is the local size of the workgroup greater than the global range size in
-    // any dimension? This is a sub-case of NonUniformWGs.
+    // any dimension?
     if (Platform.get_backend() == cl::sycl::backend::opencl) {
       const bool LocalExceedsGlobal =
           NonUniformWGs && (NDRDesc.LocalSize[0] > NDRDesc.GlobalSize[0] ||
