@@ -106,7 +106,6 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
       if (TotalNumberOfWIs > MaxWGSize)
         throw sycl::nd_range_error(
             "Total number of work-items in a work-group cannot exceed "
-            "info::device::max_work_group_size which is equal to " +
                 std::to_string(MaxWGSize),
             PI_INVALID_WORK_GROUP_SIZE);
     } else {
