@@ -46,14 +46,20 @@ template <typename T> struct IsValidAtomicType {
 };
 
 template <cl::sycl::access::address_space AS> struct IsValidAtomicAddressSpace {
-  static constexpr bool value = (AS == access::address_space::global_space ||
-                                 AS == access::address_space::local_space);
+  static constexpr bool value =
+      (AS == access::address_space::global_space ||
+       AS == access::address_space::local_space ||
+       AS == access::address_space::global_device_space);
 };
 
 // Type trait to translate a cl::sycl::access::address_space to
 // a SPIR-V memory scope
 template <access::address_space AS> struct GetSpirvMemoryScope {};
 template <> struct GetSpirvMemoryScope<access::address_space::global_space> {
+  static constexpr auto scope = __spv::Scope::Device;
+};
+template <>
+struct GetSpirvMemoryScope<access::address_space::global_device_space> {
   static constexpr auto scope = __spv::Scope::Device;
 };
 template <> struct GetSpirvMemoryScope<access::address_space::local_space> {
@@ -168,12 +174,12 @@ template <typename T, access::address_space addressSpace =
                           access::address_space::global_space>
 class atomic {
   static_assert(detail::IsValidAtomicType<T>::value,
-                "Invalid SYCL atomic type.  Valid types are: int, "
-                "unsigned int, long, unsigned long, long long,  unsigned "
+                "Invalid SYCL atomic type. Valid types are: int, "
+                "unsigned int, long, unsigned long, long long, unsigned "
                 "long long, float");
   static_assert(detail::IsValidAtomicAddressSpace<addressSpace>::value,
-                "Invalid SYCL atomic address_space.  Valid address spaces are: "
-                "global_space, local_space");
+                "Invalid SYCL atomic address_space. Valid address spaces are: "
+                "global_space, local_space, global_device_space");
   static constexpr auto SpirvScope =
       detail::GetSpirvMemoryScope<addressSpace>::scope;
 
