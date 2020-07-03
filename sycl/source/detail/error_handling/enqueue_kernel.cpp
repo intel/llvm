@@ -300,9 +300,8 @@ bool handleError(pi_result Error, const device_impl &DeviceImpl,
     // TODO: Handle other error codes
 
   default:
-    throw runtime_error("OpenCL API failed. OpenCL API returns: " +
-                            codeToString(Error),
-                        Error);
+    throw runtime_error(
+        "OpenCL API failed. OpenCL API returns: " + codeToString(Error), Error);
   }
 }
 
