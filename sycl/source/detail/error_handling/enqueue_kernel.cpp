@@ -85,7 +85,7 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
         NDRDesc.LocalSize[1] != CompileWGSize[1] ||
         NDRDesc.LocalSize[2] != CompileWGSize[2])
       throw sycl::nd_range_error(
-          "2Specified local size doesn't match the required work-group size "
+          "Specified local size doesn't match the required work-group size "
           "specified in the program source",
           PI_INVALID_WORK_GROUP_SIZE);
   }
