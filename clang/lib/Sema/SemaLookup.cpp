@@ -47,6 +47,8 @@
 #include <utility>
 #include <vector>
 
+static inline clang::QualType GetFloat16Type(clang::ASTContext &Context);
+
 #include "OpenCLBuiltins.inc"
 #include "SPIRVBuiltins.inc"
 
@@ -676,6 +678,10 @@ LLVM_DUMP_METHOD void LookupResult::dump() {
                << ":\n";
   for (NamedDecl *D : *this)
     D->dump();
+}
+
+static inline QualType GetFloat16Type(clang::ASTContext &Context) {
+  return Context.getLangOpts().OpenCL ? Context.HalfTy : Context.Float16Ty;
 }
 
 /// Get the QualType instances of the return type and arguments for a ProgModel
