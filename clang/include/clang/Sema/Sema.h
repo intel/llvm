@@ -12662,7 +12662,7 @@ public:
     KernelCallDllimportFunction,
     KernelCallVariadicFunction,
     KernelCallUndefinedFunction,
-    KernelConstStaticDataVariable
+    KernelConstStaticVariable
   };
 
   bool isKnownGoodSYCLDecl(const Decl *D);

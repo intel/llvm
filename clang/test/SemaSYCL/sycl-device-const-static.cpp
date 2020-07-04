@@ -2,8 +2,8 @@
 
 struct Base {};
 struct S {
-  __attribute__((sycl_device)) void foo();
-  S();
+  void foo() {}
+  S() {}
 };
 
 struct T {
@@ -20,13 +20,20 @@ const S U<T>::s2;
 
 template struct U<Base>;
 
+const S s5;
+
 void usage() {
   // expected-error@+1{{SYCL kernel cannot use a non-const static data variable}}
   static int s1;
   const static int cs = 0;
   constexpr static int ces = 0;
-  // expected-error@+1{{SYCL kernel cannot use a const static data variable that is neither zero-initialized nor constant-initialized}}
+  static const S s6;
+  // expected-error@+1{{SYCL kernel cannot use a const static variable that is neither zero-initialized nor constant-initialized}}
   (void)T::s1;
+  // expected-error@+1{{SYCL kernel cannot use a const static variable that is neither zero-initialized nor constant-initialized}}
+  (void)s5;
+  // expected-error@+1{{SYCL kernel cannot use a const static variable that is neither zero-initialized nor constant-initialized}}
+  (void)s6;
 }
 
 
@@ -36,7 +43,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   static int z;
   // expected-note-re@+3{{called by 'kernel_single_task<fake_kernel, (lambda at {{.*}})>}}
   // expected-note-re@+2{{called by 'kernel_single_task<fake_kernel, (lambda at {{.*}})>}}
-  // expected-error@+1{{SYCL kernel cannot use a const static data variable that is neither zero-initialized nor constant-initialized}}
+  // expected-error@+1{{SYCL kernel cannot use a const static variable that is neither zero-initialized nor constant-initialized}}
   kernelFunc(U<Base>::s2);
 }
 
