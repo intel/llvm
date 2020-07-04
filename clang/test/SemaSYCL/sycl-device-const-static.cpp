@@ -36,7 +36,6 @@ void usage() {
   (void)s6;
 }
 
-
 template <typename Name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   // expected-error@+1{{SYCL kernel cannot use a non-const static data variable}}
