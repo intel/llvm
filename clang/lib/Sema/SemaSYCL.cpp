@@ -2160,11 +2160,7 @@ static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
     TypePolicy.SuppressTypedefs = true;
     TypePolicy.SuppressTagKeyword = true;
     QualType T = Arg.getAsType();
-    if (T->isEnumeralType())
-      ArgOS << "::"
-            << T->getAs<EnumType>()->getDecl()->getQualifiedNameAsString();
-    else
-      ArgOS << getKernelNameTypeString(T, Ctx, TypePolicy);
+    ArgOS << getKernelNameTypeString(T, Ctx, TypePolicy);
     break;
   }
   case TemplateArgument::ArgKind::Template: {
@@ -2202,58 +2198,48 @@ static void printTemplateArguments(ASTContext &Ctx, raw_ostream &ArgOS,
   ArgOS << ">";
 }
 
-static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
-                                           const PrintingPolicy &TypePolicy) {
-
-  const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
-
-  if (!RD)
-    return eraseAnonNamespace(T.getCanonicalType().getAsString(TypePolicy));
-
-  // If kernel name type is a template specialization with enum type
-  // template parameters, enumerators in name type string should be
-  // replaced  with their underlying value since the enum definition
-  // is not visible in integration header.
+static std::string printRecordType(QualType T, const CXXRecordDecl *RD,
+                                   const PrintingPolicy &TypePolicy) {
+  SmallString<64> Buf;
+  llvm::raw_svector_ostream OS(Buf);
+  T.getCanonicalType().getQualifiers().print(OS, TypePolicy,
+                                             /*appendSpaceIfNotEmpty*/ true);
   if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
-    SmallString<64> Buf;
-    llvm::raw_svector_ostream ArgOS(Buf);
-
-    // Print the qualifiers for the type.
-    T.getCanonicalType().getQualifiers().print(ArgOS, TypePolicy,
-                                               /*appendSpaceIfNotEmpty*/ true);
 
     // Print template class name
-    TSD->printQualifiedName(ArgOS, TypePolicy, /*WithGlobalNsPrefix*/ true);
+    TSD->printQualifiedName(OS, TypePolicy, /*WithGlobalNsPrefix*/ true);
 
     // Print template arguments substituting enumerators
     ASTContext &Ctx = RD->getASTContext();
     const TemplateArgumentList &Args = TSD->getTemplateArgs();
-    printTemplateArguments(Ctx, ArgOS, Args.asArray(), TypePolicy);
+    printTemplateArguments(Ctx, OS, Args.asArray(), TypePolicy);
 
-    return eraseAnonNamespace(ArgOS.str().str());
+    return eraseAnonNamespace(OS.str().str());
   }
   if (const auto *D = dyn_cast<CXXRecordDecl>(RD)) {
-    std::string NSStr = "";
-    const DeclContext *DC = D->getDeclContext();
+    if (RD->getDeclContext()->isFunctionOrMethod())
+      return eraseAnonNamespace(T.getCanonicalType().getAsString(TypePolicy));
+    if (RD->getDeclContext()->isNamespace()) {
+      auto *NS = dyn_cast<NamespaceDecl>(RD->getDeclContext());
+      if (NS->isAnonymousNamespace())
+        RD->printQualifiedName(OS, TypePolicy, false);
+      else
+        RD->printQualifiedName(OS, TypePolicy, true);
+    } else
+      RD->printQualifiedName(OS, TypePolicy, true);
+    return eraseAnonNamespace(OS.str().str());
+  }
+  return eraseAnonNamespace(T.getCanonicalType().getAsString(TypePolicy));
+}
+
+static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
+                                           const PrintingPolicy &TypePolicy) {
+  if (T->isRecordType())
+    return printRecordType(T, T->getAsCXXRecordDecl(), TypePolicy);
+  if (T->isEnumeralType()) {
     SmallString<64> Buf;
     llvm::raw_svector_ostream OS(Buf);
-    while (DC) {
-      auto *NS = dyn_cast<NamespaceDecl>(DC);
-      if (!NS || (NS && NS->isAnonymousNamespace())) {
-        // Declarations with no namespace or anonymous namespace
-        // follow the same printing rules.
-        if (DC->isTranslationUnit())
-          NSStr.append("::" + D->getName().str());
-        else
-          NSStr.append(T.getCanonicalType().getAsString(TypePolicy));
-        break;
-      }
-      NSStr.insert(0, Twine("::" + NS->getName()).str());
-      DC = NS->getDeclContext();
-    }
-    T.getCanonicalType().getQualifiers().print(OS, TypePolicy,
-                                               /*appendSpaceIfNotEmpty*/ true);
-    OS << NSStr;
+    OS << "::" << T.getCanonicalType().getAsString(TypePolicy);
     return eraseAnonNamespace(OS.str().str());
   }
   return eraseAnonNamespace(T.getCanonicalType().getAsString(TypePolicy));
