@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -verify -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -verify %s
 // expected-no-diagnostics
 
 // The kernel_single_task call is emitted as an OpenCL kernel function. The call
@@ -39,6 +39,3 @@ int main() {
   foo(b{}, b{});
   return 0;
 }
-
-// CHECK: TemplateArgument type 'zip_iterator<b, b>'
-// CHECK_NOT: TemplateArgument type 'zip_iterator< ::b, ::b>
