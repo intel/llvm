@@ -705,6 +705,13 @@ llvm::DIType *CGDebugInfo::CreateType(const BuiltinType *BT) {
     return getOrCreateStructPtrType("opencl_" #ImgType "_" #Suffix "_t",       \
                                     SingletonId);
 #include "clang/Basic/OpenCLImageTypes.def"
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  case BuiltinType::Sampled##Id:                                               \
+    return getOrCreateStructPtrType(                                           \
+        "spirv_sampled_" #ImgType "_" #Suffix "_t", Sampled##SingletonId);
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
+#include "clang/Basic/OpenCLImageTypes.def"
   case BuiltinType::OCLSampler:
     return getOrCreateStructPtrType("opencl_sampler_t", OCLSamplerDITy);
   case BuiltinType::OCLEvent:

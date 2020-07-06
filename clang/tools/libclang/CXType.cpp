@@ -68,7 +68,11 @@ static CXTypeKind GetBuiltinTypeKind(const BuiltinType *BT) {
     BTCASE(ObjCSel);
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) BTCASE(Id);
 #include "clang/Basic/OpenCLImageTypes.def"
-#undef IMAGE_TYPE
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  BTCASE(Sampled##Id);
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
+#include "clang/Basic/OpenCLImageTypes.def"
 #define EXT_OPAQUE_TYPE(ExtType, Id, Ext) BTCASE(Id);
 #include "clang/Basic/OpenCLExtensionTypes.def"
     BTCASE(OCLSampler);
@@ -610,6 +614,11 @@ CXString clang_getTypeKindSpelling(enum CXTypeKind K) {
     TKIND(Attributed);
     TKIND(BFloat16);
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) TKIND(Id);
+#include "clang/Basic/OpenCLImageTypes.def"
+#undef IMAGE_TYPE
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) TKIND(Sampled##Id);
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
 #include "clang/Basic/OpenCLImageTypes.def"
 #undef IMAGE_TYPE
 #define EXT_OPAQUE_TYPE(ExtTYpe, Id, Ext) TKIND(Id);

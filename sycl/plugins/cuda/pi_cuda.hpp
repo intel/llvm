@@ -197,8 +197,14 @@ struct _pi_mem {
    * use_host_ptr: Use an address on the host for the device
    * copy_in: The data for the device comes from the host but the host pointer
       is not available later for re-use
+   * alloc_host_ptr: Uses pinned-memory allocation
   */
-  enum class alloc_mode { classic, use_host_ptr, copy_in } allocMode_;
+  enum class alloc_mode {
+    classic,
+    use_host_ptr,
+    copy_in,
+    alloc_host_ptr
+  } allocMode_;
 
   _pi_mem(pi_context ctxt, pi_mem parent, alloc_mode mode, CUdeviceptr ptr, void *host_ptr,
           size_t size)
@@ -373,6 +379,8 @@ public:
   static pi_event make_native(pi_command_type type, pi_queue queue) {
     return new _pi_event(type, queue->get_context(), queue);
   }
+
+  pi_result release();
 
   ~_pi_event();
 

@@ -166,11 +166,11 @@ public:
     if (original_ != desired) {
       // Sets the desired context as the active one for the thread
       PI_CHECK_ERROR(cuCtxSetCurrent(desired));
-      if (original_ == nullptr && ctxt->is_primary()) {
-        // No context is installed and the suggested context is primary
+      if (original_ == nullptr) {
+        // No context is installed on the current thread
         // This is the most common case. We can activate the context in the
         // thread and leave it there until all the PI context referring to the
-        // same underlying CUDA primary context are destroyed. This emulates
+        // same underlying CUDA context are destroyed. This emulates
         // the behaviour of the CUDA runtime api, and avoids costly context
         // switches. No action is required on this side of the if.
       } else {
@@ -403,6 +403,18 @@ pi_result _pi_event::wait() {
   }
 
   return retErr;
+}
+
+pi_result _pi_event::release() {
+  assert(queue_ != nullptr);
+  PI_CHECK_ERROR(cuEventDestroy(evEnd_));
+
+  if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
+    PI_CHECK_ERROR(cuEventDestroy(evQueued_));
+    PI_CHECK_ERROR(cuEventDestroy(evStart_));
+  }
+
+  return PI_SUCCESS;
 }
 
 // makes all future work submitted to queue wait for all work captured in event.
@@ -931,44 +943,142 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_IMAGE_SUPPORT: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   PI_FALSE);
+                   PI_TRUE);
   }
   case PI_DEVICE_INFO_MAX_READ_IMAGE_ARGS: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 0);
+    // This call doesn't match to CUDA as it doesn't have images, but instead
+    // surfaces and textures. No clear call in the CUDA API to determine this,
+    // but some searching found as of SM 2.x 128 are supported.
+    return getInfo(param_value_size, param_value, param_value_size_ret, 128u);
   }
   case PI_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 0u);
+    // This call doesn't match to CUDA as it doesn't have images, but instead
+    // surfaces and textures. No clear call in the CUDA API to determine this,
+    // but some searching found as of SM 2.x 128 are supported.
+    return getInfo(param_value_size, param_value, param_value_size_ret, 128u);
   }
   case PI_DEVICE_INFO_IMAGE2D_MAX_HEIGHT: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   size_t(0));
+    // Take the smaller of maximum surface and maximum texture height.
+    int tex_height = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&tex_height,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_HEIGHT,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(tex_height >= 0);
+    int surf_height = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&surf_height,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_HEIGHT,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(surf_height >= 0);
+
+    int min = std::min(tex_height, surf_height);
+
+    return getInfo(param_value_size, param_value, param_value_size_ret, min);
   }
   case PI_DEVICE_INFO_IMAGE2D_MAX_WIDTH: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   size_t(0));
+    // Take the smaller of maximum surface and maximum texture width.
+    int tex_width = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&tex_width,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_WIDTH,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(tex_width >= 0);
+    int surf_width = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&surf_width,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_WIDTH,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(surf_width >= 0);
+
+    int min = std::min(tex_width, surf_width);
+
+    return getInfo(param_value_size, param_value, param_value_size_ret, min);
   }
   case PI_DEVICE_INFO_IMAGE3D_MAX_HEIGHT: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   size_t(0));
+    // Take the smaller of maximum surface and maximum texture height.
+    int tex_height = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&tex_height,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_HEIGHT,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(tex_height >= 0);
+    int surf_height = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&surf_height,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_HEIGHT,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(surf_height >= 0);
+
+    int min = std::min(tex_height, surf_height);
+
+    return getInfo(param_value_size, param_value, param_value_size_ret, min);
   }
   case PI_DEVICE_INFO_IMAGE3D_MAX_WIDTH: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   size_t(0));
+    // Take the smaller of maximum surface and maximum texture width.
+    int tex_width = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&tex_width,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_WIDTH,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(tex_width >= 0);
+    int surf_width = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&surf_width,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_WIDTH,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(surf_width >= 0);
+
+    int min = std::min(tex_width, surf_width);
+
+    return getInfo(param_value_size, param_value, param_value_size_ret, min);
   }
   case PI_DEVICE_INFO_IMAGE3D_MAX_DEPTH: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   size_t(0));
+    // Take the smaller of maximum surface and maximum texture depth.
+    int tex_depth = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&tex_depth,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_DEPTH,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(tex_depth >= 0);
+    int surf_depth = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&surf_depth,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_DEPTH,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(surf_depth >= 0);
+
+    int min = std::min(tex_depth, surf_depth);
+
+    return getInfo(param_value_size, param_value, param_value_size_ret, min);
   }
   case PI_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   size_t(0));
+    // Take the smaller of maximum surface and maximum texture width.
+    int tex_width = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&tex_width,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE1D_WIDTH,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(tex_width >= 0);
+    int surf_width = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&surf_width,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE1D_WIDTH,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(surf_width >= 0);
+
+    int min = std::min(tex_width, surf_width);
+
+    return getInfo(param_value_size, param_value, param_value_size_ret, min);
   }
   case PI_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    size_t(0));
   }
   case PI_DEVICE_INFO_MAX_SAMPLERS: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 0u);
+    // This call is kind of meaningless for cuda, as samplers don't exist.
+    // Closest thing is textures, which is 128.
+    return getInfo(param_value_size, param_value, param_value_size_ret, 128u);
   }
   case PI_DEVICE_INFO_MAX_PARAMETER_SIZE: {
     // https://docs.nvidia.com/cuda/cuda-c-programming-guide/#function-parameters
@@ -1540,6 +1650,10 @@ pi_result cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags,
           cuMemHostRegister(host_ptr, size, CU_MEMHOSTREGISTER_DEVICEMAP));
       retErr = PI_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, host_ptr, 0));
       allocMode = _pi_mem::alloc_mode::use_host_ptr;
+    } else if (flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) {
+      retErr = PI_CHECK_ERROR(cuMemAllocHost(&host_ptr, size));
+      retErr = PI_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, host_ptr, 0));
+      allocMode = _pi_mem::alloc_mode::alloc_host_ptr;
     } else {
       retErr = PI_CHECK_ERROR(cuMemAlloc(&ptr, size));
       if (flags & PI_MEM_FLAGS_HOST_PTR_COPY) {
@@ -1611,6 +1725,8 @@ pi_result cuda_piMemRelease(pi_mem memObj) {
       case _pi_mem::alloc_mode::use_host_ptr:
         ret = PI_CHECK_ERROR(cuMemHostUnregister(uniqueMemObj->hostPtr_));
         break;
+      case _pi_mem::alloc_mode::alloc_host_ptr:
+        ret = PI_CHECK_ERROR(cuMemFreeHost(uniqueMemObj->hostPtr_));
       };
     }
 
@@ -2732,6 +2848,11 @@ pi_result cuda_piEventGetProfilingInfo(pi_event event,
 
   assert(event != nullptr);
 
+  pi_queue queue = event->get_queue();
+  if (queue == nullptr || !(queue->properties_ & PI_QUEUE_PROFILING_ENABLE)) {
+    return PI_PROFILING_INFO_NOT_AVAILABLE;
+  }
+
   switch (param_name) {
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
@@ -2791,8 +2912,7 @@ pi_result cuda_piEventRelease(pi_event event) {
     pi_result result = PI_INVALID_EVENT;
     try {
       ScopedContext active(event->get_context());
-      auto cuEvent = event->get();
-      result = PI_CHECK_ERROR(cuEventDestroy(cuEvent));
+      result = event->release();
     } catch (...) {
       result = PI_OUT_OF_RESOURCES;
     }
