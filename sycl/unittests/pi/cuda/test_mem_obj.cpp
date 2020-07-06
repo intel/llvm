@@ -73,6 +73,18 @@ TEST_F(CudaTestMemObj, piMemBufferCreateSimple) {
             PI_SUCCESS);
 }
 
+TEST_F(CudaTestMemObj, piMemBufferAllocHost) {
+  const size_t memSize = 1024u;
+  pi_mem memObj;
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemBufferCreate>(
+                context_, PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_ALLOC,
+                memSize, nullptr, &memObj)),
+            PI_SUCCESS);
+
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemRelease>(memObj)),
+            PI_SUCCESS);
+}
+
 TEST_F(CudaTestMemObj, piMemBufferCreateNoActiveContext) {
   const size_t memSize = 1024u;
   // Context has been destroyed
