@@ -2216,20 +2216,17 @@ static std::string printRecordType(QualType T, const CXXRecordDecl *RD,
 
     return eraseAnonNamespace(OS.str().str());
   }
-  if (const auto *D = dyn_cast<CXXRecordDecl>(RD)) {
-    if (RD->getDeclContext()->isFunctionOrMethod())
-      return eraseAnonNamespace(T.getCanonicalType().getAsString(TypePolicy));
-    if (RD->getDeclContext()->isNamespace()) {
-      auto *NS = dyn_cast<NamespaceDecl>(RD->getDeclContext());
-      if (NS->isAnonymousNamespace())
-        RD->printQualifiedName(OS, TypePolicy, false);
-      else
-        RD->printQualifiedName(OS, TypePolicy, true);
-    } else
+  if (RD->getDeclContext()->isFunctionOrMethod())
+    return eraseAnonNamespace(T.getCanonicalType().getAsString(TypePolicy));
+  if (RD->getDeclContext()->isNamespace()) {
+    auto *NS = dyn_cast<NamespaceDecl>(RD->getDeclContext());
+    if (NS->isAnonymousNamespace())
+      RD->printQualifiedName(OS, TypePolicy, false);
+    else
       RD->printQualifiedName(OS, TypePolicy, true);
-    return eraseAnonNamespace(OS.str().str());
-  }
-  return eraseAnonNamespace(T.getCanonicalType().getAsString(TypePolicy));
+  } else
+    RD->printQualifiedName(OS, TypePolicy, true);
+  return eraseAnonNamespace(OS.str().str());
 }
 
 static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
