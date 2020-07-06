@@ -145,6 +145,13 @@ private:
   const ContextImplPtr MContext;
   const ProgramImplPtr MProgramImpl;
   bool MCreatedFromSource = true;
+
+public:
+  // This section means the object is non-movable and non-copyable
+  kernel_impl(const kernel_impl &) = delete;
+  kernel_impl(kernel_impl &&) = delete;
+  kernel_impl &operator=(const kernel_impl &) = delete;
+  kernel_impl &operator=(kernel_impl &&) = delete;
 };
 
 } // namespace detail
