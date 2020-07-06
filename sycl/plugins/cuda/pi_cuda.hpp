@@ -177,7 +177,9 @@ private:
 };
 
 /// PI Mem mapping to a CUDA memory allocation
-///
+/// \brief Represents non-SVM allocations on the CUDA backend.
+/// Keeps tracks of all mapped regions used for Map/Unmap calls.
+/// Only one region can be active at the same time per allocation.
 struct _pi_mem {
   using native_type = CUdeviceptr;
   using pi_context = _pi_context *;
@@ -186,12 +188,19 @@ struct _pi_mem {
   pi_mem parent_;
   native_type ptr_;
 
+  /// Pointer associated with this device on the host
   void *hostPtr_;
+  /// Size of the allocation in bytes
   size_t size_;
+  /// Offset of the active mapped region.
   size_t mapOffset_;
+  /// Pointer to the active mapped region, if any
   void *mapPtr_;
+  /// Original flags for the mapped region
   cl_map_flags mapFlags_;
+  /// Reference counting of the handler
   std::atomic_uint32_t refCount_;
+
   /** alloc_mode
    * classic: Just a normal buffer allocated on the device via cuda malloc
    * use_host_ptr: Use an address on the host for the device
@@ -248,6 +257,10 @@ struct _pi_mem {
 
   size_t get_map_offset(void *ptr) const noexcept { return mapOffset_; }
 
+  /// Returns a pointer to data visible on the host that contains
+  ///  the data on the device associated with this allocation.
+  /// The offset is used to index into the CUDA allocation.
+  ///
   void *map_to_ptr(size_t offset, cl_map_flags flags) noexcept {
     assert(mapPtr_ == nullptr);
     mapOffset_ = offset;
@@ -261,6 +274,7 @@ struct _pi_mem {
     return mapPtr_;
   }
 
+  /// Detach the allocation from the host memory.
   void unmap(void *ptr) noexcept {
     assert(mapPtr_ != nullptr);
 

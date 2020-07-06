@@ -129,7 +129,8 @@ the system, refer to
 
 Currently, the only combination tested is Ubuntu 18.04 with CUDA 10.2 using
 a Titan RTX GPU (SM 71), but it should work on any GPU compatible with SM 50 or
-above.
+above. The default SM for the NVIDIA CUDA backend is 5.0. Users can specify
+lower values, but some features may not be supported.
 
 ### Deployment
 
@@ -517,7 +518,7 @@ class CUDASelector : public cl::sycl::device_selector {
       const std::string DeviceName = Device.get_info<device::name>();
       const std::string DeviceVendor = Device.get_info<device::vendor>();
 
-      if (Device.is_gpu() && (DeviceName.find("NVIDIA") != std::string::npos)) {
+      if (Device.is_gpu() && (DeviceName.find("CUDA") != std::string::npos)) {
         return 1;
       };
       return -1;
