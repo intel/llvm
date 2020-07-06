@@ -69,3 +69,6 @@ else:
 
 config.environment['SYCL_BE'] = lit_config.params.get('SYCL_BE', "PI_OPENCL")
 lit_config.note("Backend (SYCL_BE): {}".format(config.environment['SYCL_BE']))
+
+config.environment['LD_PRELOAD'] = '/usr/lib/x86_64-linux-gnu/libasan.so.4'
+config.environment['ASAN_OPTIONS'] = 'detect_leaks=0'
