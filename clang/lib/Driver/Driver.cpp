@@ -4059,9 +4059,9 @@ class OffloadingActionBuilder final {
         }
       }
 
-      // If there are no CUDA architectures provided then default to SM_30.
+      // If there are no CUDA architectures provided then default to SM_50.
       if (GpuArchList.empty()) {
-        GpuArchList.push_back(CudaArch::SM_30);
+        GpuArchList.push_back(CudaArch::SM_50);
       }
 
       return false;
