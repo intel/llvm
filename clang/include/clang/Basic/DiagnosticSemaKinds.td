@@ -10850,7 +10850,7 @@ def err_sycl_restrict : Error<
   "|call a dllimport function"
   "|call a variadic function"
   "|call an undefined function without SYCL_EXTERNAL attribute"
-  "|use a const static variable that is neither zero-initialized "
+  "|use a const static or global variable that is neither zero-initialized "
   "nor constant-initialized"
   "}0">;
 def err_sycl_virtual_types : Error<
