@@ -1332,10 +1332,18 @@ __SYCL_EXPORT pi_result piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
                                           const pi_event *event_wait_list,
                                           pi_event *event);
 
+// Extension to allow backends to process a PI memory object before adding it
+// as an argument for a kernel.
+// Note: This is needed by the CUDA backend to extract the device pointer to
+// the memory as the kernels uses it rather than the PI object itself.
 __SYCL_EXPORT pi_result piextKernelSetArgMemObj(pi_kernel kernel,
                                                 pi_uint32 arg_index,
                                                 const pi_mem *arg_value);
 
+// Extension to allow backends to process a PI sampler object before adding it
+// as an argument for a kernel.
+// Note: This is needed by the CUDA backend to extract the properties of the
+// sampler as the kernels uses it rather than the PI object itself.
 __SYCL_EXPORT pi_result piextKernelSetArgSampler(pi_kernel kernel,
                                                  pi_uint32 arg_index,
                                                  const pi_sampler *arg_value);
