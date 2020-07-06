@@ -374,6 +374,8 @@ public:
     return new _pi_event(type, queue->get_context(), queue);
   }
 
+  pi_result release();
+
   ~_pi_event();
 
 private:
