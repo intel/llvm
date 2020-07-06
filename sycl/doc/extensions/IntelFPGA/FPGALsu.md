@@ -82,7 +82,7 @@ Queue.submit([&](cl::sycl::handler &cgh) {
   auto output_accessor = output_buffer.get_access<cl::sycl::access::mode::write>(cgh);
   auto input_accessor = input_buffer.get_access<cl::sycl::access::mode::read>(cgh);
 
-  cgh.single_task<class kernel>([=]() {
+  cgh.single_task<class kernel>([=] {
     auto input_ptr = input_accessor.get_pointer();
     auto output_ptr = output_accessor.get_pointer();
 

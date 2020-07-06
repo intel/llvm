@@ -15,14 +15,14 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace intel {
 
-template <template <int> class Type, class T>
+template <template <int32_t> class Type, class T>
 struct MatchType : std::is_same<Type<T::value>, T> {};
 
-template <template <int> class Type, class... T> struct GetValue {
+template <template <int32_t> class Type, class... T> struct GetValue {
   enum { value = Type<0>::default_value };
 };
 
-template <template <int> class Type, class T1, class... T>
+template <template <int32_t> class Type, class T1, class... T>
 struct GetValue<Type, T1, T...> {
   enum {
     value = std::conditional<MatchType<Type, T1>::value, T1,

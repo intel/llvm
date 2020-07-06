@@ -24,44 +24,45 @@ int test_lsu(cl::sycl::queue Queue) {
     input_data[i] = i + 1;
   }
 
-  cl::sycl::buffer<int, 1> output_buffer(output_data, 1);
-  cl::sycl::buffer<int, 1> input_buffer(input_data, 1);
+  {
+    cl::sycl::buffer<int, 1> output_buffer(output_data, 1);
+    cl::sycl::buffer<int, 1> input_buffer(input_data, 1);
 
-  Queue.submit([&](cl::sycl::handler &cgh) {
-    auto output_accessor = output_buffer.get_access<cl::sycl::access::mode::write>(cgh);
-    auto input_accessor = input_buffer.get_access<cl::sycl::access::mode::read>(cgh);
+    Queue.submit([&](cl::sycl::handler &cgh) {
+      auto output_accessor = output_buffer.get_access<cl::sycl::access::mode::write>(cgh);
+      auto input_accessor = input_buffer.get_access<cl::sycl::access::mode::read>(cgh);
 
-    cgh.single_task<class kernel>([=]() {
-      auto input_ptr = input_accessor.get_pointer();
-      auto output_ptr = output_accessor.get_pointer();
+      cgh.single_task<class kernel>([=] {
+        auto input_ptr = input_accessor.get_pointer();
+        auto output_ptr = output_accessor.get_pointer();
 
-      using PrefetchingLSU =
-          cl::sycl::intel::lsu<cl::sycl::intel::prefetch<1>,
-                               cl::sycl::intel::dont_statically_coalesce<1>>;
+        using PrefetchingLSU =
+            cl::sycl::intel::lsu<cl::sycl::intel::prefetch<1>,
+                                 cl::sycl::intel::dont_statically_coalesce<1>>;
 
-      using BurstCoalescedLSU =
-          cl::sycl::intel::lsu<cl::sycl::intel::burst_coalesce<1>,
-                               cl::sycl::intel::dont_statically_coalesce<1>>;
+        using BurstCoalescedLSU =
+            cl::sycl::intel::lsu<cl::sycl::intel::burst_coalesce<1>,
+                                 cl::sycl::intel::dont_statically_coalesce<1>>;
 
-      using CachingLSU =
-          cl::sycl::intel::lsu<cl::sycl::intel::burst_coalesce<1>,
-                               cl::sycl::intel::cache<1024>,
-                               cl::sycl::intel::dont_statically_coalesce<0>>;
+        using CachingLSU =
+            cl::sycl::intel::lsu<cl::sycl::intel::burst_coalesce<1>,
+                                 cl::sycl::intel::cache<1024>,
+                                 cl::sycl::intel::dont_statically_coalesce<0>>;
 
-      using PipelinedLSU = cl::sycl::intel::lsu<>;
+        using PipelinedLSU = cl::sycl::intel::lsu<>;
 
-      int X = PrefetchingLSU::load(input_ptr); // int X = input_ptr[0]
-      int Y = CachingLSU::load(input_ptr + 1); // int Y = input_ptr[1]
+        int X = PrefetchingLSU::load(input_ptr); // int X = input_ptr[0]
+        int Y = CachingLSU::load(input_ptr + 1); // int Y = input_ptr[1]
 
-      BurstCoalescedLSU::store(output_ptr, X); // output_ptr[0] = X
-      PipelinedLSU::store(output_ptr + 1, Y);  // output_ptr[1] = Y
+        BurstCoalescedLSU::store(output_ptr, X); // output_ptr[0] = X
+        PipelinedLSU::store(output_ptr + 1, Y);  // output_ptr[1] = Y
+      });
     });
-  });
+  }
 
-  auto host_buffer = output_buffer.get_access<cl::sycl::access::mode::read>();
   for (int i = 0; i < 2; i++) {
-    if (host_buffer[i] != input_data[i]) {
-      std::cout << "Unexpected read from output_buffer: " << host_buffer[i]
+    if (output_data[i] != input_data[i]) {
+      std::cout << "Unexpected read from output_data: " << output_data[i]
                 << ", v.s. expected " << input_data[i] << std::endl;
 
       return -1;
