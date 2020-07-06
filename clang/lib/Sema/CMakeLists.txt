@@ -10,6 +10,11 @@ clang_tablegen(OpenCLBuiltins.inc -gen-clang-opencl-builtins
   TARGET ClangOpenCLBuiltinsImpl
   )
 
+clang_tablegen(SPIRVBuiltins.inc -gen-clang-spirv-builtins
+ SOURCE SPIRVBuiltins.td
+ TARGET ClangSPIRVBuiltinsImpl
+ )
+
 add_clang_library(clangSema
   AnalysisBasedWarnings.cpp
   CodeCompleteConsumer.cpp
@@ -65,6 +70,7 @@ add_clang_library(clangSema
 
   DEPENDS
   ClangOpenCLBuiltinsImpl
+  ClangSPIRVBuiltinsImpl
   omp_gen
 
   LINK_LIBS

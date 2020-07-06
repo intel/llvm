@@ -3366,6 +3366,8 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
     GenerateArg(Args, OPT_finclude_default_header, SA);
   if (Opts.DeclareOpenCLBuiltins)
     GenerateArg(Args, OPT_fdeclare_opencl_builtins, SA);
+  if (Opts.DeclareSPIRVBuiltins)
+    GenerateArg(Args, OPT_fdeclare_spirv_builtins, SA);
 
   const LangOptions *LangOpts = &Opts;
 
@@ -3677,6 +3679,9 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   // These need to be parsed now. They are used to set OpenCL defaults.
   Opts.IncludeDefaultHeader = Args.hasArg(OPT_finclude_default_header);
   Opts.DeclareOpenCLBuiltins = Args.hasArg(OPT_fdeclare_opencl_builtins);
+
+  Opts.SYCLIsDevice = Args.hasArg(options::OPT_fsycl_is_device);
+  Opts.DeclareSPIRVBuiltins = Args.hasArg(OPT_fdeclare_spirv_builtins);
 
   CompilerInvocation::setLangDefaults(Opts, IK, T, Includes, LangStd);
 

@@ -5084,8 +5084,9 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
       if (LangOpts.OpenCL) {
         // OpenCL v2.0 s6.12.5 - A block cannot be the return value of a
         // function.
-        if (T->isBlockPointerType() || T->isImageType() || T->isSamplerT() ||
-            T->isPipeType()) {
+        if (!T->isSampledImageType() &&
+            (T->isBlockPointerType() || T->isImageType() || T->isSamplerT() ||
+             T->isPipeType())) {
           S.Diag(D.getIdentifierLoc(), diag::err_opencl_invalid_return)
               << T << 1 /*hint off*/;
           D.setInvalidType(true);

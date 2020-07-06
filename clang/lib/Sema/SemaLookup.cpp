@@ -47,7 +47,10 @@
 #include <utility>
 #include <vector>
 
+static inline clang::QualType GetFloat16Type(clang::ASTContext &Context);
+
 #include "OpenCLBuiltins.inc"
+#include "SPIRVBuiltins.inc"
 
 using namespace clang;
 using namespace sema;
@@ -677,6 +680,10 @@ LLVM_DUMP_METHOD void LookupResult::dump() {
     D->dump();
 }
 
+static inline QualType GetFloat16Type(clang::ASTContext &Context) {
+  return Context.getLangOpts().OpenCL ? Context.HalfTy : Context.Float16Ty;
+}
+
 /// Diagnose a missing builtin type.
 static QualType diagOpenCLBuiltinTypeError(Sema &S, llvm::StringRef TypeClass,
                                            llvm::StringRef Name) {
@@ -711,10 +718,10 @@ static QualType getOpenCLTypedefType(Sema &S, llvm::StringRef Name) {
   return S.Context.getTypedefType(Decl);
 }
 
-/// Get the QualType instances of the return type and arguments for an OpenCL
+/// Get the QualType instances of the return type and arguments for a ProgModel
 /// builtin function signature.
-/// \param S (in) The Sema instance.
-/// \param OpenCLBuiltin (in) The signature currently handled.
+/// \param Context (in) The Context instance.
+/// \param Builtin (in) The signature currently handled.
 /// \param GenTypeMaxCnt (out) Maximum number of types contained in a generic
 ///        type used as return type or as argument.
 ///        Only meaningful for generic types, otherwise equals 1.
@@ -722,27 +729,31 @@ static QualType getOpenCLTypedefType(Sema &S, llvm::StringRef Name) {
 /// \param ArgTypes (out) List of the possible argument types.  For each
 ///        argument, ArgTypes contains QualTypes for the Cartesian product
 ///        of (vector sizes) x (types) .
-static void GetQualTypesForOpenCLBuiltin(
-    Sema &S, const OpenCLBuiltinStruct &OpenCLBuiltin, unsigned &GenTypeMaxCnt,
-    SmallVector<QualType, 1> &RetTypes,
+template <typename ProgModel>
+static void GetQualTypesForProgModelBuiltin(
+    Sema &S, const typename ProgModel::BuiltinStruct &Builtin,
+    unsigned &GenTypeMaxCnt, SmallVector<QualType, 1> &RetTypes,
     SmallVector<SmallVector<QualType, 1>, 5> &ArgTypes) {
   // Get the QualType instances of the return types.
-  unsigned Sig = SignatureTable[OpenCLBuiltin.SigTableIndex];
-  OCL2Qual(S, TypeTable[Sig], RetTypes);
+  unsigned Sig = ProgModel::SignatureTable[Builtin.SigTableIndex];
+  ProgModel::Bultin2Qual(S, ProgModel::TypeTable[Sig], RetTypes);
   GenTypeMaxCnt = RetTypes.size();
 
   // Get the QualType instances of the arguments.
   // First type is the return type, skip it.
-  for (unsigned Index = 1; Index < OpenCLBuiltin.NumTypes; Index++) {
+  for (unsigned Index = 1; Index < Builtin.NumTypes; Index++) {
     SmallVector<QualType, 1> Ty;
-    OCL2Qual(S, TypeTable[SignatureTable[OpenCLBuiltin.SigTableIndex + Index]],
-             Ty);
+    ProgModel::Bultin2Qual(
+        S,
+        ProgModel::TypeTable[ProgModel::SignatureTable[Builtin.SigTableIndex +
+                                                       Index]],
+        Ty);
     GenTypeMaxCnt = (Ty.size() > GenTypeMaxCnt) ? Ty.size() : GenTypeMaxCnt;
     ArgTypes.push_back(std::move(Ty));
   }
 }
 
-/// Create a list of the candidate function overloads for an OpenCL builtin
+/// Create a list of the candidate function overloads for a ProgModel builtin
 /// function.
 /// \param Context (in) The ASTContext instance.
 /// \param GenTypeMaxCnt (in) Maximum number of types contained in a generic
@@ -751,13 +762,13 @@ static void GetQualTypesForOpenCLBuiltin(
 /// \param FunctionList (out) List of FunctionTypes.
 /// \param RetTypes (in) List of the possible return types.
 /// \param ArgTypes (in) List of the possible types for the arguments.
-static void GetOpenCLBuiltinFctOverloads(
+static void GetProgModelBuiltinFctOverloads(
     ASTContext &Context, unsigned GenTypeMaxCnt,
     std::vector<QualType> &FunctionList, SmallVector<QualType, 1> &RetTypes,
-    SmallVector<SmallVector<QualType, 1>, 5> &ArgTypes) {
+    SmallVector<SmallVector<QualType, 1>, 5> &ArgTypes, bool IsVariadic) {
   FunctionProtoType::ExtProtoInfo PI(
       Context.getDefaultCallingConvention(false, false, true));
-  PI.Variadic = false;
+  PI.Variadic = IsVariadic;
 
   // Do not attempt to create any FunctionTypes if there are no return types,
   // which happens when a type belongs to a disabled extension.
@@ -787,8 +798,22 @@ static void GetOpenCLBuiltinFctOverloads(
   }
 }
 
-/// When trying to resolve a function name, if isOpenCLBuiltin() returns a
-/// non-null <Index, Len> pair, then the name is referencing an OpenCL
+template <typename ProgModel>
+static bool isVersionInMask(const LangOptions &O, unsigned Mask);
+template <>
+bool isVersionInMask<OpenCLBuiltin>(const LangOptions &LO, unsigned Mask) {
+  return isOpenCLVersionContainedInMask(LO, Mask);
+}
+
+// SPIRV Builtins are always permitted, since all builtins are 'SPIRV_ALL'. We
+// have no corresponding language option to check, so we always include them.
+template <>
+bool isVersionInMask<SPIRVBuiltin>(const LangOptions &LO, unsigned Mask) {
+  return true;
+}
+
+/// When trying to resolve a function name, if ProgModel::isBuiltin() returns a
+/// non-null <Index, Len> pair, then the name is referencing a
 /// builtin function.  Add all candidate signatures to the LookUpResult.
 ///
 /// \param S (in) The Sema instance.
@@ -796,10 +821,13 @@ static void GetOpenCLBuiltinFctOverloads(
 /// \param II (in) The identifier being resolved.
 /// \param FctIndex (in) Starting index in the BuiltinTable.
 /// \param Len (in) The signature list has Len elements.
-static void InsertOCLBuiltinDeclarationsFromTable(Sema &S, LookupResult &LR,
-                                                  IdentifierInfo *II,
-                                                  const unsigned FctIndex,
-                                                  const unsigned Len) {
+template <typename ProgModel>
+static void InsertBuiltinDeclarationsFromTable(
+    Sema &S, LookupResult &LR, IdentifierInfo *II, const unsigned FctIndex,
+    const unsigned Len,
+    std::function<void(const typename ProgModel::BuiltinStruct &,
+                       FunctionDecl &)>
+        ProgModelFinalizer) {
   // The builtin function declaration uses generic types (gentype).
   bool HasGenType = false;
 
@@ -810,19 +838,18 @@ static void InsertOCLBuiltinDeclarationsFromTable(Sema &S, LookupResult &LR,
   ASTContext &Context = S.Context;
 
   for (unsigned SignatureIndex = 0; SignatureIndex < Len; SignatureIndex++) {
-    const OpenCLBuiltinStruct &OpenCLBuiltin =
-        BuiltinTable[FctIndex + SignatureIndex];
+    const typename ProgModel::BuiltinStruct &Builtin =
+        ProgModel::BuiltinTable[FctIndex + SignatureIndex];
 
     // Ignore this builtin function if it is not available in the currently
     // selected language version.
-    if (!isOpenCLVersionContainedInMask(Context.getLangOpts(),
-                                        OpenCLBuiltin.Versions))
+    if (!isVersionInMask<ProgModel>(Context.getLangOpts(), Builtin.Versions))
       continue;
 
     // Ignore this builtin function if it carries an extension macro that is
     // not defined. This indicates that the extension is not supported by the
     // target, so the builtin function should not be available.
-    StringRef Extensions = FunctionExtensionTable[OpenCLBuiltin.Extension];
+    StringRef Extensions = ProgModel::FunctionExtensionTable[Builtin.Extension];
     if (!Extensions.empty()) {
       SmallVector<StringRef, 2> ExtVec;
       Extensions.split(ExtVec, " ");
@@ -841,27 +868,27 @@ static void InsertOCLBuiltinDeclarationsFromTable(Sema &S, LookupResult &LR,
     SmallVector<SmallVector<QualType, 1>, 5> ArgTypes;
 
     // Obtain QualType lists for the function signature.
-    GetQualTypesForOpenCLBuiltin(S, OpenCLBuiltin, GenTypeMaxCnt, RetTypes,
-                                 ArgTypes);
+    GetQualTypesForProgModelBuiltin<ProgModel>(S, Builtin, GenTypeMaxCnt,
+                                               RetTypes, ArgTypes);
     if (GenTypeMaxCnt > 1) {
       HasGenType = true;
     }
 
     // Create function overload for each type combination.
     std::vector<QualType> FunctionList;
-    GetOpenCLBuiltinFctOverloads(Context, GenTypeMaxCnt, FunctionList, RetTypes,
-                                 ArgTypes);
+    GetProgModelBuiltinFctOverloads(Context, GenTypeMaxCnt, FunctionList,
+                                    RetTypes, ArgTypes, Builtin.IsVariadic);
 
     SourceLocation Loc = LR.getNameLoc();
     DeclContext *Parent = Context.getTranslationUnitDecl();
-    FunctionDecl *NewOpenCLBuiltin;
+    FunctionDecl *NewBuiltin;
 
     for (const auto &FTy : FunctionList) {
-      NewOpenCLBuiltin = FunctionDecl::Create(
-          Context, Parent, Loc, Loc, II, FTy, /*TInfo=*/nullptr, SC_Extern,
-          S.getCurFPFeatures().isFPConstrained(), false,
-          FTy->isFunctionProtoType());
-      NewOpenCLBuiltin->setImplicit();
+      NewBuiltin = FunctionDecl::Create(Context, Parent, Loc, Loc, II, FTy,
+                                        /*TInfo=*/nullptr, SC_Extern,
+                                        S.getCurFPFeatures().isFPConstrained(),
+                                        false, FTy->isFunctionProtoType());
+      NewBuiltin->setImplicit();
 
       // Create Decl objects for each parameter, adding them to the
       // FunctionDecl.
@@ -869,25 +896,25 @@ static void InsertOCLBuiltinDeclarationsFromTable(Sema &S, LookupResult &LR,
       SmallVector<ParmVarDecl *, 4> ParmList;
       for (unsigned IParm = 0, e = FP->getNumParams(); IParm != e; ++IParm) {
         ParmVarDecl *Parm = ParmVarDecl::Create(
-            Context, NewOpenCLBuiltin, SourceLocation(), SourceLocation(),
-            nullptr, FP->getParamType(IParm), nullptr, SC_None, nullptr);
+            Context, NewBuiltin, SourceLocation(), SourceLocation(), nullptr,
+            FP->getParamType(IParm), nullptr, SC_None, nullptr);
         Parm->setScopeInfo(0, IParm);
         ParmList.push_back(Parm);
       }
-      NewOpenCLBuiltin->setParams(ParmList);
+      NewBuiltin->setParams(ParmList);
 
       // Add function attributes.
-      if (OpenCLBuiltin.IsPure)
-        NewOpenCLBuiltin->addAttr(PureAttr::CreateImplicit(Context));
-      if (OpenCLBuiltin.IsConst)
-        NewOpenCLBuiltin->addAttr(ConstAttr::CreateImplicit(Context));
-      if (OpenCLBuiltin.IsConv)
-        NewOpenCLBuiltin->addAttr(ConvergentAttr::CreateImplicit(Context));
-
+      if (Builtin.IsPure)
+        NewBuiltin->addAttr(PureAttr::CreateImplicit(Context));
+      if (Builtin.IsConst)
+        NewBuiltin->addAttr(ConstAttr::CreateImplicit(Context));
+      if (Builtin.IsConv)
+        NewBuiltin->addAttr(ConvergentAttr::CreateImplicit(Context));
       if (!S.getLangOpts().OpenCLCPlusPlus)
-        NewOpenCLBuiltin->addAttr(OverloadableAttr::CreateImplicit(Context));
+        NewBuiltin->addAttr(OverloadableAttr::CreateImplicit(Context));
 
-      LR.addDecl(NewOpenCLBuiltin);
+      ProgModelFinalizer(Builtin, *NewBuiltin);
+      LR.addDecl(NewBuiltin);
     }
   }
 
@@ -920,10 +947,31 @@ bool Sema::LookupBuiltin(LookupResult &R) {
 
       // Check if this is an OpenCL Builtin, and if so, insert its overloads.
       if (getLangOpts().OpenCL && getLangOpts().DeclareOpenCLBuiltins) {
-        auto Index = isOpenCLBuiltin(II->getName());
+        auto Index = OpenCLBuiltin::isBuiltin(II->getName());
         if (Index.first) {
-          InsertOCLBuiltinDeclarationsFromTable(*this, R, II, Index.first - 1,
-                                                Index.second);
+          InsertBuiltinDeclarationsFromTable<OpenCLBuiltin>(
+              *this, R, II, Index.first - 1, Index.second,
+              [this](const OpenCLBuiltin::BuiltinStruct &OpenCLBuiltin,
+                     FunctionDecl &NewOpenCLBuiltin) {
+                if (!this->getLangOpts().OpenCLCPlusPlus)
+                  NewOpenCLBuiltin.addAttr(
+                      OverloadableAttr::CreateImplicit(Context));
+              });
+          return true;
+        }
+      }
+
+      // Check if this is a SPIR-V Builtin, and if so, insert its overloads.
+      if (getLangOpts().DeclareSPIRVBuiltins) {
+        auto Index = SPIRVBuiltin::isBuiltin(II->getName());
+        if (Index.first) {
+          InsertBuiltinDeclarationsFromTable<SPIRVBuiltin>(
+              *this, R, II, Index.first - 1, Index.second,
+              [this](const SPIRVBuiltin::BuiltinStruct &,
+                     FunctionDecl &NewBuiltin) {
+                if (!this->getLangOpts().CPlusPlus)
+                  NewBuiltin.addAttr(OverloadableAttr::CreateImplicit(Context));
+              });
           return true;
         }
       }

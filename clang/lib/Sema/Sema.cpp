@@ -318,12 +318,29 @@ void Sema::Initialize() {
   }
 
   if (getLangOpts().SYCLIsDevice) {
-    addImplicitTypedef("__ocl_sampler_t", Context.OCLSamplerTy);
     addImplicitTypedef("__ocl_event_t", Context.OCLEventTy);
+    addImplicitTypedef("__ocl_sampler_t", Context.OCLSamplerTy);
+#ifdef SEMA_STRINGIZE
+#error "Undefine SEMA_STRINGIZE macro."
+#endif
 #define SEMA_STRINGIZE(s) #s
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
   addImplicitTypedef(SEMA_STRINGIZE(__ocl_##ImgType##_##Suffix##_t),           \
                      Context.SingletonId);
+#include "clang/Basic/OpenCLImageTypes.def"
+#undef SEMA_STRINGIZE
+  }
+
+  if (getLangOpts().SYCLIsDevice || getLangOpts().OpenCL) {
+#ifdef SEMA_STRINGIZE
+#error "Undefine SEMA_STRINGIZE macro."
+#endif
+#define SEMA_STRINGIZE(s) #s
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  addImplicitTypedef(SEMA_STRINGIZE(__ocl_sampled_##ImgType##_##Suffix##_t),   \
+                     Context.Sampled##SingletonId);
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
 #include "clang/Basic/OpenCLImageTypes.def"
 #undef SEMA_STRINGIZE
   }

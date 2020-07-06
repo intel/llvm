@@ -1423,18 +1423,14 @@ void ASTContext::InitBuiltinTypes(const TargetInfo &Target,
   InitBuiltinType(ObjCBuiltinClassTy, BuiltinType::ObjCClass);
   InitBuiltinType(ObjCBuiltinSelTy, BuiltinType::ObjCSel);
 
-  if (LangOpts.SYCLIsDevice) {
-    InitBuiltinType(OCLSamplerTy, BuiltinType::OCLSampler);
-    InitBuiltinType(OCLEventTy, BuiltinType::OCLEvent);
+  if (LangOpts.OpenCL || LangOpts.SYCLIsDevice) {
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \
     InitBuiltinType(SingletonId, BuiltinType::Id);
 #include "clang/Basic/OpenCLImageTypes.def"
-#undef IMAGE_TYPE
-  }
-
-  if (LangOpts.OpenCL) {
-#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \
-    InitBuiltinType(SingletonId, BuiltinType::Id);
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  InitBuiltinType(Sampled##SingletonId, BuiltinType::Sampled##Id);
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
 #include "clang/Basic/OpenCLImageTypes.def"
 
     InitBuiltinType(OCLSamplerTy, BuiltinType::OCLSampler);
@@ -2192,6 +2188,11 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     case BuiltinType::OCLReserveID:
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \
     case BuiltinType::Id:
+#include "clang/Basic/OpenCLImageTypes.def"
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  case BuiltinType::Sampled##Id:
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
 #include "clang/Basic/OpenCLImageTypes.def"
 #define EXT_OPAQUE_TYPE(ExtType, Id, Ext) \
   case BuiltinType::Id:
@@ -6861,6 +6862,12 @@ OpenCLTypeKind ASTContext::getOpenCLTypeKind(const Type *T) const {
   case BuiltinType::Id:                                                        \
     return OCLTK_Image;
 #include "clang/Basic/OpenCLImageTypes.def"
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  case BuiltinType::Sampled##Id:                                               \
+    return OCLTK_Image;
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
+#include "clang/Basic/OpenCLImageTypes.def"
 
   case BuiltinType::OCLClkEvent:
     return OCLTK_ClkEvent;
@@ -7445,6 +7452,11 @@ static char getObjCEncodingForPrimitiveType(const ASTContext *C,
     // OpenCL and placeholder types don't need @encodings.
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \
     case BuiltinType::Id:
+#include "clang/Basic/OpenCLImageTypes.def"
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  case BuiltinType::Sampled##Id:
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
 #include "clang/Basic/OpenCLImageTypes.def"
 #define EXT_OPAQUE_TYPE(ExtType, Id, Ext) \
     case BuiltinType::Id:
