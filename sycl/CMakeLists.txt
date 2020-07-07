@@ -9,7 +9,7 @@ option(SYCL_ENABLE_WERROR "Treat all warnings as errors in SYCL project" OFF)
 option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
-include(AddSYCLDeviceTarget)
+include(AddSYCLExecutable)
 
 set(SYCL_MAJOR_VERSION 2)
 set(SYCL_MINOR_VERSION 0)
