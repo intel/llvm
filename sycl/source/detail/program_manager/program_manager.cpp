@@ -288,7 +288,7 @@ static const char *getFormatStr(RT::PiDeviceBinaryType Format) {
 }
 
 RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
-                                              const context &Context) {
+                                              const context &Context) {                                          
   if (DbgProgMgr > 0)
     std::cerr << ">>> ProgramManager::createPIProgram(" << &Img << ")\n";
   const pi_device_binary_struct &RawImg = Img.getRawData();
@@ -329,8 +329,11 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
           ? createSpirvProgram(Ctx, RawImg.BinaryStart, ImgSize)
           : createBinaryProgram(Ctx, RawImg.BinaryStart, ImgSize);
 
-  // associate the PI program with the image it was created for
-  NativePrograms[Res] = &Img;
+  {
+    auto LockGuard = Ctx->getKernelProgramCache().acquireCachedPrograms();
+    // associate the PI program with the image it was created for
+    NativePrograms[Res] = &Img;
+  }
 
   if (DbgProgMgr > 1)
     std::cerr << "created program: " << Res
