@@ -751,6 +751,14 @@ cl_int AllocaCommand::enqueueImp() {
       detail::getSyclObjImpl(MQueue->get_context()), getSYCLMemObj(),
       MInitFromUserData, HostPtr, std::move(EventImpls), Event);
 
+  // if this is ESIMD accessor, wrap the allocated device memory buffer into
+  // an image buffer object.
+  // TODO Address copying SYCL/ESIMD memory between contexts.
+  if (getRequirement()->MIsESIMDAcc)
+    ESIMDExt.MWrapperImage = MemoryManager::wrapIntoImageBuffer(
+        detail::getSyclObjImpl(MQueue->get_context()), MMemAllocation,
+        getSYCLMemObj());
+
   return CL_SUCCESS;
 }
 
@@ -937,12 +945,16 @@ cl_int ReleaseCommand::enqueueImp() {
   RT::PiEvent &Event = MEvent->getHandleRef();
   if (SkipRelease)
     Command::waitForEvents(MQueue, EventImpls, Event);
-  else
+  else {
     MemoryManager::release(detail::getSyclObjImpl(MQueue->get_context()),
                            MAllocaCmd->getSYCLMemObj(),
                            MAllocaCmd->getMemAllocation(),
                            std::move(EventImpls), Event);
-
+    // Release the wrapper object if present.
+    if (void *WrapperImage = MAllocaCmd->ESIMDExt.MWrapperImage)
+      MemoryManager::releaseImageBuffer(
+          detail::getSyclObjImpl(MQueue->get_context()), WrapperImage);
+  }
   return CL_SUCCESS;
 }
 
@@ -1638,7 +1650,9 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     case kernel_param_kind_t::kind_accessor: {
       Requirement *Req = (Requirement *)(Arg.MPtr);
       AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-      RT::PiMem MemArg = (RT::PiMem)AllocaCmd->getMemAllocation();
+      RT::PiMem MemArg = Req->MIsESIMDAcc
+                             ? (RT::PiMem)AllocaCmd->ESIMDExt.MWrapperImage
+                             : (RT::PiMem)AllocaCmd->getMemAllocation();
       if (Plugin.getBackend() == backend::opencl) {
         Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
                                                sizeof(RT::PiMem), &MemArg);
