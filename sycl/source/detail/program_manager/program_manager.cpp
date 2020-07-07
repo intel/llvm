@@ -288,7 +288,7 @@ static const char *getFormatStr(RT::PiDeviceBinaryType Format) {
 }
 
 RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
-                                              const context &Context) {                                          
+                                              const context &Context) {
   if (DbgProgMgr > 0)
     std::cerr << ">>> ProgramManager::createPIProgram(" << &Img << ")\n";
   const pi_device_binary_struct &RawImg = Img.getRawData();
