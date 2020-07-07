@@ -2219,10 +2219,7 @@ static std::string printRecordType(QualType T, const CXXRecordDecl *RD,
   if (RD->getDeclContext()->isFunctionOrMethod())
     return eraseAnonNamespace(T.getCanonicalType().getAsString(TypePolicy));
   const NamespaceDecl *NS = dyn_cast<NamespaceDecl>(RD->getDeclContext());
-  if (NS && NS->isAnonymousNamespace())
-    RD->printQualifiedName(OS, TypePolicy, false);
-  else
-    RD->printQualifiedName(OS, TypePolicy, true);
+  RD->printQualifiedName(OS, TypePolicy, !(NS && NS->isAnonymousNamespace()));
   return eraseAnonNamespace(OS.str().str());
 }
 
