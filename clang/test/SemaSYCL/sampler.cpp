@@ -1,4 +1,4 @@
-// RUN: %clang -S -I %S/Inputs -fsycl-device-only -Xclang -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -S -I %S/Inputs -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
 
 #include <sycl.hpp>
 

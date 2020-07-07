@@ -1,5 +1,5 @@
-// RUN: %clang %s -fsyntax-only -fsycl-device-only -DTRIGGER_ERROR -Xclang -verify
-// RUN: %clang %s -fsyntax-only -Xclang -ast-dump -fsycl-device-only | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl -fsycl-is-device -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl -fsycl-is-device | FileCheck %s
 // RUN: %clang_cc1 -fsycl -fsycl-is-host -fsyntax-only -verify %s
 
 #ifndef __SYCL_DEVICE_ONLY__
