@@ -1,4 +1,4 @@
-// RUN: %clangxx -I %sycl_include -S -emit-llvm -fsycl-device-only %s -o - | FileCheck %s
+// RUN: %clangxx -I %sycl_include -S -emit-llvm -fsycl-device-only %s -o - -Xclang -disable-llvm-passes | FileCheck %s
 //
 //==---- ap_fixed.cpp - SYCL FPGA arbitrary precision fixed point test -----==//
 //
