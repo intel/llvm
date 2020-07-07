@@ -554,7 +554,7 @@ public:
 
       for (const CallGraphNode *CI : *N) {
         if (auto *Callee = dyn_cast<FunctionDecl>(CI->getDecl())) {
-          Callee = Callee->getCanonicalDecl();
+          Callee = Callee->getMostRecentDecl();
           if (!Visited.count(Callee))
             WorkList.push_back({Callee, FD});
         }
