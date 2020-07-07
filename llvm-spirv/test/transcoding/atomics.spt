@@ -70,8 +70,8 @@
 ; CHECK-LLVM-12: call spir_func i32 @_Z11atomic_xchgPU3AS1Vii(i32 addrspace(1)* %dst, i32 1) [[attr]]
 ; CHECK-LLVM-12: call spir_func i32 @_Z10atomic_addPU3AS1Vii(i32 addrspace(1)* %object, i32 0) [[attr]]
 ; CHECK-LLVM-12: call spir_func i32 @_Z11atomic_xchgPU3AS1Vii(i32 addrspace(1)* %object, i32 %desired) [[attr]]
-; CHECK-LLVM-12: %.tmp = call spir_func i32 @_Z11atomic_xchgPU3AS1Vii(i32 addrspace(1)* %object, i32 1) [[attr]]
-; CHECK-LLVM-12: trunc i32 %.tmp to i1
+; CHECK-LLVM-12: %[[XCHG:[0-9a-zA-Z.]+]] = call spir_func i32 @_Z11atomic_xchgPU3AS1Vii(i32 addrspace(1)* %object, i32 1) [[attr]]
+; CHECK-LLVM-12: trunc i32 %[[XCHG]] to i1
 ; CHECK-LLVM-12: call spir_func i32 @_Z11atomic_xchgPU3AS1Vii(i32 addrspace(1)* %object, i32 0) [[attr]]
 
 ; RUN: llvm-spirv -r %t1.spv -o %t2.bc --spirv-target-env="CL2.0"
