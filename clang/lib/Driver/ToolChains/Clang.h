@@ -226,8 +226,7 @@ public:
 /// Partially link objects and archives.
 class LLVM_LIBRARY_VISIBILITY PartialLink final : public Tool {
 public:
-  PartialLink(const ToolChain &TC)
-      : Tool("partial link", "partial-link", TC, RF_Full) {}
+  PartialLink(const ToolChain &TC) : Tool("partial link", "partial-link", TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
   bool hasGoodDiagnostics() const override { return true; }

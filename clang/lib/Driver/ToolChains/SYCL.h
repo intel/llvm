@@ -31,8 +31,7 @@ void constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
 // offloading information. Finally compiles to object using llc
 class LLVM_LIBRARY_VISIBILITY Linker : public Tool {
 public:
-  Linker(const ToolChain &TC)
-      : Tool("SYCL::Linker", "sycl-link", TC, RF_Full) {}
+  Linker(const ToolChain &TC) : Tool("SYCL::Linker", "sycl-link", TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
 
