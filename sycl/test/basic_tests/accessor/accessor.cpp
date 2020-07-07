@@ -540,4 +540,33 @@ int main() {
       return 1;
     }
   }
+
+  // Accessor with buffer size 0.
+  {
+    try {
+      int data[10] = {0};
+      {
+        sycl::buffer<int, 1> b{&data[0], 10};
+        sycl::buffer<int, 1> b1{0};
+
+        sycl::queue queue;
+        queue.submit([&](sycl::handler &cgh) {
+          sycl::accessor<int, 1, sycl::access::mode::read_write,
+                         sycl::access::target::global_buffer>
+              B(b, cgh);
+          auto B1 = b1.template get_access<sycl::access::mode::read_write>(cgh);
+
+          cgh.single_task<class acc_with_zero_sized_buffer>([=]() {
+            B[0] = 1;
+          });
+        });
+      }
+      assert(!"invalid device accessor buffer size exception wasn't caught");
+    } catch (const sycl::invalid_object_error &e) {
+      assert(e.get_cl_code() == CL_INVALID_VALUE);
+    } catch (sycl::exception e) {
+      std::cout << "SYCL exception caught: " << e.what();
+      return 1;
+    }
+  }
 }

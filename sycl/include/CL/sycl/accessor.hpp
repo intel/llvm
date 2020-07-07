@@ -889,6 +889,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+    checkDeviceAccessorBufferSize(BufferRef.get_count());
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
 #endif
@@ -912,6 +913,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+    checkDeviceAccessorBufferSize(BufferRef.get_count());
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
   }
 #endif
@@ -935,6 +937,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+    checkDeviceAccessorBufferSize(BufferRef.get_count());
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
   }
@@ -972,6 +975,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
+    checkDeviceAccessorBufferSize(BufferRef.get_count());
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
   }
 #endif
@@ -1058,6 +1062,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
+    checkDeviceAccessorBufferSize(BufferRef.get_count());
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
   }
@@ -1097,6 +1102,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
+    checkDeviceAccessorBufferSize(BufferRef.get_count());
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
   }
 #endif
@@ -1219,6 +1225,15 @@ public:
 
   bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
   bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
+
+private:
+  void checkDeviceAccessorBufferSize(const size_t elemInBuffer) {
+    if (!IsHostBuf && elemInBuffer == 0)
+      throw cl::sycl::invalid_object_error(
+          "SYCL buffer size is zero. To create a device accessor, SYCL "
+          "buffer size must be greater than zero.",
+          PI_INVALID_VALUE);
+  }
 };
 
 #if __cplusplus > 201402L
