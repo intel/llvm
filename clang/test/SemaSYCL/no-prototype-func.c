@@ -1,3 +1,3 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -emit-llvm -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -verify -fsyntax-only %s
 // expected-no-diagnostics
 int foo();
