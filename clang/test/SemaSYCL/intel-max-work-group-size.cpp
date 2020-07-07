@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 %s -fsyntax-only -fsycl -fsycl-is-device -DTRIGGER_ERROR -verify
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl -fsycl-is-device | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl -fsycl-is-device -triple spir64 -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl -fsycl-is-device -triple spir64 | FileCheck %s
 // RUN: %clang_cc1 -fsycl -fsycl-is-host -fsyntax-only -verify %s
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -42,17 +42,17 @@ __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
 }
 
 int main() {
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel1
+  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
   // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}} 4 4 4
   kernel<class test_kernel1>(
       FuncObj());
 
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel2
+  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
   // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}} 8 8 8
   kernel<class test_kernel2>(
       []() [[intelfpga::max_work_group_size(8, 8, 8)]] {});
 
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel3
+  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
   // CHECK-NOT:   SYCLIntelMaxWorkGroupSizeAttr {{.*}}
   kernel<class test_kernel3>(
       []() {func_ignore();});

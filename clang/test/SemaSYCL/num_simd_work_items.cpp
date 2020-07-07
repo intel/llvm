@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 %s -fsycl -fsycl-is-device -fsyntax-only -DTRIGGER_ERROR -verify
-// RUN: %clang_cc1 %s -fsycl -fsycl-is-device -fsyntax-only -ast-dump | FileCheck %s
+// RUN: %clang_cc1 %s -fsycl -fsycl-is-device -triple spir64 -fsyntax-only -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 %s -fsycl -fsycl-is-device -triple spir64 -fsyntax-only -ast-dump | FileCheck %s
 // RUN: %clang_cc1 -fsycl -fsycl-is-host -fsyntax-only -verify %s
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -34,17 +34,17 @@ __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
 }
 
 int main() {
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel1
+  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
   // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}} 42
   kernel<class test_kernel1>(
       FuncObj());
 
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel2
+  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
   // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}} 8
   kernel<class test_kernel2>(
       []() [[intelfpga::num_simd_work_items(8)]] {});
 
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel3
+  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
   // CHECK-NOT:   SYCLIntelNumSimdWorkItemsAttr {{.*}} 2
   kernel<class test_kernel3>(
       []() {func_ignore();});
