@@ -30,7 +30,6 @@
 // #error "Incorrect cl_khr_fp16 define"
 // #endif
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
-// expected warning@-1{{unsupported OpenCL extension 'cl_khr_fp16' - ignoring}}
 
 // TODO: Temporarily disabling the following two tests as a work around for the
 // SYCL codepath until the cl_khr_int64_base_atomics and
@@ -127,7 +126,6 @@
 // #error "Incorrect cl_khr_3d_image_writes define"
 // #endif
 #pragma OPENCL EXTENSION cl_khr_3d_image_writes : enable
-// expected warning@-1{{unsupported OpenCL extension 'cl_khr_3d_image_writes' - ignoring}}
 
 #ifdef cl_khr_gl_event
 #error "Incorrect cl_khr_gl_event define"
