@@ -288,7 +288,7 @@ public:
     using global_pointer_t = typename detail::PtrValueType<
         ElementType, access::address_space::global_space>::type *;
     return multi_ptr<ElementType, access::address_space::global_space>(
-        (global_pointer_t)m_Pointer);
+        reinterpret_cast<global_pointer_t>(m_Pointer));
   }
 
   // Only if Space == global_space
