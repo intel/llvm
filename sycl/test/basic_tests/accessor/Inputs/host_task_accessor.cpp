@@ -39,11 +39,11 @@ int main() {
       auto acc_4 = buf_data.get_host_access(cgh, sycl::read_only);
       auto acc_5 = buf_data.get_host_access(cgh, sycl::range<1>(8), sycl::read_only);
       auto acc_6 = buf_data.get_host_access(cgh, sycl::range<1>(8), sycl::id<1>(1),
-                                       sycl::read_only);
+                                            sycl::read_only);
       auto acc_7 = buf_data.get_host_access(cgh, sycl::write_only);
       auto acc_8 = buf_data.get_host_access(cgh, sycl::range<1>(8), sycl::write_only);
       auto acc_9 = buf_data.get_host_access(cgh, sycl::range<1>(8), sycl::id<1>(1),
-                                       sycl::write_only);
+                                            sycl::write_only);
 #endif
 
       cgh.codeplay_host_task(
@@ -83,22 +83,22 @@ int main() {
       sycl::host_accessor acc_1(buf_data, cgh, sycl::noinit);
       sycl::host_accessor acc_2(buf_data, cgh, sycl::range<1>(8), sycl::noinit);
       sycl::host_accessor acc_3(buf_data, cgh, sycl::range<1>(8), sycl::id<1>(1),
-                           sycl::noinit);
+                                sycl::noinit);
       sycl::host_accessor acc_7(buf_data, cgh, sycl::write_only, sycl::noinit);
       sycl::host_accessor acc_8(buf_data, cgh, sycl::range<1>(8), sycl::write_only,
-                           sycl::noinit);
+                                sycl::noinit);
       sycl::host_accessor acc_9(buf_data, cgh, sycl::range<1>(8), sycl::id<1>(1),
-                           sycl::write_only, sycl::noinit);
+                                sycl::write_only, sycl::noinit);
 #elif defined(buffer_new_api_test)
       auto acc_1 = buf_data.get_host_access(cgh, sycl::noinit);
       auto acc_2 = buf_data.get_host_access(cgh, sycl::range<1>(8), sycl::noinit);
       auto acc_3 = buf_data.get_host_access(cgh, sycl::range<1>(8), sycl::id<1>(1),
-                                       sycl::noinit);
+                                            sycl::noinit);
       auto acc_7 = buf_data.get_host_access(cgh, sycl::write_only, sycl::noinit);
       auto acc_8 = buf_data.get_host_access(cgh, sycl::range<1>(8), sycl::write_only,
-                                       sycl::noinit);
+                                            sycl::noinit);
       auto acc_9 = buf_data.get_host_access(cgh, sycl::range<1>(8), sycl::id<1>(1),
-                                       sycl::write_only, sycl::noinit);
+                                            sycl::write_only, sycl::noinit);
 #endif
 
       cgh.codeplay_host_task(
