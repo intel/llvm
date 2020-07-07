@@ -98,7 +98,7 @@ template <typename T> void testMultPtr() {
         global_ptr<void> ptr_8 = global_ptr<void>(ptr_7);
         host_ptr<void> ptr_9((void *)RawPtr);
         global_ptr<void> ptr_10 = global_ptr<void>(ptr_9);
-        // TODO: neen propagation of a7b763b26 patch to acl tool before testing
+        // TODO: need propagation of a7b763b26 patch to acl tool before testing
         // these conversions - otherwise the test would fail on accelerator
         // device during reversed translation from SPIR-V to LLVM IR
         // device_ptr<T> ptr_11(accessorData_1);
