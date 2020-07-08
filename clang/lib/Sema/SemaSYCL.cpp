@@ -1658,7 +1658,7 @@ public:
 
   bool nextElement(QualType ET) final {
     ArraySubscriptExpr *LastArrayRef =
-        dyn_cast<ArraySubscriptExpr>(MemberExprBases.back());
+        cast<ArraySubscriptExpr>(MemberExprBases.back());
     MemberExprBases.pop_back();
     Expr *LastIdx = LastArrayRef->getIdx();
     llvm::APSInt Result;
