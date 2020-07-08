@@ -230,7 +230,7 @@ typedef float fp32;
                                                                   int x) {     \
     struct out_##pixelf_size res =                                             \
         __nvvm_suld_1d_v4i##pixelf_size##_##cuda_address_mode##_s(             \
-            image, x * sizeof(struct out_##pixelf_size));                      \
+            image, x * pixelf_size * 4);                                       \
     return out_pixelf##pixelf_size(res);                                       \
   }
 
@@ -239,7 +239,7 @@ typedef float fp32;
       long image, int x, int y) {                                              \
     struct out_##pixelf_size res =                                             \
         __nvvm_suld_2d_v4i##pixelf_size##_##cuda_address_mode##_s(             \
-            image, x * sizeof(struct out_##pixelf_size), y);                   \
+            image, x * pixelf_size * 4, y);                                    \
     return out_pixelf##pixelf_size(res);                                       \
   }
 
@@ -248,7 +248,7 @@ typedef float fp32;
       long image, int x, int y, int z) {                                       \
     struct out_##pixelf_size res =                                             \
         __nvvm_suld_3d_v4i##pixelf_size##_##cuda_address_mode##_s(             \
-            image, x * sizeof(struct out_##pixelf_size), y, z);                \
+            image, x * pixelf_size * 4, y, z);                                 \
     return out_pixelf##pixelf_size(res);                                       \
   }
 
