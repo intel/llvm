@@ -10,30 +10,32 @@ class has two member functions, `load()` and `store()` which allow loading from
 and storing to a `global_ptr`, respectively, and is templated on the following
 4 optional paremeters:
 
-1.  **`cl::sycl::intel::burst_coalesce<N>`, where `N` is 0 or 1**: request, to
-the extent possible, that a dynamic burst coalescer be implemented when `load`
-or `store` are called.
+1.  **`cl::sycl::intel::burst_coalesce<B>`, where `B` is a boolean**: request,
+to the extent possible, that a dynamic burst coalescer be implemented when
+`load` or `store` are called. The default value of this parameter is `false`.
 2. **`cl::sycl::intel::cache<N>`, where `N` is an integer greater or equal to
 0**: request, to the extent possible, that a read-only cache of the specified
 size be implemented when when `load` is called. It is not allowed to use that
-parameter for `store`.
-3. **`cl::sycl::intel::dont_statically_coalesce<N>`, where `N` is 0 or 1**:
-request, to the extent possible, that `load` or `store` accesses, should not be
-statically coalesced with other memory accesses at compile time.
-4. **`cl::sycl::intel::prefetch<N>`, where `N` is 0 or 1**: request, to the
+parameter for `store`. The default value of this parameter is `0`.
+3. **`cl::sycl::intel::statically_coalesce<N>`, where `B` is a boolean**:
+request, to the extent possible, that `load` or `store` accesses, is allowed to
+be statically coalesced with other memory accesses at compile time. The default
+value of this parameter is `true`.
+4. **`cl::sycl::intel::prefetch<B>`, where `N` is a boolean**: request, to the
 extent possible, that a prefetcher be implemented when `load` is called. It is
-not allowed to use that parameter for `store`.
+not allowed to use that parameter for `store`. The default value of this
+parameter is `false`.
 
 Currently, not every combination of parameters is allowed due to limitations in
 the backend. The following rules apply:
-1. For `store`, `cl::sycl::intel::cache` and `cl::sycl::intel::prefetch` must
-be `0`.
+1. For `store`, `cl::sycl::intel::cache` must be `0` and
+`cl::sycl::intel::prefetch` must be `false`.
 2. For `load`, if `cl::sycl::intel::cache` is set to a value greater than `0`,
-then `cl::sycl::intel::burst_coalesce` must be set to `1`.
+then `cl::sycl::intel::burst_coalesce` must be set to `true`.
 3. For `load`, exactly one of `cl::sycl::intel::prefetch` and
-`cl::sycl::intel::burst_coalesce` is allowed to be `1`.
+`cl::sycl::intel::burst_coalesce` is allowed to be `true`.
 4. For `load`, exactly one of `cl::sycl::intel::prefetch` and
-`cl::sycl::intel::cache` is allowed to be 1.
+`cl::sycl::intel::cache` is allowed to be `true`.
 
 ## Implementation
 
@@ -46,22 +48,24 @@ public:
   lsu() = delete;
 
   template <typename T> static T &load(sycl::global_ptr<T> Ptr) {
-  check_load();
+    check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    return *__builtin_intel_fpga_mem((T *)Ptr, _burst_coalesce | _cache |
-                                         _dont_statically_coalesce |
-                                         _prefetch, _cache_size);
+    return *__builtin_intel_fpga_mem((T *)Ptr,
+                                     _burst_coalesce | _cache |
+                                         _dont_statically_coalesce | _prefetch,
+                                     _cache_val);
 #else
     return *Ptr;
 #endif
   }
 
   template <typename T> static void store(sycl::global_ptr<T> Ptr, T Val) {
-  check_store();
+    check_store();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    *__builtin_intel_fpga_mem((T *)Ptr, _burst_coalesce | _cache |
-                                  _dont_statically_coalesce |
-                                  _prefetch, _cache_size) = Val;
+    *__builtin_intel_fpga_mem((T *)Ptr,
+                              _burst_coalesce | _cache |
+                                  _dont_statically_coalesce | _prefetch,
+                              _cache_val) = Val;
 #else
     *Ptr = Val;
 #endif
@@ -87,17 +91,17 @@ Queue.submit([&](cl::sycl::handler &cgh) {
     auto output_ptr = output_accessor.get_pointer();
 
     using PrefetchingLSU =
-        cl::sycl::intel::lsu<cl::sycl::intel::prefetch<1>,
-                             cl::sycl::intel::dont_statically_coalesce<1>>;
+        cl::sycl::intel::lsu<cl::sycl::intel::prefetch<true>,
+                             cl::sycl::intel::statically_coalesce<false>>;
 
     using BurstCoalescedLSU =
-        cl::sycl::intel::lsu<cl::sycl::intel::burst_coalesce<1>,
-                             cl::sycl::intel::dont_statically_coalesce<1>>;
+        cl::sycl::intel::lsu<cl::sycl::intel::burst_coalesce<false>,
+                             cl::sycl::intel::statically_coalesce<false>>;
 
     using CachingLSU =
-        cl::sycl::intel::lsu<cl::sycl::intel::burst_coalesce<1>,
+        cl::sycl::intel::lsu<cl::sycl::intel::burst_coalesce<true>,
                              cl::sycl::intel::cache<1024>,
-                             cl::sycl::intel::dont_statically_coalesce<0>>;
+                             cl::sycl::intel::statically_coalesce<true>>;
 
     using PipelinedLSU = cl::sycl::intel::lsu<>;
 

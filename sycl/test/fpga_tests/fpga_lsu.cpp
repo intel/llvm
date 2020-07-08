@@ -37,17 +37,17 @@ int test_lsu(cl::sycl::queue Queue) {
         auto output_ptr = output_accessor.get_pointer();
 
         using PrefetchingLSU =
-            cl::sycl::intel::lsu<cl::sycl::intel::prefetch<1>,
-                                 cl::sycl::intel::dont_statically_coalesce<1>>;
+            cl::sycl::intel::lsu<cl::sycl::intel::prefetch<true>,
+                                 cl::sycl::intel::statically_coalesce<false>>;
 
         using BurstCoalescedLSU =
-            cl::sycl::intel::lsu<cl::sycl::intel::burst_coalesce<1>,
-                                 cl::sycl::intel::dont_statically_coalesce<1>>;
+            cl::sycl::intel::lsu<cl::sycl::intel::burst_coalesce<true>,
+                                 cl::sycl::intel::statically_coalesce<false>>;
 
         using CachingLSU =
-            cl::sycl::intel::lsu<cl::sycl::intel::burst_coalesce<1>,
+            cl::sycl::intel::lsu<cl::sycl::intel::burst_coalesce<true>,
                                  cl::sycl::intel::cache<1024>,
-                                 cl::sycl::intel::dont_statically_coalesce<0>>;
+                                 cl::sycl::intel::statically_coalesce<false>>;
 
         using PipelinedLSU = cl::sycl::intel::lsu<>;
 

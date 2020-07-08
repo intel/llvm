@@ -16,12 +16,12 @@ namespace sycl {
 namespace intel {
 constexpr uint8_t BURST_COALESCE = 0x1;
 constexpr uint8_t CACHE = 0x2;
-constexpr uint8_t DONT_STATICALLY_COALESCE = 0x4;
+constexpr uint8_t STATICALLY_COALESCE = 0x4;
 constexpr uint8_t PREFETCH = 0x8;
 
-template <int32_t N> struct burst_coalesce {
+template <int32_t N> struct burst_coalesce_impl {
   static constexpr int32_t value = N;
-  static constexpr int32_t default_value = false;
+  static constexpr int32_t default_value = 0;
 };
 
 template <int32_t N> struct cache {
@@ -29,15 +29,19 @@ template <int32_t N> struct cache {
   static constexpr int32_t default_value = 0;
 };
 
-template <int32_t N> struct prefetch {
-  static constexpr int32_t value = N;
-  static constexpr int32_t default_value = false;
-};
-
-template <int32_t N> struct dont_statically_coalesce {
+template <int32_t N> struct prefetch_impl {
   static constexpr int32_t value = N;
   static constexpr int32_t default_value = 0;
 };
+
+template <int32_t N> struct statically_coalesce_impl {
+  static constexpr int32_t value = N;
+  static constexpr int32_t default_value = 1;
+};
+
+template <bool B> using burst_coalesce = burst_coalesce_impl<B>;
+template <bool B> using prefetch = prefetch_impl<B>;
+template <bool B> using statically_coalesce = statically_coalesce_impl<B>;
 
 template <class... mem_access_params> class lsu final {
 public:
@@ -69,7 +73,7 @@ public:
 
 private:
   static constexpr int32_t _burst_coalesce_val =
-      GetValue<burst_coalesce, mem_access_params...>::value;
+      GetValue<burst_coalesce_impl, mem_access_params...>::value;
   static constexpr uint8_t _burst_coalesce =
       _burst_coalesce_val == 1 ? BURST_COALESCE : 0;
 
@@ -77,23 +81,16 @@ private:
       GetValue<cache, mem_access_params...>::value;
   static constexpr uint8_t _cache = (_cache_val > 0) ? CACHE : 0;
 
-  static constexpr int32_t _dont_statically_coalesce_val =
-      GetValue<dont_statically_coalesce, mem_access_params...>::value;
+  static constexpr int32_t _statically_coalesce_val =
+      GetValue<statically_coalesce_impl, mem_access_params...>::value;
   static constexpr uint8_t _dont_statically_coalesce =
-      _dont_statically_coalesce_val == 1 ? DONT_STATICALLY_COALESCE : 0;
+      _statically_coalesce_val == 0 ? STATICALLY_COALESCE : 0;
 
   static constexpr int32_t _prefetch_val =
-      GetValue<prefetch, mem_access_params...>::value;
+      GetValue<prefetch_impl, mem_access_params...>::value;
   static constexpr uint8_t _prefetch = _prefetch_val ? PREFETCH : 0;
 
-  static_assert(_burst_coalesce_val == 0 || _burst_coalesce_val == 1,
-                "burst_coalesce parameter must be 0 or 1");
   static_assert(_cache_val >= 0, "cache size parameter must be non-negative");
-  static_assert(_dont_statically_coalesce_val == 0 ||
-                    _dont_statically_coalesce_val == 1,
-                "dont_statically_coalesce parameter must be 0 or 1");
-  static_assert(_prefetch_val == 0 || _prefetch_val == 1,
-                "prefetch parameter must be 0 or 1");
 
   static void check_load() {
     static_assert(_cache == 0 || _burst_coalesce == BURST_COALESCE,
