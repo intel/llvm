@@ -331,6 +331,35 @@ The effects of a call to +atomic_fence+ depend on the value of the +order+ param
 - `acq_rel`: Both an acquire fence and a release fence
 - `seq_cst`: A sequentially consistent acquire and release fence
 
+==== Atomic Accessor
+
+The +atomic_accessor+ class replaces accessors created with +access::mode::atomic+.  All operators of +atomic_accessor+ which provide access to an element of the underlying buffer do so by wrapping the element in an +atomic_ref+.  In order to guarantee that all accesses to the underlying buffer are atomic, an +atomic_accessor+ does not allow direct access to the buffer via +get_pointer()+.
+
+All other member functions are as defined in the +accessor+ class.
+
+|===
+| Member Function | Description
+
+| `operator atomic_ref<DataT, DefaultOrder, DefaultScope, access::address_space::global_space>() const`
+| Available only when: `Dimensions == 0`.  Returns an `atomic_ref` associated with the element stored in the underlying `buffer`.
+
+| `atomic_ref<DataT, DefaultOrder, DefaultScope, access::address_space::global_space> operator[](id<Dimensions> index) const`
+| Available only when: `Dimensions > 0`.  Returns an `atomic_ref` associated with the element stored at the specified _index_ in the underlying `buffer`.
+
+| `atomic_ref<DataT, DefaultOrder, DefaultScope, access::address_space::global_space> operator[](size_t index) const`
+| Available only when: `Dimensions == 1`.  Returns an `atomic_ref` associated with the element stored at the specified _index_ in the underlying `buffer`.
+
+| `global_ptr<DataT> get_pointer() const = delete`
+| Direct access to the underlying buffer is not permitted.
+
+|===
+
+To simplify the construction of an +atomic_accessor+, tag objects of type +order_tag_t+ and +scope_tag_t+ may optionally be passed to the constructor.  These tag objects enable the `DefaultOrder` and `DefaultScope` template arguments to be deduced via CTAD, as shown in the example below:
+[source,c++]
+----
+auto acc = atomic_accessor(buf, h, relaxed_order, device_scope);
+----
+
 ==== Sample  Header
 
 [source,c++]
@@ -338,6 +367,7 @@ The effects of a call to +atomic_fence+ depend on the value of the +order+ param
 namespace cl {
 namespace sycl {
 namespace intel {
+
 enum class memory_order : /* unspecified */ {
   relaxed, acquire, release, acq_rel, seq_cst
 };
@@ -355,6 +385,24 @@ inline constexpr memory_scope memory_scope_sub_group = memory_scope::sub_group;
 inline constexpr memory_scope memory_scope_work_group = memory_scope::work_group;
 inline constexpr memory_scope memory_scope_device = memory_scope::device;
 inline constexpr memory_scope memory_scope_system = memory_scope::system;
+
+template <memory_order> struct order_tag_t {
+  explicit order_tag_t() = default;
+};
+inline constexpr order_tag_t<memory_order::relaxed> relaxed_order{};
+inline constexpr order_tag_t<memory_order::acquire> acquire_order{};
+inline constexpr order_tag_t<memory_order::release> release_order{};
+inline constexpr order_tag_t<memory_order::acq_rel> acq_rel_order{};
+inline constexpr order_tag_t<memory_order::seq_cst> seq_cst_order{};
+
+template <memory_scope> struct scope_tag_t {
+  explicit scope_tag_t() = default;
+};
+inline constexpr scope_tag_t<memory_scope::work_item> work_item_scope{};
+inline constexpr scope_tag_t<memory_scope::sub_group> sub_group_scope{};
+inline constexpr scope_tag_t<memory_scope::work_group> work_group_scope{};
+inline constexpr scope_tag_t<memory_scope::device> device_scope{};
+inline constexpr scope_tag_t<memory_scope::system> system_scope{};
 
 // Exposition only
 template <memory_order ReadModifyWriteOrder>
@@ -578,6 +626,12 @@ class atomic_ref<T*, DefaultOrder, DefaultScope, Space> {
 
 void atomic_fence(memory_order order, memory_scope scope):
 
+template <typename DataT, int Dimensions,
+          memory_order DefaultOrder, memory_scope DefaultScope,
+          access::target AccessTarget = access::target::global_buffer,
+          access::placeholder IsPlaceholder = access::placeholder::false_t>
+class atomic_accessor;
+
 } // namespace intel
 } // namespace sycl
 } // namespace cl
@@ -605,6 +659,7 @@ None.
 |3|2020-04-09|John Pennycook|*Add atomic_fence*
 |4|2020-04-24|John Pennycook|*Add memory scope*
 |5|2020-04-29|John Pennycook|*Fix ambiguous overloads of compare_exchange and typo in fetch_sub*
+|6|2020-07-08|John Pennycook|*Add atomic_accessor*
 |========================================
 
 //************************************************************************
