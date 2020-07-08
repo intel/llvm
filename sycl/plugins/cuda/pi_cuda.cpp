@@ -1651,8 +1651,15 @@ pi_result cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags,
           cuMemHostRegister(host_ptr, size, CU_MEMHOSTREGISTER_DEVICEMAP));
       retErr = PI_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, host_ptr, 0));
       allocMode = _pi_mem::mem_::buffer_mem_::alloc_mode::use_host_ptr;
+    } else if (flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) {
+      retErr = PI_CHECK_ERROR(cuMemAllocHost(&host_ptr, size));
+      retErr = PI_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, host_ptr, 0));
+      allocMode = _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
     } else {
       retErr = PI_CHECK_ERROR(cuMemAlloc(&ptr, size));
+      if (flags & PI_MEM_FLAGS_HOST_PTR_COPY) {
+        allocMode = _pi_mem::mem_::buffer_mem_::alloc_mode::copy_in;
+      }
     }
 
     if (retErr == PI_SUCCESS) {
@@ -1715,6 +1722,7 @@ pi_result cuda_piMemRelease(pi_mem memObj) {
 
     if (memObj->mem_type_ == _pi_mem::mem_type::buffer) {
       switch (uniqueMemObj->mem_.buffer_mem_.allocMode_) {
+      case _pi_mem::mem_::buffer_mem_::alloc_mode::copy_in:
       case _pi_mem::mem_::buffer_mem_::alloc_mode::classic:
         ret = PI_CHECK_ERROR(cuMemFree(uniqueMemObj->mem_.buffer_mem_.ptr_));
         break;
@@ -1722,6 +1730,8 @@ pi_result cuda_piMemRelease(pi_mem memObj) {
         ret = PI_CHECK_ERROR(
             cuMemHostUnregister(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
         break;
+      case _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr:
+        ret = PI_CHECK_ERROR(cuMemFreeHost(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
       };
     } else if (memObj->mem_type_ == _pi_mem::mem_type::surface) {
       ret = PI_CHECK_ERROR(

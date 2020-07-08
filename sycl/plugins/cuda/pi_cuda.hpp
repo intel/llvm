@@ -199,7 +199,20 @@ struct _pi_mem {
       size_t mapOffset_;
       void *mapPtr_;
       cl_map_flags mapFlags_;
-      enum class alloc_mode { classic, use_host_ptr } allocMode_;
+
+      /** alloc_mode
+       * classic: Just a normal buffer allocated on the device via cuda malloc
+       * use_host_ptr: Use an address on the host for the device
+       * copy_in: The data for the device comes from the host but the host
+       pointer is not available later for re-use
+       * alloc_host_ptr: Uses pinned-memory allocation
+      */
+      enum class alloc_mode {
+        classic,
+        use_host_ptr,
+        copy_in,
+        alloc_host_ptr
+      } allocMode_;
 
       native_type get() const noexcept { return ptr_; }
 
@@ -237,6 +250,7 @@ struct _pi_mem {
         return mapFlags_;
       }
     } buffer_mem_;
+    
     struct surface_mem_ {
       CUarray array_;
       CUsurfObject surfObj_;
