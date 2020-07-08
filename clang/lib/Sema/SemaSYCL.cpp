@@ -797,7 +797,8 @@ static void VisitField(CXXRecordDecl *Owner, RangeTy &&Item, QualType ItemTy,
 template <typename RangeTy, typename... Handlers>
 static void VisitArrayElements(RangeTy Item, QualType FieldTy,
                                Handlers &... handlers) {
-  const ConstantArrayType *CAT = cast<ConstantArrayType>(FieldTy);
+  const ConstantArrayType *CAT =
+      cast<ConstantArrayType>(FieldTy.getUnqualifiedType().getCanonicalType());
   QualType ET = CAT->getElementType();
   int64_t ElemCount = CAT->getSize().getSExtValue();
   std::initializer_list<int>{(handlers.enterArray(), 0)...};
@@ -1005,10 +1006,10 @@ class SyclKernelFieldChecker
   // Return true if not copyable, false if copyable.
   bool checkNotCopyableToKernel(const FieldDecl *FD, const QualType &FieldTy) {
     if (FieldTy->isArrayType()) {
-      if (const auto *CAT = dyn_cast<ConstantArrayType>(FieldTy)) {
-        QualType ET = CAT->getElementType();
-        return checkNotCopyableToKernel(FD, ET);
-      }
+      QualType FCT = FieldTy.getUnqualifiedType().getCanonicalType();
+      if (isa<ConstantArrayType>(FCT))
+        return checkNotCopyableToKernel(
+            FD, cast<ConstantArrayType>(FCT)->getElementType());
       return Diag.Report(FD->getLocation(),
                          diag::err_sycl_non_constant_array_type)
              << FieldTy;
@@ -1104,10 +1105,10 @@ class SyclKernelDeclCreator
   size_t LastParamIndex = 0;
 
   void addParam(const FieldDecl *FD, QualType FieldTy) {
-    const ConstantArrayType *CAT =
-        SemaRef.getASTContext().getAsConstantArrayType(FieldTy);
-    if (CAT)
-      FieldTy = CAT->getElementType();
+    if (FieldTy->isArrayType()) {
+      QualType FCT = FieldTy.getUnqualifiedType().getCanonicalType();
+      FieldTy = cast<ConstantArrayType>(FCT)->getElementType();
+    }
     ParamDesc newParamDesc = makeParamDesc(FD, FieldTy);
     addParam(newParamDesc, FieldTy);
   }
@@ -1700,10 +1701,10 @@ class SyclKernelIntHeaderCreator
   void addParam(const FieldDecl *FD, QualType ArgTy,
                 SYCLIntegrationHeader::kernel_param_kind_t Kind) {
     uint64_t Size;
-    const ConstantArrayType *CAT =
-        SemaRef.getASTContext().getAsConstantArrayType(ArgTy);
-    if (CAT)
-      ArgTy = CAT->getElementType();
+    if (ArgTy->isArrayType()) {
+      QualType ACT = ArgTy.getUnqualifiedType().getCanonicalType();
+      ArgTy = cast<ConstantArrayType>(ACT)->getElementType();
+    }
     Size = SemaRef.getASTContext().getTypeSizeInChars(ArgTy).getQuantity();
     Header.addParamDesc(Kind, static_cast<unsigned>(Size),
                         static_cast<unsigned>(CurOffset));
