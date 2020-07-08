@@ -44,6 +44,11 @@ namespace sycl {
 namespace intel {
 namespace gpu {
 
+constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
+  // encoding requires 2^ElemsPerAddrEncoded
+  return (1 << ElemsPerAddrEncoded);
+}
+
 namespace details {
 
 /// type traits
