@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify %s
 // expected-no-diagnostics
 
 // The kernel_single_task call is emitted as an OpenCL kernel function. The call
@@ -23,7 +23,6 @@ struct is_same<T, T> { static const bool value = true; };
 template <typename... Ts>
 struct zip_iterator {};
 
-// CHECK_NOT: static_assert(is_same<zip_iterator<b,b>, zip_iterator<j,d>>::value, "device_iterator");
 template <class j, class d>
 void foo(j e, d k) {
   static_assert(is_same<zip_iterator<b, b>, zip_iterator<j, d>>::value, "device_iterator");
