@@ -75,6 +75,8 @@ add_library(pi_level_zero SHARED
   "${sycl_inc_dir}/CL/sycl/detail/pi.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.hpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.hpp"
 )
 
 if (MSVC)

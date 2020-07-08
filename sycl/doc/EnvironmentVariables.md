@@ -26,6 +26,7 @@ subject to change. Do not rely on these variables in production code.
 | SYCL_QUEUE_THREAD_POOL_SIZE | Positive integer | Number of threads in thread pool of queue. |
 | SYCL_DEVICELIB_NO_FALLBACK | Any(\*) | Disable loading and linking of device library images |
 | SYCL_PI_LEVEL0_MAX_COMMAND_LIST_CACHE | Positive integer | Maximum number of oneAPI Level Zero Command lists that can be allocated with no reuse before throwing an "out of resources" error. Default is 20000, threshold may be increased based on resource availabilty and workload demand. |
+| SYCL_PI_LEVEL0_DISABLE_USM_ALLOCATOR | Any(\*) | Disable USM allocator in L0 plugin(each memory request will go directly to L0 runtine)  |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
