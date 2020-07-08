@@ -250,7 +250,7 @@ struct _pi_mem {
         return mapFlags_;
       }
     } buffer_mem_;
-    
+
     struct surface_mem_ {
       CUarray array_;
       CUsurfObject surfObj_;

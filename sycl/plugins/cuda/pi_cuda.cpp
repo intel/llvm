@@ -1731,7 +1731,8 @@ pi_result cuda_piMemRelease(pi_mem memObj) {
             cuMemHostUnregister(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
         break;
       case _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr:
-        ret = PI_CHECK_ERROR(cuMemFreeHost(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
+        ret = PI_CHECK_ERROR(
+            cuMemFreeHost(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
       };
     } else if (memObj->mem_type_ == _pi_mem::mem_type::surface) {
       ret = PI_CHECK_ERROR(
