@@ -205,11 +205,7 @@ public:
                 _Space == addressSpace &&
                 addressSpace == access::address_space::global_space>::type>
   atomic(const atomic<T, access::address_space::global_device_space> &RHS) {
-#ifdef __SYCL_DEVICE_ONLY__
     Ptr = RHS.Ptr;
-#else
-    Ptr = reinterpret_cast<std::atomic<T> *>(RHS.Ptr);
-#endif
   }
 
   template <access::address_space _Space = addressSpace,
@@ -217,11 +213,7 @@ public:
                 _Space == addressSpace &&
                 addressSpace == access::address_space::global_space>::type>
   atomic(const atomic<T, access::address_space::global_device_space> &&RHS) {
-#ifdef __SYCL_DEVICE_ONLY__
     Ptr = RHS.Ptr;
-#else
-    Ptr = reinterpret_cast<std::atomic<T> *>(RHS.Ptr);
-#endif
   }
 
   void store(T Operand, memory_order Order = memory_order::relaxed) {
