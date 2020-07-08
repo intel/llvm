@@ -110,5 +110,8 @@ template <> uint32_t &PropertyValue::getValueRef<uint32_t>() {
 template <> PropertyValue::Type PropertyValue::getTypeTag<uint32_t>() {
   return UINT32;
 }
+
+constexpr char PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS[];
+constexpr char PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK[];
 } // namespace util
 } // namespace llvm

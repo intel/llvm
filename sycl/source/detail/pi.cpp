@@ -12,7 +12,6 @@
 /// \ingroup sycl_pi
 
 #include "context_impl.hpp"
-#include "llvm/Support/SYCLRTShared.h"
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
@@ -543,8 +542,8 @@ void DeviceBinaryImage::init(pi_device_binary Bin) {
     // try to determine the format; may remain "NONE"
     Format = getBinaryImageFormat(Bin->BinaryStart, getSize());
 
-  SpecConstIDMap.init(Bin, PROP_SYCL_SPECIALIZATION_CONSTANTS);
-  DeviceLibReqMask.init(Bin, PROP_SYCL_DEVICELIB_REQ_MASK);
+  SpecConstIDMap.init(Bin, PI_PROPERTY_SET_SPEC_CONST_MAP);
+  DeviceLibReqMask.init(Bin, PI_PROPERTY_SET_DEVICELIB_REQ_MASK);
 }
 
 } // namespace pi

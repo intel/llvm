@@ -120,6 +120,11 @@ class PropertySetRegistry {
 public:
   using MapTy = MapVector<StringRef, PropertySet>;
 
+  // Specific property category names used by tools.
+  static constexpr char SYCL_SPECIALIZATION_CONSTANTS[] =
+      "SYCL/specialization constants";
+  static constexpr char SYCL_DEVICELIB_REQ_MASK[] = "SYCL/devicelib req mask";
+
   // Function for bulk addition of an entire property set under given category
   // (property set name).
   template <typename T>

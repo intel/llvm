@@ -28,7 +28,6 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/PropertySetIO.h"
-#include "llvm/Support/SYCLRTShared.h"
 #include "llvm/Support/SimpleTable.h"
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/WithColor.h"
@@ -38,7 +37,6 @@
 #include <memory>
 
 using namespace llvm;
-using llvm::util::sycl::DeviceLibExt;
 
 using string_vector = std::vector<std::string>;
 using SpecIDMapTy = std::map<StringRef, unsigned>;
@@ -51,6 +49,18 @@ static constexpr char COL_CODE[] = "Code";
 static constexpr char COL_SYM[] = "Symbols";
 static constexpr char COL_PROPS[] = "Properties";
 static constexpr char DEVICELIB_FUNC_PREFIX[] = "__devicelib_";
+
+// DeviceLibExt is shared between sycl-post-link tool and sycl runtime.
+// If any change is made here, need to sync with DeviceLibExt definition
+// in sycl/source/detail/program_manager/program_manager.hpp
+enum class DeviceLibExt : std::uint32_t {
+  cl_intel_devicelib_assert,
+  cl_intel_devicelib_math,
+  cl_intel_devicelib_math_fp64,
+  cl_intel_devicelib_complex,
+  cl_intel_devicelib_complex_fp64
+};
+
 // InputFilename - The filename to read from.
 static cl::opt<std::string> InputFilename{
     cl::Positional, cl::desc("<input bitcode file>"), cl::init("-"),
@@ -485,7 +495,8 @@ static string_vector saveDeviceImageProperty(
     if (ImgPSInfo.NeedDeviceLibReqMask) {
       uint32_t MRMask = getModuleReqMask(*ResultModules[I]);
       std::map<StringRef, uint32_t> RMEntry = {{"DeviceLibReqMask", MRMask}};
-      PropSet.add(PROP_SYCL_DEVICELIB_REQ_MASK, RMEntry);
+      PropSet.add(llvm::util::PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK,
+                  RMEntry);
     }
     if (ImgPSInfo.DoSpecConst && ImgPSInfo.SetSpecConstAtRT) {
       // extract spec constant maps per each module
@@ -493,7 +504,9 @@ static string_vector saveDeviceImageProperty(
       if (ImgPSInfo.SpecConstsMet)
         SpecConstantsPass::collectSpecConstantMetadata(*ResultModules[I].get(),
                                                        TmpSpecIDMap);
-      PropSet.add(PROP_SYCL_SPECIALIZATION_CONSTANTS, TmpSpecIDMap);
+      PropSet.add(
+          llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS,
+          TmpSpecIDMap);
     }
     std::error_code EC;
     std::string SCFile = makeResultFileName(".prop", I);

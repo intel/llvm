@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include "llvm/Support/SYCLRTShared.h"
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/device_binary_image.hpp>
 #include <CL/sycl/detail/export.hpp>
@@ -17,6 +16,7 @@
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/stl.hpp>
 
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <unordered_map>
@@ -43,7 +43,16 @@ namespace detail {
 class context_impl;
 using ContextImplPtr = std::shared_ptr<context_impl>;
 class program_impl;
-using llvm::util::sycl::DeviceLibExt;
+// DeviceLibExt is shared between sycl runtime and sycl-post-link tool.
+// If any update is made here, need to sync with DeviceLibExt definition
+// in llvm/tools/sycl-post-link/sycl-post-link.cpp
+enum class DeviceLibExt : std::uint32_t {
+  cl_intel_devicelib_assert,
+  cl_intel_devicelib_math,
+  cl_intel_devicelib_math_fp64,
+  cl_intel_devicelib_complex,
+  cl_intel_devicelib_complex_fp64
+};
 
 // Provides single loading and building OpenCL programs with unique contexts
 // that is necessary for no interoperability cases with lambda.
