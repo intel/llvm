@@ -206,9 +206,9 @@ public:
                 addressSpace == access::address_space::global_space>::type>
   atomic(const atomic<T, access::address_space::global_device_space> &RHS) {
 #ifdef __SYCL_DEVICE_ONLY__
-    Ptr = RHS.getPtr();
+    Ptr = RHS.Ptr;
 #else
-    Ptr = reinterpret_cast<std::atomic<T> *>(RHS.getPtr());
+    Ptr = reinterpret_cast<std::atomic<T> *>(RHS.Ptr);
 #endif
   }
 
@@ -218,20 +218,12 @@ public:
                 addressSpace == access::address_space::global_space>::type>
   atomic(const atomic<T, access::address_space::global_device_space> &&RHS) {
 #ifdef __SYCL_DEVICE_ONLY__
-    Ptr = RHS.getPtr();
+    Ptr = RHS.Ptr;
 #else
-    Ptr = reinterpret_cast<std::atomic<T> *>(RHS.getPtr());
+    Ptr = reinterpret_cast<std::atomic<T> *>(RHS.Ptr);
 #endif
   }
 
-private:
-#ifdef __SYCL_DEVICE_ONLY__
-  AtomicPtrType *getPtr() const { return Ptr; }
-#else
-  std::atomic<T> *getPtr() const { return Ptr; }
-#endif
-
-public:
   void store(T Operand, memory_order Order = memory_order::relaxed) {
     __spirv_AtomicStore(
         Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
