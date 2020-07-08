@@ -775,38 +775,39 @@ template <typename T> using bind_param_t = typename bind_param<T>::type;
 //              })...)
 
 // Implements the 'for-each-visitor'  pattern.
-template <typename RangeTy, typename... Handlers>
-static void VisitField(CXXRecordDecl *Owner, RangeTy &&Item, QualType ItemTy,
-                       Handlers &... handlers) {
-  if (Util::isSyclAccessorType(ItemTy))
-    KF_FOR_EACH(handleSyclAccessorType, Item, ItemTy);
-  else if (Util::isSyclStreamType(ItemTy))
-    KF_FOR_EACH(handleSyclStreamType, Item, ItemTy);
-  else if (Util::isSyclSamplerType(ItemTy))
-    KF_FOR_EACH(handleSyclSamplerType, Item, ItemTy);
-  else if (Util::isSyclHalfType(ItemTy))
-    KF_FOR_EACH(handleSyclHalfType, Item, ItemTy);
-  else if (ItemTy->isStructureOrClassType())
-    VisitRecord(Owner, Item, ItemTy->getAsCXXRecordDecl(), handlers...);
-  else if (ItemTy->isArrayType())
-    VisitArrayElements(Item, ItemTy, handlers...);
-  else if (ItemTy->isScalarType())
-    KF_FOR_EACH(handleScalarType, Item, ItemTy);
+template <typename... Handlers>
+static void VisitElement(CXXRecordDecl *Owner, FieldDecl *ArrayField,
+                         QualType ElementTy, Handlers &... handlers) {
+  if (Util::isSyclAccessorType(ElementTy))
+    KF_FOR_EACH(handleSyclAccessorType, ArrayField, ElementTy);
+  else if (Util::isSyclStreamType(ElementTy))
+    KF_FOR_EACH(handleSyclStreamType, ArrayField, ElementTy);
+  else if (Util::isSyclSamplerType(ElementTy))
+    KF_FOR_EACH(handleSyclSamplerType, ArrayField, ElementTy);
+  else if (Util::isSyclHalfType(ElementTy))
+    KF_FOR_EACH(handleSyclHalfType, ArrayField, ElementTy);
+  else if (ElementTy->isStructureOrClassType())
+    VisitRecord(Owner, ArrayField, ElementTy->getAsCXXRecordDecl(),
+                handlers...);
+  else if (ElementTy->isArrayType())
+    VisitArrayElements(ArrayField, ElementTy, handlers...);
+  else if (ElementTy->isScalarType())
+    KF_FOR_EACH(handleScalarType, ArrayField, ElementTy);
 }
 
-template <typename RangeTy, typename... Handlers>
-static void VisitArrayElements(RangeTy Item, QualType FieldTy,
+template <typename... Handlers>
+static void VisitArrayElements(FieldDecl *FD, QualType FieldTy,
                                Handlers &... handlers) {
   const ConstantArrayType *CAT = cast<ConstantArrayType>(FieldTy);
   QualType ET = CAT->getElementType();
   int64_t ElemCount = CAT->getSize().getSExtValue();
   std::initializer_list<int>{(handlers.enterArray(), 0)...};
   for (int64_t Count = 0; Count < ElemCount; Count++) {
-    VisitField(nullptr, Item, ET, handlers...);
+    VisitElement(nullptr, FD, ET, handlers...);
     (void)std::initializer_list<int>{(handlers.nextElement(ET), 0)...};
   }
   (void)std::initializer_list<int>{
-      (handlers.leaveArray(Item, ET, ElemCount), 0)...};
+      (handlers.leaveArray(FD, ET, ElemCount), 0)...};
 }
 
 template <typename ParentTy, typename... Handlers>
@@ -989,9 +990,6 @@ public:
   virtual bool leaveField(const CXXRecordDecl *, FieldDecl *) { return true; }
   virtual bool enterArray() { return true; }
   virtual bool nextElement(QualType) { return true; }
-  virtual bool leaveArray(const CXXBaseSpecifier &, QualType, int64_t) {
-    return true;
-  }
   virtual bool leaveArray(FieldDecl *, QualType, int64_t) { return true; }
 };
 
@@ -1684,7 +1682,6 @@ public:
   using SyclKernelFieldHandler::handleScalarType;
   using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::handleSyclSamplerType;
-  using SyclKernelFieldHandler::leaveArray;
   using SyclKernelFieldHandler::leaveField;
   using SyclKernelFieldHandler::leaveStruct;
 };
@@ -1845,7 +1842,6 @@ public:
   using SyclKernelFieldHandler::handleScalarType;
   using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::handleSyclSamplerType;
-  using SyclKernelFieldHandler::leaveArray;
 };
 } // namespace
 
