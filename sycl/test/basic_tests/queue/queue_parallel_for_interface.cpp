@@ -41,6 +41,25 @@ void test_range(sycl::queue q) {
                               static_cast<Range<Dims> *>(nullptr));
 }
 
+template <typename KernelName, typename Arg, std::size_t... Is>
+void test_braced_init_list_event_impl(sycl::queue q, Arg &&arg,
+                                      std::index_sequence<Is...>,
+                                      sycl::range<sizeof...(Is)> *) {
+  constexpr auto dims = sizeof...(Is);
+
+  q.parallel_for<KernelName>({Is...}, std::forward<Arg>(arg), [=](auto i) {
+    static_assert(std::is_same<decltype(i), sycl::item<dims>>::value,
+                  "lambda arg type is unexpected");
+  });
+}
+
+template <typename KernelName, template <int Dims> class Range, std::size_t Dims, typename Arg>
+void test_braced_init_list_event(sycl::queue q, Arg &&arg) {
+  test_braced_init_list_event_impl<KernelName>(q, std::forward<Arg>(arg),
+                                               std::make_index_sequence<Dims>{},
+                                               static_cast<Range<Dims> *>(nullptr));
+}
+
 void test_number_braced_init_list(sycl::queue q) {
   constexpr auto n = 1;
   q.parallel_for<class Number>(n, [=](auto i) {
@@ -64,6 +83,20 @@ void test_number_braced_init_list(sycl::queue q) {
   });
 }
 
+void test_number_event(sycl::queue q, sycl::event e) {
+  q.parallel_for<class NumberEvent>(1, e, [=](auto i) {
+    static_assert(std::is_same<decltype(i), sycl::item<1>>::value,
+                  "lambda arg type is unexpected");
+  });
+}
+
+void test_number_event_vector(sycl::queue q, const sycl::vector_class<sycl::event> &events) {
+  q.parallel_for<class NumberEventVector>(1, events, [=](auto i) {
+    static_assert(std::is_same<decltype(i), sycl::item<1>>::value,
+                  "lambda arg type is unexpected");
+  });
+}
+
 int main() {
   sycl::queue q{};
 
@@ -75,4 +108,27 @@ int main() {
   test_range<class test_nd_range3, sycl::nd_range, 3>(q);
 
   test_number_braced_init_list(q);
+
+  auto e1 = q.parallel_for<class Event1>(1, [=](auto i) {
+    static_assert(std::is_same<decltype(i), sycl::item<1>>::value,
+                  "lambda arg type is unexpected");
+  });
+
+  auto e2 = q.parallel_for<class Event2>(1, [=](auto i) {
+    static_assert(std::is_same<decltype(i), sycl::item<1>>::value,
+                  "lambda arg type is unexpected");
+  });
+
+  test_number_event(q, e1);
+
+  test_braced_init_list_event<class BracedInitList1Event, sycl::range, 1>(q, e1);
+  test_braced_init_list_event<class BracedInitList2Event, sycl::range, 2>(q, e1);
+  test_braced_init_list_event<class BracedInitList3Event, sycl::range, 3>(q, e1);
+
+  test_number_event_vector(q, {e1, e2});
+
+  sycl::vector_class<sycl::event> events{e1, e2};
+  test_braced_init_list_event<class BracedInitList1EventVector, sycl::range, 1>(q, events);
+  test_braced_init_list_event<class BracedInitList2EventVector, sycl::range, 2>(q, events);
+  test_braced_init_list_event<class BracedInitList3EventVector, sycl::range, 3>(q, events);
 }
