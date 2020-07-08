@@ -2114,13 +2114,19 @@ static const char *paramKind2Str(KernelParamKind K) {
 #undef CASE
 }
 
-// Removes all "(anonymous namespace)::" substrings from given string
-static std::string eraseAnonNamespace(std::string S) {
+// Removes all "(anonymous namespace)::" substrings from given string, and emits
+// it.
+static void emitWithoutAnonNamespaces(llvm::raw_ostream &OS, StringRef Source) {
   const char S1[] = "(anonymous namespace)::";
 
-  for (auto Pos = S.find(S1); Pos != StringRef::npos; Pos = S.find(S1, Pos))
-    S.erase(Pos, sizeof(S1) - 1);
-  return S;
+  size_t Pos;
+
+  while ((Pos = Source.find(S1)) != StringRef::npos) {
+    OS << Source.take_front(Pos);
+    Source = Source.drop_front(Pos + sizeof(S1) - 1);
+  }
+
+  OS << Source;
 }
 
 static bool checkEnumTemplateParameter(const EnumDecl *ED,
@@ -2369,19 +2375,19 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
   }
 }
 
-static std::string getCPPTypeString(QualType Ty) {
+static void emitCPPTypeString(raw_ostream &OS, QualType Ty) {
   LangOptions LO;
   PrintingPolicy P(LO);
   P.SuppressTypedefs = true;
-  return eraseAnonNamespace(Ty.getAsString(P));
+  emitWithoutAnonNamespaces(OS, Ty.getAsString(P));
 }
 
 static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
                            ArrayRef<TemplateArgument> Args,
                            const PrintingPolicy &P);
 
-static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
-                                           const PrintingPolicy &TypePolicy);
+static void emitKernelNameType(QualType T, ASTContext &Ctx, raw_ostream &OS,
+                               const PrintingPolicy &TypePolicy);
 
 static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
                           TemplateArgument Arg, const PrintingPolicy &P) {
@@ -2412,7 +2418,8 @@ static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
     TypePolicy.SuppressTypedefs = true;
     TypePolicy.SuppressTagKeyword = true;
     QualType T = Arg.getAsType();
-    ArgOS << getKernelNameTypeString(T, Ctx, TypePolicy);
+
+    emitKernelNameType(T, Ctx, ArgOS, TypePolicy);
     break;
   }
   case TemplateArgument::ArgKind::Template: {
@@ -2450,15 +2457,17 @@ static void printTemplateArguments(ASTContext &Ctx, raw_ostream &ArgOS,
   ArgOS << ">";
 }
 
-static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
-                                           const PrintingPolicy &TypePolicy) {
-
+static void emitKernelNameType(QualType T, ASTContext &Ctx,
+                                    raw_ostream &OS,
+                                    const PrintingPolicy &TypePolicy) {
   QualType FullyQualifiedType = TypeName::getFullyQualifiedType(T, Ctx, true);
 
   const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
 
-  if (!RD)
-    return eraseAnonNamespace(FullyQualifiedType.getAsString(TypePolicy));
+  if (!RD) {
+    emitWithoutAnonNamespaces(OS, FullyQualifiedType.getAsString(TypePolicy));
+    return;
+  }
 
   // If kernel name type is a template specialization with enum type
   // template parameters, enumerators in name type string should be
@@ -2480,10 +2489,11 @@ static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
     const TemplateArgumentList &Args = TSD->getTemplateArgs();
     printTemplateArguments(Ctx, ArgOS, Args.asArray(), TypePolicy);
 
-    return eraseAnonNamespace(ArgOS.str().str());
+    emitWithoutAnonNamespaces(OS, ArgOS.str());
+    return;
   }
 
-  return eraseAnonNamespace(FullyQualifiedType.getAsString(TypePolicy));
+  emitWithoutAnonNamespaces(OS, FullyQualifiedType.getAsString(TypePolicy));
 }
 
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
@@ -2511,9 +2521,9 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
                     });
     O << "// Specialization constants IDs:\n";
     for (const auto &P : llvm::make_range(SpecConsts.begin(), End)) {
-      std::string CPPName = getCPPTypeString(P.first);
-      O << "template <> struct sycl::detail::SpecConstantInfo<" << CPPName
-        << "> {\n";
+      O << "template <> struct sycl::detail::SpecConstantInfo<";
+      emitCPPTypeString(O, P.first);
+      O << "> {\n";
       O << "  static constexpr const char* getName() {\n";
       O << "    return \"" << P.second << "\";\n";
       O << "  }\n";
@@ -2605,8 +2615,9 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       LangOptions LO;
       PrintingPolicy P(LO);
       P.SuppressTypedefs = true;
-      O << "template <> struct KernelInfo<"
-        << getKernelNameTypeString(K.NameType, S.getASTContext(), P) << "> {\n";
+      O << "template <> struct KernelInfo<";
+      emitKernelNameType(K.NameType, S.getASTContext(), O, P);
+      O << "> {\n";
     }
     O << "  DLL_LOCAL\n";
     O << "  static constexpr const char* getName() { return \"" << K.Name
