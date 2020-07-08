@@ -2218,6 +2218,17 @@ pi_result cuda_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
   try {
     pi_mem arg_mem = *arg_value;
     if (arg_mem->mem_type_ == _pi_mem::mem_type::surface) {
+      CUDA_ARRAY3D_DESCRIPTOR arrayDesc;
+      PI_CHECK_ERROR(cuArray3DGetDescriptor(
+          &arrayDesc, arg_mem->mem_.surface_mem_.get_array()));
+      if (arrayDesc.Format != CU_AD_FORMAT_UNSIGNED_INT32 &&
+          arrayDesc.Format != CU_AD_FORMAT_SIGNED_INT32 &&
+          arrayDesc.Format != CU_AD_FORMAT_HALF &&
+          arrayDesc.Format != CU_AD_FORMAT_FLOAT) {
+        cl::sycl::detail::pi::die(
+            "PI CUDA kernels only support images with channel types int32, "
+            "uint32, float, and half.");
+      }
       CUsurfObject cuSurf = arg_mem->mem_.surface_mem_.get_surface();
       kernel->set_kernel_arg(arg_index, sizeof(cuSurf), (void *)&cuSurf);
     } else {
