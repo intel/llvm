@@ -2457,9 +2457,8 @@ static void printTemplateArguments(ASTContext &Ctx, raw_ostream &ArgOS,
   ArgOS << ">";
 }
 
-static void emitKernelNameType(QualType T, ASTContext &Ctx,
-                                    raw_ostream &OS,
-                                    const PrintingPolicy &TypePolicy) {
+static void emitKernelNameType(QualType T, ASTContext &Ctx, raw_ostream &OS,
+                               const PrintingPolicy &TypePolicy) {
   QualType FullyQualifiedType = TypeName::getFullyQualifiedType(T, Ctx, true);
 
   const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
