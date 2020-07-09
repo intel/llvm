@@ -2028,8 +2028,12 @@ pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
 // Special version of piKernelSetArg to accept pi_sampler.
 pi_result piextKernelSetArgSampler(pi_kernel Kernel, pi_uint32 ArgIndex,
                                    const pi_sampler *ArgValue) {
-  die("piextKernelSetArgSampler: not implemented");
-  return {};
+  assert(Kernel);
+  ZE_CALL(zeKernelSetArgumentValue(
+      pi_cast<ze_kernel_handle_t>(Kernel->ZeKernel),
+      pi_cast<uint32_t>(ArgIndex), sizeof(void *), &(*ArgValue)->ZeSampler));
+
+  return PI_SUCCESS;
 }
 
 pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
