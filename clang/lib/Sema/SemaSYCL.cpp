@@ -706,8 +706,7 @@ static QualType calculateKernelNameType(ASTContext &Ctx,
   const TemplateArgumentList *TAL =
       KernelCallerFunc->getTemplateSpecializationArgs();
   assert(TAL && "No template argument info");
-  return TypeName::getFullyQualifiedType(TAL->get(0).getAsType(), Ctx,
-                                         /*WithGlobalNSPrefix=*/true);
+  return TAL->get(0).getAsType().getCanonicalType();
 }
 
 // Gets a name for the OpenCL kernel function, calculated from the first
@@ -775,38 +774,39 @@ template <typename T> using bind_param_t = typename bind_param<T>::type;
 //              })...)
 
 // Implements the 'for-each-visitor'  pattern.
-template <typename RangeTy, typename... Handlers>
-static void VisitField(CXXRecordDecl *Owner, RangeTy &&Item, QualType ItemTy,
-                       Handlers &... handlers) {
-  if (Util::isSyclAccessorType(ItemTy))
-    KF_FOR_EACH(handleSyclAccessorType, Item, ItemTy);
-  else if (Util::isSyclStreamType(ItemTy))
-    KF_FOR_EACH(handleSyclStreamType, Item, ItemTy);
-  else if (Util::isSyclSamplerType(ItemTy))
-    KF_FOR_EACH(handleSyclSamplerType, Item, ItemTy);
-  else if (Util::isSyclHalfType(ItemTy))
-    KF_FOR_EACH(handleSyclHalfType, Item, ItemTy);
-  else if (ItemTy->isStructureOrClassType())
-    VisitRecord(Owner, Item, ItemTy->getAsCXXRecordDecl(), handlers...);
-  else if (ItemTy->isArrayType())
-    VisitArrayElements(Item, ItemTy, handlers...);
-  else if (ItemTy->isScalarType())
-    KF_FOR_EACH(handleScalarType, Item, ItemTy);
+template <typename... Handlers>
+static void VisitElement(CXXRecordDecl *Owner, FieldDecl *ArrayField,
+                         QualType ElementTy, Handlers &... handlers) {
+  if (Util::isSyclAccessorType(ElementTy))
+    KF_FOR_EACH(handleSyclAccessorType, ArrayField, ElementTy);
+  else if (Util::isSyclStreamType(ElementTy))
+    KF_FOR_EACH(handleSyclStreamType, ArrayField, ElementTy);
+  else if (Util::isSyclSamplerType(ElementTy))
+    KF_FOR_EACH(handleSyclSamplerType, ArrayField, ElementTy);
+  else if (Util::isSyclHalfType(ElementTy))
+    KF_FOR_EACH(handleSyclHalfType, ArrayField, ElementTy);
+  else if (ElementTy->isStructureOrClassType())
+    VisitRecord(Owner, ArrayField, ElementTy->getAsCXXRecordDecl(),
+                handlers...);
+  else if (ElementTy->isArrayType())
+    VisitArrayElements(ArrayField, ElementTy, handlers...);
+  else if (ElementTy->isScalarType())
+    KF_FOR_EACH(handleScalarType, ArrayField, ElementTy);
 }
 
-template <typename RangeTy, typename... Handlers>
-static void VisitArrayElements(RangeTy Item, QualType FieldTy,
+template <typename... Handlers>
+static void VisitArrayElements(FieldDecl *FD, QualType FieldTy,
                                Handlers &... handlers) {
   const ConstantArrayType *CAT = cast<ConstantArrayType>(FieldTy);
   QualType ET = CAT->getElementType();
   int64_t ElemCount = CAT->getSize().getSExtValue();
   std::initializer_list<int>{(handlers.enterArray(), 0)...};
   for (int64_t Count = 0; Count < ElemCount; Count++) {
-    VisitField(nullptr, Item, ET, handlers...);
+    VisitElement(nullptr, FD, ET, handlers...);
     (void)std::initializer_list<int>{(handlers.nextElement(ET), 0)...};
   }
   (void)std::initializer_list<int>{
-      (handlers.leaveArray(Item, ET, ElemCount), 0)...};
+      (handlers.leaveArray(FD, ET, ElemCount), 0)...};
 }
 
 template <typename ParentTy, typename... Handlers>
@@ -989,9 +989,6 @@ public:
   virtual bool leaveField(const CXXRecordDecl *, FieldDecl *) { return true; }
   virtual bool enterArray() { return true; }
   virtual bool nextElement(QualType) { return true; }
-  virtual bool leaveArray(const CXXBaseSpecifier &, QualType, int64_t) {
-    return true;
-  }
   virtual bool leaveArray(FieldDecl *, QualType, int64_t) { return true; }
 };
 
@@ -1658,7 +1655,7 @@ public:
 
   bool nextElement(QualType ET) final {
     ArraySubscriptExpr *LastArrayRef =
-        dyn_cast<ArraySubscriptExpr>(MemberExprBases.back());
+        cast<ArraySubscriptExpr>(MemberExprBases.back());
     MemberExprBases.pop_back();
     Expr *LastIdx = LastArrayRef->getIdx();
     llvm::APSInt Result;
@@ -1684,7 +1681,6 @@ public:
   using SyclKernelFieldHandler::handleScalarType;
   using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::handleSyclSamplerType;
-  using SyclKernelFieldHandler::leaveArray;
   using SyclKernelFieldHandler::leaveField;
   using SyclKernelFieldHandler::leaveStruct;
 };
@@ -1764,10 +1760,7 @@ public:
            "Incorrect template args for Accessor Type");
     // Get specialization constant ID type, which is the second template
     // argument.
-    QualType SpecConstIDTy =
-        TypeName::getFullyQualifiedType(TemplateArgs.get(1).getAsType(),
-                                        SemaRef.getASTContext(), true)
-            .getCanonicalType();
+    QualType SpecConstIDTy = TemplateArgs.get(1).getAsType().getCanonicalType();
     const std::string SpecConstName = PredefinedExpr::ComputeName(
         SemaRef.getASTContext(), PredefinedExpr::UniqueStableNameType,
         SpecConstIDTy);
@@ -1845,7 +1838,6 @@ public:
   using SyclKernelFieldHandler::handleScalarType;
   using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::handleSyclSamplerType;
-  using SyclKernelFieldHandler::leaveArray;
 };
 } // namespace
 
@@ -2457,42 +2449,47 @@ static void printTemplateArguments(ASTContext &Ctx, raw_ostream &ArgOS,
   ArgOS << ">";
 }
 
-static void emitKernelNameType(QualType T, ASTContext &Ctx, raw_ostream &OS,
-                               const PrintingPolicy &TypePolicy) {
-  QualType FullyQualifiedType = TypeName::getFullyQualifiedType(T, Ctx, true);
-
-  const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
-
-  if (!RD) {
-    emitWithoutAnonNamespaces(OS, FullyQualifiedType.getAsString(TypePolicy));
-    return;
-  }
-
-  // If kernel name type is a template specialization with enum type
-  // template parameters, enumerators in name type string should be
-  // replaced  with their underlying value since the enum definition
-  // is not visible in integration header.
-  if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
-    SmallString<64> Buf;
-    llvm::raw_svector_ostream ArgOS(Buf);
-
-    // Print the qualifiers for the type.
-    FullyQualifiedType.getQualifiers().print(ArgOS, TypePolicy,
+static void emitRecordType(raw_ostream &OS, QualType T, const CXXRecordDecl *RD,
+                           const PrintingPolicy &TypePolicy) {
+  SmallString<64> Buf;
+  llvm::raw_svector_ostream RecOS(Buf);
+  T.getCanonicalType().getQualifiers().print(RecOS, TypePolicy,
                                              /*appendSpaceIfNotEmpty*/ true);
+  if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
 
     // Print template class name
-    TSD->printQualifiedName(ArgOS, TypePolicy, /*WithGlobalNsPrefix*/ true);
+    TSD->printQualifiedName(OS, TypePolicy, /*WithGlobalNsPrefix*/ true);
 
     // Print template arguments substituting enumerators
     ASTContext &Ctx = RD->getASTContext();
     const TemplateArgumentList &Args = TSD->getTemplateArgs();
-    printTemplateArguments(Ctx, ArgOS, Args.asArray(), TypePolicy);
+    printTemplateArguments(Ctx, RecOS, Args.asArray(), TypePolicy);
 
-    emitWithoutAnonNamespaces(OS, ArgOS.str());
+    emitWithoutAnonNamespaces(OS, RecOS.str());
     return;
   }
+  if (RD->getDeclContext()->isFunctionOrMethod()) {
+    emitWithoutAnonNamespaces(OS, T.getCanonicalType().getAsString(TypePolicy));
+    return;
+  }
+  
+  const NamespaceDecl *NS = dyn_cast<NamespaceDecl>(RD->getDeclContext());
+  RD->printQualifiedName(RecOS, TypePolicy,
+                         !(NS && NS->isAnonymousNamespace()));
+  return eraseAnonNamespace(OS, RecOS.str());
+}
 
-  emitWithoutAnonNamespaces(OS, FullyQualifiedType.getAsString(TypePolicy));
+
+static void emitKernelNameType(QualType T, ASTContext &Ctx, raw_ostream &OS,
+                               const PrintingPolicy &TypePolicy) {
+  if (T->isRecordType()) {
+    emitRecordType(OS, T, T->getAsCXXRecordDecl(), TypePolicy);
+    return;
+  }
+  
+  if (T->isEnumeralType())
+    OS << "::";
+  emitWithoutAnonNamespaces(OS, T.getCanonicalType().getAsString(TypePolicy));
 }
 
 void SYCLIntegrationHeader::emit(raw_ostream &O) {

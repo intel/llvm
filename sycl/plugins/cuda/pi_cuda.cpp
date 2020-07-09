@@ -363,7 +363,7 @@ pi_uint64 _pi_event::get_end_time() const {
 
 pi_result _pi_event::record() {
 
-  if (is_recorded()) {
+  if (is_recorded() || !is_started()) {
     return PI_INVALID_EVENT;
   }
 
@@ -2074,7 +2074,7 @@ pi_result cuda_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
                                       size_t size, void *ptr,
                                       pi_uint32 num_events_in_wait_list,
                                       const pi_event *event_wait_list,
-                                      pi_event *retEvent) {
+                                      pi_event *event) {
 
   assert(buffer != nullptr);
   assert(command_queue != nullptr);
@@ -2089,7 +2089,7 @@ pi_result cuda_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
     retErr = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
                                       event_wait_list, nullptr);
 
-    if (retEvent) {
+    if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
           PI_COMMAND_TYPE_MEM_BUFFER_READ, command_queue));
       retImplEv->start();
@@ -2098,7 +2098,7 @@ pi_result cuda_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
     retErr =
         PI_CHECK_ERROR(cuMemcpyDtoHAsync(ptr, devPtr + offset, size, cuStream));
 
-    if (retEvent) {
+    if (event) {
       retErr = retImplEv->record();
     }
 
@@ -2106,8 +2106,8 @@ pi_result cuda_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
       retErr = PI_CHECK_ERROR(cuStreamSynchronize(cuStream));
     }
 
-    if (retEvent) {
-      *retEvent = retImplEv.release();
+    if (event) {
+      *event = retImplEv.release();
     }
 
   } catch (pi_result err) {
@@ -3381,7 +3381,7 @@ pi_result cuda_piEnqueueMemBufferReadRect(
     const size_t *region, size_t buffer_row_pitch, size_t buffer_slice_pitch,
     size_t host_row_pitch, size_t host_slice_pitch, void *ptr,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    pi_event *retEvent) {
+    pi_event *event) {
 
   assert(buffer != nullptr);
   assert(command_queue != nullptr);
@@ -3397,9 +3397,9 @@ pi_result cuda_piEnqueueMemBufferReadRect(
     retErr = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
                                       event_wait_list, nullptr);
 
-    if (retEvent) {
+    if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_READ, command_queue));
+          PI_COMMAND_TYPE_MEM_BUFFER_READ_RECT, command_queue));
       retImplEv->start();
     }
 
@@ -3408,7 +3408,7 @@ pi_result cuda_piEnqueueMemBufferReadRect(
         buffer_row_pitch, buffer_slice_pitch, ptr, CU_MEMORYTYPE_HOST,
         host_offset, host_row_pitch, host_slice_pitch);
 
-    if (retEvent) {
+    if (event) {
       retErr = retImplEv->record();
     }
 
@@ -3416,8 +3416,8 @@ pi_result cuda_piEnqueueMemBufferReadRect(
       retErr = PI_CHECK_ERROR(cuStreamSynchronize(cuStream));
     }
 
-    if (retEvent) {
-      *retEvent = retImplEv.release();
+    if (event) {
+      *event = retImplEv.release();
     }
 
   } catch (pi_result err) {
@@ -3432,7 +3432,7 @@ pi_result cuda_piEnqueueMemBufferWriteRect(
     const size_t *region, size_t buffer_row_pitch, size_t buffer_slice_pitch,
     size_t host_row_pitch, size_t host_slice_pitch, const void *ptr,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    pi_event *retEvent) {
+    pi_event *event) {
 
   assert(buffer != nullptr);
   assert(command_queue != nullptr);
@@ -3448,9 +3448,9 @@ pi_result cuda_piEnqueueMemBufferWriteRect(
     retErr = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
                                       event_wait_list, nullptr);
 
-    if (retEvent) {
+    if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_WRITE, command_queue));
+          PI_COMMAND_TYPE_MEM_BUFFER_WRITE_RECT, command_queue));
       retImplEv->start();
     }
 
@@ -3459,7 +3459,7 @@ pi_result cuda_piEnqueueMemBufferWriteRect(
         host_slice_pitch, &devPtr, CU_MEMORYTYPE_DEVICE, buffer_offset,
         buffer_row_pitch, buffer_slice_pitch);
 
-    if (retEvent) {
+    if (event) {
       retErr = retImplEv->record();
     }
 
@@ -3467,8 +3467,8 @@ pi_result cuda_piEnqueueMemBufferWriteRect(
       retErr = PI_CHECK_ERROR(cuStreamSynchronize(cuStream));
     }
 
-    if (retEvent) {
-      *retEvent = retImplEv.release();
+    if (event) {
+      *event = retImplEv.release();
     }
 
   } catch (pi_result err) {
@@ -3487,6 +3487,8 @@ pi_result cuda_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
     return PI_INVALID_QUEUE;
   }
 
+  std::unique_ptr<_pi_event> retImplEv{nullptr};
+
   try {
     ScopedContext active(command_queue->get_context());
 
@@ -3497,6 +3499,12 @@ pi_result cuda_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
 
     pi_result result;
 
+    if (event) {
+      retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY, command_queue));
+      result = retImplEv->start();
+    }
+
     auto stream = command_queue->get();
     auto src = src_buffer->mem_.buffer_mem_.get() + src_offset;
     auto dst = dst_buffer->mem_.buffer_mem_.get() + dst_offset;
@@ -3504,10 +3512,8 @@ pi_result cuda_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
     result = PI_CHECK_ERROR(cuMemcpyDtoDAsync(dst, src, size, stream));
 
     if (event) {
-      auto new_event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_COPY,
-                                              command_queue);
-      new_event->record();
-      *event = new_event;
+      result = retImplEv->record();
+      *event = retImplEv.release();
     }
 
     return result;
@@ -3543,7 +3549,7 @@ pi_result cuda_piEnqueueMemBufferCopyRect(
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_COPY, command_queue));
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT, command_queue));
       retImplEv->start();
     }
 
@@ -3586,6 +3592,8 @@ pi_result cuda_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
   (void)pattern_is_valid;
   (void)pattern_size_is_valid;
 
+  std::unique_ptr<_pi_event> retImplEv{nullptr};
+
   try {
     ScopedContext active(command_queue->get_context());
 
@@ -3595,6 +3603,12 @@ pi_result cuda_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
     }
 
     pi_result result;
+
+    if (event) {
+      retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
+          PI_COMMAND_TYPE_MEM_BUFFER_FILL, command_queue));
+      result = retImplEv->start();
+    }
 
     auto dstDevice = buffer->mem_.buffer_mem_.get() + offset;
     auto stream = command_queue->get();
@@ -3646,10 +3660,8 @@ pi_result cuda_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
     }
 
     if (event) {
-      auto new_event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_FILL,
-                                              command_queue);
-      new_event->record();
-      *event = new_event;
+      result = retImplEv->record();
+      *event = retImplEv.release();
     }
 
     return result;
@@ -3971,7 +3983,7 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
                                      size_t size,
                                      pi_uint32 num_events_in_wait_list,
                                      const pi_event *event_wait_list,
-                                     pi_event *retEvent, void **ret_map) {
+                                     pi_event *event, void **ret_map) {
 
   assert(ret_map != nullptr);
   assert(command_queue != nullptr);
@@ -3993,15 +4005,16 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
   if ((map_flags & CL_MAP_READ) || (map_flags & CL_MAP_WRITE)) {
     ret_err = cuda_piEnqueueMemBufferRead(
         command_queue, buffer, blocking_map, offset, size, hostPtr,
-        num_events_in_wait_list, event_wait_list, retEvent);
+        num_events_in_wait_list, event_wait_list, event);
   } else {
-    if (retEvent) {
+    if (event) {
       try {
         ScopedContext active(command_queue->get_context());
 
-        *retEvent = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_MAP,
-                                           command_queue);
-        (*retEvent)->record();
+        *event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_MAP,
+                                        command_queue);
+        (*event)->start();
+        (*event)->record();
       } catch (pi_result error) {
         ret_err = error;
       }
@@ -4018,7 +4031,7 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
                                  void *mapped_ptr,
                                  pi_uint32 num_events_in_wait_list,
                                  const pi_event *event_wait_list,
-                                 pi_event *retEvent) {
+                                 pi_event *event) {
   pi_result ret_err = PI_SUCCESS;
 
   assert(command_queue != nullptr);
@@ -4034,15 +4047,16 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
         command_queue, memobj, true,
         memobj->mem_.buffer_mem_.get_map_offset(mapped_ptr),
         memobj->mem_.buffer_mem_.get_size(), mapped_ptr,
-        num_events_in_wait_list, event_wait_list, retEvent);
+        num_events_in_wait_list, event_wait_list, event);
   } else {
-    if (retEvent) {
+    if (event) {
       try {
         ScopedContext active(command_queue->get_context());
 
-        *retEvent = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_UNMAP,
-                                           command_queue);
-        (*retEvent)->record();
+        *event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_UNMAP,
+                                        command_queue);
+        (*event)->start();
+        (*event)->record();
       } catch (pi_result error) {
         ret_err = error;
       }
@@ -4155,7 +4169,7 @@ pi_result cuda_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
                                       events_waitlist, nullptr);
     if (event) {
       event_ptr = std::unique_ptr<_pi_event>(
-          _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue));
+          _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_FILL, queue));
       event_ptr->start();
     }
     result = PI_CHECK_ERROR(cuMemsetD8Async(
