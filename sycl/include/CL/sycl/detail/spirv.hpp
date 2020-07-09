@@ -387,7 +387,7 @@ using EnableIfGenericShuffle =
                         T>;
 
 template <typename T, typename ShuffleFunctor>
-void GenericShuffle(ShuffleFunctor ShuffleBytes) {
+void GenericShuffle(const ShuffleFunctor &ShuffleBytes) {
   if (sizeof(T) >= sizeof(uint64_t)) {
 #pragma unroll
     for (size_t Offset = 0; Offset < sizeof(T); Offset += sizeof(uint64_t)) {
