@@ -53,6 +53,9 @@ class FunctionExtension<string _Ext> : AbstractExtension<_Ext>;
 def FuncExtNone                          : FunctionExtension<"">;
 
 // Qualified Type.  These map to ASTContext::QualType.
+// TODO: Create a QualTypeFromASTContext.
+//       To fully make sense here, this class should represent
+//       the QualType only. How the QualType is accessed should be separated.
 class QualType<string _Name, bit _IsAbstract=0, bit _IsSigned=0> {
   // Name of the field or function in a clang::ASTContext
   // E.g. Name="IntTy" for the int type, and "getIntPtrType()" for an intptr_t
@@ -62,6 +65,20 @@ class QualType<string _Name, bit _IsAbstract=0, bit _IsSigned=0> {
   // without access qualifiers.
   bit IsAbstract = _IsAbstract;
   bit IsSigned = _IsSigned;
+}
+
+// Qualified Type.  These map to a function taking an ASTContext
+// and returning a QualType.
+// Instead of direclty accessing ASTContext fields, the builtin lookup can
+// call a function to extract the correct type for the call.
+// The name will be interpreted as the function to call
+// rather than the field to access.
+class QualTypeFromFunction<string _Name, bit _IsAbstract=0, bit _IsSigned=0> :
+      QualType<_Name, _IsAbstract, _IsSigned> {
+// TODO: At the moment the user is expected to write the function outside this file.
+//       Although they could be generated in the .inc file and
+//       the user would only have to provide the body here
+//       (like it can be done for attributes for instance).
 }
 
 // List of integers.
@@ -298,7 +315,7 @@ def Long      : IntType<"long",      QualType<"getIntTypeForBitwidth(64, true)",
 def ULong     : UIntType<"ulong",     QualType<"getIntTypeForBitwidth(64, false)">, 64>;
 def Float     : FPType<"float",     QualType<"FloatTy">, 32>;
 def Double    : FPType<"double",    QualType<"DoubleTy">, 64>;
-def Half      : FPType<"half",      QualType<"Float16Ty">, 16>;
+def Half      : FPType<"half",      QualTypeFromFunction<"GetFloat16Type">, 16>;
 def Void      : Type<"void",      QualType<"VoidTy">>;
 // FIXME: ensure this is portable...
 def Size      : Type<"size_t",    QualType<"getSizeType()">>;

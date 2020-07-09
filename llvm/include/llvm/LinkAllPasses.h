@@ -37,6 +37,7 @@
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRPrintingPasses.h"
+#include "llvm/SYCLLowerIR/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/LowerWGScope.h"
 #include "llvm/Support/Valgrind.h"
 #include "llvm/Transforms/AggressiveInstCombine/AggressiveInstCombine.h"
@@ -201,6 +202,8 @@ namespace {
       (void) llvm::createMergeICmpsLegacyPass();
       (void) llvm::createExpandMemCmpPass();
       (void)llvm::createSYCLLowerWGScopePass();
+      (void)llvm::createSYCLLowerESIMDPass();
+      (void)llvm::createESIMDLowerLoadStorePass();
       std::string buf;
       llvm::raw_string_ostream os(buf);
       (void) llvm::createPrintModulePass(os);

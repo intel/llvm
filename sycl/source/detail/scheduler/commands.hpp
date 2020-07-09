@@ -320,6 +320,13 @@ public:
 
   void *MMemAllocation = nullptr;
 
+  // ESIMD-extension-specific fields.
+  struct {
+    // If this alloca corresponds to an ESIMD accessor, then this field holds
+    // an image buffer wrapping the memory allocation above.
+    void *MWrapperImage = nullptr;
+  } ESIMDExt;
+
   /// Alloca command linked with current command.
   /// Device and host alloca commands can be linked, so they may share the same
   /// memory. Only one allocation from a pair can be accessed at a time. Alloca
@@ -481,6 +488,11 @@ private:
   cl_int enqueueImp() final;
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
+
+  pi_result SetKernelParamsAndLaunch(CGExecKernel *ExecKernel,
+                                     RT::PiKernel Kernel, NDRDescT &NDRDesc,
+                                     std::vector<RT::PiEvent> &RawEvents,
+                                     RT::PiEvent &Event);
 
   std::unique_ptr<detail::CG> MCommandGroup;
 

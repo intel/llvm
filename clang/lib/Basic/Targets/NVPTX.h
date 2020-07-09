@@ -143,6 +143,7 @@ public:
     // FIXME: maybe we should have a way to control this ?
     Opts.support("cl_khr_int64_base_atomics");
     Opts.support("cl_khr_int64_extended_atomics");
+    Opts.support("cl_khr_fp16");
   }
 
   /// \returns If a target requires an address within a target specific address

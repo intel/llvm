@@ -559,7 +559,9 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
 
       const Requirement FullReq(/*Offset*/ {0, 0, 0}, Req->MMemoryRange,
                                 Req->MMemoryRange, access::mode::read_write,
-                                Req->MSYCLMemObj, Req->MDims, Req->MElemSize);
+                                Req->MSYCLMemObj, Req->MDims, Req->MElemSize,
+                                0 /*ReMOffsetInBytes*/, false /*MIsSubBuffer*/,
+                                Req->MIsESIMDAcc);
       // Can reuse user data for the first allocation
       const bool InitFromUserData = Record->MAllocaCommands.empty();
 
@@ -679,6 +681,16 @@ Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
   return EmptyCmd;
 }
 
+static bool isInteropHostTask(const std::unique_ptr<ExecCGCommand> &Cmd) {
+  if (Cmd->getCG().getType() != CG::CGTYPE::CODEPLAY_HOST_TASK)
+    return false;
+
+  const detail::CGHostTask &HT =
+      static_cast<detail::CGHostTask &>(Cmd->getCG());
+
+  return HT.MHostTask->isInteropTask();
+}
+
 Command *
 Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                QueueImplPtr Queue) {
@@ -695,13 +707,29 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     printGraphAsDot("before_addCG");
 
   for (Requirement *Req : Reqs) {
-    MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req);
-    markModifiedIfWrite(Record, Req);
+    MemObjRecord *Record = nullptr;
+    AllocaCommandBase *AllocaCmd = nullptr;
 
-    AllocaCommandBase *AllocaCmd = getOrCreateAllocaForReq(Record, Req, Queue);
+    bool isSameCtx = false;
+
+    {
+      const QueueImplPtr &QueueForAlloca =
+          isInteropHostTask(NewCmd)
+              ? static_cast<detail::CGHostTask &>(NewCmd->getCG()).MQueue
+              : Queue;
+
+      Record = getOrInsertMemObjRecord(QueueForAlloca, Req);
+      markModifiedIfWrite(Record, Req);
+
+      AllocaCmd = getOrCreateAllocaForReq(Record, Req, QueueForAlloca);
+
+      isSameCtx =
+          sameCtx(QueueForAlloca->getContextImplPtr(), Record->MCurContext);
+    }
+
     // If there is alloca command we need to check if the latest memory is in
     // required context.
-    if (sameCtx(Queue->getContextImplPtr(), Record->MCurContext)) {
+    if (isSameCtx) {
       // If the memory is already in the required host context, check if the
       // required access mode is valid, remap if not.
       if (Record->MCurContext->is_host() &&
@@ -710,10 +738,24 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     } else {
       // Cannot directly copy memory from OpenCL device to OpenCL device -
       // create two copies: device->host and host->device.
-      if (!Queue->is_host() && !Record->MCurContext->is_host())
+      bool NeedMemMoveToHost = false;
+      auto MemMoveTargetQueue = Queue;
+
+      if (isInteropHostTask(NewCmd)) {
+        const detail::CGHostTask &HT =
+            static_cast<detail::CGHostTask &>(NewCmd->getCG());
+
+        if (HT.MQueue->getContextImplPtr() != Record->MCurContext) {
+          NeedMemMoveToHost = true;
+          MemMoveTargetQueue = HT.MQueue;
+        }
+      } else if (!Queue->is_host() && !Record->MCurContext->is_host())
+        NeedMemMoveToHost = true;
+
+      if (NeedMemMoveToHost)
         insertMemoryMove(Record, Req,
                          Scheduler::getInstance().getDefaultHostQueue());
-      insertMemoryMove(Record, Req, Queue);
+      insertMemoryMove(Record, Req, MemMoveTargetQueue);
     }
     std::set<Command *> Deps =
         findDepsForReq(Record, Req, Queue->getContextImplPtr());
@@ -927,10 +969,11 @@ void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
   {
     std::unique_ptr<detail::HostTask> HT(new detail::HostTask);
     std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
-        std::move(HT), /* Args = */ {}, /* ArgsStorage = */ {},
-        /* AccStorage = */ {}, /* SharedPtrStorage = */ {},
-        /* Requirements = */ {}, /* DepEvents = */ {DepEvent},
-        CG::CODEPLAY_HOST_TASK, /* Payload */ {}));
+        std::move(HT), /* Queue = */ {}, /* Context = */ {}, /* Args = */ {},
+        /* ArgsStorage = */ {}, /* AccStorage = */ {},
+        /* SharedPtrStorage = */ {}, /* Requirements = */ {},
+        /* DepEvents = */ {DepEvent}, CG::CODEPLAY_HOST_TASK,
+        /* Payload */ {}));
     ConnectCmd = new ExecCGCommand(
         std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
   }

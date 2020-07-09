@@ -4956,7 +4956,8 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
       if (LangOpts.OpenCL || LangOpts.SYCLIsDevice) {
         // OpenCL v2.0 s6.12.5 - A block cannot be the return value of a
         // function.
-        if (T->isBlockPointerType() || T->isImageType() || T->isSamplerT()) {
+        if (!T->isSampledImageType() &&
+            (T->isBlockPointerType() || T->isImageType() || T->isSamplerT())) {
           S.Diag(D.getIdentifierLoc(), diag::err_opencl_invalid_return)
               << T << 1 /*hint off*/;
           D.setInvalidType(true);
@@ -5082,8 +5083,8 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
       FunctionType::ExtInfo EI(
           getCCForDeclaratorChunk(S, D, DeclType.getAttrs(), FTI, chunkIndex));
 
-      if (!FTI.NumParams && !FTI.isVariadic && !LangOpts.CPlusPlus
-                                            && !LangOpts.OpenCL) {
+      if (!FTI.NumParams && !FTI.isVariadic && !LangOpts.CPlusPlus &&
+          !LangOpts.OpenCL && !LangOpts.SYCLIsDevice) {
         // Simple void foo(), where the incoming T is the result type.
         T = Context.getFunctionNoProtoType(T, EI);
       } else {

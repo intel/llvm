@@ -64,21 +64,40 @@ inline void assign_result(pi_result *ptr, pi_result value) noexcept {
 }
 
 // Iterates over the event wait list, returns correct pi_result error codes.
-// Invokes the callback for each event in the wait list. The callback must take
-// a single pi_event argument and return a pi_result.
+// Invokes the callback for the latest event of each queue in the wait list.
+// The callback must take a single pi_event argument and return a pi_result.
 template <typename Func>
-pi_result forEachEvent(const pi_event *event_wait_list,
-                       std::size_t num_events_in_wait_list, Func &&f) {
+pi_result forLatestEvents(const pi_event *event_wait_list,
+                          std::size_t num_events_in_wait_list, Func &&f) {
 
   if (event_wait_list == nullptr || num_events_in_wait_list == 0) {
     return PI_INVALID_EVENT_WAIT_LIST;
   }
 
-  for (size_t i = 0; i < num_events_in_wait_list; i++) {
-    auto event = event_wait_list[i];
-    if (event == nullptr) {
-      return PI_INVALID_EVENT_WAIT_LIST;
+  // Fast path if we only have a single event
+  if (num_events_in_wait_list == 1) {
+    return f(event_wait_list[0]);
+  }
+
+  std::vector<pi_event> events{event_wait_list,
+                               event_wait_list + num_events_in_wait_list};
+  std::sort(events.begin(), events.end(), [](pi_event e0, pi_event e1) {
+    // Tiered sort creating sublists of streams (smallest value first) in which
+    // the corresponding events are sorted into a sequence of newest first.
+    return e0->get_queue()->stream_ < e1->get_queue()->stream_ ||
+           (e0->get_queue()->stream_ == e1->get_queue()->stream_ &&
+            e0->get_event_id() > e1->get_event_id());
+  });
+
+  bool first = true;
+  CUstream lastSeenStream = 0;
+  for (pi_event event : events) {
+    if (!event || (!first && event->get_queue()->stream_ == lastSeenStream)) {
+      continue;
     }
+
+    first = false;
+    lastSeenStream = event->get_queue()->stream_;
 
     auto result = f(event);
     if (result != PI_SUCCESS) {
@@ -147,11 +166,11 @@ public:
     if (original_ != desired) {
       // Sets the desired context as the active one for the thread
       PI_CHECK_ERROR(cuCtxSetCurrent(desired));
-      if (original_ == nullptr && ctxt->is_primary()) {
-        // No context is installed and the suggested context is primary
+      if (original_ == nullptr) {
+        // No context is installed on the current thread
         // This is the most common case. We can activate the context in the
         // thread and leave it there until all the PI context referring to the
-        // same underlying CUDA primary context are destroyed. This emulates
+        // same underlying CUDA context are destroyed. This emulates
         // the behaviour of the CUDA runtime api, and avoids costly context
         // switches. No action is required on this side of the if.
       } else {
@@ -357,6 +376,11 @@ pi_result _pi_event::record() {
   CUstream cuStream = queue_->get();
 
   try {
+    eventId_ = queue_->get_next_event_id();
+    if (eventId_ == 0) {
+      cl::sycl::detail::pi::die(
+          "Unrecoverable program state reached in event identifier overflow");
+    }
     result = PI_CHECK_ERROR(cuEventRecord(evEnd_, cuStream));
   } catch (pi_result error) {
     result = error;
@@ -379,6 +403,18 @@ pi_result _pi_event::wait() {
   }
 
   return retErr;
+}
+
+pi_result _pi_event::release() {
+  assert(queue_ != nullptr);
+  PI_CHECK_ERROR(cuEventDestroy(evEnd_));
+
+  if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
+    PI_CHECK_ERROR(cuEventDestroy(evQueued_));
+    PI_CHECK_ERROR(cuEventDestroy(evStart_));
+  }
+
+  return PI_SUCCESS;
 }
 
 // makes all future work submitted to queue wait for all work captured in event.
@@ -907,44 +943,142 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_IMAGE_SUPPORT: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   PI_FALSE);
+                   PI_TRUE);
   }
   case PI_DEVICE_INFO_MAX_READ_IMAGE_ARGS: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 0);
+    // This call doesn't match to CUDA as it doesn't have images, but instead
+    // surfaces and textures. No clear call in the CUDA API to determine this,
+    // but some searching found as of SM 2.x 128 are supported.
+    return getInfo(param_value_size, param_value, param_value_size_ret, 128u);
   }
   case PI_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 0u);
+    // This call doesn't match to CUDA as it doesn't have images, but instead
+    // surfaces and textures. No clear call in the CUDA API to determine this,
+    // but some searching found as of SM 2.x 128 are supported.
+    return getInfo(param_value_size, param_value, param_value_size_ret, 128u);
   }
   case PI_DEVICE_INFO_IMAGE2D_MAX_HEIGHT: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   size_t(0));
+    // Take the smaller of maximum surface and maximum texture height.
+    int tex_height = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&tex_height,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_HEIGHT,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(tex_height >= 0);
+    int surf_height = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&surf_height,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_HEIGHT,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(surf_height >= 0);
+
+    int min = std::min(tex_height, surf_height);
+
+    return getInfo(param_value_size, param_value, param_value_size_ret, min);
   }
   case PI_DEVICE_INFO_IMAGE2D_MAX_WIDTH: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   size_t(0));
+    // Take the smaller of maximum surface and maximum texture width.
+    int tex_width = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&tex_width,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_WIDTH,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(tex_width >= 0);
+    int surf_width = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&surf_width,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_WIDTH,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(surf_width >= 0);
+
+    int min = std::min(tex_width, surf_width);
+
+    return getInfo(param_value_size, param_value, param_value_size_ret, min);
   }
   case PI_DEVICE_INFO_IMAGE3D_MAX_HEIGHT: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   size_t(0));
+    // Take the smaller of maximum surface and maximum texture height.
+    int tex_height = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&tex_height,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_HEIGHT,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(tex_height >= 0);
+    int surf_height = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&surf_height,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_HEIGHT,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(surf_height >= 0);
+
+    int min = std::min(tex_height, surf_height);
+
+    return getInfo(param_value_size, param_value, param_value_size_ret, min);
   }
   case PI_DEVICE_INFO_IMAGE3D_MAX_WIDTH: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   size_t(0));
+    // Take the smaller of maximum surface and maximum texture width.
+    int tex_width = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&tex_width,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_WIDTH,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(tex_width >= 0);
+    int surf_width = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&surf_width,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_WIDTH,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(surf_width >= 0);
+
+    int min = std::min(tex_width, surf_width);
+
+    return getInfo(param_value_size, param_value, param_value_size_ret, min);
   }
   case PI_DEVICE_INFO_IMAGE3D_MAX_DEPTH: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   size_t(0));
+    // Take the smaller of maximum surface and maximum texture depth.
+    int tex_depth = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&tex_depth,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_DEPTH,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(tex_depth >= 0);
+    int surf_depth = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&surf_depth,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_DEPTH,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(surf_depth >= 0);
+
+    int min = std::min(tex_depth, surf_depth);
+
+    return getInfo(param_value_size, param_value, param_value_size_ret, min);
   }
   case PI_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   size_t(0));
+    // Take the smaller of maximum surface and maximum texture width.
+    int tex_width = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&tex_width,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE1D_WIDTH,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(tex_width >= 0);
+    int surf_width = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&surf_width,
+                             CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE1D_WIDTH,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(surf_width >= 0);
+
+    int min = std::min(tex_width, surf_width);
+
+    return getInfo(param_value_size, param_value, param_value_size_ret, min);
   }
   case PI_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    size_t(0));
   }
   case PI_DEVICE_INFO_MAX_SAMPLERS: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 0u);
+    // This call is kind of meaningless for cuda, as samplers don't exist.
+    // Closest thing is textures, which is 128.
+    return getInfo(param_value_size, param_value, param_value_size_ret, 128u);
   }
   case PI_DEVICE_INFO_MAX_PARAMETER_SIZE: {
     // https://docs.nvidia.com/cuda/cuda-c-programming-guide/#function-parameters
@@ -1314,10 +1448,12 @@ pi_result cuda_piextDeviceGetNativeHandle(pi_device device,
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI device object from.
+/// \param[in] platform is the PI platform of the device.
 /// \param[out] device Set to the PI device object created from native handle.
 ///
 /// \return TBD
 pi_result cuda_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                 pi_platform platform,
                                                  pi_device *device) {
   cl::sycl::detail::pi::die(
       "Creation of PI device from native handle not implemented");
@@ -1507,17 +1643,22 @@ pi_result cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags,
   try {
     ScopedContext active(context);
     CUdeviceptr ptr;
-    _pi_mem::alloc_mode allocMode = _pi_mem::alloc_mode::classic;
+    _pi_mem::mem_::buffer_mem_::alloc_mode allocMode =
+        _pi_mem::mem_::buffer_mem_::alloc_mode::classic;
 
     if ((flags & PI_MEM_FLAGS_HOST_PTR_USE) && enableUseHostPtr) {
       retErr = PI_CHECK_ERROR(
           cuMemHostRegister(host_ptr, size, CU_MEMHOSTREGISTER_DEVICEMAP));
       retErr = PI_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, host_ptr, 0));
-      allocMode = _pi_mem::alloc_mode::use_host_ptr;
+      allocMode = _pi_mem::mem_::buffer_mem_::alloc_mode::use_host_ptr;
+    } else if (flags & PI_MEM_FLAGS_HOST_PTR_ALLOC) {
+      retErr = PI_CHECK_ERROR(cuMemAllocHost(&host_ptr, size));
+      retErr = PI_CHECK_ERROR(cuMemHostGetDevicePointer(&ptr, host_ptr, 0));
+      allocMode = _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
     } else {
       retErr = PI_CHECK_ERROR(cuMemAlloc(&ptr, size));
       if (flags & PI_MEM_FLAGS_HOST_PTR_COPY) {
-        allocMode = _pi_mem::alloc_mode::copy_in;
+        allocMode = _pi_mem::mem_::buffer_mem_::alloc_mode::copy_in;
       }
     }
 
@@ -1573,19 +1714,31 @@ pi_result cuda_piMemRelease(pi_mem memObj) {
     // make sure memObj is released in case PI_CHECK_ERROR throws
     std::unique_ptr<_pi_mem> uniqueMemObj(memObj);
 
-    if (!memObj->is_sub_buffer()) {
+    if (memObj->is_sub_buffer()) {
+      return PI_SUCCESS;
+    }
 
-      ScopedContext active(uniqueMemObj->get_context());
+    ScopedContext active(uniqueMemObj->get_context());
 
-      switch (uniqueMemObj->allocMode_) {
-      case _pi_mem::alloc_mode::copy_in:
-      case _pi_mem::alloc_mode::classic:
-        ret = PI_CHECK_ERROR(cuMemFree(uniqueMemObj->ptr_));
+    if (memObj->mem_type_ == _pi_mem::mem_type::buffer) {
+      switch (uniqueMemObj->mem_.buffer_mem_.allocMode_) {
+      case _pi_mem::mem_::buffer_mem_::alloc_mode::copy_in:
+      case _pi_mem::mem_::buffer_mem_::alloc_mode::classic:
+        ret = PI_CHECK_ERROR(cuMemFree(uniqueMemObj->mem_.buffer_mem_.ptr_));
         break;
-      case _pi_mem::alloc_mode::use_host_ptr:
-        ret = PI_CHECK_ERROR(cuMemHostUnregister(uniqueMemObj->hostPtr_));
+      case _pi_mem::mem_::buffer_mem_::alloc_mode::use_host_ptr:
+        ret = PI_CHECK_ERROR(
+            cuMemHostUnregister(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
         break;
+      case _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr:
+        ret = PI_CHECK_ERROR(
+            cuMemFreeHost(uniqueMemObj->mem_.buffer_mem_.hostPtr_));
       };
+    } else if (memObj->mem_type_ == _pi_mem::mem_type::surface) {
+      ret = PI_CHECK_ERROR(
+          cuSurfObjectDestroy(uniqueMemObj->mem_.surface_mem_.get_surface()));
+      ret = PI_CHECK_ERROR(
+          cuArrayDestroy(uniqueMemObj->mem_.surface_mem_.get_array()));
     }
 
   } catch (pi_result err) {
@@ -1635,19 +1788,22 @@ pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
   assert((bufferRegion.origin <= (bufferRegion.origin + bufferRegion.size)) &&
          "Overflow");
   assert(((bufferRegion.origin + bufferRegion.size) <=
-          parent_buffer->get_size()) &&
+          parent_buffer->mem_.buffer_mem_.get_size()) &&
          "PI_INVALID_BUFFER_SIZE");
   // Retained indirectly due to retaining parent buffer below.
   pi_context context = parent_buffer->context_;
-  _pi_mem::alloc_mode allocMode = _pi_mem::alloc_mode::classic;
+  _pi_mem::mem_::buffer_mem_::alloc_mode allocMode =
+      _pi_mem::mem_::buffer_mem_::alloc_mode::classic;
 
-  assert(parent_buffer->ptr_ != _pi_mem::native_type{0});
-  _pi_mem::native_type ptr = parent_buffer->ptr_ + bufferRegion.origin;
+  assert(parent_buffer->mem_.buffer_mem_.ptr_ !=
+         _pi_mem::mem_::buffer_mem_::native_type{0});
+  _pi_mem::mem_::buffer_mem_::native_type ptr =
+      parent_buffer->mem_.buffer_mem_.ptr_ + bufferRegion.origin;
 
   void *hostPtr = nullptr;
-  if (parent_buffer->hostPtr_) {
-    hostPtr =
-        static_cast<char *>(parent_buffer->hostPtr_) + bufferRegion.origin;
+  if (parent_buffer->mem_.buffer_mem_.hostPtr_) {
+    hostPtr = static_cast<char *>(parent_buffer->mem_.buffer_mem_.hostPtr_) +
+              bufferRegion.origin;
   }
 
   ReleaseGuard<pi_mem> releaseGuard(parent_buffer);
@@ -1686,7 +1842,7 @@ pi_result cuda_piMemGetInfo(pi_mem memObj, cl_mem_info queriedInfo,
 /// \return PI_SUCCESS
 pi_result cuda_piextMemGetNativeHandle(pi_mem mem,
                                        pi_native_handle *nativeHandle) {
-  *nativeHandle = static_cast<pi_native_handle>(mem->get());
+  *nativeHandle = static_cast<pi_native_handle>(mem->mem_.buffer_mem_.get());
   return PI_SUCCESS;
 }
 
@@ -1855,10 +2011,12 @@ pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI queue object from.
+/// \param[in] context is the PI context of the queue.
 /// \param[out] queue Set to the PI queue object created from native handle.
 ///
 /// \return TBD
 pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                pi_context context,
                                                 pi_queue *queue) {
   cl::sycl::detail::pi::die(
       "Creation of PI queue from native handle not implemented");
@@ -1876,7 +2034,7 @@ pi_result cuda_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
   assert(command_queue != nullptr);
   pi_result retErr = PI_SUCCESS;
   CUstream cuStream = command_queue->get();
-  CUdeviceptr devPtr = buffer->get();
+  CUdeviceptr devPtr = buffer->mem_.buffer_mem_.get();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
@@ -1922,7 +2080,7 @@ pi_result cuda_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
   assert(command_queue != nullptr);
   pi_result retErr = PI_SUCCESS;
   CUstream cuStream = command_queue->get();
-  CUdeviceptr devPtr = buffer->get();
+  CUdeviceptr devPtr = buffer->mem_.buffer_mem_.get();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
@@ -1961,8 +2119,8 @@ pi_result cuda_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
 pi_result cuda_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
 
   try {
-    pi_result err = PI_SUCCESS;
-
+    assert(num_events != 0);
+    assert(event_list);
     if (num_events == 0) {
       return PI_INVALID_VALUE;
     }
@@ -1974,11 +2132,7 @@ pi_result cuda_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
     auto context = event_list[0]->get_context();
     ScopedContext active(context);
 
-    for (pi_uint32 count = 0; count < num_events && (err == PI_SUCCESS);
-         count++) {
-
-      auto event = event_list[count];
-
+    auto waitFunc = [context](pi_event event) -> pi_result {
       if (!event) {
         return PI_INVALID_EVENT;
       }
@@ -1987,9 +2141,9 @@ pi_result cuda_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
         return PI_INVALID_CONTEXT;
       }
 
-      err = event->wait();
-    }
-    return err;
+      return event->wait();
+    };
+    return forLatestEvents(event_list, num_events, waitFunc);
   } catch (pi_result err) {
     return err;
   } catch (...) {
@@ -2007,13 +2161,26 @@ pi_result cuda_piKernelCreate(pi_program program, const char *kernel_name,
 
   try {
     ScopedContext active(program->get_context());
+
     CUfunction cuFunc;
     retErr = PI_CHECK_ERROR(
         cuModuleGetFunction(&cuFunc, program->get(), kernel_name));
 
-    retKernel = std::unique_ptr<_pi_kernel>(
-        new _pi_kernel{cuFunc, kernel_name, program, program->get_context()});
+    std::string kernel_name_woffset = std::string(kernel_name) + "_with_offset";
+    CUfunction cuFuncWithOffsetParam;
+    CUresult offsetRes = cuModuleGetFunction(
+        &cuFuncWithOffsetParam, program->get(), kernel_name_woffset.c_str());
 
+    // If there is no kernel with global offset parameter we mark it as missing
+    if (offsetRes == CUDA_ERROR_NOT_FOUND) {
+      cuFuncWithOffsetParam = nullptr;
+    } else {
+      retErr = PI_CHECK_ERROR(offsetRes);
+    }
+
+    retKernel = std::unique_ptr<_pi_kernel>(
+        new _pi_kernel{cuFunc, cuFuncWithOffsetParam, kernel_name, program,
+                       program->get_context()});
   } catch (pi_result err) {
     retErr = err;
   } catch (...) {
@@ -2049,8 +2216,41 @@ pi_result cuda_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
 
   pi_result retErr = PI_SUCCESS;
   try {
-    CUdeviceptr cuPtr = (*arg_value)->get();
-    kernel->set_kernel_arg(arg_index, sizeof(CUdeviceptr), (void *)&cuPtr);
+    pi_mem arg_mem = *arg_value;
+    if (arg_mem->mem_type_ == _pi_mem::mem_type::surface) {
+      CUDA_ARRAY3D_DESCRIPTOR arrayDesc;
+      PI_CHECK_ERROR(cuArray3DGetDescriptor(
+          &arrayDesc, arg_mem->mem_.surface_mem_.get_array()));
+      if (arrayDesc.Format != CU_AD_FORMAT_UNSIGNED_INT32 &&
+          arrayDesc.Format != CU_AD_FORMAT_SIGNED_INT32 &&
+          arrayDesc.Format != CU_AD_FORMAT_HALF &&
+          arrayDesc.Format != CU_AD_FORMAT_FLOAT) {
+        cl::sycl::detail::pi::die(
+            "PI CUDA kernels only support images with channel types int32, "
+            "uint32, float, and half.");
+      }
+      CUsurfObject cuSurf = arg_mem->mem_.surface_mem_.get_surface();
+      kernel->set_kernel_arg(arg_index, sizeof(cuSurf), (void *)&cuSurf);
+    } else {
+      CUdeviceptr cuPtr = arg_mem->mem_.buffer_mem_.get();
+      kernel->set_kernel_arg(arg_index, sizeof(CUdeviceptr), (void *)&cuPtr);
+    }
+  } catch (pi_result err) {
+    retErr = err;
+  }
+  return retErr;
+}
+
+pi_result cuda_piextKernelSetArgSampler(pi_kernel kernel, pi_uint32 arg_index,
+                                        const pi_sampler *arg_value) {
+
+  assert(kernel != nullptr);
+  assert(arg_value != nullptr);
+
+  pi_result retErr = PI_SUCCESS;
+  try {
+    pi_uint32 samplerProps = (*arg_value)->props_;
+    kernel->set_kernel_arg(arg_index, sizeof(pi_uint32), (void *)&samplerProps);
   } catch (pi_result err) {
     retErr = err;
   }
@@ -2080,6 +2280,22 @@ pi_result cuda_piEnqueueKernelLaunch(
 
     retError = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
                                         event_wait_list, nullptr);
+
+    // Set the implicit global offset parameter if kernel has offset variant
+    if (kernel->get_with_offset_parameter()) {
+      std::uint32_t cuda_implicit_offset[3] = {0, 0, 0};
+      if (global_work_offset) {
+        for (size_t i = 0; i < work_dim; i++) {
+          cuda_implicit_offset[i] =
+              static_cast<std::uint32_t>(global_work_offset[i]);
+          if (global_work_offset[i] != 0) {
+            cuFunc = kernel->get_with_offset_parameter();
+          }
+        }
+      }
+      kernel->set_implicit_offset_arg(sizeof(cuda_implicit_offset),
+                                      cuda_implicit_offset);
+    }
 
     // Set the number of threads per block to the number of threads per warp
     // by default unless user has provided a better number
@@ -2157,8 +2373,155 @@ pi_result cuda_piMemImageCreate(pi_context context, pi_mem_flags flags,
                                 const pi_image_format *image_format,
                                 const pi_image_desc *image_desc, void *host_ptr,
                                 pi_mem *ret_mem) {
-  cl::sycl::detail::pi::die("cuda_piMemImageCreate not implemented");
-  return {};
+  // Need input memory object
+  assert(ret_mem != nullptr);
+  const bool performInitialCopy = (flags & PI_MEM_FLAGS_HOST_PTR_COPY) ||
+                                  ((flags & PI_MEM_FLAGS_HOST_PTR_USE));
+  pi_result retErr = PI_SUCCESS;
+
+  // We only support RBGA channel order
+  // TODO: check SYCL CTS and spec. May also have to support BGRA
+  if (image_format->image_channel_order !=
+      pi_image_channel_order::PI_IMAGE_CHANNEL_ORDER_RGBA) {
+    cl::sycl::detail::pi::die(
+        "cuda_piMemImageCreate only supports RGBA channel order");
+  }
+
+  // We have to use cuArray3DCreate, which has some caveats. The height and
+  // depth parameters must be set to 0 produce 1D or 2D arrays. image_desc gives
+  // a minimum value of 1, so we need to convert the answer.
+  CUDA_ARRAY3D_DESCRIPTOR array_desc;
+  array_desc.NumChannels = 4; // Only support 4 channel image
+  array_desc.Flags = 0;       // No flags required
+  array_desc.Width = image_desc->image_width;
+  if (image_desc->image_type == PI_MEM_TYPE_IMAGE1D) {
+    array_desc.Height = 0;
+    array_desc.Depth = 0;
+  } else if (image_desc->image_type == PI_MEM_TYPE_IMAGE2D) {
+    array_desc.Height = image_desc->image_height;
+    array_desc.Depth = 0;
+  } else if (image_desc->image_type == PI_MEM_TYPE_IMAGE3D) {
+    array_desc.Height = image_desc->image_height;
+    array_desc.Depth = image_desc->image_depth;
+  }
+
+  // We need to get this now in bytes for calculating the total image size later
+  size_t pixel_type_size_bytes;
+
+  switch (image_format->image_channel_data_type) {
+  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT8:
+  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8:
+    array_desc.Format = CU_AD_FORMAT_UNSIGNED_INT8;
+    pixel_type_size_bytes = 1;
+    break;
+  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8:
+    array_desc.Format = CU_AD_FORMAT_SIGNED_INT8;
+    pixel_type_size_bytes = 1;
+    break;
+  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT16:
+  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16:
+    array_desc.Format = CU_AD_FORMAT_UNSIGNED_INT16;
+    pixel_type_size_bytes = 2;
+    break;
+  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16:
+    array_desc.Format = CU_AD_FORMAT_SIGNED_INT16;
+    pixel_type_size_bytes = 2;
+    break;
+  case PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT:
+    array_desc.Format = CU_AD_FORMAT_HALF;
+    pixel_type_size_bytes = 2;
+    break;
+  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32:
+    array_desc.Format = CU_AD_FORMAT_UNSIGNED_INT32;
+    pixel_type_size_bytes = 4;
+    break;
+  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32:
+    array_desc.Format = CU_AD_FORMAT_SIGNED_INT32;
+    pixel_type_size_bytes = 4;
+    break;
+  case PI_IMAGE_CHANNEL_TYPE_FLOAT:
+    array_desc.Format = CU_AD_FORMAT_FLOAT;
+    pixel_type_size_bytes = 4;
+    break;
+  default:
+    cl::sycl::detail::pi::die(
+        "cuda_piMemImageCreate given unsupported image_channel_data_type");
+  }
+
+  // When a dimension isn't used image_desc has the size set to 1
+  size_t pixel_size_bytes =
+      pixel_type_size_bytes * 4; // 4 is the only number of channels we support
+  size_t image_size_bytes = pixel_size_bytes * image_desc->image_width *
+                            image_desc->image_height * image_desc->image_depth;
+
+  ScopedContext active(context);
+  CUarray image_array;
+  retErr = PI_CHECK_ERROR(cuArray3DCreate(&image_array, &array_desc));
+
+  try {
+    if (performInitialCopy) {
+      // We have to use a different copy function for each image dimensionality
+      if (image_desc->image_type == PI_MEM_TYPE_IMAGE1D) {
+        retErr = PI_CHECK_ERROR(
+            cuMemcpyHtoA(image_array, 0, host_ptr, image_size_bytes));
+      } else if (image_desc->image_type == PI_MEM_TYPE_IMAGE2D) {
+        CUDA_MEMCPY2D cpy_desc;
+        memset(&cpy_desc, 0, sizeof(cpy_desc));
+        cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
+        cpy_desc.srcHost = host_ptr;
+        cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
+        cpy_desc.dstArray = image_array;
+        cpy_desc.WidthInBytes = pixel_size_bytes * image_desc->image_width;
+        cpy_desc.Height = image_desc->image_height;
+        retErr = PI_CHECK_ERROR(cuMemcpy2D(&cpy_desc));
+      } else if (image_desc->image_type == PI_MEM_TYPE_IMAGE3D) {
+        CUDA_MEMCPY3D cpy_desc;
+        memset(&cpy_desc, 0, sizeof(cpy_desc));
+        cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
+        cpy_desc.srcHost = host_ptr;
+        cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
+        cpy_desc.dstArray = image_array;
+        cpy_desc.WidthInBytes = pixel_size_bytes * image_desc->image_width;
+        cpy_desc.Height = image_desc->image_height;
+        cpy_desc.Depth = image_desc->image_depth;
+        retErr = PI_CHECK_ERROR(cuMemcpy3D(&cpy_desc));
+      }
+    }
+
+    // CUDA_RESOURCE_DESC is a union of different structs, shown here
+    // https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__TEXOBJECT.html
+    // We need to fill it as described here to use it for a surface or texture
+    // https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__SURFOBJECT.html
+    // CUDA_RESOURCE_DESC::resType must be CU_RESOURCE_TYPE_ARRAY and
+    // CUDA_RESOURCE_DESC::res::array::hArray must be set to a valid CUDA array
+    // handle.
+    // CUDA_RESOURCE_DESC::flags must be set to zero
+
+    CUDA_RESOURCE_DESC image_res_desc;
+    image_res_desc.res.array.hArray = image_array;
+    image_res_desc.resType = CU_RESOURCE_TYPE_ARRAY;
+    image_res_desc.flags = 0;
+
+    CUsurfObject surface;
+    retErr = PI_CHECK_ERROR(cuSurfObjectCreate(&surface, &image_res_desc));
+
+    auto piMemObj = std::unique_ptr<_pi_mem>(new _pi_mem{
+        context, image_array, surface, image_desc->image_type, host_ptr});
+
+    if (piMemObj == nullptr) {
+      return PI_OUT_OF_HOST_MEMORY;
+    }
+
+    *ret_mem = piMemObj.release();
+  } catch (pi_result err) {
+    cuArrayDestroy(image_array);
+    return err;
+  } catch (...) {
+    cuArrayDestroy(image_array);
+    return PI_ERROR_UNKNOWN;
+  }
+
+  return retErr;
 }
 
 /// \TODO Not implemented
@@ -2469,10 +2832,12 @@ pi_result cuda_piextProgramGetNativeHandle(pi_program program,
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI program object from.
+/// \param[in] context The PI context of the program.
 /// \param[out] program Set to the PI program object created from native handle.
 ///
 /// \return TBD
 pi_result cuda_piextProgramCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                  pi_context context,
                                                   pi_program *program) {
   cl::sycl::detail::pi::die(
       "Creation of PI program from native handle not implemented");
@@ -2677,6 +3042,11 @@ pi_result cuda_piEventGetProfilingInfo(pi_event event,
 
   assert(event != nullptr);
 
+  pi_queue queue = event->get_queue();
+  if (queue == nullptr || !(queue->properties_ & PI_QUEUE_PROFILING_ENABLE)) {
+    return PI_PROFILING_INFO_NOT_AVAILABLE;
+  }
+
   switch (param_name) {
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
@@ -2736,8 +3106,7 @@ pi_result cuda_piEventRelease(pi_event event) {
     pi_result result = PI_INVALID_EVENT;
     try {
       ScopedContext active(event->get_context());
-      auto cuEvent = event->get();
-      result = PI_CHECK_ERROR(cuEventDestroy(cuEvent));
+      result = event->release();
     } catch (...) {
       result = PI_OUT_OF_RESOURCES;
     }
@@ -2763,10 +3132,10 @@ pi_result cuda_piEnqueueEventsWait(pi_queue command_queue,
 
     if (event_wait_list) {
       auto result =
-          forEachEvent(event_wait_list, num_events_in_wait_list,
-                       [command_queue](pi_event event) -> pi_result {
-                         return enqueueEventWait(command_queue, event);
-                       });
+          forLatestEvents(event_wait_list, num_events_in_wait_list,
+                          [command_queue](pi_event event) -> pi_result {
+                            return enqueueEventWait(command_queue, event);
+                          });
 
       if (result != PI_SUCCESS) {
         return result;
@@ -2814,32 +3183,139 @@ pi_result cuda_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
   return {};
 }
 
-/// \TODO Not implemented in CUDA, need untie from OpenCL
+/// Creates a PI sampler object
+///
+/// \param[in] context The context the sampler is created for.
+/// \param[in] sampler_properties The properties for the sampler.
+/// \param[out] result_sampler Set to the resulting sampler object.
+///
+/// \return PI_SUCCESS on success. PI_INVALID_VALUE if given an invalid property
+///         or if there is multiple of properties from the same category.
 pi_result cuda_piSamplerCreate(pi_context context,
-                               const cl_sampler_properties *sampler_properties,
+                               const pi_sampler_properties *sampler_properties,
                                pi_sampler *result_sampler) {
-  cl::sycl::detail::pi::die("cuda_piSamplerCreate not implemented");
-  return {};
+  std::unique_ptr<_pi_sampler> retImplSampl{new _pi_sampler(context)};
+
+  bool propSeen[3] = {false, false, false};
+  for (size_t i = 0; sampler_properties[i] != 0; i += 2) {
+    switch (sampler_properties[i]) {
+    case PI_SAMPLER_PROPERTIES_NORMALIZED_COORDS:
+      if (propSeen[0]) {
+        return PI_INVALID_VALUE;
+      }
+      propSeen[0] = true;
+      retImplSampl->props_ |= sampler_properties[i + 1];
+      break;
+    case PI_SAMPLER_PROPERTIES_FILTER_MODE:
+      if (propSeen[1]) {
+        return PI_INVALID_VALUE;
+      }
+      propSeen[1] = true;
+      retImplSampl->props_ |=
+          (sampler_properties[i + 1] - PI_SAMPLER_FILTER_MODE_NEAREST) << 1;
+      break;
+    case PI_SAMPLER_PROPERTIES_ADDRESSING_MODE:
+      if (propSeen[2]) {
+        return PI_INVALID_VALUE;
+      }
+      propSeen[2] = true;
+      retImplSampl->props_ |=
+          (sampler_properties[i + 1] - PI_SAMPLER_ADDRESSING_MODE_NONE) << 2;
+      break;
+    default:
+      return PI_INVALID_VALUE;
+    }
+  }
+
+  if (!propSeen[0]) {
+    retImplSampl->props_ |= CL_TRUE;
+  }
+  // Default filter mode to CL_FILTER_NEAREST
+  if (!propSeen[2]) {
+    retImplSampl->props_ |= (CL_ADDRESS_CLAMP % CL_ADDRESS_NONE) << 2;
+  }
+
+  *result_sampler = retImplSampl.release();
+  return PI_SUCCESS;
 }
 
-/// \TODO Not implemented in CUDA, need untie from OpenCL
+/// Gets information from a PI sampler object
+///
+/// \param[in] sampler The sampler to get the information from.
+/// \param[in] param_name The name of the information to get.
+/// \param[in] param_value_size The size of the param_value.
+/// \param[out] param_value Set to information value.
+/// \param[out] param_value_size_ret Set to the size of the information value.
+///
+/// \return PI_SUCCESS on success.
 pi_result cuda_piSamplerGetInfo(pi_sampler sampler, cl_sampler_info param_name,
                                 size_t param_value_size, void *param_value,
                                 size_t *param_value_size_ret) {
-  cl::sycl::detail::pi::die("cuda_piSamplerGetInfo not implemented");
+  assert(sampler != nullptr);
+
+  switch (param_name) {
+  case PI_SAMPLER_INFO_REFERENCE_COUNT:
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   sampler->get_reference_count());
+  case PI_SAMPLER_INFO_CONTEXT:
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   sampler->context_);
+  case PI_SAMPLER_INFO_NORMALIZED_COORDS: {
+    pi_bool norm_coords_prop = static_cast<pi_bool>(sampler->props_ & 0x1);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   norm_coords_prop);
+  }
+  case PI_SAMPLER_INFO_FILTER_MODE: {
+    pi_sampler_filter_mode filter_prop = static_cast<pi_sampler_filter_mode>(
+        ((sampler->props_ >> 1) & 0x1) + PI_SAMPLER_FILTER_MODE_NEAREST);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   filter_prop);
+  }
+  case PI_SAMPLER_INFO_ADDRESSING_MODE: {
+    pi_sampler_addressing_mode addressing_prop =
+        static_cast<pi_sampler_addressing_mode>(
+            (sampler->props_ >> 2) + PI_SAMPLER_ADDRESSING_MODE_NONE);
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   addressing_prop);
+  }
+  default:
+    PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
+  }
   return {};
 }
 
-/// \TODO Not implemented in CUDA, need untie from OpenCL
+/// Retains a PI sampler object, incrementing its reference count.
+///
+/// \param[in] sampler The sampler to increment the reference count of.
+///
+/// \return PI_SUCCESS.
 pi_result cuda_piSamplerRetain(pi_sampler sampler) {
-  cl::sycl::detail::pi::die("cuda_piSamplerRetain not implemented");
-  return {};
+  assert(sampler != nullptr);
+  sampler->increment_reference_count();
+  return PI_SUCCESS;
 }
 
-/// \TODO Not implemented in CUDA, need untie from OpenCL
+/// Releases a PI sampler object, decrementing its reference count. If the
+/// reference count reaches zero, the sampler object is destroyed.
+///
+/// \param[in] sampler The sampler to decrement the reference count of.
+///
+/// \return PI_SUCCESS.
 pi_result cuda_piSamplerRelease(pi_sampler sampler) {
-  cl::sycl::detail::pi::die("cuda_piSamplerRelease not implemented");
-  return {};
+  assert(sampler != nullptr);
+
+  // double delete or someone is messing with the ref count.
+  // either way, cannot safely proceed.
+  cl::sycl::detail::pi::assertion(
+      sampler->get_reference_count() != 0,
+      "Reference count overflow detected in cuda_piSamplerRelease.");
+
+  // decrement ref count. If it is 0, delete the sampler.
+  if (sampler->decrement_reference_count() == 0) {
+    delete sampler;
+  }
+
+  return PI_SUCCESS;
 }
 
 /// General 3D memory copy operation.
@@ -2912,7 +3388,7 @@ pi_result cuda_piEnqueueMemBufferReadRect(
 
   pi_result retErr = PI_SUCCESS;
   CUstream cuStream = command_queue->get();
-  CUdeviceptr devPtr = buffer->get();
+  CUdeviceptr devPtr = buffer->mem_.buffer_mem_.get();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
@@ -2963,7 +3439,7 @@ pi_result cuda_piEnqueueMemBufferWriteRect(
 
   pi_result retErr = PI_SUCCESS;
   CUstream cuStream = command_queue->get();
-  CUdeviceptr devPtr = buffer->get();
+  CUdeviceptr devPtr = buffer->mem_.buffer_mem_.get();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
@@ -3022,8 +3498,8 @@ pi_result cuda_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
     pi_result result;
 
     auto stream = command_queue->get();
-    auto src = src_buffer->get() + src_offset;
-    auto dst = dst_buffer->get() + dst_offset;
+    auto src = src_buffer->mem_.buffer_mem_.get() + src_offset;
+    auto dst = dst_buffer->mem_.buffer_mem_.get() + dst_offset;
 
     result = PI_CHECK_ERROR(cuMemcpyDtoDAsync(dst, src, size, stream));
 
@@ -3055,8 +3531,8 @@ pi_result cuda_piEnqueueMemBufferCopyRect(
 
   pi_result retErr = PI_SUCCESS;
   CUstream cuStream = command_queue->get();
-  CUdeviceptr srcPtr = src_buffer->get();
-  CUdeviceptr dstPtr = dst_buffer->get();
+  CUdeviceptr srcPtr = src_buffer->mem_.buffer_mem_.get();
+  CUdeviceptr dstPtr = dst_buffer->mem_.buffer_mem_.get();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
@@ -3120,7 +3596,7 @@ pi_result cuda_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
 
     pi_result result;
 
-    auto dstDevice = buffer->get() + offset;
+    auto dstDevice = buffer->mem_.buffer_mem_.get() + offset;
     auto stream = command_queue->get();
     auto N = size / pattern_size;
 
@@ -3183,17 +3659,158 @@ pi_result cuda_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
     return PI_ERROR_UNKNOWN;
   }
 }
-/// \TODO Not implemented in CUDA, requires untie from OpenCL
+
+static size_t imageElementByteSize(CUDA_ARRAY_DESCRIPTOR array_desc) {
+  switch (array_desc.Format) {
+  case CU_AD_FORMAT_UNSIGNED_INT8:
+  case CU_AD_FORMAT_SIGNED_INT8:
+    return 1;
+  case CU_AD_FORMAT_UNSIGNED_INT16:
+  case CU_AD_FORMAT_SIGNED_INT16:
+  case CU_AD_FORMAT_HALF:
+    return 2;
+  case CU_AD_FORMAT_UNSIGNED_INT32:
+  case CU_AD_FORMAT_SIGNED_INT32:
+  case CU_AD_FORMAT_FLOAT:
+    return 4;
+  }
+  cl::sycl::detail::pi::die("Invalid iamge format.");
+  return 0;
+}
+
+/// General ND memory copy operation for images (where N > 1).
+/// This function requires the corresponding CUDA context to be at the top of
+/// the context stack
+/// If the source and/or destination is an array, src_ptr and/or dst_ptr
+/// must be a pointer to a CUarray
+static pi_result commonEnqueueMemImageNDCopy(
+    CUstream cu_stream, pi_mem_type img_type, const size_t *region,
+    const void *src_ptr, const CUmemorytype_enum src_type,
+    const size_t *src_offset, void *dst_ptr, const CUmemorytype_enum dst_type,
+    const size_t *dst_offset) {
+  assert(region != nullptr);
+
+  assert(src_type == CU_MEMORYTYPE_ARRAY || src_type == CU_MEMORYTYPE_HOST);
+  assert(dst_type == CU_MEMORYTYPE_ARRAY || dst_type == CU_MEMORYTYPE_HOST);
+
+  if (img_type == PI_MEM_TYPE_IMAGE2D) {
+    CUDA_MEMCPY2D cpyDesc;
+    memset(&cpyDesc, 0, sizeof(cpyDesc));
+    cpyDesc.srcMemoryType = src_type;
+    if (src_type == CU_MEMORYTYPE_ARRAY) {
+      cpyDesc.srcArray = *static_cast<const CUarray *>(src_ptr);
+      cpyDesc.srcXInBytes = src_offset[0];
+      cpyDesc.srcY = src_offset[1];
+    } else {
+      cpyDesc.srcHost = src_ptr;
+    }
+    cpyDesc.dstMemoryType = dst_type;
+    if (dst_type == CU_MEMORYTYPE_ARRAY) {
+      cpyDesc.dstArray = *static_cast<CUarray *>(dst_ptr);
+      cpyDesc.dstXInBytes = dst_offset[0];
+      cpyDesc.dstY = dst_offset[1];
+    } else {
+      cpyDesc.dstHost = dst_ptr;
+    }
+    cpyDesc.WidthInBytes = region[0];
+    cpyDesc.Height = region[1];
+    return PI_CHECK_ERROR(cuMemcpy2DAsync(&cpyDesc, cu_stream));
+  }
+  if (img_type == PI_MEM_TYPE_IMAGE3D) {
+    CUDA_MEMCPY3D cpyDesc;
+    memset(&cpyDesc, 0, sizeof(cpyDesc));
+    cpyDesc.srcMemoryType = src_type;
+    if (src_type == CU_MEMORYTYPE_ARRAY) {
+      cpyDesc.srcArray = *static_cast<const CUarray *>(src_ptr);
+      cpyDesc.srcXInBytes = src_offset[0];
+      cpyDesc.srcY = src_offset[1];
+      cpyDesc.srcZ = src_offset[2];
+    } else {
+      cpyDesc.srcHost = src_ptr;
+    }
+    cpyDesc.dstMemoryType = dst_type;
+    if (dst_type == CU_MEMORYTYPE_ARRAY) {
+      cpyDesc.dstArray = *static_cast<CUarray *>(dst_ptr);
+      cpyDesc.dstXInBytes = dst_offset[0];
+      cpyDesc.dstY = dst_offset[1];
+      cpyDesc.dstZ = dst_offset[2];
+    } else {
+      cpyDesc.dstHost = dst_ptr;
+    }
+    cpyDesc.WidthInBytes = region[0];
+    cpyDesc.Height = region[1];
+    cpyDesc.Depth = region[2];
+    return PI_CHECK_ERROR(cuMemcpy3DAsync(&cpyDesc, cu_stream));
+  }
+  return PI_INVALID_VALUE;
+}
+
 pi_result cuda_piEnqueueMemImageRead(
     pi_queue command_queue, pi_mem image, pi_bool blocking_read,
     const size_t *origin, const size_t *region, size_t row_pitch,
     size_t slice_pitch, void *ptr, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
-  cl::sycl::detail::pi::die("cuda_piEnqueueMemImageRead not implemented");
-  return {};
+  assert(command_queue != nullptr);
+  assert(image != nullptr);
+  assert(image->mem_type_ == _pi_mem::mem_type::surface);
+
+  pi_result retErr = PI_SUCCESS;
+  CUstream cuStream = command_queue->get();
+
+  try {
+    ScopedContext active(command_queue->get_context());
+
+    if (event_wait_list) {
+      cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                               event_wait_list, nullptr);
+    }
+
+    CUarray array = image->mem_.surface_mem_.get_array();
+
+    CUDA_ARRAY_DESCRIPTOR arrayDesc;
+    retErr = PI_CHECK_ERROR(cuArrayGetDescriptor(&arrayDesc, array));
+
+    int elementByteSize = imageElementByteSize(arrayDesc);
+
+    size_t byteOffsetX = origin[0] * elementByteSize * arrayDesc.NumChannels;
+    size_t bytesToCopy = elementByteSize * arrayDesc.NumChannels * region[0];
+
+    pi_mem_type imgType = image->mem_.surface_mem_.get_image_type();
+    if (imgType == PI_MEM_TYPE_IMAGE1D) {
+      retErr = PI_CHECK_ERROR(
+          cuMemcpyAtoHAsync(ptr, array, byteOffsetX, bytesToCopy, cuStream));
+    } else {
+      size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
+      size_t srcOffset[3] = {byteOffsetX, origin[1], origin[2]};
+
+      retErr = commonEnqueueMemImageNDCopy(
+          cuStream, imgType, adjustedRegion, &array, CU_MEMORYTYPE_ARRAY,
+          srcOffset, ptr, CU_MEMORYTYPE_HOST, nullptr);
+
+      if (retErr != PI_SUCCESS) {
+        return retErr;
+      }
+    }
+
+    if (event) {
+      auto new_event =
+          _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_READ, command_queue);
+      new_event->record();
+      *event = new_event;
+    }
+
+    if (blocking_read) {
+      retErr = PI_CHECK_ERROR(cuStreamSynchronize(cuStream));
+    }
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  return retErr;
 }
 
-/// \TODO Not implemented in CUDA, requires untie from OpenCL
 pi_result
 cuda_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
                             pi_bool blocking_write, const size_t *origin,
@@ -3201,11 +3818,63 @@ cuda_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
                             size_t input_slice_pitch, const void *ptr,
                             pi_uint32 num_events_in_wait_list,
                             const pi_event *event_wait_list, pi_event *event) {
-  cl::sycl::detail::pi::die("cuda_piEnqueueMemImageWrite not implemented");
-  return {};
+  assert(command_queue != nullptr);
+  assert(image != nullptr);
+  assert(image->mem_type_ == _pi_mem::mem_type::surface);
+
+  pi_result retErr = PI_SUCCESS;
+  CUstream cuStream = command_queue->get();
+
+  try {
+    ScopedContext active(command_queue->get_context());
+
+    if (event_wait_list) {
+      cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                               event_wait_list, nullptr);
+    }
+
+    CUarray array = image->mem_.surface_mem_.get_array();
+
+    CUDA_ARRAY_DESCRIPTOR arrayDesc;
+    retErr = PI_CHECK_ERROR(cuArrayGetDescriptor(&arrayDesc, array));
+
+    int elementByteSize = imageElementByteSize(arrayDesc);
+
+    size_t byteOffsetX = origin[0] * elementByteSize * arrayDesc.NumChannels;
+    size_t bytesToCopy = elementByteSize * arrayDesc.NumChannels * region[0];
+
+    pi_mem_type imgType = image->mem_.surface_mem_.get_image_type();
+    if (imgType == PI_MEM_TYPE_IMAGE1D) {
+      retErr = PI_CHECK_ERROR(
+          cuMemcpyHtoAAsync(array, byteOffsetX, ptr, bytesToCopy, cuStream));
+    } else {
+      size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
+      size_t dstOffset[3] = {byteOffsetX, origin[1], origin[2]};
+
+      retErr = commonEnqueueMemImageNDCopy(
+          cuStream, imgType, adjustedRegion, ptr, CU_MEMORYTYPE_HOST, nullptr,
+          &array, CU_MEMORYTYPE_ARRAY, dstOffset);
+
+      if (retErr != PI_SUCCESS) {
+        return retErr;
+      }
+    }
+
+    if (event) {
+      auto new_event =
+          _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_WRITE, command_queue);
+      new_event->record();
+      *event = new_event;
+    }
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  return retErr;
 }
 
-/// \TODO Not implemented in CUDA, requires untie from OpenCL
 pi_result cuda_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
                                      pi_mem dst_image, const size_t *src_origin,
                                      const size_t *dst_origin,
@@ -3213,8 +3882,72 @@ pi_result cuda_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
                                      pi_uint32 num_events_in_wait_list,
                                      const pi_event *event_wait_list,
                                      pi_event *event) {
-  cl::sycl::detail::pi::die("cuda_piEnqueueMemImageCopy not implemented");
-  return {};
+  assert(src_image->mem_type_ == _pi_mem::mem_type::surface);
+  assert(dst_image->mem_type_ == _pi_mem::mem_type::surface);
+  assert(src_image->mem_.surface_mem_.get_image_type() ==
+         dst_image->mem_.surface_mem_.get_image_type());
+
+  pi_result retErr = PI_SUCCESS;
+  CUstream cuStream = command_queue->get();
+
+  try {
+    ScopedContext active(command_queue->get_context());
+
+    if (event_wait_list) {
+      cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                               event_wait_list, nullptr);
+    }
+
+    CUarray srcArray = src_image->mem_.surface_mem_.get_array();
+    CUarray dstArray = dst_image->mem_.surface_mem_.get_array();
+
+    CUDA_ARRAY_DESCRIPTOR srcArrayDesc;
+    retErr = PI_CHECK_ERROR(cuArrayGetDescriptor(&srcArrayDesc, srcArray));
+    CUDA_ARRAY_DESCRIPTOR dstArrayDesc;
+    retErr = PI_CHECK_ERROR(cuArrayGetDescriptor(&dstArrayDesc, dstArray));
+
+    assert(srcArrayDesc.Format == dstArrayDesc.Format);
+    assert(srcArrayDesc.NumChannels == dstArrayDesc.NumChannels);
+
+    int elementByteSize = imageElementByteSize(srcArrayDesc);
+
+    size_t dstByteOffsetX =
+        dst_origin[0] * elementByteSize * srcArrayDesc.NumChannels;
+    size_t srcByteOffsetX =
+        src_origin[0] * elementByteSize * dstArrayDesc.NumChannels;
+    size_t bytesToCopy = elementByteSize * srcArrayDesc.NumChannels * region[0];
+
+    pi_mem_type imgType = src_image->mem_.surface_mem_.get_image_type();
+    if (imgType == PI_MEM_TYPE_IMAGE1D) {
+      retErr = PI_CHECK_ERROR(cuMemcpyAtoA(dstArray, dstByteOffsetX, srcArray,
+                                           srcByteOffsetX, bytesToCopy));
+    } else {
+      size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
+      size_t srcOffset[3] = {srcByteOffsetX, src_origin[1], src_origin[2]};
+      size_t dstOffset[3] = {dstByteOffsetX, dst_origin[1], dst_origin[2]};
+
+      retErr = commonEnqueueMemImageNDCopy(
+          cuStream, imgType, adjustedRegion, &srcArray, CU_MEMORYTYPE_ARRAY,
+          srcOffset, &dstArray, CU_MEMORYTYPE_ARRAY, dstOffset);
+
+      if (retErr != PI_SUCCESS) {
+        return retErr;
+      }
+    }
+
+    if (event) {
+      auto new_event =
+          _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_COPY, command_queue);
+      new_event->record();
+      *event = new_event;
+    }
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  return retErr;
 }
 
 /// \TODO Not implemented in CUDA, requires untie from OpenCL
@@ -3246,13 +3979,13 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
   pi_result ret_err = PI_INVALID_OPERATION;
 
   // Currently no support for overlapping regions
-  if (buffer->get_map_ptr() != nullptr) {
+  if (buffer->mem_.buffer_mem_.get_map_ptr() != nullptr) {
     return ret_err;
   }
 
   // Allocate a pointer in the host to store the mapped information
-  auto hostPtr = buffer->map_to_ptr(offset, map_flags);
-  *ret_map = buffer->get_map_ptr();
+  auto hostPtr = buffer->mem_.buffer_mem_.map_to_ptr(offset, map_flags);
+  *ret_map = buffer->mem_.buffer_mem_.get_map_ptr();
   if (hostPtr) {
     ret_err = PI_SUCCESS;
   }
@@ -3291,15 +4024,17 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
   assert(command_queue != nullptr);
   assert(mapped_ptr != nullptr);
   assert(memobj != nullptr);
-  assert(memobj->get_map_ptr() != nullptr);
-  assert(memobj->get_map_ptr() == mapped_ptr);
+  assert(memobj->mem_.buffer_mem_.get_map_ptr() != nullptr);
+  assert(memobj->mem_.buffer_mem_.get_map_ptr() == mapped_ptr);
 
-  if ((memobj->get_map_flags() & CL_MAP_WRITE) ||
-      (memobj->get_map_flags() & CL_MAP_WRITE_INVALIDATE_REGION)) {
+  if ((memobj->mem_.buffer_mem_.get_map_flags() & CL_MAP_WRITE) ||
+      (memobj->mem_.buffer_mem_.get_map_flags() &
+       CL_MAP_WRITE_INVALIDATE_REGION)) {
     ret_err = cuda_piEnqueueMemBufferWrite(
-        command_queue, memobj, true, memobj->get_map_offset(mapped_ptr),
-        memobj->get_size(), mapped_ptr, num_events_in_wait_list,
-        event_wait_list, retEvent);
+        command_queue, memobj, true,
+        memobj->mem_.buffer_mem_.get_map_offset(mapped_ptr),
+        memobj->mem_.buffer_mem_.get_size(), mapped_ptr,
+        num_events_in_wait_list, event_wait_list, retEvent);
   } else {
     if (retEvent) {
       try {
@@ -3314,7 +4049,7 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
     }
   }
 
-  memobj->unmap(mapped_ptr);
+  memobj->mem_.buffer_mem_.unmap(mapped_ptr);
   return ret_err;
 }
 
@@ -3759,6 +4494,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMGetMemAllocInfo, cuda_piextUSMGetMemAllocInfo)
 
   _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)
+  _PI_CL(piextKernelSetArgSampler, cuda_piextKernelSetArgSampler)
 
 #undef _PI_CL
 

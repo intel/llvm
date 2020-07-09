@@ -95,14 +95,23 @@ typedef void* __ocl_event_t;
 typedef void* __ocl_sampler_t;
 // Adding only the datatypes that can be currently used in SYCL,
 // as per SYCL spec 1.2.1
-typedef void *__ocl_image1d_ro_t;
-typedef void *__ocl_image2d_ro_t;
-typedef void *__ocl_image3d_ro_t;
-typedef void *__ocl_image1d_wo_t;
-typedef void *__ocl_image2d_wo_t;
-typedef void *__ocl_image3d_wo_t;
-typedef void *__ocl_image1d_array_ro_t;
-typedef void *__ocl_image2d_array_ro_t;
-typedef void *__ocl_image1d_array_wo_t;
-typedef void *__ocl_image2d_array_wo_t;
+#define __SYCL_SPV_IMAGE_TYPE(NAME) typedef void *__ocl_##NAME##_t
+
+#define __SYCL_SPV_SAMPLED_AND_IMAGE_TYPE(NAME)                                \
+  __SYCL_SPV_IMAGE_TYPE(NAME);                                                 \
+  typedef void *__ocl_sampled_##NAME##_t
+
+__SYCL_SPV_SAMPLED_AND_IMAGE_TYPE(image1d_ro);
+__SYCL_SPV_SAMPLED_AND_IMAGE_TYPE(image2d_ro);
+__SYCL_SPV_SAMPLED_AND_IMAGE_TYPE(image3d_ro);
+__SYCL_SPV_IMAGE_TYPE(image1d_wo);
+__SYCL_SPV_IMAGE_TYPE(image2d_wo);
+__SYCL_SPV_IMAGE_TYPE(image3d_wo);
+__SYCL_SPV_SAMPLED_AND_IMAGE_TYPE(image1d_array_ro);
+__SYCL_SPV_SAMPLED_AND_IMAGE_TYPE(image2d_array_ro);
+__SYCL_SPV_IMAGE_TYPE(image1d_array_wo);
+__SYCL_SPV_IMAGE_TYPE(image2d_array_wo);
+
+#undef __SYCL_SPV_IMAGE_TYPE
+#undef __SYCL_SPV_SAMPLED_AND_IMAGE_TYPE
 #endif

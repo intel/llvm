@@ -160,8 +160,9 @@ RetT *waitUntilBuilt(KernelProgramCache &Cache,
 ///         cache. Accepts nothing. Return pointer to built entity.
 template <typename RetT, typename ExceptionT, typename KeyT, typename AcquireFT,
           typename GetCacheFT, typename BuildFT>
-RetT *getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey,
-                 AcquireFT &&Acquire, GetCacheFT &&GetCache, BuildFT &&Build) {
+KernelProgramCache::BuildResult<RetT> *
+getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
+           GetCacheFT &&GetCache, BuildFT &&Build) {
   bool InsertionTookPlace;
   KernelProgramCache::BuildResult<RetT> *BuildResult;
 
@@ -183,7 +184,7 @@ RetT *getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey,
       RetT *Result = waitUntilBuilt<ExceptionT>(KPCache, BuildResult);
 
       if (Result)
-        return Result;
+        return BuildResult;
 
       // Previous build is failed. There was no SYCL exception though.
       // We might try to build once more.
@@ -213,7 +214,7 @@ RetT *getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey,
 
     KPCache.notifyAllBuild();
 
-    return Desired;
+    return BuildResult;
   } catch (const exception &Ex) {
     BuildResult->Error.Msg = Ex.what();
     BuildResult->Error.Code = Ex.get_cl_code();
@@ -395,14 +396,15 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
   if (Prg)
     Prg->stableSerializeSpecConstRegistry(SpecConsts);
 
-  return getOrBuild<PiProgramT, compile_program_error>(
+  auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
       Cache, KeyT(std::move(SpecConsts), KSId), AcquireF, GetF, BuildF);
+  return BuildResult->Ptr.load();
 }
 
-RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
-                                               const context &Context,
-                                               const string_class &KernelName,
-                                               const program_impl *Prg) {
+std::pair<RT::PiKernel, std::mutex *>
+ProgramManager::getOrCreateKernel(OSModuleHandle M, const context &Context,
+                                  const string_class &KernelName,
+                                  const program_impl *Prg) {
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << M << ", "
               << getRawSyclObjImpl(Context) << ", " << KernelName << ")\n";
@@ -436,8 +438,10 @@ RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
     return Result;
   };
 
-  return getOrBuild<PiKernelT, invalid_object_error>(Cache, KernelName,
-                                                     AcquireF, GetF, BuildF);
+  auto BuildResult = static_cast<KernelProgramCache::BuildResultKernel *>(
+      getOrBuild<PiKernelT, invalid_object_error>(Cache, KernelName, AcquireF,
+                                                  GetF, BuildF));
+  return std::make_pair(BuildResult->Ptr.load(), &(BuildResult->MKernelMutex));
 }
 
 RT::PiProgram
@@ -769,6 +773,14 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
   if (Context->getPlugin().getBackend() == backend::level0) {
     LinkDeviceLibs = false;
   }
+
+  // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
+  // We do not link with other device libraries, because it may fail
+  // due to unrecognized SPIRV format of those libraries.
+  if (std::string(LinkOpts).find(std::string("-cmc")) != std::string::npos ||
+      std::string(LinkOpts).find(std::string("-vc-codegen")) !=
+          std::string::npos)
+    LinkDeviceLibs = false;
 
   std::vector<RT::PiProgram> LinkPrograms;
   if (LinkDeviceLibs) {

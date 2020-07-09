@@ -47,6 +47,12 @@
 #endif
 #endif
 
+#ifdef _WIN32
+#define __SYCL_DEPRECATED(message) __declspec(deprecated(message))
+#else
+#define __SYCL_DEPRECATED(message) __attribute__((deprecated(message)))
+#endif
+
 // inline constexpr is a C++17 feature
 #if __cplusplus >= 201703L
 #define __SYCL_INLINE_CONSTEXPR inline constexpr

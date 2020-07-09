@@ -29,7 +29,6 @@ struct Data {
   unsigned int max_local_range;
   unsigned int group_id;
   unsigned int group_range;
-  unsigned int uniform_group_range;
 };
 
 void check(queue &Queue, const int G, const int L, const char *SpvFile) {
@@ -72,9 +71,7 @@ void check(queue &Queue, const int G, const int L, const char *SpvFile) {
         syclacc[NdItem.get_global_id()].max_local_range =
             SG.get_max_local_range().get(0);
         syclacc[NdItem.get_global_id()].group_id = SG.get_group_id().get(0);
-        syclacc[NdItem.get_global_id()].group_range = SG.get_group_range();
-        syclacc[NdItem.get_global_id()].uniform_group_range =
-            SG.get_uniform_group_range();
+        syclacc[NdItem.get_global_id()].group_range = SG.get_group_range().get(0);
       });
     });
     auto syclacc = syclbuf.get_access<access::mode::read_write>();
@@ -87,8 +84,6 @@ void check(queue &Queue, const int G, const int L, const char *SpvFile) {
       exit_if_not_equal(syclacc[j].group_id, oclacc[j].group_id, "group_id");
       exit_if_not_equal(syclacc[j].group_range, oclacc[j].group_range,
                         "group_range");
-      exit_if_not_equal(syclacc[j].uniform_group_range,
-                        oclacc[j].uniform_group_range, "uniform_group_range");
     }
   } catch (exception e) {
     std::cout << "SYCL exception caught: " << e.what();

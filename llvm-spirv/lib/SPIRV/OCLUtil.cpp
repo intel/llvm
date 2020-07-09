@@ -303,7 +303,7 @@ Type *decodeVecTypeHint(LLVMContext &C, unsigned Code) {
   }
   if (VecWidth < 1)
     return ST;
-  return VectorType::get(ST, VecWidth);
+  return FixedVectorType::get(ST, VecWidth);
 }
 
 unsigned transVecTypeHint(MDNode *Node) {

@@ -1126,7 +1126,7 @@ void OCL20ToSPIRV::visitCallReadImageWithSampler(CallInst *CI,
 
         // SPIR-V instruction always returns 4-element vector
         if (IsRetScalar)
-          Ret = VectorType::get(Ret, 4);
+          Ret = FixedVectorType::get(Ret, 4);
         return getSPIRVFuncName(OpImageSampleExplicitLod,
                                 std::string(kSPIRVPostfix::ExtDivider) +
                                     getPostfixForReturnType(Ret));
@@ -1159,7 +1159,7 @@ void OCL20ToSPIRV::visitCallGetImageSize(CallInst *CI,
         Ret = CI->getType()->isIntegerTy(64) ? Type::getInt64Ty(*Ctx)
                                              : Type::getInt32Ty(*Ctx);
         if (Dim > 1)
-          Ret = VectorType::get(Ret, Dim);
+          Ret = FixedVectorType::get(Ret, Dim);
         if (Desc.Dim == DimBuffer)
           return getSPIRVFuncName(OpImageQuerySize, CI->getType());
         else {
@@ -1253,7 +1253,7 @@ void OCL20ToSPIRV::transWorkItemBuiltinsToVariables() {
     LLVM_DEBUG(dbgs() << "builtin variable name: " << BuiltinVarName << '\n');
     bool IsVec = I.getFunctionType()->getNumParams() > 0;
     Type *GVType =
-        IsVec ? VectorType::get(I.getReturnType(), 3) : I.getReturnType();
+        IsVec ? FixedVectorType::get(I.getReturnType(), 3) : I.getReturnType();
     auto BV = new GlobalVariable(*M, GVType, true, GlobalValue::ExternalLinkage,
                                  nullptr, BuiltinVarName, 0,
                                  GlobalVariable::NotThreadLocal, SPIRAS_Input);
@@ -1333,7 +1333,7 @@ void OCL20ToSPIRV::visitCallRelational(CallInst *CI, StringRef DemangledName) {
       [=](CallInst *, std::vector<Value *> &Args, Type *&Ret) {
         Ret = Type::getInt1Ty(*Ctx);
         if (CI->getOperand(0)->getType()->isVectorTy())
-          Ret = VectorType::get(
+          Ret = FixedVectorType::get(
               Type::getInt1Ty(*Ctx),
               cast<VectorType>(CI->getOperand(0)->getType())->getNumElements());
         return SPIRVName;
@@ -1350,7 +1350,7 @@ void OCL20ToSPIRV::visitCallRelational(CallInst *CI, StringRef DemangledName) {
                   ->getElementType()
                   ->isHalfTy())
             IntTy = Type::getInt16Ty(*Ctx);
-          Type *VTy = VectorType::get(
+          Type *VTy = FixedVectorType::get(
               IntTy, cast<VectorType>(NewCI->getType())->getNumElements());
           False = Constant::getNullValue(VTy);
           True = Constant::getAllOnesValue(VTy);

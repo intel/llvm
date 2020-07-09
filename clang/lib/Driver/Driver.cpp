@@ -401,6 +401,13 @@ DerivedArgList *Driver::TranslateInputArgs(const InputArgList &Args) const {
       continue;
     }
 
+    if (A->getOption().matches(options::OPT_offload_lib_Group)) {
+      if (!A->getNumValues()) {
+        Diag(clang::diag::warn_drv_unused_argument) << A->getSpelling();
+        continue;
+      }
+    }
+
     DAL->append(A);
   }
 
@@ -4053,9 +4060,9 @@ class OffloadingActionBuilder final {
         }
       }
 
-      // If there are no CUDA architectures provided then default to SM_30.
+      // If there are no CUDA architectures provided then default to SM_50.
       if (GpuArchList.empty()) {
-        GpuArchList.push_back(CudaArch::SM_30);
+        GpuArchList.push_back(CudaArch::SM_50);
       }
 
       return false;
@@ -4832,9 +4839,23 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       }
     }
 
-    if (!UnbundlerInputs.empty()) {
+    if (!UnbundlerInputs.empty() && !PL.empty()) {
       Action *PartialLink =
           C.MakeAction<PartialLinkJobAction>(UnbundlerInputs, types::TY_Object);
+      if (!LastArg) {
+        auto *TA = dyn_cast<Action>(UnbundlerInputs.back());
+        assert(TA->getKind() == Action::InputClass ||
+               TA->getKind() == Action::OffloadClass);
+
+        // If the Action is of OffloadAction type, use the HostAction of the
+        // specific Offload Action to set LastArg
+        if (auto *OA = dyn_cast<OffloadAction>(UnbundlerInputs.back()))
+          LastArg =
+              &(dyn_cast<InputAction>(OA->getHostDependence())->getInputArg());
+        else if (auto *IA = dyn_cast<InputAction>(UnbundlerInputs.back()))
+          // else set the LastArg based on Last InputAction
+          LastArg = &(IA->getInputArg());
+      }
       Action *Current = C.MakeAction<InputAction>(*LastArg, types::TY_Object);
       ActionList AL;
       AL.push_back(PartialLink);
@@ -4887,7 +4908,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         UnbundlerInput = LI;
       }
     }
-    if (UnbundlerInput) {
+    if (UnbundlerInput && !PL.empty()) {
       if (auto *IA = dyn_cast<InputAction>(UnbundlerInput)) {
         std::string FileName = IA->getInputArg().getAsString(Args);
         Arg *InputArg = MakeInputArg(Args, Opts, FileName);
