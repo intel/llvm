@@ -17,8 +17,7 @@ using namespace sycl::intel;
 template <typename T>
 void accessor_test(queue q, size_t N) {
   T sum = 0;
-  std::vector<T> output(N);
-  std::fill(output.begin(), output.end(), 0);
+  std::vector<T> output(N, 0);
   {
     buffer<T> sum_buf(&sum, 1);
     buffer<T> output_buf(output.data(), output.size());
