@@ -612,10 +612,15 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   if (NumDevices)
     *NumDevices = ZeDeviceCount;
 
+  if (NumEntries == 0) {
+    assert(Devices == nullptr &&
+           "Devices should be nullptr when querying the number of devices");
+    return PI_SUCCESS;
+  }
+
   try {
-    // TODO: Delete array at teardown
-    ze_device_handle_t *ZeDevices = new ze_device_handle_t[ZeDeviceCount];
-    ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, ZeDevices));
+    std::vector<ze_device_handle_t> ZeDevices(ZeDeviceCount);
+    ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, ZeDevices.data()));
 
     for (uint32_t I = 0; I < ZeDeviceCount; ++I) {
       if (I < NumEntries) {
@@ -2003,7 +2008,7 @@ pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex, size_t ArgSize,
   return PI_SUCCESS;
 }
 
-// Special version of piKernelSetArg to accept pi_mem and pi_sampler.
+// Special version of piKernelSetArg to accept pi_mem.
 pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
                                   const pi_mem *ArgValue) {
   // TODO: the better way would probably be to add a new PI API for
@@ -2018,6 +2023,13 @@ pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
                                (*ArgValue)->getZeHandlePtr()));
 
   return PI_SUCCESS;
+}
+
+// Special version of piKernelSetArg to accept pi_sampler.
+pi_result piextKernelSetArgSampler(pi_kernel Kernel, pi_uint32 ArgIndex,
+                                   const pi_sampler *ArgValue) {
+  die("piextKernelSetArgSampler: not implemented");
+  return {};
 }
 
 pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
@@ -2370,7 +2382,6 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
 }
 
 pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
-  ze_result_t ZeResult;
 
   if (NumEvents && !EventList) {
     return PI_INVALID_EVENT;
@@ -2379,15 +2390,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
   for (uint32_t I = 0; I < NumEvents; I++) {
     ze_event_handle_t ZeEvent = EventList[I]->ZeEvent;
     zePrint("ZeEvent = %lx\n", pi_cast<std::uintptr_t>(ZeEvent));
-    // TODO: Using UINT32_MAX for timeout should have the desired
-    // effect of waiting until the event is trigerred, but it seems that
-    // it is causing an OS crash, so use an interruptable loop for now.
-    do {
-      ZeResult = ZE_CALL_NOCHECK(zeEventHostSynchronize(ZeEvent, 100000));
-    } while (ZeResult == ZE_RESULT_NOT_READY);
-
-    // Check the result to be success.
-    ZE_CALL(ZeResult);
+    ZE_CALL(zeEventHostSynchronize(ZeEvent, UINT32_MAX));
 
     // NOTE: we are destroying associated command lists here to free
     // resources sooner in case RT is not calling piEventRelease soon enough.

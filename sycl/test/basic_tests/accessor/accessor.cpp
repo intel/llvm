@@ -30,6 +30,16 @@ struct IdxID3 {
   operator sycl::id<3>() { return sycl::id<3>(x, y, z); }
 };
 
+template <typename T>
+using AccAlias =
+    cl::sycl::accessor<T, 1, cl::sycl::access::mode::write,
+                       cl::sycl::access::target::global_buffer>;
+template <typename T>
+struct InheritedAccessor : public AccAlias<T> {
+
+  using AccAlias<T>::AccAlias;
+};
+
 template <typename Acc> struct AccWrapper { Acc accessor; };
 
 template <typename Acc1, typename Acc2> struct AccsWrapper {
@@ -488,6 +498,72 @@ int main() {
         assert(host_acc[0] == 399);
       }
 
+    } catch (sycl::exception e) {
+      std::cout << "SYCL exception caught: " << e.what();
+      return 1;
+    }
+  }
+  {
+    try {
+      int data = -1;
+      int cnst = 399;
+
+      {
+        sycl::buffer<int, 1> A(&cnst, sycl::range<1>(1));
+        sycl::buffer<int, 1> B(&cnst, sycl::range<1>(1));
+        sycl::buffer<int, 1> C(&data, sycl::range<1>(1));
+
+        sycl::queue queue;
+        queue.submit([&](sycl::handler &cgh) {
+          sycl::accessor<int, 1, sycl::access::mode::write,
+                         sycl::access::target::global_buffer>
+              AccA(A, cgh);
+          sycl::accessor<int, 1, sycl::access::mode::read,
+                         sycl::access::target::constant_buffer>
+              AccB(B, cgh);
+          InheritedAccessor<int> AccC(C, cgh);
+          cgh.single_task<class acc_base>([=]() {
+            AccC[0] = AccA[0] + AccB[0];
+          });
+        });
+
+#ifndef simplification_test
+        auto host_acc = C.get_access<sycl::access::mode::read>();
+#else
+        sycl::host_accessor host_acc(C, sycl::read_only);
+#endif
+        assert(host_acc[0] == 798);
+      }
+
+    } catch (sycl::exception e) {
+      std::cout << "SYCL exception caught: " << e.what();
+      return 1;
+    }
+  }
+
+  // Accessor with buffer size 0.
+  {
+    try {
+      int data[10] = {0};
+      {
+        sycl::buffer<int, 1> b{&data[0], 10};
+        sycl::buffer<int, 1> b1{0};
+
+        sycl::queue queue;
+        queue.submit([&](sycl::handler &cgh) {
+          sycl::accessor<int, 1, sycl::access::mode::read_write,
+                         sycl::access::target::global_buffer>
+              B(b, cgh);
+          auto B1 = b1.template get_access<sycl::access::mode::read_write>(cgh);
+
+          cgh.single_task<class acc_with_zero_sized_buffer>([=]() {
+            B[0] = 1;
+          });
+        });
+      }
+      assert(!"invalid device accessor buffer size exception wasn't caught");
+    } catch (const sycl::invalid_object_error &e) {
+      assert(e.get_cl_code() == CL_INVALID_VALUE);
     } catch (sycl::exception e) {
       std::cout << "SYCL exception caught: " << e.what();
       return 1;

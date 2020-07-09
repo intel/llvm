@@ -90,7 +90,7 @@ The compiler-generated code for a call to such a lambda function would look like
 When offloading the kernel to a device, the lambda/function object's 
 function operator cannot be directly called with a capture object address.
 Instead, the code generated for the device is in the form of a
-“kernel caller” and a “kernel callee”.
+"kernel caller" and a "kernel callee".
 The callee is a clone of the SYCL kernel object.
 The caller is generated in the form of an OpenCL kernel function.
 It receives the lambda capture object in pieces, assembles the pieces

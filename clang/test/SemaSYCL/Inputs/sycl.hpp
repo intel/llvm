@@ -37,6 +37,20 @@ enum class address_space : int {
 };
 } // namespace access
 
+namespace detail {
+namespace half_impl {
+struct half {
+#ifdef __SYCL_DEVICE_ONLY
+  _Float16 data;
+#else
+  char data[2];
+#endif
+};
+} // namespace half_impl
+} // namespace detail
+
+using half = detail::half_impl::half;
+
 template <int dim>
 struct range {
 };
