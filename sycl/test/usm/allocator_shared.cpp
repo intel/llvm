@@ -8,7 +8,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 
-//==---- allocator_shared.cpp - Allocate Shared test -------------------==//
+//==-------- allocator_shared.cpp - Allocate Shared test -------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,6 +18,7 @@
 
 #include <CL/sycl.hpp>
 
+#include <cassert>
 #include <memory>
 
 using namespace cl::sycl;
@@ -46,14 +47,7 @@ int main() {
     assert((*ptr2 == 42) && "Shared construct passed.");
   }
 
-  if (dev.get_info<info::device::usm_device_allocations>()) {
-    usm_allocator<int, usm::alloc::device> alloc(ctxt, dev);
-    auto ptr1 = std::allocate_shared<int>(alloc);
-
-    // Test construction
-    auto ptr2 = std::allocate_shared<int>(alloc, 42);
-    // Cannot actually construct value for device pointers, but should not die.
-  }
+  // Device allocations are not supported due to how allocated_shared is written.
 
   return 0;
 }
