@@ -92,11 +92,6 @@ using namespace OCLUtil;
 
 namespace SPIRV {
 
-cl::opt<bool> SPIRVAllowUnknownIntrinsics(
-    "spirv-allow-unknown-intrinsics", cl::init(false),
-    cl::desc("Unknown LLVM intrinsics will be translated as external function "
-             "calls in SPIR-V"));
-
 static void foreachKernelArgMD(
     MDNode *MD, SPIRVFunction *BF,
     std::function<void(const std::string &Str, SPIRVFunctionParameter *BA)>
@@ -509,8 +504,8 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
   if (auto BF = getTranslatedValue(F))
     return static_cast<SPIRVFunction *>(BF);
 
-  if (F->isIntrinsic() &&
-      (!SPIRVAllowUnknownIntrinsics || isKnownIntrinsic(F->getIntrinsicID()))) {
+  if (F->isIntrinsic() && (!BM->isSPIRVAllowUnknownIntrinsicsEnabled() ||
+                           isKnownIntrinsic(F->getIntrinsicID()))) {
     // We should not translate LLVM intrinsics as a function
     assert(none_of(F->user_begin(), F->user_end(),
                    [this](User *U) { return getTranslatedValue(U); }) &&
@@ -2131,7 +2126,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     // change is pending the trap/abort intrisinc implementation.
     return nullptr;
   default:
-    if (SPIRVAllowUnknownIntrinsics)
+    if (BM->isSPIRVAllowUnknownIntrinsicsEnabled())
       return BM->addCallInst(
           transFunctionDecl(II->getCalledFunction()),
           transArguments(II, BB,
