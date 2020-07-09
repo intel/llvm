@@ -185,7 +185,6 @@ class atomic {
       detail::GetSpirvMemoryScope<addressSpace>::scope;
 
 public:
-  using AtomicPtrType = typename detail::PtrValueType<T, addressSpace>::type;
   template <typename pointerT>
 #ifdef __SYCL_DEVICE_ONLY__
   atomic(multi_ptr<pointerT, addressSpace> ptr)
@@ -212,7 +211,7 @@ public:
             typename = typename std::enable_if<
                 _Space == addressSpace &&
                 addressSpace == access::address_space::global_space>::type>
-  atomic(const atomic<T, access::address_space::global_device_space> &&RHS) {
+  atomic(atomic<T, access::address_space::global_device_space> &&RHS) {
     Ptr = RHS.Ptr;
   }
 
@@ -318,7 +317,7 @@ public:
 
 private:
 #ifdef __SYCL_DEVICE_ONLY__
-  AtomicPtrType *Ptr;
+  typename detail::PtrValueType<T, addressSpace>::type *Ptr;
 #else
   std::atomic<T> *Ptr;
 #endif
