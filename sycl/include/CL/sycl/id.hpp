@@ -109,7 +109,9 @@ public:
 // OP is: ==, !=
 #ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
   using detail::array<dimensions>::operator==;
+#if __cpp_impl_three_way_comparison < 201907
   using detail::array<dimensions>::operator!=;
+#endif
 
   /* Enable operators with integral types.
    * Template operators take precedence than type conversion. In the case of

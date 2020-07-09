@@ -935,7 +935,7 @@ void KernelObjVisitor::VisitRecord(CXXRecordDecl *Owner, ParentTy &Parent,
 
 // A base type that the SYCL OpenCL Kernel construction task uses to implement
 // individual tasks.
-template <typename Derived> class SyclKernelFieldHandler {
+class SyclKernelFieldHandler {
 protected:
   Sema &SemaRef;
   SyclKernelFieldHandler(Sema &S) : SemaRef(S) {}
@@ -1001,11 +1001,12 @@ public:
   virtual bool enterArray() { return true; }
   virtual bool nextElement(QualType) { return true; }
   virtual bool leaveArray(FieldDecl *, QualType, int64_t) { return true; }
+
+  virtual ~SyclKernelFieldHandler() = default;
 };
 
 // A type to check the validity of all of the argument types.
-class SyclKernelFieldChecker
-    : public SyclKernelFieldHandler<SyclKernelFieldChecker> {
+class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   bool IsInvalid = false;
   DiagnosticsEngine &Diag;
 
@@ -1101,8 +1102,7 @@ public:
 };
 
 // A type to Create and own the FunctionDecl for the kernel.
-class SyclKernelDeclCreator
-    : public SyclKernelFieldHandler<SyclKernelDeclCreator> {
+class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   FunctionDecl *KernelDecl;
   llvm::SmallVector<ParmVarDecl *, 8> Params;
   SyclKernelFieldChecker &ArgChecker;
@@ -1286,8 +1286,7 @@ public:
   using SyclKernelFieldHandler::handleSyclSamplerType;
 };
 
-class SyclKernelBodyCreator
-    : public SyclKernelFieldHandler<SyclKernelBodyCreator> {
+class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   SyclKernelDeclCreator &DeclCreator;
   llvm::SmallVector<Stmt *, 16> BodyStmts;
   llvm::SmallVector<Stmt *, 16> FinalizeStmts;
@@ -1696,12 +1695,8 @@ public:
   using SyclKernelFieldHandler::leaveStruct;
 };
 
-class SyclKernelIntHeaderCreator
-    : public SyclKernelFieldHandler<SyclKernelIntHeaderCreator> {
+class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   SYCLIntegrationHeader &Header;
-  const CXXRecordDecl *KernelObj;
-  // Necessary to figure out the offset of the base class.
-  const CXXRecordDecl *CurStruct = nullptr;
   int64_t CurOffset = 0;
 
   void addParam(const FieldDecl *FD, QualType ArgTy,
@@ -1720,7 +1715,7 @@ public:
   SyclKernelIntHeaderCreator(Sema &S, SYCLIntegrationHeader &H,
                              const CXXRecordDecl *KernelObj, QualType NameType,
                              StringRef Name, StringRef StableName)
-      : SyclKernelFieldHandler(S), Header(H), KernelObj(KernelObj) {
+      : SyclKernelFieldHandler(S), Header(H) {
     Header.startKernel(Name, NameType, StableName, KernelObj->getLocation());
   }
 

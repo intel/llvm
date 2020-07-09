@@ -203,7 +203,7 @@ public:
 
   unsigned GetDefaultDwarfVersion() const override { return 2; }
 
-  Tool *SelectTool(const JobAction &JA) const;
+  Tool *SelectTool(const JobAction &JA) const override;
 
   const ToolChain &HostTC;
   CudaInstallationDetector CudaInstallation;

@@ -60,7 +60,7 @@ public:
   // Casts from int value to a type tag.
   static Expected<Type> getTypeTag(int T) {
     if (T < first || T > last)
-      return createStringError(std::error_code(), "bad property type " + T);
+      return createStringError(std::error_code(), "bad property type ", T);
     return static_cast<Type>(T);
   }
 
