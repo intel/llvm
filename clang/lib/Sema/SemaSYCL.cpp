@@ -2472,13 +2472,12 @@ static void emitRecordType(raw_ostream &OS, QualType T, const CXXRecordDecl *RD,
     emitWithoutAnonNamespaces(OS, T.getCanonicalType().getAsString(TypePolicy));
     return;
   }
-  
+
   const NamespaceDecl *NS = dyn_cast<NamespaceDecl>(RD->getDeclContext());
   RD->printQualifiedName(RecOS, TypePolicy,
                          !(NS && NS->isAnonymousNamespace()));
   return eraseAnonNamespace(OS, RecOS.str());
 }
-
 
 static void emitKernelNameType(QualType T, ASTContext &Ctx, raw_ostream &OS,
                                const PrintingPolicy &TypePolicy) {
@@ -2486,7 +2485,7 @@ static void emitKernelNameType(QualType T, ASTContext &Ctx, raw_ostream &OS,
     emitRecordType(OS, T, T->getAsCXXRecordDecl(), TypePolicy);
     return;
   }
-  
+
   if (T->isEnumeralType())
     OS << "::";
   emitWithoutAnonNamespaces(OS, T.getCanonicalType().getAsString(TypePolicy));
