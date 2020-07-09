@@ -706,8 +706,7 @@ static QualType calculateKernelNameType(ASTContext &Ctx,
   const TemplateArgumentList *TAL =
       KernelCallerFunc->getTemplateSpecializationArgs();
   assert(TAL && "No template argument info");
-  return TypeName::getFullyQualifiedType(TAL->get(0).getAsType(), Ctx,
-                                         /*WithGlobalNSPrefix=*/true);
+  return TAL->get(0).getAsType().getCanonicalType();
 }
 
 // Gets a name for the OpenCL kernel function, calculated from the first
@@ -1761,10 +1760,7 @@ public:
            "Incorrect template args for Accessor Type");
     // Get specialization constant ID type, which is the second template
     // argument.
-    QualType SpecConstIDTy =
-        TypeName::getFullyQualifiedType(TemplateArgs.get(1).getAsType(),
-                                        SemaRef.getASTContext(), true)
-            .getCanonicalType();
+    QualType SpecConstIDTy = TemplateArgs.get(1).getAsType().getCanonicalType();
     const std::string SpecConstName = PredefinedExpr::ComputeName(
         SemaRef.getASTContext(), PredefinedExpr::UniqueStableNameType,
         SpecConstIDTy);
@@ -2446,40 +2442,42 @@ static void printTemplateArguments(ASTContext &Ctx, raw_ostream &ArgOS,
   ArgOS << ">";
 }
 
-static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
-                                           const PrintingPolicy &TypePolicy) {
-
-  QualType FullyQualifiedType = TypeName::getFullyQualifiedType(T, Ctx, true);
-
-  const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
-
-  if (!RD)
-    return eraseAnonNamespace(FullyQualifiedType.getAsString(TypePolicy));
-
-  // If kernel name type is a template specialization with enum type
-  // template parameters, enumerators in name type string should be
-  // replaced  with their underlying value since the enum definition
-  // is not visible in integration header.
-  if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
-    SmallString<64> Buf;
-    llvm::raw_svector_ostream ArgOS(Buf);
-
-    // Print the qualifiers for the type.
-    FullyQualifiedType.getQualifiers().print(ArgOS, TypePolicy,
+static std::string printRecordType(QualType T, const CXXRecordDecl *RD,
+                                   const PrintingPolicy &TypePolicy) {
+  SmallString<64> Buf;
+  llvm::raw_svector_ostream OS(Buf);
+  T.getCanonicalType().getQualifiers().print(OS, TypePolicy,
                                              /*appendSpaceIfNotEmpty*/ true);
+  if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
 
     // Print template class name
-    TSD->printQualifiedName(ArgOS, TypePolicy, /*WithGlobalNsPrefix*/ true);
+    TSD->printQualifiedName(OS, TypePolicy, /*WithGlobalNsPrefix*/ true);
 
     // Print template arguments substituting enumerators
     ASTContext &Ctx = RD->getASTContext();
     const TemplateArgumentList &Args = TSD->getTemplateArgs();
-    printTemplateArguments(Ctx, ArgOS, Args.asArray(), TypePolicy);
+    printTemplateArguments(Ctx, OS, Args.asArray(), TypePolicy);
 
-    return eraseAnonNamespace(ArgOS.str().str());
+    return eraseAnonNamespace(OS.str().str());
   }
+  if (RD->getDeclContext()->isFunctionOrMethod())
+    return eraseAnonNamespace(T.getCanonicalType().getAsString(TypePolicy));
+  const NamespaceDecl *NS = dyn_cast<NamespaceDecl>(RD->getDeclContext());
+  RD->printQualifiedName(OS, TypePolicy, !(NS && NS->isAnonymousNamespace()));
+  return eraseAnonNamespace(OS.str().str());
+}
 
-  return eraseAnonNamespace(FullyQualifiedType.getAsString(TypePolicy));
+static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
+                                           const PrintingPolicy &TypePolicy) {
+  if (T->isRecordType())
+    return printRecordType(T, T->getAsCXXRecordDecl(), TypePolicy);
+  if (T->isEnumeralType()) {
+    SmallString<64> Buf;
+    llvm::raw_svector_ostream OS(Buf);
+    OS << "::" << T.getCanonicalType().getAsString(TypePolicy);
+    return eraseAnonNamespace(OS.str().str());
+  }
+  return eraseAnonNamespace(T.getCanonicalType().getAsString(TypePolicy));
 }
 
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
