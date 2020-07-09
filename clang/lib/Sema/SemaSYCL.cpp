@@ -1607,7 +1607,18 @@ public:
   }
 
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD) final {
-    const CXXRecordDecl *RD = FD->getType()->getAsCXXRecordDecl();
+
+    QualType FieldTy = FD->getType();
+
+    // Kernel Object field is an array of structs. Handle struct array element.
+    if (const ConstantArrayType *CAT =
+            SemaRef.Context.getAsConstantArrayType(FieldTy)) {
+      CXXRecordDecl *RD = CAT->getElementType()->getAsCXXRecordDecl();
+      addStructInit(RD);
+      return true;
+    }
+
+    const CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
 
     // Initializers for accessors inside stream not added.
     if (!Util::isSyclStreamType(FD->getType()))

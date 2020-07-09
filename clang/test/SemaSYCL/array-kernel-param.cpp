@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s --dump-input never
 
 // This test checks that compiler generates correct kernel arguments for
 // arrays, Accessor arrays, and structs containing Accessors.
@@ -23,6 +23,20 @@ int main() {
     Accessor member_acc[2];
   } struct_acc;
 
+  struct foo_inner {
+    int foo_inner_x;
+    int foo_inner_y;
+    int foo_inner_z[2];
+  };
+
+  struct foo {
+    int foo_a;
+    foo_inner foo_b[2];
+    int foo_c;
+  };
+
+  foo struct_array[2];
+
   a_kernel<class kernel_A>(
       [=]() {
         acc[1].use();
@@ -36,6 +50,11 @@ int main() {
   a_kernel<class kernel_C>(
       [=]() {
         struct_acc.member_acc[2].use();
+      });
+
+  a_kernel<class kernel_D>(
+      [=]() {
+        foo local = struct_array[1];
       });
 }
 
@@ -81,8 +100,8 @@ int main() {
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}array-kernel-param.cpp:37:7)' cinit
-// CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp:37:7)'
+// CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}array-kernel-param.cpp{{.*}})' cinit
+// CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp{{.*}})'
 // CHECK-NEXT: InitListExpr {{.*}} 'struct_acc_t'
 // CHECK-NEXT: InitListExpr {{.*}} 'Accessor [2]'
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'Accessor [2]'
@@ -93,3 +112,92 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}}__init
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}}__init
+
+// Check kernel_D parameters
+// CHECK: FunctionDecl {{.*}}kernel_D{{.*}} 'void (int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int)'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_a 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_x 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_y 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_x 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_y 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_c 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_a 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_x 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_y 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_x 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_y 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_c 'int'
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: DeclStmt
+// CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}array-kernel-param.cpp{{.*}})' cinit
+// CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp{{.*}})'
+
+// Initializer for struct array i.e. foo struct_array[2]
+// CHECK-NEXT: InitListExpr {{.*}} 'foo [2]'
+
+// Initializer for first element of struct_array
+// CHECK-NEXT: InitListExpr {{.*}} 'foo'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_a' 'int'
+// Initializer for struct array inside foo i.e. foo_inner foo_b[2]
+// CHECK-NEXT: InitListExpr {{.*}} 'foo_inner [2]'
+// Initializer for first element of inner struct array
+// CHECK-NEXT: InitListExpr {{.*}} 'foo_inner'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_x' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_y' 'int'
+// CHECK-NEXT: InitListExpr {{.*}} 'int [2]'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
+// Initializer for second element of inner struct array
+// CHECK-NEXT: InitListExpr {{.*}} 'foo_inner'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_x' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_y' 'int'
+// CHECK-NEXT: InitListExpr {{.*}} 'int [2]'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_c' 'int'
+
+// Initializer for second element of struct_array
+// CHECK-NEXT: InitListExpr {{.*}} 'foo'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_a' 'int'
+// CHECK-NEXT: InitListExpr {{.*}} 'foo_inner [2]'
+// CHECK-NEXT: InitListExpr {{.*}} 'foo_inner'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_x' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_y' 'int'
+// CHECK-NEXT: InitListExpr {{.*}} 'int [2]'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
+// CHECK-NEXT: InitListExpr {{.*}} 'foo_inner'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_x' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_y' 'int'
+// CHECK-NEXT: InitListExpr {{.*}} 'int [2]'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_c' 'int'
