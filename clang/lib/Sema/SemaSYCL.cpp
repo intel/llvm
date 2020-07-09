@@ -773,9 +773,9 @@ public:
                 std::ref(handlers), _1, _2)...)
 
   // The following simpler definition works with gcc 8.x and later.
-  //#define KF_FOR_EACH(FUNC)                                                   \
-//  handleField(Field, FieldTy, ([&](FieldDecl *FD, QualType FDTy) {          \
-//                return handlers.f(FD, FDTy);                                \
+  //#define KF_FOR_EACH(FUNC) \
+//  handleField(Field, FieldTy, ([&](FieldDecl *FD, QualType FDTy) { \
+//                return handlers.f(FD, FDTy); \
 //              })...)
 
   // Implements the 'for-each-visitor'  pattern.
