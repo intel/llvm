@@ -585,6 +585,14 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
   else
     return;
 
+  if (Attrs.hasFnAttribute(kVCMetadata::VCSIMTCall)) {
+    SPIRVWord SIMTMode = 0;
+    Attrs.getAttribute(AttributeList::FunctionIndex, kVCMetadata::VCSIMTCall)
+        .getValueAsString()
+        .getAsInteger(0, SIMTMode);
+    BF->addDecorate(DecorationSIMTCallINTEL, SIMTMode);
+  }
+
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
        ++I) {
     auto ArgNo = I->getArgNo();

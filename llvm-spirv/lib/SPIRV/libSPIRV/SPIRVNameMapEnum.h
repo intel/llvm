@@ -371,6 +371,7 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationVectorComputeVariableINTEL, "VectorComputeVariableINTEL");
   add(DecorationGlobalVariableOffsetINTEL, "GlobalVariableOffsetINTEL");
   add(DecorationFuncParamIOKind, "FuncParamIOKind");
+  add(DecorationSIMTCallINTEL, "SIMTCallINTEL");
 }
 SPIRV_DEF_NAMEMAP(Decoration, SPIRVDecorationNameMap)
 

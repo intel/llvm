@@ -477,6 +477,7 @@ enum Decoration {
   DecorationRestrictPointerEXT = 5355,
   DecorationAliasedPointer = 5356,
   DecorationAliasedPointerEXT = 5356,
+  DecorationSIMTCallINTEL = 5599,
   DecorationFuncParamKindINTEL = 9624,
   DecorationFuncParamDescINTEL = 9625,
   DecorationReferencedIndirectlyINTEL = 5602,
