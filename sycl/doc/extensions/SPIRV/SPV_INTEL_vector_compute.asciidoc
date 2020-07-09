@@ -44,8 +44,8 @@ Version
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2020-06-03
-| Revision           | 4
+| Last Modified Date | 2020-07-09
+| Revision           | 7
 |========================================
 
 Dependencies
@@ -115,6 +115,13 @@ Apply to a function definition to specify that this function is a stack call fun
 
 See the client API specification for more detail.
 | *VectorComputeINTEL* |
+| 5599 | *SIMTCallINTEL* +
+Apply to a function definition to specify that this function must be vectorized to width specified in 'N'.
+
+'N' is an unsigned 32-bit integer.
+
+See the client API specification for more detail.
+| *VectorComputeINTEL* | <<Literal, 'Literal'>> _N_
 | 5625 | *FuncParamIOKindINTEL* +
 Apply to a function parameter to specify properties of the register file corresponding to the parameter.
 
@@ -142,7 +149,7 @@ Modify Section 3.31, Capability, add the following rows the 'Capability' table:
 |====
   2+^| Capability      |     Implicitly Declares    | Enabled by Extension
 | 5617 | *VectorComputeINTEL* +
-Enables the use of *Private* storage class, *SharedLocalMemorySizeINTEL* execution mode and *VectorComputeFunctionINTEL*, *VectorComputeVariableINTEL*, *StackCallINTEL*, *FuncParamIOKindINTEL* and *GlobalVariableOffsetINTEL* decorations.
+Enables the use of *Private* storage class, *SharedLocalMemorySizeINTEL* execution mode and *VectorComputeFunctionINTEL*, *VectorComputeVariableINTEL*, *StackCallINTEL*, *SIMTCallINTEL*, *FuncParamIOKindINTEL* and *GlobalVariableOffsetINTEL* decorations.
 |*VectorAnyINTEL* | *SPV_INTEL_vector_compute*
 | 5619 | *VectorAnyINTEL* +
 Uses OpTypeVector to declare vectors with any number of components.
@@ -166,4 +173,5 @@ Revision History
 |2|2020-04-24|Mariusz Merecki|Assigned token number to *VectorComputeFunctionINTEL*
 |3|2020-05-06|Mariusz Merecki|Removed *VectorComputeKernelINTEL*, *KernelArgumentTypeINTEL* and *KernelArgumentDescINTEL*. Added *VectorComputeFunctionINTEL*.
 |4|2020-06-03|Mariusz Merecki|Added *VectorAnyINTEL*, *VectorComputeVariableINTEL*, *FuncParamIOKindINTEL* and *GlobalVariableOffsetINTEL*. Added updates for the *Volatile* decoration and *Private* storage class descriptions.
+|5|2020-07-09|Mariusz Merecki|Added *SIMTCallINTEL* decoration.
 |========================================
