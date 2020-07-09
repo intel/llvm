@@ -2458,7 +2458,7 @@ static void emitRecordType(raw_ostream &OS, QualType T, const CXXRecordDecl *RD,
   if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
 
     // Print template class name
-    TSD->printQualifiedName(OS, TypePolicy, /*WithGlobalNsPrefix*/ true);
+    TSD->printQualifiedName(RecOS, TypePolicy, /*WithGlobalNsPrefix*/ true);
 
     // Print template arguments substituting enumerators
     ASTContext &Ctx = RD->getASTContext();
@@ -2476,7 +2476,7 @@ static void emitRecordType(raw_ostream &OS, QualType T, const CXXRecordDecl *RD,
   const NamespaceDecl *NS = dyn_cast<NamespaceDecl>(RD->getDeclContext());
   RD->printQualifiedName(RecOS, TypePolicy,
                          !(NS && NS->isAnonymousNamespace()));
-  return eraseAnonNamespace(OS, RecOS.str());
+  emitWithoutAnonNamespaces(OS, RecOS.str());
 }
 
 static void emitKernelNameType(QualType T, ASTContext &Ctx, raw_ostream &OS,
