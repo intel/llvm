@@ -802,7 +802,8 @@ public:
   template <typename... Handlers>
   void VisitArrayElements(FieldDecl *FD, QualType FieldTy,
                           Handlers &... handlers) {
-    const ConstantArrayType *CAT = cast<ConstantArrayType>(FieldTy);
+    const ConstantArrayType *CAT =
+        SemaRef.getASTContext().getAsConstantArrayType(FieldTy);
     QualType ET = CAT->getElementType();
     int64_t ElemCount = CAT->getSize().getSExtValue();
     std::initializer_list<int>{(handlers.enterArray(), 0)...};
@@ -1013,7 +1014,8 @@ class SyclKernelFieldChecker
   // Return true if not copyable, false if copyable.
   bool checkNotCopyableToKernel(const FieldDecl *FD, const QualType &FieldTy) {
     if (FieldTy->isArrayType()) {
-      if (const auto *CAT = dyn_cast<ConstantArrayType>(FieldTy)) {
+      if (const auto *CAT =
+              SemaRef.getASTContext().getAsConstantArrayType(FieldTy)) {
         QualType ET = CAT->getElementType();
         return checkNotCopyableToKernel(FD, ET);
       }
