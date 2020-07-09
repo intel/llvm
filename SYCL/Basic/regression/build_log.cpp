@@ -3,7 +3,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.exe 2> %t.out || true
 
 // RUN: FileCheck %s --check-prefix=CHECK-EXPECTED-ERROR --input-file %t.out
-// CHECK-EXPECTED-ERROR: Total size of kernel arguments exceeds limit! Total arguments size: 1056, limit: 1024
+// CHECK-EXPECTED-ERROR: error: backend compiler failed build
 
 #include <stdio.h>
 #include <CL/sycl.hpp>
@@ -153,4 +153,3 @@ void test() {
 int main() {
     test();
 }
-
