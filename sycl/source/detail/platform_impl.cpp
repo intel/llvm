@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <map>
 #include <regex>
 
 __SYCL_INLINE_NAMESPACE(cl) {
