@@ -1,8 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out 
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
-
 
 //==------- device_equality.cpp - SYCL device equality test -----------------==//
 //
@@ -26,10 +25,10 @@ int main() {
   // Default selector picks the same device every time.
   // That device should compare equal to itself.
   // Its platform should too.
-  
+
   auto dev1 = q1.get_device();
   auto plat1 = dev1.get_platform();
-    
+
   auto dev2 = q2.get_device();
   auto plat2 = dev2.get_platform();
 
