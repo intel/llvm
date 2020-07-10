@@ -1584,9 +1584,6 @@ public:
   }
 
   void addStructInit(const CXXRecordDecl *RD) {
-    if (!RD)
-      return;
-
     const ASTRecordLayout &Info =
         SemaRef.getASTContext().getASTRecordLayout(RD);
     int NumberOfFields = Info.getFieldCount();
@@ -1610,15 +1607,12 @@ public:
 
     QualType FieldTy = FD->getType();
 
+    const CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
+
     // Kernel Object field is an array of structs. Handle struct array element.
     if (const ConstantArrayType *CAT =
-            SemaRef.Context.getAsConstantArrayType(FieldTy)) {
-      CXXRecordDecl *RD = CAT->getElementType()->getAsCXXRecordDecl();
-      addStructInit(RD);
-      return true;
-    }
-
-    const CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
+            SemaRef.Context.getAsConstantArrayType(FieldTy))
+      RD = CAT->getElementType()->getAsCXXRecordDecl();
 
     // Initializers for accessors inside stream not added.
     if (!Util::isSyclStreamType(FD->getType()))
