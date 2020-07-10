@@ -1,5 +1,6 @@
 // XFAIL: cuda || level0
 // CUDA exposes broken hierarchical parallelism.
+// LEVEL0 crashes with many of the negative tests.
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
@@ -28,6 +29,16 @@ int main() {
 
   string_class DeviceVendorName = D.get_info<info::device::vendor>();
   auto DeviceType = D.get_info<info::device::device_type>();
+  bool IsOpenCL = (D.get_platform().get_backend() == backend::opencl);
+
+  string_class OCLVersionStr;
+  const char *OCLVersion = nullptr;
+  if (IsOpenCL) {
+    OCLVersionStr = D.get_info<info::device::version>();
+    assert(OCLVersionStr.size() >= 10 &&
+           "Unexpected device version string"); // strlen("OpenCL X.Y")
+    OCLVersion = &OCLVersionStr[7];             // strlen("OpenCL ")
+  }
 
   // parallel_for, (16, 16, 16) global, (8, 8, 8) local, reqd_wg_size(4, 4, 4)
   // -> fail
@@ -61,22 +72,20 @@ int main() {
     return 1;
   }
 
-  string_class OCLVersionStr = D.get_info<info::device::version>();
-  assert(OCLVersionStr.size() >= 10 &&
-         "Unexpected device version string"); // strlen("OpenCL X.Y")
-  const char *OCLVersion = &OCLVersionStr[7]; // strlen("OpenCL ")
-  if (OCLVersion[0] == '1' || (OCLVersion[0] == '2' && OCLVersion[2] == '0')) {
+  if (IsOpenCL && (OCLVersion[0] == '1' ||
+                   (OCLVersion[0] == '2' && OCLVersion[2] == '0'))) {
+    // OpenCL 1.x or 2.0
     // parallel_for, (16, 16, 16) global, null local, reqd_wg_size(4, 4, 4) //
     // -> fail
     try {
       Q.submit([&](handler &CGH) {
-        CGH.parallel_for<class ReqdWGSizeNegativeB>(
+        CGH.parallel_for<class ReqdWGSizeNoLocalNegative>(
             range<3>(16, 16, 16), [=](item<3>) { reqd_wg_size_helper(); });
       });
       Q.wait_and_throw();
       std::cerr
-          << "Test case ReqdWGSizeNegativeB failed: no exception has been "
-             "thrown\n";
+          << "Test case ReqdWGSizeNoLocalNegative failed: no exception has "
+             "been thrown\n";
       return 1; // We shouldn't be here, exception is expected
     } catch (nd_range_error &E) {
       if (string_class(E.what()).find(
@@ -84,18 +93,49 @@ int main() {
               "required work-group size was specified in the program source") ==
           string_class::npos) {
         std::cerr
-            << "Test case ReqdWGSizeNegativeB failed: unexpected exception: "
+            << "Test case ReqdWGSizeNoLocalNegative failed: unexpected "
+               "nd_range_error exception: "
             << E.what() << std::endl;
         return 1;
       }
     } catch (runtime_error &E) {
       std::cerr
-          << "Test case ReqdWGSizeNegativeB failed: unexpected exception: "
+          << "Test case ReqdWGSizeNoLocalNegative failed: unexpected "
+             "runtime_error exception: "
           << E.what() << std::endl;
       return 1;
     } catch (...) {
-      std::cerr << "Test case ReqdWGSizeNegativeB failed: something unexpected "
-                   "has been caught"
+      std::cerr << "Test case ReqdWGSizeNoLocalNegative failed: something "
+                   "unexpected has been caught"
+                << std::endl;
+      return 1;
+    }
+  } else if (IsOpenCL) {
+    // TODO: The behavior when OpenCL > 2.0 needs to be investigated.  This
+    //  seems to fail differently than the case when OpenCL is 1.x or 2.0.
+  } else {
+    // Backends other than OpenCL
+    // parallel_for, (16, 16, 16) global, null local, reqd_wg_size(4, 4, 4)
+    // -> pass
+    try {
+      Q.submit([&](handler &CGH) {
+        CGH.parallel_for<class ReqdWGSizeNoLocalPositive>(
+            range<3>(16, 16, 16), [=](item<3>) { reqd_wg_size_helper(); });
+      });
+      Q.wait_and_throw();
+    } catch (nd_range_error &E) {
+      std::cerr << "Test case ReqdWGSizeNoLocalPositive failed: unexpected "
+                   "nd_range_error exception: "
+                << E.what() << std::endl;
+      return 1;
+    } catch (runtime_error &E) {
+      std::cerr << "Test case ReqdWGSizeNoLocalPositive failed: unexpected "
+                   "runtime_error exception: "
+                << E.what() << std::endl;
+      return 1;
+    } catch (...) {
+      std::cerr << "Test case ReqdWGSizeNoLocalPositive failed: something "
+                   "unexpected has been caught"
                 << std::endl;
       return 1;
     }
@@ -127,7 +167,7 @@ int main() {
     return 1;
   }
 
-  if (OCLVersion[0] == '1') {
+  if (IsOpenCL && OCLVersion[0] == '1') {
     // OpenCL 1.x
 
     // CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
@@ -283,7 +323,7 @@ int main() {
 
     // CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified and the
     // total number of work-items in the work-group computed as
-    // local_work_size[0] * ... * local_work_size[work_dim – 1] is greater
+    // local_work_size[0] * ... * local_work_size[work_dim - 1] is greater
     // than the value specified by CL_DEVICE_MAX_WORK_GROUP_SIZE in
     // table 4.3
     size_t MaxDeviceWGSize = D.get_info<info::device::max_work_group_size>();
@@ -317,13 +357,13 @@ int main() {
                 << std::endl;
       return 1;
     }
-  } else if (OCLVersion[0] == '2') {
+  } else if (IsOpenCL && OCLVersion[0] == '2') {
     // OpenCL 2.x
 
     // OpenCL 2.x:
     // CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified and the
     // total number of work-items in the work-group computed as
-    // local_work_size[0] * ... * local_work_size[work_dim – 1] is greater
+    // local_work_size[0] * ... * local_work_size[work_dim - 1] is greater
     // than the value specified by CL_KERNEL_WORK_GROUP_SIZE in table 5.21.
     {
       program P(Q.get_context());
@@ -800,6 +840,8 @@ int main() {
         return 1;
       }
     }
+  } else {
+    // TODO: Add tests for other backends
   }
 
   // local size has a 0-based range -- no SIGFPEs, we hope
