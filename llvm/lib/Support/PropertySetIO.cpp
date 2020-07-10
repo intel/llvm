@@ -61,12 +61,12 @@ PropertySetRegistry::read(const MemoryBuffer *Buf) {
     case PropertyValue::Type::UINT32: {
       APInt ValV;
       if (Val.getAsInteger(10, ValV))
-        return createStringError(EC, "invalid property value: " + Val);
+        return createStringError(EC, "invalid property value: ", Val.data());
       Prop.set(static_cast<uint32_t>(ValV.getZExtValue()));
       break;
     }
     default:
-      return createStringError(EC, "unsupported property type: " + Ttag.get());
+      return createStringError(EC, "unsupported property type: ", Ttag.get());
     }
     (*CurPropSet)[Parts.first] = Prop;
   }
@@ -85,7 +85,8 @@ raw_ostream &operator<<(raw_ostream &Out, const PropertyValue &Prop) {
     Out << Prop.asUint32();
     break;
   default:
-    llvm_unreachable_internal("unsupported property type: " + Prop.getType());
+    llvm_unreachable(
+        ("unsupported property type: " + utostr(Prop.getType())).c_str());
   }
   return Out;
 }
