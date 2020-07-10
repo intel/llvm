@@ -432,7 +432,7 @@ let Predicates = [PrefixInstrs] in {
   let Interpretation64Bit = 1, isCodeGenOnly = 1 in {
     defm PADDI8 :
       MLS_DForm_R_SI34_RTA5_p<14, (outs g8rc:$RT), (ins g8rc:$RA, s34imm:$SI),
-                              (ins immZero:$RA, s34imm_pcrel:$SI),
+                              (ins immZero:$RA, s34imm:$SI),
                               "paddi $RT, $RA, $SI", IIC_LdStLFD>;
     let isReMaterializable = 1, isAsCheapAsAMove = 1, isMoveImm = 1 in {
       def PLI8 : MLS_DForm_SI34_RT5<14, (outs g8rc:$RT),
@@ -442,7 +442,7 @@ let Predicates = [PrefixInstrs] in {
   }
   defm PADDI :
     MLS_DForm_R_SI34_RTA5_p<14, (outs gprc:$RT), (ins gprc:$RA, s34imm:$SI),
-                            (ins immZero:$RA, s34imm_pcrel:$SI),
+                            (ins immZero:$RA, s34imm:$SI),
                             "paddi $RT, $RA, $SI", IIC_LdStLFD>;
   let isReMaterializable = 1, isAsCheapAsAMove = 1, isMoveImm = 1 in {
     def PLI : MLS_DForm_SI34_RT5<14, (outs gprc:$RT),
@@ -942,7 +942,25 @@ let Predicates = [IsISA3_1] in {
                          "vclrrb $vD, $vA, $rB", IIC_VecGeneral,
                          [(set v16i8:$vD,
                                (int_ppc_altivec_vclrrb v16i8:$vA, i32:$rB))]>;
+
+  // The XFormMemOp flag for the following 8 instructions is set on
+  // the instruction format.
+  let mayLoad = 1, mayStore = 0 in {
+    def LXVRBX : X_XT6_RA5_RB5<31, 13, "lxvrbx", vsrc, []>;
+    def LXVRHX : X_XT6_RA5_RB5<31, 45, "lxvrhx", vsrc, []>;
+    def LXVRWX : X_XT6_RA5_RB5<31, 77, "lxvrwx", vsrc, []>;
+    def LXVRDX : X_XT6_RA5_RB5<31, 109, "lxvrdx", vsrc, []>;
+  }
+
+  let mayLoad = 0, mayStore = 1 in {
+    def STXVRBX : X_XS6_RA5_RB5<31, 141, "stxvrbx", vsrc, []>;
+    def STXVRHX : X_XS6_RA5_RB5<31, 173, "stxvrhx", vsrc, []>;
+    def STXVRWX : X_XS6_RA5_RB5<31, 205, "stxvrwx", vsrc, []>;
+    def STXVRDX : X_XS6_RA5_RB5<31, 237, "stxvrdx", vsrc, []>;
+  }
 }
+
+
 
 //---------------------------- Anonymous Patterns ----------------------------//
 let Predicates = [IsISA3_1] in {

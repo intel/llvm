@@ -868,7 +868,8 @@ def fdiagnostics_color : Flag<["-"], "fdiagnostics-color">, Group<f_Group>,
   Flags<[CoreOption, DriverOption]>;
 def fdiagnostics_color_EQ : Joined<["-"], "fdiagnostics-color=">, Group<f_Group>;
 def fansi_escape_codes : Flag<["-"], "fansi-escape-codes">, Group<f_Group>,
-  Flags<[CoreOption, CC1Option]>, HelpText<"Use ANSI escape codes for diagnostics">;
+  Flags<[CoreOption, CC1Option]>, HelpText<"Use ANSI escape codes for diagnostics">,
+  MarshallingInfoFlag<"DiagnosticOpts->UseANSIEscapeCodes", "false">;
 def fcomment_block_commands : CommaJoined<["-"], "fcomment-block-commands=">, Group<f_clang_Group>, Flags<[CC1Option]>,
   HelpText<"Treat each comma separated argument in <arg> as a documentation comment block command">,
   MetaVarName<"<arg>">;
@@ -1261,6 +1262,9 @@ def fexperimental_isel : Flag<["-"], "fexperimental-isel">, Group<f_clang_Group>
 def fexperimental_new_pass_manager : Flag<["-"], "fexperimental-new-pass-manager">,
   Group<f_clang_Group>, Flags<[CC1Option]>,
   HelpText<"Enables an experimental new pass manager in LLVM.">;
+def fexperimental_strict_floating_point : Flag<["-"], "fexperimental-strict-floating-point">,
+  Group<f_clang_Group>, Flags<[CC1Option]>,
+  HelpText<"Enables experimental strict floating point in LLVM.">;
 def finput_charset_EQ : Joined<["-"], "finput-charset=">, Group<f_Group>;
 def fexec_charset_EQ : Joined<["-"], "fexec-charset=">, Group<f_Group>;
 def finstrument_functions : Flag<["-"], "finstrument-functions">, Group<f_Group>, Flags<[CC1Option]>,

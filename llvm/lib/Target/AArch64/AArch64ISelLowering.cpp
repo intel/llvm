@@ -948,6 +948,7 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
         setOperationAction(ISD::INSERT_SUBVECTOR, VT, Custom);
         setOperationAction(ISD::SPLAT_VECTOR, VT, Custom);
         setOperationAction(ISD::SELECT, VT, Custom);
+        setOperationAction(ISD::FMA, VT, Custom);
       }
     }
 
@@ -960,6 +961,14 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
       for (MVT VT : MVT::fp_fixedlen_vector_valuetypes())
         if (useSVEForFixedLengthVectorVT(VT))
           addTypeForFixedLengthSVE(VT);
+
+      // 64bit results can mean a bigger than NEON input.
+      for (auto VT : {MVT::v8i8, MVT::v4i16, MVT::v2i32})
+        setOperationAction(ISD::TRUNCATE, VT, Custom);
+
+      // 128bit results imply a bigger than NEON input.
+      for (auto VT : {MVT::v16i8, MVT::v8i16, MVT::v4i32})
+        setOperationAction(ISD::TRUNCATE, VT, Custom);
     }
   }
 
@@ -1060,6 +1069,7 @@ void AArch64TargetLowering::addTypeForFixedLengthSVE(MVT VT) {
   setOperationAction(ISD::FADD, VT, Custom);
   setOperationAction(ISD::LOAD, VT, Custom);
   setOperationAction(ISD::STORE, VT, Custom);
+  setOperationAction(ISD::TRUNCATE, VT, Custom);
 }
 
 void AArch64TargetLowering::addDRTypeForNEON(MVT VT) {
@@ -1470,6 +1480,7 @@ const char *AArch64TargetLowering::getTargetNodeName(unsigned Opcode) const {
     MAKE_CASE(AArch64ISD::FADD_PRED)
     MAKE_CASE(AArch64ISD::FADDA_PRED)
     MAKE_CASE(AArch64ISD::FADDV_PRED)
+    MAKE_CASE(AArch64ISD::FMA_PRED)
     MAKE_CASE(AArch64ISD::FMAXV_PRED)
     MAKE_CASE(AArch64ISD::FMAXNMV_PRED)
     MAKE_CASE(AArch64ISD::FMINV_PRED)
@@ -3455,6 +3466,8 @@ SDValue AArch64TargetLowering::LowerOperation(SDValue Op,
     return LowerF128Call(Op, DAG, RTLIB::SUB_F128);
   case ISD::FMUL:
     return LowerF128Call(Op, DAG, RTLIB::MUL_F128);
+  case ISD::FMA:
+    return LowerToPredicatedOp(Op, DAG, AArch64ISD::FMA_PRED);
   case ISD::FDIV:
     return LowerF128Call(Op, DAG, RTLIB::DIV_F128);
   case ISD::FP_ROUND:
@@ -8838,6 +8851,9 @@ SDValue AArch64TargetLowering::LowerTRUNCATE(SDValue Op,
 
   if (!VT.isVector() || VT.isScalableVector())
     return Op;
+
+  if (useSVEForFixedLengthVectorVT(Op.getOperand(0).getValueType()))
+    return LowerFixedLengthVectorTruncateToSVE(Op, DAG);
 
   // Since we are looking for a right shift by a constant value of 1 and we are
   // operating on types at least 16 bits in length (sign/zero extended OpA and
@@ -15053,6 +15069,42 @@ SDValue AArch64TargetLowering::LowerFixedLengthVectorStoreToSVE(
       getPredicateForFixedLengthVector(DAG, DL, VT), Store->getMemoryVT(),
       Store->getMemOperand(), Store->getAddressingMode(),
       Store->isTruncatingStore());
+}
+
+SDValue AArch64TargetLowering::LowerFixedLengthVectorTruncateToSVE(
+    SDValue Op, SelectionDAG &DAG) const {
+  EVT VT = Op.getValueType();
+  assert(VT.isFixedLengthVector() && "Expected fixed length vector type!");
+
+  SDLoc DL(Op);
+  SDValue Val = Op.getOperand(0);
+  EVT ContainerVT = getContainerForFixedLengthVector(DAG, Val.getValueType());
+  Val = convertToScalableVector(DAG, ContainerVT, Val);
+
+  // Repeatedly truncate Val until the result is of the desired element type.
+  switch (ContainerVT.getSimpleVT().SimpleTy) {
+  default:
+    llvm_unreachable("unimplemented container type");
+  case MVT::nxv2i64:
+    Val = DAG.getNode(ISD::BITCAST, DL, MVT::nxv4i32, Val);
+    Val = DAG.getNode(AArch64ISD::UZP1, DL, MVT::nxv4i32, Val, Val);
+    if (VT.getVectorElementType() == MVT::i32)
+      break;
+    LLVM_FALLTHROUGH;
+  case MVT::nxv4i32:
+    Val = DAG.getNode(ISD::BITCAST, DL, MVT::nxv8i16, Val);
+    Val = DAG.getNode(AArch64ISD::UZP1, DL, MVT::nxv8i16, Val, Val);
+    if (VT.getVectorElementType() == MVT::i16)
+      break;
+    LLVM_FALLTHROUGH;
+  case MVT::nxv8i16:
+    Val = DAG.getNode(ISD::BITCAST, DL, MVT::nxv16i8, Val);
+    Val = DAG.getNode(AArch64ISD::UZP1, DL, MVT::nxv16i8, Val, Val);
+    assert(VT.getVectorElementType() == MVT::i8 && "Unexpected element type!");
+    break;
+  }
+
+  return convertFromScalableVector(DAG, VT, Val);
 }
 
 SDValue AArch64TargetLowering::LowerToPredicatedOp(SDValue Op,

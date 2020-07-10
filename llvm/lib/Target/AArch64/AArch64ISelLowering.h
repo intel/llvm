@@ -77,6 +77,7 @@ enum NodeType : unsigned {
   FADD_PRED,
   SDIV_PRED,
   UDIV_PRED,
+  FMA_PRED,
   SMIN_MERGE_OP1,
   UMIN_MERGE_OP1,
   SMAX_MERGE_OP1,
@@ -891,6 +892,8 @@ private:
 
   SDValue LowerFixedLengthVectorLoadToSVE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFixedLengthVectorStoreToSVE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFixedLengthVectorTruncateToSVE(SDValue Op,
+                                              SelectionDAG &DAG) const;
 
   SDValue BuildSDIVPow2(SDNode *N, const APInt &Divisor, SelectionDAG &DAG,
                         SmallVectorImpl<SDNode *> &Created) const override;

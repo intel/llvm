@@ -1586,8 +1586,6 @@ bool clang::ParseDiagnosticArgs(DiagnosticOptions &Opts, ArgList &Args,
   Opts.AbsolutePath = Args.hasArg(OPT_fdiagnostics_absolute_paths);
   Opts.ShowOptionNames = !Args.hasArg(OPT_fno_diagnostics_show_option);
 
-  llvm::sys::Process::UseANSIEscapeCodes(Args.hasArg(OPT_fansi_escape_codes));
-
   // Default behavior is to not to show note include stacks.
   Opts.ShowNoteIncludeStack = false;
   if (Arg *A = Args.getLastArg(OPT_fdiagnostics_show_note_include_stack,
@@ -3301,6 +3299,9 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
       Diags.Report(diag::err_drv_invalid_value) << A->getAsString(Args) << Val;
   }
 
+  if (Args.hasArg(OPT_fexperimental_strict_floating_point))
+    Opts.ExpStrictFP = true;
+
   auto FPRM = llvm::RoundingMode::NearestTiesToEven;
   if (Args.hasArg(OPT_frounding_math)) {
     FPRM = llvm::RoundingMode::Dynamic;
@@ -3742,6 +3743,10 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
   }
 
   Success &= Res.parseSimpleArgs(Args, Diags);
+
+  llvm::sys::Process::UseANSIEscapeCodes(
+      Res.DiagnosticOpts->UseANSIEscapeCodes);
+
   Success &= ParseAnalyzerArgs(*Res.getAnalyzerOpts(), Args, Diags);
   Success &= ParseMigratorArgs(Res.getMigratorOpts(), Args);
   ParseDependencyOutputArgs(Res.getDependencyOutputOpts(), Args);
