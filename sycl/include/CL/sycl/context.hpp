@@ -25,6 +25,7 @@ class device;
 class platform;
 namespace detail {
 class context_impl;
+class buffer_impl;
 }
 
 /// The context class represents a SYCL context on which kernel functions may
@@ -167,6 +168,8 @@ private:
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+
+  friend class detail::buffer_impl;
 };
 
 } // namespace sycl

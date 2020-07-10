@@ -10,6 +10,7 @@
 
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/detail/buffer_usage.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/helpers.hpp>
@@ -108,13 +109,40 @@ public:
   MemObjType getType() const override { return MemObjType::BUFFER; }
 
   ~buffer_impl() {
+    if (hasSubBuffers()) {
+      copyBackAnyRemainingData();
+      MNeedWriteBack = false; // clear this to prevent an additional copy back
+                              // when we release memory below.
+    }
     try {
-      BaseT::updateHostMemory();
+      BaseT::updateHostMemory(); // also releases memory and handles.
     } catch (...) {
     }
   }
 
   void resize(size_t size) { BaseT::MSizeInBytes = size; }
+
+protected:
+  template <typename T, int Dimensions, typename AllocatorT, typename Enable>
+  friend class sycl::buffer;
+
+  // deque of buffer_info, if any.
+  std::deque<buffer_usage> MBufferUsageDQ;
+
+  // if this MemObj is backing a buffer (and sub-buffers), provide information
+  // to help with copy-back decisions.
+  void recordBufferUsage(const void *const BuffPtr, const size_t Sz,
+                         const size_t Offset, const bool IsSub);
+  void recordAccessorUsage(const void *const BuffPtr, access::mode Mode,
+                           handler &CGH);
+  void recordAccessorUsage(const void *const BuffPtr, access::mode Mode);
+
+  bool hasSubBuffers();
+  void set_write_back(bool flag);
+  void set_write_back(bool flag, const void *const BuffPtr);
+
+  void copyBackSubBuffer(detail::when_copyback now, const void *const BuffPtr);
+  void copyBackAnyRemainingData();
 };
 
 } // namespace detail

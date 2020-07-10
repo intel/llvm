@@ -55,6 +55,10 @@ void checkHostAccessor(cl::sycl::queue &q) {
                "Sub buffer host accessor test failed.");
     }
   }
+  assert(data[0] == 0 && "data at 0?");
+  assert(data[size - 1] == (size - 1) && "data at size-1?");
+  assert(data[size / 2] == (size / 2 * -100) && "data at size/2?");
+
   assert(data[0] == 0 && data[size - 1] == (size - 1) &&
          data[size / 2] == (size / 2 * -100) && "Loss of data");
 }
@@ -109,9 +113,16 @@ void check1DSubBuffer(cl::sycl::queue &q) {
     assert(false && "Exception was caught");
   }
 
-  for (int i = offset; i < offset + subbuf_size; ++i)
-    assert(vec[i] == (i < offset + offset_inside_subbuf ? i * 10 : i * -10) &&
-           "Invalid result in 1d sub buffer");
+  for (int i = 0; i < size; ++i) {
+    if (i < offset)
+      assert(vec[i] == i && "untouched part of buffer incorrect");
+    else if (i >= offset && i < offset + offset_inside_subbuf)
+      assert(vec[i] == i * 10 && "first three entries of buffer covered by subuffer should be times 10");
+    else if (i >= offset + offset_inside_subbuf && i < offset + subbuf_size)
+      assert(vec[i] == i * -10 && "last seven entries of buffer covered by subbuffer should be times -10");
+    else
+      assert(vec[i] == i && "untouched part of buffer incorrect");
+  }
 
   for (int i = 0; i < subbuf_size; ++i)
     assert(vec2[i] == (i < 3 ? (offset + i) : (offset + i) * -1) &&

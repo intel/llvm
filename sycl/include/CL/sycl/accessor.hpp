@@ -232,6 +232,7 @@ static T<NewDim> convertToArrayOfN(T<OldDim> OldObj) {
 }
 
 __SYCL_EXPORT device getDeviceFromHandler(handler &CommandGroupHandlerRef);
+__SYCL_EXPORT context getContextFromHandler(handler &CommandGroupHandlerRef);
 
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder>

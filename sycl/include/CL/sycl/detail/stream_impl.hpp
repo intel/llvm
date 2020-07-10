@@ -108,6 +108,7 @@ public:
   GlobalOffsetAccessorT accessGlobalOffset(handler &CGH) {
     auto OffsetSubBuf = buffer<char, 1>(Buf, id<1>(0), range<1>(OffsetSize));
     auto ReinterpretedBuf = OffsetSubBuf.reinterpret<unsigned, 1>(range<1>(1));
+    ReinterpretedBuf.set_write_back(false); // Buf handles write back.
     return ReinterpretedBuf.get_access<cl::sycl::access::mode::atomic>(
         CGH, range<1>(1), id<1>(0));
   }

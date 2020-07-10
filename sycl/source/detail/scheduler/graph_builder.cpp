@@ -386,9 +386,16 @@ Command *Scheduler::GraphBuilder::addCopyBack(Requirement *Req) {
   AllocaCommandBase *SrcAllocaCmd =
       findAllocaForReq(Record, Req, Record->MCurContext);
 
-  std::unique_ptr<MemCpyCommandHost> MemCpyCmdUniquePtr(new MemCpyCommandHost(
-      *SrcAllocaCmd->getRequirement(), SrcAllocaCmd, *Req, &Req->MData,
-      SrcAllocaCmd->getQueue(), std::move(HostQueue)));
+  // When copying back subbuffers, throw out any vestigial Src Offset.
+  const Requirement *SrcReq = SrcAllocaCmd->getRequirement();
+  std::unique_ptr<Requirement> SrcReqClone(new Requirement(*SrcReq));
+  if (Req->MIsSubBuffer && SrcReqClone->MIsSubBuffer &&
+      SrcReqClone->MOffset[0] != 0)
+    SrcReqClone->MOffset = id<3>{0, 0, 0};
+
+  std::unique_ptr<MemCpyCommandHost> MemCpyCmdUniquePtr(
+      new MemCpyCommandHost(*SrcReqClone, SrcAllocaCmd, *Req, &Req->MData,
+                            SrcAllocaCmd->getQueue(), std::move(HostQueue)));
 
   if (!MemCpyCmdUniquePtr)
     throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
@@ -535,7 +542,7 @@ Scheduler::GraphBuilder::findAllocaForReq(MemObjRecord *Record,
                                           const ContextImplPtr &Context) {
   auto IsSuitableAlloca = [&Context, Req](AllocaCommandBase *AllocaCmd) {
     bool Res = sameCtx(AllocaCmd->getQueue()->getContextImplPtr(), Context);
-    if (IsSuitableSubReq(Req)) {
+    if (Res && IsSuitableSubReq(Req)) {
       const Requirement *TmpReq = AllocaCmd->getRequirement();
       Res &= AllocaCmd->getType() == Command::CommandType::ALLOCA_SUB_BUF;
       Res &= TmpReq->MOffsetInBytes == Req->MOffsetInBytes;
