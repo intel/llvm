@@ -8,10 +8,8 @@
 
 using namespace cl::sycl;
 
-template <typename T, int Dim, class BinaryOperation>
-class SomeClass;
-
-template <typename T, int Dim, access::mode Mode, class BinaryOperation>
+template <typename SpecializationKernelName, typename T,
+          int Dim, access::mode Mode, class BinaryOperation>
 void test(T Identity, size_t WGSize, size_t NWItems) {
   buffer<T, 1> InBuf(NWItems);
   buffer<T, 1> OutBuf(1);
@@ -35,7 +33,7 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
     range<1> GlobalRange(NWItems);
     range<1> LocalRange(WGSize);
     nd_range<1> NDRange(GlobalRange, LocalRange);
-    CGH.parallel_for<SomeClass<T, Dim, BinaryOperation>>(
+    CGH.parallel_for<SpecializationKernelName>(
         NDRange, Redu, [=](nd_item<1> NDIt, auto &Sum) {
           Sum.combine(In[NDIt.get_global_linear_id()]);
         });
@@ -63,16 +61,16 @@ int runTests(const string_class &ExtensionName) {
   }
 
   // Check some less standards WG sizes and corner cases first.
-  test<T, 1, access::mode::read_write, std::multiplies<T>>(0, 4, 4);
-  test<T, 0, access::mode::discard_write, intel::plus<T>>(0, 4, 64);
+  test<class KernelName_oTh, T, 1, access::mode::read_write, std::multiplies<T>>(0, 4, 4);
+  test<class KernelName_QUQnMARQT, T, 0, access::mode::discard_write, intel::plus<T>>(0, 4, 64);
 
-  test<T, 0, access::mode::read_write, intel::minimum<T>>(getMaximumFPValue<T>(), 7, 7);
-  test<T, 1, access::mode::discard_write, intel::maximum<T>>(getMinimumFPValue<T>(), 7, 7 * 5);
+  test<class KernelName_xGixNo, T, 0, access::mode::read_write, intel::minimum<T>>(getMaximumFPValue<T>(), 7, 7);
+  test<class KernelName_qXNFw, T, 1, access::mode::discard_write, intel::maximum<T>>(getMinimumFPValue<T>(), 7, 7 * 5);
 
 #if __cplusplus >= 201402L
-  test<T, 1, access::mode::read_write, intel::plus<>>(1, 3, 3 * 5);
-  test<T, 1, access::mode::discard_write, intel::minimum<>>(getMaximumFPValue<T>(), 3, 3);
-  test<T, 0, access::mode::discard_write, intel::maximum<>>(getMinimumFPValue<T>(), 3, 3);
+  test<class KernelName_lXdWtzANdDcvm, T, 1, access::mode::read_write, intel::plus<>>(1, 3, 3 * 5);
+  test<class KernelName_FDQalsDxmbi, T, 1, access::mode::discard_write, intel::minimum<>>(getMaximumFPValue<T>(), 3, 3);
+  test<class KernelName_TaNRRxDRXbzYrFImPYC, T, 0, access::mode::discard_write, intel::maximum<>>(getMinimumFPValue<T>(), 3, 3);
 #endif // __cplusplus >= 201402L
 
   std::cout << "Test passed\n";

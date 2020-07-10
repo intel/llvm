@@ -19,12 +19,12 @@
 #include "helper.hpp"
 #include <CL/sycl.hpp>
 
-template <typename T, class BinaryOperation>
+template <typename ... Ts>
 class sycl_subgr;
 
 using namespace cl::sycl;
 
-template <typename T, class BinaryOperation>
+template <typename SpecializationKernelName, typename T, class BinaryOperation>
 void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
               size_t G = 240, size_t L = 60) {
   try {
@@ -32,7 +32,7 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
     buffer<T> buf(G);
     Queue.submit([&](handler &cgh) {
       auto acc = buf.template get_access<access::mode::read_write>(cgh);
-      cgh.parallel_for<sycl_subgr<T, BinaryOperation>>(
+      cgh.parallel_for<SpecializationKernelName>(
           NdRange, [=](nd_item<1> NdItem) {
             intel::sub_group sg = NdItem.get_sub_group();
             if (skip_init) {
@@ -70,7 +70,7 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
   }
 }
 
-template <typename T>
+template <typename SpecializationKernelName, typename T>
 void check(queue &Queue, size_t G = 240, size_t L = 60) {
   // limit data range for half to avoid rounding issues
   if (std::is_same<T, cl::sycl::half>::value) {
@@ -78,24 +78,24 @@ void check(queue &Queue, size_t G = 240, size_t L = 60) {
     L = 32;
   }
 
-  check_op<T>(Queue, T(L), intel::plus<T>(), false, G, L);
-  check_op<T>(Queue, T(0), intel::plus<T>(), true, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_cNsJzXxSBQfEKY>, T>(Queue, T(L), intel::plus<T>(), false, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_bWdCJaxe>, T>(Queue, T(0), intel::plus<T>(), true, G, L);
 
-  check_op<T>(Queue, T(0), intel::minimum<T>(), false, G, L);
-  check_op<T>(Queue, T(G), intel::minimum<T>(), true, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_wjspvpHJtI>, T>(Queue, T(0), intel::minimum<T>(), false, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_BUioaQYxhjN>, T>(Queue, T(G), intel::minimum<T>(), true, G, L);
 
-  check_op<T>(Queue, T(G), intel::maximum<T>(), false, G, L);
-  check_op<T>(Queue, T(0), intel::maximum<T>(), true, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_bIHcoJBNpiB>, T>(Queue, T(G), intel::maximum<T>(), false, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_bPPlfvdGShi>, T>(Queue, T(0), intel::maximum<T>(), true, G, L);
 
 #if __cplusplus >= 201402L
-  check_op<T>(Queue, T(L), intel::plus<>(), false, G, L);
-  check_op<T>(Queue, T(0), intel::plus<>(), true, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_fkOyLRYirfMnvBcnbRFy>, T>(Queue, T(L), intel::plus<>(), false, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_zhzfRmSAFlswKWShyecv>, T>(Queue, T(0), intel::plus<>(), true, G, L);
 
-  check_op<T>(Queue, T(0), intel::minimum<>(), false, G, L);
-  check_op<T>(Queue, T(G), intel::minimum<>(), true, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_NaOzDnOmDPiDIXnXvaGy>, T>(Queue, T(0), intel::minimum<>(), false, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_XXAfdcNmCNX>, T>(Queue, T(G), intel::minimum<>(), true, G, L);
 
-  check_op<T>(Queue, T(G), intel::maximum<>(), false, G, L);
-  check_op<T>(Queue, T(0), intel::maximum<>(), true, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_pLlvjjZsPv>, T>(Queue, T(G), intel::maximum<>(), false, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_BaCGaWDMFeMFqvotbk>, T>(Queue, T(0), intel::maximum<>(), true, G, L);
 #endif
 }
 
@@ -106,19 +106,19 @@ int main() {
     return 0;
   }
 
-  check<int>(Queue);
-  check<unsigned int>(Queue);
-  check<long>(Queue);
-  check<unsigned long>(Queue);
-  check<float>(Queue);
+  check<class KernelName_AJprOaCZgUmsYFRTTGNw, int>(Queue);
+  check<class KernelName_ShKFIYTqaI, unsigned int>(Queue);
+  check<class KernelName_TovsKTk, long>(Queue);
+  check<class KernelName_JqbvoN, unsigned long>(Queue);
+  check<class KernelName_mAWqKSWTT, float>(Queue);
   // reduce half type is not supported in OCL CPU RT
 #ifdef SG_GPU
   if (Queue.get_device().has_extension("cl_khr_fp16")) {
-    check<cl::sycl::half>(Queue);
+    check<class KernelName_CNwvDdLPNleaRvSuYr, cl::sycl::half>(Queue);
   }
 #endif
   if (Queue.get_device().has_extension("cl_khr_fp64")) {
-    check<double>(Queue);
+    check<class KernelName_bqHXlkbm, double>(Queue);
   }
   std::cout << "Test passed." << std::endl;
   return 0;

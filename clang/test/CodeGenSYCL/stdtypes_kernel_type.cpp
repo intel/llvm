@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-int-header=%t.h -DCHECK_ERROR -verify %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-int-header=%t.h %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s
 // RUN: FileCheck -input-file=%t.h %s
 //
 // CHECK: #include <CL/sycl/detail/defines.hpp>
