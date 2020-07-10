@@ -23,6 +23,7 @@ Developing oneAPI DPC++ Compiler
 
    API Reference <https://intel.github.io/llvm-docs/doxygen>
    CompilerAndRuntimeDesign
+   KernelParameterPassing
    EnvironmentVariables
    PluginInterface
    ABIPolicyGuide
