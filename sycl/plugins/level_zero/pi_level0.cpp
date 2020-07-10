@@ -1453,6 +1453,7 @@ pi_result piQueueRelease(pi_queue Queue) {
     Queue->ZeCommandListFenceMap.clear();
     Queue->ZeCommandListFenceMapMutex.unlock();
     ZE_CALL(zeCommandQueueDestroy(Queue->ZeCommandQueue));
+    Queue->ZeCommandQueue = nullptr;
   }
   return PI_SUCCESS;
 }
@@ -2416,8 +2417,13 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
       // is signalled, then reset the fence and command list and add them to the
       // available list for ruse in PI calls.
       EventList[I]->Queue->ZeCommandListFenceMapMutex.lock();
-      EventList[I]->Queue->resetCommandListFenceEntry(
-          EventList[I]->ZeCommandList, true);
+      ze_result_t ZeResult = ZE_CALL_NOCHECK(zeFenceQueryStatus(
+          EventList[I]
+              ->Queue->ZeCommandListFenceMap[EventList[I]->ZeCommandList]));
+      if (ZeResult == ZE_RESULT_SUCCESS) {
+        EventList[I]->Queue->resetCommandListFenceEntry(
+            EventList[I]->ZeCommandList, true);
+      }
       EventList[I]->Queue->ZeCommandListFenceMapMutex.unlock();
       EventList[I]->ZeCommandList = nullptr;
     }
@@ -2451,9 +2457,15 @@ pi_result piEventRelease(pi_event Event) {
       // If the fence associated with this command list has signalled, then
       // Reset the Command List Used in this event and put it back on the
       // available list.
-      Event->Queue->ZeCommandListFenceMapMutex.lock();
-      Event->Queue->resetCommandListFenceEntry(Event->ZeCommandList, true);
-      Event->Queue->ZeCommandListFenceMapMutex.unlock();
+      if (Event->Queue->ZeCommandQueue) {
+        Event->Queue->ZeCommandListFenceMapMutex.lock();
+        ze_result_t ZeResult = ZE_CALL_NOCHECK(zeFenceQueryStatus(
+            Event->Queue->ZeCommandListFenceMap[Event->ZeCommandList]));
+        if (ZeResult == ZE_RESULT_SUCCESS) {
+          Event->Queue->resetCommandListFenceEntry(Event->ZeCommandList, true);
+        }
+        Event->Queue->ZeCommandListFenceMapMutex.unlock();
+      }
       Event->ZeCommandList = nullptr;
     }
     if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_UNMAP &&
