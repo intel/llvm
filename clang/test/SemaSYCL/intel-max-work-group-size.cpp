@@ -20,7 +20,7 @@ void foo() {
 
 #else // __SYCL_DEVICE_ONLY__
 
-[[intelfpga::max_work_group_size(2, 2, 2)]] // expected-warning{{'max_work_group_size' attribute ignored}}
+[[intelfpga::max_work_group_size(2, 2, 2)]]
 void func_ignore() {}
 
 struct FuncObj {

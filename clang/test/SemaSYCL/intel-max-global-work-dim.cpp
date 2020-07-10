@@ -20,7 +20,7 @@ void foo() {
 
 #else // __SYCL_DEVICE_ONLY__
 
-[[intelfpga::max_global_work_dim(2)]] // expected-warning{{'max_global_work_dim' attribute ignored}}
+[[intelfpga::max_global_work_dim(2)]]
 void func_ignore() {}
 
 struct FuncObj {

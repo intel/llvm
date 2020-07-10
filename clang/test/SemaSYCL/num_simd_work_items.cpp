@@ -20,7 +20,7 @@ void foo() {
 
 #else // __SYCL_DEVICE_ONLY__
 
-[[intelfpga::num_simd_work_items(2)]] // expected-warning{{'num_simd_work_items' attribute ignored}}
+[[intelfpga::num_simd_work_items(2)]]
 void func_ignore() {}
 
 struct FuncObj {
