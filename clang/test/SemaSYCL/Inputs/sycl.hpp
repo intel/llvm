@@ -87,7 +87,7 @@ struct DeviceValueType<dataT, access::target::local> {
 template <typename dataT, int dimensions, access::mode accessmode,
           access::target accessTarget = access::target::global_buffer,
           access::placeholder isPlaceholder = access::placeholder::false_t>
-class accessor {
+class __attribute__((sycl_special_class(accessor))) accessor {
 
 public:
   void use(void) const {}
@@ -146,7 +146,7 @@ struct _ImageImplT {
 };
 
 template <typename dataT, int dimensions, access::mode accessmode>
-class accessor<dataT, dimensions, accessmode, access::target::image, access::placeholder::false_t> {
+class __attribute__((sycl_special_class(accessor))) accessor<dataT, dimensions, accessmode, access::target::image, access::placeholder::false_t> {
 public:
   void use(void) const {}
   template <typename... T>
@@ -165,7 +165,7 @@ struct sampler_impl {
 #endif
 };
 
-class sampler {
+class __attribute__((sycl_special_class(sampler))) sampler {
   struct sampler_impl impl;
 #ifdef __SYCL_DEVICE_ONLY__
   void __init(__ocl_sampler_t Sampler) { impl.m_Sampler = Sampler; }

@@ -59,3 +59,9 @@
 #else
 #define __SYCL_INLINE_CONSTEXPR static constexpr
 #endif
+
+#if __has_attribute(sycl_special_class)
+#define __SYCL_SPECIAL_CLASS(kind) __attribute__((sycl_special_class(kind)))
+#else
+#define __SYCL_SPECIAL_CLASS(kind)
+#endif

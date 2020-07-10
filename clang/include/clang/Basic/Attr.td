@@ -1135,6 +1135,20 @@ def SYCLKernel : InheritableAttr {
   let Documentation = [SYCLKernelDocs];
 }
 
+def SYCLSpecialClass: InheritableAttr {
+  let Spellings = [Clang<"sycl_special_class">];
+  let Subjects = SubjectList<[CXXRecord]>;
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  // TODO: Add doc
+  let Documentation = [Undocumented];
+  let Args = [
+    EnumArgument<"SpecialClassKind", "SpecialClassKind",
+                 [ "accessor", "sampler", "stream", "" ],
+                 [ "Accessor", "Sampler", "Stream", "Generic" ], 1>
+  ];
+  let PragmaAttributeSupport = 0;
+}
+
 // Marks functions which must not be vectorized via horizontal SIMT widening,
 // e.g. because the function is already vectorized. Used to mark SYCL
 // explicit SIMD kernels and functions.

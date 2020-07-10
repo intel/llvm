@@ -94,7 +94,7 @@ inline __width_manipulator__ setw(int Width) {
 /// vector and SYCL types to the console.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT stream {
+class __SYCL_EXPORT __SYCL_SPECIAL_CLASS(stream) stream {
 public:
   stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH);
 

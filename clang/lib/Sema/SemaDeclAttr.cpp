@@ -7219,6 +7219,31 @@ static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   handleSimpleAttribute<SYCLKernelAttr>(S, D, AL);
 }
 
+static void handleSYCLSpecialClassAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (S.LangOpts.SYCLIsHost)
+    return;
+
+  SYCLSpecialClassAttr::SpecialClassKind Kind;
+  if (AL.getNumArgs() == 0)
+    Kind = SYCLSpecialClassAttr::Generic;
+  else {
+    // Check the attribute arguments.
+    if (!AL.isArgIdent(0)) {
+      S.Diag(AL.getLoc(), diag::err_attribute_argument_n_type)
+          << AL << 0 << AANT_ArgumentIdentifier;
+      return;
+    }
+
+    IdentifierInfo *II = AL.getArgAsIdent(0)->Ident;
+    if (!SYCLSpecialClassAttr::ConvertStrToSpecialClassKind(II->getName(),
+                                                            Kind)) {
+      S.Diag(AL.getLoc(), diag::warn_attribute_type_not_supported) << AL << II;
+      return;
+    }
+  }
+  D->addAttr(::new (S.Context) SYCLSpecialClassAttr(S.Context, AL, Kind));
+}
+
 static void handleDestroyAttr(Sema &S, Decl *D, const ParsedAttr &A) {
   if (!cast<VarDecl>(D)->hasGlobalStorage()) {
     S.Diag(D->getLocation(), diag::err_destroy_attr_on_non_static_var)
@@ -7599,6 +7624,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SYCLSimd:
     handleSimpleAttribute<SYCLSimdAttr>(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLSpecialClass:
+    handleSYCLSpecialClassAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLDevice:
     handleSYCLDeviceAttr(S, D, AL);

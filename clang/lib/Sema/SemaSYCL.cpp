@@ -2692,17 +2692,33 @@ SYCLIntegrationHeader::SYCLIntegrationHeader(DiagnosticsEngine &_Diag,
 // -----------------------------------------------------------------------------
 
 bool Util::isSyclAccessorType(const QualType &Ty) {
-  return isSyclType(Ty, "accessor", true /*Tmpl*/);
+  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
+  if (!RecTy)
+    return false; // only classes/structs supported
+  if (const auto *A = RecTy->getAttr<SYCLSpecialClassAttr>())
+    return A->getSpecialClassKind() == SYCLSpecialClassAttr::Accessor;
+  return false;
 }
 
 bool Util::isSyclSamplerType(const QualType &Ty) {
-  return isSyclType(Ty, "sampler");
+  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
+  if (!RecTy)
+    return false; // only classes/structs supported
+  if (const auto *A = RecTy->getAttr<SYCLSpecialClassAttr>())
+    return A->getSpecialClassKind() == SYCLSpecialClassAttr::Sampler;
+  return false;
 }
 
 bool Util::isSyclStreamType(const QualType &Ty) {
-  return isSyclType(Ty, "stream");
+  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
+  if (!RecTy)
+    return false; // only classes/structs supported
+  if (const auto *A = RecTy->getAttr<SYCLSpecialClassAttr>())
+    return A->getSpecialClassKind() == SYCLSpecialClassAttr::Stream;
+  return false;
 }
 
+// TODO: Remove this once structs decomposing is optimized
 bool Util::isSyclHalfType(const QualType &Ty) {
   const StringRef &Name = "half";
   std::array<DeclContextDesc, 5> Scopes = {
@@ -2714,6 +2730,7 @@ bool Util::isSyclHalfType(const QualType &Ty) {
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
+// TODO: Do we need an attribute for this one as well?
 bool Util::isSyclSpecConstantType(const QualType &Ty) {
   const StringRef &Name = "spec_constant";
   std::array<DeclContextDesc, 4> Scopes = {
