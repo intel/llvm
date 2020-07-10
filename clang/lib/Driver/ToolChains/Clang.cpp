@@ -7224,7 +7224,8 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     Triples += Action::GetOffloadKindName(CurKind);
     Triples += '-';
     Triples += CurTC->getTriple().normalize();
-    if (CurKind == Action::OFK_HIP && CurDep->getOffloadingArch()) {
+    if ((CurKind == Action::OFK_HIP || CurKind == Action::OFK_SYCL) &&
+        CurDep->getOffloadingArch()) {
       Triples += '-';
       Triples += CurDep->getOffloadingArch();
     }
@@ -7376,7 +7377,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     Triples += Action::GetOffloadKindName(Dep.DependentOffloadKind);
     Triples += '-';
     Triples += Dep.DependentToolChain->getTriple().normalize();
-    if (Dep.DependentOffloadKind == Action::OFK_HIP &&
+    if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
+         Dep.DependentOffloadKind == Action::OFK_SYCL) &&
         !Dep.DependentBoundArch.empty()) {
       Triples += '-';
       Triples += Dep.DependentBoundArch;

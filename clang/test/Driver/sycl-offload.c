@@ -546,22 +546,20 @@
 // CHK-ADD-TARGETS-REG-MUL: 7: backend, {6}, assembler, (host-sycl)
 // CHK-ADD-TARGETS-REG-MUL: 8: assembler, {7}, object, (host-sycl)
 // CHK-ADD-TARGETS-REG-MUL: 9: linker, {8}, image, (host-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 10: input, "[[INPUT]]", c, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 11: preprocessor, {10}, cpp-output, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 12: compiler, {11}, ir, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 13: linker, {12}, ir, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 14: sycl-post-link, {13}, tempfiletable, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 15: file-table-tform, {14}, tempfilelist, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 16: llvm-spirv, {15}, tempfilelist, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 17: file-table-tform, {14, 16}, tempfiletable, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 10: compiler, {3}, ir, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 11: linker, {10}, ir, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 12: sycl-post-link, {11}, tempfiletable, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 13: file-table-tform, {12}, tempfilelist, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 14: llvm-spirv, {13}, tempfilelist, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 15: file-table-tform, {12, 14}, tempfiletable, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 16: clang-offload-wrapper, {15}, object, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 17: input, "dummy.aocx", sycl-fatbin, (device-sycl)
 // CHK-ADD-TARGETS-REG-MUL: 18: clang-offload-wrapper, {17}, object, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 19: input, "dummy.aocx", sycl-fatbin, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 19: input, "dummy_Gen9core.bin", sycl-fatbin, (device-sycl)
 // CHK-ADD-TARGETS-REG-MUL: 20: clang-offload-wrapper, {19}, object, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 21: input, "dummy_Gen9core.bin", sycl-fatbin, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 21: input, "dummy.ir", sycl-fatbin, (device-sycl)
 // CHK-ADD-TARGETS-REG-MUL: 22: clang-offload-wrapper, {21}, object, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 23: input, "dummy.ir", sycl-fatbin, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 24: clang-offload-wrapper, {23}, object, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 25: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64-unknown-unknown-sycldevice)" {18}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {20}, "device-sycl (spir64_gen-unknown-unknown-sycldevice)" {22}, "device-sycl (spir64_x86_64-unknown-unknown-sycldevice)" {24}, image
+// CHK-ADD-TARGETS-REG-MUL: 23: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64-unknown-unknown-sycldevice)" {16}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {18}, "device-sycl (spir64_gen-unknown-unknown-sycldevice)" {20}, "device-sycl (spir64_x86_64-unknown-unknown-sycldevice)" {22}, image
 
 /// ###########################################################################
 
@@ -769,7 +767,7 @@
 // CHK-PHASE-MULTI-TARG: 2: input, "[[INPUT]]", c, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 3: preprocessor, {2}, cpp-output, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 4: compiler, {3}, sycl-header, (device-sycl)
-// CHK-PHASE-MULTI-TARG: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64-unknown-unknown-sycldevice)" {4}, cpp-output
+// CHK-PHASE-MULTI-TARG: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_gen-unknown-unknown-sycldevice)" {4}, cpp-output
 // CHK-PHASE-MULTI-TARG: 6: compiler, {5}, ir, (host-sycl)
 // CHK-PHASE-MULTI-TARG: 7: backend, {6}, assembler, (host-sycl)
 // CHK-PHASE-MULTI-TARG: 8: assembler, {7}, object, (host-sycl)

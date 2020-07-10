@@ -58,6 +58,7 @@
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringExtras.h"
@@ -3488,8 +3489,26 @@ class OffloadingActionBuilder final {
     /// Flag to signal if the user requested device code split.
     bool DeviceCodeSplit = false;
 
+    /// List of offload device toolchain, bound arch needed to track for
+    /// different binary constructions.
+    /// POD to hold information about a SYCL device action.
+    /// Each Action is bound to a <TC, arch> pair,
+    /// we keep them together under a struct for clarity.
+    struct DeviceTargetInfo {
+      DeviceTargetInfo(const ToolChain *TC, const char *BA)
+          : TC(TC), BoundArch(BA) {}
+
+      const ToolChain *TC;
+      const char *BoundArch;
+    };
+    SmallVector<DeviceTargetInfo, 4> SYCLTargetInfoList;
+
     /// The SYCL actions for the current input.
-    ActionList SYCLDeviceActions;
+    /// One action per triple/boundarch.
+    SmallVector<Action *, 4> SYCLDeviceActions;
+
+    /// The linker inputs obtained for each input / toolchain / arch.
+    SmallVector<ActionList, 4> DeviceLinkerInputs;
 
     /// The SYCL link binary if it was generated for the current input.
     Action *SYCLLinkBinary = nullptr;
@@ -3500,14 +3519,8 @@ class OffloadingActionBuilder final {
     /// SYCL ahead of time compilation inputs
     SmallVector<std::pair<llvm::Triple, const char *>, 8> SYCLAOTInputs;
 
-    /// The linker inputs obtained for each toolchain.
-    SmallVector<ActionList, 8> DeviceLinkerInputs;
-
-    /// The compiler inputs obtained for each toolchain
-    Action * DeviceCompilerInput = nullptr;
-
-    /// List of offload device triples needed to track for different toolchain
-    /// construction. Does not track AOT binary inputs triples.
+    /// List of offload device triples as provided on the CLI.
+    /// Does not track AOT binary inputs triples.
     SmallVector<llvm::Triple, 4> SYCLTripleList;
 
     /// Running count of FPGA device binaries.
@@ -3522,20 +3535,6 @@ class OffloadingActionBuilder final {
 
     /// List of CUDA architectures to use in this compilation with NVPTX targets.
     SmallVector<CudaArch, 8> GpuArchList;
-
-    /// Build the last steps for CUDA after all BC files have been linked.
-    Action *finalizeNVPTXDependences(Action *Input, const llvm::Triple &TT) {
-      auto *BA = C.getDriver().ConstructPhaseAction(
-          C, Args, phases::Backend, Input, AssociatedOffloadKind);
-      if (TT.getOS() != llvm::Triple::NVCL) {
-        auto *AA = C.getDriver().ConstructPhaseAction(
-            C, Args, phases::Assemble, BA, AssociatedOffloadKind);
-        ActionList DeviceActions = {BA, AA};
-        return C.MakeAction<LinkJobAction>(DeviceActions,
-                                           types::TY_CUDA_FATBIN);
-      }
-      return BA;
-    }
 
   public:
     SYCLActionBuilder(Compilation &C, DerivedArgList &Args,
@@ -3563,20 +3562,15 @@ class OffloadingActionBuilder final {
       // The host depends on the generated integrated header from the device
       // compilation.
       if (CurPhase == phases::Compile) {
-        for (Action *&A : SYCLDeviceActions) {
-          DeviceCompilerInput =
-              C.MakeAction<CompileJobAction>(A, types::TY_SYCL_Header);
-          A = C.MakeAction<CompileJobAction>(A, types::TY_LLVM_BC);
+        if (SYCLDeviceActions.size()) {
+          // Pick the first target as the SYCL Header producer.
+          Action *SYCLHeaderAction = C.MakeAction<CompileJobAction>(
+              SYCLDeviceActions.back(), types::TY_SYCL_Header);
+          const DeviceTargetInfo &DevTarget = SYCLTargetInfoList.back();
+          DA.add(*SYCLHeaderAction, *DevTarget.TC, DevTarget.BoundArch,
+                 Action::OFK_SYCL);
+          // Fall through to build the regular device actions.
         }
-        const auto *TC = ToolChains.front();
-        const char *BoundArch = nullptr;
-        if (TC->getTriple().isNVPTX())
-          BoundArch = CudaArchToString(GpuArchList.front());
-        DA.add(*DeviceCompilerInput, *TC, BoundArch, Action::OFK_SYCL);
-        // Clear the input file, it is already a dependence to a host
-        // action.
-        DeviceCompilerInput = nullptr;
-        return ABRT_Success;
       }
 
       // Backend/Assemble actions are obsolete for the SYCL device side
@@ -3586,12 +3580,16 @@ class OffloadingActionBuilder final {
       // The host only depends on device action in the linking phase, when all
       // the device images have to be embedded in the host image.
       if (CurPhase == phases::Link) {
-        assert(ToolChains.size() == DeviceLinkerInputs.size() &&
-               "Toolchains and linker inputs sizes do not match.");
-        auto LI = DeviceLinkerInputs.begin();
-        for (auto *A : SYCLDeviceActions) {
-          LI->push_back(A);
-          ++LI;
+        if (SYCLDeviceActions.size()) {
+          assert(SYCLDeviceActions.size() == DeviceLinkerInputs.size() &&
+                 "Device action and device linker inputs sizes do not match.");
+          for (auto TargetAction :
+               llvm::zip(DeviceLinkerInputs, SYCLDeviceActions)) {
+            ActionList &LinkerList = std::get<0>(TargetAction);
+            Action *A = std::get<1>(TargetAction);
+
+            LinkerList.push_back(A);
+          }
         }
 
         // With -fsycl-link-targets, we will take the unbundled binaries
@@ -3637,17 +3635,9 @@ class OffloadingActionBuilder final {
       }
 
       // By default, we produce an action for each device arch.
-      auto TC = ToolChains.begin();
       for (Action *&A : SYCLDeviceActions) {
-        if ((*TC)->getTriple().isNVPTX() && CurPhase >= phases::Backend) {
-          // For CUDA, stop to emit LLVM IR so it can be linked later on.
-          ++TC;
-          continue;
-        }
-
         A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
                                                AssociatedOffloadKind);
-        ++TC;
       }
 
       return ABRT_Success;
@@ -3675,9 +3665,12 @@ class OffloadingActionBuilder final {
         if (IA->getType() == types::TY_Object && !isObjectFile(InputName))
           return ABRT_Inactive;
 
-        for (unsigned I = 0; I < ToolChains.size(); ++I)
+        // Create 1 device action per triple/bound arch.
+        for (auto &Target : SYCLTargetInfoList) {
+          (void)Target;
           SYCLDeviceActions.push_back(
               C.MakeAction<InputAction>(IA->getInputArg(), IA->getType()));
+        }
         return ABRT_Success;
       }
 
@@ -3715,10 +3708,10 @@ class OffloadingActionBuilder final {
               C.getDriver().Diag(clang::diag::err_drv_bad_fpga_device_count);
           }
         }
-        for (unsigned I = 0; I < ToolChains.size(); ++I) {
+        for (auto &TargetInfo : SYCLTargetInfoList) {
           SYCLDeviceActions.push_back(UA);
-          UA->registerDependentActionInfo(
-            ToolChains[I], /*BoundArch=*/StringRef(), Action::OFK_SYCL);
+          UA->registerDependentActionInfo(TargetInfo.TC, TargetInfo.BoundArch,
+                                          Action::OFK_SYCL);
         }
         return ABRT_Success;
       }
@@ -3744,16 +3737,19 @@ class OffloadingActionBuilder final {
         return;
 
       // We should always have an action for each input.
-      assert(SYCLDeviceActions.size() == ToolChains.size() &&
-             "Number of SYCL actions and toolchains do not match.");
+      assert(
+          SYCLDeviceActions.size() == SYCLTargetInfoList.size() &&
+          "Number of SYCL actions and toolchains/boundarch pair do not match.");
 
       // Append all device actions followed by the proper offload action.
       auto TI = ToolChains.begin();
-      for (auto *A : SYCLDeviceActions) {
+      for (auto TargetActionInfo :
+           llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
+        Action *A = std::get<0>(TargetActionInfo);
+        DeviceTargetInfo &TargetInfo = std::get<1>(TargetActionInfo);
+
         OffloadAction::DeviceDependences Dep;
-        withBoundArchForToolChain(*TI, [&](const char *BoundArch) {
-          Dep.add(*A, **TI, BoundArch, Action::OFK_SYCL);
-        });
+        Dep.add(*A, *TargetInfo.TC, TargetInfo.BoundArch, Action::OFK_SYCL);
         AL.push_back(C.MakeAction<OffloadAction>(Dep, A->getType()));
         ++TI;
       }
@@ -3762,23 +3758,24 @@ class OffloadingActionBuilder final {
     }
 
     void appendLinkDependences(OffloadAction::DeviceDependences &DA) override {
-      assert(ToolChains.size() == DeviceLinkerInputs.size() &&
-             "Toolchains and linker inputs sizes do not match.");
-
-      // Append a new link action for each device.
-      auto TC = ToolChains.begin();
-
-      unsigned I = 0;
-      for (auto &LI : DeviceLinkerInputs) {
+      // DeviceLinkerInputs holds binaries per ToolChain (TC) / bound-arch pair
+      // The following will loop link and post process for each TC / bound-arch
+      // to produce a final binary.
+      // They will be bundled per TC before being sent to the Offload Wrapper.
+      llvm::MapVector<const ToolChain *, ActionList> LinkedInputs;
+      for (auto LinkInputEnum : enumerate(DeviceLinkerInputs)) {
+        auto &LI = LinkInputEnum.value();
+        const ToolChain *TC = SYCLTargetInfoList[LinkInputEnum.index()].TC;
+        const char *BoundArch =
+            SYCLTargetInfoList[LinkInputEnum.index()].BoundArch;
 
         auto TripleIt = llvm::find_if(SYCLTripleList, [&](auto &SYCLTriple) {
-          return SYCLTriple == (*TC)->getTriple();
+          return SYCLTriple == TC->getTriple();
         });
         if (TripleIt == SYCLTripleList.end()) {
           // If the toolchain's triple is absent in this "main" triple
           // collection, this means it was created specifically for one of
           // the SYCL AOT inputs. Those will be handled separately.
-          ++TC;
           continue;
         }
         if (LI.empty())
@@ -3816,7 +3813,7 @@ class OffloadingActionBuilder final {
               } else
                 DeviceWrappingAction =
                     C.MakeAction<OffloadWrapperJobAction>(I, types::TY_Object);
-              DA.add(*DeviceWrappingAction, **TC, /*BoundArch=*/nullptr,
+              DA.add(*DeviceWrappingAction, *TC, /*BoundArch=*/nullptr,
                      Action::OFK_SYCL);
               continue;
             }
@@ -3833,7 +3830,7 @@ class OffloadingActionBuilder final {
                 DeviceLinkAction, types::TY_SPIRV);
             auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
                 SPIRVTranslateAction, types::TY_Object);
-            DA.add(*DeviceWrappingAction, **TC, /*BoundArch=*/nullptr,
+            DA.add(*DeviceWrappingAction, *TC, /*BoundArch=*/nullptr,
                    Action::OFK_SYCL);
           }
           continue;
@@ -3901,7 +3898,7 @@ class OffloadingActionBuilder final {
         Action *DeviceLinkAction =
             C.MakeAction<LinkJobAction>(LinkObjects, types::TY_LLVM_BC);
         // setup some flags upfront
-        auto isNVPTX = (*TC)->getTriple().isNVPTX();
+        auto isNVPTX = TC->getTriple().isNVPTX();
 
         if (isNVPTX && DeviceCodeSplit) {
           // TODO Temporary limitation, need to support code splitting for PTX
@@ -3911,9 +3908,9 @@ class OffloadingActionBuilder final {
                   .getOption(options::OPT_fsycl_device_code_split)
                   .getPrefixedName();
           D.Diag(diag::err_drv_unsupported_opt_for_target)
-              << OptName << (*TC)->getTriple().str();
+              << OptName << TC->getTriple().str();
         }
-        auto TT = SYCLTripleList[I];
+        auto TT = TC->getTriple();
         bool isSpirvAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
@@ -3934,9 +3931,29 @@ class OffloadingActionBuilder final {
         PostLinkAction->setRTSetsSpecConstants(!isAOT);
 
         if (isNVPTX) {
-          Action *FinAction =
-              finalizeNVPTXDependences(PostLinkAction, (*TC)->getTriple());
-          WrapperInputs.push_back(FinAction);
+          auto *BackendAction = C.getDriver().ConstructPhaseAction(
+              C, Args, phases::Backend, PostLinkAction, AssociatedOffloadKind);
+          if (TT.getOS() == llvm::Triple::CUDA) {
+            // For CUDA we need to assemble and then bundle all ptx + cubin for
+            // all arch into a CUDA fatbin. We perform the assemble step here so
+            // we can bind everything to our given arch and push both the
+            // backend and assemble part to the input to be wrapped.
+            // The part handling the wrapping will generate the FATBIN for CUDA.
+            auto *AssembleAction = C.getDriver().ConstructPhaseAction(
+                C, Args, phases::Assemble, BackendAction,
+                AssociatedOffloadKind);
+            for (auto &A : {AssembleAction, BackendAction}) {
+              OffloadAction::DeviceDependences DDep;
+              DDep.add(*A, *TC, BoundArch, Action::OFK_SYCL);
+              WrapperInputs.push_back(
+                  C.MakeAction<OffloadAction>(DDep, A->getType()));
+            }
+          } else {
+            OffloadAction::DeviceDependences DDep;
+            DDep.add(*BackendAction, *TC, BoundArch, Action::OFK_SYCL);
+            WrapperInputs.push_back(
+                C.MakeAction<OffloadAction>(DDep, BackendAction->getType()));
+          }
         } else {
           // For SPIRV-based targets - translate to SPIRV then optionally
           // compile ahead-of-time to native architecture
@@ -3991,19 +4008,29 @@ class OffloadingActionBuilder final {
           }
           WrapperInputs.push_back(BuildCodeAction);
         }
-        // After the Link, wrap the files before the final host link
-        auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
-            WrapperInputs, types::TY_Object);
+        LinkedInputs[TC].append(WrapperInputs.begin(), WrapperInputs.end());
+      }
 
-        if (isSpirvAOT)
-          DA.add(*DeviceWrappingAction, **TC, /*BoundArch=*/nullptr,
-                 Action::OFK_SYCL);
-        else
-          withBoundArchForToolChain(*TC, [&](const char *BoundArch) {
-            DA.add(*DeviceWrappingAction, **TC, BoundArch, Action::OFK_SYCL);
-          });
-        ++TC;
-        ++I;
+      for (auto &InputPerTC : LinkedInputs) {
+        const ToolChain *TC = InputPerTC.first;
+        ActionList &WrapperInputs = InputPerTC.second;
+        Action *DeviceWrappingAction = nullptr;
+
+        // For CUDA, we need to gather the binary of all targeted arch into one
+        // fatbin bundle before handing it over to the wrapper.
+        if (TC->getTriple().getOS() == llvm::Triple::CUDA) {
+          DeviceWrappingAction =
+              C.MakeAction<LinkJobAction>(WrapperInputs, types::TY_CUDA_FATBIN);
+          DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
+              DeviceWrappingAction, types::TY_Object);
+        } else {
+          // After the Link, wrap the files before the final host link
+          DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
+              WrapperInputs, types::TY_Object);
+        }
+
+        DA.add(*DeviceWrappingAction, *TC, /*BoundArch=*/nullptr,
+               Action::OFK_SYCL);
       }
 
       for (auto &SAI : SYCLAOTInputs) {
@@ -4031,10 +4058,10 @@ class OffloadingActionBuilder final {
       }
     }
 
-    /// Initialize the GPU architecture list from arguments - this populates `GpuArchList` from
-    /// `--cuda-gpu-arch` flags. Only relevant if compiling to CUDA. Return true if any
-    /// initialization errors are found.
-    bool initializeGpuArchMap() {
+    /// Initialize the GPU architecture list from arguments - this populates
+    /// `GpuArchList` from
+    /// `--cuda-gpu-arch` flags. Only relevant if compiling to CUDA.
+    void initializeGpuArchMap() {
       const OptTable &Opts = C.getDriver().getOpts();
       for (auto *A : Args) {
         unsigned Index;
@@ -4064,8 +4091,6 @@ class OffloadingActionBuilder final {
       if (GpuArchList.empty()) {
         GpuArchList.push_back(CudaArch::SM_50);
       }
-
-      return false;
     }
 
     bool initialize() override {
@@ -4075,6 +4100,11 @@ class OffloadingActionBuilder final {
       for (auto TI = SYCLTCRange.first, TE = SYCLTCRange.second; TI != TE;
            ++TI)
         ToolChains.push_back(TI->second);
+
+      // No SYCL toolchain means nothing to offload.
+      if (!ToolChains.size()) {
+        return false;
+      }
 
       Arg *SYCLLinkTargets = Args.getLastArg(
                                   options::OPT_fsycl_link_targets_EQ);
@@ -4099,6 +4129,7 @@ class OffloadingActionBuilder final {
                                               options::OPT_fno_sycl, false);
       if (SYCLTargets || SYCLAddTargets) {
         if (SYCLTargets) {
+          initializeGpuArchMap();
           llvm::StringMap<StringRef> FoundNormalizedTriples;
           for (const char *Val : SYCLTargets->getValues()) {
             llvm::Triple TT(Val);
@@ -4112,7 +4143,27 @@ class OffloadingActionBuilder final {
             // Store the current triple so that we can check for duplicates in
             // the following iterations.
             FoundNormalizedTriples[NormalizedName] = Val;
-
+            // TODO: Toolchains were created using triple validated using the
+            //       same logic as above.
+            //       The triples used here should come from the toolchains, not
+            //       by re-doing the work.
+            auto TCIt = llvm::find_if(
+                ToolChains, [&](auto &TC) { return TT == TC->getTriple(); });
+            assert(TCIt != ToolChains.end() &&
+                   "Toolchain was not created for this platform");
+            if (!TT.isNVPTX()) {
+              SYCLTargetInfoList.emplace_back(*TCIt, nullptr);
+            } else {
+              for (auto Arch : GpuArchList) {
+                SYCLTargetInfoList.emplace_back(*TCIt, CudaArchToString(Arch));
+              }
+            }
+            // Keep track of the triple provided to fsycl-targets
+            // and maintain a distinction with fsycl-add-targets.
+            //
+            // Note: this odd, but the test assert that a integration header
+            // is build no matter what. If only fsycl-add-targets is provided,
+            // the driver driscard the device compilation steps.
             SYCLTripleList.push_back(TT);
           }
         }
@@ -4129,14 +4180,25 @@ class OffloadingActionBuilder final {
             // populate the AOT binary inputs vector.
             SYCLAOTInputs.push_back(std::make_pair(TT, TF));
           }
+          // This is a hack to maintain current behavior.
+          // A valid invocation of the compiler can be
+          //    clang -fsycl-add-targets=<args>
+          // without any compilation targets added.
+          // In this case, the SYCLTargets clause is not ran.
+          // Tests check that an integration header is created even if no kernel
+          // is being built. This force compilation target to be added so that
+          // the header is created until the CLI flags are cleaned up.
+          if (!SYCLTargetInfoList.size()) {
+            const ToolChain *TC = ToolChains.front();
+            SYCLTargetInfoList.emplace_back(TC, nullptr);
+          }
         }
       } else if (HasValidSYCLRuntime) {
-        // -fsycl is provided without -fsycl-*targets.
-        bool SYCLfpga = C.getInputArgs().hasArg(options::OPT_fintelfpga);
-        // -fsycl -fintelfpga implies spir64_fpga
-        const char *SYCLTargetArch = SYCLfpga ? "spir64_fpga" : "spir64";
-        SYCLTripleList.push_back(
-            C.getDriver().MakeSYCLDeviceTriple(SYCLTargetArch));
+        // During the triple validation, we build the Toolchain for it.
+        // Reuse the information here.
+        const ToolChain *TC = ToolChains.front();
+        SYCLTargetInfoList.emplace_back(TC, nullptr);
+        SYCLTripleList.push_back(TC->getTriple());
       }
 
       // Set the FPGA output type based on command line (-fsycl-link).
@@ -4144,8 +4206,8 @@ class OffloadingActionBuilder final {
         FPGAOutType = (A->getValue() == StringRef("early"))
                          ? types::TY_FPGA_AOCR : types::TY_FPGA_AOCX;
 
-      DeviceLinkerInputs.resize(ToolChains.size());
-      return initializeGpuArchMap();
+      DeviceLinkerInputs.resize(SYCLTargetInfoList.size());
+      return false;
     }
 
     bool canUseBundlerUnbundler() const override {
