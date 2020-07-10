@@ -1604,9 +1604,7 @@ public:
   }
 
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD) final {
-
     QualType FieldTy = FD->getType();
-
     const CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
 
     // Kernel Object field is an array of structs. Handle struct array element.
