@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 -std=c++11 -fsyntax-only -fsycl -fsycl-is-device -verify %s
 
-[[intelfpga::no_global_work_offset]] void not_direct() {} //expected-warning {{'no_global_work_offset' attribute ignored}}
+[[intelfpga::no_global_work_offset]] void not_direct() {} // expected-no-warning
 
 void func() { not_direct(); }
 
