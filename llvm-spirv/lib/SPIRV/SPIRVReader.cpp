@@ -168,6 +168,27 @@ static void addOCLKernelArgumentMetadata(
   Fn->setMetadata(MDName, MDNode::get(*Context, ValueVec));
 }
 
+static void addBufferLocationMetadata(
+    LLVMContext *Context, SPIRVFunction *BF, llvm::Function *Fn,
+    std::function<Metadata *(SPIRVFunctionParameter *)> Func) {
+  std::vector<Metadata *> ValueVec;
+  bool DecorationFound = false;
+  BF->foreachArgument([&](SPIRVFunctionParameter *Arg) {
+    if (Arg->getType()->isTypePointer() &&
+        Arg->hasDecorate(DecorationBufferLocationINTEL)) {
+      DecorationFound = true;
+      ValueVec.push_back(Func(Arg));
+    } else {
+      llvm::Metadata *DefaultNode = ConstantAsMetadata::get(
+          ConstantInt::get(Type::getInt32Ty(*Context), -1));
+      ValueVec.push_back(DefaultNode);
+    }
+  });
+  if (DecorationFound)
+    Fn->setMetadata("kernel_arg_buffer_location",
+                    MDNode::get(*Context, ValueVec));
+}
+
 Value *SPIRVToLLVM::getTranslatedValue(SPIRVValue *BV) {
   auto Loc = ValueMap.find(BV);
   if (Loc != ValueMap.end())
@@ -3479,6 +3500,15 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
                                                         Arg->getName());
                                  });
   }
+  // Generate metadata for kernel_arg_buffer_location
+  addBufferLocationMetadata(Context, BF, F, [=](SPIRVFunctionParameter *Arg) {
+    auto Literals = Arg->getDecorationLiterals(DecorationBufferLocationINTEL);
+    assert(Literals.size() == 1 &&
+           "BufferLocationINTEL decoration shall have 1 ID literal");
+
+    return ConstantAsMetadata::get(
+        ConstantInt::get(Type::getInt32Ty(*Context), Literals[0]));
+  });
   return true;
 }
 

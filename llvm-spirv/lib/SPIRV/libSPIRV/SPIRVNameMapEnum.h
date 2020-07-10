@@ -376,6 +376,7 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationGlobalVariableOffsetINTEL, "GlobalVariableOffsetINTEL");
   add(DecorationFuncParamIOKind, "FuncParamIOKind");
   add(DecorationSIMTCallINTEL, "SIMTCallINTEL");
+  add(DecorationBufferLocationINTEL, "BufferLocationINTEL");
 }
 SPIRV_DEF_NAMEMAP(Decoration, SPIRVDecorationNameMap)
 
@@ -560,6 +561,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
       "GroupNonUniformShuffleRelative");
   add(CapabilityGroupNonUniformClustered, "GroupNonUniformClustered");
   add(CapabilityUSMStorageClassesINTEL, "USMStorageClassesINTEL");
+  add(CapabilityFPGABufferLocationINTEL, "FPGABufferLocationINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

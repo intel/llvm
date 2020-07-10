@@ -402,6 +402,8 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
   ADD_VEC_INIT(DecorationDontStaticallyCoalesceINTEL,
                {CapabilityFPGAMemoryAccessesINTEL});
   ADD_VEC_INIT(DecorationPrefetchINTEL, {CapabilityFPGAMemoryAccessesINTEL});
+  ADD_VEC_INIT(DecorationBufferLocationINTEL,
+               {CapabilityFPGABufferLocationINTEL});
 }
 
 template <> inline void SPIRVMap<BuiltIn, SPIRVCapVec>::init() {
