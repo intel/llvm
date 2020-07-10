@@ -124,6 +124,11 @@ template <access::target accessTarget> struct TargetToAS {
       access::address_space::global_space;
 };
 
+template <> struct TargetToAS<access::target::global_buffer> {
+  constexpr static access::address_space AS =
+      access::address_space::global_device_space;
+};
+
 template <> struct TargetToAS<access::target::local> {
   constexpr static access::address_space AS =
       access::address_space::local_space;
