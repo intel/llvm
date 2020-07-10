@@ -21,6 +21,27 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+static std::map<RT::PiDevice, std::shared_ptr<device_impl>> device_impl_map;
+static std::mutex device_impl_map_mutex;
+static device host_device;
+
+static std::shared_ptr<device_impl>
+get_or_make_shared(RT::PiDevice PiDevice,
+                   std::shared_ptr<platform_impl> PlatformImpl) {
+  const std::lock_guard<std::mutex> guard(device_impl_map_mutex);
+
+  // If we've already seen this device, return the impl
+  if (auto Impl = device_impl_map[PiDevice]) {
+    return Impl;
+  }
+
+  // Otherwise make the impl
+  auto Res = std::make_shared<device_impl>(PiDevice, PlatformImpl);
+  device_impl_map[PiDevice] = Res;
+
+  return Res;
+}
+
 static bool IsBannedPlatform(platform Platform) {
   // The NVIDIA OpenCL platform is currently not compatible with DPC++
   // since it is only 1.2 but gets selected by default in many systems
@@ -233,7 +254,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   vector_class<device> Res;
   if (is_host() && (DeviceType == info::device_type::host ||
                     DeviceType == info::device_type::all)) {
-    Res.resize(1); // default device constructor creates host device
+    Res.push_back(host_device);
   }
 
   // If any DeviceType other than host was requested for host platform,
@@ -260,11 +281,11 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
     filterAllowList(PiDevices, MPlatform, this->getPlugin());
 
+  auto PlatformImpl = std::make_shared<platform_impl>(*this);
   std::transform(PiDevices.begin(), PiDevices.end(), std::back_inserter(Res),
-                 [this](const RT::PiDevice &PiDevice) -> device {
+                 [this, PlatformImpl](const RT::PiDevice &PiDevice) -> device {
                    return detail::createSyclObjFromImpl<device>(
-                       std::make_shared<device_impl>(
-                           PiDevice, std::make_shared<platform_impl>(*this)));
+                       get_or_make_shared(PiDevice, PlatformImpl));
                  });
 
   return Res;
