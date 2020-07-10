@@ -126,7 +126,7 @@
 // #error "Incorrect cl_khr_3d_image_writes define"
 // #endif
 #pragma OPENCL EXTENSION cl_khr_3d_image_writes : enable
-#if (__OPENCL_C_VERSION__ >= 120) && defined TEST_CORE_FEATURES
+#if (__OPENCL_C_VERSION__ >= 200) && defined TEST_CORE_FEATURES
 // expected-warning@-2{{OpenCL extension 'cl_khr_3d_image_writes' is core feature or supported optional core feature - ignoring}}
 #endif
 
