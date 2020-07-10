@@ -51,7 +51,7 @@ const char *SYCL::Linker::constructLLVMSpirvCommand(Compilation &C,
   llvm::sys::path::append(LLVMSpirvPath, "llvm-spirv");
   const char *LLVMSpirv = C.getArgs().MakeArgString(LLVMSpirvPath);
   C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::None(), LLVMSpirv, CmdArgs, None));
+      JA, *this, ResponseFileSupport::AtFileUTF8(), LLVMSpirv, CmdArgs, None));
   return OutputFileName;
 }
 
@@ -128,7 +128,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(Compilation &C,
   llvm::sys::path::append(ExecPath, "llvm-link");
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::None(), Exec, CmdArgs, None));
+      JA, *this, ResponseFileSupport::AtFileUTF8(), Exec, CmdArgs, None));
   return OutputFileName;
 }
 
@@ -142,7 +142,7 @@ void SYCL::Linker::constructLlcCommand(Compilation &C, const JobAction &JA,
   llvm::sys::path::append(LlcPath, "llc");
   const char *Llc = C.getArgs().MakeArgString(LlcPath);
   C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::None(), Llc, LlcArgs, None));
+      JA, *this, ResponseFileSupport::AtFileUTF8(), Llc, LlcArgs, None));
 }
 
 // For SYCL the inputs of the linker job are SPIR-V binaries and output is
