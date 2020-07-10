@@ -20,3 +20,21 @@
 #warning "No assumptions will be emitted due to no __builtin_assume available"
 #endif
 #endif
+#ifdef _WIN32
+#define __SYCL_DEPRECATED(message) __declspec(deprecated(message))
+#else
+#define __SYCL_DEPRECATED(message) __attribute__((deprecated(message)))
+#endif
+
+// inline constexpr is a C++17 feature
+#if __cplusplus >= 201703L
+#define __SYCL_INLINE_CONSTEXPR inline constexpr
+#else
+#define __SYCL_INLINE_CONSTEXPR static constexpr
+#endif
+
+#if __has_attribute(sycl_special_class)
+#define __SYCL_SPECIAL_CLASS(kind) __attribute__((sycl_special_class(kind)))
+#else
+#define __SYCL_SPECIAL_CLASS(kind)
+#endif

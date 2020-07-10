@@ -4863,25 +4863,36 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 // Utility class methods
 // -----------------------------------------------------------------------------
 
-bool Util::isSyclAccessorType(QualType Ty) {
-  return isSyclType(Ty, "accessor", true /*Tmpl*/);
+bool Util::isSyclAccessorType(const QualType &Ty) {
+  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
+  if (!RecTy)
+    return false; // only classes/structs supported
+  if (const auto *A = RecTy->getAttr<SYCLSpecialClassAttr>())
+    return A->getSpecialClassKind() == SYCLSpecialClassAttr::Accessor;
+  return false;
 }
 
-bool Util::isSyclSamplerType(QualType Ty) { return isSyclType(Ty, "sampler"); }
-
-bool Util::isSyclStreamType(QualType Ty) { return isSyclType(Ty, "stream"); }
-
-bool Util::isSyclHalfType(QualType Ty) {
-  std::array<DeclContextDesc, 5> Scopes = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "detail"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "half_impl"),
-      Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "half")};
-  return matchQualifiedTypeName(Ty, Scopes);
+bool Util::isSyclSamplerType(const QualType &Ty) {
+  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
+  if (!RecTy)
+    return false; // only classes/structs supported
+  if (const auto *A = RecTy->getAttr<SYCLSpecialClassAttr>())
+    return A->getSpecialClassKind() == SYCLSpecialClassAttr::Sampler;
+  return false;
 }
 
-bool Util::isSyclSpecConstantType(QualType Ty) {
+bool Util::isSyclStreamType(const QualType &Ty) {
+  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
+  if (!RecTy)
+    return false; // only classes/structs supported
+  if (const auto *A = RecTy->getAttr<SYCLSpecialClassAttr>())
+    return A->getSpecialClassKind() == SYCLSpecialClassAttr::Stream;
+  return false;
+}
+
+// TODO: Remove this once structs decomposing is optimized
+bool Util::isSyclHalfType(const QualType &Ty) {
+  const StringRef &Name = "half";
   std::array<DeclContextDesc, 5> Scopes = {
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
@@ -4930,6 +4941,15 @@ bool Util::isSyclBufferLocationType(QualType Ty) {
       Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "buffer_location"),
       Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
                                 "instance")};
+
+// TODO: Do we need an attribute for this one as well?
+bool Util::isSyclSpecConstantType(const QualType &Ty) {
+  const StringRef &Name = "spec_constant";
+  std::array<DeclContextDesc, 4> Scopes = {
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "experimental"},
+      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
