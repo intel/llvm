@@ -229,6 +229,21 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
                !checkAllowedSYCLInitializer(VD, /*CheckValueDependent =*/true))
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelConstStaticVariable;
+      // Emit an error if a const global array's size exceeds SPIR-V
+      // intermediate format limitations for SPIRV compatible devices.
+      else if (IsConst && VD->hasGlobalStorage() &&
+               Context.getTargetInfo().getTriple().isSPIR() &&
+               !isArrayZeroInitialized(VD, /*CheckValueDependent =*/true)) {
+        QualType Ty = VD->getType();
+        if (const auto *CAType = dyn_cast<ConstantArrayType>(Ty)) {
+          assert(CAType);
+          const int MaxNumElements = 65535 - 3;
+          int64_t arrayElements = CAType->getSize().getSExtValue();
+          if (arrayElements > MaxNumElements)
+            SYCLDiagIfDeviceCode(*Locs.begin(),
+                                 diag::err_array_num_elements_exceeded);
+        }
+      }
     }
   }
 

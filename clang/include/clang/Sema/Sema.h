@@ -9969,6 +9969,7 @@ public:
   bool checkNSReturnsRetainedReturnType(SourceLocation loc, QualType type);
   bool checkAllowedSYCLInitializer(VarDecl *VD,
                                    bool CheckValueDependent = false);
+  bool isArrayZeroInitialized(VarDecl *VD, bool CheckValueDependent = false);
 
   // Adds an intel_reqd_sub_group_size attribute to a particular declaration.
   void addIntelReqdSubGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,

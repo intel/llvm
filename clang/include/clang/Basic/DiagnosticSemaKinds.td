@@ -10908,6 +10908,9 @@ def err_sycl_restrict : Error<
   "|use a const static or global variable that is neither zero-initialized "
   "nor constant-initialized"
   "}0">;
+def err_array_num_elements_exceeded
+    : Error<"Due to SPIR-V intermediate format limitations, constant arrays with number of elements more than 65532 cannot be used in SYCL."
+            "You can workaround this limitation by splitting the array into several ones">;
 def err_sycl_virtual_types : Error<
   "No class with a vtable can be used in a SYCL kernel or any code included in the kernel">;
 def note_sycl_recursive_function_declared_here: Note<"function implemented using recursion declared here">;

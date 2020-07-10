@@ -2077,6 +2077,22 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
   }
 }
 
+bool Sema::isArrayZeroInitialized(VarDecl *VD, bool CheckValueDependent) {
+  assert(getLangOpts().SYCLIsDevice &&
+         "Should only be called during device compilation");
+  if (VD->isInvalidDecl() || !VD->hasInit() || !VD->hasGlobalStorage())
+    return false;
+  APValue *Value = nullptr;
+  if (VD->getInit() && !VD->getInit()->isValueDependent())
+    Value = VD->evaluateValue();
+  // zero-initialized arrays do not have any initialized elements.
+  if (Value && Value->isArray() && Value->hasArrayFiller() &&
+      Value->getArrayInitializedElts() == 0) {
+    return true;
+  }
+  return false;
+}
+
 bool Sema::checkAllowedSYCLInitializer(VarDecl *VD, bool CheckValueDependent) {
   assert(getLangOpts().SYCLIsDevice &&
          "Should only be called during SYCL compilation");
