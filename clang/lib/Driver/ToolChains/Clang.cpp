@@ -7901,5 +7901,5 @@ void PartialLink::ConstructJob(Compilation &C, const JobAction &JA,
   LinkArgs.push_back(TCArgs.MakeArgString(HTC->GetFilePath("crtn.o")));
   const char *Exec = TCArgs.MakeArgString(getToolChain().GetLinkerPath());
   C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::None(), Exec, LinkArgs, Inputs));
+      JA, *this, ResponseFileSupport::AtFileCurCP(), Exec, LinkArgs, Inputs));
 }
