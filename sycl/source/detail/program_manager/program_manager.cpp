@@ -329,8 +329,11 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
           ? createSpirvProgram(Ctx, RawImg.BinaryStart, ImgSize)
           : createBinaryProgram(Ctx, RawImg.BinaryStart, ImgSize);
 
-  // associate the PI program with the image it was created for
-  NativePrograms[Res] = &Img;
+  {
+    auto LockGuard = Ctx->getKernelProgramCache().acquireCachedPrograms();
+    // associate the PI program with the image it was created for
+    NativePrograms[Res] = &Img;
+  }
 
   if (DbgProgMgr > 1)
     std::cerr << "created program: " << Res
