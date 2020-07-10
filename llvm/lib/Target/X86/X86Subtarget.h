@@ -403,6 +403,11 @@ protected:
   /// Processor supports TSXLDTRK instruction
   bool HasTSXLDTRK = false;
 
+  /// Processor has AMX support
+  bool HasAMXTILE = false;
+  bool HasAMXBF16 = false;
+  bool HasAMXINT8 = false;
+
   /// Processor has a single uop BEXTR implementation.
   bool HasFastBEXTR = false;
 
@@ -436,6 +441,9 @@ protected:
   /// preceded by an LFENCE. Also decompose RET instructions into a
   /// POP+LFENCE+JMP sequence.
   bool UseLVIControlFlowIntegrity = false;
+
+  /// Enable Speculative Execution Side Effect Suppression
+  bool UseSpeculativeExecutionSideEffectSuppression = false;
 
   /// Insert LFENCE instructions to prevent data speculatively injected into
   /// loads from being used maliciously.
@@ -735,6 +743,9 @@ public:
   bool useRetpolineIndirectBranches() const {
     return UseRetpolineIndirectBranches;
   }
+  bool hasAMXTILE() const { return HasAMXTILE; }
+  bool hasAMXBF16() const { return HasAMXBF16; }
+  bool hasAMXINT8() const { return HasAMXINT8; }
   bool useRetpolineExternalThunk() const { return UseRetpolineExternalThunk; }
 
   // These are generic getters that OR together all of the thunk types
@@ -751,6 +762,9 @@ public:
   bool useGLMDivSqrtCosts() const { return UseGLMDivSqrtCosts; }
   bool useLVIControlFlowIntegrity() const { return UseLVIControlFlowIntegrity; }
   bool useLVILoadHardening() const { return UseLVILoadHardening; }
+  bool useSpeculativeExecutionSideEffectSuppression() const {
+    return UseSpeculativeExecutionSideEffectSuppression;
+  }
 
   unsigned getPreferVectorWidth() const { return PreferVectorWidth; }
   unsigned getRequiredVectorWidth() const { return RequiredVectorWidth; }

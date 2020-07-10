@@ -111,6 +111,10 @@ Error DWARFYAML::emitDebugAbbrev(raw_ostream &OS, const DWARFYAML::Data &DI) {
     encodeULEB128(0, OS);
   }
 
+  // The abbreviations for a given compilation unit end with an entry consisting
+  // of a 0 byte for the abbreviation code.
+  OS.write_zeros(1);
+
   return Error::success();
 }
 
@@ -184,14 +188,14 @@ Error DWARFYAML::emitDebugRanges(raw_ostream &OS, const DWARFYAML::Data &DI) {
 
 Error DWARFYAML::emitPubSection(raw_ostream &OS,
                                 const DWARFYAML::PubSection &Sect,
-                                bool IsLittleEndian) {
+                                bool IsLittleEndian, bool IsGNUPubSec) {
   writeInitialLength(Sect.Length, OS, IsLittleEndian);
   writeInteger((uint16_t)Sect.Version, OS, IsLittleEndian);
   writeInteger((uint32_t)Sect.UnitOffset, OS, IsLittleEndian);
   writeInteger((uint32_t)Sect.UnitSize, OS, IsLittleEndian);
   for (auto Entry : Sect.Entries) {
     writeInteger((uint32_t)Entry.DieOffset, OS, IsLittleEndian);
-    if (Sect.IsGNUStyle)
+    if (IsGNUPubSec)
       writeInteger((uint8_t)Entry.Descriptor, OS, IsLittleEndian);
     OS.write(Entry.Name.data(), Entry.Name.size());
     OS.write('\0');
@@ -208,18 +212,18 @@ class DumpVisitor : public DWARFYAML::ConstVisitor {
 
 protected:
   void onStartCompileUnit(const DWARFYAML::Unit &CU) override {
-    writeInitialLength(CU.Length, OS, DebugInfo.IsLittleEndian);
+    writeInitialLength(CU.Format, CU.Length, OS, DebugInfo.IsLittleEndian);
     writeInteger((uint16_t)CU.Version, OS, DebugInfo.IsLittleEndian);
     if (CU.Version >= 5) {
       writeInteger((uint8_t)CU.Type, OS, DebugInfo.IsLittleEndian);
       writeInteger((uint8_t)CU.AddrSize, OS, DebugInfo.IsLittleEndian);
       cantFail(writeVariableSizedInteger(CU.AbbrOffset,
-                                         CU.Length.isDWARF64() ? 8 : 4, OS,
-                                         DebugInfo.IsLittleEndian));
+                                         CU.Format == dwarf::DWARF64 ? 8 : 4,
+                                         OS, DebugInfo.IsLittleEndian));
     } else {
       cantFail(writeVariableSizedInteger(CU.AbbrOffset,
-                                         CU.Length.isDWARF64() ? 8 : 4, OS,
-                                         DebugInfo.IsLittleEndian));
+                                         CU.Format == dwarf::DWARF64 ? 8 : 4,
+                                         OS, DebugInfo.IsLittleEndian));
       writeInteger((uint8_t)CU.AddrSize, OS, DebugInfo.IsLittleEndian);
     }
   }
@@ -442,9 +446,7 @@ private:
     Length = CU.Version >= 5 ? 8 : 7;
   }
 
-  virtual void onEndCompileUnit(DWARFYAML::Unit &CU) {
-    CU.Length.setLength(Length);
-  }
+  virtual void onEndCompileUnit(DWARFYAML::Unit &CU) { CU.Length = Length; }
 
   virtual void onStartDIE(DWARFYAML::Unit &CU, DWARFYAML::Entry &DIE) {
     Length += getULEB128Size(DIE.AbbrCode);

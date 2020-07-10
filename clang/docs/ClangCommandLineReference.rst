@@ -2755,6 +2755,10 @@ Generate a \_\_mcount\_loc section entry for each \_\_fentry\_\_ call.
 
 Make StdCall calling convention the default
 
+.. option:: -mseses, -mno-seses
+
+Enable speculative execution side effect suppression (SESES). Includes LVI control flow integrity mitigations
+
 .. option:: -msign-return-address=<arg>
 
 Select return address signing scope
@@ -3126,6 +3130,12 @@ X86
 .. option:: -madx, -mno-adx
 
 .. option:: -maes, -mno-aes
+
+.. option:: -mamx-bf16, -mno-amx-bf16
+
+.. option:: -mamx-int8, -mno-amx-int8
+
+.. option:: -mamx-tile, -mno-amx-tile
 
 .. option:: -mavx, -mno-avx
 

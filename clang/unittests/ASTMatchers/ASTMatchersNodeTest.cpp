@@ -87,6 +87,12 @@ TEST_P(ASTMatchersTest, MatchesNameRE_CXX) {
   EXPECT_TRUE(matches("namespace x { int kTest; }", StartsWithK));
   EXPECT_TRUE(matches("class C { int k; };", StartsWithK));
   EXPECT_TRUE(notMatches("class C { int ckc; };", StartsWithK));
+  EXPECT_TRUE(notMatches("int K;", StartsWithK));
+
+  DeclarationMatcher StartsWithKIgnoreCase =
+      namedDecl(matchesName(":k[^:]*$", llvm::Regex::IgnoreCase));
+  EXPECT_TRUE(matches("int k;", StartsWithKIgnoreCase));
+  EXPECT_TRUE(matches("int K;", StartsWithKIgnoreCase));
 }
 
 TEST_P(ASTMatchersTest, DeclarationMatcher_MatchClass) {
@@ -1201,7 +1207,12 @@ TEST_P(ASTMatchersTest, CastExpression_MatchesImplicitCasts) {
 }
 
 TEST_P(ASTMatchersTest, CastExpr_DoesNotMatchNonCasts) {
-  EXPECT_TRUE(notMatches("char c = '0';", castExpr()));
+  if (GetParam().Language == Lang_C89 || GetParam().Language == Lang_C99) {
+    // This does have a cast in C
+    EXPECT_TRUE(matches("char c = '0';", implicitCastExpr()));
+  } else {
+    EXPECT_TRUE(notMatches("char c = '0';", castExpr()));
+  }
   EXPECT_TRUE(notMatches("int i = (0);", castExpr()));
   EXPECT_TRUE(notMatches("int i = 0;", castExpr()));
 }

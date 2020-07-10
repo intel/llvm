@@ -86,7 +86,7 @@ spirv::getRecursiveImpliedCapabilities(Capability cap) {
   llvm::SetVector<Capability, SmallVector<Capability, 0>> allCaps(
       directCaps.begin(), directCaps.end());
 
-  // TODO(antiagainst): This is insufficient; find a better way to handle this
+  // TODO: This is insufficient; find a better way to handle this
   // (e.g., using static lists) if this turns out to be a bottleneck.
   for (unsigned i = 0; i < allCaps.size(); ++i)
     for (Capability c : getDirectImpliedCapabilities(allCaps[i]))
@@ -182,7 +182,7 @@ Type CompositeType::getElementType(unsigned index) const {
   case spirv::TypeKind::CooperativeMatrix:
     return cast<CooperativeMatrixNVType>().getElementType();
   case spirv::TypeKind::Matrix:
-    return cast<MatrixType>().getElementType();
+    return cast<MatrixType>().getColumnType();
   case spirv::TypeKind::RuntimeArray:
     return cast<RuntimeArrayType>().getElementType();
   case spirv::TypeKind::Struct:
@@ -202,7 +202,7 @@ unsigned CompositeType::getNumElements() const {
     llvm_unreachable(
         "invalid to query number of elements of spirv::CooperativeMatrix type");
   case spirv::TypeKind::Matrix:
-    return cast<MatrixType>().getNumElements();
+    return cast<MatrixType>().getNumColumns();
   case spirv::TypeKind::RuntimeArray:
     llvm_unreachable(
         "invalid to query number of elements of spirv::RuntimeArray type");
@@ -589,9 +589,6 @@ StorageClass PointerType::getStorageClass() const {
 
 void PointerType::getExtensions(SPIRVType::ExtensionArrayRefVector &extensions,
                                 Optional<StorageClass> storage) {
-  if (storage)
-    assert(*storage == getStorageClass() && "inconsistent storage class!");
-
   // Use this pointer type's storage class because this pointer indicates we are
   // using the pointee type in that specific storage class.
   getPointeeType().cast<SPIRVType>().getExtensions(extensions,
@@ -604,9 +601,6 @@ void PointerType::getExtensions(SPIRVType::ExtensionArrayRefVector &extensions,
 void PointerType::getCapabilities(
     SPIRVType::CapabilityArrayRefVector &capabilities,
     Optional<StorageClass> storage) {
-  if (storage)
-    assert(*storage == getStorageClass() && "inconsistent storage class!");
-
   // Use this pointer type's storage class because this pointer indicates we are
   // using the pointee type in that specific storage class.
   getPointeeType().cast<SPIRVType>().getCapabilities(capabilities,
@@ -1092,13 +1086,25 @@ bool MatrixType::isValidColumnType(Type columnType) {
   return false;
 }
 
-Type MatrixType::getElementType() const { return getImpl()->columnType; }
+Type MatrixType::getColumnType() const { return getImpl()->columnType; }
 
-unsigned MatrixType::getNumElements() const { return getImpl()->columnCount; }
+Type MatrixType::getElementType() const {
+  return getImpl()->columnType.cast<VectorType>().getElementType();
+}
+
+unsigned MatrixType::getNumColumns() const { return getImpl()->columnCount; }
+
+unsigned MatrixType::getNumRows() const {
+  return getImpl()->columnType.cast<VectorType>().getShape()[0];
+}
+
+unsigned MatrixType::getNumElements() const {
+  return (getImpl()->columnCount) * getNumRows();
+}
 
 void MatrixType::getExtensions(SPIRVType::ExtensionArrayRefVector &extensions,
                                Optional<StorageClass> storage) {
-  getElementType().cast<SPIRVType>().getExtensions(extensions, storage);
+  getColumnType().cast<SPIRVType>().getExtensions(extensions, storage);
 }
 
 void MatrixType::getCapabilities(
@@ -1110,5 +1116,5 @@ void MatrixType::getCapabilities(
     capabilities.push_back(ref);
   }
   // Add any capabilities associated with the underlying vectors (i.e., columns)
-  getElementType().cast<SPIRVType>().getCapabilities(capabilities, storage);
+  getColumnType().cast<SPIRVType>().getCapabilities(capabilities, storage);
 }

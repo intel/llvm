@@ -12959,6 +12959,10 @@ bool FixedPointExprEvaluator::VisitBinaryOperator(const BinaryOperator *E) {
     break;
   }
   case BO_Div: {
+    if (RHSFX.getValue() == 0) {
+      Info.FFDiag(E, diag::note_expr_divide_by_zero);
+      return false;
+    }
     Result = LHSFX.div(RHSFX, &OpOverflow)
                   .convert(ResultFXSema, &ConversionOverflow);
     break;

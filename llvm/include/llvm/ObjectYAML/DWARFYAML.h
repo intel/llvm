@@ -98,11 +98,7 @@ struct PubSection {
   uint16_t Version;
   uint32_t UnitOffset;
   uint32_t UnitSize;
-  bool IsGNUStyle = false;
   std::vector<PubEntry> Entries;
-
-  PubSection() = default;
-  PubSection(bool IsGNUStyle) : IsGNUStyle(IsGNUStyle) {}
 };
 
 struct FormValue {
@@ -116,8 +112,15 @@ struct Entry {
   std::vector<FormValue> Values;
 };
 
+/// Class that contains helpful context information when mapping YAML into DWARF
+/// data structures.
+struct DWARFContext {
+  bool IsGNUPubSec = false;
+};
+
 struct Unit {
-  InitialLength Length;
+  dwarf::DwarfFormat Format;
+  uint64_t Length;
   uint16_t Version;
   llvm::dwarf::UnitType Type; // Added in DWARF 5
   yaml::Hex64 AbbrOffset;

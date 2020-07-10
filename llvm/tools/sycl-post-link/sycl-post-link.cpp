@@ -274,7 +274,7 @@ static void saveModule(Module &M, StringRef OutFilename) {
 
   if (OutputAssembly)
     PrintModule.add(createPrintModulePass(Out, ""));
-  else if (Force || !CheckBitcodeOutputToConsole(Out, true))
+  else if (Force || !CheckBitcodeOutputToConsole(Out))
     PrintModule.add(createBitcodeWriterPass(Out));
   PrintModule.run(M);
 }

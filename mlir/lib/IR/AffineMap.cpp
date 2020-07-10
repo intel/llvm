@@ -355,10 +355,18 @@ bool AffineMap::isPermutation() {
 AffineMap AffineMap::getSubMap(ArrayRef<unsigned> resultPos) {
   SmallVector<AffineExpr, 4> exprs;
   exprs.reserve(resultPos.size());
-  for (auto idx : resultPos) {
+  for (auto idx : resultPos)
     exprs.push_back(getResult(idx));
-  }
   return AffineMap::get(getNumDims(), getNumSymbols(), exprs, getContext());
+}
+
+AffineMap AffineMap::getMinorSubMap(unsigned numResults) {
+  if (numResults == 0)
+    return AffineMap();
+  if (numResults > getNumResults())
+    return *this;
+  return getSubMap(llvm::to_vector<4>(
+      llvm::seq<unsigned>(getNumResults() - numResults, getNumResults())));
 }
 
 AffineMap mlir::simplifyAffineMap(AffineMap map) {
@@ -444,7 +452,7 @@ bool MutableAffineMap::isMultipleOf(unsigned idx, int64_t factor) const {
   if (results[idx].isMultipleOf(factor))
     return true;
 
-  // TODO(bondhugula): use simplifyAffineExpr and FlatAffineConstraints to
+  // TODO: use simplifyAffineExpr and FlatAffineConstraints to
   // complete this (for a more powerful analysis).
   return false;
 }
@@ -453,7 +461,7 @@ bool MutableAffineMap::isMultipleOf(unsigned idx, int64_t factor) const {
 // be pure for the simplification implemented.
 void MutableAffineMap::simplify() {
   // Simplify each of the results if possible.
-  // TODO(ntv): functional-style map
+  // TODO: functional-style map
   for (unsigned i = 0, e = getNumResults(); i < e; i++) {
     results[i] = simplifyAffineExpr(getResult(i), numDims, numSymbols);
   }
