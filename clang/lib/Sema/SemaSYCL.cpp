@@ -1244,7 +1244,11 @@ public:
     // space, because OpenCL requires it.
     QualType PointeeTy = FieldTy->getPointeeType();
     Qualifiers Quals = PointeeTy.getQualifiers();
-    Quals.setAddressSpace(LangAS::opencl_global);
+    auto AS = Quals.getAddressSpace();
+    // Leave global_device and global_host address spaces as is to help FPGA
+    // device in memory allocations
+    if (AS != LangAS::opencl_global_device && AS != LangAS::opencl_global_host)
+      Quals.setAddressSpace(LangAS::opencl_global);
     PointeeTy = SemaRef.getASTContext().getQualifiedType(
         PointeeTy.getUnqualifiedType(), Quals);
     QualType ModTy = SemaRef.getASTContext().getPointerType(PointeeTy);
