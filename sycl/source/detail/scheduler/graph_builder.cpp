@@ -33,7 +33,7 @@ namespace detail {
 /// work on different parts of the memory object in parallel is legal.
 static bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
   return (LHS->MOffsetInBytes + LHS->MAccessRange.size() * LHS->MElemSize >=
-          RHS->MOffsetInBytes) ||
+          RHS->MOffsetInBytes) &&
          (RHS->MOffsetInBytes + RHS->MAccessRange.size() * RHS->MElemSize >=
           LHS->MOffsetInBytes);
 }
