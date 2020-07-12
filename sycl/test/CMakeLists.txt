@@ -69,7 +69,6 @@ add_lit_target(check-sycl-inline-asm
   ARGS ${RT_TEST_ARGS}
   PARAMS "SYCL_BE=PI_OPENCL"
   DEPENDS ${SYCL_TEST_DEPS}
-  EXCLUDE_FROM_CHECK_ALL
   )
 set_target_properties(check-sycl-inline-asm PROPERTIES FOLDER "SYCL tests")
 
