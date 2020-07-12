@@ -53,6 +53,7 @@ set_target_properties(check-sycl-deploy PROPERTIES FOLDER "SYCL tests")
 
 add_lit_testsuites(SYCL ${CMAKE_CURRENT_SOURCE_DIR}
   DEPENDS ${SYCL_TEST_DEPS}
+  EXCLUDE_FROM_CHECK_ALL
   )
 
 add_lit_testsuites(SYCL-DEPLOY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -68,6 +69,7 @@ add_lit_target(check-sycl-inline-asm
   ARGS ${RT_TEST_ARGS}
   PARAMS "SYCL_BE=PI_OPENCL"
   DEPENDS ${SYCL_TEST_DEPS}
+  EXCLUDE_FROM_CHECK_ALL
   )
 set_target_properties(check-sycl-inline-asm PROPERTIES FOLDER "SYCL tests")
 
@@ -99,6 +101,7 @@ if(SYCL_BUILD_PI_CUDA)
     ARGS ${RT_TEST_ARGS}
     PARAMS "SYCL_BE=PI_CUDA"
     DEPENDS ${SYCL_TEST_DEPS}
+    EXCLUDE_FROM_CHECK_ALL
   )
   set_target_properties(check-sycl-cuda PROPERTIES FOLDER "SYCL CUDA tests")
 
@@ -107,5 +110,6 @@ if(SYCL_BUILD_PI_CUDA)
   add_lit_testsuites(SYCL-CUDA ${CMAKE_CURRENT_SOURCE_DIR}
     PARAMS "SYCL_BE=PI_CUDA"
     DEPENDS ${SYCL_TEST_DEPS}
+    EXCLUDE_FROM_CHECK_ALL
   )
 endif()
