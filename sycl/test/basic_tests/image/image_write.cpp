@@ -25,12 +25,18 @@
 
 #include <iostream>
 
-template<typename T> class test_1d_write_class;
-template<typename T> class test_1d_read_class;
-template<typename T> class test_2d_write_class;
-template<typename T> class test_2d_read_class;
-template<typename T> class test_3d_write_class;
-template<typename T> class test_3d_read_class;
+template <typename T>
+class test_1d_write_class;
+template <typename T>
+class test_1d_read_class;
+template <typename T>
+class test_2d_write_class;
+template <typename T>
+class test_2d_read_class;
+template <typename T>
+class test_3d_write_class;
+template <typename T>
+class test_3d_read_class;
 
 namespace s = cl::sycl;
 
