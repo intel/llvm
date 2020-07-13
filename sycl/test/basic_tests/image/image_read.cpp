@@ -26,9 +26,12 @@
 
 #include <iostream>
 
-template<typename T> class test_1d_class;
-template<typename T> class test_2d_class;
-template<typename T> class test_3d_class;
+template <typename T>
+class test_1d_class;
+template <typename T>
+class test_2d_class;
+template <typename T>
+class test_3d_class;
 
 namespace s = cl::sycl;
 
