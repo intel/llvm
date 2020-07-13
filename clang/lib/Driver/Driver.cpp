@@ -3562,7 +3562,7 @@ class OffloadingActionBuilder final {
       // The host depends on the generated integrated header from the device
       // compilation.
       if (CurPhase == phases::Compile) {
-        if (SYCLDeviceActions.size()) {
+        if (!SYCLDeviceActions.empty()) {
           // Pick the first target as the SYCL Header producer.
           Action *SYCLHeaderAction = C.MakeAction<CompileJobAction>(
               SYCLDeviceActions.back(), types::TY_SYCL_Header);
@@ -3580,7 +3580,7 @@ class OffloadingActionBuilder final {
       // The host only depends on device action in the linking phase, when all
       // the device images have to be embedded in the host image.
       if (CurPhase == phases::Link) {
-        if (SYCLDeviceActions.size()) {
+        if (!SYCLDeviceActions.empty()) {
           assert(SYCLDeviceActions.size() == DeviceLinkerInputs.size() &&
                  "Device action and device linker inputs sizes do not match.");
           for (auto TargetAction :
@@ -4188,7 +4188,7 @@ class OffloadingActionBuilder final {
           // Tests check that an integration header is created even if no kernel
           // is being built. This force compilation target to be added so that
           // the header is created until the CLI flags are cleaned up.
-          if (!SYCLTargetInfoList.size()) {
+          if (SYCLDeviceActions.empty()) {
             const ToolChain *TC = ToolChains.front();
             SYCLTargetInfoList.emplace_back(TC, nullptr);
           }
