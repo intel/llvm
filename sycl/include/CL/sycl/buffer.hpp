@@ -236,9 +236,13 @@ public:
     impl->recordBufferUsage(((void *)this), BufSize, 0, false);
   }
 
-  buffer(const buffer &rhs) = default;
-
-  buffer(buffer &&rhs) = default;
+  // copy constructor
+  buffer(const buffer &rhs) : impl(rhs.impl), Range(rhs.Range) {
+    IsSubBuffer = rhs.IsSubBuffer;
+    OffsetInBytes = rhs.OffsetInBytes;
+    impl->recordBufferUsage(((void *)this), get_size(), this->OffsetInBytes,
+                            this->IsSubBuffer);
+  }
 
   buffer &operator=(const buffer &rhs) = default;
 

@@ -15,7 +15,7 @@
 #include <CL/sycl.hpp>
 using namespace cl::sycl;
 
-constexpr long total = 1'024;
+constexpr long total = 128;
 constexpr long subSz = total / 2;
 
 // setup_arr makes data go 1, 2, ... n. (like iota)

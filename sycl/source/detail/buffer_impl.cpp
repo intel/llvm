@@ -44,16 +44,16 @@ void buffer_impl::recordBufferUsage(const void *const BuffPtr, const size_t Sz,
 static bool isAReadMode(access::mode Mode) {
   if (Mode == access::mode::write || Mode == access::mode::discard_write)
     return false;
-  else
-    return true;
+
+  return true;
 }
 
 static bool isAWriteMode(access::mode Mode) {
   if (Mode == access::mode::read || Mode == access::mode::discard_write ||
       Mode == access::mode::discard_read_write)
     return false;
-  else
-    return true;
+
+  return true;
 }
 
 static detail::when_copyback whenDataResolves(buffer_usage &BU) {
@@ -106,7 +106,12 @@ static ContextImplPtr getDtorCopyBackCtxImpl(buffer_usage &BU) {
   return theCtx;
 }
 
-bool buffer_impl::hasSubBuffers() { return MBufferUsageDQ.size() > 1; }
+bool buffer_impl::hasSubBuffers() {
+  std::deque<buffer_usage>::iterator it =
+      find_if(MBufferUsageDQ.begin(), MBufferUsageDQ.end(),
+              [](buffer_usage &BU) { return BU.BufferInfo.IsSubBuffer; });
+  return (it != MBufferUsageDQ.end());
+}
 
 void buffer_impl::set_write_back(bool flag) {
   // called for normal buffers.
