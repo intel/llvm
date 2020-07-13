@@ -1,4 +1,4 @@
-# PI Level0 plugin library
+# PI Level Zero plugin library
 
 if(MSVC)
   set(L0_LOADER
@@ -66,20 +66,20 @@ target_include_directories(L0Loader-Headers
 include_directories("${sycl_inc_dir}")
 include_directories(${OPENCL_INCLUDE})
 
-add_library(pi_level0 SHARED
+add_library(pi_level_zero SHARED
   "${sycl_inc_dir}/CL/sycl/detail/pi.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/pi_level0.cpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/pi_level0.hpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.hpp"
 )
 
 if (MSVC)
   # by defining __SYCL_BUILD_SYCL_DLL, we can use __declspec(dllexport)
   # which are individually tagged for all pi* symbols in pi.h
-  target_compile_definitions(pi_level0 PRIVATE __SYCL_BUILD_SYCL_DLL)
+  target_compile_definitions(pi_level_zero PRIVATE __SYCL_BUILD_SYCL_DLL)
 else()
   # we set the visibility of all symbols 'hidden' by default.
   # In pi.h file, we set exported symbols with visibility==default individually
-  target_compile_options(pi_level0 PUBLIC -fvisibility=hidden)
+  target_compile_options(pi_level_zero PUBLIC -fvisibility=hidden)
 
   # This script file is used to allow exporting pi* symbols only.
   # All other symbols are regarded as local (hidden)
@@ -87,23 +87,23 @@ else()
 
   # Filter symbols based on the scope defined in the script file,
   # and export pi* function symbols in the library.
-  target_link_libraries( pi_level0
+  target_link_libraries( pi_level_zero
     PRIVATE "-Wl,--version-script=${linker_script}"
   )
 endif()
 
 if (TARGET l0-loader)
-  add_dependencies(pi_level0 l0-loader)
+  add_dependencies(pi_level_zero l0-loader)
 endif()
-  add_dependencies(sycl-toolchain pi_level0)
+  add_dependencies(sycl-toolchain pi_level_zero)
 
-  target_link_libraries(pi_level0 PRIVATE "${L0_LOADER}")
+  target_link_libraries(pi_level_zero PRIVATE "${L0_LOADER}")
 if (UNIX)
-  target_link_libraries(pi_level0 PRIVATE pthread)
+  target_link_libraries(pi_level_zero PRIVATE pthread)
 endif()
 
-add_common_options(pi_level0)
+add_common_options(pi_level_zero)
 
-install(TARGETS pi_level0
-    LIBRARY DESTINATION "lib" COMPONENT pi_level0
-    RUNTIME DESTINATION "bin" COMPONENT pi_level0)
+install(TARGETS pi_level_zero
+    LIBRARY DESTINATION "lib" COMPONENT pi_level_zero
+    RUNTIME DESTINATION "bin" COMPONENT pi_level_zero)

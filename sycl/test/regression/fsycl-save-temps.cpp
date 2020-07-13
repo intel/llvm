@@ -22,6 +22,6 @@ int main() {
 }
 
 // TODO: Address a Windows-specific issue with integration header filenames
-// XFAIL: system-windows && !level0
+// XFAIL: system-windows && !level_zero
 // TODO: fail is flaky on Windows for Level Zero. Enable when fixed.
-// UNSUPPORTED: system-windows && level0
+// UNSUPPORTED: system-windows && level_zero

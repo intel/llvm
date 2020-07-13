@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <cstring>
 #include <utility>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -111,6 +112,7 @@ public:
   static backend *get() {
     static bool Initialized = false;
     static backend *BackendPtr = nullptr;
+    const char *newStr = "PI_LEVEL_ZERO";
 
     // Configuration parameters are processed only once, like reading a string
     // from environment and converting it into a typed object.
@@ -120,9 +122,12 @@ public:
     const char *ValStr = BaseT::getRawValue();
     const std::array<std::pair<std::string, backend>, 3> SyclBeMap = {
         {{"PI_OPENCL", backend::opencl},
-         {"PI_LEVEL0", backend::level_zero},
+         {"PI_LEVEL_ZERO", backend::level_zero},
          {"PI_CUDA", backend::cuda}}};
     if (ValStr) {
+      if (strcmp(ValStr, "PI_LEVEL0") == 0) {
+        ValStr = newStr;
+      }
       auto It = std::find_if(
           std::begin(SyclBeMap), std::end(SyclBeMap),
           [&ValStr](const std::pair<std::string, backend> &element) {
@@ -130,7 +135,7 @@ public:
           });
       if (It == SyclBeMap.end())
         pi::die("Invalid backend. "
-                "Valid values are PI_OPENCL/PI_LEVEL0/PI_CUDA");
+                "Valid values are PI_OPENCL/PI_LEVEL_ZERO/PI_CUDA");
       static backend Backend = It->second;
       BackendPtr = &Backend;
     }

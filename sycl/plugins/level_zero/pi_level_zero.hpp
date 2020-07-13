@@ -1,4 +1,4 @@
-//===---------- pi_level0.hpp - Level Zero Plugin -------------------------===//
+//===---------- pi_level_zero.hpp - Level Zero Plugin -------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,17 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// \defgroup sycl_pi_level0 Level Zero Plugin
+/// \defgroup sycl_pi_level_zero Level Zero Plugin
 /// \ingroup sycl_pi
 
-/// \file pi_level0.hpp
+/// \file pi_level_zero.hpp
 /// Declarations for Level Zero Plugin. It is the interface between the
 /// device-agnostic SYCL runtime layer and underlying Level Zero runtime.
 ///
-/// \ingroup sycl_pi_level0
+/// \ingroup sycl_pi_level_zero
 
-#ifndef PI_LEVEL0_HPP
-#define PI_LEVEL0_HPP
+#ifndef PI_LEVEL_ZERO_HPP
+#define PI_LEVEL_ZERO_HPP
 
 #include <CL/sycl/detail/pi.h>
 #include <atomic>
@@ -51,17 +51,17 @@ template <> uint32_t pi_cast(uint64_t Value) {
 struct _pi_object {
   _pi_object() : RefCount{1} {}
 
-  // L0 doesn't do the reference counting, so we have to do.
+  // Level Zero doesn't do the reference counting, so we have to do.
   // Must be atomic to prevent data race when incrementing/decrementing.
   std::atomic<pi_uint32> RefCount;
 };
 
-// Define the types that are opaque in pi.h in a manner suitabale for L0 plugin
+// Define the types that are opaque in pi.h in a manner suitabale for Level Zero plugin
 
 struct _pi_platform {
   _pi_platform(ze_driver_handle_t Driver) : ZeDriver{Driver} {}
 
-  // L0 lacks the notion of a platform, but there is a driver, which is a
+  // Level Zero lacks the notion of a platform, but there is a driver, which is a
   // pretty good fit to keep here.
   ze_driver_handle_t ZeDriver;
 
@@ -83,13 +83,13 @@ struct _pi_device : _pi_object {
   // Initialize the entire PI device.
   pi_result initialize();
 
-  // L0 device handle.
+  // Level Zero device handle.
   ze_device_handle_t ZeDevice;
 
   // PI platform to which this device belongs.
   pi_platform Platform;
 
-  // Immediate L0 command list for this device, to be used for initializations.
+  // Immediate Level Zero command list for this device, to be used for initializations.
   // To be created as:
   // - Immediate command list: So any command appended to it is immediately
   //   offloaded to the device.
@@ -117,7 +117,7 @@ struct _pi_context : _pi_object {
       : Device{Device}, ZeEventPool{nullptr}, NumEventsAvailableInEventPool{},
         NumEventsLiveInEventPool{} {}
 
-  // L0 does not have notion of contexts.
+  // Level Zero does not have notion of contexts.
   // Keep the device here (must be exactly one) to return it when PI context
   // is queried for devices.
   pi_device Device;
@@ -164,7 +164,7 @@ struct _pi_queue : _pi_object {
   _pi_queue(ze_command_queue_handle_t Queue, pi_context Context)
       : ZeCommandQueue{Queue}, Context{Context} {}
 
-  // L0 command queue handle.
+  // Level Zero command queue handle.
   ze_command_queue_handle_t ZeCommandQueue;
 
   // Keeps the PI context to which this queue belongs.
@@ -197,10 +197,10 @@ struct _pi_mem : _pi_object {
 
   // Interface of the _pi_mem object
 
-  // Get the L0 handle of the current memory object
+  // Get the Level Zero handle of the current memory object
   virtual void *getZeHandle() = 0;
 
-  // Get a pointer to the L0 handle of the current memory object
+  // Get a pointer to the Level Zero handle of the current memory object
   virtual void *getZeHandlePtr() = 0;
 
   // Method to get type of the derived object (image or buffer)
@@ -241,7 +241,7 @@ struct _pi_buffer final : _pi_mem {
 
   bool isSubBuffer() const { return SubBuffer.Parent != nullptr; }
 
-  // L0 memory handle is really just a naked pointer.
+  // Level Zero memory handle is really just a naked pointer.
   // It is just convenient to have it char * to simplify offset arithmetics.
   char *ZeMem;
 
@@ -268,7 +268,7 @@ struct _pi_image final : _pi_mem {
   ze_image_desc_t ZeImageDesc;
 #endif // !NDEBUG
 
-  // L0 image handle.
+  // Level Zero image handle.
   ze_image_handle_t ZeImage;
 };
 
@@ -278,12 +278,12 @@ struct _pi_event : _pi_object {
       : ZeEvent{ZeEvent}, ZeEventPool{ZeEventPool}, ZeCommandList{nullptr},
         CommandType{CommandType}, Context{Context}, CommandData{nullptr} {}
 
-  // L0 event handle.
+  // Level Zero event handle.
   ze_event_handle_t ZeEvent;
-  // L0 event pool handle.
+  // Level Zero event pool handle.
   ze_event_pool_handle_t ZeEventPool;
 
-  // L0 command list where the command signaling this event was appended to.
+  // Level Zero command list where the command signaling this event was appended to.
   // This is currently used to remember/destroy the command list after
   // all commands in it are completed, i.e. this event signaled.
   ze_command_list_handle_t ZeCommandList;
@@ -300,7 +300,7 @@ struct _pi_event : _pi_object {
   // Opaque data to hold any data needed for CommandType.
   void *CommandData;
 
-  // Methods for translating PI events list into L0 events list
+  // Methods for translating PI events list into Level Zero events list
   static ze_event_handle_t *createZeEventList(pi_uint32, const pi_event *);
   static void deleteZeEventList(ze_event_handle_t *);
 };
@@ -309,7 +309,7 @@ struct _pi_program : _pi_object {
   _pi_program(ze_module_handle_t Module, pi_context Context)
       : ZeModule{Module}, Context{Context} {}
 
-  // L0 module handle.
+  // Level Zero module handle.
   ze_module_handle_t ZeModule;
 
   // Keep the context of the program.
@@ -320,7 +320,7 @@ struct _pi_kernel : _pi_object {
   _pi_kernel(ze_kernel_handle_t Kernel, pi_program Program)
       : ZeKernel{Kernel}, Program{Program} {}
 
-  // L0 function handle.
+  // Level Zero function handle.
   ze_kernel_handle_t ZeKernel;
 
   // Keep the program of the kernel.
@@ -330,11 +330,11 @@ struct _pi_kernel : _pi_object {
 struct _pi_sampler : _pi_object {
   _pi_sampler(ze_sampler_handle_t Sampler) : ZeSampler{Sampler} {}
 
-  // L0 sampler handle.
-  // TODO: It is important that L0 handler is the first data member. Workaround
+  // Level Zero sampler handle.
+  // TODO: It is important that Level Zero handler is the first data member. Workaround
   // in SYCL RT (in ExecCGCommand::enqueueImp()) relies on this. This comment
   // should be removed when workaround in SYCL runtime will be removed.
   ze_sampler_handle_t ZeSampler;
 };
 
-#endif // PI_LEVEL0_HPP
+#endif // PI_LEVEL_ZERO_HPP

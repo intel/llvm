@@ -6,7 +6,7 @@
 // TODO: re-enable after CI drivers are updated to newer which support spec
 // constants:
 // XFAIL: linux && opencl
-// UNSUPPORTED: cuda || level0
+// UNSUPPORTED: cuda || level_zero
 //
 //==----------- spec_const_hw.cpp ------------------------------------------==//
 //

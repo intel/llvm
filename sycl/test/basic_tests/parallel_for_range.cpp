@@ -1,4 +1,4 @@
-// XFAIL: cuda || level0
+// XFAIL: cuda || level_zero
 // CUDA exposes broken hierarchical parallelism.
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
