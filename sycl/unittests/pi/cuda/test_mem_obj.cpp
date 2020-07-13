@@ -113,3 +113,84 @@ TEST_F(CudaTestMemObj, piMemBufferCreateNoActiveContext) {
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemRelease>(memObj)),
             PI_SUCCESS);
 }
+
+TEST_F(CudaTestMemObj, piMemBufferPinnedMappedRead) {
+  const size_t memSize = sizeof(int);
+  const int value = 20;
+
+  pi_queue queue;
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piQueueCreate>(
+                context_, device_, 0, &queue)),
+            PI_SUCCESS);
+  ASSERT_NE(queue, nullptr);
+  ASSERT_EQ(queue->get_context(), context_);
+
+  pi_mem memObj;
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemBufferCreate>(
+                context_, PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_ALLOC,
+                memSize, nullptr, &memObj)),
+            PI_SUCCESS);
+
+  ASSERT_EQ(
+      (plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
+          queue, memObj, true, 0, sizeof(int), &value, 0, nullptr, nullptr)),
+      PI_SUCCESS);
+
+  int *host_ptr = nullptr;
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferMap>(
+                queue, memObj, true, CL_MAP_READ, 0, sizeof(int), 0, nullptr,
+                nullptr, (void**)&host_ptr)),
+            PI_SUCCESS);
+
+  ASSERT_EQ(*host_ptr, value);
+
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemUnmap>(
+                queue, memObj, host_ptr, 0, nullptr, nullptr)),
+            PI_SUCCESS);
+
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemRelease>(memObj)),
+            PI_SUCCESS);
+  plugin.call<detail::PiApiKind::piQueueRelease>(queue);
+}
+
+TEST_F(CudaTestMemObj, piMemBufferPinnedMappedWrite) {
+  const size_t memSize = sizeof(int);
+  const int value = 30;
+
+  pi_queue queue;
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piQueueCreate>(
+                context_, device_, 0, &queue)),
+            PI_SUCCESS);
+  ASSERT_NE(queue, nullptr);
+  ASSERT_EQ(queue->get_context(), context_);
+
+  pi_mem memObj;
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemBufferCreate>(
+                context_, PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_ALLOC,
+                memSize, nullptr, &memObj)),
+            PI_SUCCESS);
+
+  int *host_ptr = nullptr;
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferMap>(
+                queue, memObj, true, CL_MAP_WRITE, 0, sizeof(int), 0, nullptr,
+                nullptr, (void**)&host_ptr)),
+            PI_SUCCESS);
+
+  *host_ptr = value;
+
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemUnmap>(
+                queue, memObj, host_ptr, 0, nullptr, nullptr)),
+            PI_SUCCESS);
+
+  int read_value = 0;
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferRead>(
+                queue, memObj, true, 0, sizeof(int), &read_value, 0, nullptr,
+                nullptr)),
+            PI_SUCCESS);
+
+  ASSERT_EQ(read_value, value);
+
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piMemRelease>(memObj)),
+            PI_SUCCESS);
+  plugin.call<detail::PiApiKind::piQueueRelease>(queue);
+}
