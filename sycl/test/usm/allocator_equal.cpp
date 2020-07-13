@@ -7,7 +7,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 
-//==---- allocator_equal.cpp - Allocator Equality test -------------------==//
+//==---------- allocator_equal.cpp - Allocator Equality test ---------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,6 +16,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
+
+#include <cassert>
 
 using namespace cl::sycl;
 
