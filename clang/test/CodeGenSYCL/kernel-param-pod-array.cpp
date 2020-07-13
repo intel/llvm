@@ -95,7 +95,7 @@ int main() {
 // CHECK: [[B_ARRAY_0:%[a-zA-Z0-9_.]+]] = getelementptr inbounds [2 x %struct.{{.*}}foo_inner.foo_inner], [2 x %struct.{{.*}}foo_inner.foo_inner]* [[GEP_FOO1_B]], i64 0, i64 0
 // CHECK: [[GEP_FOO1_B1_X:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct.{{.*}}foo_inner.foo_inner, %struct.{{.*}}foo_inner.foo_inner* [[B_ARRAY_0]], i32 0, i32 0
 // CHECK: [[LOAD_FOO1_B1_X:%[a-zA-Z0-9_]+]] = load i32, i32* [[FOO1_B1_X_LOCAL]], align 4
-// store i32 [[LOAD_FOO1_B1_X]], i32* [[GEP_FOO1_B1_X]]
+// CHECK: store i32 [[LOAD_FOO1_B1_X]], i32* [[GEP_FOO1_B1_X]], align 4
 
 // Initialize struct_array[0].foo_b[0].y
 // CHECK: [[GEP_FOO1_B1_Y:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct.{{.*}}foo_inner.foo_inner, %struct.{{.*}}foo_inner.foo_inner* [[B_ARRAY_0]], i32 0, i32 1
@@ -106,7 +106,7 @@ int main() {
 // CHECK: [[B_ARRAY_1:%[a-zA-Z0-9_.]+]] = getelementptr inbounds %struct.{{.*}}foo_inner.foo_inner, %struct.{{.*}}foo_inner.foo_inner* [[B_ARRAY_0]], i64 1
 // CHECK: [[GEP_FOO1_B2_X:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct.{{.*}}foo_inner.foo_inner, %struct.{{.*}}foo_inner.foo_inner* [[B_ARRAY_1]], i32 0, i32 0
 // CHECK: [[LOAD_FOO1_B2_X:%[a-zA-Z0-9_]+]] = load i32, i32* [[FOO1_B2_X_LOCAL]], align 4
-// store i32 [[LOAD_FOO1_B2_X]], i32* [[GEP_FOO1_B2_X]], align 4
+// CHECK: store i32 [[LOAD_FOO1_B2_X]], i32* [[GEP_FOO1_B2_X]], align 4
 
 // Initialize struct_array[0].foo_b[1].y
 // CHECK: [[GEP_FOO1_B2_Y:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct.{{.*}}foo_inner.foo_inner, %struct.{{.*}}foo_inner.foo_inner* [[B_ARRAY_1]], i32 0, i32 1
@@ -140,7 +140,7 @@ int main() {
 // CHECK: [[FOO2_B_ARRAY_1:%[a-zA-Z0-9_.]+]] = getelementptr inbounds %struct.{{.*}}foo_inner.foo_inner, %struct.{{.*}}foo_inner.foo_inner* [[FOO2_B_ARRAY_0]], i64 1
 // CHECK: [[GEP_FOO2_B2_X:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct.{{.*}}foo_inner.foo_inner, %struct.{{.*}}foo_inner.foo_inner* [[FOO2_B_ARRAY_1]], i32 0, i32 0
 // CHECK: [[LOAD_FOO2_B2_X:%[a-zA-Z0-9_]+]] = load i32, i32* [[FOO2_B2_X_LOCAL]], align 4
-// store i32 [[LOAD_FOO2_B2_X]], i32* [[GEP_FOO2_B2_X]], align 4
+// CHECK: store i32 [[LOAD_FOO2_B2_X]], i32* [[GEP_FOO2_B2_X]], align 4
 
 // Initialize struct_array[1].foo_b[1].y
 // CHECK: [[GEP_FOO2_B2_Y:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct.{{.*}}foo_inner.foo_inner, %struct.{{.*}}foo_inner.foo_inner* [[FOO2_B_ARRAY_1]], i32 0, i32 1
