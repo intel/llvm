@@ -21,7 +21,7 @@ void foo() {
 #else // __SYCL_DEVICE_ONLY__
 
 [[intelfpga::max_work_group_size(2, 2, 2)]]
-void func_ignore() {}
+void func_do_not_ignore() {}
 
 struct FuncObj {
   [[intelfpga::max_work_group_size(4, 4, 4)]]
@@ -53,9 +53,9 @@ int main() {
       []() [[intelfpga::max_work_group_size(8, 8, 8)]] {});
 
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
-  // CHECK-NOT:   SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+  // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
   kernel<class test_kernel3>(
-      []() {func_ignore();});
+      []() {func_do_not_ignore();});
 
 #ifdef TRIGGER_ERROR
   [[intelfpga::max_work_group_size(1, 1, 1)]] int Var = 0; // expected-error{{'max_work_group_size' attribute only applies to functions}}

@@ -1,4 +1,4 @@
-// RUN: %clang %s -fsyntax-only -Xclang -ast-dump -fsycl-device-only | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl -fsycl-is-device -triple spir64 | FileCheck %s
 
 [[intelfpga::no_global_work_offset]] void not_direct() {}
 
@@ -17,7 +17,7 @@ void parallel_for(Type lambda) {
 
 void invoke_foo2() {
   // CHECK-LABEL:  FunctionDecl {{.*}} invoke_foo2 'void ()'
-  // CHECK:  `-FunctionDecl {{.*}} _ZTSZ11invoke_foo2vE10KernelName 'void ()'
-  // CHECK:  -SYCLIntelNoGlobalWorkOffsetAttr {{.*}} Enabled
+  // CHECK:        `-FunctionDecl {{.*}}KernelName 'void ()'
+  // CHECK:        -SYCLIntelNoGlobalWorkOffsetAttr {{.*}} Enabled
   parallel_for<class KernelName>([]() {});
 }

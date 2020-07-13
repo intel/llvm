@@ -21,7 +21,7 @@ void foo() {
 #else // __SYCL_DEVICE_ONLY__
 
 [[intelfpga::num_simd_work_items(2)]]
-void func_ignore() {}
+void func_do_not_ignore() {}
 
 struct FuncObj {
   [[intelfpga::num_simd_work_items(42)]]
@@ -45,9 +45,9 @@ int main() {
       []() [[intelfpga::num_simd_work_items(8)]] {});
 
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
-  // CHECK-NOT:   SYCLIntelNumSimdWorkItemsAttr {{.*}} 2
+  // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}} 2
   kernel<class test_kernel3>(
-      []() {func_ignore();});
+      []() {func_do_not_ignore();});
 
 #ifdef TRIGGER_ERROR
   [[intelfpga::num_simd_work_items(0)]] int Var = 0; // expected-error{{'num_simd_work_items' attribute only applies to functions}}
