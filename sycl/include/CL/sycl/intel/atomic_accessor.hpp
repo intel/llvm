@@ -108,15 +108,15 @@ public:
 #if __cplusplus > 201402L
 
 template <typename DataT, int Dimensions, typename AllocatorT,
-          memory_order Order, memory_scope Scope, typename... Ts>
-atomic_accessor(buffer<DataT, Dimensions, AllocatorT>, Ts...,
-                order_tag_t<Order>, scope_tag_t<Scope>, property_list = {})
+          memory_order Order, memory_scope Scope>
+atomic_accessor(buffer<DataT, Dimensions, AllocatorT>, order_tag_t<Order>,
+                scope_tag_t<Scope>, property_list = {})
     ->atomic_accessor<DataT, Dimensions, Order, Scope, target::global_buffer,
                       access::placeholder::true_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT,
-          memory_order Order, memory_scope Scope, typename... Ts>
-atomic_accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Ts...,
+          memory_order Order, memory_scope Scope>
+atomic_accessor(buffer<DataT, Dimensions, AllocatorT>, handler,
                 order_tag_t<Order>, scope_tag_t<Scope>, property_list = {})
     ->atomic_accessor<DataT, Dimensions, Order, Scope, target::global_buffer,
                       access::placeholder::false_t>;
