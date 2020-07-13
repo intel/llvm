@@ -10,6 +10,7 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/sycl/access/access.hpp>
+#include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -215,16 +216,42 @@ public:
     Ptr = RHS.Ptr;
   }
 
+#ifdef __SYCL_DEVICE_ONLY__
+  template <typename T2 = T>
+  detail::enable_if_t<!std::is_same<cl_float, T2>::value, T>
+  store(T2 Operand, memory_order Order = memory_order::relaxed) {
+    using I = detail::atomic_integer_arg_t<T>;
+    auto *TempPtr =
+        reinterpret_cast<typename multi_ptr<I, addressSpace>::pointer_t>(Ptr);
+    auto SPIRVOrder = detail::getSPIRVMemorySemanticsMask(Order);
+    __spirv_AtomicStore(TempPtr, SpirvScope, SPIRVOrder, (I)Operand);
+  }
+
+  template <typename T2 = T>
+  detail::enable_if_t<std::is_same<cl_float, T2>::value, T>
+  store(T2 Operand, memory_order Order = memory_order::relaxed) {
+    using I = detail::make_unsinged_integer_t<T>;
+    auto *TempPtr =
+        reinterpret_cast<typename multi_ptr<I, addressSpace>::pointer_t>(Ptr);
+    auto SPIRVOrder = detail::getSPIRVMemorySemanticsMask(Order);
+    I ValueInt = detail::bit_cast<I>(Operand);
+    __spirv_AtomicStore(TempPtr, SpirvScope, SPIRVOrder, ValueInt);
+  }
+#else
   void store(T Operand, memory_order Order = memory_order::relaxed) {
     __spirv_AtomicStore(
         Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
   }
+#endif
 
 #ifdef __SYCL_DEVICE_ONLY__
   template <typename T2 = T>
   detail::enable_if_t<!std::is_same<cl_float, T2>::value, T>
   load(memory_order Order = memory_order::relaxed) const {
-    return __spirv_AtomicLoad(Ptr, SpirvScope,
+    using I = detail::make_unsinged_integer_t<T>;
+    auto *TempPtr =
+        reinterpret_cast<typename multi_ptr<I, addressSpace>::pointer_t>(Ptr);
+    return __spirv_AtomicLoad(TempPtr, SpirvScope,
                               detail::getSPIRVMemorySemanticsMask(Order));
   }
   template <typename T2 = T>

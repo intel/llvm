@@ -122,9 +122,12 @@ AtomicCompareExchange(multi_ptr<T, AddressSpace> MPtr,
   auto SPIRVSuccess = getMemorySemanticsMask(Success);
   auto SPIRVFailure = getMemorySemanticsMask(Failure);
   auto SPIRVScope = getScope(Scope);
-  auto *Ptr = MPtr.get();
-  return __spirv_AtomicCompareExchange(Ptr, SPIRVScope, SPIRVSuccess,
-                                       SPIRVFailure, Desired, Expected);
+  using I = detail::atomic_integer_arg_t<T>;
+  auto *Ptr = reinterpret_cast<typename multi_ptr<I, AddressSpace>::pointer_t>(
+      MPtr.get());
+
+  return (T)__spirv_AtomicCompareExchange(
+      Ptr, SPIRVScope, SPIRVSuccess, SPIRVFailure, (I)Desired, (I)Expected);
 }
 
 template <typename T, access::address_space AddressSpace>
@@ -150,10 +153,12 @@ template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicLoad(multi_ptr<T, AddressSpace> MPtr, intel::memory_scope Scope,
            intel::memory_order Order) {
-  auto *Ptr = MPtr.get();
+  using I = detail::atomic_integer_arg_t<T>;
+  auto *Ptr = reinterpret_cast<typename multi_ptr<I, AddressSpace>::pointer_t>(
+      MPtr.get());
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
-  return __spirv_AtomicLoad(Ptr, SPIRVScope, SPIRVOrder);
+  return (T)__spirv_AtomicLoad(Ptr, SPIRVScope, SPIRVOrder);
 }
 
 template <typename T, access::address_space AddressSpace>
@@ -174,10 +179,12 @@ template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value>
 AtomicStore(multi_ptr<T, AddressSpace> MPtr, intel::memory_scope Scope,
             intel::memory_order Order, T Value) {
-  auto *Ptr = MPtr.get();
+  using I = detail::atomic_integer_arg_t<T>;
+  auto *Ptr = reinterpret_cast<typename multi_ptr<I, AddressSpace>::pointer_t>(
+      MPtr.get());
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
-  __spirv_AtomicStore(Ptr, SPIRVScope, SPIRVOrder, Value);
+  __spirv_AtomicStore(Ptr, SPIRVScope, SPIRVOrder, (I)Value);
 }
 
 template <typename T, access::address_space AddressSpace>
@@ -198,10 +205,12 @@ template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicExchange(multi_ptr<T, AddressSpace> MPtr, intel::memory_scope Scope,
                intel::memory_order Order, T Value) {
-  auto *Ptr = MPtr.get();
+  using I = detail::atomic_integer_arg_t<T>;
+  auto *Ptr = reinterpret_cast<typename multi_ptr<I, AddressSpace>::pointer_t>(
+      MPtr.get());
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
-  return __spirv_AtomicExchange(Ptr, SPIRVScope, SPIRVOrder, Value);
+  return (T)__spirv_AtomicExchange(Ptr, SPIRVScope, SPIRVOrder, (I)Value);
 }
 
 template <typename T, access::address_space AddressSpace>
@@ -224,70 +233,84 @@ template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicIAdd(multi_ptr<T, AddressSpace> MPtr, intel::memory_scope Scope,
            intel::memory_order Order, T Value) {
-  auto *Ptr = MPtr.get();
+  using I = detail::atomic_integer_arg_t<T>;
+  auto *Ptr = reinterpret_cast<typename multi_ptr<I, AddressSpace>::pointer_t>(
+      MPtr.get());
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
-  return __spirv_AtomicIAdd(Ptr, SPIRVScope, SPIRVOrder, Value);
+  return (T)__spirv_AtomicIAdd(Ptr, SPIRVScope, SPIRVOrder, (I)Value);
 }
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicISub(multi_ptr<T, AddressSpace> MPtr, intel::memory_scope Scope,
            intel::memory_order Order, T Value) {
-  auto *Ptr = MPtr.get();
+  using I = detail::atomic_integer_arg_t<T>;
+  auto *Ptr = reinterpret_cast<typename multi_ptr<I, AddressSpace>::pointer_t>(
+      MPtr.get());
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
-  return __spirv_AtomicISub(Ptr, SPIRVScope, SPIRVOrder, Value);
+  return (T)__spirv_AtomicISub(Ptr, SPIRVScope, SPIRVOrder, (I)Value);
 }
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicAnd(multi_ptr<T, AddressSpace> MPtr, intel::memory_scope Scope,
           intel::memory_order Order, T Value) {
-  auto *Ptr = MPtr.get();
+  using I = detail::atomic_integer_arg_t<T>;
+  auto *Ptr = reinterpret_cast<typename multi_ptr<I, AddressSpace>::pointer_t>(
+      MPtr.get());
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
-  return __spirv_AtomicAnd(Ptr, SPIRVScope, SPIRVOrder, Value);
+  return (T)__spirv_AtomicAnd(Ptr, SPIRVScope, SPIRVOrder, (I)Value);
 }
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicOr(multi_ptr<T, AddressSpace> MPtr, intel::memory_scope Scope,
          intel::memory_order Order, T Value) {
-  auto *Ptr = MPtr.get();
+  using I = detail::atomic_integer_arg_t<T>;
+  auto *Ptr = reinterpret_cast<typename multi_ptr<I, AddressSpace>::pointer_t>(
+      MPtr.get());
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
-  return __spirv_AtomicOr(Ptr, SPIRVScope, SPIRVOrder, Value);
+  return (T)__spirv_AtomicOr(Ptr, SPIRVScope, SPIRVOrder, (I)Value);
 }
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicXor(multi_ptr<T, AddressSpace> MPtr, intel::memory_scope Scope,
           intel::memory_order Order, T Value) {
-  auto *Ptr = MPtr.get();
+  using I = detail::atomic_integer_arg_t<T>;
+  auto *Ptr = reinterpret_cast<typename multi_ptr<I, AddressSpace>::pointer_t>(
+      MPtr.get());
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
-  return __spirv_AtomicXor(Ptr, SPIRVScope, SPIRVOrder, Value);
+  return (T)__spirv_AtomicXor(Ptr, SPIRVScope, SPIRVOrder, (I)Value);
 }
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicMin(multi_ptr<T, AddressSpace> MPtr, intel::memory_scope Scope,
           intel::memory_order Order, T Value) {
-  auto *Ptr = MPtr.get();
+  using I = detail::atomic_integer_arg_t<T>;
+  auto *Ptr = reinterpret_cast<typename multi_ptr<I, AddressSpace>::pointer_t>(
+      MPtr.get());
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
-  return __spirv_AtomicMin(Ptr, SPIRVScope, SPIRVOrder, Value);
+  return (T)__spirv_AtomicMin(Ptr, SPIRVScope, SPIRVOrder, (I)Value);
 }
 
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicMax(multi_ptr<T, AddressSpace> MPtr, intel::memory_scope Scope,
           intel::memory_order Order, T Value) {
-  auto *Ptr = MPtr.get();
+  using I = detail::atomic_integer_arg_t<T>;
+  auto *Ptr = reinterpret_cast<typename multi_ptr<I, AddressSpace>::pointer_t>(
+      MPtr.get());
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
-  return __spirv_AtomicMax(Ptr, SPIRVScope, SPIRVOrder, Value);
+  return (T)__spirv_AtomicMax(Ptr, SPIRVScope, SPIRVOrder, (I)Value);
 }
 
 // Native shuffles map directly to a SPIR-V SubgroupShuffle intrinsic

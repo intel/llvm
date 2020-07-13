@@ -625,6 +625,29 @@ template <typename... Args> inline void check_vector_size() {
                 "with the same number of elements.");
 }
 
+template <std::size_t Size, bool IsSigned> struct atomic_integer_arg_by_size {};
+
+template <> struct atomic_integer_arg_by_size<4, true> {
+  using type = int32_t;
+};
+
+template <> struct atomic_integer_arg_by_size<8, true> {
+  using type = int64_t;
+};
+
+template <> struct atomic_integer_arg_by_size<4, false> {
+  using type = uint32_t;
+};
+
+template <> struct atomic_integer_arg_by_size<8, false> {
+  using type = uint64_t;
+};
+
+template <typename T>
+using atomic_integer_arg_t =
+    typename atomic_integer_arg_by_size<sizeof(T),
+                                        std::is_signed<T>::value>::type;
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
