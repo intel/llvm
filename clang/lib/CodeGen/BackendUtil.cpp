@@ -41,6 +41,7 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Passes/StandardInstrumentations.h"
+#include "llvm/SYCLLowerIR/LowerESIMD.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -879,7 +880,29 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
   PerFunctionPasses.add(
       createTargetTransformInfoWrapperPass(getTargetIRAnalysis()));
 
+  if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD) {
+    PerModulePasses.add(createSYCLLowerESIMDPass());
+  }
+
   CreatePasses(PerModulePasses, PerFunctionPasses);
+
+  if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD &&
+      CodeGenOpts.OptimizationLevel != 0) {
+    PerModulePasses.add(createESIMDLowerVecArgPass());
+    PerModulePasses.add(createESIMDLowerLoadStorePass());
+    PerModulePasses.add(createSROAPass());
+    PerModulePasses.add(createEarlyCSEPass(true));
+    PerModulePasses.add(createInstructionCombiningPass());
+    PerModulePasses.add(createDeadCodeEliminationPass());
+    PerModulePasses.add(createFunctionInliningPass(
+      CodeGenOpts.OptimizationLevel, CodeGenOpts.OptimizeSize,
+      (!CodeGenOpts.SampleProfileFile.empty() &&
+        CodeGenOpts.PrepareForThinLTO)));
+    PerModulePasses.add(createSROAPass());
+    PerModulePasses.add(createEarlyCSEPass(true));
+    PerModulePasses.add(createInstructionCombiningPass());
+    PerModulePasses.add(createDeadCodeEliminationPass());
+  }
 
   legacy::PassManager CodeGenPasses;
   CodeGenPasses.add(
