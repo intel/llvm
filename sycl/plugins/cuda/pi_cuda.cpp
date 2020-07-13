@@ -4052,7 +4052,7 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
   assert(memobj->mem_type_ == _pi_mem::mem_type::buffer);
   assert(memobj->mem_.buffer_mem_.get_map_ptr() != nullptr);
   assert(memobj->mem_.buffer_mem_.get_map_ptr() == mapped_ptr);
-  
+
   bool is_pinned = memobj->mem_.buffer_mem_.allocMode_ ==
                    _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
 
