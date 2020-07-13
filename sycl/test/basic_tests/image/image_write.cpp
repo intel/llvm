@@ -55,7 +55,7 @@ bool test1d_coord(dataT *hostPtr, coordT coord, dataT colour) {
 
     // Do the test by reading a single pixel from the image
     s::queue myQueue(selector);
-    
+
     myQueue.submit([&](s::handler &cgh) {
       auto imageAcc = image.get_access<dataT, s::access::mode::write>(cgh);
       cgh.single_task<test_1d_write_class<dataT>>([=]() {
@@ -269,21 +269,21 @@ bool test() {
 int main() {
 
   bool passed = true;
-    
+
   // Half image
-  if(!test<s::half4, s::image_channel_type::fp16>())
+  if (!test<s::half4, s::image_channel_type::fp16>())
     passed = false;
 
   // Float image
-  if(!test<s::float4, s::image_channel_type::fp32>())
+  if (!test<s::float4, s::image_channel_type::fp32>())
     passed = false;
 
   // 32-bit signed integer image
-  if(!test<s::int4, s::image_channel_type::signed_int32>())
+  if (!test<s::int4, s::image_channel_type::signed_int32>())
     passed = false;
 
   // 32-bit unsigned integer image
-  if(!test<s::uint4, s::image_channel_type::unsigned_int32>())
+  if (!test<s::uint4, s::image_channel_type::unsigned_int32>())
     passed = false;
 
   return passed ? 0 : -1;
