@@ -1900,6 +1900,27 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   ConstructingOpenCLKernel = false;
 }
 
+// This function marks all the callees of explicit SIMD kernel
+// with !sycl_explicit_simd. We want to have different semantics
+// for functions that are called from SYCL and E-SIMD contexts.
+// Later, functions marked with !sycl_explicit_simd will be cloned
+// to maintain two different semantics.
+void Sema::MarkSyclSimd() {
+  for (Decl *D : syclDeviceDecls())
+    if (auto SYCLKernel = dyn_cast<FunctionDecl>(D))
+      if (SYCLKernel->hasAttr<SYCLSimdAttr>()) {
+        MarkDeviceFunction Marker(*this);
+        Marker.SYCLCG.addToCallGraph(getASTContext().getTranslationUnitDecl());
+        llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;
+        Marker.CollectKernelSet(SYCLKernel, SYCLKernel, VisitedSet);
+        for (const auto &elt : Marker.KernelSet) {
+          if (FunctionDecl *Def = elt->getDefinition())
+            if (!Def->hasAttr<SYCLSimdAttr>())
+              Def->addAttr(SYCLSimdAttr::CreateImplicit(getASTContext()));
+        }
+      }
+}
+
 void Sema::MarkDevice(void) {
   // Create the call graph so we can detect recursion and check the validity
   // of new operator overrides. Add the kernel function itself in case
@@ -1910,7 +1931,8 @@ void Sema::MarkDevice(void) {
   // Iterate through SYCL_EXTERNAL functions and add them to the device decls.
   for (const auto &entry : *Marker.SYCLCG.getRoot()) {
     if (auto *FD = dyn_cast<FunctionDecl>(entry.Callee->getDecl())) {
-      if (FD->hasAttr<SYCLDeviceAttr>() && !FD->hasAttr<SYCLKernelAttr>())
+      if (FD->hasAttr<SYCLDeviceAttr>() && !FD->hasAttr<SYCLKernelAttr>() &&
+          FD->hasBody())
         addSyclDeviceDecl(FD);
     }
   }
@@ -1975,7 +1997,7 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelMaxWorkGroupSize:
         case attr::Kind::SYCLIntelNoGlobalWorkOffset:
         case attr::Kind::SYCLSimd: {
-          if ((A->getKind() == attr::Kind::SYCLSimd) &&
+          if ((A->getKind() == attr::Kind::SYCLSimd) && KernelBody &&
               !KernelBody->getAttr<SYCLSimdAttr>()) {
             // Usual kernel can't call ESIMD functions.
             Diag(KernelBody->getLocation(),

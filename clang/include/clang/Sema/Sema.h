@@ -12696,6 +12696,7 @@ public:
   void checkSYCLDeviceVarDecl(VarDecl *Var);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void MarkDevice();
+  void MarkSyclSimd();
 
   /// Creates a DeviceDiagBuilder that emits the diagnostic if the current
   /// context is "used as device code".
