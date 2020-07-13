@@ -968,9 +968,6 @@ public:
   virtual bool handleReferenceType(FieldDecl *, QualType) { return true; }
   virtual bool handlePointerType(FieldDecl *, QualType) { return true; }
   virtual bool handleArrayType(FieldDecl *, QualType) { return true; }
-  virtual bool handleScalarType(const CXXBaseSpecifier &, QualType) {
-    return true;
-  }
   virtual bool handleScalarType(FieldDecl *, QualType) { return true; }
   // Most handlers shouldn't be handling this, just the field checker.
   virtual bool handleOtherType(FieldDecl *, QualType) { return true; }
@@ -1281,7 +1278,6 @@ public:
     return ArrayRef<ParmVarDecl *>(std::begin(Params) + LastParamIndex,
                                    std::end(Params));
   }
-  using SyclKernelFieldHandler::handleScalarType;
   using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::handleSyclSamplerType;
 };
@@ -1688,7 +1684,6 @@ public:
   using SyclKernelFieldHandler::enterArray;
   using SyclKernelFieldHandler::enterField;
   using SyclKernelFieldHandler::enterStruct;
-  using SyclKernelFieldHandler::handleScalarType;
   using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::handleSyclSamplerType;
   using SyclKernelFieldHandler::leaveField;
@@ -1841,7 +1836,6 @@ public:
     CurOffset -= ArraySize;
     return true;
   }
-  using SyclKernelFieldHandler::handleScalarType;
   using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::handleSyclSamplerType;
 };
