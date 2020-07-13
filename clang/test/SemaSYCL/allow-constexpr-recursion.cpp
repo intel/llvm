@@ -5,12 +5,20 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
 }
 
+// expected-note@+1{{function implemented using recursion declared here}}
+constexpr int constexpr_recurse1(int n);
+
 // expected-note@+1 3{{function implemented using recursion declared here}}
 constexpr int constexpr_recurse(int n) {
   if (n)
     // expected-error@+1{{SYCL kernel cannot call a recursive function}}
-    return constexpr_recurse(n - 1);
+    return constexpr_recurse1(n - 1);
   return 103;
+}
+
+constexpr int constexpr_recurse1(int n) {
+  // expected-error@+1{{SYCL kernel cannot call a recursive function}}
+  return constexpr_recurse(n) + 1;
 }
 
 template <int I>
@@ -35,11 +43,11 @@ void constexpr_recurse_test() {
   constexpr int i = constexpr_recurse(1);
   bar<constexpr_recurse(2)>();
   bar2<1, 2, constexpr_recurse(2)>();
-  static_assert(constexpr_recurse(2) == 103, "");
+  static_assert(constexpr_recurse(2) == 105, "");
 
   int j;
-  switch (103) {
-  case constexpr_recurse(5):
+  switch (105) {
+  case constexpr_recurse(2):
     // expected-error@+1{{SYCL kernel cannot call a recursive function}}
     j = constexpr_recurse(5);
     break;
