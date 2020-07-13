@@ -508,6 +508,7 @@ constexpr pi_mem_flags PI_MEM_FLAGS_ACCESS_RW = CL_MEM_READ_WRITE;
 // Host pointer
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_USE = CL_MEM_USE_HOST_PTR;
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
+constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_ALLOC = CL_MEM_ALLOC_HOST_PTR;
 
 // NOTE: queue properties are implemented this way to better support bit
 // manipulations
@@ -850,9 +851,10 @@ piextDeviceGetNativeHandle(pi_device device, pi_native_handle *nativeHandle);
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI device from.
+/// \param platform is the platform of the device.
 /// \param device is the PI device created from the native handle.
 __SYCL_EXPORT pi_result piextDeviceCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_device *device);
+    pi_native_handle nativeHandle, pi_platform platform, pi_device *device);
 
 /// Selects the most appropriate device binary based on runtime information
 /// and the IR characteristics.
@@ -944,9 +946,10 @@ piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI queue from.
+/// \param context is the PI context of the queue.
 /// \param queue is the PI queue created from the native handle.
 __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_queue *queue);
+    pi_native_handle nativeHandle, pi_context context, pi_queue *queue);
 
 //
 // Memory
@@ -1066,9 +1069,10 @@ piextProgramGetNativeHandle(pi_program program, pi_native_handle *nativeHandle);
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI program from.
+/// \param context is the PI context of the program.
 /// \param program is the PI program created from the native handle.
 __SYCL_EXPORT pi_result piextProgramCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_program *program);
+    pi_native_handle nativeHandle, pi_context context, pi_program *program);
 
 //
 // Kernel
@@ -1328,9 +1332,21 @@ __SYCL_EXPORT pi_result piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
                                           const pi_event *event_wait_list,
                                           pi_event *event);
 
+// Extension to allow backends to process a PI memory object before adding it
+// as an argument for a kernel.
+// Note: This is needed by the CUDA backend to extract the device pointer to
+// the memory as the kernels uses it rather than the PI object itself.
 __SYCL_EXPORT pi_result piextKernelSetArgMemObj(pi_kernel kernel,
                                                 pi_uint32 arg_index,
                                                 const pi_mem *arg_value);
+
+// Extension to allow backends to process a PI sampler object before adding it
+// as an argument for a kernel.
+// Note: This is needed by the CUDA backend to extract the properties of the
+// sampler as the kernels uses it rather than the PI object itself.
+__SYCL_EXPORT pi_result piextKernelSetArgSampler(pi_kernel kernel,
+                                                 pi_uint32 arg_index,
+                                                 const pi_sampler *arg_value);
 
 ///
 // USM

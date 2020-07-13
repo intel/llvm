@@ -95,6 +95,7 @@ endfunction(add_sycl_rt_library)
 set(SYCL_SOURCES
     "${sycl_inc_dir}/CL/sycl.hpp"
     "backend/opencl.cpp"
+    "backend/level_zero.cpp"
     "detail/accessor_impl.cpp"
     "detail/buffer_impl.cpp"
     "detail/builtins_common.cpp"

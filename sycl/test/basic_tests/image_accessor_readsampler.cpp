@@ -6,7 +6,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
-// XFAIL: level_zero
+
 //==------------------- image_accessor_readsampler.cpp ---------------------==//
 //==-----------------image_accessor read API test with sampler--------------==//
 //

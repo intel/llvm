@@ -176,57 +176,166 @@ private:
   std::vector<deleter_data> extended_deleters_;
 };
 
-/// PI Mem mapping to a CUDA memory allocation
-///
+/// PI Mem mapping to CUDA memory allocations, both data and texture/surface.
+/// \brief Represents non-SVM allocations on the CUDA backend.
+/// Keeps tracks of all mapped regions used for Map/Unmap calls.
+/// Only one region can be active at the same time per allocation.
 struct _pi_mem {
-  using native_type = CUdeviceptr;
+
+  // TODO: Move as much shared data up as possible
   using pi_context = _pi_context *;
 
+  // Context where the memory object is accessibles
   pi_context context_;
-  pi_mem parent_;
-  native_type ptr_;
 
-  void *hostPtr_;
-  size_t size_;
-  size_t mapOffset_;
-  void *mapPtr_;
-  cl_map_flags mapFlags_;
+  /// Reference counting of the handler
   std::atomic_uint32_t refCount_;
-  /** alloc_mode
-   * classic: Just a normal buffer allocated on the device via cuda malloc
-   * use_host_ptr: Use an address on the host for the device
-   * copy_in: The data for the device comes from the host but the host pointer
-      is not available later for re-use
-  */
-  enum class alloc_mode { classic, use_host_ptr, copy_in } allocMode_;
+  enum class mem_type { buffer, surface } mem_type_;
 
-  _pi_mem(pi_context ctxt, pi_mem parent, alloc_mode mode, CUdeviceptr ptr, void *host_ptr,
-          size_t size)
-      : context_{ctxt}, parent_{parent}, ptr_{ptr}, hostPtr_{host_ptr}, size_{size}, 
-        mapOffset_{0}, mapPtr_{nullptr}, mapFlags_{CL_MAP_WRITE}, refCount_{1}, allocMode_{mode} {
-      if (is_sub_buffer()) {
-        cuda_piMemRetain(parent_);
-      } else {
-	      cuda_piContextRetain(context_);
+  /// A PI Memory object represents either plain memory allocations ("Buffers"
+  /// in OpenCL) or typed allocations ("Images" in OpenCL).
+  /// In CUDA their API handlers are different. Whereas "Buffers" are allocated
+  /// as pointer-like structs, "Images" are stored in Textures or Surfaces
+  /// This union allows implementation to use either from the same handler.
+  union mem_ {
+    // Handler for plain, pointer-based CUDA allocations
+    struct buffer_mem_ {
+      using native_type = CUdeviceptr;
+
+      // If this allocation is a sub-buffer (i.e., a view on an existing
+      // allocation), this is the pointer to the parent handler structure
+      pi_mem parent_;
+      // CUDA handler for the pointer
+      native_type ptr_;
+
+      /// Pointer associated with this device on the host
+      void *hostPtr_;
+      /// Size of the allocation in bytes
+      size_t size_;
+      /// Offset of the active mapped region.
+      size_t mapOffset_;
+      /// Pointer to the active mapped region, if any
+      void *mapPtr_;
+      /// Original flags for the mapped region
+      cl_map_flags mapFlags_;
+
+      /** alloc_mode
+       * classic: Just a normal buffer allocated on the device via cuda malloc
+       * use_host_ptr: Use an address on the host for the device
+       * copy_in: The data for the device comes from the host but the host
+       pointer is not available later for re-use
+       * alloc_host_ptr: Uses pinned-memory allocation
+      */
+      enum class alloc_mode {
+        classic,
+        use_host_ptr,
+        copy_in,
+        alloc_host_ptr
+      } allocMode_;
+
+      native_type get() const noexcept { return ptr_; }
+
+      size_t get_size() const noexcept { return size_; }
+
+      void *get_map_ptr() const noexcept { return mapPtr_; }
+
+      size_t get_map_offset(void *ptr) const noexcept { return mapOffset_; }
+
+      /// Returns a pointer to data visible on the host that contains
+      /// the data on the device associated with this allocation.
+      /// The offset is used to index into the CUDA allocation.
+      ///
+      void *map_to_ptr(size_t offset, cl_map_flags flags) noexcept {
+        assert(mapPtr_ == nullptr);
+        mapOffset_ = offset;
+        mapFlags_ = flags;
+        if (hostPtr_) {
+          mapPtr_ = static_cast<char *>(hostPtr_) + offset;
+        } else {
+          // TODO: Allocate only what is needed based on the offset
+          mapPtr_ = static_cast<void *>(malloc(this->get_size()));
+        }
+        return mapPtr_;
       }
-	};
 
-   ~_pi_mem() { 
-     if (is_sub_buffer()) {
-       cuda_piMemRelease(parent_);
-     } else {
-      cuda_piContextRelease(context_); 
-     }
-   }
+      /// Detach the allocation from the host memory.
+      void unmap(void *ptr) noexcept {
+        assert(mapPtr_ != nullptr);
 
-   /// \TODO: Adapt once images are supported.
-   bool is_buffer() const noexcept { return true; }
+        if (mapPtr_ != hostPtr_) {
+          free(mapPtr_);
+        }
+        mapPtr_ = nullptr;
+        mapOffset_ = 0;
+      }
 
-   bool is_sub_buffer() const noexcept {
-     return (is_buffer() && (parent_ != nullptr));
-   }
+      cl_map_flags get_map_flags() const noexcept {
+        assert(mapPtr_ != nullptr);
+        return mapFlags_;
+      }
+    } buffer_mem_;
 
-  native_type get() const noexcept { return ptr_; }
+    // Handler data for surface object (i.e. Images)
+    struct surface_mem_ {
+      CUarray array_;
+      CUsurfObject surfObj_;
+      pi_mem_type imageType_;
+
+      CUarray get_array() const noexcept { return array_; }
+
+      CUsurfObject get_surface() const noexcept { return surfObj_; }
+
+      pi_mem_type get_image_type() const noexcept { return imageType_; }
+    } surface_mem_;
+  } mem_;
+
+  /// Constructs the PI MEM handler for a non-typed allocation ("buffer")
+  _pi_mem(pi_context ctxt, pi_mem parent, mem_::buffer_mem_::alloc_mode mode,
+          CUdeviceptr ptr, void *host_ptr, size_t size)
+      : context_{ctxt}, refCount_{1}, mem_type_{mem_type::buffer} {
+    mem_.buffer_mem_.ptr_ = ptr;
+    mem_.buffer_mem_.parent_ = parent;
+    mem_.buffer_mem_.hostPtr_ = host_ptr;
+    mem_.buffer_mem_.size_ = size;
+    mem_.buffer_mem_.mapOffset_ = 0;
+    mem_.buffer_mem_.mapPtr_ = nullptr;
+    mem_.buffer_mem_.mapFlags_ = CL_MAP_WRITE;
+    mem_.buffer_mem_.allocMode_ = mode;
+    if (is_sub_buffer()) {
+      cuda_piMemRetain(mem_.buffer_mem_.parent_);
+    } else {
+      cuda_piContextRetain(context_);
+    }
+  };
+
+  /// Constructs the PI allocation for an Image object (surface in CUDA)
+  _pi_mem(pi_context ctxt, CUarray array, CUsurfObject surf,
+          pi_mem_type image_type, void *host_ptr)
+      : context_{ctxt}, refCount_{1}, mem_type_{mem_type::surface} {
+    mem_.surface_mem_.array_ = array;
+    mem_.surface_mem_.surfObj_ = surf;
+    mem_.surface_mem_.imageType_ = image_type;
+    cuda_piContextRetain(context_);
+  }
+
+  ~_pi_mem() {
+    if (mem_type_ == mem_type::buffer) {
+      if (is_sub_buffer()) {
+        cuda_piMemRelease(mem_.buffer_mem_.parent_);
+        return;
+      }
+    }
+    cuda_piContextRelease(context_);
+  }
+
+  // TODO: Move as many shared funcs up as possible
+  bool is_buffer() const noexcept { return mem_type_ == mem_type::buffer; }
+
+  bool is_sub_buffer() const noexcept {
+    return (is_buffer() && (mem_.buffer_mem_.parent_ != nullptr));
+  }
+
+  bool is_image() const noexcept { return mem_type_ == mem_type::surface; }
 
   pi_context get_context() const noexcept { return context_; }
 
@@ -235,40 +344,6 @@ struct _pi_mem {
   pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
 
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
-
-  size_t get_size() const noexcept { return size_; }
-
-  void *get_map_ptr() const noexcept { return mapPtr_; }
-
-  size_t get_map_offset(void *ptr) const noexcept { return mapOffset_; }
-
-  void *map_to_ptr(size_t offset, cl_map_flags flags) noexcept {
-    assert(mapPtr_ == nullptr);
-    mapOffset_ = offset;
-    mapFlags_ = flags;
-    if (hostPtr_ && (allocMode_ != alloc_mode::copy_in)) {
-      mapPtr_ = static_cast<char *>(hostPtr_) + offset;
-    } else {
-      // TODO: Allocate only what is needed based on the offset
-      mapPtr_ = static_cast<void *>(malloc(this->get_size()));
-    }
-    return mapPtr_;
-  }
-
-  void unmap(void *ptr) noexcept {
-    assert(mapPtr_ != nullptr);
-
-    if (mapPtr_ != hostPtr_) {
-      free(mapPtr_);
-    }
-    mapPtr_ = nullptr;
-    mapOffset_ = 0;
-  }
-
-  cl_map_flags get_map_flags() const noexcept {
-    assert(mapPtr_ != nullptr);
-    return mapFlags_;
-  }
 };
 
 /// PI queue mapping on to CUstream objects.
@@ -374,6 +449,8 @@ public:
     return new _pi_event(type, queue->get_context(), queue);
   }
 
+  pi_result release();
+
   ~_pi_event();
 
 private:
@@ -466,6 +543,7 @@ struct _pi_kernel {
   using native_type = CUfunction;
 
   native_type function_;
+  native_type functionWithOffsetParam_;
   std::string name_;
   pi_context context_;
   pi_program program_;
@@ -488,14 +566,23 @@ struct _pi_kernel {
     args_index_t indices_;
     args_size_t offsetPerIndex_;
 
+    std::uint32_t implicitOffsetArgs_[3] = {0, 0, 0};
+
+    arguments() {
+      // Place the implicit offset index at the end of the indicies collection
+      indices_.emplace_back(&implicitOffsetArgs_);
+    }
+
     /// Adds an argument to the kernel.
     /// If the argument existed before, it is replaced.
     /// Otherwise, it is added.
     /// Gaps are filled with empty arguments.
+    /// Implicit offset argument is kept at the back of the indices collection.
     void add_arg(size_t index, size_t size, const void *arg,
                  size_t localSize = 0) {
-      if (index + 1 > indices_.size()) {
-        indices_.resize(index + 1);
+      if (index + 2 > indices_.size()) {
+        // Move implicit offset argument index with the end
+        indices_.resize(index + 2, indices_.back());
         // Ensure enough space for the new argument
         paramSizes_.resize(index + 1);
         offsetPerIndex_.resize(index + 1);
@@ -515,6 +602,11 @@ struct _pi_kernel {
       add_arg(index, sizeof(size_t), (const void *)&(localOffset), size);
     }
 
+    void set_implicit_offset(size_t size, std::uint32_t *implicitOffset) {
+      assert(size == sizeof(std::uint32_t) * 3);
+      std::memcpy(implicitOffsetArgs_, implicitOffset, size);
+    }
+
     void clear_local_size() {
       std::fill(std::begin(offsetPerIndex_), std::end(offsetPerIndex_), 0);
     }
@@ -527,13 +619,17 @@ struct _pi_kernel {
     }
   } args_;
 
-  _pi_kernel(CUfunction func, const char *name, pi_program program,
-             pi_context ctxt)
-      : function_{func}, name_{name}, context_{ctxt}, program_{program},
-        refCount_{1} {
+  _pi_kernel(CUfunction func, CUfunction funcWithOffsetParam, const char *name,
+             pi_program program, pi_context ctxt)
+      : function_{func}, functionWithOffsetParam_{funcWithOffsetParam},
+        name_{name}, context_{ctxt}, program_{program}, refCount_{1} {
     cuda_piProgramRetain(program_);
     cuda_piContextRetain(context_);
   }
+
+  _pi_kernel(CUfunction func, const char *name, pi_program program,
+             pi_context ctxt)
+      : _pi_kernel{func, nullptr, name, program, ctxt} {}
 
   ~_pi_kernel()
   {
@@ -551,15 +647,23 @@ struct _pi_kernel {
 
   native_type get() const noexcept { return function_; };
 
+  native_type get_with_offset_parameter() const noexcept {
+    return functionWithOffsetParam_;
+  };
+
+  bool has_with_offset_parameter() const noexcept {
+    return functionWithOffsetParam_ != nullptr;
+  }
+
   pi_context get_context() const noexcept { return context_; };
 
   const char *get_name() const noexcept { return name_.c_str(); }
 
-  /// Returns the number of arguments.
+  /// Returns the number of arguments, excluding the implicit global offset.
   /// Note this only returns the current known number of arguments, not the
   /// real one required by the kernel, since this cannot be queried from
   /// the CUDA Driver API
-  pi_uint32 get_num_args() const noexcept { return args_.indices_.size(); }
+  pi_uint32 get_num_args() const noexcept { return args_.indices_.size() - 1; }
 
   void set_kernel_arg(int index, size_t size, const void *arg) {
     args_.add_arg(index, size, arg);
@@ -569,6 +673,10 @@ struct _pi_kernel {
     args_.add_local_arg(index, size);
   }
 
+  void set_implicit_offset_arg(size_t size, std::uint32_t *implicitOffset) {
+    args_.set_implicit_offset(size, implicitOffset);
+  }
+
   arguments::args_index_t get_arg_indices() const {
     return args_.get_indices();
   }
@@ -576,6 +684,26 @@ struct _pi_kernel {
   pi_uint32 get_local_size() const noexcept { return args_.get_local_size(); }
 
   void clear_local_size() { args_.clear_local_size(); }
+};
+
+/// Implementation of samplers for CUDA
+///
+/// Sampler property layout:
+/// | 31 30 ... 6 5 |      4 3 2      |     1      |         0        |
+/// |      N/A      | addressing mode | fiter mode | normalize coords |
+struct _pi_sampler {
+  std::atomic_uint32_t refCount_;
+  pi_uint32 props_;
+  pi_context context_;
+
+  _pi_sampler(pi_context context)
+      : refCount_(1), props_(0), context_(context) {}
+
+  pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
+
+  pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
+
+  pi_uint32 get_reference_count() const noexcept { return refCount_; }
 };
 
 // -------------------------------------------------------------

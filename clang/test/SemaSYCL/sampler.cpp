@@ -1,4 +1,4 @@
-// RUN: %clang -S -I %S/Inputs -fsycl-device-only -Xclang -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -S -I %S/Inputs -fsycl -fsycl-is-device -triple spir64 -ast-dump %s | FileCheck %s
 
 #include <sycl.hpp>
 
@@ -16,7 +16,7 @@ int main() {
 }
 
 // Check declaration of the test kernel
-// CHECK: FunctionDecl {{.*}}use_kernel_for_test 'void (sampler_t)'
+// CHECK: FunctionDecl {{.*}}use_kernel_for_test{{.*}} 'void (sampler_t)'
 //
 // Check parameters of the test kernel
 // CHECK: ParmVarDecl {{.*}} used [[_arg_sampler:[0-9a-zA-Z_]+]] 'sampler_t'

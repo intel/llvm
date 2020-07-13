@@ -9,6 +9,10 @@
 #ifndef CLC_LP64_TYPES
 #define CLC_LP64_TYPES
 
+#ifdef __FLT16_MAX__
+#define __CLC_HAS_FLOAT16
+#endif
+
 typedef bool __clc_bool_t;
 
 typedef char __clc_char_t;
@@ -106,6 +110,16 @@ typedef half __clc_vec16_fp16_t __attribute__((ext_vector_type(16)));
 
 #endif
 
+#ifdef __CLC_HAS_FLOAT16
+
+typedef _Float16 __clc_float16_t;
+typedef _Float16 __clc_vec2_float16_t __attribute__((ext_vector_type(2)));
+typedef _Float16 __clc_vec3_float16_t __attribute__((ext_vector_type(3)));
+typedef _Float16 __clc_vec4_float16_t __attribute__((ext_vector_type(4)));
+typedef _Float16 __clc_vec8_float16_t __attribute__((ext_vector_type(8)));
+typedef _Float16 __clc_vec16_float16_t __attribute__((ext_vector_type(16)));
+
+#endif
 typedef __clc_int64_t __clc_size_t;
 
 #ifdef __SYCL_DEVICE_ONLY__

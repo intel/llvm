@@ -3348,7 +3348,21 @@ enum CXTypeKind {
   CXType_OCLIntelSubgroupAVCImeDualRefStreamin = 175,
 
   CXType_ExtVector = 176,
-  CXType_Atomic = 177
+  CXType_Atomic = 177,
+
+  /* SPIRV builtin types. */
+  CXType_SampledOCLImage1dRO = 178,
+  CXType_SampledOCLImage1dArrayRO = 179,
+  CXType_SampledOCLImage1dBufferRO = 180,
+  CXType_SampledOCLImage2dRO = 181,
+  CXType_SampledOCLImage2dArrayRO = 182,
+  CXType_SampledOCLImage2dDepthRO = 183,
+  CXType_SampledOCLImage2dArrayDepthRO = 184,
+  CXType_SampledOCLImage2dMSAARO = 185,
+  CXType_SampledOCLImage2dArrayMSAARO = 186,
+  CXType_SampledOCLImage2dMSAADepthRO = 187,
+  CXType_SampledOCLImage2dArrayMSAADepthRO = 188,
+  CXType_SampledOCLImage3dRO = 189
 };
 
 /**
