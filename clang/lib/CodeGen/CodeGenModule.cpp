@@ -2695,7 +2695,7 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
 
   // clang::ParseAST ensures that we emit the SYCL devices at the end, so
   // anything that is a device (or indirectly called) will be handled later.
-  if (LangOpts.SYCLIsDevice && Global->hasAttr<SYCLDeviceAttr>()) {
+  if (LangOpts.SYCLIsDevice && MustBeEmitted(Global)) {
     addDeferredDeclToEmit(GD);
     return;
   }
