@@ -804,6 +804,7 @@ public:
                           Handlers &... handlers) {
     const ConstantArrayType *CAT =
         SemaRef.getASTContext().getAsConstantArrayType(FieldTy);
+    assert(CAT && "Should only be called on constant-size array.");
     QualType ET = CAT->getElementType();
     int64_t ElemCount = CAT->getSize().getSExtValue();
     std::initializer_list<int>{(handlers.enterArray(), 0)...};
