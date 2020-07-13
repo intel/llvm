@@ -139,7 +139,7 @@ TEST_F(CudaTestMemObj, piMemBufferPinnedMappedRead) {
   int *host_ptr = nullptr;
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferMap>(
                 queue, memObj, true, CL_MAP_READ, 0, sizeof(int), 0, nullptr,
-                nullptr, (void**)&host_ptr)),
+                nullptr, (void **)&host_ptr)),
             PI_SUCCESS);
 
   ASSERT_EQ(*host_ptr, value);
@@ -173,7 +173,7 @@ TEST_F(CudaTestMemObj, piMemBufferPinnedMappedWrite) {
   int *host_ptr = nullptr;
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferMap>(
                 queue, memObj, true, CL_MAP_WRITE, 0, sizeof(int), 0, nullptr,
-                nullptr, (void**)&host_ptr)),
+                nullptr, (void **)&host_ptr)),
             PI_SUCCESS);
 
   *host_ptr = value;
