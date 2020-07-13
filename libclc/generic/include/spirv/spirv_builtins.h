@@ -58,6 +58,549 @@ _CLC_DECL _CLC_CONSTFN __clc_bool_t __spirv_Any(__clc_vec8_int8_t);
 _CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_bool_t __spirv_Any(__clc_vec16_int8_t);
 
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t
+__spirv_AtomicAnd(__clc_int32_t volatile __local *, __clc_uint32_t,
+                  __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicAnd(__clc_int32_t __local *,
+                                                        __clc_uint32_t,
+                                                        __clc_uint32_t,
+                                                        __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t
+__spirv_AtomicAnd(__clc_int32_t volatile __global *, __clc_uint32_t,
+                  __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicAnd(
+    __clc_int32_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t
+__spirv_AtomicAnd(__clc_int64_t volatile __local *, __clc_uint32_t,
+                  __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicAnd(__clc_int64_t __local *,
+                                                        __clc_uint32_t,
+                                                        __clc_uint32_t,
+                                                        __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t
+__spirv_AtomicAnd(__clc_int64_t volatile __global *, __clc_uint32_t,
+                  __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicAnd(
+    __clc_int64_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t
+__spirv_AtomicAnd(__clc_uint32_t volatile __local *, __clc_uint32_t,
+                  __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicAnd(
+    __clc_uint32_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t
+__spirv_AtomicAnd(__clc_uint32_t volatile __global *, __clc_uint32_t,
+                  __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicAnd(
+    __clc_uint32_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t
+__spirv_AtomicAnd(__clc_uint64_t volatile __local *, __clc_uint32_t,
+                  __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicAnd(
+    __clc_uint64_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t
+__spirv_AtomicAnd(__clc_uint64_t volatile __global *, __clc_uint32_t,
+                  __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicAnd(
+    __clc_uint64_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_uint64_t);
+
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicCompareExchange(
+    __clc_int32_t volatile __local *, __clc_uint32_t, __clc_uint32_t,
+    __clc_uint32_t, __clc_int32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicCompareExchange(
+    __clc_int32_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t,
+    __clc_int32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicCompareExchange(
+    __clc_int32_t volatile __global *, __clc_uint32_t, __clc_uint32_t,
+    __clc_uint32_t, __clc_int32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicCompareExchange(
+    __clc_int32_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t,
+    __clc_int32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicCompareExchange(
+    __clc_int64_t volatile __local *, __clc_uint32_t, __clc_uint32_t,
+    __clc_uint32_t, __clc_int64_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicCompareExchange(
+    __clc_int64_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t,
+    __clc_int64_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicCompareExchange(
+    __clc_int64_t volatile __global *, __clc_uint32_t, __clc_uint32_t,
+    __clc_uint32_t, __clc_int64_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicCompareExchange(
+    __clc_int64_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t,
+    __clc_int64_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicCompareExchange(
+    __clc_uint32_t volatile __local *, __clc_uint32_t, __clc_uint32_t,
+    __clc_uint32_t, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicCompareExchange(
+    __clc_uint32_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t,
+    __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicCompareExchange(
+    __clc_uint32_t volatile __global *, __clc_uint32_t, __clc_uint32_t,
+    __clc_uint32_t, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicCompareExchange(
+    __clc_uint32_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t,
+    __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicCompareExchange(
+    __clc_uint64_t volatile __local *, __clc_uint32_t, __clc_uint32_t,
+    __clc_uint32_t, __clc_uint64_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicCompareExchange(
+    __clc_uint64_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t,
+    __clc_uint64_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicCompareExchange(
+    __clc_uint64_t volatile __global *, __clc_uint32_t, __clc_uint32_t,
+    __clc_uint32_t, __clc_uint64_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicCompareExchange(
+    __clc_uint64_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t,
+    __clc_uint64_t, __clc_uint64_t);
+
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t
+__spirv_AtomicExchange(__clc_int32_t volatile __local *, __clc_uint32_t,
+                       __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicExchange(
+    __clc_int32_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t
+__spirv_AtomicExchange(__clc_int32_t volatile __global *, __clc_uint32_t,
+                       __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicExchange(
+    __clc_int32_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t
+__spirv_AtomicExchange(__clc_int64_t volatile __local *, __clc_uint32_t,
+                       __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicExchange(
+    __clc_int64_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t
+__spirv_AtomicExchange(__clc_int64_t volatile __global *, __clc_uint32_t,
+                       __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicExchange(
+    __clc_int64_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t
+__spirv_AtomicExchange(__clc_uint32_t volatile __local *, __clc_uint32_t,
+                       __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicExchange(
+    __clc_uint32_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t
+__spirv_AtomicExchange(__clc_uint32_t volatile __global *, __clc_uint32_t,
+                       __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicExchange(
+    __clc_uint32_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t
+__spirv_AtomicExchange(__clc_uint64_t volatile __local *, __clc_uint32_t,
+                       __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicExchange(
+    __clc_uint64_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t
+__spirv_AtomicExchange(__clc_uint64_t volatile __global *, __clc_uint32_t,
+                       __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicExchange(
+    __clc_uint64_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_uint64_t);
+
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t
+__spirv_AtomicIAdd(__clc_int32_t volatile __local *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicIAdd(
+    __clc_int32_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t
+__spirv_AtomicIAdd(__clc_int32_t volatile __global *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicIAdd(
+    __clc_int32_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t
+__spirv_AtomicIAdd(__clc_int64_t volatile __local *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicIAdd(
+    __clc_int64_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t
+__spirv_AtomicIAdd(__clc_int64_t volatile __global *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicIAdd(
+    __clc_int64_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t
+__spirv_AtomicIAdd(__clc_uint32_t volatile __local *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicIAdd(
+    __clc_uint32_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t
+__spirv_AtomicIAdd(__clc_uint32_t volatile __global *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicIAdd(
+    __clc_uint32_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t
+__spirv_AtomicIAdd(__clc_uint64_t volatile __local *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicIAdd(
+    __clc_uint64_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t
+__spirv_AtomicIAdd(__clc_uint64_t volatile __global *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicIAdd(
+    __clc_uint64_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_uint64_t);
+
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicIDecrement(
+    __clc_int32_t const volatile __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicIDecrement(
+    __clc_int32_t const __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicIDecrement(
+    __clc_int32_t const volatile __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicIDecrement(
+    __clc_int32_t const __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicIDecrement(
+    __clc_int64_t const volatile __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicIDecrement(
+    __clc_int64_t const __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicIDecrement(
+    __clc_int64_t const volatile __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicIDecrement(
+    __clc_int64_t const __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicIDecrement(
+    __clc_uint32_t const volatile __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicIDecrement(
+    __clc_uint32_t const __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicIDecrement(
+    __clc_uint32_t const volatile __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicIDecrement(
+    __clc_uint32_t const __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicIDecrement(
+    __clc_uint64_t const volatile __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicIDecrement(
+    __clc_uint64_t const __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicIDecrement(
+    __clc_uint64_t const volatile __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicIDecrement(
+    __clc_uint64_t const __global *, __clc_uint32_t, __clc_uint32_t);
+
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicIIncrement(
+    __clc_int32_t const volatile __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicIIncrement(
+    __clc_int32_t const __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicIIncrement(
+    __clc_int32_t const volatile __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicIIncrement(
+    __clc_int32_t const __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicIIncrement(
+    __clc_int64_t const volatile __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicIIncrement(
+    __clc_int64_t const __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicIIncrement(
+    __clc_int64_t const volatile __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicIIncrement(
+    __clc_int64_t const __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicIIncrement(
+    __clc_uint32_t const volatile __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicIIncrement(
+    __clc_uint32_t const __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicIIncrement(
+    __clc_uint32_t const volatile __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicIIncrement(
+    __clc_uint32_t const __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicIIncrement(
+    __clc_uint64_t const volatile __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicIIncrement(
+    __clc_uint64_t const __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicIIncrement(
+    __clc_uint64_t const volatile __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicIIncrement(
+    __clc_uint64_t const __global *, __clc_uint32_t, __clc_uint32_t);
+
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t
+__spirv_AtomicISub(__clc_int32_t volatile __local *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicISub(
+    __clc_int32_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t
+__spirv_AtomicISub(__clc_int32_t volatile __global *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicISub(
+    __clc_int32_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t
+__spirv_AtomicISub(__clc_int64_t volatile __local *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicISub(
+    __clc_int64_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t
+__spirv_AtomicISub(__clc_int64_t volatile __global *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicISub(
+    __clc_int64_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t
+__spirv_AtomicISub(__clc_uint32_t volatile __local *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicISub(
+    __clc_uint32_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t
+__spirv_AtomicISub(__clc_uint32_t volatile __global *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicISub(
+    __clc_uint32_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t
+__spirv_AtomicISub(__clc_uint64_t volatile __local *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicISub(
+    __clc_uint64_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t
+__spirv_AtomicISub(__clc_uint64_t volatile __global *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicISub(
+    __clc_uint64_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_uint64_t);
+
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicLoad(
+    __clc_int32_t const volatile __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicLoad(
+    __clc_int32_t const __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicLoad(
+    __clc_int32_t const volatile __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicLoad(
+    __clc_int32_t const __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicLoad(
+    __clc_int64_t const volatile __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicLoad(
+    __clc_int64_t const __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicLoad(
+    __clc_int64_t const volatile __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicLoad(
+    __clc_int64_t const __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicLoad(
+    __clc_uint32_t const volatile __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicLoad(
+    __clc_uint32_t const __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicLoad(
+    __clc_uint32_t const volatile __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicLoad(
+    __clc_uint32_t const __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicLoad(
+    __clc_uint64_t const volatile __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicLoad(
+    __clc_uint64_t const __local *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicLoad(
+    __clc_uint64_t const volatile __global *, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicLoad(
+    __clc_uint64_t const __global *, __clc_uint32_t, __clc_uint32_t);
+
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t
+__spirv_AtomicOr(__clc_int32_t volatile __local *, __clc_uint32_t,
+                 __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicOr(__clc_int32_t __local *,
+                                                       __clc_uint32_t,
+                                                       __clc_uint32_t,
+                                                       __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t
+__spirv_AtomicOr(__clc_int32_t volatile __global *, __clc_uint32_t,
+                 __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicOr(__clc_int32_t __global *,
+                                                       __clc_uint32_t,
+                                                       __clc_uint32_t,
+                                                       __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t
+__spirv_AtomicOr(__clc_int64_t volatile __local *, __clc_uint32_t,
+                 __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicOr(__clc_int64_t __local *,
+                                                       __clc_uint32_t,
+                                                       __clc_uint32_t,
+                                                       __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t
+__spirv_AtomicOr(__clc_int64_t volatile __global *, __clc_uint32_t,
+                 __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicOr(__clc_int64_t __global *,
+                                                       __clc_uint32_t,
+                                                       __clc_uint32_t,
+                                                       __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t
+__spirv_AtomicOr(__clc_uint32_t volatile __local *, __clc_uint32_t,
+                 __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicOr(
+    __clc_uint32_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t
+__spirv_AtomicOr(__clc_uint32_t volatile __global *, __clc_uint32_t,
+                 __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicOr(
+    __clc_uint32_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t
+__spirv_AtomicOr(__clc_uint64_t volatile __local *, __clc_uint32_t,
+                 __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicOr(
+    __clc_uint64_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t
+__spirv_AtomicOr(__clc_uint64_t volatile __global *, __clc_uint32_t,
+                 __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicOr(
+    __clc_uint64_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_uint64_t);
+
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t
+__spirv_AtomicSMax(__clc_int32_t volatile __local *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicSMax(
+    __clc_int32_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t
+__spirv_AtomicSMax(__clc_int32_t volatile __global *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicSMax(
+    __clc_int32_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t
+__spirv_AtomicSMax(__clc_int64_t volatile __local *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicSMax(
+    __clc_int64_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t
+__spirv_AtomicSMax(__clc_int64_t volatile __global *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicSMax(
+    __clc_int64_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_int64_t);
+
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t
+__spirv_AtomicSMin(__clc_int32_t volatile __local *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicSMin(
+    __clc_int32_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t
+__spirv_AtomicSMin(__clc_int32_t volatile __global *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicSMin(
+    __clc_int32_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t
+__spirv_AtomicSMin(__clc_int64_t volatile __local *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicSMin(
+    __clc_int64_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t
+__spirv_AtomicSMin(__clc_int64_t volatile __global *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicSMin(
+    __clc_int64_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_int64_t);
+
+_CLC_OVERLOAD _CLC_DECL void
+__spirv_AtomicStore(__clc_int32_t volatile __local *, __clc_uint32_t,
+                    __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL void __spirv_AtomicStore(__clc_int32_t __local *,
+                                                 __clc_uint32_t, __clc_uint32_t,
+                                                 __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL void
+__spirv_AtomicStore(__clc_int32_t volatile __global *, __clc_uint32_t,
+                    __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL void __spirv_AtomicStore(__clc_int32_t __global *,
+                                                 __clc_uint32_t, __clc_uint32_t,
+                                                 __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL void
+__spirv_AtomicStore(__clc_int64_t volatile __local *, __clc_uint32_t,
+                    __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL void __spirv_AtomicStore(__clc_int64_t __local *,
+                                                 __clc_uint32_t, __clc_uint32_t,
+                                                 __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL void
+__spirv_AtomicStore(__clc_int64_t volatile __global *, __clc_uint32_t,
+                    __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL void __spirv_AtomicStore(__clc_int64_t __global *,
+                                                 __clc_uint32_t, __clc_uint32_t,
+                                                 __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL void
+__spirv_AtomicStore(__clc_uint32_t volatile __local *, __clc_uint32_t,
+                    __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL void __spirv_AtomicStore(__clc_uint32_t __local *,
+                                                 __clc_uint32_t, __clc_uint32_t,
+                                                 __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL void
+__spirv_AtomicStore(__clc_uint32_t volatile __global *, __clc_uint32_t,
+                    __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL void __spirv_AtomicStore(__clc_uint32_t __global *,
+                                                 __clc_uint32_t, __clc_uint32_t,
+                                                 __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL void
+__spirv_AtomicStore(__clc_uint64_t volatile __local *, __clc_uint32_t,
+                    __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL void __spirv_AtomicStore(__clc_uint64_t __local *,
+                                                 __clc_uint32_t, __clc_uint32_t,
+                                                 __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL void
+__spirv_AtomicStore(__clc_uint64_t volatile __global *, __clc_uint32_t,
+                    __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL void __spirv_AtomicStore(__clc_uint64_t __global *,
+                                                 __clc_uint32_t, __clc_uint32_t,
+                                                 __clc_uint64_t);
+
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t
+__spirv_AtomicUMax(__clc_uint32_t volatile __local *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicUMax(
+    __clc_uint32_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t
+__spirv_AtomicUMax(__clc_uint32_t volatile __global *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicUMax(
+    __clc_uint32_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t
+__spirv_AtomicUMax(__clc_uint64_t volatile __local *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicUMax(
+    __clc_uint64_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t
+__spirv_AtomicUMax(__clc_uint64_t volatile __global *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicUMax(
+    __clc_uint64_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_uint64_t);
+
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t
+__spirv_AtomicUMin(__clc_uint32_t volatile __local *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicUMin(
+    __clc_uint32_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t
+__spirv_AtomicUMin(__clc_uint32_t volatile __global *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicUMin(
+    __clc_uint32_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t
+__spirv_AtomicUMin(__clc_uint64_t volatile __local *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicUMin(
+    __clc_uint64_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t
+__spirv_AtomicUMin(__clc_uint64_t volatile __global *, __clc_uint32_t,
+                   __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicUMin(
+    __clc_uint64_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_uint64_t);
+
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t
+__spirv_AtomicXor(__clc_int32_t volatile __local *, __clc_uint32_t,
+                  __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicXor(__clc_int32_t __local *,
+                                                        __clc_uint32_t,
+                                                        __clc_uint32_t,
+                                                        __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t
+__spirv_AtomicXor(__clc_int32_t volatile __global *, __clc_uint32_t,
+                  __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int32_t __spirv_AtomicXor(
+    __clc_int32_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_int32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t
+__spirv_AtomicXor(__clc_int64_t volatile __local *, __clc_uint32_t,
+                  __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicXor(__clc_int64_t __local *,
+                                                        __clc_uint32_t,
+                                                        __clc_uint32_t,
+                                                        __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t
+__spirv_AtomicXor(__clc_int64_t volatile __global *, __clc_uint32_t,
+                  __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_int64_t __spirv_AtomicXor(
+    __clc_int64_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_int64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t
+__spirv_AtomicXor(__clc_uint32_t volatile __local *, __clc_uint32_t,
+                  __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicXor(
+    __clc_uint32_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t
+__spirv_AtomicXor(__clc_uint32_t volatile __global *, __clc_uint32_t,
+                  __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint32_t __spirv_AtomicXor(
+    __clc_uint32_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t
+__spirv_AtomicXor(__clc_uint64_t volatile __local *, __clc_uint32_t,
+                  __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicXor(
+    __clc_uint64_t __local *, __clc_uint32_t, __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t
+__spirv_AtomicXor(__clc_uint64_t volatile __global *, __clc_uint32_t,
+                  __clc_uint32_t, __clc_uint64_t);
+_CLC_OVERLOAD _CLC_DECL __clc_uint64_t __spirv_AtomicXor(
+    __clc_uint64_t __global *, __clc_uint32_t, __clc_uint32_t, __clc_uint64_t);
+
 _CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_char_t __spirv_BitCount(__clc_char_t);
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_char_t
