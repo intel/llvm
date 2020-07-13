@@ -4102,7 +4102,7 @@ class OffloadingActionBuilder final {
         ToolChains.push_back(TI->second);
 
       // No SYCL toolchain means nothing to offload.
-      if (!ToolChains.size()) {
+      if (ToolChains.empty()) {
         return false;
       }
 
@@ -4163,7 +4163,7 @@ class OffloadingActionBuilder final {
             //
             // Note: this odd, but the test assert that a integration header
             // is build no matter what. If only fsycl-add-targets is provided,
-            // the driver driscard the device compilation steps.
+            // the driver should discard the device compilation steps.
             SYCLTripleList.push_back(TT);
           }
         }
