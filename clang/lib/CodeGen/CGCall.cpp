@@ -2135,7 +2135,10 @@ void CodeGenModule::ConstructAttributeList(
     hasUsedSRet = true;
     if (RetAI.getInReg())
       SRETAttrs.addAttribute(llvm::Attribute::InReg);
-    SRETAttrs.addAlignmentAttr(RetAI.getIndirectAlign().getQuantity());
+    // TODO: For ESIMD align attributes on sret arguments
+    // generate massively inefficient code.
+    if (!getLangOpts().SYCLExplicitSIMD || !getLangOpts().SYCLIsDevice)
+      SRETAttrs.addAlignmentAttr(RetAI.getIndirectAlign().getQuantity());
     ArgAttrs[IRFunctionArgs.getSRetArgNo()] =
         llvm::AttributeSet::get(getLLVMContext(), SRETAttrs);
   }
