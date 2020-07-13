@@ -3992,7 +3992,7 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
   assert(buffer->mem_type_ == _pi_mem::mem_type::buffer);
 
   pi_result ret_err = PI_INVALID_OPERATION;
-  bool is_pinned = buffer->mem_.buffer_mem_.allocMode_ ==
+  const bool is_pinned = buffer->mem_.buffer_mem_.allocMode_ ==
                    _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
 
   // Currently no support for overlapping regions
