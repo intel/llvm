@@ -3986,38 +3986,14 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
                                      pi_uint32 num_events_in_wait_list,
                                      const pi_event *event_wait_list,
                                      pi_event *event, void **ret_map) {
-
   assert(ret_map != nullptr);
   assert(command_queue != nullptr);
   assert(buffer != nullptr);
   assert(buffer->mem_type_ == _pi_mem::mem_type::buffer);
 
   pi_result ret_err = PI_INVALID_OPERATION;
-
-  // Buffers using pinned host pointers are already on host, so there is no need
-  // to map them to another region in host memory.
-  if (buffer->mem_.buffer_mem_.allocMode_ ==
-      _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr) {
-    ret_err = PI_SUCCESS;
-    ScopedContext active(command_queue->get_context());
-
-    ret_err = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                                       event_wait_list, nullptr);
-
-    *ret_map = static_cast<char *>(buffer->mem_.buffer_mem_.hostPtr_) + offset;
-
-    if (event) {
-      try {
-        *event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_MAP,
-                                        command_queue);
-        (*event)->start();
-        (*event)->record();
-      } catch (pi_result error) {
-        return error;
-      }
-    }
-    return ret_err;
-  }
+  bool is_pinned = buffer->mem_.buffer_mem_.allocMode_ ==
+                   _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
 
   // Currently no support for overlapping regions
   if (buffer->mem_.buffer_mem_.get_map_ptr() != nullptr) {
@@ -4031,15 +4007,21 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
     ret_err = PI_SUCCESS;
   }
 
-  if ((map_flags & CL_MAP_READ) || (map_flags & CL_MAP_WRITE)) {
+  if (!is_pinned && ((map_flags & CL_MAP_READ) || (map_flags & CL_MAP_WRITE))) {
+    // Pinned host memory is already on host so it doesn't need to be read.
     ret_err = cuda_piEnqueueMemBufferRead(
         command_queue, buffer, blocking_map, offset, size, hostPtr,
         num_events_in_wait_list, event_wait_list, event);
   } else {
+    ScopedContext active(command_queue->get_context());
+
+    if (is_pinned) {
+      ret_err = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                                         event_wait_list, nullptr);
+    }
+
     if (event) {
       try {
-        ScopedContext active(command_queue->get_context());
-
         *event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_MAP,
                                         command_queue);
         (*event)->start();
@@ -4068,43 +4050,32 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
   assert(mapped_ptr != nullptr);
   assert(memobj != nullptr);
   assert(memobj->mem_type_ == _pi_mem::mem_type::buffer);
-
-  // Buffers using pinned host pointers don't need to be unmapped.
-  if (memobj->mem_.buffer_mem_.allocMode_ ==
-      _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr) {
-    ScopedContext active(command_queue->get_context());
-
-    ret_err = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                                       event_wait_list, nullptr);
-    if (event) {
-      try {
-        *event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_UNMAP,
-                                        command_queue);
-        (*event)->start();
-        (*event)->record();
-      } catch (pi_result error) {
-        ret_err = error;
-      }
-    }
-    return PI_SUCCESS;
-  }
-
   assert(memobj->mem_.buffer_mem_.get_map_ptr() != nullptr);
   assert(memobj->mem_.buffer_mem_.get_map_ptr() == mapped_ptr);
+  
+  bool is_pinned = memobj->mem_.buffer_mem_.allocMode_ ==
+                   _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
 
-  if ((memobj->mem_.buffer_mem_.get_map_flags() & CL_MAP_WRITE) ||
-      (memobj->mem_.buffer_mem_.get_map_flags() &
-       CL_MAP_WRITE_INVALIDATE_REGION)) {
+  if (!is_pinned &&
+      ((memobj->mem_.buffer_mem_.get_map_flags() & CL_MAP_WRITE) ||
+       (memobj->mem_.buffer_mem_.get_map_flags() &
+        CL_MAP_WRITE_INVALIDATE_REGION))) {
+    // Pinned host memory is only on host so it doesn't need to be written to.
     ret_err = cuda_piEnqueueMemBufferWrite(
         command_queue, memobj, true,
         memobj->mem_.buffer_mem_.get_map_offset(mapped_ptr),
         memobj->mem_.buffer_mem_.get_size(), mapped_ptr,
         num_events_in_wait_list, event_wait_list, event);
   } else {
+    ScopedContext active(command_queue->get_context());
+
+    if (is_pinned) {
+      ret_err = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                                         event_wait_list, nullptr);
+    }
+
     if (event) {
       try {
-        ScopedContext active(command_queue->get_context());
-
         *event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_UNMAP,
                                         command_queue);
         (*event)->start();
