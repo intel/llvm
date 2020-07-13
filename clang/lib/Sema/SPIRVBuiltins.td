@@ -887,6 +887,52 @@ foreach name = ["MemoryBarrier"] in {
   def : SPVBuiltin<name, [Void, UInt, UInt]>;
 }
 
+// 3.32.18. Atomic Instructions
+
+// OpenCL validation rules:
+// The Pointer operand must be a pointer to
+// the Function, Workgroup, or CrossWorkGroup Storage Classes.
+// Note that an Atomic Instruction on a pointer to the Function Storage Class is valid,
+// but does not have defined behavior.
+foreach AS = [GlobalAS, LocalAS, PrivateAS] in {
+  foreach Type = [Int, UInt, Long, ULong] in {
+    foreach name = ["AtomicLoad", "AtomicIIncrement", "AtomicIDecrement"] in {
+      def : SPVBuiltin<name, [Type, PointerType<ConstType<VolatileType<Type>>, AS>, UInt, UInt]>;
+      def : SPVBuiltin<name, [Type, PointerType<ConstType<Type>, AS>, UInt, UInt]>;
+    }
+
+    foreach name = ["AtomicStore"] in {
+      def : SPVBuiltin<name, [Void, PointerType<VolatileType<Type>, AS>, UInt, UInt, Type]>;
+      def : SPVBuiltin<name, [Void, PointerType<Type, AS>, UInt, UInt, Type]>;
+    }
+
+    foreach name = ["AtomicExchange", "AtomicIAdd", "AtomicISub",
+                    "AtomicAnd", "AtomicOr", "AtomicXor"] in {
+      def : SPVBuiltin<name, [Type, PointerType<VolatileType<Type>, AS>, UInt, UInt, Type]>;
+      def : SPVBuiltin<name, [Type, PointerType<Type, AS>, UInt, UInt, Type]>;
+    }
+
+    foreach name = ["AtomicCompareExchange"] in {
+      def : SPVBuiltin<name, [Type, PointerType<VolatileType<Type>, AS>, UInt, UInt, UInt, Type, Type]>;
+      def : SPVBuiltin<name, [Type, PointerType<Type, AS>, UInt, UInt, UInt, Type, Type]>;
+    }
+  }
+
+  foreach Type = [Int, Long] in {
+    foreach name = ["AtomicSMin", "AtomicSMax"] in {
+      def : SPVBuiltin<name, [Type, PointerType<VolatileType<Type>, AS>, UInt, UInt, Type]>;
+      def : SPVBuiltin<name, [Type, PointerType<Type, AS>, UInt, UInt, Type]>;
+    }
+  }
+
+  foreach Type = [UInt, ULong] in {
+    foreach name = ["AtomicUMin", "AtomicUMax"] in {
+      def : SPVBuiltin<name, [Type, PointerType<VolatileType<Type>, AS>, UInt, UInt, Type]>;
+      def : SPVBuiltin<name, [Type, PointerType<Type, AS>, UInt, UInt, Type]>;
+    }
+  }
+}
+
 // 3.32.21. Group and Subgroup Instructions
 
 foreach name = ["GroupAsyncCopy"] in {
