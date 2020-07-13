@@ -308,8 +308,11 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
     // extension
     if (!BM->isAllowedToUseExtension(
             ExtensionID::SPV_INTEL_usm_storage_classes) &&
-        ((AddrSpc == SPIRAS_GlobalDevice) || (AddrSpc == SPIRAS_GlobalHost)))
-      AddrSpc = SPIRAS_Global;
+        ((AddrSpc == SPIRAS_GlobalDevice) || (AddrSpc == SPIRAS_GlobalHost))) {
+      auto NewType =
+          PointerType::get(T->getPointerElementType(), SPIRAS_Global);
+      return mapType(T, transType(NewType));
+    }
     if (ST && !ST->isSized()) {
       Op OpCode;
       StringRef STName = ST->getName();
