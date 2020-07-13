@@ -85,7 +85,7 @@ int main() {
   check_op<UDT>(Queue, UDT(0, 0), intel::plus<UDT>(), true, G, L);
 
   // Test user-defined operator
-  auto UDOp = [=](const auto& lhs, const auto& rhs) { return lhs + rhs; };
+  auto UDOp = [=](const auto &lhs, const auto &rhs) { return lhs + rhs; };
   check_op<int>(Queue, int(L), UDOp, false, G, L);
   check_op<int>(Queue, int(0), UDOp, true, G, L);
 
