@@ -8,29 +8,104 @@
 
 #include <spirv/spirv.h>
 
-// TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling.
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicXor(volatile global int *p,
+                                             unsigned int scope,
+                                             unsigned int semantics, int val) {
+  return __sync_fetch_and_xor(p, val);
+}
 
-#define IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED, FN_NAME)                                                                   \
-  _CLC_DEF TYPE                                                                                                             \
-      _Z17__spirv_AtomicXorPU3##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
-          volatile AS TYPE *p, enum Scope scope,                                                                            \
-          enum MemorySemanticsMask semantics, TYPE val) {                                                                   \
-    return FN_NAME(p, val);                                                                                                 \
-  }
+_CLC_OVERLOAD _CLC_DEF unsigned int
+__spirv_AtomicXor(volatile global unsigned int *p, unsigned int scope,
+                  unsigned int semantics, unsigned int val) {
+  return __sync_fetch_and_xor(p, val);
+}
 
-IMPL(int, i, global, AS1, __sync_fetch_and_xor)
-IMPL(unsigned int, j, global, AS1, __sync_fetch_and_xor)
-IMPL(int, i, local, AS3, __sync_fetch_and_xor)
-IMPL(unsigned int, j, local, AS3, __sync_fetch_and_xor)
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicXor(volatile local int *p,
+                                             unsigned int scope,
+                                             unsigned int semantics, int val) {
+  return __sync_fetch_and_xor(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned int
+__spirv_AtomicXor(volatile local unsigned int *p, unsigned int scope,
+                  unsigned int semantics, unsigned int val) {
+  return __sync_fetch_and_xor(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicXor(global int *p, unsigned int scope,
+                                             unsigned int semantics, int val) {
+  return __sync_fetch_and_xor(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned int __spirv_AtomicXor(global unsigned int *p,
+                                                      unsigned int scope,
+                                                      unsigned int semantics,
+                                                      unsigned int val) {
+  return __sync_fetch_and_xor(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicXor(local int *p, unsigned int scope,
+                                             unsigned int semantics, int val) {
+  return __sync_fetch_and_xor(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned int __spirv_AtomicXor(local unsigned int *p,
+                                                      unsigned int scope,
+                                                      unsigned int semantics,
+                                                      unsigned int val) {
+  return __sync_fetch_and_xor(p, val);
+}
 
 #ifdef cl_khr_int64_extended_atomics
-IMPL(long, l, global, AS1, __sync_fetch_and_xor_8)
-IMPL(unsigned long, m, global, AS1, __sync_fetch_and_xor_8)
-IMPL(long, l, local, AS3, __sync_fetch_and_xor_8)
-IMPL(unsigned long, m, local, AS3, __sync_fetch_and_xor_8)
-IMPL(long, x, global, AS1, __sync_fetch_and_xor_8)
-IMPL(unsigned long, y, global, AS1, __sync_fetch_and_xor_8)
-IMPL(long, x, local, AS3, __sync_fetch_and_xor_8)
-IMPL(unsigned long, y, local, AS3, __sync_fetch_and_xor_8)
-#endif
-#undef IMPL
+_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicXor(volatile global long *p,
+                                              unsigned int scope,
+                                              unsigned int semantics,
+                                              long val) {
+  return __sync_fetch_and_xor_8(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned long
+__spirv_AtomicXor(volatile global unsigned long *p, unsigned int scope,
+                  unsigned int semantics, unsigned long val) {
+  return __sync_fetch_and_xor_8(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicXor(volatile local long *p,
+                                              unsigned int scope,
+                                              unsigned int semantics,
+                                              long val) {
+  return __sync_fetch_and_xor_8(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned long
+__spirv_AtomicXor(volatile local unsigned long *p, unsigned int scope,
+                  unsigned int semantics, unsigned long val) {
+  return __sync_fetch_and_xor_8(p, val);
+}
+_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicXor(global long *p,
+                                              unsigned int scope,
+                                              unsigned int semantics,
+                                              long val) {
+  return __sync_fetch_and_xor_8(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned long __spirv_AtomicXor(global unsigned long *p,
+                                                       unsigned int scope,
+                                                       unsigned int semantics,
+                                                       unsigned long val) {
+  return __sync_fetch_and_xor_8(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicXor(local long *p, unsigned int scope,
+                                              unsigned int semantics,
+                                              long val) {
+  return __sync_fetch_and_xor_8(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned long __spirv_AtomicXor(local unsigned long *p,
+                                                       unsigned int scope,
+                                                       unsigned int semantics,
+                                                       unsigned long val) {
+  return __sync_fetch_and_xor_8(p, val);
+}
+#endif // cl_khr_int64_extended_atomics

@@ -8,62 +8,145 @@
 
 #include <spirv/spirv.h>
 
-// TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling.
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicIDecrement(const local int *p,
+                                                    unsigned int scope,
+                                                    unsigned int semantics) {
+  return __sync_fetch_and_sub((local int *)p, (int)1);
+}
 
-_CLC_DEF int
-_Z24__spirv_AtomicIDecrementPU3AS3iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile local int *p, enum Scope scope,
-    enum MemorySemanticsMask semantics) {
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicIDecrement(const global int *p,
+                                                    unsigned int scope,
+                                                    unsigned int semantics) {
+  return __sync_fetch_and_sub((global int *)p, (int)1);
+}
+
+_CLC_OVERLOAD _CLC_DEF uint __spirv_AtomicIDecrement(const local uint *p,
+                                                     unsigned int scope,
+                                                     unsigned int semantics) {
+  return __sync_fetch_and_sub((local uint *)p, (uint)1);
+}
+
+_CLC_OVERLOAD _CLC_DEF uint __spirv_AtomicIDecrement(const global uint *p,
+                                                     unsigned int scope,
+                                                     unsigned int semantics) {
+  return __sync_fetch_and_sub((global uint *)p, (uint)1);
+}
+
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicIDecrement(const volatile local int *p,
+                                                    unsigned int scope,
+                                                    unsigned int semantics) {
+  return __sync_fetch_and_sub((volatile local int *)p, (int)1);
+}
+
+_CLC_OVERLOAD _CLC_DEF int
+__spirv_AtomicIDecrement(const volatile global int *p, unsigned int scope,
+                         unsigned int semantics) {
+  return __sync_fetch_and_sub((volatile global int *)p, (int)1);
+}
+
+_CLC_OVERLOAD _CLC_DEF uint __spirv_AtomicIDecrement(
+    const volatile local uint *p, unsigned int scope, unsigned int semantics) {
+  return __sync_fetch_and_sub((volatile local uint *)p, (uint)1);
+}
+
+_CLC_OVERLOAD _CLC_DEF uint __spirv_AtomicIDecrement(
+    const volatile global uint *p, unsigned int scope, unsigned int semantics) {
+  return __sync_fetch_and_sub((volatile global uint *)p, (uint)1);
+}
+
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicIDecrement(volatile local int *p,
+                                                    unsigned int scope,
+                                                    unsigned int semantics) {
   return __sync_fetch_and_sub(p, (int)1);
 }
 
-_CLC_DEF int
-_Z24__spirv_AtomicIDecrementPU3AS1iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile global int *p, enum Scope scope,
-    enum MemorySemanticsMask semantics) {
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicIDecrement(volatile global int *p,
+                                                    unsigned int scope,
+                                                    unsigned int semantics) {
   return __sync_fetch_and_sub(p, (int)1);
 }
 
-_CLC_DEF uint
-_Z24__spirv_AtomicIDecrementPU3AS3jN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile local uint *p, enum Scope scope,
-    enum MemorySemanticsMask semantics) {
+_CLC_OVERLOAD _CLC_DEF uint __spirv_AtomicIDecrement(volatile local uint *p,
+                                                     unsigned int scope,
+                                                     unsigned int semantics) {
   return __sync_fetch_and_sub(p, (uint)1);
 }
 
-_CLC_DEF uint
-_Z24__spirv_AtomicIDecrementPU3AS1jN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile global uint *p, enum Scope scope,
-    enum MemorySemanticsMask semantics) {
+_CLC_OVERLOAD _CLC_DEF uint __spirv_AtomicIDecrement(volatile global uint *p,
+                                                     unsigned int scope,
+                                                     unsigned int semantics) {
   return __sync_fetch_and_sub(p, (uint)1);
 }
 
 #ifdef cl_khr_int64_base_atomics
-_CLC_DEF long
-_Z24__spirv_AtomicIDecrementPU3AS3lN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile local long *p, enum Scope scope,
-    enum MemorySemanticsMask semantics) {
+_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicIDecrement(const local long *p,
+                                                     unsigned int scope,
+                                                     unsigned int semantics) {
+  return __sync_fetch_and_sub((local long *)p, (long)1);
+}
+
+_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicIDecrement(const global long *p,
+                                                     unsigned int scope,
+                                                     unsigned int semantics) {
+  return __sync_fetch_and_sub((global long *)p, (long)1);
+}
+
+_CLC_OVERLOAD _CLC_DEF ulong __spirv_AtomicIDecrement(const local ulong *p,
+                                                      unsigned int scope,
+                                                      unsigned int semantics) {
+  return __sync_fetch_and_sub((local ulong *)p, (ulong)1);
+}
+
+_CLC_OVERLOAD _CLC_DEF ulong __spirv_AtomicIDecrement(const global ulong *p,
+                                                      unsigned int scope,
+                                                      unsigned int semantics) {
+  return __sync_fetch_and_sub((global ulong *)p, (ulong)1);
+}
+
+_CLC_OVERLOAD _CLC_DEF long
+__spirv_AtomicIDecrement(const volatile local long *p, unsigned int scope,
+                         unsigned int semantics) {
+  return __sync_fetch_and_sub((volatile local long *)p, (long)1);
+}
+
+_CLC_OVERLOAD _CLC_DEF long
+__spirv_AtomicIDecrement(const volatile global long *p, unsigned int scope,
+                         unsigned int semantics) {
+  return __sync_fetch_and_sub((volatile global long *)p, (long)1);
+}
+
+_CLC_OVERLOAD _CLC_DEF ulong __spirv_AtomicIDecrement(
+    const volatile local ulong *p, unsigned int scope, unsigned int semantics) {
+  return __sync_fetch_and_sub((volatile local ulong *)p, (ulong)1);
+}
+
+_CLC_OVERLOAD _CLC_DEF ulong
+__spirv_AtomicIDecrement(const volatile global ulong *p, unsigned int scope,
+                         unsigned int semantics) {
+  return __sync_fetch_and_sub((volatile global ulong *)p, (ulong)1);
+}
+
+_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicIDecrement(volatile local long *p,
+                                                     unsigned int scope,
+                                                     unsigned int semantics) {
   return __sync_fetch_and_sub(p, (long)1);
 }
 
-_CLC_DEF long
-_Z24__spirv_AtomicIDecrementPU3AS1lN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile global long *p, enum Scope scope,
-    enum MemorySemanticsMask semantics) {
+_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicIDecrement(volatile global long *p,
+                                                     unsigned int scope,
+                                                     unsigned int semantics) {
   return __sync_fetch_and_sub(p, (long)1);
 }
 
-_CLC_DEF ulong
-_Z24__spirv_AtomicIDecrementPU3AS3mN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile local ulong *p, enum Scope scope,
-    enum MemorySemanticsMask semantics) {
+_CLC_OVERLOAD _CLC_DEF ulong __spirv_AtomicIDecrement(volatile local ulong *p,
+                                                      unsigned int scope,
+                                                      unsigned int semantics) {
   return __sync_fetch_and_sub(p, (ulong)1);
 }
 
-_CLC_DEF ulong
-_Z24__spirv_AtomicIDecrementPU3AS1mN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile global ulong *p, enum Scope scope,
-    enum MemorySemanticsMask semantics) {
+_CLC_OVERLOAD _CLC_DEF ulong __spirv_AtomicIDecrement(volatile global ulong *p,
+                                                      unsigned int scope,
+                                                      unsigned int semantics) {
   return __sync_fetch_and_sub(p, (ulong)1);
 }
-#endif
+#endif // cl_khr_int64_base_atomics

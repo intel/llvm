@@ -8,42 +8,210 @@
 
 #include <spirv/spirv.h>
 
-// TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling.
+_CLC_DEF int __clc__atomic_load_global_4_unordered(global const int *);
+_CLC_DEF int __clc__atomic_load_global_4_acquire(global const int *);
+_CLC_DEF int __clc__atomic_load_global_4_seq_cst(global const int *);
+_CLC_DEF int __clc__atomic_load_local_4_unordered(local const int *);
+_CLC_DEF int __clc__atomic_load_local_4_acquire(local const int *);
+_CLC_DEF int __clc__atomic_load_local_4_seq_cst(local const int *);
 
-#define FDECL(TYPE, PREFIX, AS, BYTE_SIZE, MEM_ORDER) \
-TYPE __clc__atomic_##PREFIX##load_##AS##_##BYTE_SIZE##_##MEM_ORDER(volatile AS const TYPE *);
-
-#define IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED, PREFIX, BYTE_SIZE)                                               \
-  FDECL(TYPE, PREFIX, AS, BYTE_SIZE, unordered)                                                                   \
-  FDECL(TYPE, PREFIX, AS, BYTE_SIZE, acquire)                                                                     \
-  FDECL(TYPE, PREFIX, AS, BYTE_SIZE, seq_cst)                                                                     \
-  _CLC_DEF TYPE                                                                                                   \
-      _Z18__spirv_AtomicLoadPU3##AS_MANGLED##K##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE( \
-          volatile AS const TYPE *p, enum Scope scope,                                                            \
-          enum MemorySemanticsMask semantics) {                                                                   \
-    if (semantics == Acquire) {                                                                                   \
-      return __clc__atomic_##PREFIX##load_##AS##_##BYTE_SIZE##_acquire(p);                                        \
-    }                                                                                                             \
-    if (semantics == SequentiallyConsistent) {                                                                    \
-      return __clc__atomic_##PREFIX##load_##AS##_##BYTE_SIZE##_seq_cst(p);                                        \
-    }                                                                                                             \
-    return __clc__atomic_##PREFIX##load_##AS##_##BYTE_SIZE##_unordered(p);                                        \
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicLoad(volatile global const int *p,
+                                              unsigned int scope,
+                                              unsigned int semantics) {
+  if (semantics == Acquire) {
+    return __clc__atomic_load_global_4_acquire(p);
   }
+  if (semantics == SequentiallyConsistent) {
+    return __clc__atomic_load_global_4_seq_cst(p);
+  }
+  return __clc__atomic_load_global_4_unordered(p);
+}
 
-#define IMPL_AS(TYPE, TYPE_MANGLED, PREFIX, BYTE_SIZE) \
-IMPL(TYPE, TYPE_MANGLED, global, AS1, PREFIX, BYTE_SIZE) \
-IMPL(TYPE, TYPE_MANGLED, local, AS3, PREFIX, BYTE_SIZE)
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicLoad(volatile local const int *p,
+                                              unsigned int scope,
+                                              unsigned int semantics) {
+  if (semantics == Acquire) {
+    return __clc__atomic_load_local_4_acquire(p);
+  }
+  if (semantics == SequentiallyConsistent) {
+    return __clc__atomic_load_local_4_seq_cst(p);
+  }
+  return __clc__atomic_load_local_4_unordered(p);
+}
 
-IMPL_AS(int, i, , 4)
-IMPL_AS(unsigned int, j, u, 4)
+_CLC_OVERLOAD _CLC_DEF unsigned int
+__spirv_AtomicLoad(volatile global const unsigned int *p, unsigned int scope,
+                   unsigned int semantics) {
+  if (semantics == Acquire) {
+    return __clc__atomic_load_global_4_acquire(p);
+  }
+  if (semantics == SequentiallyConsistent) {
+    return __clc__atomic_load_global_4_seq_cst(p);
+  }
+  return __clc__atomic_load_global_4_unordered(p);
+}
 
-#ifdef cl_khr_int64_base_atomics
-IMPL_AS(long, l, , 8)
-IMPL_AS(unsigned long, m, u, 8)
-IMPL_AS(long, x, , 8)
-IMPL_AS(unsigned long, y, u, 8)
-#endif
+_CLC_OVERLOAD _CLC_DEF unsigned int
+__spirv_AtomicLoad(volatile local const unsigned int *p, unsigned int scope,
+                   unsigned int semantics) {
+  if (semantics == Acquire) {
+    return __clc__atomic_load_local_4_acquire(p);
+  }
+  if (semantics == SequentiallyConsistent) {
+    return __clc__atomic_load_local_4_seq_cst(p);
+  }
+  return __clc__atomic_load_local_4_unordered(p);
+}
 
-#undef FDECL
-#undef IMPL_AS
-#undef IMPL
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicLoad(global const int *p,
+                                              unsigned int scope,
+                                              unsigned int semantics) {
+  if (semantics == Acquire) {
+    return __clc__atomic_load_global_4_acquire(p);
+  }
+  if (semantics == SequentiallyConsistent) {
+    return __clc__atomic_load_global_4_seq_cst(p);
+  }
+  return __clc__atomic_load_global_4_unordered(p);
+}
+
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicLoad(local const int *p,
+                                              unsigned int scope,
+                                              unsigned int semantics) {
+  if (semantics == Acquire) {
+    return __clc__atomic_load_local_4_acquire(p);
+  }
+  if (semantics == SequentiallyConsistent) {
+    return __clc__atomic_load_local_4_seq_cst(p);
+  }
+  return __clc__atomic_load_local_4_unordered(p);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned int
+__spirv_AtomicLoad(global const unsigned int *p, unsigned int scope,
+                   unsigned int semantics) {
+  if (semantics == Acquire) {
+    return __clc__atomic_load_global_4_acquire(p);
+  }
+  if (semantics == SequentiallyConsistent) {
+    return __clc__atomic_load_global_4_seq_cst(p);
+  }
+  return __clc__atomic_load_global_4_unordered(p);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned int
+__spirv_AtomicLoad(local const unsigned int *p, unsigned int scope,
+                   unsigned int semantics) {
+  if (semantics == Acquire) {
+    return __clc__atomic_load_local_4_acquire(p);
+  }
+  if (semantics == SequentiallyConsistent) {
+    return __clc__atomic_load_local_4_seq_cst(p);
+  }
+  return __clc__atomic_load_local_4_unordered(p);
+}
+
+#ifdef cl_khr_int64_extended_atomics
+_CLC_DEF long __clc__atomic_load_global_8_unordered(global const long *);
+_CLC_DEF long __clc__atomic_load_global_8_acquire(global const long *);
+_CLC_DEF long __clc__atomic_load_global_8_seq_cst(global const long *);
+_CLC_DEF long __clc__atomic_load_local_8_unordered(local const long *);
+_CLC_DEF long __clc__atomic_load_local_8_acquire(local const long *);
+_CLC_DEF long __clc__atomic_load_local_8_seq_cst(local const long *);
+
+_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicLoad(volatile global const long *p,
+                                               unsigned int scope,
+                                               unsigned int semantics) {
+  if (semantics == Acquire) {
+    return __clc__atomic_load_global_8_acquire(p);
+  }
+  if (semantics == SequentiallyConsistent) {
+    return __clc__atomic_load_global_8_seq_cst(p);
+  }
+  return __clc__atomic_load_global_8_unordered(p);
+}
+
+_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicLoad(volatile local const long *p,
+                                               unsigned int scope,
+                                               unsigned int semantics) {
+  if (semantics == Acquire) {
+    return __clc__atomic_load_local_8_acquire(p);
+  }
+  if (semantics == SequentiallyConsistent) {
+    return __clc__atomic_load_local_8_seq_cst(p);
+  }
+  return __clc__atomic_load_local_8_unordered(p);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned long
+__spirv_AtomicLoad(volatile global const unsigned long *p, unsigned int scope,
+                   unsigned int semantics) {
+  if (semantics == Acquire) {
+    return __clc__atomic_load_global_8_acquire(p);
+  }
+  if (semantics == SequentiallyConsistent) {
+    return __clc__atomic_load_global_8_seq_cst(p);
+  }
+  return __clc__atomic_load_global_8_unordered(p);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned long
+__spirv_AtomicLoad(volatile local const unsigned long *p, unsigned int scope,
+                   unsigned int semantics) {
+  if (semantics == Acquire) {
+    return __clc__atomic_load_local_8_acquire(p);
+  }
+  if (semantics == SequentiallyConsistent) {
+    return __clc__atomic_load_local_8_seq_cst(p);
+  }
+  return __clc__atomic_load_local_8_unordered(p);
+}
+
+_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicLoad(global const long *p,
+                                               unsigned int scope,
+                                               unsigned int semantics) {
+  if (semantics == Acquire) {
+    return __clc__atomic_load_global_8_acquire(p);
+  }
+  if (semantics == SequentiallyConsistent) {
+    return __clc__atomic_load_global_8_seq_cst(p);
+  }
+  return __clc__atomic_load_global_8_unordered(p);
+}
+
+_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicLoad(local const long *p,
+                                               unsigned int scope,
+                                               unsigned int semantics) {
+  if (semantics == Acquire) {
+    return __clc__atomic_load_local_8_acquire(p);
+  }
+  if (semantics == SequentiallyConsistent) {
+    return __clc__atomic_load_local_8_seq_cst(p);
+  }
+  return __clc__atomic_load_local_8_unordered(p);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned long
+__spirv_AtomicLoad(global const unsigned long *p, unsigned int scope,
+                   unsigned int semantics) {
+  if (semantics == Acquire) {
+    return __clc__atomic_load_global_8_acquire(p);
+  }
+  if (semantics == SequentiallyConsistent) {
+    return __clc__atomic_load_global_8_seq_cst(p);
+  }
+  return __clc__atomic_load_global_8_unordered(p);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned long
+__spirv_AtomicLoad(local const unsigned long *p, unsigned int scope,
+                   unsigned int semantics) {
+  if (semantics == Acquire) {
+    return __clc__atomic_load_local_8_acquire(p);
+  }
+  if (semantics == SequentiallyConsistent) {
+    return __clc__atomic_load_local_8_seq_cst(p);
+  }
+  return __clc__atomic_load_local_8_unordered(p);
+}
+#endif // cl_khr_int64_extended_atomics

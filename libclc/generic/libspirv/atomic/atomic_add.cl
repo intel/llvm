@@ -8,29 +8,104 @@
 
 #include <spirv/spirv.h>
 
-// TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling.
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicIAdd(volatile global int *p,
+                                              unsigned int scope,
+                                              unsigned int semantics, int val) {
+  return __sync_fetch_and_add(p, val);
+}
 
-#define IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED, FN_NAME)                                                                    \
-  _CLC_DEF TYPE                                                                                                              \
-      _Z18__spirv_AtomicIAddPU3##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
-          volatile AS TYPE *p, enum Scope scope,                                                                             \
-          enum MemorySemanticsMask semantics, TYPE val) {                                                                    \
-    return FN_NAME(p, val);                                                                                                  \
-  }
+_CLC_OVERLOAD _CLC_DEF unsigned int
+__spirv_AtomicIAdd(volatile global unsigned int *p, unsigned int scope,
+                   unsigned int semantics, unsigned int val) {
+  return __sync_fetch_and_add(p, val);
+}
 
-IMPL(int, i, global, AS1, __sync_fetch_and_add)
-IMPL(unsigned int, j, global, AS1, __sync_fetch_and_add)
-IMPL(int, i, local, AS3, __sync_fetch_and_add)
-IMPL(unsigned int, j, local, AS3, __sync_fetch_and_add)
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicIAdd(volatile local int *p,
+                                              unsigned int scope,
+                                              unsigned int semantics, int val) {
+  return __sync_fetch_and_add(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned int
+__spirv_AtomicIAdd(volatile local unsigned int *p, unsigned int scope,
+                   unsigned int semantics, unsigned int val) {
+  return __sync_fetch_and_add(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicIAdd(global int *p, unsigned int scope,
+                                              unsigned int semantics, int val) {
+  return __sync_fetch_and_add(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned int __spirv_AtomicIAdd(global unsigned int *p,
+                                                       unsigned int scope,
+                                                       unsigned int semantics,
+                                                       unsigned int val) {
+  return __sync_fetch_and_add(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicIAdd(local int *p, unsigned int scope,
+                                              unsigned int semantics, int val) {
+  return __sync_fetch_and_add(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned int __spirv_AtomicIAdd(local unsigned int *p,
+                                                       unsigned int scope,
+                                                       unsigned int semantics,
+                                                       unsigned int val) {
+  return __sync_fetch_and_add(p, val);
+}
 
 #ifdef cl_khr_int64_base_atomics
-IMPL(long, l, global, AS1, __sync_fetch_and_add_8)
-IMPL(unsigned long, m, global, AS1, __sync_fetch_and_add_8)
-IMPL(long, l, local, AS3, __sync_fetch_and_add_8)
-IMPL(unsigned long, m, local, AS3, __sync_fetch_and_add_8)
-IMPL(long, x, global, AS1, __sync_fetch_and_add_8)
-IMPL(unsigned long, y, global, AS1, __sync_fetch_and_add_8)
-IMPL(long, x, local, AS3, __sync_fetch_and_add_8)
-IMPL(unsigned long, y, local, AS3, __sync_fetch_and_add_8)
-#endif
-#undef IMPL
+_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicIAdd(volatile global long int *p,
+                                               unsigned int scope,
+                                               unsigned int semantics,
+                                               long val) {
+  return __sync_fetch_and_add_8(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned long
+__spirv_AtomicIAdd(volatile global unsigned long int *p, unsigned int scope,
+                   unsigned int semantics, unsigned long val) {
+  return __sync_fetch_and_add_8(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicIAdd(volatile local long int *p,
+                                               unsigned int scope,
+                                               unsigned int semantics,
+                                               long val) {
+  return __sync_fetch_and_add_8(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned long
+__spirv_AtomicIAdd(volatile local unsigned long int *p, unsigned int scope,
+                   unsigned int semantics, unsigned long val) {
+  return __sync_fetch_and_add_8(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicIAdd(global long int *p,
+                                               unsigned int scope,
+                                               unsigned int semantics,
+                                               long val) {
+  return __sync_fetch_and_add_8(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned long
+__spirv_AtomicIAdd(global unsigned long int *p, unsigned int scope,
+                   unsigned int semantics, unsigned long val) {
+  return __sync_fetch_and_add_8(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicIAdd(local long int *p,
+                                               unsigned int scope,
+                                               unsigned int semantics,
+                                               long val) {
+  return __sync_fetch_and_add_8(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned long
+__spirv_AtomicIAdd(local unsigned long int *p, unsigned int scope,
+                   unsigned int semantics, unsigned long val) {
+  return __sync_fetch_and_add_8(p, val);
+}
+#endif // cl_khr_int64_base_atomics

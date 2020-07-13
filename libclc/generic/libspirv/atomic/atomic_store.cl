@@ -8,58 +8,259 @@
 
 #include <spirv/spirv.h>
 
-// TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling.
+_CLC_DEF int __clc__atomic_store_global_4_unordered(global const int *, int);
+_CLC_DEF int __clc__atomic_store_global_4_release(global const int *, int);
+_CLC_DEF int __clc__atomic_store_global_4_seq_cst(global const int *, int);
+_CLC_DEF int __clc__atomic_store_local_4_unordered(local const int *, int);
+_CLC_DEF int __clc__atomic_store_local_4_release(local const int *, int);
+_CLC_DEF int __clc__atomic_store_local_4_seq_cst(local const int *, int);
+_CLC_DEF unsigned int
+__clc__atomic_ustore_global_4_unordered(global const unsigned int *,
+                                        unsigned int);
+_CLC_DEF unsigned int
+__clc__atomic_ustore_global_4_release(global const unsigned int *,
+                                      unsigned int);
+_CLC_DEF unsigned int
+__clc__atomic_ustore_global_4_seq_cst(global const unsigned int *,
+                                      unsigned int);
+_CLC_DEF unsigned int
+__clc__atomic_ustore_local_4_unordered(local const unsigned int *,
+                                       unsigned int);
+_CLC_DEF unsigned int
+__clc__atomic_ustore_local_4_release(local const unsigned int *, unsigned int);
+_CLC_DEF unsigned int
+__clc__atomic_ustore_local_4_seq_cst(local const unsigned int *, unsigned int);
 
-_CLC_DEF void
-_Z19__spirv_AtomicStorePU3AS1fN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEf(
-    volatile global float *p, enum Scope scope,
-    enum MemorySemanticsMask semantics, float val) {
-  _Z19__spirv_AtomicStorePU3AS1jN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEj(
-      (volatile global uint *)p, scope, semantics, as_uint(val));
-}
-
-_CLC_DEF void
-_Z19__spirv_AtomicStorePU3AS3fN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEf(
-    volatile local float *p, enum Scope scope,
-    enum MemorySemanticsMask semantics, float val) {
-  _Z19__spirv_AtomicStorePU3AS3jN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEj(
-      (volatile local uint *)p, scope, semantics, as_uint(val));
-}
-
-#define FDECL(TYPE, PREFIX, AS, BYTE_SIZE, MEM_ORDER) \
-TYPE __clc__atomic_##PREFIX##store_##AS##_##BYTE_SIZE##_##MEM_ORDER(volatile AS const TYPE *, TYPE);
-
-#define IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED, PREFIX, BYTE_SIZE)                                                           \
-  FDECL(TYPE, PREFIX, AS, BYTE_SIZE, unordered)                                                                               \
-  FDECL(TYPE, PREFIX, AS, BYTE_SIZE, release)                                                                                 \
-  FDECL(TYPE, PREFIX, AS, BYTE_SIZE, seq_cst)                                                                                 \
-  _CLC_DEF void                                                                                                               \
-      _Z19__spirv_AtomicStorePU3##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
-          volatile AS TYPE *p, enum Scope scope,                                                                              \
-          enum MemorySemanticsMask semantics, TYPE val) {                                                                     \
-    if (semantics == Release) {                                                                                               \
-      __clc__atomic_##PREFIX##store_##AS##_##BYTE_SIZE##_release(p, val);                                                     \
-    } else if (semantics == SequentiallyConsistent) {                                                                         \
-      __clc__atomic_##PREFIX##store_##AS##_##BYTE_SIZE##_seq_cst(p, val);                                                     \
-    } else {                                                                                                                  \
-      __clc__atomic_##PREFIX##store_##AS##_##BYTE_SIZE##_unordered(p, val);                                                   \
-    }                                                                                                                         \
+_CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(volatile global int *p,
+                                                unsigned int scope,
+                                                unsigned int semantics,
+                                                int val) {
+  if (semantics == Release) {
+    __clc__atomic_store_global_4_release(p, val);
+  } else if (semantics == SequentiallyConsistent) {
+    __clc__atomic_store_global_4_seq_cst(p, val);
+  } else {
+    __clc__atomic_store_global_4_unordered(p, val);
   }
+}
 
-#define IMPL_AS(TYPE, TYPE_MANGLED, PREFIX, BYTE_SIZE) \
-IMPL(TYPE, TYPE_MANGLED, global, AS1, PREFIX, BYTE_SIZE) \
-IMPL(TYPE, TYPE_MANGLED, local, AS3, PREFIX, BYTE_SIZE)
+_CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(volatile local int *p,
+                                                unsigned int scope,
+                                                unsigned int semantics,
+                                                int val) {
+  if (semantics == Release) {
+    __clc__atomic_store_local_4_release(p, val);
+  } else if (semantics == SequentiallyConsistent) {
+    __clc__atomic_store_local_4_seq_cst(p, val);
+  } else {
+    __clc__atomic_store_local_4_unordered(p, val);
+  }
+}
 
-IMPL_AS(int, i, , 4)
-IMPL_AS(unsigned int, j, u, 4)
+_CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(volatile global unsigned int *p,
+                                                unsigned int scope,
+                                                unsigned int semantics,
+                                                unsigned int val) {
+  if (semantics == Release) {
+    __clc__atomic_ustore_global_4_release(p, val);
+  } else if (semantics == SequentiallyConsistent) {
+    __clc__atomic_ustore_global_4_seq_cst(p, val);
+  } else {
+    __clc__atomic_ustore_global_4_unordered(p, val);
+  }
+}
+
+_CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(volatile local unsigned int *p,
+                                                unsigned int scope,
+                                                unsigned int semantics,
+                                                unsigned int val) {
+  if (semantics == Release) {
+    __clc__atomic_ustore_local_4_release(p, val);
+  } else if (semantics == SequentiallyConsistent) {
+    __clc__atomic_ustore_local_4_seq_cst(p, val);
+  } else {
+    __clc__atomic_ustore_local_4_unordered(p, val);
+  }
+}
+
+_CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(global int *p,
+                                                unsigned int scope,
+                                                unsigned int semantics,
+                                                int val) {
+  if (semantics == Release) {
+    __clc__atomic_store_global_4_release(p, val);
+  } else if (semantics == SequentiallyConsistent) {
+    __clc__atomic_store_global_4_seq_cst(p, val);
+  } else {
+    __clc__atomic_store_global_4_unordered(p, val);
+  }
+}
+
+_CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(local int *p,
+                                                unsigned int scope,
+                                                unsigned int semantics,
+                                                int val) {
+  if (semantics == Release) {
+    __clc__atomic_store_local_4_release(p, val);
+  } else if (semantics == SequentiallyConsistent) {
+    __clc__atomic_store_local_4_seq_cst(p, val);
+  } else {
+    __clc__atomic_store_local_4_unordered(p, val);
+  }
+}
+
+_CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(global unsigned int *p,
+                                                unsigned int scope,
+                                                unsigned int semantics,
+                                                unsigned int val) {
+  if (semantics == Release) {
+    __clc__atomic_ustore_global_4_release(p, val);
+  } else if (semantics == SequentiallyConsistent) {
+    __clc__atomic_ustore_global_4_seq_cst(p, val);
+  } else {
+    __clc__atomic_ustore_global_4_unordered(p, val);
+  }
+}
+
+_CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(local unsigned int *p,
+                                                unsigned int scope,
+                                                unsigned int semantics,
+                                                unsigned int val) {
+  if (semantics == Release) {
+    __clc__atomic_ustore_local_4_release(p, val);
+  } else if (semantics == SequentiallyConsistent) {
+    __clc__atomic_ustore_local_4_seq_cst(p, val);
+  } else {
+    __clc__atomic_ustore_local_4_unordered(p, val);
+  }
+}
 
 #ifdef cl_khr_int64_base_atomics
-IMPL_AS(long, l, , 8)
-IMPL_AS(unsigned long, m, u, 8)
-IMPL_AS(long, x, , 8)
-IMPL_AS(unsigned long, y, u, 8)
-#endif
+_CLC_DEF long __clc__atomic_store_global_8_unordered(global const long *, long);
+_CLC_DEF long __clc__atomic_store_global_8_release(global const long *, long);
+_CLC_DEF long __clc__atomic_store_global_8_seq_cst(global const long *, long);
+_CLC_DEF long __clc__atomic_store_local_8_unordered(local const long *, long);
+_CLC_DEF long __clc__atomic_store_local_8_release(local const long *, long);
+_CLC_DEF long __clc__atomic_store_local_8_seq_cst(local const long *, long);
+_CLC_DEF unsigned long
+__clc__atomic_ustore_global_8_unordered(global const unsigned long *,
+                                        unsigned long);
+_CLC_DEF unsigned long
+__clc__atomic_ustore_global_8_release(global const unsigned long *,
+                                      unsigned long);
+_CLC_DEF unsigned long
+__clc__atomic_ustore_global_8_seq_cst(global const unsigned long *,
+                                      unsigned long);
+_CLC_DEF unsigned long
+__clc__atomic_ustore_local_8_unordered(local const unsigned long *,
+                                       unsigned long);
+_CLC_DEF unsigned long
+__clc__atomic_ustore_local_8_release(local const unsigned long *,
+                                     unsigned long);
+_CLC_DEF unsigned long
+__clc__atomic_ustore_local_8_seq_cst(local const unsigned long *,
+                                     unsigned long);
 
-#undef FDECL
-#undef IMPL_AS
-#undef IMPL
+_CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(volatile global long *p,
+                                                unsigned int scope,
+                                                unsigned int semantics,
+                                                long val) {
+  if (semantics == Release) {
+    __clc__atomic_store_global_8_release(p, val);
+  } else if (semantics == SequentiallyConsistent) {
+    __clc__atomic_store_global_8_seq_cst(p, val);
+  } else {
+    __clc__atomic_store_global_8_unordered(p, val);
+  }
+}
+
+_CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(volatile local long *p,
+                                                unsigned int scope,
+                                                unsigned int semantics,
+                                                long val) {
+  if (semantics == Release) {
+    __clc__atomic_store_local_8_release(p, val);
+  } else if (semantics == SequentiallyConsistent) {
+    __clc__atomic_store_local_8_seq_cst(p, val);
+  } else {
+    __clc__atomic_store_local_8_unordered(p, val);
+  }
+}
+
+_CLC_OVERLOAD _CLC_DEF void
+__spirv_AtomicStore(volatile global unsigned long *p, unsigned int scope,
+                    unsigned int semantics, unsigned long val) {
+  if (semantics == Release) {
+    __clc__atomic_ustore_global_8_release(p, val);
+  } else if (semantics == SequentiallyConsistent) {
+    __clc__atomic_ustore_global_8_seq_cst(p, val);
+  } else {
+    __clc__atomic_ustore_global_8_unordered(p, val);
+  }
+}
+
+_CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(volatile local unsigned long *p,
+                                                unsigned int scope,
+                                                unsigned int semantics,
+                                                unsigned long val) {
+  if (semantics == Release) {
+    __clc__atomic_ustore_local_8_release(p, val);
+  } else if (semantics == SequentiallyConsistent) {
+    __clc__atomic_ustore_local_8_seq_cst(p, val);
+  } else {
+    __clc__atomic_ustore_local_8_unordered(p, val);
+  }
+}
+
+_CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(global long *p,
+                                                unsigned int scope,
+                                                unsigned int semantics,
+                                                long val) {
+  if (semantics == Release) {
+    __clc__atomic_store_global_8_release(p, val);
+  } else if (semantics == SequentiallyConsistent) {
+    __clc__atomic_store_global_8_seq_cst(p, val);
+  } else {
+    __clc__atomic_store_global_8_unordered(p, val);
+  }
+}
+
+_CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(local long *p,
+                                                unsigned int scope,
+                                                unsigned int semantics,
+                                                long val) {
+  if (semantics == Release) {
+    __clc__atomic_store_local_8_release(p, val);
+  } else if (semantics == SequentiallyConsistent) {
+    __clc__atomic_store_local_8_seq_cst(p, val);
+  } else {
+    __clc__atomic_store_local_8_unordered(p, val);
+  }
+}
+
+_CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(global unsigned long *p,
+                                                unsigned int scope,
+                                                unsigned int semantics,
+                                                unsigned long val) {
+  if (semantics == Release) {
+    __clc__atomic_ustore_global_8_release(p, val);
+  } else if (semantics == SequentiallyConsistent) {
+    __clc__atomic_ustore_global_8_seq_cst(p, val);
+  } else {
+    __clc__atomic_ustore_global_8_unordered(p, val);
+  }
+}
+
+_CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(local unsigned long *p,
+                                                unsigned int scope,
+                                                unsigned int semantics,
+                                                unsigned long val) {
+  if (semantics == Release) {
+    __clc__atomic_ustore_local_8_release(p, val);
+  } else if (semantics == SequentiallyConsistent) {
+    __clc__atomic_ustore_local_8_seq_cst(p, val);
+  } else {
+    __clc__atomic_ustore_local_8_unordered(p, val);
+  }
+}
+#endif // cl_khr_int64_base_atomics

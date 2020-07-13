@@ -8,34 +8,107 @@
 
 #include <spirv/spirv.h>
 
-// TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling.
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicSMax(volatile global int *p,
+                                              unsigned int scope,
+                                              unsigned int semantics, int val) {
+  return __sync_fetch_and_max(p, val);
+}
 
-#define IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED, NAME, PREFIX, SUFFIX)                                             \
-  _CLC_DEF TYPE                                                                                                    \
-      _Z18##NAME##PU3##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
-          volatile AS TYPE *p, enum Scope scope,                                                                   \
-          enum MemorySemanticsMask semantics, TYPE val) {                                                          \
-    return PREFIX##__sync_fetch_and_##SUFFIX(p, val);                                                              \
-  }
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicSMax(volatile local int *p,
+                                              unsigned int scope,
+                                              unsigned int semantics, int val) {
+  return __sync_fetch_and_max(p, val);
+}
 
-IMPL(int, i, global, AS1, __spirv_AtomicSMax, , max)
-IMPL(unsigned int, j, global, AS1, __spirv_AtomicUMax, , umax)
-IMPL(int, i, local, AS3, __spirv_AtomicSMax, , max)
-IMPL(unsigned int, j, local, AS3, __spirv_AtomicUMax, , umax)
+_CLC_OVERLOAD _CLC_DEF unsigned int
+__spirv_AtomicUMax(volatile global unsigned int *p, unsigned int scope,
+                   unsigned int semantics, unsigned int val) {
+  return __sync_fetch_and_umax(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned int
+__spirv_AtomicUMax(volatile local unsigned int *p, unsigned int scope,
+                   unsigned int semantics, unsigned int val) {
+  return __sync_fetch_and_umax(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicSMax(global int *p, unsigned int scope,
+                                              unsigned int semantics, int val) {
+  return __sync_fetch_and_max(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF int __spirv_AtomicSMax(local int *p, unsigned int scope,
+                                              unsigned int semantics, int val) {
+  return __sync_fetch_and_max(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned int __spirv_AtomicUMax(global unsigned int *p,
+                                                       unsigned int scope,
+                                                       unsigned int semantics,
+                                                       unsigned int val) {
+  return __sync_fetch_and_umax(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF unsigned int __spirv_AtomicUMax(local unsigned int *p,
+                                                       unsigned int scope,
+                                                       unsigned int semantics,
+                                                       unsigned int val) {
+  return __sync_fetch_and_umax(p, val);
+}
 
 #ifdef cl_khr_int64_extended_atomics
-unsigned long __clc__sync_fetch_and_max_local_8(volatile local long *, long);
-unsigned long __clc__sync_fetch_and_max_global_8(volatile global long *, long);
-unsigned long __clc__sync_fetch_and_umax_local_8(volatile local unsigned long *, unsigned long);
-unsigned long __clc__sync_fetch_and_umax_global_8(volatile global unsigned long *, unsigned long);
+_CLC_DEF long __clc__sync_fetch_and_max_local_8(local long *, long);
+_CLC_DEF long __clc__sync_fetch_and_max_global_8(global long *, long);
+_CLC_DEF unsigned long __clc__sync_fetch_and_umax_local_8(local unsigned long *,
+                                                          unsigned long);
+_CLC_DEF unsigned long
+__clc__sync_fetch_and_umax_global_8(global unsigned long *, unsigned long);
 
-IMPL(long, l, global, AS1, __spirv_AtomicSMax, __clc, max_global_8)
-IMPL(unsigned long, m, global, AS1, __spirv_AtomicUMax, __clc, umax_global_8)
-IMPL(long, l, local, AS3, __spirv_AtomicSMax, __clc, max_local_8)
-IMPL(unsigned long, m, local, AS3, __spirv_AtomicUMax, __clc, umax_local_8)
-IMPL(long, x, global, AS1, __spirv_AtomicSMax, __clc, max_global_8)
-IMPL(unsigned long, y, global, AS1, __spirv_AtomicUMax, __clc, umax_global_8)
-IMPL(long, x, local, AS3, __spirv_AtomicSMax, __clc, max_local_8)
-IMPL(unsigned long, y, local, AS3, __spirv_AtomicUMax, __clc, umax_local_8)
-#endif
-#undef IMPL
+_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicSMax(volatile global long *p,
+                                               unsigned int scope,
+                                               unsigned int semantics,
+                                               long val) {
+  return __clc__sync_fetch_and_max_global_8(p, val);
+}
+_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicSMax(volatile local long *p,
+                                               unsigned int scope,
+                                               unsigned int semantics,
+                                               long val) {
+  return __clc__sync_fetch_and_max_local_8(p, val);
+}
+_CLC_OVERLOAD _CLC_DEF unsigned long
+__spirv_AtomicUMax(volatile global unsigned long *p, unsigned int scope,
+                   unsigned int semantics, unsigned long val) {
+  return __clc__sync_fetch_and_umax_global_8(p, val);
+}
+_CLC_OVERLOAD _CLC_DEF unsigned long
+__spirv_AtomicUMax(volatile local unsigned long *p, unsigned int scope,
+                   unsigned int semantics, unsigned long val) {
+  return __clc__sync_fetch_and_umax_local_8(p, val);
+}
+
+_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicSMax(global long *p,
+                                               unsigned int scope,
+                                               unsigned int semantics,
+                                               long val) {
+  return __clc__sync_fetch_and_max_global_8(p, val);
+}
+_CLC_OVERLOAD _CLC_DEF long __spirv_AtomicSMax(local long *p,
+                                               unsigned int scope,
+                                               unsigned int semantics,
+                                               long val) {
+  return __clc__sync_fetch_and_max_local_8(p, val);
+}
+_CLC_OVERLOAD _CLC_DEF unsigned long __spirv_AtomicUMax(global unsigned long *p,
+                                                        unsigned int scope,
+                                                        unsigned int semantics,
+                                                        unsigned long val) {
+  return __clc__sync_fetch_and_umax_global_8(p, val);
+}
+_CLC_OVERLOAD _CLC_DEF unsigned long __spirv_AtomicUMax(local unsigned long *p,
+                                                        unsigned int scope,
+                                                        unsigned int semantics,
+                                                        unsigned long val) {
+  return __clc__sync_fetch_and_umax_local_8(p, val);
+}
+#endif // cl_khr_int64_extended_atomics
