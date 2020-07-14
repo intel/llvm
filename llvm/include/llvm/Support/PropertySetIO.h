@@ -60,7 +60,7 @@ public:
   // Casts from int value to a type tag.
   static Expected<Type> getTypeTag(int T) {
     if (T < first || T > last)
-      return createStringError(std::error_code(), "bad property type " + T);
+      return createStringError(std::error_code(), "bad property type ", T);
     return static_cast<Type>(T);
   }
 
@@ -123,6 +123,7 @@ public:
   // Specific property category names used by tools.
   static constexpr char SYCL_SPECIALIZATION_CONSTANTS[] =
       "SYCL/specialization constants";
+  static constexpr char SYCL_DEVICELIB_REQ_MASK[] = "SYCL/devicelib req mask";
 
   // Function for bulk addition of an entire property set under given category
   // (property set name).

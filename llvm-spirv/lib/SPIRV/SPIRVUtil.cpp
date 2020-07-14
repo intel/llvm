@@ -646,13 +646,9 @@ Instruction *mutateCallInst(
   auto Args = getArguments(CI);
   Type *RetTy = CI->getType();
   auto NewName = ArgMutate(CI, Args, RetTy);
-  StringRef InstName;
-  if (CI->hasName()) {
-    InstName = CI->getName();
-    CI->setName(InstName + ".old");
-  }
-  auto NewCI = addCallInst(M, NewName, RetTy, Args, Attrs, CI, Mangle,
-                           std::string(InstName) + ".tmp", TakeFuncName);
+  StringRef InstName = CI->getName();
+  auto NewCI = addCallInst(M, NewName, RetTy, Args, Attrs, CI, Mangle, InstName,
+                           TakeFuncName);
   auto NewI = RetMutate(NewCI);
   NewI->takeName(CI);
   NewI->setDebugLoc(CI->getDebugLoc());

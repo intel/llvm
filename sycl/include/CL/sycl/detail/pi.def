@@ -125,5 +125,6 @@ _PI_API(piextUSMEnqueueMemAdvise)
 _PI_API(piextUSMGetMemAllocInfo)
 
 _PI_API(piextKernelSetArgMemObj)
+_PI_API(piextKernelSetArgSampler)
 
 #undef _PI_API

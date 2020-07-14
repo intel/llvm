@@ -110,8 +110,8 @@ program_impl::program_impl(ContextImplPtr Context,
     assert(InteropProgram &&
            "No InteropProgram/PiProgram defined with piextProgramFromNative");
     // Translate the raw program handle into PI program.
-    Plugin.call<PiApiKind::piextProgramCreateWithNativeHandle>(InteropProgram,
-                                                               &MProgram);
+    Plugin.call<PiApiKind::piextProgramCreateWithNativeHandle>(
+        InteropProgram, MContext->getHandleRef(), &MProgram);
   } else
     Plugin.call<PiApiKind::piProgramRetain>(Program);
 
@@ -402,8 +402,9 @@ RT::PiKernel program_impl::get_pi_kernel(const string_class &KernelName) const {
   RT::PiKernel Kernel;
 
   if (is_cacheable()) {
-    Kernel = ProgramManager::getInstance().getOrCreateKernel(
-        MProgramModuleHandle, get_context(), KernelName, this);
+    std::tie(Kernel, std::ignore) =
+        ProgramManager::getInstance().getOrCreateKernel(
+            MProgramModuleHandle, get_context(), KernelName, this);
     getPlugin().call<PiApiKind::piKernelRetain>(Kernel);
   } else {
     const detail::plugin &Plugin = getPlugin();
@@ -510,6 +511,13 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
     Ctx->getPlugin().call<PiApiKind::piextProgramSetSpecializationConstant>(
         NativePrg, ID, SC.getSize(), SC.getValuePtr());
   }
+}
+
+pi_native_handle program_impl::getNative() const {
+  const auto &Plugin = getPlugin();
+  pi_native_handle Handle;
+  Plugin.call<PiApiKind::piextProgramGetNativeHandle>(MProgram, &Handle);
+  return Handle;
 }
 
 } // namespace detail

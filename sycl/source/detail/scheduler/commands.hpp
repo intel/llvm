@@ -219,6 +219,8 @@ public:
   bool MIsBlockable = false;
   /// Counts the number of memory objects this command is a leaf for.
   unsigned MLeafCounter = 0;
+  /// Used for marking the node as visited during graph traversal.
+  bool MVisited = false;
 
   enum class BlockReason : int { HostAccessor = 0, HostTask };
 
@@ -319,6 +321,13 @@ public:
   void emitInstrumentationData();
 
   void *MMemAllocation = nullptr;
+
+  // ESIMD-extension-specific fields.
+  struct {
+    // If this alloca corresponds to an ESIMD accessor, then this field holds
+    // an image buffer wrapping the memory allocation above.
+    void *MWrapperImage = nullptr;
+  } ESIMDExt;
 
   /// Alloca command linked with current command.
   /// Device and host alloca commands can be linked, so they may share the same
@@ -481,6 +490,11 @@ private:
   cl_int enqueueImp() final;
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
+
+  pi_result SetKernelParamsAndLaunch(CGExecKernel *ExecKernel,
+                                     RT::PiKernel Kernel, NDRDescT &NDRDesc,
+                                     std::vector<RT::PiEvent> &RawEvents,
+                                     RT::PiEvent &Event);
 
   std::unique_ptr<detail::CG> MCommandGroup;
 

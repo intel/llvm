@@ -20,6 +20,7 @@
 #include <string>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include <level_zero/zet_api.h>
 
@@ -260,6 +261,8 @@ static pi_result mapError(ze_result_t ZeResult) {
       {ZE_RESULT_ERROR_INVALID_KERNEL_NAME, PI_INVALID_KERNEL_NAME},
       {ZE_RESULT_ERROR_INVALID_FUNCTION_NAME, PI_BUILD_PROGRAM_FAILURE},
       {ZE_RESULT_ERROR_OVERLAPPING_REGIONS, PI_INVALID_OPERATION},
+      {ZE_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION,
+       PI_INVALID_WORK_GROUP_SIZE},
       {ZE_RESULT_ERROR_MODULE_BUILD_FAILURE, PI_BUILD_PROGRAM_FAILURE}};
   auto It = ErrorMapping.find(ZeResult);
   if (It == ErrorMapping.end()) {
@@ -609,10 +612,15 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   if (NumDevices)
     *NumDevices = ZeDeviceCount;
 
+  if (NumEntries == 0) {
+    assert(Devices == nullptr &&
+           "Devices should be nullptr when querying the number of devices");
+    return PI_SUCCESS;
+  }
+
   try {
-    // TODO: Delete array at teardown
-    ze_device_handle_t *ZeDevices = new ze_device_handle_t[ZeDeviceCount];
-    ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, ZeDevices));
+    std::vector<ze_device_handle_t> ZeDevices(ZeDeviceCount);
+    ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, ZeDevices.data()));
 
     for (uint32_t I = 0; I < ZeDeviceCount; ++I) {
       if (I < NumEntries) {
@@ -1182,10 +1190,16 @@ pi_result piextDeviceGetNativeHandle(pi_device Device,
 }
 
 pi_result piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                            pi_platform Platform,
                                             pi_device *Device) {
+  assert(NativeHandle);
+  assert(Device);
+  assert(Platform);
+
   // Create PI device from the given L0 device handle.
-  die("piextDeviceCreateWithNativeHandle: not supported");
-  return PI_SUCCESS;
+  auto ZeDevice = pi_cast<ze_device_handle_t>(NativeHandle);
+  *Device = new _pi_device(ZeDevice, Platform);
+  return (*Device)->initialize();
 }
 
 pi_result piContextCreate(const pi_context_properties *Properties,
@@ -1370,13 +1384,24 @@ pi_result piQueueFinish(pi_queue Queue) {
 
 pi_result piextQueueGetNativeHandle(pi_queue Queue,
                                     pi_native_handle *NativeHandle) {
-  die("piextQueueGetNativeHandle: not supported");
+  assert(Queue);
+  assert(NativeHandle);
+
+  auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
+  // Extract the L0 queue handle from the given PI queue
+  *ZeQueue = Queue->ZeCommandQueue;
   return PI_SUCCESS;
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                           pi_context Context,
                                            pi_queue *Queue) {
-  die("piextQueueCreateWithNativeHandle: not supported");
+  assert(NativeHandle);
+  assert(Context);
+  assert(Queue);
+
+  auto ZeQueue = pi_cast<ze_command_queue_handle_t>(NativeHandle);
+  *Queue = new _pi_queue(ZeQueue, Context);
   return PI_SUCCESS;
 }
 
@@ -1807,9 +1832,29 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   // Check that the program wasn't already built.
   assert(!Program->ZeModule);
 
+  // Translate collected specialization constants.
+  ze_module_constants_t ZeSpecConstants = {};
+  std::vector<uint32_t> ZeSpecContantsIds(Program->ZeSpecConstants.size());
+  std::vector<uint64_t> ZeSpecContantsValues(Program->ZeSpecConstants.size());
+  {
+    std::lock_guard<std::mutex> ZeSpecConstantsMutexGuard(
+        Program->ZeSpecConstantsMutex);
+    ZeSpecConstants.numConstants = Program->ZeSpecConstants.size();
+    auto ZeSpecContantsIdsIt = ZeSpecContantsIds.begin();
+    auto ZeSpecContantsValuesIt = ZeSpecContantsValues.begin();
+    for (auto &SpecConstant : Program->ZeSpecConstants) {
+      *ZeSpecContantsIdsIt = SpecConstant.first;
+      ZeSpecContantsIdsIt++;
+      *ZeSpecContantsValuesIt = SpecConstant.second;
+      ZeSpecContantsValuesIt++;
+    }
+    ZeSpecConstants.pConstantIds = ZeSpecContantsIds.data();
+    ZeSpecConstants.pConstantValues = ZeSpecContantsValues.data();
+  }
+
+  // Complete the module's descriptor
   Program->ZeModuleDesc.pBuildFlags = Options;
-  // TODO: set specialization constants here.
-  Program->ZeModuleDesc.pConstants = nullptr;
+  Program->ZeModuleDesc.pConstants = &ZeSpecConstants;
 
   ze_device_handle_t ZeDevice = Program->Context->Device->ZeDevice;
   ZE_CALL(zeModuleCreate(ZeDevice, &Program->ZeModuleDesc, &Program->ZeModule,
@@ -1873,13 +1918,43 @@ pi_result piProgramRelease(pi_program Program) {
 
 pi_result piextProgramGetNativeHandle(pi_program Program,
                                       pi_native_handle *NativeHandle) {
-  die("piextProgramGetNativeHandle: not supported");
+  assert(Program);
+  assert(NativeHandle);
+
+  auto ZeModule = pi_cast<ze_module_handle_t *>(NativeHandle);
+  // Extract the L0 module handle from the given PI program
+  *ZeModule = Program->ZeModule;
   return PI_SUCCESS;
 }
 
 pi_result piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                             pi_context Context,
                                              pi_program *Program) {
-  die("piextProgramCreateWithNativeHandle: not supported");
+  assert(NativeHandle);
+  assert(Context);
+  assert(Program);
+
+  auto ZeModule = pi_cast<ze_module_handle_t>(NativeHandle);
+
+  // Create PI program from the given L0 module handle.
+  //
+  // TODO: We don't have the real L0 module descriptor with
+  // which it was created, but that's only needed for zeModuleCreate,
+  // which we don't expect to be called on the interop program.
+  //
+  ze_module_desc_t ZeModuleDesc = {};
+  ZeModuleDesc.version = ZE_MODULE_DESC_VERSION_CURRENT;
+  ZeModuleDesc.format = ZE_MODULE_FORMAT_NATIVE;
+  ZeModuleDesc.inputSize = 0;
+  ZeModuleDesc.pInputModule = nullptr;
+
+  try {
+    *Program = new _pi_program(ZeModule, ZeModuleDesc, Context);
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
   return PI_SUCCESS;
 }
 
@@ -1933,7 +2008,7 @@ pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex, size_t ArgSize,
   return PI_SUCCESS;
 }
 
-// Special version of piKernelSetArg to accept pi_mem and pi_sampler.
+// Special version of piKernelSetArg to accept pi_mem.
 pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
                                   const pi_mem *ArgValue) {
   // TODO: the better way would probably be to add a new PI API for
@@ -1946,6 +2021,17 @@ pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
       zeKernelSetArgumentValue(pi_cast<ze_kernel_handle_t>(Kernel->ZeKernel),
                                pi_cast<uint32_t>(ArgIndex), sizeof(void *),
                                (*ArgValue)->getZeHandlePtr()));
+
+  return PI_SUCCESS;
+}
+
+// Special version of piKernelSetArg to accept pi_sampler.
+pi_result piextKernelSetArgSampler(pi_kernel Kernel, pi_uint32 ArgIndex,
+                                   const pi_sampler *ArgValue) {
+  assert(Kernel);
+  ZE_CALL(zeKernelSetArgumentValue(
+      pi_cast<ze_kernel_handle_t>(Kernel->ZeKernel),
+      pi_cast<uint32_t>(ArgIndex), sizeof(void *), &(*ArgValue)->ZeSampler));
 
   return PI_SUCCESS;
 }
@@ -2300,7 +2386,6 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
 }
 
 pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
-  ze_result_t ZeResult;
 
   if (NumEvents && !EventList) {
     return PI_INVALID_EVENT;
@@ -2309,15 +2394,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
   for (uint32_t I = 0; I < NumEvents; I++) {
     ze_event_handle_t ZeEvent = EventList[I]->ZeEvent;
     zePrint("ZeEvent = %lx\n", pi_cast<std::uintptr_t>(ZeEvent));
-    // TODO: Using UINT32_MAX for timeout should have the desired
-    // effect of waiting until the event is trigerred, but it seems that
-    // it is causing an OS crash, so use an interruptable loop for now.
-    do {
-      ZeResult = ZE_CALL_NOCHECK(zeEventHostSynchronize(ZeEvent, 100000));
-    } while (ZeResult == ZE_RESULT_NOT_READY);
-
-    // Check the result to be success.
-    ZE_CALL(ZeResult);
+    ZE_CALL(zeEventHostSynchronize(ZeEvent, UINT32_MAX));
 
     // NOTE: we are destroying associated command lists here to free
     // resources sooner in case RT is not calling piEventRelease soon enough.
@@ -3666,12 +3743,20 @@ pi_result piKernelSetExecInfo(pi_kernel Kernel, pi_kernel_exec_info ParamName,
 }
 
 pi_result piextProgramSetSpecializationConstant(pi_program Prog,
-                                                pi_uint32 SpecID,
-                                                size_t SpecSize,
+                                                pi_uint32 SpecID, size_t,
                                                 const void *SpecValue) {
-  // TODO: implement
-  die("piextProgramSetSpecializationConstant: not implemented");
-  return {};
+  // Level Zero sets spec constants when creating modules,
+  // so save them for when program is built.
+  std::lock_guard<std::mutex> ZeSpecConstantsMutexGuard(
+      Prog->ZeSpecConstantsMutex);
+
+  // Pass SpecValue pointer. Spec constant value is retrieved
+  // by Level-Zero when creating the modul
+  //
+  // NOTE: SpecSize is unused in L0, the size is known from SPIR-V by SpecID.
+  Prog->ZeSpecConstants[SpecID] = reinterpret_cast<uint64_t>(SpecValue);
+
+  return PI_SUCCESS;
 }
 
 pi_result piPluginInit(pi_plugin *PluginInit) {

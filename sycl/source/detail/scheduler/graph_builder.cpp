@@ -92,9 +92,22 @@ Scheduler::GraphBuilder::GraphBuilder() {
   }
 }
 
+static bool markNodeAsVisited(Command *Cmd, std::vector<Command *> &Visited) {
+  if (Cmd->MVisited)
+    return false;
+  Cmd->MVisited = true;
+  Visited.push_back(Cmd);
+  return true;
+}
+
+static void unmarkVisitedNodes(std::vector<Command *> &Visited) {
+  for (Command *Cmd : Visited)
+    Cmd->MVisited = false;
+}
+
 static void printDotRecursive(std::fstream &Stream,
-                              std::set<Command *> &Visited, Command *Cmd) {
-  if (!Visited.insert(Cmd).second)
+                              std::vector<Command *> &Visited, Command *Cmd) {
+  if (!markNodeAsVisited(Cmd, Visited))
     return;
   for (Command *User : Cmd->MUsers) {
     if (User)
@@ -114,13 +127,15 @@ void Scheduler::GraphBuilder::printGraphAsDot(const char *ModeName) {
   std::fstream Stream(FileName, std::ios::out);
   Stream << "strict digraph {" << std::endl;
 
-  std::set<Command *> Visited;
+  std::vector<Command *> Visited;
 
   for (SYCLMemObjI *MemObject : MMemObjs)
     for (Command *AllocaCmd : MemObject->MRecord->MAllocaCommands)
       printDotRecursive(Stream, Visited, AllocaCmd);
 
   Stream << "}" << std::endl;
+
+  unmarkVisitedNodes(Visited);
 }
 
 MemObjRecord *Scheduler::GraphBuilder::getMemObjRecord(SYCLMemObjI *MemObject) {
@@ -449,7 +464,7 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record,
                                         const Requirement *Req,
                                         const ContextImplPtr &Context) {
   std::set<Command *> RetDeps;
-  std::set<Command *> Visited;
+  std::vector<Command *> Visited;
   const bool ReadOnlyReq = Req->MAccessMode == access::mode::read;
 
   std::vector<Command *> ToAnalyze{Record->MWriteLeaves.begin(),
@@ -490,11 +505,12 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record,
         break;
       }
 
-      if (Visited.insert(Dep.MDepCommand).second)
+      if (markNodeAsVisited(Dep.MDepCommand, Visited))
         NewAnalyze.push_back(Dep.MDepCommand);
     }
     ToAnalyze.insert(ToAnalyze.end(), NewAnalyze.begin(), NewAnalyze.end());
   }
+  unmarkVisitedNodes(Visited);
   return RetDeps;
 }
 
@@ -559,7 +575,9 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
 
       const Requirement FullReq(/*Offset*/ {0, 0, 0}, Req->MMemoryRange,
                                 Req->MMemoryRange, access::mode::read_write,
-                                Req->MSYCLMemObj, Req->MDims, Req->MElemSize);
+                                Req->MSYCLMemObj, Req->MDims, Req->MElemSize,
+                                0 /*ReMOffsetInBytes*/, false /*MIsSubBuffer*/,
+                                Req->MIsESIMDAcc);
       // Can reuse user data for the first allocation
       const bool InitFromUserData = Record->MAllocaCommands.empty();
 
@@ -806,12 +824,12 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     return;
 
   std::queue<Command *> ToVisit;
-  std::set<Command *> Visited;
+  std::vector<Command *> Visited;
   std::vector<Command *> CmdsToDelete;
   // First, mark all allocas for deletion and their direct users for traversal
   // Dependencies of the users will be cleaned up during the traversal
   for (Command *AllocaCmd : AllocaCommands) {
-    Visited.insert(AllocaCmd);
+    markNodeAsVisited(AllocaCmd, Visited);
 
     for (Command *UserCmd : AllocaCmd->MUsers)
       // Linked alloca cmd may be in users of this alloca. We're not going to
@@ -819,7 +837,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
       if (UserCmd->getType() != Command::CommandType::ALLOCA)
         ToVisit.push(UserCmd);
       else
-        Visited.insert(UserCmd);
+        markNodeAsVisited(UserCmd, Visited);
 
     CmdsToDelete.push_back(AllocaCmd);
     // These commands will be deleted later, clear users now to avoid
@@ -833,7 +851,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     AllocaCommandBase *LinkedCmd = AllocaCmd->MLinkedAllocaCmd;
 
     if (LinkedCmd) {
-      assert(Visited.count(LinkedCmd));
+      assert(LinkedCmd->MVisited);
 
       for (DepDesc &Dep : AllocaCmd->MDeps)
         if (Dep.MDepCommand)
@@ -846,7 +864,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     Command *Cmd = ToVisit.front();
     ToVisit.pop();
 
-    if (!Visited.insert(Cmd).second)
+    if (!markNodeAsVisited(Cmd, Visited))
       continue;
 
     for (Command *UserCmd : Cmd->MUsers)
@@ -883,6 +901,8 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     }
   }
 
+  unmarkVisitedNodes(Visited);
+
   for (Command *Cmd : CmdsToDelete) {
     Cmd->getEvent()->setCommand(nullptr);
     delete Cmd;
@@ -891,14 +911,14 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
 
 void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
   std::queue<Command *> CmdsToVisit({FinishedCmd});
-  std::set<Command *> Visited;
+  std::vector<Command *> Visited;
 
   // Traverse the graph using BFS
   while (!CmdsToVisit.empty()) {
     Command *Cmd = CmdsToVisit.front();
     CmdsToVisit.pop();
 
-    if (!Visited.insert(Cmd).second)
+    if (!markNodeAsVisited(Cmd, Visited))
       continue;
 
     for (const DepDesc &Dep : Cmd->MDeps) {
@@ -930,8 +950,10 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
     }
     Cmd->getEvent()->setCommand(nullptr);
 
+    Visited.pop_back();
     delete Cmd;
   }
+  unmarkVisitedNodes(Visited);
 }
 
 void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {

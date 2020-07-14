@@ -1,3 +1,4 @@
+float16.cl
 subnormal_config.cl
 subnormal_helper_func.ll
 async/async_work_group_strided_copy.cl
@@ -182,6 +183,8 @@ math/tanh.cl
 math/tanpi.cl
 math/tgamma.cl
 math/trunc.cl
+misc/shuffle.cl
+misc/shuffle2.cl
 relational/all.cl
 relational/any.cl
 relational/bitselect.cl

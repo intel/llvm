@@ -300,8 +300,7 @@ int main() {
       return 1; // We shouldn't be here, exception is expected
     } catch (nd_range_error &E) {
       if (string_class(E.what()).find(
-              "Total number of work-items in a work-group cannot exceed "
-              "info::device::max_work_group_size which is equal to " +
+              "Total number of work-items in a work-group cannot exceed " +
               std::to_string(MaxDeviceWGSize)) == string_class::npos) {
         std::cerr
             << "Test case OpenCL1XNegativeC failed: unexpected exception: "
@@ -349,8 +348,7 @@ int main() {
         return 1; // We shouldn't be here, exception is expected
       } catch (nd_range_error &E) {
         if (string_class(E.what()).find(
-                "Total number of work-items in a work-group cannot exceed "
-                "info::kernel_work_group::work_group_size which is equal to " +
+                "Total number of work-items in a work-group cannot exceed " +
                 std::to_string(MaxKernelWGSize) + " for this kernel") ==
             string_class::npos) {
           std::cerr

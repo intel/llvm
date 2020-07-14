@@ -11,7 +11,6 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
-#include <detail/force_device.hpp>
 #include <detail/platform_info.hpp>
 #include <detail/plugin.hpp>
 

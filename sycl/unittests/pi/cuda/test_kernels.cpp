@@ -16,6 +16,9 @@
 #include <detail/plugin.hpp>
 #include <pi_cuda.hpp>
 
+// PI CUDA kernels carry an additional argument for the implicit global offset.
+#define NUM_IMPLICIT_ARGS 1
+
 using namespace cl::sycl;
 
 struct CudaKernelsTest : public ::testing::Test {
@@ -172,7 +175,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSimple) {
                 kern, 0, sizeof(int), &number)),
             PI_SUCCESS);
   const auto &kernArgs = kern->get_arg_indices();
-  ASSERT_EQ(kernArgs.size(), (size_t)1);
+  ASSERT_EQ(kernArgs.size(), (size_t)1 + NUM_IMPLICIT_ARGS);
   int storedValue = *(static_cast<const int *>(kernArgs[0]));
   ASSERT_EQ(storedValue, number);
 }
@@ -201,7 +204,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwice) {
                 kern, 0, sizeof(int), &number)),
             PI_SUCCESS);
   const auto &kernArgs = kern->get_arg_indices();
-  ASSERT_GT(kernArgs.size(), (size_t)0);
+  ASSERT_GT(kernArgs.size(), (size_t)0 + NUM_IMPLICIT_ARGS);
   int storedValue = *(static_cast<const int *>(kernArgs[0]));
   ASSERT_EQ(storedValue, number);
 
@@ -210,7 +213,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwice) {
                 kern, 0, sizeof(int), &otherNumber)),
             PI_SUCCESS);
   const auto &kernArgs2 = kern->get_arg_indices();
-  ASSERT_EQ(kernArgs2.size(), (size_t)1);
+  ASSERT_EQ(kernArgs2.size(), (size_t)1 + NUM_IMPLICIT_ARGS);
   storedValue = *(static_cast<const int *>(kernArgs2[0]));
   ASSERT_EQ(storedValue, otherNumber);
 }
@@ -244,7 +247,7 @@ TEST_F(CudaKernelsTest, PIKernelSetMemObj) {
                 kern, 0, sizeof(pi_mem), &memObj)),
             PI_SUCCESS);
   const auto &kernArgs = kern->get_arg_indices();
-  ASSERT_EQ(kernArgs.size(), (size_t)1);
+  ASSERT_EQ(kernArgs.size(), (size_t)1 + NUM_IMPLICIT_ARGS);
   pi_mem storedValue = *(static_cast<pi_mem *>(kernArgs[0]));
   ASSERT_EQ(storedValue, memObj);
 }
@@ -369,7 +372,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwiceOneLocal) {
                 kern, 0, sizeof(int), &number)),
             PI_SUCCESS);
   const auto &kernArgs = kern->get_arg_indices();
-  ASSERT_GT(kernArgs.size(), (size_t)0);
+  ASSERT_GT(kernArgs.size(), (size_t)0 + NUM_IMPLICIT_ARGS);
   int storedValue = *(static_cast<const int *>(kernArgs[0]));
   ASSERT_EQ(storedValue, number);
 
@@ -377,7 +380,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwiceOneLocal) {
                 kern, 1, sizeof(int), nullptr)),
             PI_SUCCESS);
   const auto &kernArgs2 = kern->get_arg_indices();
-  ASSERT_EQ(kernArgs2.size(), (size_t)2);
+  ASSERT_EQ(kernArgs2.size(), (size_t)2 + NUM_IMPLICIT_ARGS);
   storedValue = *(static_cast<const int *>(kernArgs2[1]));
   ASSERT_EQ(storedValue, 0);
 
@@ -385,7 +388,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwiceOneLocal) {
                 kern, 2, sizeof(int), nullptr)),
             PI_SUCCESS);
   const auto &kernArgs3 = kern->get_arg_indices();
-  ASSERT_EQ(kernArgs3.size(), (size_t)3);
+  ASSERT_EQ(kernArgs3.size(), (size_t)3 + NUM_IMPLICIT_ARGS);
   storedValue = *(static_cast<const int *>(kernArgs3[2]));
   ASSERT_EQ(storedValue, static_cast<int>(sizeof(int)));
 }

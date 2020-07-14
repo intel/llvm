@@ -18,7 +18,8 @@ The files/directories related to the translator:
 
 ## Build Instructions
 
-The `master` branch of this repo is aimed to be buildable with the latest LLVM `master` or `trunk` revision.
+The `master` branch of this repo is aimed to be buildable with the latest
+LLVM `master` revision.
 
 ### Build with pre-installed LLVM
 
@@ -163,8 +164,25 @@ More information can be found in
 
 ## Branching strategy
 
-Code on the master branch in this repository is intended to be compatible with master/trunk branch of the [llvm](https://github.com/llvm-mirror/llvm) project. That is, for an OpenCL kernel compiled to llvm bitcode by the latest version(built with the latest git commit or svn revision) of Clang it should be possible to translate it to SPIR-V with the llvm-spirv tool.
+Code on the master branch in this repository is intended to be compatible with
+the master branch of the [llvm](https://github.com/llvm/llvm-project)
+project. That is, for an OpenCL kernel compiled to llvm bitcode by the latest
+git revision of Clang it should be possible to translate it to SPIR-V with the
+llvm-spirv tool.
 
 All new development should be done on the master branch.
 
-To have versions compatible with released versions of LLVM and Clang, corresponding branches are available in this repository. For example, to build the translator with LLVM 7.0 ([release_70](https://github.com/llvm-mirror/llvm/tree/release_70)) one should use the [llvm_release_70](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/tree/llvm_release_70) branch. As a general rule, commits from the master branch may be backported to the release branches as long as they do not depend on features from a later LLVM/Clang release and there are no objections from the maintainer(s). There is no guarantee that older release branches are proactively kept up to date with master, but you can request certain commits on older release branches by creating a pull request or raising an issue on GitHub.
+To have versions compatible with released versions of LLVM and Clang,
+corresponding tags are available in this repository. For example, to build
+the translator with
+[LLVM 7.0.0](https://github.com/llvm/llvm-project/tree/llvmorg-7.0.0)
+one should use the
+[v7.0.0-1](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/tree/v7.0.0-1)
+tag. The 7.x releases are maintained on the
+[llvm_release_70](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/tree/llvm_release_70)
+branch. As a general rule, commits from the master branch may be backported to
+the release branches as long as they do not depend on features from a later
+LLVM/Clang release and there are no objections from the maintainer(s). There
+is no guarantee that older release branches are proactively kept up to date
+with master, but you can request specific commits on older release branches by
+creating a pull request or raising an issue on GitHub.

@@ -4161,4 +4161,10 @@ foreach layout_a = ["row", "col"] in {
   } // layout_b
 } // layout_a
 
+// SYCL
+def int_nvvm_implicit_offset :
+  GCCBuiltin<"__builtin_ptx_implicit_offset">,
+  Intrinsic<[LLVMPointerType<llvm_i32_ty>], [],
+  [IntrNoMem, IntrSpeculatable]>;
+
 } // let TargetPrefix = "nvvm"

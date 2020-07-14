@@ -752,6 +752,12 @@ let Class = BuiltinType in {
       case BuiltinType::ID: return ctx.SINGLETON_ID;
 #include "clang/Basic/OpenCLImageTypes.def"
 
+#define IMAGE_TYPE(IMGTYPE, ID, SINGLETON_ID, ACCESS, SUFFIX) \
+      case BuiltinType::Sampled##ID: return ctx.Sampled##SINGLETON_ID;
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
+#include "clang/Basic/OpenCLImageTypes.def"
+
 #define EXT_OPAQUE_TYPE(EXTTYPE, ID, EXT) \
       case BuiltinType::ID: return ctx.ID##Ty;
 #include "clang/Basic/OpenCLExtensionTypes.def"
