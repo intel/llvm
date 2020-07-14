@@ -745,7 +745,7 @@ void SymbolTableSection::prepareForLayout() {
   // Reserve proper amount of space in section index table, so we can
   // layout sections correctly. We will fill the table with correct
   // indexes later in fillShdnxTable.
-  if (SectionIndexTable)  
+  if (SectionIndexTable)
     SectionIndexTable->reserve(Symbols.size());
 
   // Add all of our strings to SymbolNames so that SymbolNames has the right
@@ -1260,7 +1260,7 @@ std::unique_ptr<Object> IHexELFBuilder::build() {
 template <class ELFT> void ELFBuilder<ELFT>::setParentSegment(Segment &Child) {
   for (Segment &Parent : Obj.segments()) {
     // Every segment will overlap with itself but we don't want a segment to
-    // be it's own parent so we avoid that situation.
+    // be its own parent so we avoid that situation.
     if (&Child != &Parent && segmentOverlapsSegment(Child, Parent)) {
       // We want a canonical "most parental" segment but this requires
       // inspecting the ParentSegment.
@@ -1588,27 +1588,7 @@ template <class ELFT> void ELFBuilder<ELFT>::readSections(bool EnsureSymtab) {
     Obj.SymbolTable->initialize(Obj.sections());
     initSymbolTable(Obj.SymbolTable);
   } else if (EnsureSymtab) {
-    // Reuse an existing SHT_STRTAB section if it exists.
-    StringTableSection *StrTab = nullptr;
-    for (auto &Sec : Obj.sections()) {
-      if (Sec.Type == ELF::SHT_STRTAB && !(Sec.Flags & SHF_ALLOC)) {
-        StrTab = static_cast<StringTableSection *>(&Sec);
-
-        // Prefer a string table that is not the section header string table, if
-        // such a table exists.
-        if (Obj.SectionNames != &Sec)
-          break;
-      }
-    }
-    if (!StrTab)
-      StrTab = &Obj.addSection<StringTableSection>();
-
-    SymbolTableSection &SymTab = Obj.addSection<SymbolTableSection>();
-    SymTab.Name = ".symtab";
-    SymTab.Link = StrTab->Index;
-    SymTab.initialize(Obj.sections());
-    SymTab.addSymbol("", 0, 0, nullptr, 0, 0, 0, 0);
-    Obj.SymbolTable = &SymTab;
+    Obj.addNewSymbolTable();
   }
 
   // Now that all sections and symbols have been added we can add
@@ -1898,6 +1878,33 @@ Error Object::removeSymbols(function_ref<bool(const Symbol &)> ToRemove) {
       if (Error E = Sec->removeSymbols(ToRemove))
         return E;
   return Error::success();
+}
+
+void Object::addNewSymbolTable() {
+  assert(!SymbolTable && "Object must not has a SymbolTable.");
+
+  // Reuse an existing SHT_STRTAB section if it exists.
+  StringTableSection *StrTab = nullptr;
+  for (SectionBase &Sec : sections()) {
+    if (Sec.Type == ELF::SHT_STRTAB && !(Sec.Flags & SHF_ALLOC)) {
+      StrTab = static_cast<StringTableSection *>(&Sec);
+
+      // Prefer a string table that is not the section header string table, if
+      // such a table exists.
+      if (SectionNames != &Sec)
+        break;
+    }
+  }
+  if (!StrTab)
+    StrTab = &addSection<StringTableSection>();
+
+  SymbolTableSection &SymTab = addSection<SymbolTableSection>();
+  SymTab.Name = ".symtab";
+  SymTab.Link = StrTab->Index;
+  SymTab.initialize(sections());
+  SymTab.addSymbol("", 0, 0, nullptr, 0, 0, 0, 0);
+
+  SymbolTable = &SymTab;
 }
 
 void Object::sortSections() {

@@ -4709,7 +4709,7 @@ TryReferenceInit(Sema &S, Expr *Init, QualType DeclType,
                               Sema::ReferenceConversions::NestedQualification)
                              ? ICK_Qualification
                              : ICK_Identity;
-    ICS.Standard.FromTypePtr = T2.getAsOpaquePtr();
+    ICS.Standard.setFromType(T2);
     ICS.Standard.setToType(0, T2);
     ICS.Standard.setToType(1, T1);
     ICS.Standard.setToType(2, T1);
@@ -12818,7 +12818,7 @@ static QualType chooseRecoveryType(OverloadCandidateSet &CS,
   auto ConsiderCandidate = [&](const OverloadCandidate &Candidate) {
     if (!Candidate.Function)
       return;
-    QualType T = Candidate.Function->getCallResultType();
+    QualType T = Candidate.Function->getReturnType();
     if (T.isNull())
       return;
     if (!Result)
@@ -13506,6 +13506,10 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
         if (R.isInvalid())
           return ExprError();
 
+        R = CheckForImmediateInvocation(R, FnDecl);
+        if (R.isInvalid())
+          return ExprError();
+
         // For a rewritten candidate, we've already reversed the arguments
         // if needed. Perform the rest of the rewrite now.
         if ((Best->RewriteKind & CRK_DifferentOperator) ||
@@ -13541,7 +13545,7 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
         if (Best->RewriteKind != CRK_None)
           R = new (Context) CXXRewrittenBinaryOperator(R.get(), IsReversed);
 
-        return CheckForImmediateInvocation(R, FnDecl);
+        return R;
       } else {
         // We matched a built-in operator. Convert the arguments, then
         // break out so that we will build the appropriate built-in

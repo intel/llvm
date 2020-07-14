@@ -178,8 +178,12 @@ struct CopyConfig {
   std::vector<StringRef> DumpSection;
   std::vector<StringRef> SymbolsToAdd;
   std::vector<StringRef> RPathToAdd;
-  std::vector<std::pair<StringRef, StringRef>> RPathsToUpdate;
+  DenseMap<StringRef, StringRef> RPathsToUpdate;
+  DenseMap<StringRef, StringRef> InstallNamesToUpdate;
   DenseSet<StringRef> RPathsToRemove;
+
+  // install-name-tool's id option
+  Optional<StringRef> SharedLibId;
 
   // Section matchers
   NameMatcher KeepSection;

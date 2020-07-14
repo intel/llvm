@@ -44,7 +44,7 @@
 #include "ToolChains/SYCL.h"
 #include "ToolChains/Solaris.h"
 #include "ToolChains/TCE.h"
-#include "ToolChains/VE.h"
+#include "ToolChains/VEToolchain.h"
 #include "ToolChains/WebAssembly.h"
 #include "ToolChains/XCore.h"
 #include "clang/Basic/Version.h"
@@ -493,6 +493,26 @@ static llvm::Triple computeTargetTriple(const Driver &D,
   if (Target.getArch() == llvm::Triple::tce ||
       Target.getOS() == llvm::Triple::Minix)
     return Target;
+
+  // On AIX, the env OBJECT_MODE may affect the resulting arch variant.
+  if (Target.isOSAIX()) {
+    if (Optional<std::string> ObjectModeValue =
+            llvm::sys::Process::GetEnv("OBJECT_MODE")) {
+      StringRef ObjectMode = *ObjectModeValue;
+      llvm::Triple::ArchType AT = llvm::Triple::UnknownArch;
+
+      if (ObjectMode.equals("64")) {
+        AT = Target.get64BitArchVariant().getArch();
+      } else if (ObjectMode.equals("32")) {
+        AT = Target.get32BitArchVariant().getArch();
+      } else {
+        D.Diag(diag::err_drv_invalid_object_mode) << ObjectMode;
+      }
+
+      if (AT != llvm::Triple::UnknownArch && AT != Target.getArch())
+        Target.setArch(AT);
+    }
+  }
 
   // Handle pseudo-target flags '-m64', '-mx32', '-m32' and '-m16'.
   Arg *A = Args.getLastArg(options::OPT_m64, options::OPT_mx32,
