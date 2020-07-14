@@ -1239,8 +1239,8 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
             // Without a datalayout we have to assume the worst case: that the
             // function pointer isn't aligned at all.
             GVAlign = llvm::None;
-          } else {
-            GVAlign = MaybeAlign(GV->getAlignment());
+          } else if (isa<GlobalVariable>(GV)) {
+            GVAlign = cast<GlobalVariable>(GV)->getAlign();
           }
 
           if (GVAlign && *GVAlign > 1) {
@@ -2298,18 +2298,17 @@ Constant *llvm::ConstantFoldGetElementPtr(Type *PointeeTy, Constant *C,
       assert(Ty && "Invalid indices for GEP!");
       Type *OrigGEPTy = PointerType::get(Ty, PtrTy->getAddressSpace());
       Type *GEPTy = PointerType::get(Ty, PtrTy->getAddressSpace());
-      if (VectorType *VT = dyn_cast<VectorType>(C->getType())) {
-        // FIXME: handle scalable vectors (use getElementCount())
-        GEPTy = FixedVectorType::get(
-            OrigGEPTy, cast<FixedVectorType>(VT)->getNumElements());
-      }
+      if (VectorType *VT = dyn_cast<VectorType>(C->getType()))
+        GEPTy = VectorType::get(OrigGEPTy, VT->getElementCount());
+
       // The GEP returns a vector of pointers when one of more of
       // its arguments is a vector.
       for (unsigned i = 0, e = Idxs.size(); i != e; ++i) {
         if (auto *VT = dyn_cast<VectorType>(Idxs[i]->getType())) {
-          // FIXME: handle scalable vectors
-          GEPTy = FixedVectorType::get(
-              OrigGEPTy, cast<FixedVectorType>(VT)->getNumElements());
+          assert((!isa<VectorType>(GEPTy) || isa<ScalableVectorType>(GEPTy) ==
+                                                 isa<ScalableVectorType>(VT)) &&
+                 "Mismatched GEPTy vector types");
+          GEPTy = VectorType::get(OrigGEPTy, VT->getElementCount());
           break;
         }
       }

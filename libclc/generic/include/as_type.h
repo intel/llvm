@@ -85,4 +85,13 @@
 #define as_half16(x) __builtin_astype(x, half16)
 #endif
 
+#ifdef __CLC_HAS_FLOAT16
+#define as_float16_t(x) __builtin_astype(x, __clc_float16_t)
+#define as_vec2_float16_t(x) __builtin_astype(x, __clc_vec2_float16_t)
+#define as_vec3_float16_t(x) __builtin_astype(x, __clc_vec3_float16_t)
+#define as_vec4_float16_t(x) __builtin_astype(x, __clc_vec4_float16_t)
+#define as_vec8_float16_t(x) __builtin_astype(x, __clc_vec8_float16_t)
+#define as_vec16_float16_t(x) __builtin_astype(x, __clc_vec16_float16_t)
+#endif
+
 #endif // CLC_AS_TYPE

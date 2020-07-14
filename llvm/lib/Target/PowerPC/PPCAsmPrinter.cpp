@@ -1143,8 +1143,11 @@ void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
     // can be enabled for those subtargets.
     unsigned OpNum = (MI->getOpcode() == PPC::STD) ? 2 : 1;
     const MachineOperand &MO = MI->getOperand(OpNum);
-    if (MO.isGlobal() && MO.getGlobal()->getAlignment() < 4)
-      llvm_unreachable("Global must be word-aligned for LD, STD, LWA!");
+    if (MO.isGlobal()) {
+      const DataLayout &DL = MO.getGlobal()->getParent()->getDataLayout();
+      if (MO.getGlobal()->getPointerAlignment(DL) < 4)
+        llvm_unreachable("Global must be word-aligned for LD, STD, LWA!");
+    }
     // Now process the instruction normally.
     break;
   }
@@ -1699,16 +1702,15 @@ void PPCAIXAsmPrinter::emitGlobalVariable(const GlobalVariable *GV) {
 
   // Handle common symbols.
   if (GVKind.isCommon() || GVKind.isBSSLocal()) {
-    unsigned Align =
-      GV->getAlignment() ? GV->getAlignment() : DL.getPreferredAlignment(GV);
+    Align Alignment = GV->getAlign().getValueOr(DL.getPreferredAlign(GV));
     uint64_t Size = DL.getTypeAllocSize(GV->getType()->getElementType());
 
     if (GVKind.isBSSLocal())
       OutStreamer->emitXCOFFLocalCommonSymbol(
           OutContext.getOrCreateSymbol(GVSym->getUnqualifiedName()), Size,
-          GVSym, Align);
+          GVSym, Alignment.value());
     else
-      OutStreamer->emitCommonSymbol(GVSym, Size, Align);
+      OutStreamer->emitCommonSymbol(GVSym, Size, Alignment.value());
     return;
   }
 

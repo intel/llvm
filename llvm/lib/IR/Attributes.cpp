@@ -22,8 +22,8 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Twine.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
@@ -965,11 +965,9 @@ std::string AttributeSetNode::getAsString(bool InAttrGrp) const {
 //===----------------------------------------------------------------------===//
 
 /// Map from AttributeList index to the internal array index. Adding one happens
-/// to work, but it relies on unsigned integer wrapping. MSVC warns about
-/// unsigned wrapping in constexpr functions, so write out the conditional. LLVM
-/// folds it to add anyway.
+/// to work, because -1 wraps around to 0.
 static constexpr unsigned attrIdxToArrayIdx(unsigned Index) {
-  return Index == AttributeList::FunctionIndex ? 0 : Index + 1;
+  return Index + 1;
 }
 
 AttributeListImpl::AttributeListImpl(ArrayRef<AttributeSet> Sets)
@@ -979,13 +977,18 @@ AttributeListImpl::AttributeListImpl(ArrayRef<AttributeSet> Sets)
   // There's memory after the node where we can store the entries in.
   llvm::copy(Sets, getTrailingObjects<AttributeSet>());
 
-  // Initialize AvailableFunctionAttrs summary bitset.
+  // Initialize AvailableFunctionAttrs and AvailableSomewhereAttrs
+  // summary bitsets.
   static_assert(attrIdxToArrayIdx(AttributeList::FunctionIndex) == 0U,
                 "function should be stored in slot 0");
-  for (const auto &I : Sets[0]) {
+  for (const auto &I : Sets[0])
     if (!I.isStringAttribute())
       AvailableFunctionAttrs.addAttribute(I.getKindAsEnum());
-  }
+
+  for (const auto &Set : Sets)
+    for (const auto &I : Set)
+      if (!I.isStringAttribute())
+        AvailableSomewhereAttrs.addAttribute(I.getKindAsEnum());
 }
 
 void AttributeListImpl::Profile(FoldingSetNodeID &ID) const {
@@ -997,6 +1000,24 @@ void AttributeListImpl::Profile(FoldingSetNodeID &ID,
   for (const auto &Set : Sets)
     ID.AddPointer(Set.SetNode);
 }
+
+bool AttributeListImpl::hasAttrSomewhere(Attribute::AttrKind Kind,
+                                        unsigned *Index) const {
+  if (!AvailableSomewhereAttrs.hasAttribute(Kind))
+    return false;
+
+  if (Index) {
+    for (unsigned I = 0, E = NumAttrSets; I != E; ++I) {
+      if (begin()[I].hasAttribute(Kind)) {
+        *Index = I - 1;
+        break;
+      }
+    }
+  }
+
+  return true;
+}
+
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 LLVM_DUMP_METHOD void AttributeListImpl::dump() const {
@@ -1403,17 +1424,7 @@ bool AttributeList::hasParamAttribute(unsigned ArgNo,
 
 bool AttributeList::hasAttrSomewhere(Attribute::AttrKind Attr,
                                      unsigned *Index) const {
-  if (!pImpl) return false;
-
-  for (unsigned I = index_begin(), E = index_end(); I != E; ++I) {
-    if (hasAttribute(I, Attr)) {
-      if (Index)
-        *Index = I;
-      return true;
-    }
-  }
-
-  return false;
+  return pImpl && pImpl->hasAttrSomewhere(Attr, Index);
 }
 
 Attribute AttributeList::getAttribute(unsigned Index,

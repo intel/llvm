@@ -327,7 +327,8 @@ void visualstudio::Linker::constructMSVCLibCommand(Compilation &C,
 
   SmallString<128> ExecPath(getToolChain().GetProgramPath("lib.exe"));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
-  C.addCommand(std::make_unique<Command>(JA, *this, Exec, CmdArgs, None));
+  C.addCommand(std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::AtFileUTF16(), Exec, CmdArgs, None));
 }
 
 void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
@@ -355,7 +356,8 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       !C.getDriver().IsCLMode())
     CmdArgs.push_back("-defaultlib:libcmt");
 
-  if (!Args.hasArg(options::OPT_nostdlib) && Args.hasArg(options::OPT_fsycl)) {
+  if (!Args.hasArg(options::OPT_nostdlib) && Args.hasArg(options::OPT_fsycl) &&
+      !Args.hasArg(options::OPT_nolibsycl)) {
     if (Args.hasArg(options::OPT__SLASH_MDd) ||
         Args.hasArg(options::OPT__SLASH_MTd))
       CmdArgs.push_back("-defaultlib:sycld.lib");
@@ -647,8 +649,9 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     linkPath = TC.GetProgramPath(Linker.str().c_str());
   }
 
-  auto LinkCmd = std::make_unique<Command>(
-      JA, *this, Args.MakeArgString(linkPath), CmdArgs, Inputs);
+  auto LinkCmd =
+      std::make_unique<Command>(JA, *this, ResponseFileSupport::AtFileUTF16(),
+                                Args.MakeArgString(linkPath), CmdArgs, Inputs);
   if (!Environment.empty())
     LinkCmd->setEnvironment(Environment);
   C.addCommand(std::move(LinkCmd));
@@ -788,8 +791,9 @@ std::unique_ptr<Command> visualstudio::Compiler::GetCommand(
   CmdArgs.push_back(Fo);
 
   std::string Exec = FindVisualStudioExecutable(getToolChain(), "cl.exe");
-  return std::make_unique<Command>(JA, *this, Args.MakeArgString(Exec),
-                                    CmdArgs, Inputs);
+  return std::make_unique<Command>(JA, *this,
+                                   ResponseFileSupport::AtFileUTF16(),
+                                   Args.MakeArgString(Exec), CmdArgs, Inputs);
 }
 
 MSVCToolChain::MSVCToolChain(const Driver &D, const llvm::Triple &Triple,

@@ -6,9 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clcmacro.h>
 #include <spirv/spirv.h>
-
-#include "../lib/clcmacro.h"
 
 _CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_fmax, __builtin_fmaxf, float, float);
 

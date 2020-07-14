@@ -23,7 +23,7 @@
 #include <spirv/spirv.h>
 #include <clc/clc.h>
 
-#include "../clcmacro.h"
+#include <clcmacro.h>
 
 _CLC_OVERLOAD _CLC_DEF float exp(float x) {
     return __spirv_ocl_exp(x);

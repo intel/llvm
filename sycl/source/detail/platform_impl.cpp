@@ -9,6 +9,7 @@
 #include <CL/sycl/device.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/force_device.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
 

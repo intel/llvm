@@ -6,10 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../../../generic/lib/clcmacro.h"
-#include "../../include/libdevice.h"
 #include <spirv/spirv.h>
+
+#include "../../include/libdevice.h"
+#include <clcmacro.h>
 
 #define __CLC_FUNCTION __spirv_ocl_fmax
 #define __CLC_BUILTIN __nv_fmax
-#include "binary_builtin.inc"
+#define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
+#include <math/binary_builtin.inc>

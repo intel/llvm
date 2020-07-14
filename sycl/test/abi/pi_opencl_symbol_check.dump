@@ -28,6 +28,7 @@ piextEventCreateWithNativeHandle
 piextGetDeviceFunctionPointer
 piextProgramGetNativeHandle
 piextKernelSetArgMemObj
+piextKernelSetArgSampler
 piextKernelSetArgPointer
 piextMemCreateWithNativeHandle
 piextMemGetNativeHandle

@@ -8,10 +8,10 @@
 
 #include <spirv/spirv.h>
 
-#include "../../lib/math/math.h"
-#include "../../lib/clcmacro.h"
 #include "sincos_helpers.h"
 #include "sincospiF_piby4.h"
+#include <clcmacro.h>
+#include <math/math.h>
 #ifdef cl_khr_fp64
 #include "sincosD_piby4.h"
 #endif

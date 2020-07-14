@@ -904,16 +904,9 @@ bool AArch64DAGToDAGISel::SelectAddrModeIndexed(SDValue N, unsigned Size,
     if (!GAN)
       return true;
 
-    if (GAN->getOffset() % Size == 0) {
-      const GlobalValue *GV = GAN->getGlobal();
-      unsigned Alignment = GV->getAlignment();
-      Type *Ty = GV->getValueType();
-      if (Alignment == 0 && Ty->isSized())
-        Alignment = DL.getABITypeAlignment(Ty);
-
-      if (Alignment >= Size)
-        return true;
-    }
+    if (GAN->getOffset() % Size == 0 &&
+        GAN->getGlobal()->getPointerAlignment(DL) >= Size)
+      return true;
   }
 
   if (CurDAG->isBaseWithConstantOffset(N)) {
@@ -3992,7 +3985,8 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
         SelectPredicatedStore</*Scale=*/0>(Node, 2, AArch64::ST2B,
                                            AArch64::ST2B_IMM);
         return;
-      } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16) {
+      } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16 ||
+                 (VT == MVT::nxv8bf16 && Subtarget->hasBF16())) {
         SelectPredicatedStore</*Scale=*/1>(Node, 2, AArch64::ST2H,
                                            AArch64::ST2H_IMM);
         return;
@@ -4012,7 +4006,8 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
         SelectPredicatedStore</*Scale=*/0>(Node, 3, AArch64::ST3B,
                                            AArch64::ST3B_IMM);
         return;
-      } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16) {
+      } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16 ||
+                 (VT == MVT::nxv8bf16 && Subtarget->hasBF16())) {
         SelectPredicatedStore</*Scale=*/1>(Node, 3, AArch64::ST3H,
                                            AArch64::ST3H_IMM);
         return;
@@ -4032,7 +4027,8 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
         SelectPredicatedStore</*Scale=*/0>(Node, 4, AArch64::ST4B,
                                            AArch64::ST4B_IMM);
         return;
-      } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16) {
+      } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16 ||
+                 (VT == MVT::nxv8bf16 && Subtarget->hasBF16())) {
         SelectPredicatedStore</*Scale=*/1>(Node, 4, AArch64::ST4H,
                                            AArch64::ST4H_IMM);
         return;
@@ -4640,11 +4636,12 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     }
     break;
   }
-  case AArch64ISD::SVE_LD2: {
+  case AArch64ISD::SVE_LD2_MERGE_ZERO: {
     if (VT == MVT::nxv16i8) {
       SelectPredicatedLoad(Node, 2, AArch64::LD2B_IMM);
       return;
-    } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16) {
+    } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16 ||
+               (VT == MVT::nxv8bf16 && Subtarget->hasBF16())) {
       SelectPredicatedLoad(Node, 2, AArch64::LD2H_IMM);
       return;
     } else if (VT == MVT::nxv4i32 || VT == MVT::nxv4f32) {
@@ -4656,11 +4653,12 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     }
     break;
   }
-  case AArch64ISD::SVE_LD3: {
+  case AArch64ISD::SVE_LD3_MERGE_ZERO: {
     if (VT == MVT::nxv16i8) {
       SelectPredicatedLoad(Node, 3, AArch64::LD3B_IMM);
       return;
-    } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16) {
+    } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16 ||
+               (VT == MVT::nxv8bf16 && Subtarget->hasBF16())) {
       SelectPredicatedLoad(Node, 3, AArch64::LD3H_IMM);
       return;
     } else if (VT == MVT::nxv4i32 || VT == MVT::nxv4f32) {
@@ -4672,11 +4670,12 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     }
     break;
   }
-  case AArch64ISD::SVE_LD4: {
+  case AArch64ISD::SVE_LD4_MERGE_ZERO: {
     if (VT == MVT::nxv16i8) {
       SelectPredicatedLoad(Node, 4, AArch64::LD4B_IMM);
       return;
-    } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16) {
+    } else if (VT == MVT::nxv8i16 || VT == MVT::nxv8f16 ||
+               (VT == MVT::nxv8bf16 && Subtarget->hasBF16())) {
       SelectPredicatedLoad(Node, 4, AArch64::LD4H_IMM);
       return;
     } else if (VT == MVT::nxv4i32 || VT == MVT::nxv4f32) {
@@ -4733,12 +4732,12 @@ static EVT getMemVTFromNode(LLVMContext &Ctx, SDNode *Root) {
   // For custom ISD nodes, we have to look at them individually to extract the
   // type of the data moved to/from memory.
   switch (Opcode) {
-  case AArch64ISD::LD1:
-  case AArch64ISD::LD1S:
-  case AArch64ISD::LDNF1:
-  case AArch64ISD::LDNF1S:
+  case AArch64ISD::LD1_MERGE_ZERO:
+  case AArch64ISD::LD1S_MERGE_ZERO:
+  case AArch64ISD::LDNF1_MERGE_ZERO:
+  case AArch64ISD::LDNF1S_MERGE_ZERO:
     return cast<VTSDNode>(Root->getOperand(3))->getVT();
-  case AArch64ISD::ST1:
+  case AArch64ISD::ST1_PRED:
     return cast<VTSDNode>(Root->getOperand(4))->getVT();
   default:
     break;

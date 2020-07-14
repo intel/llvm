@@ -4102,12 +4102,17 @@ llvm::getArgumentAliasingToReturnedPointer(const CallBase *Call,
 
 bool llvm::isIntrinsicReturningPointerAliasingArgumentWithoutCapturing(
     const CallBase *Call, bool MustPreserveNullness) {
-  return Call->getIntrinsicID() == Intrinsic::launder_invariant_group ||
-         Call->getIntrinsicID() == Intrinsic::strip_invariant_group ||
-         Call->getIntrinsicID() == Intrinsic::aarch64_irg ||
-         Call->getIntrinsicID() == Intrinsic::aarch64_tagp ||
-         (!MustPreserveNullness &&
-          Call->getIntrinsicID() == Intrinsic::ptrmask);
+  switch (Call->getIntrinsicID()) {
+  case Intrinsic::launder_invariant_group:
+  case Intrinsic::strip_invariant_group:
+  case Intrinsic::aarch64_irg:
+  case Intrinsic::aarch64_tagp:
+    return true;
+  case Intrinsic::ptrmask:
+    return !MustPreserveNullness;
+  default:
+    return false;
+  }
 }
 
 /// \p PN defines a loop-variant pointer to an object.  Check if the
@@ -4147,6 +4152,8 @@ Value *llvm::GetUnderlyingObject(Value *V, const DataLayout &DL,
     } else if (Operator::getOpcode(V) == Instruction::BitCast ||
                Operator::getOpcode(V) == Instruction::AddrSpaceCast) {
       V = cast<Operator>(V)->getOperand(0);
+      if (!V->getType()->isPointerTy())
+        return V;
     } else if (GlobalAlias *GA = dyn_cast<GlobalAlias>(V)) {
       if (GA->isInterposable())
         return V;

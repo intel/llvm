@@ -20,9 +20,10 @@
  * THE SOFTWARE.
  */
 
-#include <spirv/spirv.h>
 #include <clc/clc.h>
-#include "../clcmacro.h"
+#include <spirv/spirv.h>
+
+#include <clcmacro.h>
 
 _CLC_DEFINE_BINARY_BUILTIN(float, ldexp, __spirv_ocl_ldexp, float, int)
 

@@ -538,9 +538,15 @@ protected:
     SPIRVInstruction::validate();
     if (getSrc()->isForward() || getDst()->isForward())
       return;
-    assert(getValueType(PtrId)->getPointerElementType() ==
-               getValueType(ValId) &&
-           "Inconsistent operand types");
+#ifndef NDEBUG
+    if (getValueType(PtrId)->getPointerElementType() != getValueType(ValId)) {
+      assert(getValueType(PtrId)
+                     ->getPointerElementType()
+                     ->getPointerStorageClass() ==
+                 getValueType(ValId)->getPointerStorageClass() &&
+             "Inconsistent operand types");
+    }
+#endif // NDEBUG
   }
 
 private:
@@ -1603,6 +1609,8 @@ _SPIRV_OP(ConvertPtrToU)
 _SPIRV_OP(ConvertUToPtr)
 _SPIRV_OP(PtrCastToGeneric)
 _SPIRV_OP(GenericCastToPtr)
+_SPIRV_OP(CrossWorkgroupCastToPtrINTEL)
+_SPIRV_OP(PtrCastToCrossWorkgroupINTEL)
 _SPIRV_OP(Bitcast)
 _SPIRV_OP(SNegate)
 _SPIRV_OP(FNegate)

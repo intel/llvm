@@ -279,6 +279,10 @@ Tool *ToolChain::buildBackendCompiler() const {
   llvm_unreachable("Backend Compilation is not supported by this toolchain");
 }
 
+Tool *ToolChain::buildStaticLibTool() const {
+  llvm_unreachable("Creating static lib is not supported by this toolchain");
+}
+
 Tool *ToolChain::getAssemble() const {
   if (!Assemble)
     Assemble.reset(buildAssembler());
@@ -295,6 +299,12 @@ Tool *ToolChain::getLink() const {
   if (!Link)
     Link.reset(buildLinker());
   return Link.get();
+}
+
+Tool *ToolChain::getStaticLibTool() const {
+  if (!StaticLibTool)
+    StaticLibTool.reset(buildStaticLibTool());
+  return StaticLibTool.get();
 }
 
 Tool *ToolChain::getIfsMerge() const {
@@ -361,6 +371,9 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
 
   case Action::LinkJobClass:
     return getLink();
+
+  case Action::StaticLibJobClass:
+    return getStaticLibTool();
 
   case Action::InputClass:
   case Action::BindArchClass:
@@ -621,6 +634,11 @@ std::string ToolChain::GetLinkerPath() const {
     getDriver().Diag(diag::err_drv_invalid_linker_name) << A->getAsString(Args);
 
   return GetProgramPath(getDefaultLinker());
+}
+
+std::string ToolChain::GetStaticLibToolPath() const {
+  // TODO: Add support for static lib archiving on Windows
+  return GetProgramPath("llvm-ar");
 }
 
 types::ID ToolChain::LookupTypeForExtension(StringRef Ext) const {

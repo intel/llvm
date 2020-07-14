@@ -1,7 +1,7 @@
 #include <clc/clc.h>
 #include <spirv/spirv.h>
 
-#include "../clcmacro.h"
+#include <clcmacro.h>
 
 /* Refer to the exp routine for the underlying algorithm */
 

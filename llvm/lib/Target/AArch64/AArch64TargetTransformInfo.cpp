@@ -601,6 +601,16 @@ int AArch64TTIImpl::getArithmeticInstrCost(
     // These nodes are marked as 'custom' for combining purposes only.
     // We know that they are legal. See LowerAdd in ISelLowering.
     return (Cost + 1) * LT.first;
+
+  case ISD::FADD:
+    // These nodes are marked as 'custom' just to lower them to SVE.
+    // We know said lowering will incur no additional cost.
+    if (isa<FixedVectorType>(Ty) && !Ty->getScalarType()->isFP128Ty())
+      return (Cost + 2) * LT.first;
+
+    return Cost + BaseT::getArithmeticInstrCost(Opcode, Ty, CostKind, Opd1Info,
+                                                Opd2Info,
+                                                Opd1PropInfo, Opd2PropInfo);
   }
 }
 
@@ -725,14 +735,10 @@ int AArch64TTIImpl::getMemoryOpCost(unsigned Opcode, Type *Ty,
   return LT.first;
 }
 
-int AArch64TTIImpl::getInterleavedMemoryOpCost(unsigned Opcode, Type *VecTy,
-                                               unsigned Factor,
-                                               ArrayRef<unsigned> Indices,
-                                               unsigned Alignment,
-                                               unsigned AddressSpace,
-                                               TTI::TargetCostKind CostKind,
-                                               bool UseMaskForCond,
-                                               bool UseMaskForGaps) {
+int AArch64TTIImpl::getInterleavedMemoryOpCost(
+    unsigned Opcode, Type *VecTy, unsigned Factor, ArrayRef<unsigned> Indices,
+    Align Alignment, unsigned AddressSpace, TTI::TargetCostKind CostKind,
+    bool UseMaskForCond, bool UseMaskForGaps) {
   assert(Factor >= 2 && "Invalid interleave factor");
   auto *VecVTy = cast<VectorType>(VecTy);
 

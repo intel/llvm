@@ -16,28 +16,33 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_smoothstep(float edge0, float edge1,
   return t * t * (3.0f - 2.0f * t);
 }
 
-_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_smoothstep, float, float, float);
-
-_CLC_V_S_S_V_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_smoothstep, float, float, float);
+_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_smoothstep,
+                       float, float, float)
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-#define SMOOTH_STEP_DEF(edge_type, x_type, impl)                               \
-  _CLC_OVERLOAD _CLC_DEF x_type __spirv_ocl_smoothstep(                        \
-      edge_type edge0, edge_type edge1, x_type x) {                            \
-    double t = __spirv_ocl_fclamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);    \
-    return t * t * (3.0 - 2.0 * t);                                            \
-  }
+_CLC_OVERLOAD _CLC_DEF double __spirv_ocl_smoothstep(double edge0, double edge1,
+                                                     double x) {
+  double t = __spirv_ocl_fclamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+  return t * t * (3.0 - 2.0 * t);
+}
 
-SMOOTH_STEP_DEF(double, double, SMOOTH_STEP_IMPL_D);
+_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_smoothstep,
+                       double, double, double)
 
-_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_smoothstep, double, double, double);
+#endif
 
-SMOOTH_STEP_DEF(float, double, SMOOTH_STEP_IMPL_D);
-SMOOTH_STEP_DEF(double, float, SMOOTH_STEP_IMPL_D);
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_V_S_S_V_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_smoothstep, float, float, double);
-_CLC_V_S_S_V_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_smoothstep, double, double, float);
+_CLC_OVERLOAD _CLC_DEF half __spirv_ocl_smoothstep(half edge0, half edge1,
+                                                   half x) {
+  half t = __spirv_ocl_fclamp((x - edge0) / (edge1 - edge0), 0.0h, 1.0h);
+  return t * t * (3.0h - 2.0h * t);
+}
+
+_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_smoothstep,
+                       half, half, half);
 
 #endif

@@ -64,7 +64,7 @@ queue::queue(const device &syclDevice, const async_handler &asyncHandler,
 queue::queue(cl_command_queue clQueue, const context &syclContext,
              const async_handler &asyncHandler) {
   impl = std::make_shared<detail::queue_impl>(
-      detail::pi::cast<detail::RT::PiQueue>(clQueue),
+      reinterpret_cast<RT::PiQueue>(clQueue),
       detail::getSyclObjImpl(syclContext), asyncHandler);
 }
 
@@ -100,7 +100,7 @@ event queue::memcpy(void *dest, const void *src, size_t count) {
 }
 
 event queue::mem_advise(const void *ptr, size_t length, pi_mem_advice advice) {
-  return impl->mem_advise(ptr, length, advice);
+  return impl->mem_advise(impl, ptr, length, advice);
 }
 
 event queue::submit_impl(function_class<void(handler &)> CGH,

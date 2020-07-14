@@ -28,6 +28,10 @@ let TargetPrefix = "ppc" in {  // All intrinsics start with "llvm.ppc.".
     [IntrArgMemOnly, NoCapture<ArgIndex<0>>]>;
   def int_ppc_dcbtst: Intrinsic<[], [llvm_ptr_ty],
     [IntrArgMemOnly, NoCapture<ArgIndex<0>>]>;
+  def int_ppc_dcbt_with_hint: Intrinsic<[], [llvm_ptr_ty, llvm_i32_ty],
+    [IntrArgMemOnly, NoCapture<ArgIndex<0>>, ImmArg<ArgIndex<1>>]>;
+  def int_ppc_dcbtst_with_hint: Intrinsic<[], [llvm_ptr_ty, llvm_i32_ty],
+    [IntrArgMemOnly, NoCapture<ArgIndex<0>>, ImmArg<ArgIndex<1>>]>;
   def int_ppc_dcbz  : Intrinsic<[], [llvm_ptr_ty], []>;
   def int_ppc_dcbzl : Intrinsic<[], [llvm_ptr_ty], []>;
 
@@ -36,6 +40,8 @@ let TargetPrefix = "ppc" in {  // All intrinsics start with "llvm.ppc.".
 
   // sync instruction (i.e. sync 0, a.k.a hwsync)
   def int_ppc_sync : Intrinsic<[], [], []>;
+  // isync instruction
+  def int_ppc_isync : Intrinsic<[], [], []>;
   // lwsync is sync 1
   def int_ppc_lwsync : Intrinsic<[], [], []>;
   // eieio instruction
@@ -66,6 +72,19 @@ let TargetPrefix = "ppc" in {  // All intrinsics start with "llvm.ppc.".
         Intrinsic <[llvm_i64_ty], [llvm_i64_ty, llvm_i64_ty], [IntrNoMem]>;
   def int_ppc_pextd
       : GCCBuiltin<"__builtin_pextd">,
+        Intrinsic <[llvm_i64_ty], [llvm_i64_ty, llvm_i64_ty], [IntrNoMem]>;
+
+  // Centrifuge Doubleword Builtin.
+  def int_ppc_cfuged
+      : GCCBuiltin<"__builtin_cfuged">,
+        Intrinsic <[llvm_i64_ty], [llvm_i64_ty, llvm_i64_ty], [IntrNoMem]>;
+
+  // Count Leading / Trailing Zeroes under bit Mask Builtins.
+  def int_ppc_cntlzdm
+      : GCCBuiltin<"__builtin_cntlzdm">,
+        Intrinsic <[llvm_i64_ty], [llvm_i64_ty, llvm_i64_ty], [IntrNoMem]>;
+  def int_ppc_cnttzdm
+      : GCCBuiltin<"__builtin_cnttzdm">,
         Intrinsic <[llvm_i64_ty], [llvm_i64_ty, llvm_i64_ty], [IntrNoMem]>;
 
   def int_ppc_truncf128_round_to_odd
@@ -418,6 +437,16 @@ let TargetPrefix = "ppc" in {  // All intrinsics start with "llvm.ppc.".
               Intrinsic<[llvm_v2i64_ty], [llvm_v2i64_ty, llvm_v2i64_ty],
                         [IntrNoMem]>;
 
+  // P10 Vector Centrifuge Builtin.
+  def int_ppc_altivec_vcfuged : GCCBuiltin<"__builtin_altivec_vcfuged">,
+              Intrinsic<[llvm_v2i64_ty], [llvm_v2i64_ty, llvm_v2i64_ty],
+                        [IntrNoMem]>;
+
+  // P10 Vector Gather Every Nth Bit Builtin.
+  def int_ppc_altivec_vgnb : GCCBuiltin<"__builtin_altivec_vgnb">,
+              Intrinsic<[llvm_i64_ty], [llvm_v1i128_ty, llvm_i32_ty],
+                        [IntrNoMem, ImmArg<ArgIndex<1>>]>;
+
    // P10 Vector Clear Bytes
    def int_ppc_altivec_vclrlb :  GCCBuiltin<"__builtin_altivec_vclrlb">,
                Intrinsic<[llvm_v16i8_ty], [llvm_v16i8_ty, llvm_i32_ty],
@@ -672,6 +701,14 @@ let TargetPrefix = "ppc" in {  // All PPC intrinsics start with "llvm.ppc.".
   def int_ppc_altivec_vsubecuq : GCCBuiltin<"__builtin_altivec_vsubecuq">,
               Intrinsic<[llvm_v1i128_ty],
                         [llvm_v1i128_ty, llvm_v1i128_ty, llvm_v1i128_ty],
+                        [IntrNoMem]>;
+
+  // P10 Vector Count Leading / Trailing Zeroes under bit Mask Builtins.
+  def int_ppc_altivec_vclzdm : GCCBuiltin<"__builtin_altivec_vclzdm">,
+              Intrinsic<[llvm_v2i64_ty], [llvm_v2i64_ty, llvm_v2i64_ty],
+                        [IntrNoMem]>;
+  def int_ppc_altivec_vctzdm : GCCBuiltin<"__builtin_altivec_vctzdm">,
+              Intrinsic<[llvm_v2i64_ty], [llvm_v2i64_ty, llvm_v2i64_ty],
                         [IntrNoMem]>;
 }
 
@@ -953,6 +990,23 @@ def int_ppc_vsx_xxinsertw :
       PowerPC_VSX_Intrinsic<"xxinsertw",[llvm_v4i32_ty],
                             [llvm_v4i32_ty,llvm_v2i64_ty,llvm_i32_ty],
                             [IntrNoMem]>;
+def int_ppc_vsx_xxeval :
+      PowerPC_VSX_Intrinsic<"xxeval", [llvm_v2i64_ty],
+                           [llvm_v2i64_ty, llvm_v2i64_ty,
+                            llvm_v2i64_ty, llvm_i32_ty],
+                           [IntrNoMem, ImmArg<ArgIndex<3>>]>;
+def int_ppc_vsx_xxgenpcvbm :
+      PowerPC_VSX_Intrinsic<"xxgenpcvbm", [llvm_v16i8_ty],
+                            [llvm_v16i8_ty, llvm_i32_ty], [IntrNoMem]>;
+def int_ppc_vsx_xxgenpcvhm :
+      PowerPC_VSX_Intrinsic<"xxgenpcvhm", [llvm_v8i16_ty],
+                            [llvm_v8i16_ty, llvm_i32_ty], [IntrNoMem]>;
+def int_ppc_vsx_xxgenpcvwm :
+      PowerPC_VSX_Intrinsic<"xxgenpcvwm", [llvm_v4i32_ty],
+                            [llvm_v4i32_ty, llvm_i32_ty], [IntrNoMem]>;
+def int_ppc_vsx_xxgenpcvdm :
+      PowerPC_VSX_Intrinsic<"xxgenpcvdm", [llvm_v2i64_ty],
+                            [llvm_v2i64_ty, llvm_i32_ty], [IntrNoMem]>;
 }
 
 //===----------------------------------------------------------------------===//

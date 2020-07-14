@@ -85,9 +85,10 @@ event handler::finalize() {
     break;
   case detail::CG::CODEPLAY_HOST_TASK:
     CommandGroup.reset(new detail::CGHostTask(
-        std::move(MHostTask), std::move(MArgs), std::move(MArgsStorage),
-        std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
+        std::move(MHostTask), MQueue, MQueue->getContextImplPtr(),
+        std::move(MArgs), std::move(MArgsStorage), std::move(MAccStorage),
+        std::move(MSharedPtrStorage), std::move(MRequirements),
+        std::move(MEvents), MCGType, MCodeLoc));
     break;
   case detail::CG::BARRIER:
   case detail::CG::BARRIER_WAITLIST:
@@ -140,7 +141,11 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
         AccImpl->resize(MNDRDesc.GlobalSize.size());
       }
       MArgs.emplace_back(Kind, AccImpl, Size, Index + IndexShift);
-      if (!IsKernelCreatedFromSource) {
+
+      // TODO ESIMD currently does not suport offset, memory and access ranges -
+      // accessor::init for ESIMD-mode accessor has a single field, translated
+      // to a single kernel argument set above.
+      if (!AccImpl->MIsESIMDAcc && !IsKernelCreatedFromSource) {
         // Dimensionality of the buffer is 1 when dimensionality of the
         // accessor is 0.
         const size_t SizeAccField =

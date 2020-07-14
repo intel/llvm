@@ -10,6 +10,8 @@
 // Details of the algorithm:
 //  https://github.com/google/sanitizers/wiki/AddressSanitizerAlgorithm
 //
+// FIXME: This sanitizer does not yet handle scalable vectors
+//
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Instrumentation/AddressSanitizer.h"
@@ -693,7 +695,6 @@ private:
   FunctionCallee AsanMemoryAccessCallbackSized[2][2];
 
   FunctionCallee AsanMemmove, AsanMemcpy, AsanMemset;
-  InlineAsm *EmptyAsm;
   Value *LocalDynamicShadow = nullptr;
   const GlobalsMetadata &GlobalsMD;
   DenseMap<const AllocaInst *, bool> ProcessedAllocas;
@@ -911,16 +912,14 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
   using AllocaForValueMapTy = DenseMap<Value *, AllocaInst *>;
   AllocaForValueMapTy AllocaForValue;
 
-  bool HasNonEmptyInlineAsm = false;
+  bool HasInlineAsm = false;
   bool HasReturnsTwiceCall = false;
-  std::unique_ptr<CallInst> EmptyInlineAsm;
 
   FunctionStackPoisoner(Function &F, AddressSanitizer &ASan)
       : F(F), ASan(ASan), DIB(*F.getParent(), /*AllowUnresolved*/ false),
         C(ASan.C), IntptrTy(ASan.IntptrTy),
         IntptrPtrTy(PointerType::get(IntptrTy, 0)), Mapping(ASan.Mapping),
-        StackAlignment(1 << Mapping.Scale),
-        EmptyInlineAsm(CallInst::Create(ASan.EmptyAsm)) {}
+        StackAlignment(1 << Mapping.Scale) {}
 
   bool runOnFunction() {
     if (!ClStack) return false;
@@ -1082,9 +1081,7 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
 
   void visitCallBase(CallBase &CB) {
     if (CallInst *CI = dyn_cast<CallInst>(&CB)) {
-      HasNonEmptyInlineAsm |= CI->isInlineAsm() &&
-                              !CI->isIdenticalTo(EmptyInlineAsm.get()) &&
-                              &CB != ASan.LocalDynamicShadow;
+      HasInlineAsm |= CI->isInlineAsm() && &CB != ASan.LocalDynamicShadow;
       HasReturnsTwiceCall |= CI->canReturnTwice();
     }
   }
@@ -1509,8 +1506,8 @@ static void instrumentMaskedLoadOrStore(AddressSanitizer *Pass,
                                         unsigned Granularity, uint32_t TypeSize,
                                         bool IsWrite, Value *SizeArgument,
                                         bool UseCalls, uint32_t Exp) {
-  auto *VTy =
-      cast<VectorType>(cast<PointerType>(Addr->getType())->getElementType());
+  auto *VTy = cast<FixedVectorType>(
+      cast<PointerType>(Addr->getType())->getElementType());
   uint64_t ElemTypeSize = DL.getTypeStoreSizeInBits(VTy->getScalarType());
   unsigned Num = VTy->getNumElements();
   auto Zero = ConstantInt::get(IntptrTy, 0);
@@ -1621,10 +1618,7 @@ Instruction *AddressSanitizer::generateCrashCode(Instruction *InsertBefore,
                             {Addr, ExpVal});
   }
 
-  // We don't do Call->setDoesNotReturn() because the BB already has
-  // UnreachableInst at the end.
-  // This EmptyAsm is required to avoid callback merge.
-  IRB.CreateCall(EmptyAsm, {});
+  Call->setCannotMerge();
   return Call;
 }
 
@@ -2598,10 +2592,6 @@ void AddressSanitizer::initializeCallbacks(Module &M) {
       M.getOrInsertFunction(kAsanPtrCmp, IRB.getVoidTy(), IntptrTy, IntptrTy);
   AsanPtrSubFunction =
       M.getOrInsertFunction(kAsanPtrSub, IRB.getVoidTy(), IntptrTy, IntptrTy);
-  // We insert an empty inline asm after __asan_report* to avoid callback merge.
-  EmptyAsm = InlineAsm::get(FunctionType::get(IRB.getVoidTy(), false),
-                            StringRef(""), StringRef(""),
-                            /*hasSideEffects=*/true);
   if (Mapping.InGlobal)
     AsanShadowGlobal = M.getOrInsertGlobal("__asan_shadow",
                                            ArrayType::get(IRB.getInt8Ty(), 0));
@@ -3205,8 +3195,8 @@ void FunctionStackPoisoner::processStaticAllocas() {
   // 2) There is a returns_twice call (typically setjmp), which is
   //    optimization-hostile, and doesn't play well with introduced indirect
   //    register-relative calculation of local variable addresses.
-  DoDynamicAlloca &= !HasNonEmptyInlineAsm && !HasReturnsTwiceCall;
-  DoStackMalloc &= !HasNonEmptyInlineAsm && !HasReturnsTwiceCall;
+  DoDynamicAlloca &= !HasInlineAsm && !HasReturnsTwiceCall;
+  DoStackMalloc &= !HasInlineAsm && !HasReturnsTwiceCall;
 
   Value *StaticAlloca =
       DoDynamicAlloca ? nullptr : createAllocaForLayout(IRB, L, false);

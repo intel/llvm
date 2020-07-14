@@ -445,6 +445,14 @@ public:
   }
 };
 
+#ifdef _MSC_VER
+// Workaround for MSVC++ bug (Version 2017, 15.8.9) - w/o this forward
+// declaration, the friend declaration in ObjCProtoName below has no effect
+// and leads to compilation error when ObjCProtoName::Protocol private field
+// is accessed in PointerType::printLeft.
+class PointerType;
+#endif // _MSC_VER
+
 class ObjCProtoName : public Node {
   const Node *Ty;
   StringView Protocol;
@@ -1199,7 +1207,7 @@ public:
 
   template<typename Fn> void match(Fn F) const { F(Params); }
 
-  NodeArray getParams() { return Params; }
+  const NodeArray &getParams() const { return Params; }
 
   void printLeft(OutputStream &S) const override {
     S += "<";

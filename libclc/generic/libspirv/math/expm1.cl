@@ -8,9 +8,9 @@
 
 #include <spirv/spirv.h>
 
-#include "../../lib/math/math.h"
 #include "tables.h"
-#include "../../lib/clcmacro.h"
+#include <clcmacro.h>
+#include <math/math.h>
 
 /* Refer to the exp routine for the underlying algorithm */
 
@@ -45,7 +45,7 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_expm1(float x) {
     z2 = __spirv_ocl_mad(z2, two_to_jby64, two_to_jby64_t) + (two_to_jby64_h - 1.0f);
 	//Make subnormals work
     z2 = x == 0.f ? x : z2;
-    z2 = x < X_MIN | m < -24 ? -1.0f : z2;
+    z2 = x < X_MIN || m < -24 ? -1.0f : z2;
     z2 = x > X_MAX ? as_float(PINFBITPATT_SP32) : z2;
     z2 = __spirv_IsNan(x) ? x : z2;
 
@@ -139,7 +139,7 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_expm1(double x) {
 
     z = m < 53 ? zml53 : zmg52;
     z = m < -7 ? zmln7 : z;
-    z = x > log_OneMinus_OneByFour & x < log_OnePlus_OneByFour ? z1 : z;
+    z = x > log_OneMinus_OneByFour && x < log_OnePlus_OneByFour ? z1 : z;
     z = x > max_expm1_arg ? as_double(PINFBITPATT_DP64) : z;
     z = x < min_expm1_arg ? -1.0 : z;
 

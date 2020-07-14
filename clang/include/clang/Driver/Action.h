@@ -80,9 +80,10 @@ public:
     PartialLinkJobClass,
     BackendCompileJobClass,
     FileTableTformJobClass,
+    StaticLibJobClass,
 
     JobClassFirst = PreprocessJobClass,
-    JobClassLast = FileTableTformJobClass
+    JobClassLast = StaticLibJobClass
   };
 
   // The offloading kind determines if this action is binded to a particular
@@ -753,6 +754,17 @@ public:
 
 private:
   SmallVector<Tform, 2> Tforms; // transformation actions requested
+};
+
+class StaticLibJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  StaticLibJobAction(ActionList &Inputs, types::ID Type);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == StaticLibJobClass;
+  }
 };
 
 } // namespace driver

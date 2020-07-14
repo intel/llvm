@@ -6994,6 +6994,13 @@ QualType ASTReader::GetType(TypeID ID) {
       T = Context.SingletonId; \
       break;
 #include "clang/Basic/OpenCLImageTypes.def"
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  case PREDEF_TYPE_SAMPLED_##Id##_ID:                                          \
+    T = Context.Sampled##SingletonId;                                          \
+    break;
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
+#include "clang/Basic/OpenCLImageTypes.def"
 #define EXT_OPAQUE_TYPE(ExtType, Id, Ext) \
     case PREDEF_TYPE_##Id##_ID: \
       T = Context.Id##Ty; \
@@ -7843,7 +7850,9 @@ void ASTReader::InitializeSema(Sema &S) {
   // FIXME: What happens if these are changed by a module import?
   if (!FPPragmaOptions.empty()) {
     assert(FPPragmaOptions.size() == 1 && "Wrong number of FP_PRAGMA_OPTIONS");
-    SemaObj->CurFPFeatures = FPOptions(FPPragmaOptions[0]);
+    FPOptionsOverride NewOverrides(FPPragmaOptions[0]);
+    SemaObj->CurFPFeatures =
+        NewOverrides.applyOverrides(SemaObj->getLangOpts());
   }
 
   SemaObj->OpenCLFeatures.copy(OpenCLExtensions);

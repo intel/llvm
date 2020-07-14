@@ -47,6 +47,14 @@ public:
                         std::vector<EventImplPtr> DepEvents,
                         RT::PiEvent &OutEvent);
 
+  // Allocates memory buffer wrapped into an image. MemObj must be a buffer,
+  // not an image. Used in ESIMD extension to enable surface index-based access.
+  static void *wrapIntoImageBuffer(ContextImplPtr TargetContext, void *MemBuf,
+                                   SYCLMemObjI *MemObj);
+
+  // Releases the image buffer created by wrapIntoImageBuffer.
+  static void releaseImageBuffer(ContextImplPtr TargetContext, void *ImageBuf);
+
   // The following method creates OpenCL sub buffer for specified
   // offset, range, and memory object.
   static void *allocateMemSubBuffer(ContextImplPtr TargetContext,

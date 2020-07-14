@@ -22,9 +22,9 @@
 #include <spirv/spirv.h>
 
 #include "sincos_helpers.h"
-#include "../../lib/math/math.h"
 #include "tables.h"
-#include "../../lib/clcmacro.h"
+#include <clcmacro.h>
+#include <math/math.h>
 
 _CLC_DEF _CLC_OVERLOAD float __clc_tan(float x)
 {
@@ -68,4 +68,13 @@ _CLC_DEF _CLC_OVERLOAD double __clc_tan(double x)
     return __spirv_IsNan(x) || __spirv_IsInf(x) ? as_double(QNANBITPATT_DP64) : as_double(t);
 }
 _CLC_UNARY_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, double, __clc_tan, double);
+#endif
+
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_DEF _CLC_OVERLOAD half __clc_tan(half x) { return __clc_tan((float)x); }
+
+_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __clc_tan, half)
+
 #endif

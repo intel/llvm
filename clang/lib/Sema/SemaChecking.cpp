@@ -1808,6 +1808,36 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     TheCall->setType(Context.IntTy);
     break;
   }
+  case Builtin::BI__builtin_expect_with_probability: {
+    // We first want to ensure we are called with 3 arguments
+    if (checkArgCount(*this, TheCall, 3))
+      return ExprError();
+    // then check probability is constant float in range [0.0, 1.0]
+    const Expr *ProbArg = TheCall->getArg(2);
+    SmallVector<PartialDiagnosticAt, 8> Notes;
+    Expr::EvalResult Eval;
+    Eval.Diag = &Notes;
+    if ((!ProbArg->EvaluateAsConstantExpr(Eval, Expr::EvaluateForCodeGen,
+                                          Context)) ||
+        !Eval.Val.isFloat()) {
+      Diag(ProbArg->getBeginLoc(), diag::err_probability_not_constant_float)
+          << ProbArg->getSourceRange();
+      for (const PartialDiagnosticAt &PDiag : Notes)
+        Diag(PDiag.first, PDiag.second);
+      return ExprError();
+    }
+    llvm::APFloat Probability = Eval.Val.getFloat();
+    bool LoseInfo = false;
+    Probability.convert(llvm::APFloat::IEEEdouble(),
+                        llvm::RoundingMode::Dynamic, &LoseInfo);
+    if (!(Probability >= llvm::APFloat(0.0) &&
+          Probability <= llvm::APFloat(1.0))) {
+      Diag(ProbArg->getBeginLoc(), diag::err_probability_out_of_range)
+          << ProbArg->getSourceRange();
+      return ExprError();
+    }
+    break;
+  }
   case Builtin::BI__builtin_preserve_access_index:
     if (SemaBuiltinPreserveAI(*this, TheCall))
       return ExprError();
@@ -3119,6 +3149,10 @@ bool Sema::CheckPPCBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
            SemaBuiltinConstantArgRange(TheCall, 1, 0, 1);
   case PPC::BI__builtin_pack_vector_int128:
     return SemaVSXCheck(TheCall);
+  case PPC::BI__builtin_altivec_vgnb:
+     return SemaBuiltinConstantArgRange(TheCall, 1, 2, 7);
+  case PPC::BI__builtin_vsx_xxeval:
+     return SemaBuiltinConstantArgRange(TheCall, 3, 0, 255);
   }
   return SemaBuiltinConstantArgRange(TheCall, i, l, u);
 }
@@ -15401,7 +15435,8 @@ ExprResult Sema::SemaBuiltinMatrixColumnMajorLoad(CallExpr *TheCall,
   if (checkArgCount(*this, TheCall, 4))
     return ExprError();
 
-  Expr *PtrExpr = TheCall->getArg(0);
+  unsigned PtrArgIdx = 0;
+  Expr *PtrExpr = TheCall->getArg(PtrArgIdx);
   Expr *RowsExpr = TheCall->getArg(1);
   Expr *ColumnsExpr = TheCall->getArg(2);
   Expr *StrideExpr = TheCall->getArg(3);
@@ -15425,14 +15460,14 @@ ExprResult Sema::SemaBuiltinMatrixColumnMajorLoad(CallExpr *TheCall,
   QualType ElementTy;
   if (!PtrTy) {
     Diag(PtrExpr->getBeginLoc(), diag::err_builtin_matrix_pointer_arg)
-        << "first";
+        << PtrArgIdx + 1;
     ArgError = true;
   } else {
     ElementTy = PtrTy->getPointeeType().getUnqualifiedType();
 
     if (!ConstantMatrixType::isValidElementType(ElementTy)) {
       Diag(PtrExpr->getBeginLoc(), diag::err_builtin_matrix_pointer_arg)
-          << "first";
+          << PtrArgIdx + 1;
       ArgError = true;
     }
   }
@@ -15508,8 +15543,9 @@ ExprResult Sema::SemaBuiltinMatrixColumnMajorStore(CallExpr *TheCall,
   if (checkArgCount(*this, TheCall, 3))
     return ExprError();
 
+  unsigned PtrArgIdx = 1;
   Expr *MatrixExpr = TheCall->getArg(0);
-  Expr *PtrExpr = TheCall->getArg(1);
+  Expr *PtrExpr = TheCall->getArg(PtrArgIdx);
   Expr *StrideExpr = TheCall->getArg(2);
 
   bool ArgError = false;
@@ -15548,7 +15584,7 @@ ExprResult Sema::SemaBuiltinMatrixColumnMajorStore(CallExpr *TheCall,
   auto *PtrTy = PtrExpr->getType()->getAs<PointerType>();
   if (!PtrTy) {
     Diag(PtrExpr->getBeginLoc(), diag::err_builtin_matrix_pointer_arg)
-        << "second";
+        << PtrArgIdx + 1;
     ArgError = true;
   } else {
     QualType ElementTy = PtrTy->getPointeeType();

@@ -367,12 +367,12 @@ using select_apply_cl_scalar_t =
 
 // Shortcuts for selecting scalar int/unsigned int/fp type.
 template <typename T>
-using select_cl_scalar_intergal_signed_t =
+using select_cl_scalar_integral_signed_t =
     select_apply_cl_scalar_t<T, sycl::cl_char, sycl::cl_short, sycl::cl_int,
                              sycl::cl_long>;
 
 template <typename T>
-using select_cl_scalar_intergal_unsigned_t =
+using select_cl_scalar_integral_unsigned_t =
     select_apply_cl_scalar_t<T, sycl::cl_uchar, sycl::cl_ushort, sycl::cl_uint,
                              sycl::cl_ulong>;
 
@@ -382,16 +382,16 @@ using select_cl_scalar_float_t =
                              sycl::cl_double>;
 
 template <typename T>
-using select_cl_scalar_intergal_t =
+using select_cl_scalar_integral_t =
     conditional_t<std::is_signed<T>::value,
-                  select_cl_scalar_intergal_signed_t<T>,
-                  select_cl_scalar_intergal_unsigned_t<T>>;
+                  select_cl_scalar_integral_signed_t<T>,
+                  select_cl_scalar_integral_unsigned_t<T>>;
 
 // select_cl_scalar_t picks corresponding cl_* type for input
 // scalar T or returns T if T is not scalar.
 template <typename T>
 using select_cl_scalar_t = conditional_t<
-    std::is_integral<T>::value, select_cl_scalar_intergal_t<T>,
+    std::is_integral<T>::value, select_cl_scalar_integral_t<T>,
     conditional_t<
         std::is_floating_point<T>::value, select_cl_scalar_float_t<T>,
         // half is a special case: it is implemented differently on host and

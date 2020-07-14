@@ -158,15 +158,23 @@ def VLDRS : ASI5<0b1101, 0b01, (outs SPR:$Sd), (ins addrmode5:$addr),
 let isUnpredicable = 1 in
 def VLDRH : AHI5<0b1101, 0b01, (outs HPR:$Sd), (ins addrmode5fp16:$addr),
                  IIC_fpLoad16, "vldr", ".16\t$Sd, $addr",
-                 []>,
+                 [(set HPR:$Sd, (f16 (alignedload16 addrmode5fp16:$addr)))]>,
             Requires<[HasFPRegs16]>;
 
 } // End of 'let canFoldAsLoad = 1, isReMaterializable = 1 in'
 
-def : FPRegs16Pat<(f16 (alignedload16 addrmode5fp16:$addr)),
-                  (VLDRH addrmode5fp16:$addr)>;
-def : FPRegs16Pat<(bf16 (alignedload16 addrmode5fp16:$addr)),
-                  (VLDRH addrmode5fp16:$addr)>;
+def : Pat<(bf16 (alignedload16 addrmode5fp16:$addr)),
+          (VLDRH addrmode5fp16:$addr)> {
+  let Predicates = [HasFPRegs16];
+}
+def : Pat<(bf16 (alignedload16 addrmode3:$addr)),
+          (COPY_TO_REGCLASS (LDRH addrmode3:$addr), HPR)> {
+  let Predicates = [HasNoFPRegs16, IsARM];
+}
+def : Pat<(bf16 (alignedload16 t2addrmode_imm12:$addr)),
+          (COPY_TO_REGCLASS (t2LDRHi12 t2addrmode_imm12:$addr), HPR)> {
+  let Predicates = [HasNoFPRegs16, IsThumb];
+}
 
 def VSTRD : ADI5<0b1101, 0b00, (outs), (ins DPR:$Dd, addrmode5:$addr),
                  IIC_fpStore64, "vstr", "\t$Dd, $addr",
@@ -185,13 +193,21 @@ def VSTRS : ASI5<0b1101, 0b00, (outs), (ins SPR:$Sd, addrmode5:$addr),
 let isUnpredicable = 1 in
 def VSTRH : AHI5<0b1101, 0b00, (outs), (ins HPR:$Sd, addrmode5fp16:$addr),
                  IIC_fpStore16, "vstr", ".16\t$Sd, $addr",
-                 []>,
+                 [(alignedstore16 (f16 HPR:$Sd), addrmode5fp16:$addr)]>,
             Requires<[HasFPRegs16]>;
 
-def : FPRegs16Pat<(alignedstore16 (f16 HPR:$Sd), addrmode5fp16:$addr),
-                  (VSTRH (f16 HPR:$Sd), addrmode5fp16:$addr)>;
-def : FPRegs16Pat<(alignedstore16 (bf16 HPR:$Sd), addrmode5fp16:$addr),
-                  (VSTRH (bf16 HPR:$Sd), addrmode5fp16:$addr)>;
+def : Pat<(alignedstore16 (bf16 HPR:$Sd), addrmode5fp16:$addr),
+          (VSTRH (bf16 HPR:$Sd), addrmode5fp16:$addr)> {
+  let Predicates = [HasFPRegs16];
+}
+def : Pat<(alignedstore16 (bf16 HPR:$Sd), addrmode3:$addr),
+          (STRH (COPY_TO_REGCLASS $Sd, GPR), addrmode3:$addr)> {
+  let Predicates = [HasNoFPRegs16, IsARM];
+}
+def : Pat<(alignedstore16 (bf16 HPR:$Sd), t2addrmode_imm12:$addr),
+          (t2STRHi12 (COPY_TO_REGCLASS $Sd, GPR), t2addrmode_imm12:$addr)> {
+  let Predicates = [HasNoFPRegs16, IsThumb];
+}
 
 //===----------------------------------------------------------------------===//
 //  Load / store multiple Instructions.
@@ -287,7 +303,6 @@ def : MnemonicAlias<"vstm", "vstmia">;
 //===----------------------------------------------------------------------===//
 //  Lazy load / store multiple Instructions
 //
-let mayLoad = 1 in
 def VLLDM : AXSI4<(outs), (ins GPRnopc:$Rn, pred:$p), IndexModeNone,
                   NoItinerary, "vlldm${p}\t$Rn", "", []>,
             Requires<[HasV8MMainline, Has8MSecExt]> {
@@ -298,9 +313,9 @@ def VLLDM : AXSI4<(outs), (ins GPRnopc:$Rn, pred:$p), IndexModeNone,
     let Inst{15-12} = 0;
     let Inst{7-0}   = 0;
     let mayLoad     = 1;
+    let Defs = [Q0, Q1, Q2, Q3, Q4, Q5, Q6, Q7, VPR, FPSCR, FPSCR_NZCV];
 }
 
-let mayStore = 1 in
 def VLSTM : AXSI4<(outs), (ins GPRnopc:$Rn, pred:$p), IndexModeNone,
                   NoItinerary, "vlstm${p}\t$Rn", "", []>,
             Requires<[HasV8MMainline, Has8MSecExt]> {
@@ -741,18 +756,38 @@ def : FP16Pat<(f16 (fpround SPR:$Sm)),
               (COPY_TO_REGCLASS (VCVTBSH SPR:$Sm), HPR)>;
 def : FP16Pat<(fp_to_f16 SPR:$a),
               (i32 (COPY_TO_REGCLASS (VCVTBSH SPR:$a), GPR))>;
+def : FP16Pat<(insertelt (v8f16 MQPR:$src1), (f16 (fpround (f32 SPR:$src2))), imm_even:$lane),
+              (v8f16 (INSERT_SUBREG (v8f16 MQPR:$src1), (VCVTBSH SPR:$src2),
+                                    (SSubReg_f16_reg imm:$lane)))>;
+def : FP16Pat<(insertelt (v4f16 DPR:$src1), (f16 (fpround (f32 SPR:$src2))), imm_even:$lane),
+              (v4f16 (INSERT_SUBREG (v4f16 DPR:$src1), (VCVTBSH SPR:$src2),
+                                    (SSubReg_f16_reg imm:$lane)))>;
 
 def VCVTTHS: ASuI<0b11101, 0b11, 0b0010, 0b11, 0, (outs SPR:$Sd), (ins SPR:$Sm),
                  /* FIXME */ IIC_fpCVTSH, "vcvtt", ".f32.f16\t$Sd, $Sm",
-                 [/* For disassembly only; pattern left blank */]>,
+                 [/* Intentionally left blank, see patterns below */]>,
                  Requires<[HasFP16]>,
              Sched<[WriteFPCVT]>;
 
+def : FP16Pat<(f32 (fpextend (extractelt (v8f16 MQPR:$src), imm_odd:$lane))),
+              (VCVTTHS (EXTRACT_SUBREG MQPR:$src, (SSubReg_f16_reg imm_odd:$lane)))>;
+def : FP16Pat<(f32 (fpextend (extractelt (v4f16 DPR:$src), imm_odd:$lane))),
+              (VCVTTHS (EXTRACT_SUBREG
+                (v2f32 (COPY_TO_REGCLASS (v4f16 DPR:$src), DPR_VFP2)),
+                (SSubReg_f16_reg imm_odd:$lane)))>;
+
 def VCVTTSH: ASuI<0b11101, 0b11, 0b0011, 0b11, 0, (outs SPR:$Sd), (ins SPR:$Sm),
                  /* FIXME */ IIC_fpCVTHS, "vcvtt", ".f16.f32\t$Sd, $Sm",
-                 [/* For disassembly only; pattern left blank */]>,
+                 [/* Intentionally left blank, see patterns below */]>,
                  Requires<[HasFP16]>,
             Sched<[WriteFPCVT]>;
+
+def : FP16Pat<(insertelt (v8f16 MQPR:$src1), (f16 (fpround (f32 SPR:$src2))), imm_odd:$lane),
+              (v8f16 (INSERT_SUBREG (v8f16 MQPR:$src1), (VCVTTSH SPR:$src2),
+                                    (SSubReg_f16_reg imm:$lane)))>;
+def : FP16Pat<(insertelt (v4f16 DPR:$src1), (f16 (fpround (f32 SPR:$src2))), imm_odd:$lane),
+              (v4f16 (INSERT_SUBREG (v4f16 DPR:$src1), (VCVTTSH SPR:$src2),
+                                    (SSubReg_f16_reg imm:$lane)))>;
 
 def VCVTBHD : ADuI<0b11101, 0b11, 0b0010, 0b01, 0,
                    (outs DPR:$Dd), (ins SPR:$Sm),

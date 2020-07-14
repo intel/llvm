@@ -150,6 +150,8 @@ template <> inline void SPIRVMap<StorageClass, std::string>::init() {
   add(StorageClassPushConstant, "PushConstant");
   add(StorageClassAtomicCounter, "AtomicCounter");
   add(StorageClassImage, "Image");
+  add(StorageClassDeviceOnlyINTEL, "DeviceOnlyINTEL");
+  add(StorageClassHostOnlyINTEL, "HostOnlyINTEL");
 }
 SPIRV_DEF_NAMEMAP(StorageClass, SPIRVStorageClassNameMap)
 
@@ -549,6 +551,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityGroupNonUniformShuffleRelative,
       "GroupNonUniformShuffleRelative");
   add(CapabilityGroupNonUniformClustered, "GroupNonUniformClustered");
+  add(CapabilityUSMStorageClassesINTEL, "USMStorageClassesINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

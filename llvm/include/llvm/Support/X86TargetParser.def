@@ -110,6 +110,8 @@ X86_CPU_SUBTYPE_COMPAT("icelake-client", INTEL_COREI7_ICELAKE_CLIENT, "icelake-c
 X86_CPU_SUBTYPE_COMPAT("icelake-server", INTEL_COREI7_ICELAKE_SERVER, "icelake-server")
 X86_CPU_SUBTYPE_COMPAT("znver2",         AMDFAM17H_ZNVER2,            "znver2")
 X86_CPU_SUBTYPE_COMPAT("cascadelake",    INTEL_COREI7_CASCADELAKE,    "cascadelake")
+X86_CPU_SUBTYPE_COMPAT("tigerlake",      INTEL_COREI7_TIGERLAKE,      "tigerlake")
+X86_CPU_SUBTYPE_COMPAT("cooperlake",     INTEL_COREI7_COOPERLAKE,     "cooperlake")
 // Entries below this are not in libgcc/compiler-rt.
 X86_CPU_SUBTYPE       ("core2",          INTEL_CORE2_65)
 X86_CPU_SUBTYPE       ("penryn",         INTEL_CORE2_45)
@@ -117,305 +119,62 @@ X86_CPU_SUBTYPE       ("k6",             AMDPENTIUM_K6)
 X86_CPU_SUBTYPE       ("k6-2",           AMDPENTIUM_K62)
 X86_CPU_SUBTYPE       ("k6-3",           AMDPENTIUM_K63)
 X86_CPU_SUBTYPE       ("geode",          AMDPENTIUM_GEODE)
-X86_CPU_SUBTYPE       ("cooperlake",     INTEL_COREI7_COOPERLAKE)
-X86_CPU_SUBTYPE       ("tigerlake",      INTEL_COREI7_TIGERLAKE)
 #undef X86_CPU_SUBTYPE_COMPAT
 #undef X86_CPU_SUBTYPE
 
 
 // This macro is used for cpu types present in compiler-rt/libgcc.
 #ifndef X86_FEATURE_COMPAT
-#define X86_FEATURE_COMPAT(VAL, ENUM, STR) X86_FEATURE(VAL, ENUM)
+#define X86_FEATURE_COMPAT(ENUM, STR) X86_FEATURE(ENUM)
 #endif
 
 #ifndef X86_FEATURE
-#define X86_FEATURE(VAL, ENUM)
+#define X86_FEATURE(ENUM)
 #endif
-X86_FEATURE_COMPAT( 0, FEATURE_CMOV,            "cmov")
-X86_FEATURE_COMPAT( 1, FEATURE_MMX,             "mmx")
-X86_FEATURE_COMPAT( 2, FEATURE_POPCNT,          "popcnt")
-X86_FEATURE_COMPAT( 3, FEATURE_SSE,             "sse")
-X86_FEATURE_COMPAT( 4, FEATURE_SSE2,            "sse2")
-X86_FEATURE_COMPAT( 5, FEATURE_SSE3,            "sse3")
-X86_FEATURE_COMPAT( 6, FEATURE_SSSE3,           "ssse3")
-X86_FEATURE_COMPAT( 7, FEATURE_SSE4_1,          "sse4.1")
-X86_FEATURE_COMPAT( 8, FEATURE_SSE4_2,          "sse4.2")
-X86_FEATURE_COMPAT( 9, FEATURE_AVX,             "avx")
-X86_FEATURE_COMPAT(10, FEATURE_AVX2,            "avx2")
-X86_FEATURE_COMPAT(11, FEATURE_SSE4_A,          "sse4a")
-X86_FEATURE_COMPAT(12, FEATURE_FMA4,            "fma4")
-X86_FEATURE_COMPAT(13, FEATURE_XOP,             "xop")
-X86_FEATURE_COMPAT(14, FEATURE_FMA,             "fma")
-X86_FEATURE_COMPAT(15, FEATURE_AVX512F,         "avx512f")
-X86_FEATURE_COMPAT(16, FEATURE_BMI,             "bmi")
-X86_FEATURE_COMPAT(17, FEATURE_BMI2,            "bmi2")
-X86_FEATURE_COMPAT(18, FEATURE_AES,             "aes")
-X86_FEATURE_COMPAT(19, FEATURE_PCLMUL,          "pclmul")
-X86_FEATURE_COMPAT(20, FEATURE_AVX512VL,        "avx512vl")
-X86_FEATURE_COMPAT(21, FEATURE_AVX512BW,        "avx512bw")
-X86_FEATURE_COMPAT(22, FEATURE_AVX512DQ,        "avx512dq")
-X86_FEATURE_COMPAT(23, FEATURE_AVX512CD,        "avx512cd")
-X86_FEATURE_COMPAT(24, FEATURE_AVX512ER,        "avx512er")
-X86_FEATURE_COMPAT(25, FEATURE_AVX512PF,        "avx512pf")
-X86_FEATURE_COMPAT(26, FEATURE_AVX512VBMI,      "avx512vbmi")
-X86_FEATURE_COMPAT(27, FEATURE_AVX512IFMA,      "avx512ifma")
-X86_FEATURE_COMPAT(28, FEATURE_AVX5124VNNIW,    "avx5124vnniw")
-X86_FEATURE_COMPAT(29, FEATURE_AVX5124FMAPS,    "avx5124fmaps")
-X86_FEATURE_COMPAT(30, FEATURE_AVX512VPOPCNTDQ, "avx512vpopcntdq")
-X86_FEATURE_COMPAT(31, FEATURE_AVX512VBMI2,     "avx512vbmi2")
-X86_FEATURE_COMPAT(32, FEATURE_GFNI,            "gfni")
-X86_FEATURE_COMPAT(33, FEATURE_VPCLMULQDQ,      "vpclmulqdq")
-X86_FEATURE_COMPAT(34, FEATURE_AVX512VNNI,      "avx512vnni")
-X86_FEATURE_COMPAT(35, FEATURE_AVX512BITALG,    "avx512bitalg")
-X86_FEATURE_COMPAT(36, FEATURE_AVX512BF16,      "avx512bf16")
-X86_FEATURE_COMPAT(37, FEATURE_AVX512VP2INTERSECT, "avx512vp2intersect")
+
+X86_FEATURE_COMPAT(FEATURE_CMOV,            "cmov")
+X86_FEATURE_COMPAT(FEATURE_MMX,             "mmx")
+X86_FEATURE_COMPAT(FEATURE_POPCNT,          "popcnt")
+X86_FEATURE_COMPAT(FEATURE_SSE,             "sse")
+X86_FEATURE_COMPAT(FEATURE_SSE2,            "sse2")
+X86_FEATURE_COMPAT(FEATURE_SSE3,            "sse3")
+X86_FEATURE_COMPAT(FEATURE_SSSE3,           "ssse3")
+X86_FEATURE_COMPAT(FEATURE_SSE4_1,          "sse4.1")
+X86_FEATURE_COMPAT(FEATURE_SSE4_2,          "sse4.2")
+X86_FEATURE_COMPAT(FEATURE_AVX,             "avx")
+X86_FEATURE_COMPAT(FEATURE_AVX2,            "avx2")
+X86_FEATURE_COMPAT(FEATURE_SSE4_A,          "sse4a")
+X86_FEATURE_COMPAT(FEATURE_FMA4,            "fma4")
+X86_FEATURE_COMPAT(FEATURE_XOP,             "xop")
+X86_FEATURE_COMPAT(FEATURE_FMA,             "fma")
+X86_FEATURE_COMPAT(FEATURE_AVX512F,         "avx512f")
+X86_FEATURE_COMPAT(FEATURE_BMI,             "bmi")
+X86_FEATURE_COMPAT(FEATURE_BMI2,            "bmi2")
+X86_FEATURE_COMPAT(FEATURE_AES,             "aes")
+X86_FEATURE_COMPAT(FEATURE_PCLMUL,          "pclmul")
+X86_FEATURE_COMPAT(FEATURE_AVX512VL,        "avx512vl")
+X86_FEATURE_COMPAT(FEATURE_AVX512BW,        "avx512bw")
+X86_FEATURE_COMPAT(FEATURE_AVX512DQ,        "avx512dq")
+X86_FEATURE_COMPAT(FEATURE_AVX512CD,        "avx512cd")
+X86_FEATURE_COMPAT(FEATURE_AVX512ER,        "avx512er")
+X86_FEATURE_COMPAT(FEATURE_AVX512PF,        "avx512pf")
+X86_FEATURE_COMPAT(FEATURE_AVX512VBMI,      "avx512vbmi")
+X86_FEATURE_COMPAT(FEATURE_AVX512IFMA,      "avx512ifma")
+X86_FEATURE_COMPAT(FEATURE_AVX5124VNNIW,    "avx5124vnniw")
+X86_FEATURE_COMPAT(FEATURE_AVX5124FMAPS,    "avx5124fmaps")
+X86_FEATURE_COMPAT(FEATURE_AVX512VPOPCNTDQ, "avx512vpopcntdq")
+X86_FEATURE_COMPAT(FEATURE_AVX512VBMI2,     "avx512vbmi2")
+X86_FEATURE_COMPAT(FEATURE_GFNI,            "gfni")
+X86_FEATURE_COMPAT(FEATURE_VPCLMULQDQ,      "vpclmulqdq")
+X86_FEATURE_COMPAT(FEATURE_AVX512VNNI,      "avx512vnni")
+X86_FEATURE_COMPAT(FEATURE_AVX512BITALG,    "avx512bitalg")
+X86_FEATURE_COMPAT(FEATURE_AVX512BF16,      "avx512bf16")
+X86_FEATURE_COMPAT(FEATURE_AVX512VP2INTERSECT, "avx512vp2intersect")
 // Features below here are not in libgcc/compiler-rt.
-X86_FEATURE       (64, FEATURE_MOVBE)
-X86_FEATURE       (65, FEATURE_ADX)
-X86_FEATURE       (66, FEATURE_EM64T)
-X86_FEATURE       (67, FEATURE_CLFLUSHOPT)
-X86_FEATURE       (68, FEATURE_SHA)
+X86_FEATURE       (FEATURE_MOVBE)
+X86_FEATURE       (FEATURE_ADX)
+X86_FEATURE       (FEATURE_EM64T)
+X86_FEATURE       (FEATURE_CLFLUSHOPT)
+X86_FEATURE       (FEATURE_SHA)
 #undef X86_FEATURE_COMPAT
 #undef X86_FEATURE
-
-
-#ifndef PROC_WITH_FEAT
-#define PROC_WITH_FEAT(ENUM, STRING, IS64BIT, KEYFEATURE)                      \
-  PROC(ENUM, STRING, IS64BIT)
-#endif
-
-#ifndef PROC
-#define PROC(ENUM, STRING, IS64BIT)
-#endif
-
-#ifndef PROC_ALIAS
-#define PROC_ALIAS(ENUM, ALIAS)
-#endif
-
-#define PROC_64_BIT true
-#define PROC_32_BIT false
-
-/// \name i386
-/// i386-generation processors.
-//@{
-PROC(i386, "i386", PROC_32_BIT)
-//@}
-
-/// \name i486
-/// i486-generation processors.
-//@{
-PROC(i486, "i486", PROC_32_BIT)
-PROC(WinChipC6, "winchip-c6", PROC_32_BIT)
-PROC(WinChip2, "winchip2", PROC_32_BIT)
-PROC(C3, "c3", PROC_32_BIT)
-//@}
-
-/// \name i586
-/// i586-generation processors, P5 microarchitecture based.
-//@{
-PROC(i586, "i586", PROC_32_BIT)
-PROC(Pentium, "pentium", PROC_32_BIT)
-PROC(PentiumMMX, "pentium-mmx", PROC_32_BIT)
-//@}
-
-/// \name i686
-/// i686-generation processors, P6 / Pentium M microarchitecture based.
-//@{
-PROC(PentiumPro, "pentiumpro", PROC_32_BIT)
-PROC(i686, "i686", PROC_32_BIT)
-PROC(Pentium2, "pentium2", PROC_32_BIT)
-PROC(Pentium3, "pentium3", PROC_32_BIT)
-PROC_ALIAS(Pentium3, "pentium3m")
-PROC(PentiumM, "pentium-m", PROC_32_BIT)
-PROC(C3_2, "c3-2", PROC_32_BIT)
-
-/// This enumerator is a bit odd, as GCC no longer accepts -march=yonah.
-/// Clang however has some logic to support this.
-// FIXME: Warn, deprecate, and potentially remove this.
-PROC(Yonah, "yonah", PROC_32_BIT)
-//@}
-
-/// \name Netburst
-/// Netburst microarchitecture based processors.
-//@{
-PROC(Pentium4, "pentium4", PROC_32_BIT)
-PROC_ALIAS(Pentium4, "pentium4m")
-
-PROC(Prescott, "prescott", PROC_32_BIT)
-PROC(Nocona, "nocona", PROC_64_BIT)
-//@}
-
-/// \name Core
-/// Core microarchitecture based processors.
-//@{
-PROC_WITH_FEAT(Core2, "core2", PROC_64_BIT, FEATURE_SSSE3)
-
-/// This enumerator, like Yonah, is a bit odd. It is another
-/// codename which GCC no longer accepts as an option to -march, but Clang
-/// has some logic for recognizing it.
-// FIXME: Warn, deprecate, and potentially remove this.
-PROC(Penryn, "penryn", PROC_64_BIT)
-//@}
-
-/// \name Atom
-/// Atom processors
-//@{
-PROC_WITH_FEAT(Bonnell, "bonnell", PROC_64_BIT, FEATURE_SSSE3)
-PROC_ALIAS(Bonnell, "atom")
-
-PROC_WITH_FEAT(Silvermont, "silvermont", PROC_64_BIT, FEATURE_SSE4_2)
-PROC_ALIAS(Silvermont, "slm")
-
-PROC_WITH_FEAT(Goldmont, "goldmont", PROC_64_BIT, FEATURE_SSE4_2)
-PROC_WITH_FEAT(GoldmontPlus, "goldmont-plus", PROC_64_BIT, FEATURE_SSE4_2)
-
-PROC_WITH_FEAT(Tremont, "tremont", PROC_64_BIT, FEATURE_SSE4_2)
-//@}
-
-/// \name Nehalem
-/// Nehalem microarchitecture based processors.
-PROC_WITH_FEAT(Nehalem, "nehalem", PROC_64_BIT, FEATURE_SSE4_2)
-PROC_ALIAS(Nehalem, "corei7")
-
-/// \name Westmere
-/// Westmere microarchitecture based processors.
-PROC_WITH_FEAT(Westmere, "westmere", PROC_64_BIT, FEATURE_PCLMUL)
-
-/// \name Sandy Bridge
-/// Sandy Bridge microarchitecture based processors.
-PROC_WITH_FEAT(SandyBridge, "sandybridge", PROC_64_BIT, FEATURE_AVX)
-PROC_ALIAS(SandyBridge, "corei7-avx")
-
-/// \name Ivy Bridge
-/// Ivy Bridge microarchitecture based processors.
-PROC_WITH_FEAT(IvyBridge, "ivybridge", PROC_64_BIT, FEATURE_AVX)
-PROC_ALIAS(IvyBridge, "core-avx-i")
-
-/// \name Haswell
-/// Haswell microarchitecture based processors.
-PROC_WITH_FEAT(Haswell, "haswell", PROC_64_BIT, FEATURE_AVX2)
-PROC_ALIAS(Haswell, "core-avx2")
-
-/// \name Broadwell
-/// Broadwell microarchitecture based processors.
-PROC_WITH_FEAT(Broadwell, "broadwell", PROC_64_BIT, FEATURE_AVX2)
-
-/// \name Skylake Client
-/// Skylake client microarchitecture based processors.
-PROC_WITH_FEAT(SkylakeClient, "skylake", PROC_64_BIT, FEATURE_AVX2)
-
-/// \name Skylake Server
-/// Skylake server microarchitecture based processors.
-PROC_WITH_FEAT(SkylakeServer, "skylake-avx512", PROC_64_BIT, FEATURE_AVX512F)
-PROC_ALIAS(SkylakeServer, "skx")
-
-/// \name Cascadelake Server
-/// Cascadelake Server microarchitecture based processors.
-PROC_WITH_FEAT(Cascadelake, "cascadelake", PROC_64_BIT, FEATURE_AVX512VNNI)
-
-/// \name Cooperlake Server
-/// Cooperlake Server microarchitecture based processors.
-PROC_WITH_FEAT(Cooperlake, "cooperlake", PROC_64_BIT, FEATURE_AVX512BF16)
-
-/// \name Cannonlake Client
-/// Cannonlake client microarchitecture based processors.
-PROC_WITH_FEAT(Cannonlake, "cannonlake", PROC_64_BIT, FEATURE_AVX512VBMI)
-
-/// \name Icelake Client
-/// Icelake client microarchitecture based processors.
-PROC_WITH_FEAT(IcelakeClient, "icelake-client", PROC_64_BIT, FEATURE_AVX512VBMI2)
-
-/// \name Icelake Server
-/// Icelake server microarchitecture based processors.
-PROC_WITH_FEAT(IcelakeServer, "icelake-server", PROC_64_BIT, FEATURE_AVX512VBMI2)
-
-/// \name Tigerlake
-/// Tigerlake microarchitecture based processors.
-PROC(Tigerlake, "tigerlake", PROC_64_BIT)
-
-/// \name Knights Landing
-/// Knights Landing processor.
-PROC_WITH_FEAT(KNL, "knl", PROC_64_BIT, FEATURE_AVX512F)
-
-/// \name Knights Mill
-/// Knights Mill processor.
-PROC_WITH_FEAT(KNM, "knm", PROC_64_BIT, FEATURE_AVX5124FMAPS)
-
-/// \name Lakemont
-/// Lakemont microarchitecture based processors.
-PROC(Lakemont, "lakemont", PROC_32_BIT)
-
-/// \name K6
-/// K6 architecture processors.
-//@{
-PROC(K6, "k6", PROC_32_BIT)
-PROC(K6_2, "k6-2", PROC_32_BIT)
-PROC(K6_3, "k6-3", PROC_32_BIT)
-//@}
-
-/// \name K7
-/// K7 architecture processors.
-//@{
-PROC(Athlon, "athlon", PROC_32_BIT)
-PROC_ALIAS(Athlon, "athlon-tbird")
-
-PROC(AthlonXP, "athlon-xp", PROC_32_BIT)
-PROC_ALIAS(AthlonXP, "athlon-mp")
-PROC_ALIAS(AthlonXP, "athlon-4")
-//@}
-
-/// \name K8
-/// K8 architecture processors.
-//@{
-PROC(K8, "k8", PROC_64_BIT)
-PROC_ALIAS(K8, "athlon64")
-PROC_ALIAS(K8, "athlon-fx")
-PROC_ALIAS(K8, "opteron")
-
-PROC(K8SSE3, "k8-sse3", PROC_64_BIT)
-PROC_ALIAS(K8SSE3, "athlon64-sse3")
-PROC_ALIAS(K8SSE3, "opteron-sse3")
-
-PROC_WITH_FEAT(AMDFAM10, "amdfam10", PROC_64_BIT, FEATURE_SSE4_A)
-PROC_ALIAS(AMDFAM10, "barcelona")
-//@}
-
-/// \name Bobcat
-/// Bobcat architecture processors.
-//@{
-PROC_WITH_FEAT(BTVER1, "btver1", PROC_64_BIT, FEATURE_SSE4_A)
-PROC_WITH_FEAT(BTVER2, "btver2", PROC_64_BIT, FEATURE_BMI)
-//@}
-
-/// \name Bulldozer
-/// Bulldozer architecture processors.
-//@{
-PROC_WITH_FEAT(BDVER1, "bdver1", PROC_64_BIT, FEATURE_XOP)
-PROC_WITH_FEAT(BDVER2, "bdver2", PROC_64_BIT, FEATURE_FMA)
-PROC_WITH_FEAT(BDVER3, "bdver3", PROC_64_BIT, FEATURE_FMA)
-PROC_WITH_FEAT(BDVER4, "bdver4", PROC_64_BIT, FEATURE_AVX2)
-//@}
-
-/// \name zen
-/// Zen architecture processors.
-//@{
-PROC_WITH_FEAT(ZNVER1, "znver1", PROC_64_BIT, FEATURE_AVX2)
-PROC_WITH_FEAT(ZNVER2, "znver2", PROC_64_BIT, FEATURE_AVX2)
-//@}
-
-/// This specification is deprecated and will be removed in the future.
-/// Users should prefer K8.
-// FIXME: Warn on this when the CPU is set to it.
-//@{
-PROC(x86_64, "x86-64", PROC_64_BIT)
-//@}
-
-/// \name Geode
-/// Geode processors.
-//@{
-PROC(Geode, "geode", PROC_32_BIT)
-//@}
-
-#undef PROC
-#undef PROC_ALIAS
-#undef PROC_WITH_FEAT

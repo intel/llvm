@@ -696,6 +696,29 @@ class Foo {})cpp";
          HI.Parameters->back().Name = "v";
          HI.AccessSpecifier = "public";
        }},
+      {// Field type initializer.
+       R"cpp(
+          struct X { int x = 2; };
+          X ^[[x]];
+          )cpp",
+       [](HoverInfo &HI) {
+         HI.Name = "x";
+         HI.Kind = index::SymbolKind::Variable;
+         HI.NamespaceScope = "";
+         HI.Definition = "X x";
+         HI.Type = "struct X";
+       }},
+      {// Don't crash on null types.
+       R"cpp(auto [^[[x]]] = 1; /*error-ok*/)cpp",
+       [](HoverInfo &HI) {
+         HI.Name = "x";
+         HI.Kind = index::SymbolKind::Variable;
+         HI.NamespaceScope = "";
+         HI.Definition = "";
+         HI.Type = "NULL TYPE";
+         // Bindings are in theory public members of an anonymous struct.
+         HI.AccessSpecifier = "public";
+       }},
   };
   for (const auto &Case : Cases) {
     SCOPED_TRACE(Case.Code);
@@ -978,13 +1001,14 @@ TEST(Hover, All) {
             HI.LocalScope = "Foo::";
             HI.Type = "int";
             HI.Definition = "int x";
-            HI.Value = "{1}";
+            // FIXME: Initializer for x is a DesignatedInitListExpr, hence it is
+            // of struct type and omitted.
           }},
       {
           R"cpp(// Field, field designator
-            struct Foo { int x; };
+            struct Foo { int x; int y; };
             int main() {
-              Foo bar = { .^[[x]] = 2 };
+              Foo bar = { .^[[x]] = 2, .y = 2 };
             }
           )cpp",
           [](HoverInfo &HI) {
@@ -994,7 +1018,6 @@ TEST(Hover, All) {
             HI.LocalScope = "Foo::";
             HI.Type = "int";
             HI.Definition = "int x";
-            HI.Value = "{2}";
           }},
       {
           R"cpp(// Method call
@@ -1592,7 +1615,6 @@ TEST(Hover, All) {
             HI.LocalScope = "test::";
             HI.Type = "struct Test &&";
             HI.Definition = "Test &&test = {}";
-            HI.Value = "{}";
           }},
       {
           R"cpp(// auto on alias
@@ -1651,7 +1673,6 @@ TEST(Hover, All) {
             HI.NamespaceScope = "";
             HI.Name = "foo";
             HI.Type = "cls<cls<cls<int>>>";
-            HI.Value = "{}";
           }},
       {
           R"cpp(// type of nested templates.

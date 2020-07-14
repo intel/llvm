@@ -21,6 +21,9 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "llvm/Support/Debug.h"
+
+#define DEBUG_TYPE "spirv-to-llvm-pattern"
 
 using namespace mlir;
 
@@ -69,7 +72,8 @@ public:
     auto dstType = this->typeConverter.convertType(operation.getType());
     if (!dstType)
       return failure();
-    rewriter.template replaceOpWithNewOp<LLVMOp>(operation, dstType, operands);
+    rewriter.template replaceOpWithNewOp<LLVMOp>(operation, dstType, operands,
+                                                 operation.getAttrs());
     return success();
   }
 };
@@ -150,6 +154,32 @@ public:
   }
 };
 
+class ReturnPattern : public SPIRVToLLVMConversion<spirv::ReturnOp> {
+public:
+  using SPIRVToLLVMConversion<spirv::ReturnOp>::SPIRVToLLVMConversion;
+
+  LogicalResult
+  matchAndRewrite(spirv::ReturnOp returnOp, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(returnOp, ArrayRef<Type>(),
+                                                ArrayRef<Value>());
+    return success();
+  }
+};
+
+class ReturnValuePattern : public SPIRVToLLVMConversion<spirv::ReturnValueOp> {
+public:
+  using SPIRVToLLVMConversion<spirv::ReturnValueOp>::SPIRVToLLVMConversion;
+
+  LogicalResult
+  matchAndRewrite(spirv::ReturnValueOp returnValueOp, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(returnValueOp, ArrayRef<Type>(),
+                                                operands);
+    return success();
+  }
+};
+
 /// Converts SPIR-V shift ops to LLVM shift ops. Since LLVM dialect
 /// puts a restriction on `Shift` and `Base` to have the same bit width,
 /// `Shift` is zero or sign extended to match this specification. Cases when
@@ -191,6 +221,101 @@ public:
     return success();
   }
 };
+
+//===----------------------------------------------------------------------===//
+// FuncOp conversion
+//===----------------------------------------------------------------------===//
+
+class FuncConversionPattern : public SPIRVToLLVMConversion<spirv::FuncOp> {
+public:
+  using SPIRVToLLVMConversion<spirv::FuncOp>::SPIRVToLLVMConversion;
+
+  LogicalResult
+  matchAndRewrite(spirv::FuncOp funcOp, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    // Convert function signature. At the moment LLVMType converter is enough
+    // for currently supported types.
+    auto funcType = funcOp.getType();
+    TypeConverter::SignatureConversion signatureConverter(
+        funcType.getNumInputs());
+    auto llvmType = this->typeConverter.convertFunctionSignature(
+        funcOp.getType(), /*isVariadic=*/false, signatureConverter);
+
+    // Create a new `LLVMFuncOp`
+    Location loc = funcOp.getLoc();
+    StringRef name = funcOp.getName();
+    auto newFuncOp = rewriter.create<LLVM::LLVMFuncOp>(loc, name, llvmType);
+
+    // Convert SPIR-V Function Control to equivalent LLVM function attribute
+    MLIRContext *context = funcOp.getContext();
+    switch (funcOp.function_control()) {
+#define DISPATCH(functionControl, llvmAttr)                                    \
+  case functionControl:                                                        \
+    newFuncOp.setAttr("passthrough", ArrayAttr::get({llvmAttr}, context));     \
+    break;
+
+          DISPATCH(spirv::FunctionControl::Inline,
+                   StringAttr::get("alwaysinline", context));
+          DISPATCH(spirv::FunctionControl::DontInline,
+                   StringAttr::get("noinline", context));
+          DISPATCH(spirv::FunctionControl::Pure,
+                   StringAttr::get("readonly", context));
+          DISPATCH(spirv::FunctionControl::Const,
+                   StringAttr::get("readnone", context));
+
+#undef DISPATCH
+
+    // Default: if `spirv::FunctionControl::None`, then no attributes are
+    // needed.
+    default:
+      break;
+    }
+
+    rewriter.inlineRegionBefore(funcOp.getBody(), newFuncOp.getBody(),
+                                newFuncOp.end());
+    rewriter.applySignatureConversion(&newFuncOp.getBody(), signatureConverter);
+    rewriter.eraseOp(funcOp);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// ModuleOp conversion
+//===----------------------------------------------------------------------===//
+
+class ModuleConversionPattern : public SPIRVToLLVMConversion<spirv::ModuleOp> {
+public:
+  using SPIRVToLLVMConversion<spirv::ModuleOp>::SPIRVToLLVMConversion;
+
+  LogicalResult
+  matchAndRewrite(spirv::ModuleOp spvModuleOp, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    auto newModuleOp = rewriter.create<ModuleOp>(spvModuleOp.getLoc());
+    rewriter.inlineRegionBefore(spvModuleOp.body(), newModuleOp.getBody());
+
+    // Remove the terminator block that was automatically added by builder
+    rewriter.eraseBlock(&newModuleOp.getBodyRegion().back());
+    rewriter.eraseOp(spvModuleOp);
+    return success();
+  }
+};
+
+class ModuleEndConversionPattern
+    : public SPIRVToLLVMConversion<spirv::ModuleEndOp> {
+public:
+  using SPIRVToLLVMConversion<spirv::ModuleEndOp>::SPIRVToLLVMConversion;
+
+  LogicalResult
+  matchAndRewrite(spirv::ModuleEndOp moduleEndOp, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    rewriter.replaceOpWithNewOp<ModuleTerminatorOp>(moduleEndOp);
+    return success();
+  }
+};
+
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -216,6 +341,8 @@ void mlir::populateSPIRVToLLVMConversionPatterns(
       DirectConversionPattern<spirv::UModOp, LLVM::URemOp>,
 
       // Bitwise ops
+      DirectConversionPattern<spirv::BitCountOp, LLVM::CtPopOp>,
+      DirectConversionPattern<spirv::BitReverseOp, LLVM::BitReverseOp>,
       DirectConversionPattern<spirv::BitwiseAndOp, LLVM::AndOp>,
       DirectConversionPattern<spirv::BitwiseOrOp, LLVM::OrOp>,
       DirectConversionPattern<spirv::BitwiseXorOp, LLVM::XOrOp>,
@@ -263,6 +390,21 @@ void mlir::populateSPIRVToLLVMConversionPatterns(
       // Shift ops
       ShiftPattern<spirv::ShiftRightArithmeticOp, LLVM::AShrOp>,
       ShiftPattern<spirv::ShiftRightLogicalOp, LLVM::LShrOp>,
-      ShiftPattern<spirv::ShiftLeftLogicalOp, LLVM::ShlOp>>(context,
-                                                            typeConverter);
+      ShiftPattern<spirv::ShiftLeftLogicalOp, LLVM::ShlOp>,
+
+      // Return ops
+      ReturnPattern, ReturnValuePattern>(context, typeConverter);
+}
+
+void mlir::populateSPIRVToLLVMFunctionConversionPatterns(
+    MLIRContext *context, LLVMTypeConverter &typeConverter,
+    OwningRewritePatternList &patterns) {
+  patterns.insert<FuncConversionPattern>(context, typeConverter);
+}
+
+void mlir::populateSPIRVToLLVMModuleConversionPatterns(
+    MLIRContext *context, LLVMTypeConverter &typeConverter,
+    OwningRewritePatternList &patterns) {
+  patterns.insert<ModuleConversionPattern, ModuleEndConversionPattern>(
+      context, typeConverter);
 }

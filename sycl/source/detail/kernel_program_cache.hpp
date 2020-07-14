@@ -58,8 +58,15 @@ public:
   using ContextPtr = context_impl *;
 
   using PiKernelT = std::remove_pointer<RT::PiKernel>::type;
+
+  struct BuildResultKernel : public BuildResult<PiKernelT> {
+    std::mutex MKernelMutex;
+
+    BuildResultKernel(PiKernelT *P, int S) : BuildResult(P, S) {}
+  };
+
   using PiKernelPtrT = std::atomic<PiKernelT *>;
-  using KernelWithBuildStateT = BuildResult<PiKernelT>;
+  using KernelWithBuildStateT = BuildResultKernel;
   using KernelByNameT = std::map<string_class, KernelWithBuildStateT>;
   using KernelCacheT = std::map<RT::PiProgram, KernelByNameT>;
 

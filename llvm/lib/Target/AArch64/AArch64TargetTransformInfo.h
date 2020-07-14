@@ -156,12 +156,13 @@ public:
 
   bool getTgtMemIntrinsic(IntrinsicInst *Inst, MemIntrinsicInfo &Info);
 
-  bool isLegalMaskedLoadStore(Type *DataType, MaybeAlign Alignment) {
+  bool isLegalMaskedLoadStore(Type *DataType, Align Alignment) {
     if (!isa<VectorType>(DataType) || !ST->hasSVE())
       return false;
 
     Type *Ty = cast<VectorType>(DataType)->getElementType();
-    if (Ty->isHalfTy() || Ty->isFloatTy() || Ty->isDoubleTy())
+    if (Ty->isBFloatTy() || Ty->isHalfTy() ||
+        Ty->isFloatTy() || Ty->isDoubleTy())
       return true;
 
     if (Ty->isIntegerTy(8) || Ty->isIntegerTy(16) ||
@@ -171,11 +172,11 @@ public:
     return false;
   }
 
-  bool isLegalMaskedLoad(Type *DataType, MaybeAlign Alignment) {
+  bool isLegalMaskedLoad(Type *DataType, Align Alignment) {
     return isLegalMaskedLoadStore(DataType, Alignment);
   }
 
-  bool isLegalMaskedStore(Type *DataType, MaybeAlign Alignment) {
+  bool isLegalMaskedStore(Type *DataType, Align Alignment) {
     return isLegalMaskedLoadStore(DataType, Alignment);
   }
 
@@ -196,12 +197,11 @@ public:
     return BaseT::isLegalNTStore(DataType, Alignment);
   }
 
-  int getInterleavedMemoryOpCost(unsigned Opcode, Type *VecTy, unsigned Factor,
-                                 ArrayRef<unsigned> Indices, unsigned Alignment,
-                                 unsigned AddressSpace,
-                                 TTI::TargetCostKind CostKind = TTI::TCK_SizeAndLatency,
-                                 bool UseMaskForCond = false,
-                                 bool UseMaskForGaps = false);
+  int getInterleavedMemoryOpCost(
+      unsigned Opcode, Type *VecTy, unsigned Factor, ArrayRef<unsigned> Indices,
+      Align Alignment, unsigned AddressSpace,
+      TTI::TargetCostKind CostKind = TTI::TCK_SizeAndLatency,
+      bool UseMaskForCond = false, bool UseMaskForGaps = false);
 
   bool
   shouldConsiderAddressTypePromotion(const Instruction &I,

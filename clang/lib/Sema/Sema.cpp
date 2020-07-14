@@ -159,9 +159,8 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
           LangOpts.getMSPointerToMemberRepresentationMethod()),
       VtorDispStack(LangOpts.getVtorDispMode()), PackStack(0),
       DataSegStack(nullptr), BSSSegStack(nullptr), ConstSegStack(nullptr),
-      CodeSegStack(nullptr), FpPragmaStack(CurFPFeatures.getAsOpaqueInt()),
-      CurInitSeg(nullptr), VisContext(nullptr),
-      PragmaAttributeCurrentTargetDecl(nullptr),
+      CodeSegStack(nullptr), FpPragmaStack(0xffffffff), CurInitSeg(nullptr),
+      VisContext(nullptr), PragmaAttributeCurrentTargetDecl(nullptr),
       IsBuildingRecoveryCallExpr(false), Cleanup{}, LateTemplateParser(nullptr),
       LateTemplateParserCleanup(nullptr), OpaqueParser(nullptr), IdResolver(pp),
       StdExperimentalNamespaceCache(nullptr), StdInitializerList(nullptr),
@@ -299,6 +298,20 @@ void Sema::Initialize() {
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
   addImplicitTypedef(SEMA_STRINGIZE(__ocl_##ImgType##_##Suffix##_t),           \
                      Context.SingletonId);
+#include "clang/Basic/OpenCLImageTypes.def"
+#undef SEMA_STRINGIZE
+  }
+
+  if (getLangOpts().SYCLIsDevice || getLangOpts().OpenCL) {
+#ifdef SEMA_STRINGIZE
+#error "Undefine SEMA_STRINGIZE macro."
+#endif
+#define SEMA_STRINGIZE(s) #s
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  addImplicitTypedef(SEMA_STRINGIZE(__ocl_sampled_##ImgType##_##Suffix##_t),   \
+                     Context.Sampled##SingletonId);
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
 #include "clang/Basic/OpenCLImageTypes.def"
 #undef SEMA_STRINGIZE
   }

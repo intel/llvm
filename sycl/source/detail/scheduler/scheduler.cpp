@@ -156,18 +156,33 @@ void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
 }
 
 void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
+  MemObjRecord *Record = nullptr;
   std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
-  lockSharedTimedMutex(Lock);
 
-  MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
-  if (!Record)
-    // No operations were performed on the mem object
-    return;
+  {
+    lockSharedTimedMutex(Lock);
 
-  waitForRecordToFinish(Record);
-  MGraphBuilder.decrementLeafCountersForRecord(Record);
-  MGraphBuilder.cleanupCommandsForRecord(Record);
-  MGraphBuilder.removeRecordForMemObj(MemObj);
+    Record = MGraphBuilder.getMemObjRecord(MemObj);
+    if (!Record)
+      // No operations were performed on the mem object
+      return;
+
+    Lock.unlock();
+  }
+
+  {
+    // This only needs a shared mutex as it only involves enqueueing and
+    // awaiting for events
+    std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
+    waitForRecordToFinish(Record);
+  }
+
+  {
+    lockSharedTimedMutex(Lock);
+    MGraphBuilder.decrementLeafCountersForRecord(Record);
+    MGraphBuilder.cleanupCommandsForRecord(Record);
+    MGraphBuilder.removeRecordForMemObj(MemObj);
+  }
 }
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {

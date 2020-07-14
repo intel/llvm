@@ -7200,6 +7200,46 @@ static unsigned mapArgRegToOffsetAIX(unsigned Reg, const PPCFrameLowering *FL) {
   llvm_unreachable("Only general purpose registers expected.");
 }
 
+//   AIX ABI Stack Frame Layout:
+//
+//   Low Memory +--------------------------------------------+
+//   SP   +---> | Back chain                                 | ---+
+//        |     +--------------------------------------------+    |   
+//        |     | Saved Condition Register                   |    |
+//        |     +--------------------------------------------+    |
+//        |     | Saved Linkage Register                     |    |
+//        |     +--------------------------------------------+    | Linkage Area
+//        |     | Reserved for compilers                     |    |
+//        |     +--------------------------------------------+    |
+//        |     | Reserved for binders                       |    |
+//        |     +--------------------------------------------+    |
+//        |     | Saved TOC pointer                          | ---+
+//        |     +--------------------------------------------+
+//        |     | Parameter save area                        |
+//        |     +--------------------------------------------+
+//        |     | Alloca space                               |
+//        |     +--------------------------------------------+
+//        |     | Local variable space                       |
+//        |     +--------------------------------------------+
+//        |     | Float/int conversion temporary             |
+//        |     +--------------------------------------------+
+//        |     | Save area for AltiVec registers            |
+//        |     +--------------------------------------------+
+//        |     | AltiVec alignment padding                  |
+//        |     +--------------------------------------------+
+//        |     | Save area for VRSAVE register              |
+//        |     +--------------------------------------------+
+//        |     | Save area for General Purpose registers    |
+//        |     +--------------------------------------------+
+//        |     | Save area for Floating Point registers     |
+//        |     +--------------------------------------------+
+//        +---- | Back chain                                 |
+// High Memory  +--------------------------------------------+
+//
+//  Specifications:
+//  AIX 7.2 Assembler Language Reference
+//  Subroutine linkage convention
+
 SDValue PPCTargetLowering::LowerFormalArguments_AIX(
     SDValue Chain, CallingConv::ID CallConv, bool isVarArg,
     const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &dl,
@@ -7425,6 +7465,8 @@ SDValue PPCTargetLowering::LowerCall_AIX(
     const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &dl,
     SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals,
     const CallBase *CB) const {
+  // See PPCTargetLowering::LowerFormalArguments_AIX() for a description of the
+  // AIX ABI stack frame layout.
 
   assert((CFlags.CallConv == CallingConv::C ||
           CFlags.CallConv == CallingConv::Cold ||
@@ -14241,7 +14283,7 @@ SDValue PPCTargetLowering::combineVectorShuffle(ShuffleVectorSDNode *SVN,
 
   // None of these combines are useful on big endian systems since the ISA
   // already has a big endian bias.
-  if (!Subtarget.isLittleEndian())
+  if (!Subtarget.isLittleEndian() || !Subtarget.hasVSX())
     return Res;
 
   // If this is not a shuffle of a shuffle and the first element comes from
@@ -14323,10 +14365,16 @@ SDValue PPCTargetLowering::combineVectorShuffle(ShuffleVectorSDNode *SVN,
 
   // Adjust the mask so we are pulling in the same index from the splat
   // as the index from the interesting vector in consecutive elements.
-  // Example:
+  // Example (even elements from first vector):
   // vector_shuffle<0,16,1,17,2,18,3,19,4,20,5,21,6,22,7,23> t1, <zero>
-  for (int i = 1, e = Mask.size(); i < e; i += 2)
-    ShuffV[i] = (ShuffV[i - 1] + NumElts);
+  if (Mask[0] < NumElts)
+    for (int i = 1, e = Mask.size(); i < e; i += 2)
+      ShuffV[i] = (ShuffV[i - 1] + NumElts);
+  // Example (odd elements from first vector):
+  // vector_shuffle<16,0,17,1,18,2,19,3,20,4,21,5,22,6,23,7> t1, <zero>
+  else
+    for (int i = 0, e = Mask.size(); i < e; i += 2)
+      ShuffV[i] = (ShuffV[i + 1] + NumElts);
 
   Res = DAG.getVectorShuffle(SVN->getValueType(0), dl, LHS, RHS, ShuffV);
   return Res;

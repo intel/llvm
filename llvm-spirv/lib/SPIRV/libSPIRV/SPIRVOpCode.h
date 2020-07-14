@@ -96,7 +96,9 @@ inline bool isCmpOpCode(Op OpCode) {
 
 inline bool isCvtOpCode(Op OpCode) {
   return ((unsigned)OpCode >= OpConvertFToU && (unsigned)OpCode <= OpBitcast) ||
-         OpCode == OpSatConvertSToU || OpCode == OpSatConvertUToS;
+         OpCode == OpSatConvertSToU || OpCode == OpSatConvertUToS ||
+         OpCode == OpPtrCastToCrossWorkgroupINTEL ||
+         OpCode == OpCrossWorkgroupCastToPtrINTEL;
 }
 
 inline bool isCvtToUnsignedOpCode(Op OpCode) {

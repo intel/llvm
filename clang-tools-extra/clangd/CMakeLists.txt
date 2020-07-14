@@ -36,6 +36,8 @@ add_clang_library(clangDaemon
   CollectMacros.cpp
   CompileCommands.cpp
   Compiler.cpp
+  Config.cpp
+  ConfigYAML.cpp
   Diagnostics.cpp
   DraftStore.cpp
   ExpectedTypes.cpp
@@ -100,6 +102,9 @@ add_clang_library(clangDaemon
   clangTidy
   ${LLVM_PTHREAD_LIB}
   ${ALL_CLANG_TIDY_CHECKS}
+
+  DEPENDS
+  omp_gen
   )
 
 clang_target_link_libraries(clangDaemon

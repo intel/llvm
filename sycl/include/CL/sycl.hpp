@@ -22,6 +22,7 @@
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/image.hpp>
+#include <CL/sycl/intel/atomic.hpp>
 #include <CL/sycl/intel/builtins.hpp>
 #include <CL/sycl/intel/function_pointer.hpp>
 #include <CL/sycl/intel/group_algorithm.hpp>

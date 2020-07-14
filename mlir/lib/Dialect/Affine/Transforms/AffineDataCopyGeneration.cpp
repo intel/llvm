@@ -120,8 +120,7 @@ AffineDataCopyGeneration::runOnBlock(Block *block,
   // Get to the first load, store, or for op (that is not a copy nest itself).
   auto curBegin =
       std::find_if(block->begin(), block->end(), [&](Operation &op) {
-        return (isa<AffineLoadOp>(op) || isa<AffineStoreOp>(op) ||
-                isa<AffineForOp>(op)) &&
+        return isa<AffineLoadOp, AffineStoreOp, AffineForOp>(op) &&
                copyNests.count(&op) == 0;
       });
 
@@ -171,8 +170,7 @@ AffineDataCopyGeneration::runOnBlock(Block *block,
       }
       // Get to the next load or store op after 'forOp'.
       curBegin = std::find_if(std::next(it), block->end(), [&](Operation &op) {
-        return (isa<AffineLoadOp>(op) || isa<AffineStoreOp>(op) ||
-                isa<AffineForOp>(op)) &&
+        return isa<AffineLoadOp, AffineStoreOp, AffineForOp>(op) &&
                copyNests.count(&op) == 0;
       });
       it = curBegin;
@@ -220,7 +218,7 @@ void AffineDataCopyGeneration::runOnFunction() {
     nest->walk([&](Operation *op) {
       if (auto forOp = dyn_cast<AffineForOp>(op))
         promoteIfSingleIteration(forOp);
-      else if (isa<AffineLoadOp>(op) || isa<AffineStoreOp>(op))
+      else if (isa<AffineLoadOp, AffineStoreOp>(op))
         copyOps.push_back(op);
     });
 

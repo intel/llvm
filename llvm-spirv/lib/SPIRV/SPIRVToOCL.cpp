@@ -179,7 +179,7 @@ void SPIRVToOCL::visitCallSPRIVImageQuerySize(CallInst *CI) {
            "this code can handle vector result type only");
     // get_image_dim returns int2 and int4 for 2d and 3d images respecitvely.
     const unsigned ImgDimRetEls = ImgDim == 2 ? 2 : 4;
-    VectorType *RetTy = VectorType::get(Int32Ty, ImgDimRetEls);
+    VectorType *RetTy = FixedVectorType::get(Int32Ty, ImgDimRetEls);
     GetImageSize = addCallInst(M, kOCLBuiltinName::GetImageDim, RetTy,
                                CI->getArgOperand(0), &Attributes, CI, &Mangle,
                                CI->getName(), false);
@@ -188,7 +188,7 @@ void SPIRVToOCL::visitCallSPRIVImageQuerySize(CallInst *CI) {
     if (CI->getType()->getScalarType() != Int32Ty) {
       GetImageSize = CastInst::CreateIntegerCast(
           GetImageSize,
-          VectorType::get(
+          FixedVectorType::get(
               CI->getType()->getScalarType(),
               cast<VectorType>(GetImageSize->getType())->getNumElements()),
           false, CI->getName(), CI);

@@ -1641,7 +1641,7 @@ bool LLParser::ParseOptionalParamAttrs(AttrBuilder &B) {
     }
     case lltok::kw_align: {
       MaybeAlign Alignment;
-      if (ParseOptionalAlignment(Alignment))
+      if (ParseOptionalAlignment(Alignment, true))
         return true;
       B.addAlignmentAttr(Alignment);
       continue;
@@ -2127,14 +2127,26 @@ bool LLParser::ParseOptionalFunctionMetadata(Function &F) {
 /// ParseOptionalAlignment
 ///   ::= /* empty */
 ///   ::= 'align' 4
-bool LLParser::ParseOptionalAlignment(MaybeAlign &Alignment) {
+bool LLParser::ParseOptionalAlignment(MaybeAlign &Alignment, bool AllowParens) {
   Alignment = None;
   if (!EatIfPresent(lltok::kw_align))
     return false;
   LocTy AlignLoc = Lex.getLoc();
   uint32_t Value = 0;
+
+  LocTy ParenLoc = Lex.getLoc();
+  bool HaveParens = false;
+  if (AllowParens) {
+    if (EatIfPresent(lltok::lparen))
+      HaveParens = true;
+  }
+
   if (ParseUInt32(Value))
     return true;
+
+  if (HaveParens && !EatIfPresent(lltok::rparen))
+    return Error(ParenLoc, "expected ')'");
+
   if (!isPowerOf2_32(Value))
     return Error(AlignLoc, "alignment is not a power of two");
   if (Value > Value::MaximumAlignment)
@@ -3650,9 +3662,10 @@ bool LLParser::ParseValID(ValID &ID, PerFunctionState *PFS) {
             ExplicitTypeLoc,
             "explicit pointee type doesn't match operand's pointee type");
 
-      unsigned GEPWidth = BaseType->isVectorTy()
-                              ? cast<VectorType>(BaseType)->getNumElements()
-                              : 0;
+      unsigned GEPWidth =
+          BaseType->isVectorTy()
+              ? cast<FixedVectorType>(BaseType)->getNumElements()
+              : 0;
 
       ArrayRef<Constant *> Indices(Elts.begin() + 1, Elts.end());
       for (Constant *Val : Indices) {
@@ -3660,7 +3673,7 @@ bool LLParser::ParseValID(ValID &ID, PerFunctionState *PFS) {
         if (!ValTy->isIntOrIntVectorTy())
           return Error(ID.Loc, "getelementptr index must be an integer");
         if (auto *ValVTy = dyn_cast<VectorType>(ValTy)) {
-          unsigned ValNumEl = ValVTy->getNumElements();
+          unsigned ValNumEl = cast<FixedVectorType>(ValVTy)->getNumElements();
           if (GEPWidth && (ValNumEl != GEPWidth))
             return Error(
                 ID.Loc,

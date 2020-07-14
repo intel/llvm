@@ -303,7 +303,7 @@ Type *decodeVecTypeHint(LLVMContext &C, unsigned Code) {
   }
   if (VecWidth < 1)
     return ST;
-  return VectorType::get(ST, VecWidth);
+  return FixedVectorType::get(ST, VecWidth);
 }
 
 unsigned transVecTypeHint(MDNode *Node) {
@@ -349,6 +349,10 @@ static SPIR::TypeAttributeEnum mapAddrSpaceEnums(SPIRAddressSpace Addrspace) {
     return SPIR::ATTR_LOCAL;
   case SPIRAS_Generic:
     return SPIR::ATTR_GENERIC;
+  case SPIRAS_GlobalDevice:
+    return SPIR::ATTR_GLOBAL_DEVICE;
+  case SPIRAS_GlobalHost:
+    return SPIR::ATTR_GLOBAL_HOST;
   default:
     llvm_unreachable("Invalid addrspace enum member");
   }
