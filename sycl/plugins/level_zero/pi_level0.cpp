@@ -2423,9 +2423,9 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
       if (ZeResult == ZE_RESULT_SUCCESS) {
         EventList[I]->Queue->resetCommandListFenceEntry(
             EventList[I]->ZeCommandList, true);
+        EventList[I]->ZeCommandList = nullptr;
       }
       EventList[I]->Queue->ZeCommandListFenceMapMutex.unlock();
-      EventList[I]->ZeCommandList = nullptr;
     }
   }
   return PI_SUCCESS;
