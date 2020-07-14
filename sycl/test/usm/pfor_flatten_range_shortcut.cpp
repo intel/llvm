@@ -17,39 +17,39 @@
 #include <CL/sycl.hpp>
 
 int main() {
-  int *array = nullptr;
-  const int N = 42;
-  const int MAGIC_NUM = 4;
+  constexpr int n = 42;
+  constexpr int magic_num = 4;
 
   sycl::queue q;
   auto ctxt = q.get_context();
 
-  array = (int *)sycl::malloc_host(N * sizeof(int), q);
+  int *array = (int *)sycl::malloc_host(n * sizeof(int), q);
+
   if (array == nullptr) {
     return -1;
   }
 
-  auto e1 = q.parallel_for(N, [=](auto item) {
+  auto e1 = q.parallel_for(n, [=](auto item) {
     array[item] = 1;
   });
 
-  auto e2 = q.parallel_for({N}, e1, [=](auto item) {
+  auto e2 = q.parallel_for({n}, e1, [=](auto item) {
     array[item] += 2;
   });
 
-  q.parallel_for(N, {e1, e2}, [=](auto item) {
+  q.parallel_for(n, {e1, e2}, [=](auto item) {
     array[item]++;
   });
 
   q.wait();
 
-  for (int i = 0; i < N; i++) {
-    if (array[i] != MAGIC_NUM) {
-      assert(array[i] == MAGIC_NUM);
+  for (int i = 0; i < n; i++) {
+    if (array[i] != magic_num) {
+      assert(array[i] == magic_num);
     }
   }
 
-  free(array, ctxt);
+  sycl::free(array, ctxt);
 
   return 0;
 }

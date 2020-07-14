@@ -109,11 +109,14 @@ int main() {
 
   test_number_braced_init_list(q);
 
+  // We need to get to event for further API testsing
+  // Getting them with two same calls
   auto e1 = q.parallel_for<class Event1>(1, [=](auto i) {
     static_assert(std::is_same<decltype(i), sycl::item<1>>::value,
                   "lambda arg type is unexpected");
   });
 
+  // Getting the second event for further API calling
   auto e2 = q.parallel_for<class Event2>(1, [=](auto i) {
     static_assert(std::is_same<decltype(i), sycl::item<1>>::value,
                   "lambda arg type is unexpected");
