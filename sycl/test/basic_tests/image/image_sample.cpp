@@ -1,8 +1,12 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// XFAIL: level0
-// "die: piextKernelSetArgSampler: not implemented"
+// XFAIL: cuda
+
+/*
+    XFAIL CUDA due to driver bug.
+    Newer CUDA drivers cannot build valid programs here, failing with CUDA_ERROR_NOT_FOUND.
+*/
 
 #include <CL/sycl.hpp>
 
