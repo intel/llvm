@@ -41,10 +41,8 @@ class test_3d_read_class;
 namespace s = cl::sycl;
 
 template <typename dataT, typename coordT, s::image_channel_type channelType>
-bool test1d_coord(dataT *hostPtr, coordT coord, dataT colour) {
+bool test1d_coord(s::queue myQueue, dataT *hostPtr, coordT coord, dataT colour) {
   dataT resultData;
-
-  s::default_selector selector;
 
   { // Scope everything to force destruction
     s::image<1> image(hostPtr, s::image_channel_order::rgba,
@@ -52,9 +50,6 @@ bool test1d_coord(dataT *hostPtr, coordT coord, dataT colour) {
 
     s::buffer<dataT, 1> resultDataBuf(&resultData,
                                       s::range<1>(1));
-
-    // Do the test by reading a single pixel from the image
-    s::queue myQueue(selector);
 
     myQueue.submit([&](s::handler &cgh) {
       auto imageAcc = image.get_access<dataT, s::access::mode::write>(cgh);
@@ -93,10 +88,8 @@ bool test1d_coord(dataT *hostPtr, coordT coord, dataT colour) {
 }
 
 template <typename dataT, typename coordT, s::image_channel_type channelType>
-bool test2d_coord(dataT *hostPtr, coordT coord, dataT colour) {
+bool test2d_coord(s::queue myQueue, dataT *hostPtr, coordT coord, dataT colour) {
   dataT resultData;
-
-  s::default_selector selector;
 
   { // Scope everything to force destruction
     s::image<2> image(hostPtr, s::image_channel_order::rgba,
@@ -104,9 +97,6 @@ bool test2d_coord(dataT *hostPtr, coordT coord, dataT colour) {
 
     s::buffer<dataT, 1> resultDataBuf(&resultData,
                                       s::range<1>(1));
-
-    // Do the test by reading a single pixel from the image
-    s::queue myQueue(selector);
 
     myQueue.submit([&](s::handler &cgh) {
       auto imageAcc = image.get_access<dataT, s::access::mode::write>(cgh);
@@ -146,7 +136,7 @@ bool test2d_coord(dataT *hostPtr, coordT coord, dataT colour) {
 }
 
 template <typename dataT, typename coordT, s::image_channel_type channelType>
-bool test3d_coord(dataT *hostPtr, coordT coord, dataT colour) {
+bool test3d_coord(s::queue myQueue, dataT *hostPtr, coordT coord, dataT colour) {
   dataT resultData;
 
   s::default_selector selector;
@@ -157,9 +147,6 @@ bool test3d_coord(dataT *hostPtr, coordT coord, dataT colour) {
 
     s::buffer<dataT, 1> resultDataBuf(&resultData,
                                       s::range<1>(1));
-
-    // Do the test by reading a single pixel from the image
-    s::queue myQueue(selector);
 
     myQueue.submit([&](s::handler &cgh) {
       auto imageAcc = image.get_access<dataT, s::access::mode::write>(cgh);
@@ -198,69 +185,69 @@ bool test3d_coord(dataT *hostPtr, coordT coord, dataT colour) {
 }
 
 template <typename dataT, typename coordT, s::image_channel_type channelType>
-bool test1d(coordT coord, dataT colour) {
+bool test1d(s::queue myQueue, coordT coord, dataT colour) {
   dataT hostPtr[3];
   memset(&hostPtr, 0, sizeof(dataT) * 3);
-  return test1d_coord<dataT, coordT, channelType>(hostPtr, coord, colour);
+  return test1d_coord<dataT, coordT, channelType>(myQueue, hostPtr, coord, colour);
 }
 
 template <typename dataT, typename coordT, s::image_channel_type channelType>
-bool test2d(coordT coord, dataT colour) {
+bool test2d(s::queue myQueue, coordT coord, dataT colour) {
   dataT hostPtr[9];
   memset(&hostPtr, 0, sizeof(dataT) * 9);
-  return test2d_coord<dataT, coordT, channelType>(hostPtr, coord, colour);
+  return test2d_coord<dataT, coordT, channelType>(myQueue, hostPtr, coord, colour);
 }
 
 template <typename dataT, typename coordT, s::image_channel_type channelType>
-bool test3d(coordT coord, dataT colour) {
+bool test3d(s::queue myQueue, coordT coord, dataT colour) {
   dataT hostPtr[27];
   memset(&hostPtr, 0, sizeof(dataT) * 27);
-  return test3d_coord<dataT, coordT, channelType>(hostPtr, coord, colour);
+  return test3d_coord<dataT, coordT, channelType>(myQueue, hostPtr, coord, colour);
 }
 
 template <typename dataT, s::image_channel_type channelType>
-bool test() {
+bool test(s::queue myQueue) {
   bool passed = true;
 
   // 1d image tests
-  if (!test1d<dataT, int, channelType>(0, dataT(0, 20, 40, 60)))
+  if (!test1d<dataT, int, channelType>(myQueue, 0, dataT(0, 20, 40, 60)))
     passed = false;
-  if (!test1d<dataT, int, channelType>(1, dataT(1, 21, 41, 61)))
+  if (!test1d<dataT, int, channelType>(myQueue, 1, dataT(1, 21, 41, 61)))
     passed = false;
-  if (!test1d<dataT, int, channelType>(2, dataT(2, 22, 42, 62)))
+  if (!test1d<dataT, int, channelType>(myQueue, 2, dataT(2, 22, 42, 62)))
     passed = false;
 
   // 2d image tests
-  if (!test2d<dataT, s::int2, channelType>(s::int2(0, 0), dataT(0, 20, 40, 60)))
+  if (!test2d<dataT, s::int2, channelType>(myQueue, s::int2(0, 0), dataT(0, 20, 40, 60)))
     passed = false;
-  if (!test2d<dataT, s::int2, channelType>(s::int2(1, 0), dataT(1, 21, 41, 61)))
+  if (!test2d<dataT, s::int2, channelType>(myQueue, s::int2(1, 0), dataT(1, 21, 41, 61)))
     passed = false;
-  if (!test2d<dataT, s::int2, channelType>(s::int2(0, 1), dataT(3, 23, 43, 63)))
+  if (!test2d<dataT, s::int2, channelType>(myQueue, s::int2(0, 1), dataT(3, 23, 43, 63)))
     passed = false;
-  if (!test2d<dataT, s::int2, channelType>(s::int2(1, 1), dataT(4, 24, 44, 64)))
+  if (!test2d<dataT, s::int2, channelType>(myQueue, s::int2(1, 1), dataT(4, 24, 44, 64)))
     passed = false;
 
   // 3d image tests
-  if (!test3d<dataT, s::int4, channelType>(
-          s::int4(0, 0, 0, 0), dataT(0, 20, 40, 60)))
+  if (!test3d<dataT, s::int4, channelType>(myQueue,
+                                           s::int4(0, 0, 0, 0), dataT(0, 20, 40, 60)))
     passed = false;
-  if (!test3d<dataT, s::int4, channelType>(
-          s::int4(1, 0, 0, 0), dataT(1, 21, 41, 61)))
+  if (!test3d<dataT, s::int4, channelType>(myQueue,
+                                           s::int4(1, 0, 0, 0), dataT(1, 21, 41, 61)))
     passed = false;
-  if (!test3d<dataT, s::int4, channelType>(
-          s::int4(0, 1, 0, 0), dataT(3, 23, 43, 63)))
+  if (!test3d<dataT, s::int4, channelType>(myQueue,
+                                           s::int4(0, 1, 0, 0), dataT(3, 23, 43, 63)))
     passed = false;
-  if (!test3d<dataT, s::int4, channelType>(
-          s::int4(1, 1, 0, 0), dataT(4, 24, 44, 64)))
+  if (!test3d<dataT, s::int4, channelType>(myQueue,
+                                           s::int4(1, 1, 0, 0), dataT(4, 24, 44, 64)))
     passed = false;
-  if (!test3d<dataT, s::int4, channelType>(
-          s::int4(1, 0, 1, 0), dataT(10, 30, 50, 70)))
+  if (!test3d<dataT, s::int4, channelType>(myQueue,
+                                           s::int4(1, 0, 1, 0), dataT(10, 30, 50, 70)))
     passed = false;
-  if (!test3d<dataT, s::int4, channelType>(
-          s::int4(0, 1, 1, 0), dataT(12, 32, 52, 72)))
+  if (!test3d<dataT, s::int4, channelType>(myQueue,
+                                           s::int4(0, 1, 1, 0), dataT(12, 32, 52, 72)))
     passed = false;
-  if (!test3d<dataT, s::int4, channelType>(
-          s::int4(1, 1, 1, 0), dataT(13, 33, 53, 73)))
+  if (!test3d<dataT, s::int4, channelType>(myQueue,
+                                           s::int4(1, 1, 1, 0), dataT(13, 33, 53, 73)))
     passed = false;
 
   return passed;
@@ -268,22 +255,27 @@ bool test() {
 
 int main() {
 
+  s::default_selector selector;
+  s::queue myQueue(selector);
+
   bool passed = true;
 
-  // Half image
-  if (!test<s::half4, s::image_channel_type::fp16>())
-    passed = false;
+  if (myQueue.get_device().has_extension("cl_khr_fp16")) {
+    // Half image
+    if (!test<s::half4, s::image_channel_type::fp16>(myQueue))
+      passed = false;
+  }
 
   // Float image
-  if (!test<s::float4, s::image_channel_type::fp32>())
+  if (!test<s::float4, s::image_channel_type::fp32>(myQueue))
     passed = false;
 
   // 32-bit signed integer image
-  if (!test<s::int4, s::image_channel_type::signed_int32>())
+  if (!test<s::int4, s::image_channel_type::signed_int32>(myQueue))
     passed = false;
 
   // 32-bit unsigned integer image
-  if (!test<s::uint4, s::image_channel_type::unsigned_int32>())
+  if (!test<s::uint4, s::image_channel_type::unsigned_int32>(myQueue))
     passed = false;
 
   return passed ? 0 : -1;
