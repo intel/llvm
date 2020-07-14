@@ -18,7 +18,7 @@ void Class::function() {
   kernel<class kernel_wrapper>(
       [=]() {
         int acc[1] = {5};
-        acc[0] *= member; // expected-error{{implicit capture of 'this' with a capture default of '=' is not allowed for kernel functions in SYCL 1.2.1}}
+        acc[0] *= member; // expected-error{{implicit capture of 'this' is not allowed for kernel functions in SYCL 1.2.1}}
       });
 }
 

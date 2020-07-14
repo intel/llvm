@@ -1653,9 +1653,6 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   StringRef KernelName(getLangOpts().SYCLUnnamedLambda ? StableName
                                                        : CalculatedName);
   if (KernelLambda->isLambda()) {
-    llvm::DenseMap<const VarDecl *, FieldDecl *> Captures;
-    FieldDecl *ThisCapture;
-    KernelLambda->getCaptureFields(Captures, ThisCapture);
     for (const LambdaCapture &LC : KernelLambda->captures()) {
       if (LC.capturesThis() && LC.isImplicit()) {
         Diag(LC.getLocation(), diag::err_implicit_this_capture);
