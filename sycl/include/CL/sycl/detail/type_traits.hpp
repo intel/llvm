@@ -19,7 +19,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 template <int Dimensions> class group;
 namespace intel {
-class sub_group;
+struct sub_group;
 } // namespace intel
 namespace detail {
 namespace half_impl {
