@@ -67,7 +67,7 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
 
 int main() {
   queue Queue;
-  if (!core_sg_supported(Queue.get_device())) {
+  if (!Queue.get_device().has_extension("cl_intel_subgroups")) {
     std::cout << "Skipping test\n";
     return 0;
   }
