@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/device_binary_image.hpp>
 #include <CL/sycl/detail/export.hpp>
@@ -17,6 +16,7 @@
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/stl.hpp>
 
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <unordered_map>
@@ -43,9 +43,11 @@ namespace detail {
 class context_impl;
 using ContextImplPtr = std::shared_ptr<context_impl>;
 class program_impl;
-
-enum DeviceLibExt {
-  cl_intel_devicelib_assert = 0,
+// DeviceLibExt is shared between sycl runtime and sycl-post-link tool.
+// If any update is made here, need to sync with DeviceLibExt definition
+// in llvm/tools/sycl-post-link/sycl-post-link.cpp
+enum class DeviceLibExt : std::uint32_t {
+  cl_intel_devicelib_assert,
   cl_intel_devicelib_math,
   cl_intel_devicelib_math_fp64,
   cl_intel_devicelib_complex,
@@ -106,6 +108,7 @@ public:
   void flushSpecConstants(const program_impl &Prg,
                           pi::PiProgram NativePrg = nullptr,
                           const RTDeviceBinaryImage *Img = nullptr);
+  uint32_t getDeviceLibReqMask(const RTDeviceBinaryImage &Img);
 
 private:
   ProgramManager();
@@ -123,7 +126,7 @@ private:
                    const string_class &LinkOptions,
                    const std::vector<RT::PiDevice> &Devices,
                    std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms,
-                   bool LinkDeviceLibs = false);
+                   uint32_t DeviceLibReqMask);
   /// Provides a new kernel set id for grouping kernel names together
   KernelSetId getNextKernelSetId() const;
   /// Returns the kernel set associated with the kernel, handles some special
