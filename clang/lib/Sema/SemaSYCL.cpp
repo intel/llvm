@@ -1885,8 +1885,8 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       constructKernelName(*this, KernelCallerFunc, MC);
   StringRef KernelName(getLangOpts().SYCLUnnamedLambda ? StableName
                                                        : CalculatedName);
-  if (KernelLambda->isLambda()) {
-    for (const LambdaCapture &LC : KernelLambda->captures()) {
+  if (KernelObj->isLambda()) {
+    for (const LambdaCapture &LC : KernelObj->captures()) {
       if (LC.capturesThis() && LC.isImplicit()) {
         Diag(LC.getLocation(), diag::err_implicit_this_capture);
       }
