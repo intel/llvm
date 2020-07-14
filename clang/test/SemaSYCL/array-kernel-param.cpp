@@ -60,6 +60,11 @@ int main() {
 
   a_kernel<class kernel_D>(
       [=]() {
+        foo local = struct_array[1];
+      });
+
+  a_kernel<class kernel_E>(
+      [=]() {
         int local = s.a[2];
       });
 }
@@ -120,14 +125,103 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}}__init
 
 // Check kernel_D parameters
-// CHECK: FunctionDecl {{.*}}kernel_D{{.*}} 'void (int, int, int)'
+// CHECK: FunctionDecl {{.*}}kernel_D{{.*}} 'void (int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int)'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_a 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_x 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_y 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_x 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_y 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_c 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_a 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_x 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_y 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_x 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_y 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_inner_z 'int'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_c 'int'
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: DeclStmt
+// CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}array-kernel-param.cpp{{.*}})' cinit
+// CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp{{.*}})'
+
+// Initializer for struct array i.e. foo struct_array[2]
+// CHECK-NEXT: InitListExpr {{.*}} 'foo [2]'
+
+// Initializer for first element of struct_array
+// CHECK-NEXT: InitListExpr {{.*}} 'foo'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_a' 'int'
+// Initializer for struct array inside foo i.e. foo_inner foo_b[2]
+// CHECK-NEXT: InitListExpr {{.*}} 'foo_inner [2]'
+// Initializer for first element of inner struct array
+// CHECK-NEXT: InitListExpr {{.*}} 'foo_inner'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_x' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_y' 'int'
+// CHECK-NEXT: InitListExpr {{.*}} 'int [2]'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
+// Initializer for second element of inner struct array
+// CHECK-NEXT: InitListExpr {{.*}} 'foo_inner'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_x' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_y' 'int'
+// CHECK-NEXT: InitListExpr {{.*}} 'int [2]'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_c' 'int'
+
+// Initializer for second element of struct_array
+// CHECK-NEXT: InitListExpr {{.*}} 'foo'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_a' 'int'
+// CHECK-NEXT: InitListExpr {{.*}} 'foo_inner [2]'
+// CHECK-NEXT: InitListExpr {{.*}} 'foo_inner'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_x' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_y' 'int'
+// CHECK-NEXT: InitListExpr {{.*}} 'int [2]'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
+// CHECK-NEXT: InitListExpr {{.*}} 'foo_inner'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_x' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_y' 'int'
+// CHECK-NEXT: InitListExpr {{.*}} 'int [2]'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_inner_z' 'int'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_c' 'int'
+
+// Check kernel_E parameters
+// CHECK: FunctionDecl {{.*}}kernel_E{{.*}} 'void (int, int, int)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_a 'int':'int'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_a 'int':'int'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_a 'int':'int'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}array-kernel-param.cpp:62:7)' cinit
-// CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp:62:7)'
+// CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}array-kernel-param.cpp:67:7)' cinit
+// CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp:67:7)'
 // CHECK-NEXT: InitListExpr {{.*}} 'S<int>'
 // CHECK-NEXT: InitListExpr {{.*}} 'int [3]'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int':'int'
