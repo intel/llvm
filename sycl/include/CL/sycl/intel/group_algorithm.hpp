@@ -461,7 +461,7 @@ EnableIfIsNonNativeOp<T, BinaryOperation> reduce(Group g, T x,
   T result = x;
   for (int mask = 1; mask < g.get_max_local_range()[0]; mask *= 2) {
     T tmp = g.shuffle_xor(result, id<1>(mask));
-    if (g.get_local_id()[0] ^ mask < g.get_local_range()[0]) {
+    if ((g.get_local_id()[0] ^ mask) < g.get_local_range()[0]) {
       result = op(result, tmp);
     }
   }
@@ -524,7 +524,7 @@ EnableIfIsNonNativeOp<T, BinaryOperation> reduce(Group g, V x, T init,
   T result = x;
   for (int mask = 1; mask < g.get_max_local_range()[0]; mask *= 2) {
     T tmp = g.shuffle_xor(result, id<1>(mask));
-    if (g.get_local_id()[0] ^ mask < g.get_local_range()[0]) {
+    if ((g.get_local_id()[0] ^ mask) < g.get_local_range()[0]) {
       result = op(result, tmp);
     }
   }
