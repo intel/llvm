@@ -275,6 +275,22 @@ public:
     return multi_ptr(m_Pointer - r);
   }
 
+  // Explicit conversion to global_space
+  // Only available if Space == address_space::global_device_space ||
+  // Space == address_space::global_host_space
+  template <access::address_space _Space = Space,
+            typename = typename std::enable_if<
+                _Space == Space &&
+                (Space == access::address_space::global_device_space ||
+                 Space == access::address_space::global_host_space)>::type>
+  explicit
+  operator multi_ptr<ElementType, access::address_space::global_space>() const {
+    using global_pointer_t = typename detail::PtrValueType<
+        ElementType, access::address_space::global_space>::type *;
+    return multi_ptr<ElementType, access::address_space::global_space>(
+        reinterpret_cast<global_pointer_t>(m_Pointer));
+  }
+
   // Only if Space == global_space
   template <access::address_space _Space = Space,
             typename = typename std::enable_if<

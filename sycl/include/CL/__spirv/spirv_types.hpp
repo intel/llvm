@@ -84,6 +84,9 @@ struct ConstantPipeStorage {
   int32_t _PacketAlignment;
   int32_t _Capacity;
 };
+
+// Arbitrary precision integer type
+template <int Bits> using ap_int = _ExtInt(Bits);
 #endif // __SYCL_DEVICE_ONLY__
 
 // This class does not have definition, it is only predeclared here.

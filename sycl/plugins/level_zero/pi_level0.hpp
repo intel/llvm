@@ -346,9 +346,6 @@ struct _pi_sampler : _pi_object {
   _pi_sampler(ze_sampler_handle_t Sampler) : ZeSampler{Sampler} {}
 
   // L0 sampler handle.
-  // TODO: It is important that L0 handler is the first data member. Workaround
-  // in SYCL RT (in ExecCGCommand::enqueueImp()) relies on this. This comment
-  // should be removed when workaround in SYCL runtime will be removed.
   ze_sampler_handle_t ZeSampler;
 };
 

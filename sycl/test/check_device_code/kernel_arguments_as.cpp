@@ -5,7 +5,7 @@
 //
 // CHECK: %struct{{.*}}AccWrapper = type { %"class{{.*}}cl::sycl::accessor" }
 // CHECK: %"class{{.*}}cl::sycl::accessor" = type { %"class{{.*}}AccessorImplDevice", %[[UNION:.*]] }
-// CHECK: %[[UNION]] = type { i32 addrspace(1)* }
+// CHECK: %[[UNION]] = type { i32 addrspace(5)* }
 // CHECK: %struct{{.*}}AccWrapper = type { %"class{{.*}}cl::sycl::accessor" }
 // CHECK-NEXT: %"class{{.*}}cl::sycl::accessor" = type { %"class{{.*}}LocalAccessorBaseDevice", i32 addrspace(3)* }
 //

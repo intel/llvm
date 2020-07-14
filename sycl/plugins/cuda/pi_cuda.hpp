@@ -176,28 +176,47 @@ private:
   std::vector<deleter_data> extended_deleters_;
 };
 
-/// PI Mem mapping to a CUDA memory allocation
-///
+/// PI Mem mapping to CUDA memory allocations, both data and texture/surface.
+/// \brief Represents non-SVM allocations on the CUDA backend.
+/// Keeps tracks of all mapped regions used for Map/Unmap calls.
+/// Only one region can be active at the same time per allocation.
 struct _pi_mem {
 
   // TODO: Move as much shared data up as possible
   using pi_context = _pi_context *;
 
+  // Context where the memory object is accessibles
   pi_context context_;
+
+  /// Reference counting of the handler
   std::atomic_uint32_t refCount_;
   enum class mem_type { buffer, surface } mem_type_;
 
+  /// A PI Memory object represents either plain memory allocations ("Buffers"
+  /// in OpenCL) or typed allocations ("Images" in OpenCL).
+  /// In CUDA their API handlers are different. Whereas "Buffers" are allocated
+  /// as pointer-like structs, "Images" are stored in Textures or Surfaces
+  /// This union allows implementation to use either from the same handler.
   union mem_ {
+    // Handler for plain, pointer-based CUDA allocations
     struct buffer_mem_ {
       using native_type = CUdeviceptr;
 
+      // If this allocation is a sub-buffer (i.e., a view on an existing
+      // allocation), this is the pointer to the parent handler structure
       pi_mem parent_;
+      // CUDA handler for the pointer
       native_type ptr_;
-      void *hostPtr_;
-      size_t size_;
 
+      /// Pointer associated with this device on the host
+      void *hostPtr_;
+      /// Size of the allocation in bytes
+      size_t size_;
+      /// Offset of the active mapped region.
       size_t mapOffset_;
+      /// Pointer to the active mapped region, if any
       void *mapPtr_;
+      /// Original flags for the mapped region
       cl_map_flags mapFlags_;
 
       /** alloc_mode
@@ -222,6 +241,10 @@ struct _pi_mem {
 
       size_t get_map_offset(void *ptr) const noexcept { return mapOffset_; }
 
+      /// Returns a pointer to data visible on the host that contains
+      /// the data on the device associated with this allocation.
+      /// The offset is used to index into the CUDA allocation.
+      ///
       void *map_to_ptr(size_t offset, cl_map_flags flags) noexcept {
         assert(mapPtr_ == nullptr);
         mapOffset_ = offset;
@@ -235,6 +258,7 @@ struct _pi_mem {
         return mapPtr_;
       }
 
+      /// Detach the allocation from the host memory.
       void unmap(void *ptr) noexcept {
         assert(mapPtr_ != nullptr);
 
@@ -251,6 +275,7 @@ struct _pi_mem {
       }
     } buffer_mem_;
 
+    // Handler data for surface object (i.e. Images)
     struct surface_mem_ {
       CUarray array_;
       CUsurfObject surfObj_;
@@ -264,7 +289,7 @@ struct _pi_mem {
     } surface_mem_;
   } mem_;
 
-  // Buffer constructor
+  /// Constructs the PI MEM handler for a non-typed allocation ("buffer")
   _pi_mem(pi_context ctxt, pi_mem parent, mem_::buffer_mem_::alloc_mode mode,
           CUdeviceptr ptr, void *host_ptr, size_t size)
       : context_{ctxt}, refCount_{1}, mem_type_{mem_type::buffer} {
@@ -283,7 +308,7 @@ struct _pi_mem {
     }
   };
 
-  // Surface constructor
+  /// Constructs the PI allocation for an Image object (surface in CUDA)
   _pi_mem(pi_context ctxt, CUarray array, CUsurfObject surf,
           pi_mem_type image_type, void *host_ptr)
       : context_{ctxt}, refCount_{1}, mem_type_{mem_type::surface} {

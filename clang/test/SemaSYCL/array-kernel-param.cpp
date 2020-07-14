@@ -29,6 +29,20 @@ int main() {
   } struct_acc;
   S<int> s;
 
+  struct foo_inner {
+    int foo_inner_x;
+    int foo_inner_y;
+    int foo_inner_z[2];
+  };
+
+  struct foo {
+    int foo_a;
+    foo_inner foo_b[2];
+    int foo_c;
+  };
+
+  foo struct_array[2];
+
   a_kernel<class kernel_A>(
       [=]() {
         acc[1].use();

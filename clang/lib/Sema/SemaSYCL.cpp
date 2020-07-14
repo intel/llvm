@@ -937,7 +937,7 @@ void KernelObjVisitor::VisitRecord(CXXRecordDecl *Owner, ParentTy &Parent,
 
 // A base type that the SYCL OpenCL Kernel construction task uses to implement
 // individual tasks.
-template <typename Derived> class SyclKernelFieldHandler {
+class SyclKernelFieldHandler {
 protected:
   Sema &SemaRef;
   SyclKernelFieldHandler(Sema &S) : SemaRef(S) {}
@@ -1003,11 +1003,12 @@ public:
   virtual bool enterArray() { return true; }
   virtual bool nextElement(QualType) { return true; }
   virtual bool leaveArray(FieldDecl *, QualType, int64_t) { return true; }
+
+  virtual ~SyclKernelFieldHandler() = default;
 };
 
 // A type to check the validity of all of the argument types.
-class SyclKernelFieldChecker
-    : public SyclKernelFieldHandler<SyclKernelFieldChecker> {
+class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   bool IsInvalid = false;
   DiagnosticsEngine &Diag;
 
@@ -1104,8 +1105,7 @@ public:
 };
 
 // A type to Create and own the FunctionDecl for the kernel.
-class SyclKernelDeclCreator
-    : public SyclKernelFieldHandler<SyclKernelDeclCreator> {
+class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   FunctionDecl *KernelDecl;
   llvm::SmallVector<ParmVarDecl *, 8> Params;
   SyclKernelFieldChecker &ArgChecker;
@@ -1247,7 +1247,11 @@ public:
     // space, because OpenCL requires it.
     QualType PointeeTy = FieldTy->getPointeeType();
     Qualifiers Quals = PointeeTy.getQualifiers();
-    Quals.setAddressSpace(LangAS::opencl_global);
+    auto AS = Quals.getAddressSpace();
+    // Leave global_device and global_host address spaces as is to help FPGA
+    // device in memory allocations
+    if (AS != LangAS::opencl_global_device && AS != LangAS::opencl_global_host)
+      Quals.setAddressSpace(LangAS::opencl_global);
     PointeeTy = SemaRef.getASTContext().getQualifiedType(
         PointeeTy.getUnqualifiedType(), Quals);
     QualType ModTy = SemaRef.getASTContext().getPointerType(PointeeTy);
@@ -1289,8 +1293,7 @@ public:
   using SyclKernelFieldHandler::handleSyclSamplerType;
 };
 
-class SyclKernelBodyCreator
-    : public SyclKernelFieldHandler<SyclKernelBodyCreator> {
+class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   SyclKernelDeclCreator &DeclCreator;
   llvm::SmallVector<Stmt *, 16> BodyStmts;
   llvm::SmallVector<Stmt *, 16> FinalizeStmts;
@@ -1598,9 +1601,6 @@ public:
   }
 
   void addStructInit(const CXXRecordDecl *RD) {
-    if (!RD)
-      return;
-
     const ASTRecordLayout &Info =
         SemaRef.getASTContext().getASTRecordLayout(RD);
     int NumberOfFields = Info.getFieldCount();
@@ -1621,7 +1621,10 @@ public:
   }
 
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD) final {
-    const CXXRecordDecl *RD = FD->getType()->getAsCXXRecordDecl();
+    // Handle struct when kernel object field is struct type or array of
+    // structs.
+    const CXXRecordDecl *RD =
+        FD->getType()->getBaseElementTypeUnsafe()->getAsCXXRecordDecl();
 
     // Initializers for accessors inside stream not added.
     if (!Util::isSyclStreamType(FD->getType()))
@@ -1699,12 +1702,8 @@ public:
   using SyclKernelFieldHandler::leaveStruct;
 };
 
-class SyclKernelIntHeaderCreator
-    : public SyclKernelFieldHandler<SyclKernelIntHeaderCreator> {
+class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   SYCLIntegrationHeader &Header;
-  const CXXRecordDecl *KernelObj;
-  // Necessary to figure out the offset of the base class.
-  const CXXRecordDecl *CurStruct = nullptr;
   int64_t CurOffset = 0;
 
   void addParam(const FieldDecl *FD, QualType ArgTy,
@@ -1723,7 +1722,7 @@ public:
   SyclKernelIntHeaderCreator(Sema &S, SYCLIntegrationHeader &H,
                              const CXXRecordDecl *KernelObj, QualType NameType,
                              StringRef Name, StringRef StableName)
-      : SyclKernelFieldHandler(S), Header(H), KernelObj(KernelObj) {
+      : SyclKernelFieldHandler(S), Header(H) {
     Header.startKernel(Name, NameType, StableName, KernelObj->getLocation());
   }
 
@@ -2123,13 +2122,19 @@ static const char *paramKind2Str(KernelParamKind K) {
 #undef CASE
 }
 
-// Removes all "(anonymous namespace)::" substrings from given string
-static std::string eraseAnonNamespace(std::string S) {
+// Removes all "(anonymous namespace)::" substrings from given string, and emits
+// it.
+static void emitWithoutAnonNamespaces(llvm::raw_ostream &OS, StringRef Source) {
   const char S1[] = "(anonymous namespace)::";
 
-  for (auto Pos = S.find(S1); Pos != StringRef::npos; Pos = S.find(S1, Pos))
-    S.erase(Pos, sizeof(S1) - 1);
-  return S;
+  size_t Pos;
+
+  while ((Pos = Source.find(S1)) != StringRef::npos) {
+    OS << Source.take_front(Pos);
+    Source = Source.drop_front(Pos + sizeof(S1) - 1);
+  }
+
+  OS << Source;
 }
 
 static bool checkEnumTemplateParameter(const EnumDecl *ED,
@@ -2378,19 +2383,19 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
   }
 }
 
-static std::string getCPPTypeString(QualType Ty) {
+static void emitCPPTypeString(raw_ostream &OS, QualType Ty) {
   LangOptions LO;
   PrintingPolicy P(LO);
   P.SuppressTypedefs = true;
-  return eraseAnonNamespace(Ty.getAsString(P));
+  emitWithoutAnonNamespaces(OS, Ty.getAsString(P));
 }
 
 static void printArguments(ASTContext &Ctx, raw_ostream &ArgOS,
                            ArrayRef<TemplateArgument> Args,
                            const PrintingPolicy &P);
 
-static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
-                                           const PrintingPolicy &TypePolicy);
+static void emitKernelNameType(QualType T, ASTContext &Ctx, raw_ostream &OS,
+                               const PrintingPolicy &TypePolicy);
 
 static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
                           TemplateArgument Arg, const PrintingPolicy &P) {
@@ -2421,7 +2426,8 @@ static void printArgument(ASTContext &Ctx, raw_ostream &ArgOS,
     TypePolicy.SuppressTypedefs = true;
     TypePolicy.SuppressTagKeyword = true;
     QualType T = Arg.getAsType();
-    ArgOS << getKernelNameTypeString(T, Ctx, TypePolicy);
+
+    emitKernelNameType(T, Ctx, ArgOS, TypePolicy);
     break;
   }
   case TemplateArgument::ArgKind::Template: {
@@ -2459,42 +2465,46 @@ static void printTemplateArguments(ASTContext &Ctx, raw_ostream &ArgOS,
   ArgOS << ">";
 }
 
-static std::string printRecordType(QualType T, const CXXRecordDecl *RD,
-                                   const PrintingPolicy &TypePolicy) {
+static void emitRecordType(raw_ostream &OS, QualType T, const CXXRecordDecl *RD,
+                           const PrintingPolicy &TypePolicy) {
   SmallString<64> Buf;
-  llvm::raw_svector_ostream OS(Buf);
-  T.getCanonicalType().getQualifiers().print(OS, TypePolicy,
+  llvm::raw_svector_ostream RecOS(Buf);
+  T.getCanonicalType().getQualifiers().print(RecOS, TypePolicy,
                                              /*appendSpaceIfNotEmpty*/ true);
   if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
 
     // Print template class name
-    TSD->printQualifiedName(OS, TypePolicy, /*WithGlobalNsPrefix*/ true);
+    TSD->printQualifiedName(RecOS, TypePolicy, /*WithGlobalNsPrefix*/ true);
 
     // Print template arguments substituting enumerators
     ASTContext &Ctx = RD->getASTContext();
     const TemplateArgumentList &Args = TSD->getTemplateArgs();
-    printTemplateArguments(Ctx, OS, Args.asArray(), TypePolicy);
+    printTemplateArguments(Ctx, RecOS, Args.asArray(), TypePolicy);
 
-    return eraseAnonNamespace(OS.str().str());
+    emitWithoutAnonNamespaces(OS, RecOS.str());
+    return;
   }
-  if (RD->getDeclContext()->isFunctionOrMethod())
-    return eraseAnonNamespace(T.getCanonicalType().getAsString(TypePolicy));
+  if (RD->getDeclContext()->isFunctionOrMethod()) {
+    emitWithoutAnonNamespaces(OS, T.getCanonicalType().getAsString(TypePolicy));
+    return;
+  }
+
   const NamespaceDecl *NS = dyn_cast<NamespaceDecl>(RD->getDeclContext());
-  RD->printQualifiedName(OS, TypePolicy, !(NS && NS->isAnonymousNamespace()));
-  return eraseAnonNamespace(OS.str().str());
+  RD->printQualifiedName(RecOS, TypePolicy,
+                         !(NS && NS->isAnonymousNamespace()));
+  emitWithoutAnonNamespaces(OS, RecOS.str());
 }
 
-static std::string getKernelNameTypeString(QualType T, ASTContext &Ctx,
-                                           const PrintingPolicy &TypePolicy) {
-  if (T->isRecordType())
-    return printRecordType(T, T->getAsCXXRecordDecl(), TypePolicy);
-  if (T->isEnumeralType()) {
-    SmallString<64> Buf;
-    llvm::raw_svector_ostream OS(Buf);
-    OS << "::" << T.getCanonicalType().getAsString(TypePolicy);
-    return eraseAnonNamespace(OS.str().str());
+static void emitKernelNameType(QualType T, ASTContext &Ctx, raw_ostream &OS,
+                               const PrintingPolicy &TypePolicy) {
+  if (T->isRecordType()) {
+    emitRecordType(OS, T, T->getAsCXXRecordDecl(), TypePolicy);
+    return;
   }
-  return eraseAnonNamespace(T.getCanonicalType().getAsString(TypePolicy));
+
+  if (T->isEnumeralType())
+    OS << "::";
+  emitWithoutAnonNamespaces(OS, T.getCanonicalType().getAsString(TypePolicy));
 }
 
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
@@ -2522,9 +2532,9 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
                     });
     O << "// Specialization constants IDs:\n";
     for (const auto &P : llvm::make_range(SpecConsts.begin(), End)) {
-      std::string CPPName = getCPPTypeString(P.first);
-      O << "template <> struct sycl::detail::SpecConstantInfo<" << CPPName
-        << "> {\n";
+      O << "template <> struct sycl::detail::SpecConstantInfo<";
+      emitCPPTypeString(O, P.first);
+      O << "> {\n";
       O << "  static constexpr const char* getName() {\n";
       O << "    return \"" << P.second << "\";\n";
       O << "  }\n";
@@ -2616,8 +2626,9 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       LangOptions LO;
       PrintingPolicy P(LO);
       P.SuppressTypedefs = true;
-      O << "template <> struct KernelInfo<"
-        << getKernelNameTypeString(K.NameType, S.getASTContext(), P) << "> {\n";
+      O << "template <> struct KernelInfo<";
+      emitKernelNameType(K.NameType, S.getASTContext(), O, P);
+      O << "> {\n";
     }
     O << "  DLL_LOCAL\n";
     O << "  static constexpr const char* getName() { return \"" << K.Name

@@ -292,6 +292,11 @@ public:
     return host_accessor{*this, args...};
   }
 
+  template <typename... Ts>
+  auto get_host_access(handler &commandGroupHandler, Ts... args) {
+    return host_accessor{*this, commandGroupHandler, args...};
+  }
+
 #endif
 
   template <typename Destination = std::nullptr_t>

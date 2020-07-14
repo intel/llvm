@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #include <CL/sycl.hpp>
 #include <cmath>
+#include <complex>
 #include <iostream>
 
 using namespace cl::sycl;
@@ -108,6 +109,24 @@ template <typename T> void exit_if_not_equal(T val, T ref, const char *name) {
                 << " expected value: " << (long)ref << std::endl;
       exit(1);
     }
+  }
+}
+
+template <typename T>
+void exit_if_not_equal(std::complex<T> val, std::complex<T> ref, const char *name) {
+  if (std::fabs(val.real() - ref.real()) > 0.01 || std::fabs(val.imag() - ref.imag()) > 0.01) {
+    std::cout << "Unexpected result for " << name << ": " << val
+              << " expected value: " << ref << std::endl;
+    exit(1);
+  }
+}
+
+template <typename T>
+void exit_if_not_equal(T *val, T *ref, const char *name) {
+  if ((val - ref) != 0) {
+    std::cout << "Unexpected result for " << name << ": " << val
+              << " expected value: " << ref << std::endl;
+    exit(1);
   }
 }
 
