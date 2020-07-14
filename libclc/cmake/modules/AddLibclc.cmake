@@ -213,6 +213,8 @@ function(add_libclc_sycl_binding OUT_LIST)
     if( EXISTS ${SYCLDEVICE_BINDING} )
       set( SYCLDEVICE_BINDING_OUT ${CMAKE_CURRENT_BINARY_DIR}/sycldevice-binding-${ARG_TRIPLE}/sycldevice-binding.bc )
       add_custom_command( OUTPUT ${SYCLDEVICE_BINDING_OUT}
+                         COMMAND ${CMAKE_COMMAND} -E make_directory
+                         ${CMAKE_CURRENT_BINARY_DIR}/sycldevice-binding-${ARG_TRIPLE}
                          COMMAND ${LLVM_CLANG}
                          -target ${ARG_TRIPLE}-sycldevice
                          -fsycl

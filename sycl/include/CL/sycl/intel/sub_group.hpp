@@ -46,28 +46,6 @@ using AcceptableForLocalLoadStore =
                   Space == access::address_space::local_space>;
 
 #ifdef __SYCL_DEVICE_ONLY__
-#define __SYCL_SG_GENERATE_BODY_1ARG(name, SPIRVOperation)                     \
-  template <typename T> T name(T x, id<1> local_id) {                          \
-    using OCLT = sycl::detail::ConvertToOpenCLType_t<T>;                       \
-    return __spirv_##SPIRVOperation(OCLT(x), local_id.get(0));                 \
-  }
-
-__SYCL_SG_GENERATE_BODY_1ARG(shuffle, SubgroupShuffleINTEL)
-__SYCL_SG_GENERATE_BODY_1ARG(shuffle_xor, SubgroupShuffleXorINTEL)
-
-#undef __SYCL_SG_GENERATE_BODY_1ARG
-
-#define __SYCL_SG_GENERATE_BODY_2ARG(name, SPIRVOperation)                     \
-  template <typename T> T name(T A, T B, uint32_t Delta) {                     \
-    using OCLT = sycl::detail::ConvertToOpenCLType_t<T>;                       \
-    return __spirv_##SPIRVOperation(OCLT(A), OCLT(B), Delta);                  \
-  }
-
-__SYCL_SG_GENERATE_BODY_2ARG(shuffle_down, SubgroupShuffleDownINTEL)
-__SYCL_SG_GENERATE_BODY_2ARG(shuffle_up, SubgroupShuffleUpINTEL)
-
-#undef __SYCL_SG_GENERATE_BODY_2ARG
-
 template <typename T, access::address_space Space>
 T load(const multi_ptr<T, Space> src) {
   using BlockT = SelectBlockT<T>;
@@ -202,7 +180,7 @@ struct sub_group {
 
   template <typename T> T shuffle(T x, id_type local_id) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::sub_group::shuffle(x, local_id);
+    return sycl::detail::spirv::SubgroupShuffle(x, local_id);
 #else
     (void)x;
     (void)local_id;
@@ -213,7 +191,7 @@ struct sub_group {
 
   template <typename T> T shuffle_down(T x, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::sub_group::shuffle_down(x, x, delta);
+    return sycl::detail::spirv::SubgroupShuffleDown(x, x, delta);
 #else
     (void)x;
     (void)delta;
@@ -224,7 +202,7 @@ struct sub_group {
 
   template <typename T> T shuffle_up(T x, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::sub_group::shuffle_up(x, x, delta);
+    return sycl::detail::spirv::SubgroupShuffleUp(x, x, delta);
 #else
     (void)x;
     (void)delta;
@@ -235,7 +213,7 @@ struct sub_group {
 
   template <typename T> T shuffle_xor(T x, id_type value) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::sub_group::shuffle_xor(x, value);
+    return sycl::detail::spirv::SubgroupShuffleXor(x, value);
 #else
     (void)x;
     (void)value;
@@ -251,7 +229,7 @@ struct sub_group {
   __SYCL_DEPRECATED("Two-input sub-group shuffles are deprecated.")
   T shuffle(T x, T y, id_type local_id) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::sub_group::shuffle_down(
+    return sycl::detail::spirv::SubgroupShuffleDown(
         x, y, (local_id - get_local_id()).get(0));
 #else
     (void)x;
@@ -266,7 +244,7 @@ struct sub_group {
   __SYCL_DEPRECATED("Two-input sub-group shuffles are deprecated.")
   T shuffle_down(T current, T next, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::sub_group::shuffle_down(current, next, delta);
+    return sycl::detail::spirv::SubgroupShuffleDown(current, next, delta);
 #else
     (void)current;
     (void)next;
@@ -280,7 +258,7 @@ struct sub_group {
   __SYCL_DEPRECATED("Two-input sub-group shuffles are deprecated.")
   T shuffle_up(T previous, T current, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::sub_group::shuffle_up(previous, current, delta);
+    return sycl::detail::spirv::SubgroupShuffleUp(previous, current, delta);
 #else
     (void)previous;
     (void)current;

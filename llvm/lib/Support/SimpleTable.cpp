@@ -64,7 +64,7 @@ int SimpleTable::getColumnId(StringRef ColName) const {
 
 Error SimpleTable::addColumnName(StringRef ColName) {
   if (ColumnName2Num.find(ColName) != ColumnName2Num.end())
-    return makeError("column already exists" + ColName);
+    return makeError("column already exists " + ColName);
   ColumnNames.emplace_back(ColName.str());
   ColumnName2Num[ColumnNames.back()] = static_cast<int>(ColumnNames.size()) - 1;
   ColumnNum2Name.push_back(std::prev(ColumnNames.end()));

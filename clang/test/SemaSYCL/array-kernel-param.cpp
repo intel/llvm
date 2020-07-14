@@ -29,6 +29,20 @@ int main() {
   } struct_acc;
   S<int> s;
 
+  struct foo_inner {
+    int foo_inner_x;
+    int foo_inner_y;
+    int foo_inner_z[2];
+  };
+
+  struct foo {
+    int foo_a;
+    foo_inner foo_b[2];
+    int foo_c;
+  };
+
+  foo struct_array[2];
+
   a_kernel<class kernel_A>(
       [=]() {
         acc[1].use();
@@ -92,8 +106,8 @@ int main() {
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'cl::sycl::id<1>'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}array-kernel-param.cpp:43:7)' cinit
-// CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp:43:7)'
+// CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}array-kernel-param.cpp:57:7)' cinit
+// CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp:57:7)'
 // CHECK-NEXT: InitListExpr {{.*}} 'struct_acc_t'
 // CHECK-NEXT: InitListExpr {{.*}} 'Accessor [2]'
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'Accessor [2]'
@@ -112,8 +126,8 @@ int main() {
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_a 'int':'int'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}array-kernel-param.cpp:48:7)' cinit
-// CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp:48:7)'
+// CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}array-kernel-param.cpp:62:7)' cinit
+// CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp:62:7)'
 // CHECK-NEXT: InitListExpr {{.*}} 'S<int>'
 // CHECK-NEXT: InitListExpr {{.*}} 'int [3]'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int':'int'
