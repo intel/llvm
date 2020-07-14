@@ -1244,7 +1244,11 @@ public:
     // space, because OpenCL requires it.
     QualType PointeeTy = FieldTy->getPointeeType();
     Qualifiers Quals = PointeeTy.getQualifiers();
-    Quals.setAddressSpace(LangAS::opencl_global);
+    auto AS = Quals.getAddressSpace();
+    // Leave global_device and global_host address spaces as is to help FPGA
+    // device in memory allocations
+    if (AS != LangAS::opencl_global_device && AS != LangAS::opencl_global_host)
+      Quals.setAddressSpace(LangAS::opencl_global);
     PointeeTy = SemaRef.getASTContext().getQualifiedType(
         PointeeTy.getUnqualifiedType(), Quals);
     QualType ModTy = SemaRef.getASTContext().getPointerType(PointeeTy);
@@ -1594,9 +1598,6 @@ public:
   }
 
   void addStructInit(const CXXRecordDecl *RD) {
-    if (!RD)
-      return;
-
     const ASTRecordLayout &Info =
         SemaRef.getASTContext().getASTRecordLayout(RD);
     int NumberOfFields = Info.getFieldCount();
@@ -1617,7 +1618,10 @@ public:
   }
 
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD) final {
-    const CXXRecordDecl *RD = FD->getType()->getAsCXXRecordDecl();
+    // Handle struct when kernel object field is struct type or array of
+    // structs.
+    const CXXRecordDecl *RD =
+        FD->getType()->getBaseElementTypeUnsafe()->getAsCXXRecordDecl();
 
     // Initializers for accessors inside stream not added.
     if (!Util::isSyclStreamType(FD->getType()))
