@@ -20,8 +20,7 @@ void foo() {
 
 #else // __SYCL_DEVICE_ONLY__
 
-[[intelfpga::max_global_work_dim(2)]]
-void func_do_not_ignore() {}
+[[intelfpga::max_global_work_dim(2)]] void func_do_not_ignore() {}
 
 struct FuncObj {
   [[intelfpga::max_global_work_dim(1)]]
@@ -70,7 +69,7 @@ int main() {
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
   // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
   kernel<class test_kernel3>(
-      []() {func_do_not_ignore();});
+      []() { func_do_not_ignore(); });
 
   kernel<class test_kernel4>(
       TRIFuncObjGood1());
