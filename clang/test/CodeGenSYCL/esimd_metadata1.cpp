@@ -19,6 +19,6 @@ void bar() {
 }
 
 // CHECK: !spirv.Source = !{[[LANG:![0-9]+]]}
-// CHECK: [[LANG]] = !{i32 6, i32 100000}
+// CHECK: [[LANG]] = !{i32 0, i32 {{[0-9]+}}}
 // CHECK: ![[EMPTY]] = !{}
 // CHECK: ![[REQD_SIZE]] = !{i32 1}
