@@ -1,0 +1,101 @@
+SPV_INTEL_FP_FAST_MATH_MODE
+===========================
+
+== Name Strings
+
+SPV_INTEL_fp_fast_math_mode
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/KhronosGroup/SPIRV-Headers
+
+== Contributors
+
+- Jessica Davies, Intel +
+- Joe Garvey, Intel +
+- Michael Kinsner, Intel
+
+== Notice
+
+Copyright (c) 2020 Intel Corporation. All rights reserved.
+
+== Status
+
+Draft
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | {docdate}
+| Revision           | 1 
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification,
+Version 1.5 Revision 2.
+
+This extension requires SPIR-V 1.0.
+
+== Overview
+
+This extension adds two new bit masks to the FPFastMathMode decoration, to allow floating point operations to be annotated as allowing reassociation, and contraction.
+
+== Extension Name
+To use this extension within a SPIR-V module, the following *OpExtension* must be present in the module:
+
+----
+OpExtension "SPV_INTEL_fp_fast_math_mode"
+----
+
+== New Capabilities
+
+This extension introduces a new capability:
+
+----
+FPFastMathModeINTEL
+----
+
+== Token Number Assignments
+|====
+| `FPFastMathModeINTEL`  | 5837
+|====
+ 
+== Modifications to the SPIR-V Specification, Version 1.5
+
+Modify Section 3.15, FP Fast Math Mode, adding the following rows to the fp fast math mode table.
+
+
+|=====
+| 0x10000 | *AllowContractFastINTEL* +
+Allow contraction of floating-point expressions even if it may violate the language standard. Overrides the ContractionOff execution mode. | FPFastMathModeINTEL 
+| 0x20000 | *AllowReassocINTEL* +
+Allow algebraic transformations according to real-number associative algebra, even if it may violate the language standard. | FPFastMathModeINTEL 
+|=====
+
+=== Capability
+Modify section 3.31, *Capability*, adding a row to the Capability table:
+
+|====
+2+^| Capability ^| Implicitly Declares
+| 5837 | *FPFastMathModeINTEL* +
+
+Allows control over floating point optimizations including contraction and reassociation. | *Kernel*
+|====
+
+== Issues
+
+None.
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2020-04-22|Jessica Davies|*Initial public release*
+|======================================== 
