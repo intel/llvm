@@ -1,8 +1,8 @@
 // UNSUPPORTED: cuda
 // CUDA compilation and runtime do not yet support sub-groups.
 //
-// RUN: %clangxx -fsycl -std=c++14 %s -o %t.out
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -std=c++14 -D SG_GPU %s -o %t_gpu.out
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -std=c++14 %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple -std=c++14 -D SG_GPU %s -o %t_gpu.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
@@ -11,9 +11,6 @@
 #include "helper.hpp"
 #include <CL/sycl.hpp>
 #include <complex>
-
-template <typename T, class BinaryOperation>
-class generic_reduce;
 
 using namespace cl::sycl;
 
@@ -27,7 +24,7 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
     Queue.submit([&](handler &cgh) {
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       auto acc = buf.template get_access<access::mode::read_write>(cgh);
-      cgh.parallel_for<generic_reduce<T, BinaryOperation>>(
+      cgh.parallel_for(
           NdRange, [=](nd_item<1> NdItem) {
             intel::sub_group sg = NdItem.get_sub_group();
             if (skip_init) {
