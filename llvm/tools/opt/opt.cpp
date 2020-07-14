@@ -596,6 +596,7 @@ int main(int argc, char **argv) {
   initializeSYCLLowerWGScopeLegacyPassPass(Registry);
   initializeSYCLLowerESIMDLegacyPassPass(Registry);
   initializeESIMDLowerLoadStorePass(Registry);
+  initializeESIMDLowerVecArgLegacyPassPass(Registry);
 
 #ifdef BUILD_EXAMPLES
   initializeExampleIRTransforms(Registry);

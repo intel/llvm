@@ -65,6 +65,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 
 using namespace llvm;
 
@@ -73,7 +74,7 @@ using namespace llvm;
 namespace llvm {
 
 // Forward declarations
-void initializeESIMDLowerVecArgLegacyPassPass(PassRegistry&);
+void initializeESIMDLowerVecArgLegacyPassPass(PassRegistry &);
 ModulePass *createESIMDLowerVecArgPass();
 
 // Pass converts simd* function parameters and globals to
@@ -86,9 +87,8 @@ private:
   DenseMap<GlobalVariable *, GlobalVariable *> OldNewGlobal;
 
   Function *rewriteFunc(Function &F);
-  Type *argIsSimdPtr(Value *arg);
+  Type *getSimdArgPtrTyOrNull(Value *arg);
   void fixGlobals(Module &M);
-  bool hasGlobalConstExpr(Value *V, GlobalVariable *&Global);
   void replaceConstExprWithGlobals(Module &M);
   ConstantExpr *createNewConstantExpr(GlobalVariable *newGlobalVar,
                                       Type *oldGlobalType, Value *old);
@@ -128,14 +128,13 @@ ModulePass *llvm::createESIMDLowerVecArgPass() {
 
 // Return ptr to first-class vector type if Value is a simd*, else return
 // nullptr.
-Type *ESIMDLowerVecArgPass::argIsSimdPtr(Value *arg) {
-  auto ArgType = arg->getType();
-  if (ArgType->isPointerTy()) {
-    auto containedType = ArgType->getPointerElementType();
-    if (containedType->isStructTy()) {
-      if (containedType->getStructNumElements() == 1 &&
-          containedType->getStructElementType(0)->isVectorTy()) {
-        return PointerType::get(containedType->getStructElementType(0),
+Type *ESIMDLowerVecArgPass::getSimdArgPtrTyOrNull(Value *arg) {
+  if (auto ArgType = dyn_cast<PointerType>(arg->getType())) {
+    auto ContainedType = ArgType->getElementType();
+    if (ContainedType->isStructTy()) {
+      if (ContainedType->getStructNumElements() == 1 &&
+          ContainedType->getStructElementType(0)->isVectorTy()) {
+        return PointerType::get(ContainedType->getStructElementType(0),
                                 ArgType->getPointerAddressSpace());
       }
     }
@@ -150,82 +149,48 @@ Function *ESIMDLowerVecArgPass::rewriteFunc(Function &F) {
   FunctionType *FTy = F.getFunctionType();
   Type *RetTy = FTy->getReturnType();
   SmallVector<Type *, 8> ArgTys;
-  AttributeList AttrVec;
-  const AttributeList &PAL = F.getAttributes();
-  // Argument, result of load
-  DenseMap<Argument *, Value *> ToModify;
-  auto &Context = F.getContext();
 
   for (unsigned int i = 0; i != F.arg_size(); i++) {
     auto Arg = F.getArg(i);
-    Type *NewTy = argIsSimdPtr(Arg);
+    Type *NewTy = getSimdArgPtrTyOrNull(Arg);
     if (NewTy) {
       // Copy over byval type for simd* type
       ArgTys.push_back(NewTy);
     } else {
       // Transfer all non-simd ptr arguments
       ArgTys.push_back(Arg->getType());
-      AttributeSet Attrs = PAL.getParamAttributes(i);
-      if (Attrs.hasAttributes()) {
-        AttrBuilder B(Attrs);
-        AttrVec = AttrVec.addParamAttributes(Context, i, B);
-      }
     }
   }
 
   FunctionType *NFTy = FunctionType::get(RetTy, ArgTys, false);
 
-  // Add any function attributes
-  AttributeSet FnAttrs = PAL.getFnAttributes();
-  if (FnAttrs.hasAttributes()) {
-    AttrBuilder B(FnAttrs);
-    AttrVec = AttrVec.addAttributes(Context, AttributeList::FunctionIndex, B);
-  }
-
-  auto RetAttrs = PAL.getRetAttributes();
-  if (RetAttrs.hasAttributes()) {
-    AttrBuilder B(RetAttrs);
-    AttrVec = AttrVec.addAttributes(Context, AttributeList::ReturnIndex, B);
-  }
-
   // Create new function body and insert into the module
   Function *NF = Function::Create(NFTy, F.getLinkage(), F.getName());
-  NF->copyAttributesFrom(&F);
-  NF->setCallingConv(F.getCallingConv());
-
   F.getParent()->getFunctionList().insert(F.getIterator(), NF);
-  NF->takeName(&F);
-  NF->setSubprogram(F.getSubprogram());
 
-  // Now to splice the body of the old function into the new function
-  NF->getBasicBlockList().splice(NF->begin(), F.getBasicBlockList());
-
+  SmallVector<ReturnInst *, 8> Returns;
+  SmallVector<BitCastInst *, 8> BitCasts;
+  ValueToValueMapTy VMap;
   for (unsigned int I = 0; I != F.arg_size(); I++) {
     auto Arg = F.getArg(I);
-    Type *newTy = argIsSimdPtr(Arg);
+    Type *newTy = getSimdArgPtrTyOrNull(Arg);
     if (newTy) {
-      // Insert bitcast
       // bitcast vector* -> simd*
       auto BitCast = new BitCastInst(NF->getArg(I), Arg->getType());
-      NF->begin()->getInstList().push_front(BitCast);
-      ToModify.insert(std::make_pair(Arg, nullptr));
-      Arg->replaceAllUsesWith(BitCast);
+      BitCasts.push_back(BitCast);
+      VMap.insert(std::make_pair(Arg, BitCast));
+      continue;
     }
+    VMap.insert(std::make_pair(Arg, NF->getArg(I)));
   }
 
-  // Loop over the argument list, transferring uses of the old arguments to the
-  // new arguments, also tranferring over the names as well
-  Function::arg_iterator I2 = NF->arg_begin();
-  unsigned int ArgNo = 0;
-  for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E;
-       ++I, ++I2, ArgNo++) {
-    auto ArgIt = ToModify.find(I);
-    if (ArgIt == ToModify.end()) {
-      // Transfer old arguments as is
-      I->replaceAllUsesWith(I2);
-      I2->takeName(I);
-    }
+  llvm::CloneFunctionInto(NF, &F, VMap, F.getSubprogram() != nullptr, Returns);
+
+  for (auto &B : BitCasts) {
+    NF->begin()->getInstList().push_front(B);
   }
+
+  NF->takeName(&F);
 
   // Fix call sites
   SmallVector<std::pair<Instruction *, Instruction *>, 10> OldNewInst;
@@ -235,11 +200,14 @@ Function *ESIMDLowerVecArgPass::rewriteFunc(Function &F) {
     auto User = use.getUser();
     if (isa<CallInst>(User)) {
       auto Call = cast<CallInst>(User);
+      // Variadic functions not supported
+      assert(!Call->getFunction()->isVarArg() &&
+             "Variadic functions not supported");
       for (unsigned int I = 0,
                         NumOpnds = cast<CallInst>(Call)->getNumArgOperands();
            I != NumOpnds; I++) {
         auto SrcOpnd = Call->getOperand(I);
-        auto NewTy = argIsSimdPtr(SrcOpnd);
+        auto NewTy = getSimdArgPtrTyOrNull(SrcOpnd);
         if (NewTy) {
           auto BitCast = new BitCastInst(SrcOpnd, NewTy, "", Call);
           Params.push_back(BitCast);
@@ -269,24 +237,10 @@ Function *ESIMDLowerVecArgPass::rewriteFunc(Function &F) {
   return NF;
 }
 
-bool ESIMDLowerVecArgPass::hasGlobalConstExpr(Value *V, GlobalVariable *&Global) {
-  if (isa<GlobalVariable>(V)) {
-    Global = cast<GlobalVariable>(V);
-    return true;
-  }
-
-  if (isa<ConstantExpr>(V)) {
-    auto FirstOpnd = cast<ConstantExpr>(V)->getOperand(0);
-    return hasGlobalConstExpr(FirstOpnd, Global);
-  }
-
-  return false;
-}
-
 // Replace ConstantExpr if it contains old global variable.
 ConstantExpr *
 ESIMDLowerVecArgPass::createNewConstantExpr(GlobalVariable *NewGlobalVar,
-                                         Type *OldGlobalType, Value *Old) {
+                                            Type *OldGlobalType, Value *Old) {
   ConstantExpr *NewConstantExpr = nullptr;
 
   if (isa<GlobalVariable>(Old)) {
@@ -308,64 +262,12 @@ ESIMDLowerVecArgPass::createNewConstantExpr(GlobalVariable *NewGlobalVar,
 // all such instances and replaces them with a new ConstantExpr
 // consisting of new global vector* variable.
 void ESIMDLowerVecArgPass::replaceConstExprWithGlobals(Module &M) {
-  for (auto &F : M) {
-    for (auto BB = F.begin(), BBEnd = F.end(); BB != BBEnd; ++BB) {
-      DenseMap<Instruction *, Instruction *> OldNewInst;
-      for (auto OI = BB->begin(), OE = BB->end(); OI != OE; ++OI) {
-        SmallVector<Value *, 6> Operands;
-        bool HasGlobals = false;
-        auto &Inst = (*OI);
-        for (unsigned int OP = 0, OPE = Inst.getNumOperands(); OP != OPE;
-             ++OP) {
-          auto opnd = Inst.getOperand(OP);
-          if (!isa<ConstantExpr>(opnd)) {
-            Operands.push_back(opnd);
-            continue;
-          }
-          GlobalVariable *OldGlobal = nullptr;
-          auto OldGlobalVar = hasGlobalConstExpr(opnd, OldGlobal);
-          if (OldGlobalVar && OldNewGlobal.find(OldGlobal) != OldNewGlobal.end()) {
-            HasGlobals = true;
-            auto NewGlobal = OldNewGlobal[OldGlobal];
-            assert(NewGlobal && "Didnt find new global");
-            Operands.push_back(
-                createNewConstantExpr(NewGlobal, OldGlobal->getType(), opnd));
-          } else {
-            Operands.push_back(opnd);
-          }
-        }
-
-        if (HasGlobals) {
-          Instruction *NewInst = nullptr;
-          if (isa<CallInst>(&Inst)) {
-            assert(isa<CallInst>(&Inst) && "Expecting call instruction");
-            // pop last parameter which is function declaration
-            auto CallI = cast<CallInst>(&Inst);
-            Operands.pop_back();
-            NewInst =
-                CallInst::Create(CallI->getFunctionType(),
-                                 CallI->getCalledFunction(), Operands, "");
-            cast<CallInst>(NewInst)->setTailCallKind(CallI->getTailCallKind());
-          } else if (isa<StoreInst>(&Inst)) {
-            auto StoreI = cast<StoreInst>(&Inst);
-            NewInst = new StoreInst(Operands[0], Operands[1],
-                                    StoreI->isVolatile(), StoreI->getAlign());
-          } else if (isa<LoadInst>(&Inst)) {
-            auto LoadI = cast<LoadInst>(&Inst);
-            NewInst = new LoadInst(Inst.getType(), Operands[0],
-                                   LoadI->getName(), LoadI->isVolatile(),
-                                   LoadI->getAlign());
-          } else {
-            assert(false && "Not expecting this instruction with global");
-          }
-          OldNewInst[&Inst] = NewInst;
-          NewInst->copyMetadata(Inst);
-        }
-      }
-
-      for (auto Replace : OldNewInst) {
-        ReplaceInstWithInst(Replace.first, Replace.second);
-      }
+  for (auto &GlobalVars : OldNewGlobal) {
+    auto &G = *GlobalVars.first;
+    for (auto UseOfG : G.users()) {
+      auto NewGlobal = GlobalVars.second;
+      auto NewConstExpr = createNewConstantExpr(NewGlobal, G.getType(), UseOfG);
+      UseOfG->replaceAllUsesWith(NewConstExpr);
     }
   }
 }
@@ -374,23 +276,19 @@ void ESIMDLowerVecArgPass::replaceConstExprWithGlobals(Module &M) {
 // when old one is of simd* type.
 void ESIMDLowerVecArgPass::fixGlobals(Module &M) {
   for (auto &G : M.getGlobalList()) {
-    auto NewTy = argIsSimdPtr(&G);
+    auto NewTy = getSimdArgPtrTyOrNull(&G);
     if (NewTy && !G.user_empty()) {
-      // Peel off ptr type that argIsSimdPtr applies
+      // Peel off ptr type that getSimdArgPtrTyOrNull applies
       NewTy = NewTy->getPointerElementType();
-      auto ZeroInit = new APInt(32, 0);
+      auto ZeroInit = ConstantAggregateZero::get(NewTy);
       auto NewGlobalVar =
-          new GlobalVariable(NewTy, G.isConstant(), G.getLinkage(),
-                             Constant::getIntegerValue(NewTy, *ZeroInit));
+          new GlobalVariable(NewTy, G.isConstant(), G.getLinkage(), ZeroInit,
+                             "", G.getThreadLocalMode(), G.getAddressSpace());
       NewGlobalVar->setExternallyInitialized(G.isExternallyInitialized());
       NewGlobalVar->copyAttributesFrom(&G);
       NewGlobalVar->takeName(&G);
+      NewGlobalVar->copyMetadata(&G, 0);
       M.getGlobalList().push_back(NewGlobalVar);
-      SmallVector<DIGlobalVariableExpression *, 5> GVs;
-      G.getDebugInfo(GVs);
-      for (auto md : GVs) {
-        NewGlobalVar->addDebugInfo(md);
-      }
       OldNewGlobal.insert(std::make_pair(&G, NewGlobalVar));
     }
   }
@@ -419,7 +317,7 @@ bool ESIMDLowerVecArgPass::run(Module &M) {
   for (auto F : functions) {
     for (unsigned int I = 0; I != F->arg_size(); I++) {
       auto Arg = F->getArg(I);
-      if (argIsSimdPtr(Arg)) {
+      if (getSimdArgPtrTyOrNull(Arg)) {
         rewriteFunc(*F);
         break;
       }
