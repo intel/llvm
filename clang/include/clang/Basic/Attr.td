@@ -1131,8 +1131,15 @@ def SYCLDevice : InheritableAttr {
 def SYCLKernel : InheritableAttr {
   let Spellings = [Clang<"sycl_kernel">];
   let Subjects = SubjectList<[FunctionTmpl]>;
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsHost, SYCLIsDevice];
   let Documentation = [SYCLKernelDocs];
+}
+
+def SYCLKernelImpl : InheritableAttr {
+  let Spellings = [Clang<"sycl_kernel_impl">];
+  let Subjects = SubjectList<[FunctionTmpl]>;
+  let LangOpts = [SYCLIsHost];
+  let Documentation = [SYCLKernelImplDocs];
 }
 
 // Marks functions which must not be vectorized via horizontal SIMT widening,
