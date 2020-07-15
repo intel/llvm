@@ -322,6 +322,24 @@ static int64_t getIntExprValue(const Expr *E, ASTContext &Ctx) {
 }
 
 class MarkDeviceFunction : public RecursiveASTVisitor<MarkDeviceFunction> {
+  // Used to keep track of the constexpr depth, so we know whether to skip
+  // diagnostics.
+  unsigned ConstexprDepth = 0;
+  struct ConstexprDepthRAII {
+    MarkDeviceFunction &MDF;
+    bool Increment;
+
+    ConstexprDepthRAII(MarkDeviceFunction &MDF, bool Increment = true)
+        : MDF(MDF), Increment(Increment) {
+      if (Increment)
+        ++MDF.ConstexprDepth;
+    }
+    ~ConstexprDepthRAII() {
+      if (Increment)
+        --MDF.ConstexprDepth;
+    }
+  };
+
 public:
   MarkDeviceFunction(Sema &S)
       : RecursiveASTVisitor<MarkDeviceFunction>(), SemaRef(S) {}
@@ -335,7 +353,7 @@ public:
       // instantiation as template functions. It means that
       // all functions used by kernel have already been parsed and have
       // definitions.
-      if (RecursiveSet.count(Callee)) {
+      if (RecursiveSet.count(Callee) && !ConstexprDepth) {
         SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
             << Sema::KernelCallRecursiveFunction;
         SemaRef.Diag(Callee->getSourceRange().getBegin(),
@@ -384,6 +402,49 @@ public:
   bool VisitCXXDynamicCastExpr(const CXXDynamicCastExpr *E) {
     SemaRef.Diag(E->getExprLoc(), diag::err_sycl_restrict) << Sema::KernelRTTI;
     return true;
+  }
+
+  // Skip checking rules on variables initialized during constant evaluation.
+  bool TraverseVarDecl(VarDecl *VD) {
+    ConstexprDepthRAII R(*this, VD->isConstexpr());
+    return RecursiveASTVisitor::TraverseVarDecl(VD);
+  }
+
+  // Skip checking rules on template arguments, since these are constant
+  // expressions.
+  bool TraverseTemplateArgumentLoc(const TemplateArgumentLoc &ArgLoc) {
+    ConstexprDepthRAII R(*this);
+    return RecursiveASTVisitor::TraverseTemplateArgumentLoc(ArgLoc);
+  }
+
+  // Skip checking the static assert, both components are required to be
+  // constant expressions.
+  bool TraverseStaticAssertDecl(StaticAssertDecl *D) {
+    ConstexprDepthRAII R(*this);
+    return RecursiveASTVisitor::TraverseStaticAssertDecl(D);
+  }
+
+  // Make sure we skip the condition of the case, since that is a constant
+  // expression.
+  bool TraverseCaseStmt(CaseStmt *S) {
+    {
+      ConstexprDepthRAII R(*this);
+      if (!TraverseStmt(S->getLHS()))
+        return false;
+      if (!TraverseStmt(S->getRHS()))
+        return false;
+    }
+    return TraverseStmt(S->getSubStmt());
+  }
+
+  // Skip checking the size expr, since a constant array type loc's size expr is
+  // a constant expression.
+  bool TraverseConstantArrayTypeLoc(const ConstantArrayTypeLoc &ArrLoc) {
+    if (!TraverseTypeLoc(ArrLoc.getElementLoc()))
+      return false;
+
+    ConstexprDepthRAII R(*this);
+    return TraverseStmt(ArrLoc.getSizeExpr());
   }
 
   // The call graph for this translation unit.
@@ -802,7 +863,9 @@ public:
   template <typename... Handlers>
   void VisitArrayElements(FieldDecl *FD, QualType FieldTy,
                           Handlers &... handlers) {
-    const ConstantArrayType *CAT = cast<ConstantArrayType>(FieldTy);
+    const ConstantArrayType *CAT =
+        SemaRef.getASTContext().getAsConstantArrayType(FieldTy);
+    assert(CAT && "Should only be called on constant-size array.");
     QualType ET = CAT->getElementType();
     int64_t ElemCount = CAT->getSize().getSExtValue();
     std::initializer_list<int>{(handlers.enterArray(), 0)...};
@@ -1014,7 +1077,8 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   // Return true if not copyable, false if copyable.
   bool checkNotCopyableToKernel(const FieldDecl *FD, const QualType &FieldTy) {
     if (FieldTy->isArrayType()) {
-      if (const auto *CAT = dyn_cast<ConstantArrayType>(FieldTy)) {
+      if (const auto *CAT =
+              SemaRef.getASTContext().getAsConstantArrayType(FieldTy)) {
         QualType ET = CAT->getElementType();
         return checkNotCopyableToKernel(FD, ET);
       }
@@ -1244,7 +1308,11 @@ public:
     // space, because OpenCL requires it.
     QualType PointeeTy = FieldTy->getPointeeType();
     Qualifiers Quals = PointeeTy.getQualifiers();
-    Quals.setAddressSpace(LangAS::opencl_global);
+    auto AS = Quals.getAddressSpace();
+    // Leave global_device and global_host address spaces as is to help FPGA
+    // device in memory allocations
+    if (AS != LangAS::opencl_global_device && AS != LangAS::opencl_global_host)
+      Quals.setAddressSpace(LangAS::opencl_global);
     PointeeTy = SemaRef.getASTContext().getQualifiedType(
         PointeeTy.getUnqualifiedType(), Quals);
     QualType ModTy = SemaRef.getASTContext().getPointerType(PointeeTy);
@@ -1594,9 +1662,6 @@ public:
   }
 
   void addStructInit(const CXXRecordDecl *RD) {
-    if (!RD)
-      return;
-
     const ASTRecordLayout &Info =
         SemaRef.getASTContext().getASTRecordLayout(RD);
     int NumberOfFields = Info.getFieldCount();
@@ -1617,7 +1682,10 @@ public:
   }
 
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD) final {
-    const CXXRecordDecl *RD = FD->getType()->getAsCXXRecordDecl();
+    // Handle struct when kernel object field is struct type or array of
+    // structs.
+    const CXXRecordDecl *RD =
+        FD->getType()->getBaseElementTypeUnsafe()->getAsCXXRecordDecl();
 
     // Initializers for accessors inside stream not added.
     if (!Util::isSyclStreamType(FD->getType()))

@@ -168,7 +168,7 @@ bool RISCVPassConfig::addGlobalInstructionSelect() {
   return false;
 }
 
-void RISCVPassConfig::addPreSched2() { addPass(createRISCVExpandPseudoPass()); }
+void RISCVPassConfig::addPreSched2() {}
 
 void RISCVPassConfig::addPreEmitPass() { addPass(&BranchRelaxationPassID); }
 
@@ -180,5 +180,6 @@ void RISCVPassConfig::addPreEmitPass2() {
 }
 
 void RISCVPassConfig::addPreRegAlloc() {
+  addPass(createRISCVExpandPseudoPass());
   addPass(createRISCVMergeBaseOffsetOptPass());
 }

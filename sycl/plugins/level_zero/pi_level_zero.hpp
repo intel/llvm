@@ -311,16 +311,16 @@ struct _pi_program : _pi_object {
       : ZeModuleDesc(ModuleDesc), ZeModule{Module},
         ZeBuildLog{nullptr}, Context{Context} {}
 
-  // L0 module descriptor.
+  // Level Zero module descriptor.
   ze_module_desc_t ZeModuleDesc;
 
   // Level Zero module handle.
   ze_module_handle_t ZeModule;
-  // L0 module specialization constants
+  // Level Zero module specialization constants
   std::mutex ZeSpecConstantsMutex;
   std::unordered_map<uint32_t, uint64_t> ZeSpecConstants;
 
-  // L0 build log.
+  // Level Zero build log.
   ze_module_build_log_handle_t ZeBuildLog;
 
   // Keep the context of the program.
@@ -338,7 +338,7 @@ struct _pi_kernel : _pi_object {
   // Keep the program of the kernel.
   pi_program Program;
 
-  // TODO: remove when bug in the L0 runtime will be fixed.
+  // TODO: remove when bug in the Level Zero runtime will be fixed.
   std::string KernelName;
 };
 

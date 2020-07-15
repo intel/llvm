@@ -676,10 +676,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   // Confirm at least one memory is available in the device
   assert(ZeAvailMemCount > 0);
 
-  ze_device_memory_properties_t *ZeDeviceMemoryProperties;
+  std::vector<ze_device_memory_properties_t> ZeDeviceMemoryProperties;
   try {
-    ZeDeviceMemoryProperties =
-        new ze_device_memory_properties_t[ZeAvailMemCount]();
+    ZeDeviceMemoryProperties.reserve(ZeAvailMemCount);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -693,7 +692,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   // TODO: cache various device properties in the PI device object,
   // and initialize them only upon they are first requested.
   ZE_CALL(zeDeviceGetMemoryProperties(ZeDevice, &ZeAvailMemCount,
-                                      ZeDeviceMemoryProperties));
+                                      ZeDeviceMemoryProperties.data()));
 
   ze_device_image_properties_t ZeDeviceImageProperties;
   ZeDeviceImageProperties.version = ZE_DEVICE_IMAGE_PROPERTIES_VERSION_CURRENT;
@@ -1388,7 +1387,7 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
   assert(NativeHandle);
 
   auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
-  // Extract the L0 queue handle from the given PI queue
+  // Extract the Level Zero queue handle from the given PI queue
   *ZeQueue = Queue->ZeCommandQueue;
   return PI_SUCCESS;
 }
@@ -1661,7 +1660,7 @@ pi_result piProgramCreate(pi_context Context, const void *IL, size_t Length,
   assert(Context);
   assert(Program);
 
-  // NOTE: the L0 module creation is also building the program, so we are
+  // NOTE: the Level Zero module creation is also building the program, so we are
   // deferring it until the program is ready to be built in piProgramBuild
   // and piProgramCompile. Also it is only then we know the build options.
   //
@@ -1924,7 +1923,7 @@ pi_result piextProgramGetNativeHandle(pi_program Program,
   assert(NativeHandle);
 
   auto ZeModule = pi_cast<ze_module_handle_t *>(NativeHandle);
-  // Extract the L0 module handle from the given PI program
+  // Extract the Level Zero module handle from the given PI program
   *ZeModule = Program->ZeModule;
   return PI_SUCCESS;
 }
@@ -1938,9 +1937,9 @@ pi_result piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
 
   auto ZeModule = pi_cast<ze_module_handle_t>(NativeHandle);
 
-  // Create PI program from the given L0 module handle.
+  // Create PI program from the given Level Zero module handle.
   //
-  // TODO: We don't have the real L0 module descriptor with
+  // TODO: We don't have the real Level Zero module descriptor with
   // which it was created, but that's only needed for zeModuleCreate,
   // which we don't expect to be called on the interop program.
   //
@@ -2053,8 +2052,8 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
   case PI_KERNEL_INFO_PROGRAM:
     return ReturnValue(pi_program{Kernel->Program});
   case PI_KERNEL_INFO_FUNCTION_NAME:
-    // TODO: Replace with the line in the comment once bug in the L0 driver will
-    // be fixed. Problem is that currently L0 driver truncates name of the
+    // TODO: Replace with the line in the comment once bug in the Level Zero driver will
+    // be fixed. Problem is that currently Level Zero driver truncates name of the
     // returned kernel if it is longer than 256 symbols.
     //
     // return ReturnValue(ZeKernelProperties.name);
@@ -3755,7 +3754,7 @@ pi_result piextProgramSetSpecializationConstant(pi_program Prog,
   // Pass SpecValue pointer. Spec constant value is retrieved
   // by Level-Zero when creating the modul
   //
-  // NOTE: SpecSize is unused in L0, the size is known from SPIR-V by SpecID.
+  // NOTE: SpecSize is unused in Level Zero, the size is known from SPIR-V by SpecID.
   Prog->ZeSpecConstants[SpecID] = reinterpret_cast<uint64_t>(SpecValue);
 
   return PI_SUCCESS;

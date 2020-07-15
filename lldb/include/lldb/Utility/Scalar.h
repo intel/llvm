@@ -125,7 +125,7 @@ public:
     m_integer.clearAllBits();
   }
 
-  const char *GetTypeAsCString() const;
+  const char *GetTypeAsCString() const { return GetValueTypeAsCString(m_type); }
 
   void GetValue(Stream *s, bool show_type) const;
 
@@ -267,8 +267,7 @@ protected:
   llvm::APInt m_integer;
   llvm::APFloat m_float;
 
-  template <typename T> T GetAsSigned(T fail_value) const;
-  template <typename T> T GetAsUnsigned(T fail_value) const;
+  template <typename T> T GetAs(T fail_value) const;
 
 private:
   friend const Scalar operator+(const Scalar &lhs, const Scalar &rhs);
