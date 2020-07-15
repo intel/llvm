@@ -15,7 +15,11 @@ prefix=$1
 echo "template <> inline void SPIRVMap<$prefix, std::string>::init() {"
 
 cat $spirvHeader | sed -n -e "/^ *${prefix}[^a-z]/s:^ *${prefix}\([^= ][^= ]*\)[= ][= ]*\([0x]*[0-9][0-9]*\).*:\1 \2:p"  | while read a b; do
-  printf "  add(${prefix}%s, \"%s\");\n" $a $a
+  stringRep="$a"
+  if [[ $prefix == "BuiltIn" ]]; then
+    stringRep="BuiltIn$a"
+  fi
+  printf "  add(${prefix}%s, \"%s\");\n" "$a" "$stringRep"
 done
 
 echo "}
