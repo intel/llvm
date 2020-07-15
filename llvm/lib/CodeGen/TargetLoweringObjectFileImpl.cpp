@@ -1765,7 +1765,7 @@ static std::string scalarConstantToHexString(const Constant *C) {
   } else {
     unsigned NumElements;
     if (auto *VTy = dyn_cast<VectorType>(Ty))
-      NumElements = VTy->getNumElements();
+      NumElements = cast<FixedVectorType>(VTy)->getNumElements();
     else
       NumElements = Ty->getArrayNumElements();
     std::string HexString;
@@ -2168,6 +2168,6 @@ MCSection *TargetLoweringObjectFileXCOFF::getSectionForFunctionDescriptor(
 MCSection *TargetLoweringObjectFileXCOFF::getSectionForTOCEntry(
     const MCSymbol *Sym) const {
   return getContext().getXCOFFSection(
-      cast<MCSymbolXCOFF>(Sym)->getUnqualifiedName(), XCOFF::XMC_TC,
+      cast<MCSymbolXCOFF>(Sym)->getSymbolTableName(), XCOFF::XMC_TC,
       XCOFF::XTY_SD, XCOFF::C_HIDEXT, SectionKind::getData());
 }

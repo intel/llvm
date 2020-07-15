@@ -745,14 +745,14 @@ detail::zippy<detail::zip_first, T, U, Args...> zip_first(T &&t, U &&u,
 
 namespace detail {
 template <typename Iter>
-static Iter next_or_end(const Iter &I, const Iter &End) {
+Iter next_or_end(const Iter &I, const Iter &End) {
   if (I == End)
     return End;
   return std::next(I);
 }
 
 template <typename Iter>
-static auto deref_or_none(const Iter &I, const Iter &End) -> llvm::Optional<
+auto deref_or_none(const Iter &I, const Iter &End) -> llvm::Optional<
     std::remove_const_t<std::remove_reference_t<decltype(*I)>>> {
   if (I == End)
     return None;
@@ -1120,6 +1120,14 @@ public:
   ReferenceT operator[](unsigned index) const {
     assert(index < size() && "invalid index for value range");
     return DerivedT::dereference_iterator(base, index);
+  }
+  ReferenceT front() const {
+    assert(!empty() && "expected non-empty range");
+    return (*this)[0];
+  }
+  ReferenceT back() const {
+    assert(!empty() && "expected non-empty range");
+    return (*this)[size() - 1];
   }
 
   /// Compare this range with another.

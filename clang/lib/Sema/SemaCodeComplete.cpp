@@ -24,11 +24,13 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/CharInfo.h"
+#include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/MacroInfo.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/CodeCompleteConsumer.h"
+#include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/Designator.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
@@ -5759,7 +5761,7 @@ void Sema::CodeCompleteInitializer(Scope *S, Decl *D) {
   CodeCompleteExpression(S, Data);
 }
 
-void Sema::CodeCompleteAfterIf(Scope *S) {
+void Sema::CodeCompleteAfterIf(Scope *S, bool IsBracedThen) {
   ResultBuilder Results(*this, CodeCompleter->getAllocator(),
                         CodeCompleter->getCodeCompletionTUInfo(),
                         mapCodeCompletionContext(*this, PCC_Statement));
@@ -5776,15 +5778,25 @@ void Sema::CodeCompleteAfterIf(Scope *S) {
   // "else" block
   CodeCompletionBuilder Builder(Results.getAllocator(),
                                 Results.getCodeCompletionTUInfo());
+
+  auto AddElseBodyPattern = [&] {
+    if (IsBracedThen) {
+      Builder.AddChunk(CodeCompletionString::CK_HorizontalSpace);
+      Builder.AddChunk(CodeCompletionString::CK_LeftBrace);
+      Builder.AddChunk(CodeCompletionString::CK_VerticalSpace);
+      Builder.AddPlaceholderChunk("statements");
+      Builder.AddChunk(CodeCompletionString::CK_VerticalSpace);
+      Builder.AddChunk(CodeCompletionString::CK_RightBrace);
+    } else {
+      Builder.AddChunk(CodeCompletionString::CK_VerticalSpace);
+      Builder.AddChunk(CodeCompletionString::CK_HorizontalSpace);
+      Builder.AddPlaceholderChunk("statement");
+      Builder.AddChunk(CodeCompletionString::CK_SemiColon);
+    }
+  };
   Builder.AddTypedTextChunk("else");
-  if (Results.includeCodePatterns()) {
-    Builder.AddChunk(CodeCompletionString::CK_HorizontalSpace);
-    Builder.AddChunk(CodeCompletionString::CK_LeftBrace);
-    Builder.AddChunk(CodeCompletionString::CK_VerticalSpace);
-    Builder.AddPlaceholderChunk("statements");
-    Builder.AddChunk(CodeCompletionString::CK_VerticalSpace);
-    Builder.AddChunk(CodeCompletionString::CK_RightBrace);
-  }
+  if (Results.includeCodePatterns())
+    AddElseBodyPattern();
   Results.AddResult(Builder.TakeString());
 
   // "else if" block
@@ -5797,12 +5809,7 @@ void Sema::CodeCompleteAfterIf(Scope *S) {
     Builder.AddPlaceholderChunk("expression");
   Builder.AddChunk(CodeCompletionString::CK_RightParen);
   if (Results.includeCodePatterns()) {
-    Builder.AddChunk(CodeCompletionString::CK_HorizontalSpace);
-    Builder.AddChunk(CodeCompletionString::CK_LeftBrace);
-    Builder.AddChunk(CodeCompletionString::CK_VerticalSpace);
-    Builder.AddPlaceholderChunk("statements");
-    Builder.AddChunk(CodeCompletionString::CK_VerticalSpace);
-    Builder.AddChunk(CodeCompletionString::CK_RightBrace);
+    AddElseBodyPattern();
   }
   Results.AddResult(Builder.TakeString());
 
@@ -6257,6 +6264,53 @@ void Sema::CodeCompleteLambdaIntroducer(Scope *S, LambdaIntroducer &Intro,
 
   Results.ExitScope();
 
+  HandleCodeCompleteResults(this, CodeCompleter, Results.getCompletionContext(),
+                            Results.data(), Results.size());
+}
+
+void Sema::CodeCompleteAfterFunctionEquals(Declarator &D) {
+  if (!LangOpts.CPlusPlus11)
+    return;
+  ResultBuilder Results(*this, CodeCompleter->getAllocator(),
+                        CodeCompleter->getCodeCompletionTUInfo(),
+                        CodeCompletionContext::CCC_Other);
+  auto ShouldAddDefault = [&D, this]() {
+    if (!D.isFunctionDeclarator())
+      return false;
+    auto &Id = D.getName();
+    if (Id.getKind() == UnqualifiedIdKind::IK_DestructorName)
+      return true;
+    // FIXME(liuhui): Ideally, we should check the constructor parameter list to
+    // verify that it is the default, copy or move constructor?
+    if (Id.getKind() == UnqualifiedIdKind::IK_ConstructorName &&
+        D.getFunctionTypeInfo().NumParams <= 1)
+      return true;
+    if (Id.getKind() == UnqualifiedIdKind::IK_OperatorFunctionId) {
+      auto Op = Id.OperatorFunctionId.Operator;
+      // FIXME(liuhui): Ideally, we should check the function parameter list to
+      // verify that it is the copy or move assignment?
+      if (Op == OverloadedOperatorKind::OO_Equal)
+        return true;
+      if (LangOpts.CPlusPlus20 &&
+          (Op == OverloadedOperatorKind::OO_EqualEqual ||
+           Op == OverloadedOperatorKind::OO_ExclaimEqual ||
+           Op == OverloadedOperatorKind::OO_Less ||
+           Op == OverloadedOperatorKind::OO_LessEqual ||
+           Op == OverloadedOperatorKind::OO_Greater ||
+           Op == OverloadedOperatorKind::OO_GreaterEqual ||
+           Op == OverloadedOperatorKind::OO_Spaceship))
+        return true;
+    }
+    return false;
+  };
+
+  Results.EnterNewScope();
+  if (ShouldAddDefault())
+    Results.AddResult("default");
+  // FIXME(liuhui): Ideally, we should only provide `delete` completion for the
+  // first function declaration.
+  Results.AddResult("delete");
+  Results.ExitScope();
   HandleCodeCompleteResults(this, CodeCompleter, Results.getCompletionContext(),
                             Results.data(), Results.size());
 }

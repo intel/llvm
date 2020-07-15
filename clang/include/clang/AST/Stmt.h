@@ -1166,9 +1166,7 @@ public:
   /// Dumps the specified AST fragment and all subtrees to
   /// \c llvm::errs().
   void dump() const;
-  void dump(SourceManager &SM) const;
-  void dump(raw_ostream &OS, SourceManager &SM) const;
-  void dump(raw_ostream &OS) const;
+  void dump(raw_ostream &OS, const ASTContext &Context) const;
 
   /// \return Unique reproducible object identifier
   int64_t getID(const ASTContext &Context) const;
@@ -2279,6 +2277,8 @@ class WhileStmt final : public Stmt,
   enum { VarOffset = 0, BodyOffsetFromCond = 1 };
   enum { NumMandatoryStmtPtr = 2 };
 
+  SourceLocation LParenLoc, RParenLoc;
+
   unsigned varOffset() const { return VarOffset; }
   unsigned condOffset() const { return VarOffset + hasVarStorage(); }
   unsigned bodyOffset() const { return condOffset() + BodyOffsetFromCond; }
@@ -2289,7 +2289,8 @@ class WhileStmt final : public Stmt,
 
   /// Build a while statement.
   WhileStmt(const ASTContext &Ctx, VarDecl *Var, Expr *Cond, Stmt *Body,
-            SourceLocation WL);
+            SourceLocation WL, SourceLocation LParenLoc,
+            SourceLocation RParenLoc);
 
   /// Build an empty while statement.
   explicit WhileStmt(EmptyShell Empty, bool HasVar);
@@ -2297,7 +2298,8 @@ class WhileStmt final : public Stmt,
 public:
   /// Create a while statement.
   static WhileStmt *Create(const ASTContext &Ctx, VarDecl *Var, Expr *Cond,
-                           Stmt *Body, SourceLocation WL);
+                           Stmt *Body, SourceLocation WL,
+                           SourceLocation LParenLoc, SourceLocation RParenLoc);
 
   /// Create an empty while statement optionally with storage for
   /// a condition variable.
@@ -2360,6 +2362,11 @@ public:
 
   SourceLocation getWhileLoc() const { return WhileStmtBits.WhileLoc; }
   void setWhileLoc(SourceLocation L) { WhileStmtBits.WhileLoc = L; }
+
+  SourceLocation getLParenLoc() const { return LParenLoc; }
+  void setLParenLoc(SourceLocation L) { LParenLoc = L; }
+  SourceLocation getRParenLoc() const { return RParenLoc; }
+  void setRParenLoc(SourceLocation L) { RParenLoc = L; }
 
   SourceLocation getBeginLoc() const { return getWhileLoc(); }
   SourceLocation getEndLoc() const LLVM_READONLY {
