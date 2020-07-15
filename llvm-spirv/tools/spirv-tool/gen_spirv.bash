@@ -98,17 +98,25 @@ done
 #
 ####################
 
-if [[ $# -ne 3 ]]; then
-  echo "usage: gen_spirv path_to_spirv.hpp [NameMap|isValid] output_file"
+if [[ $# -ne 2 ]]; then
+  echo "usage: gen_spirv path_to_spirv.hpp [NameMap|isValid]"
   exit
 fi
 
 spirvHeader=$1
 type=$2
-outputFile=$3
-includeGuard="`echo ${outputFile} | tr '[:lower:]' '[:upper:]' | sed -e 's/\./_/g'`_"
+if [[ "$type" == NameMap ]]; then
+  outputFile="lib/SPIRV/libSPIRV/SPIRVNameMapEnum.h"
+elif [[ "$type" == isValid ]]; then
+  outputFile="lib/SPIRV/libSPIRV/SPIRVIsValidEnum.h"
+else
+  echo "Unknown type $type"
+  exit 1
+fi
+outputBasename="$(basename ${outputFile})"
+includeGuard="SPIRV_LIBSPIRV_`echo ${outputBasename} | tr '[:lower:]' '[:upper:]' | sed -e 's/[\.\/]/_/g'`"
 
-echo "//===- ${outputFile} - SPIR-V ${type} enums ----------------*- C++ -*-===//
+echo "//===- ${outputBasename} - SPIR-V ${type} enums ----------------*- C++ -*-===//
 //
 //                     The LLVM/SPIRV Translator
 //
