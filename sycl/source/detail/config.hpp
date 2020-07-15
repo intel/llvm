@@ -112,7 +112,6 @@ public:
   static backend *get() {
     static bool Initialized = false;
     static backend *BackendPtr = nullptr;
-    const char *newStr = "PI_LEVEL_ZERO";
 
     // Configuration parameters are processed only once, like reading a string
     // from environment and converting it into a typed object.
@@ -120,14 +119,12 @@ public:
       return BackendPtr;
 
     const char *ValStr = BaseT::getRawValue();
-    const std::array<std::pair<std::string, backend>, 3> SyclBeMap = {
+    const std::array<std::pair<std::string, backend>, 4> SyclBeMap = {
         {{"PI_OPENCL", backend::opencl},
          {"PI_LEVEL_ZERO", backend::level_zero},
+         {"PI_LEVEL0", backend::level_zero}, // for backward compatibility
          {"PI_CUDA", backend::cuda}}};
     if (ValStr) {
-      if (strcmp(ValStr, "PI_LEVEL0") == 0) {
-        ValStr = newStr;
-      }
       auto It = std::find_if(
           std::begin(SyclBeMap), std::end(SyclBeMap),
           [&ValStr](const std::pair<std::string, backend> &element) {
