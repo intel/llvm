@@ -31,7 +31,8 @@ context_impl::context_impl(const device &Device, async_handler AsyncHandler,
 }
 
 context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
-                           async_handler AsyncHandler, bool UseCUDAPrimaryContext)
+                           async_handler AsyncHandler,
+                           bool UseCUDAPrimaryContext)
     : MAsyncHandler(AsyncHandler), MDevices(Devices), MContext(nullptr),
       MPlatform(), MHostContext(false),
       MUseCUDAPrimaryContext(UseCUDAPrimaryContext) {
@@ -48,14 +49,15 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
         static_cast<pi_context_properties>(PI_CONTEXT_PROPERTIES_CUDA_PRIMARY),
         static_cast<pi_context_properties>(UseCUDAPrimaryContext), 0};
 
-    getPlugin().call<PiApiKind::piContextCreate>(props, DeviceIds.size(),
-	  	  DeviceIds.data(), nullptr, nullptr, &MContext);
+    getPlugin().call<PiApiKind::piContextCreate>(
+        props, DeviceIds.size(), DeviceIds.data(), nullptr, nullptr, &MContext);
 #else
     cl::sycl::detail::pi::die("CUDA support was not enabled at compilation time");
 #endif
   } else {
     getPlugin().call<PiApiKind::piContextCreate>(nullptr, DeviceIds.size(),
-	  	  DeviceIds.data(), nullptr, nullptr, &MContext);
+                                                 DeviceIds.data(), nullptr,
+                                                 nullptr, &MContext);
   }
 
   MKernelProgramCache.setContextPtr(this);
