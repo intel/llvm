@@ -25,7 +25,7 @@ namespace detail {
 context_impl::context_impl(const device &Device, async_handler AsyncHandler,
                            bool UseCUDAPrimaryContext)
     : MAsyncHandler(AsyncHandler), MDevices(1, Device), MContext(nullptr),
-      MPlatform(), MPluginInterop(false), MHostContext(true),
+      MPlatform(), MHostContext(Device.is_host()),
       MUseCUDAPrimaryContext(UseCUDAPrimaryContext) {
   MKernelProgramCache.setContextPtr(this);
 }
@@ -33,7 +33,7 @@ context_impl::context_impl(const device &Device, async_handler AsyncHandler,
 context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
                            async_handler AsyncHandler, bool UseCUDAPrimaryContext)
     : MAsyncHandler(AsyncHandler), MDevices(Devices), MContext(nullptr),
-      MPlatform(), MPluginInterop(true), MHostContext(false),
+      MPlatform(), MHostContext(false),
       MUseCUDAPrimaryContext(UseCUDAPrimaryContext) {
   MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   vector_class<RT::PiDevice> DeviceIds;
@@ -48,13 +48,13 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
         static_cast<pi_context_properties>(PI_CONTEXT_PROPERTIES_CUDA_PRIMARY),
         static_cast<pi_context_properties>(UseCUDAPrimaryContext), 0};
 
-    getPlugin().call<PiApiKind::piContextCreate>(props, DeviceIds.size(), 
+    getPlugin().call<PiApiKind::piContextCreate>(props, DeviceIds.size(),
 	  	  DeviceIds.data(), nullptr, nullptr, &MContext);
 #else
     cl::sycl::detail::pi::die("CUDA support was not enabled at compilation time");
 #endif
   } else {
-    getPlugin().call<PiApiKind::piContextCreate>(nullptr, DeviceIds.size(), 
+    getPlugin().call<PiApiKind::piContextCreate>(nullptr, DeviceIds.size(),
 	  	  DeviceIds.data(), nullptr, nullptr, &MContext);
   }
 
@@ -64,7 +64,7 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
 context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
                            const plugin &Plugin)
     : MAsyncHandler(AsyncHandler), MDevices(), MContext(PiContext), MPlatform(),
-      MPluginInterop(true), MHostContext(false) {
+      MHostContext(false) {
 
   vector_class<RT::PiDevice> DeviceIds;
   size_t DevicesNum = 0;
@@ -92,7 +92,7 @@ context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
 }
 
 cl_context context_impl::get() const {
-  if (MPluginInterop) {
+  if (!MHostContext) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     getPlugin().call<PiApiKind::piContextRetain>(MContext);
     return pi::cast<cl_context>(MContext);
@@ -102,16 +102,16 @@ cl_context context_impl::get() const {
       PI_INVALID_CONTEXT);
 }
 
-bool context_impl::is_host() const { return MHostContext || !MPluginInterop; }
+bool context_impl::is_host() const { return MHostContext; }
 
 context_impl::~context_impl() {
-  if (MPluginInterop) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin().call<PiApiKind::piContextRelease>(MContext);
-  }
   for (auto LibProg : MCachedLibPrograms) {
     assert(LibProg.second && "Null program must not be kept in the cache");
     getPlugin().call<PiApiKind::piProgramRelease>(LibProg.second);
+  }
+  if (!MHostContext) {
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    getPlugin().call<PiApiKind::piContextRelease>(MContext);
   }
 }
 
