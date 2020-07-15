@@ -12,8 +12,7 @@
 
 genNameMap() {
 prefix=$1
-echo "template<> inline void
-SPIRVMap<$prefix, std::string>::init() {"
+echo "template <> inline void SPIRVMap<$prefix, std::string>::init() {"
 
 cat $spirvHeader | sed -n -e "/^ *${prefix}[^a-z]/s:^ *${prefix}\([^= ][^= ]*\)[= ][= ]*\([0x]*[0-9][0-9]*\).*:\1 \2:p"  | while read a b; do
   printf "  add(${prefix}%s, \"%s\");\n" $a $a
@@ -32,20 +31,19 @@ SPIRV_DEF_NAMEMAP($prefix, SPIRV${prefix}NameMap)
 ###########################
 genIsValid() {
 prefix=$1
-echo "inline bool
-isValid(spv::$prefix V) {
-  switch(V) {"
+echo "inline bool isValid(spv::$prefix V) {
+  switch (V) {"
 
   cat $spirvHeader | sed -n -e "/^ *${prefix}[^a-z]/s:^ *${prefix}\([^= ][^= ]*\)[= ][= ]*\(.*\).*:\1 \2:p"  | while read a b; do
   if [[ $a == CapabilityNone ]]; then
     continue
   fi
-  printf "    case ${prefix}%s:\n" $a
+  printf "  case ${prefix}%s:\n" $a
 done
 
-echo "      return true;
-    default:
-      return false;
+echo "    return true;
+  default:
+    return false;
   }
 }
 "
@@ -53,8 +51,7 @@ echo "      return true;
 genMaskIsValid() {
 prefix=$1
 subprefix=`echo $prefix | sed -e "s:Mask::g"`
-echo "inline bool
-isValid$prefix(SPIRVWord Mask) {
+echo "inline bool isValid$prefix(SPIRVWord Mask) {
   SPIRVWord ValidMask = 0u;"
 
   cat $spirvHeader | sed -n -e "/^ *${subprefix}[^a-z]/s:^ *${subprefix}\([^= ][^= ]*\)Mask[= ][= ]*\(.*\).*:\1 \2:p"  | while read a b; do
@@ -164,8 +161,8 @@ echo "//===- ${outputBasename} - SPIR-V ${type} enums ----------------*- C++ -*-
 #ifndef ${includeGuard}
 #define ${includeGuard}
 
-#include \"spirv.hpp\"
 #include \"SPIRVEnum.h\"
+#include \"spirv.hpp\"
 
 using namespace spv;
 
@@ -176,4 +173,4 @@ gen $type >> ${outputFile}
 
 echo "} /* namespace SPIRV */
 
-#endif /* ${includeGuard} */" >> ${outputFile}
+#endif // ${includeGuard}" >> ${outputFile}
