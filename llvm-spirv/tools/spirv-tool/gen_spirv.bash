@@ -71,7 +71,7 @@ gen() {
 type=$1
 for prefix in SourceLanguage ExecutionModel AddressingModel MemoryModel ExecutionMode StorageClass Dim SamplerAddressingMode SamplerFilterMode ImageFormat \
   ImageChannelOrder ImageChannelDataType FPRoundingMode LinkageType AccessQualifier FunctionParameterAttribute Decoration BuiltIn Scope GroupOperation \
-  KernelEnqueueFlags Capability Op; do
+  KernelEnqueueFlags Capability; do
   if [[ "$type" == NameMap ]]; then
     genNameMap $prefix
   elif [[ "$type" == isValid ]]; then
