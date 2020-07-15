@@ -51,9 +51,9 @@ public:
                   "Allocators do not work with device allocations.");
   }
   usm_allocator(const usm_allocator &) noexcept = default;
-  usm_allocator(usm_allocator&&) noexcept = default;
-  usm_allocator& operator=(const usm_allocator&) = delete;
-  usm_allocator& operator=(usm_allocator&&) = default;
+  usm_allocator(usm_allocator &&) noexcept = default;
+  usm_allocator &operator=(const usm_allocator &) = delete;
+  usm_allocator &operator=(usm_allocator &&) = default;
 
   template <class U>
   usm_allocator(const usm_allocator<U, AllocKind, Alignment> &Other) noexcept
