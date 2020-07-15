@@ -25,6 +25,10 @@
 
 #include "usm_allocator.hpp"
 
+#ifdef _WIN32
+#define setenv(name, value, overwrite) _putenv_s(name, value)
+#endif
+
 namespace {
 
 // Controls Level Zero calls serialization to w/a Level Zero driver being not MT
@@ -64,6 +68,15 @@ std::mutex ZeCall::GlobalLock;
 
 // Controls Level Zero calls tracing in zePrint.
 static bool ZeDebug = false;
+
+// Controls Level Zero validation layer and parameter validation.
+static bool ZeValidationLayer = false;
+
+enum DebugLevel {
+  ZE_DEBUG_BASIC = 0x1,
+  ZE_DEBUG_VALIDATION = 0x2,
+  ZE_DEBUG_ALL = -1
+};
 
 static void zePrint(const char *Format, ...) {
   if (ZeDebug) {
@@ -567,8 +580,16 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
 
   static const char *DebugMode = std::getenv("ZE_DEBUG");
-  if (DebugMode)
+  static const int DebugModeValue = DebugMode ? std::stoi(DebugMode) : 0;
+  if (DebugModeValue == ZE_DEBUG_ALL) {
     ZeDebug = true;
+    ZeValidationLayer = true;
+  } else {
+    if (DebugModeValue & ZE_DEBUG_BASIC)
+      ZeDebug = true;
+    if (DebugModeValue & ZE_DEBUG_VALIDATION)
+      ZeValidationLayer = true;
+  }
 
   static const char *SerializeMode = std::getenv("ZE_SERIALIZE");
   static const pi_uint32 SerializeModeValue =
@@ -588,6 +609,11 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   // 2. performance; we can save time by immediately return from cache.
   static std::vector<pi_platform> PiPlatformsCache;
   static std::mutex PiPlatformsCacheMutex;
+
+  if (ZeValidationLayer) {
+    setenv("ZE_ENABLE_VALIDATION_LAYER", "1", 1);
+    setenv("ZE_ENABLE_PARAMETER_VALIDATION", "1", 1);
+  }
 
   // This is a good time to initialize Level Zero.
   static const char *CommandListCacheSize =
