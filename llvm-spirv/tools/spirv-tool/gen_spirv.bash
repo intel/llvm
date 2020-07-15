@@ -70,39 +70,6 @@ echo "
 "
 }
 
-##############################
-#
-# generate entries for td file
-#
-##############################
-genTd() {
-prefix=$1
-
-if [[ $prefix == "Capability" ]]; then
-  echo "class SPIRV${prefix}_ {"
-else
-  echo "def SPIRV${prefix} : Operand<i32> {
-  let PrintMethod = \"printSPIRV${prefix}\";
-"
-fi
-
-cat $spirvHeader | sed -n -e "/^ *${prefix}[^a-z]/s:^ *${prefix}\([^= ][^= ]*\)[= ][= ]*\([0xX]*[0-9a-fA-F][0-9a-fA-F]*\).*:\1 \2:p"  | while read a b; do
-  if [[ $a == CapabilityNone ]]; then
-    continue
-  fi
-  printf "  int %s = %s;\n" $a $b
-done
-
-if [[ $prefix == "Capability" ]]; then
-  echo "}
-def SPIRV${prefix} : SPIRV${prefix}_;
-"
-else 
-  echo "}
-"
-fi
-}
-
 gen() {
 type=$1
 for prefix in SourceLanguage ExecutionModel AddressingModel MemoryModel ExecutionMode StorageClass Dim SamplerAddressingMode SamplerFilterMode ImageFormat \
@@ -112,8 +79,6 @@ for prefix in SourceLanguage ExecutionModel AddressingModel MemoryModel Executio
     genNameMap $prefix
   elif [[ "$type" == isValid ]]; then
     genIsValid $prefix
-  elif [[ "$type" == td ]]; then
-    genTd $prefix
   else
     echo "invalid type \"$type\"."
     exit
@@ -134,7 +99,7 @@ done
 ####################
 
 if [[ $# -ne 3 ]]; then
-  echo "usage: gen_spirv path_to_spirv.hpp [NameMap|isValid|td] output_file"
+  echo "usage: gen_spirv path_to_spirv.hpp [NameMap|isValid] output_file"
   exit
 fi
 
