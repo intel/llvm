@@ -88,43 +88,5 @@ int main() {
       return -1;
   }
 
-  if (dev.get_info<info::device::usm_device_allocations>()) {
-    usm_allocator<int, usm::alloc::device> alloc(ctxt, dev);
-
-    std::vector<int, decltype(alloc)> vec(alloc);
-    vec.resize(N);
-
-    int *res = &vec[0];
-    int *vals = &vec[0];
-
-    auto e0 = q.submit([=](handler &h) {
-      h.single_task<class baz_init>([=]() {
-        res[0] = 0;
-        for (int i = 0; i < N; i++) {
-          vals[i] = i;
-        }
-      });
-    });
-
-    auto e1 = q.submit([=](handler &h) {
-      h.depends_on(e0);
-      h.single_task<class baz>([=]() {
-        for (int i = 1; i < N; i++) {
-          res[0] += vals[i];
-        }
-      });
-    });
-
-    e1.wait();
-
-    int answer = (N * (N - 1)) / 2;
-    int result;
-    q.memcpy(&result, res, sizeof(int));
-    q.wait();
-
-    if (result != answer)
-      return -1;
-  }
-
   return 0;
 }

@@ -43,16 +43,10 @@ int main() {
     assert((alloc1 == alloc2) && "Allocators should be equal.");
   }
 
-  if (dev.get_info<info::device::usm_shared_allocations>()) {
+  if (dev.get_info<info::device::usm_shared_allocations>() &&
+      dev.get_info<info::device::usm_host_allocations>()) {
     usm_allocator<int, usm::alloc::shared> alloc1(ctxt, dev);
-    usm_allocator<int, usm::alloc::device> alloc2(ctxt, dev);
-
-    assert((alloc1 != alloc2) && "Allocators should NOT be equal.");
-  }
-
-  if (dev.get_info<info::device::usm_device_allocations>()) {
-    usm_allocator<int, usm::alloc::device> alloc1(ctxt, dev);
-    usm_allocator<int, usm::alloc::device> alloc2(ctxt2, dev2);
+    usm_allocator<int, usm::alloc::host> alloc2(ctxt, dev);
 
     assert((alloc1 != alloc2) && "Allocators should NOT be equal.");
   }
