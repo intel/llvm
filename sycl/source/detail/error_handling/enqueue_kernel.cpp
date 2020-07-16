@@ -51,19 +51,21 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
 
   // Some of the error handling below is special for particular OpenCL
   // versions.  If this is an OpenCL backend, get the version.
-  const char *OpenClVer = nullptr;
-  string_class OpenClVerStr;
+  bool IsOpenCL = false;    // Backend is any OpenCL version
+  bool IsOpenCLV1x = false; // Backend is OpenCL 1.x
+  bool IsOpenCLV20 = false; // Backend is OpenCL 2.0
   if (Platform.get_backend() == cl::sycl::backend::opencl) {
-    size_t OclVerSize = 0;
+    size_t VersionStringSize = 0;
     Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_VERSION, 0,
-                                            nullptr, &OclVerSize);
-    assert(OclVerSize >= 10 &&
-           "Unexpected device version string"); // strlen("OpenCL X.Y")
-    OpenClVerStr.assign(OclVerSize, '\0');
+                                            nullptr, &VersionStringSize);
+    std::unique_ptr<char[]> Version(new char[VersionStringSize]);
     Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_VERSION,
-                                            OclVerSize, &OpenClVerStr.front(),
+                                            VersionStringSize, Version.get(),
                                             nullptr);
-    OpenClVer = &OpenClVerStr[7]; // strlen("OpenCL ")
+    std::string VersionString(Version.get(), VersionStringSize);
+    IsOpenCL = true;
+    IsOpenCLV1x = (VersionString.find("OpenCL 1.") == 0);
+    IsOpenCLV20 = (VersionString.find("OpenCL 2.0") == 0);
   }
 
   size_t CompileWGSize[3] = {0};
@@ -76,14 +78,11 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
     // PI_INVALID_WORK_GROUP_SIZE if local_work_size is NULL and the
     // reqd_work_group_size attribute is used to declare the work-group size
     // for kernel in the program source.
-    if (Platform.get_backend() == cl::sycl::backend::opencl) {
-      if (!HasLocalSize && (OpenClVer[0] == '1' ||
-                            (OpenClVer[0] == '2' && OpenClVer[2] == '0'))) {
-        throw sycl::nd_range_error(
-            "OpenCL 1.x and 2.0 requires to pass local size argument even if "
-            "required work-group size was specified in the program source",
-            PI_INVALID_WORK_GROUP_SIZE);
-      }
+    if (!HasLocalSize && (IsOpenCLV1x || IsOpenCLV20)) {
+      throw sycl::nd_range_error(
+          "OpenCL 1.x and 2.0 requires to pass local size argument even if "
+          "required work-group size was specified in the program source",
+          PI_INVALID_WORK_GROUP_SIZE);
     }
     // PI_INVALID_WORK_GROUP_SIZE if local_work_size is specified and does not
     // match the required work-group size for kernel in the program source.
@@ -95,8 +94,8 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
           "specified in the program source",
           PI_INVALID_WORK_GROUP_SIZE);
   }
-  if (Platform.get_backend() == cl::sycl::backend::opencl) {
-    if (OpenClVer[0] == '1') {
+  if (IsOpenCL) {
+    if (IsOpenCLV1x) {
       // OpenCL 1.x:
       // PI_INVALID_WORK_GROUP_SIZE if local_work_size is specified and the
       // total number of work-items in the work-group computed as
@@ -148,14 +147,14 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
          NDRDesc.GlobalSize[2] % NDRDesc.LocalSize[2] != 0);
     // Is the local size of the workgroup greater than the global range size in
     // any dimension?
-    if (Platform.get_backend() == cl::sycl::backend::opencl) {
+    if (IsOpenCL) {
       const bool LocalExceedsGlobal =
           NonUniformWGs && (NDRDesc.LocalSize[0] > NDRDesc.GlobalSize[0] ||
                             NDRDesc.LocalSize[1] > NDRDesc.GlobalSize[1] ||
                             NDRDesc.LocalSize[2] > NDRDesc.GlobalSize[2]);
 
       if (NonUniformWGs) {
-        if (OpenClVer[0] == '1') {
+        if (IsOpenCLV1x) {
           // OpenCL 1.x:
           // PI_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
           // number of workitems specified by global_work_size is not evenly

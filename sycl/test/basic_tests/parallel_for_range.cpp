@@ -29,15 +29,17 @@ int main() {
 
   string_class DeviceVendorName = D.get_info<info::device::vendor>();
   auto DeviceType = D.get_info<info::device::device_type>();
-  bool IsOpenCL = (D.get_platform().get_backend() == backend::opencl);
 
-  string_class OCLVersionStr;
-  const char *OCLVersion = nullptr;
-  if (IsOpenCL) {
-    OCLVersionStr = D.get_info<info::device::version>();
-    assert(OCLVersionStr.size() >= 10 &&
-           "Unexpected device version string"); // strlen("OpenCL X.Y")
-    OCLVersion = &OCLVersionStr[7];             // strlen("OpenCL ")
+  bool IsOpenCL = false;
+  bool IsOpenCLV1x = false; // Backend is OpenCL 1.x
+  bool IsOpenCLV20 = false; // Backend is OpenCL 2.0
+  bool IsOpenCLV2x = false; // Backend is OpenCL 2.x
+  if (D.get_platform().get_backend() == backend::opencl) {
+    string_class OCLVersionStr = D.get_info<info::device::version>();
+    IsOpenCL = true;
+    IsOpenCLV1x = (VersionString.find("OpenCL 1.") == 0);
+    IsOpenCLV20 = (VersionString.find("OpenCL 2.0") == 0);
+    IsOpenCLV2x = (VersionString.find("OpenCL 2.") == 0);
   }
 
   // parallel_for, (16, 16, 16) global, (8, 8, 8) local, reqd_wg_size(4, 4, 4)
@@ -72,8 +74,7 @@ int main() {
     return 1;
   }
 
-  if (IsOpenCL && (OCLVersion[0] == '1' ||
-                   (OCLVersion[0] == '2' && OCLVersion[2] == '0'))) {
+  if (IsOpenCLV1x || IsOpenCLV20) {
     // OpenCL 1.x or 2.0
     // parallel_for, (16, 16, 16) global, null local, reqd_wg_size(4, 4, 4) //
     // -> fail
@@ -167,7 +168,7 @@ int main() {
     return 1;
   }
 
-  if (IsOpenCL && OCLVersion[0] == '1') {
+  if (IsOpenCLV1x) {
     // OpenCL 1.x
 
     // CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
@@ -357,7 +358,7 @@ int main() {
                 << std::endl;
       return 1;
     }
-  } else if (IsOpenCL && OCLVersion[0] == '2') {
+  } else if (IsOpenCLV2x) {
     // OpenCL 2.x
 
     // OpenCL 2.x:
