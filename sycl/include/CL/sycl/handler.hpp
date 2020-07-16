@@ -1060,8 +1060,10 @@ public:
     // queue/device, while it may be safer to use queries to the kernel compiled
     // for the device.
     size_t MaxWGSize = intel::detail::reduGetMaxWGSize(MQueue, OneElemSize);
-    assert(MaxWGSize >= Range.get_local_range().size() &&
-           "This reduction implementation requires more device resources.");
+    if (Range.get_local_range().size() > MaxWGSize)
+      throw sycl::runtime_error("The implementation handling parallel_for with"
+                                " reduction requires smaller work group size.",
+                                PI_INVALID_WORK_GROUP_SIZE);
 
     // 1. Call the kernel that includes user's lambda function.
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
@@ -1073,8 +1075,14 @@ public:
 
     // TODO: Create a special slow/sequential version of the kernel that would
     // handle the reduction instead of reporting an assert below.
-    assert(MaxWGSize > 1 &&
-           "Work group size must be greater than 1 to avoid endless loop.");
+    if (MaxWGSize <= 1)
+      throw sycl::runtime_error("The implementation handling parallel_for with "
+                                "reduction requires the maximal work group "
+                                "size to be greater than 1 to converge. "
+                                "The maximal work group size depends on the "
+                                "device and the size of the objects passed to "
+                                "the reduction.",
+                                PI_INVALID_WORK_GROUP_SIZE);
     size_t NWorkItems = Range.get_group_range().size();
     while (NWorkItems > 1) {
       handler AuxHandler(QueueCopy, MIsHost);
