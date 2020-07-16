@@ -18,12 +18,10 @@
 
 using namespace cl::sycl;
 
-template <typename T, int Dim, class BinaryOperation>
-class SomeClass;
-template <typename T, int Dim, class BinaryOperation>
-class Copy1;
+template <typename... Ts>
+class KernelNameGroup;
 
-template <typename T, int Dim, class BinaryOperation>
+template <typename SpecializationKernelName, typename T, int Dim, class BinaryOperation>
 void test(T Identity, size_t WGSize, size_t NWItems, usm::alloc AllocType) {
   queue Q;
   auto Dev = Q.get_device();
@@ -43,7 +41,7 @@ void test(T Identity, size_t WGSize, size_t NWItems, usm::alloc AllocType) {
     return;
   if (AllocType == usm::alloc::device) {
     event E = Q.submit([&](handler &CGH) {
-      CGH.single_task<class Copy1<T, Dim, BinaryOperation>>([=]() {
+      CGH.single_task<SpecializationKernelName>([=]() {
         *ReduVarPtr = Identity;
       });
     });
@@ -66,7 +64,7 @@ void test(T Identity, size_t WGSize, size_t NWItems, usm::alloc AllocType) {
     range<1> GlobalRange(NWItems);
     range<1> LocalRange(WGSize);
     nd_range<1> NDRange(GlobalRange, LocalRange);
-    CGH.parallel_for<SomeClass<T, Dim, BinaryOperation>>(
+    CGH.parallel_for<SpecializationKernelName>(
         NDRange, Redu, [=](nd_item<1> NDIt, auto &Sum) {
           Sum.combine(In[NDIt.get_global_linear_id()]);
         });
@@ -96,30 +94,30 @@ void test(T Identity, size_t WGSize, size_t NWItems, usm::alloc AllocType) {
   free(ReduVarPtr, Q.get_context());
 }
 
-template <typename T, int Dim, class BinaryOperation>
+template <typename SpecializationKernelName, typename T, int Dim, class BinaryOperation>
 void testUSM(T Identity, size_t WGSize, size_t NWItems) {
-  test<T, Dim, BinaryOperation>(Identity, WGSize, NWItems, usm::alloc::shared);
-  test<T, Dim, BinaryOperation>(Identity, WGSize, NWItems, usm::alloc::host);
-  test<T, Dim, BinaryOperation>(Identity, WGSize, NWItems, usm::alloc::device);
+  test<KernelNameGroup<SpecializationKernelName, class KernelName_iIib>, T, Dim, BinaryOperation>(Identity, WGSize, NWItems, usm::alloc::shared);
+  test<KernelNameGroup<SpecializationKernelName, class KernelName_ZApfu>, T, Dim, BinaryOperation>(Identity, WGSize, NWItems, usm::alloc::host);
+  test<KernelNameGroup<SpecializationKernelName, class KernelName_vEkbC>, T, Dim, BinaryOperation>(Identity, WGSize, NWItems, usm::alloc::device);
 }
 
 int main() {
   // fast atomics and fast reduce
-  testUSM<int, 1, intel::plus<int>>(0, 49, 49 * 5);
-  testUSM<int, 0, intel::plus<int>>(0, 8, 128);
+  testUSM<class KernelName_ZiHgIpkuqwxFSU, int, 1, intel::plus<int>>(0, 49, 49 * 5);
+  testUSM<class KernelName_CJwo, int, 0, intel::plus<int>>(0, 8, 128);
 
   // fast atomics
-  testUSM<int, 0, intel::bit_or<int>>(0, 7, 7 * 3);
-  testUSM<int, 1, intel::bit_or<int>>(0, 4, 128);
+  testUSM<class KernelName_EJCJkOXyeXMGswJ, int, 0, intel::bit_or<int>>(0, 7, 7 * 3);
+  testUSM<class KernelName_UyTaqkIExBLbTK, int, 1, intel::bit_or<int>>(0, 4, 128);
 
   // fast reduce
-  testUSM<float, 1, intel::minimum<float>>(getMaximumFPValue<float>(), 5, 5 * 7);
-  testUSM<float, 0, intel::maximum<float>>(getMinimumFPValue<float>(), 4, 128);
+  testUSM<class KernelName_LUzMqQwFnsozwsg, float, 1, intel::minimum<float>>(getMaximumFPValue<float>(), 5, 5 * 7);
+  testUSM<class KernelName_LGBVwsskb, float, 0, intel::maximum<float>>(getMinimumFPValue<float>(), 4, 128);
 
   // generic algorithm
-  testUSM<int, 0, std::multiplies<int>>(1, 7, 7 * 5);
-  testUSM<int, 1, std::multiplies<int>>(1, 8, 16);
-  testUSM<CustomVec<short>, 0, CustomVecPlus<short>>(
+  testUSM<class KernelName_Jvshu, int, 0, std::multiplies<int>>(1, 7, 7 * 5);
+  testUSM<class KernelName_cOhfYypvvEfQPIpzrUeV, int, 1, std::multiplies<int>>(1, 8, 16);
+  testUSM<class KernelName_VKPjwVpUPRf, CustomVec<short>, 0, CustomVecPlus<short>>(
       CustomVec<short>(0), 8, 8 * 3);
 
   std::cout << "Test passed\n";

@@ -10,7 +10,6 @@
 
 using namespace cl::sycl;
 
-
 template <typename T, typename Reduction>
 void test_reducer(Reduction &Redu, T A, T B) {
   typename Reduction::reducer_type Reducer;
@@ -35,10 +34,8 @@ void test_reducer(Reduction &Redu, T Identity, T A, T B) {
          "Wrong result of binary operation.");
 }
 
-template <typename T, int Dim, class BinaryOperation>
-class Known;
-template <typename T, int Dim, class BinaryOperation>
-class Unknown;
+template <typename... Ts>
+class KernelNameGroup;
 
 template <typename T>
 struct Point {
@@ -65,7 +62,7 @@ struct PointPlus {
   }
 };
 
-template <typename T, int Dim, class BinaryOperation>
+template <typename SpecializationKernelName, typename T, int Dim, class BinaryOperation>
 void testKnown(T Identity, T A, T B) {
 
   BinaryOperation BOp;
@@ -84,11 +81,11 @@ void testKnown(T Identity, T A, T B) {
     test_reducer(Redu, Identity, A, B);
 
     // Command group must have at least one task in it. Use an empty one.
-    CGH.single_task<Known<T, Dim, BinaryOperation>>([=]() {});
+    CGH.single_task<SpecializationKernelName>([=]() {});
   });
 }
 
-template <typename T, int Dim, class BinaryOperation>
+template <typename SpecializationKernelName, typename T, int Dim, class BinaryOperation>
 void testUnknown(T Identity, T A, T B) {
 
   BinaryOperation BOp;
@@ -105,35 +102,35 @@ void testUnknown(T Identity, T A, T B) {
     test_reducer(Redu, Identity, A, B);
 
     // Command group must have at least one task in it. Use an empty one.
-    CGH.single_task<Unknown<T, Dim, BinaryOperation>>([=]() {});
+    CGH.single_task<SpecializationKernelName>([=]() {});
   });
 }
 
-template <typename T, class BinaryOperation>
+template <typename SpecializationKernelName, typename T, class BinaryOperation>
 void testBoth(T Identity, T A, T B) {
-  testKnown<T, 0, BinaryOperation>(Identity, A, B);
-  testKnown<T, 1, BinaryOperation>(Identity, A, B);
-  testUnknown<T, 0, BinaryOperation>(Identity, A, B);
-  testUnknown<T, 1, BinaryOperation>(Identity, A, B);
+  testKnown<KernelNameGroup<SpecializationKernelName, class KernelName_SpronAvHpacKFL>, T, 0, BinaryOperation>(Identity, A, B);
+  testKnown<KernelNameGroup<SpecializationKernelName, class KernelName_XFxrYatPJlU>, T, 1, BinaryOperation>(Identity, A, B);
+  testUnknown<KernelNameGroup<SpecializationKernelName, class KernelName_oUFYMyQSlL>, T, 0, BinaryOperation>(Identity, A, B);
+  testUnknown<KernelNameGroup<SpecializationKernelName, class KernelName_Ndbp>, T, 1, BinaryOperation>(Identity, A, B);
 }
 
 int main() {
   // testKnown does not pass identity to reduction ctor.
-  testBoth<int, intel::plus<int>>(0, 1, 7);
-  testBoth<int, std::multiplies<int>>(1, 1, 7);
-  testBoth<int, intel::bit_or<int>>(0, 1, 8);
-  testBoth<int, intel::bit_xor<int>>(0, 7, 3);
-  testBoth<int, intel::bit_and<int>>(~0, 7, 3);
-  testBoth<int, intel::minimum<int>>((std::numeric_limits<int>::max)(), 7, 3);
-  testBoth<int, intel::maximum<int>>((std::numeric_limits<int>::min)(), 7, 3);
+  testBoth<class KernelName_DpWavJTNjhJtrHmLWt, int, intel::plus<int>>(0, 1, 7);
+  testBoth<class KernelName_MHRtc, int, std::multiplies<int>>(1, 1, 7);
+  testBoth<class KernelName_eYhurMyKBZvzctmqwUZ, int, intel::bit_or<int>>(0, 1, 8);
+  testBoth<class KernelName_DpVPIUBjUMGZEwBFHH, int, intel::bit_xor<int>>(0, 7, 3);
+  testBoth<class KernelName_vGKFactgrkngMXd, int, intel::bit_and<int>>(~0, 7, 3);
+  testBoth<class KernelName_GLpknSBxclKWjm, int, intel::minimum<int>>((std::numeric_limits<int>::max)(), 7, 3);
+  testBoth<class KernelName_EvOaOYQ, int, intel::maximum<int>>((std::numeric_limits<int>::min)(), 7, 3);
 
-  testBoth<float, intel::plus<float>>(0, 1, 7);
-  testBoth<float, std::multiplies<float>>(1, 1, 7);
-  testBoth<float, intel::minimum<float>>(getMaximumFPValue<float>(), 7, 3);
-  testBoth<float, intel::maximum<float>>(getMinimumFPValue<float>(), 7, 3);
+  testBoth<class KernelName_iFbcoTtPeDtUEK, float, intel::plus<float>>(0, 1, 7);
+  testBoth<class KernelName_PEMJanstdNezDSXnP, float, std::multiplies<float>>(1, 1, 7);
+  testBoth<class KernelName_wOEuftXSjCLpoTOMrYHR, float, intel::minimum<float>>(getMaximumFPValue<float>(), 7, 3);
+  testBoth<class KernelName_HzFCIZQKeV, float, intel::maximum<float>>(getMinimumFPValue<float>(), 7, 3);
 
-  testUnknown<Point<float>, 0, PointPlus<float>>(Point<float>(0), Point<float>(1), Point<float>(7));
-  testUnknown<Point<float>, 1, PointPlus<float>>(Point<float>(0), Point<float>(1), Point<float>(7));
+  testUnknown<class KernelName_sJOZPgFeiALyqwIWnFP, Point<float>, 0, PointPlus<float>>(Point<float>(0), Point<float>(1), Point<float>(7));
+  testUnknown<class KernelName_jMA, Point<float>, 1, PointPlus<float>>(Point<float>(0), Point<float>(1), Point<float>(7));
 
   std::cout << "Test passed\n";
   return 0;

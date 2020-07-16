@@ -18,14 +18,12 @@
 
 using namespace cl::sycl;
 
-template <typename T, int Dim, class BinaryOperation>
-class SomeIdClass;
-template <typename T, int Dim, class BinaryOperation>
-class SomeNoIdClass;
+template <typename... Ts>
+class KernelNameGroup;
 
 // Checks reductions initialized with transparent functor and explicitly set
 // identity value.
-template <typename T, int Dim, class BinaryOperation>
+template <typename SpecializationKernelName, typename T, int Dim, class BinaryOperation>
 void testId(T Identity, size_t WGSize, size_t NWItems) {
   buffer<T, 1> InBuf(NWItems);
   buffer<T, 1> OutBuf(1);
@@ -45,7 +43,7 @@ void testId(T Identity, size_t WGSize, size_t NWItems) {
     range<1> GlobalRange(NWItems);
     range<1> LocalRange(WGSize);
     nd_range<1> NDRange(GlobalRange, LocalRange);
-    CGH.parallel_for<SomeIdClass<T, Dim, BinaryOperation>>(
+    CGH.parallel_for<SpecializationKernelName>(
         NDRange, intel::reduction(Out, Identity, BOp), [=](nd_item<1> NDIt, auto &Sum) {
           Sum.combine(In[NDIt.get_global_linear_id()]);
         });
@@ -65,7 +63,7 @@ void testId(T Identity, size_t WGSize, size_t NWItems) {
 // Checks reductions initialized with transparent functor and identity
 // value not explicitly specified. The parameter 'Identity' is passed here
 // only to pre-initialize input data correctly.
-template <typename T, int Dim, class BinaryOperation>
+template <typename SpecializationKernelName, typename T, int Dim, class BinaryOperation>
 void testNoId(T Identity, size_t WGSize, size_t NWItems) {
   buffer<T, 1> InBuf(NWItems);
   buffer<T, 1> OutBuf(1);
@@ -85,7 +83,7 @@ void testNoId(T Identity, size_t WGSize, size_t NWItems) {
     range<1> GlobalRange(NWItems);
     range<1> LocalRange(WGSize);
     nd_range<1> NDRange(GlobalRange, LocalRange);
-    CGH.parallel_for<SomeNoIdClass<T, Dim, BinaryOperation>>(
+    CGH.parallel_for<SpecializationKernelName>(
         NDRange, intel::reduction(Out, BOp), [=](nd_item<1> NDIt, auto &Sum) {
           Sum.combine(In[NDIt.get_global_linear_id()]);
         });
@@ -102,17 +100,17 @@ void testNoId(T Identity, size_t WGSize, size_t NWItems) {
   }
 }
 
-template <typename T, int Dim, class BinaryOperation>
+template <typename SpecializationKernelName, typename T, int Dim, class BinaryOperation>
 void test(T Identity, size_t WGSize, size_t NWItems) {
-  testId<T, Dim, BinaryOperation>(Identity, WGSize, NWItems);
-  testNoId<T, Dim, BinaryOperation>(Identity, WGSize, NWItems);
+  testId<KernelNameGroup<SpecializationKernelName, class KernelName_ObjsWYkZuXCCtNW>, T, Dim, BinaryOperation>(Identity, WGSize, NWItems);
+  testNoId<KernelNameGroup<SpecializationKernelName, class KernelName_WFtswXpcLpzOBO>, T, Dim, BinaryOperation>(Identity, WGSize, NWItems);
 }
 
 int main() {
 #if __cplusplus >= 201402L
-  test<float, 0, intel::maximum<>>(getMinimumFPValue<float>(), 7, 7 * 5);
-  test<signed char, 0, intel::plus<>>(0, 7, 49);
-  test<unsigned char, 1, std::multiplies<>>(1, 4, 16);
+  test<class KernelName_slumazIfW, float, 0, intel::maximum<>>(getMinimumFPValue<float>(), 7, 7 * 5);
+  test<class KernelName_XtRLKzVaIuL, signed char, 0, intel::plus<>>(0, 7, 49);
+  test<class KernelName_adpasoZLtoLyZcczwrkV, unsigned char, 1, std::multiplies<>>(1, 4, 16);
 #endif // __cplusplus >= 201402L
 
   std::cout << "Test passed\n";

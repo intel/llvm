@@ -23,7 +23,7 @@ class pointer_kernel;
 
 using namespace cl::sycl;
 
-template <typename T>
+template <typename SpecializationKernelName, typename T>
 void check_pointer(queue &Queue, size_t G = 240, size_t L = 60) {
   try {
     nd_range<1> NdRange(G, L);
@@ -40,7 +40,7 @@ void check_pointer(queue &Queue, size_t G = 240, size_t L = 60) {
       auto acc_xor = buf_xor.template get_access<access::mode::read_write>(cgh);
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
 
-      cgh.parallel_for<pointer_kernel<T>>(NdRange, [=](nd_item<1> NdItem) {
+      cgh.parallel_for<SpecializationKernelName>(NdRange, [=](nd_item<1> NdItem) {
         intel::sub_group SG = NdItem.get_sub_group();
         uint32_t wggid = NdItem.get_global_id(0);
         uint32_t sgid = SG.get_group_id().get(0);
@@ -102,7 +102,7 @@ void check_pointer(queue &Queue, size_t G = 240, size_t L = 60) {
   }
 }
 
-template <typename T, typename Generator>
+template <typename SpecializationKernelName, typename T, typename Generator>
 void check_struct(queue &Queue, Generator &Gen, size_t G = 240, size_t L = 60) {
 
   // Fill a vector with values that will be shuffled
@@ -126,7 +126,7 @@ void check_struct(queue &Queue, Generator &Gen, size_t G = 240, size_t L = 60) {
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       auto in = buf_in.template get_access<access::mode::read>(cgh);
 
-      cgh.parallel_for<pointer_kernel<T>>(NdRange, [=](nd_item<1> NdItem) {
+      cgh.parallel_for<SpecializationKernelName>(NdRange, [=](nd_item<1> NdItem) {
         intel::sub_group SG = NdItem.get_sub_group();
         uint32_t wggid = NdItem.get_global_id(0);
         uint32_t sgid = SG.get_group_id().get(0);
@@ -196,18 +196,18 @@ int main() {
   }
 
   // Test shuffle of pointer types
-  check_pointer<int>(Queue);
+  check_pointer<class KernelName_mNiN, int>(Queue);
 
   // Test shuffle of non-native types
   auto ComplexFloatGenerator = [state = std::complex<float>(0, 1)]() mutable {
     return state += std::complex<float>(2, 2);
   };
-  check_struct<std::complex<float>>(Queue, ComplexFloatGenerator);
+  check_struct<class KernelName_zHfIPOLOFsXiZiCvG, std::complex<float>>(Queue, ComplexFloatGenerator);
 
   auto ComplexDoubleGenerator = [state = std::complex<double>(0, 1)]() mutable {
     return state += std::complex<double>(2, 2);
   };
-  check_struct<std::complex<double>>(Queue, ComplexDoubleGenerator);
+  check_struct<class KernelName_CjlHUmnuxWtyejZFD, std::complex<double>>(Queue, ComplexDoubleGenerator);
 
   std::cout << "Test passed." << std::endl;
   return 0;

@@ -9,7 +9,7 @@
 #include "helper.hpp"
 #include <CL/sycl.hpp>
 
-template <typename ... Ts>
+template <typename... Ts>
 class sycl_subgr;
 
 using namespace cl::sycl;

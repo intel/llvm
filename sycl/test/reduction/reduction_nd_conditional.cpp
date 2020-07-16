@@ -35,9 +35,6 @@ void initInputData(buffer<T, 1> &InBuf, T &ExpectedOut, T Identity,
   }
 };
 
-template <typename T, int Dim, class BinaryOperation>
-class SomeClass;
-
 template <typename T>
 struct Vec {
   Vec() : X(0), Y(0) {}
@@ -69,7 +66,7 @@ struct VecPlus {
   }
 };
 
-template <typename T, int Dim, class BinaryOperation>
+template <typename SpecializationKernelName, typename T, int Dim, class BinaryOperation>
 void test(T Identity, size_t WGSize, size_t NWItems) {
   buffer<T, 1> InBuf(NWItems);
   buffer<T, 1> OutBuf(1);
@@ -90,7 +87,7 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
     range<1> GlobalRange(NWItems);
     range<1> LocalRange(WGSize);
     nd_range<1> NDRange(GlobalRange, LocalRange);
-    CGH.parallel_for<SomeClass<T, Dim, BinaryOperation>>(
+    CGH.parallel_for<SpecializationKernelName>(
         NDRange, Redu, [=](nd_item<1> NDIt, auto &Sum) {
           size_t I = NDIt.get_global_linear_id();
           if (I < 2)
@@ -114,10 +111,10 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
 }
 
 int main() {
-  test<int, 0, intel::plus<int>>(0, 2, 2);
-  test<int, 1, intel::plus<int>>(0, 7, 7);
-  test<int, 0, intel::plus<int>>(0, 2, 64);
-  test<short, 1, intel::plus<short>>(0, 16, 256);
+  test<class KernelName_lAx, int, 0, intel::plus<int>>(0, 2, 2);
+  test<class KernelName_eVBkBK, int, 1, intel::plus<int>>(0, 7, 7);
+  test<class KernelName_vMSyszeYKJbaXATnPL, int, 0, intel::plus<int>>(0, 2, 64);
+  test<class KernelName_UPKnfG, short, 1, intel::plus<short>>(0, 16, 256);
 
   std::cout << "Test passed\n";
   return 0;
