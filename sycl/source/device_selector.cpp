@@ -21,7 +21,7 @@ namespace sycl {
 
 // Utility function to check if device is of the preferred backend.
 // Currently preference is given to the level0 backend.
-static bool isDeviceOfPreferredSyclBe(const device &Device) {
+static bool isPreferredDevice(const device &Device) {
   if (!Device.is_gpu())
     return false;
 
@@ -29,7 +29,7 @@ static bool isDeviceOfPreferredSyclBe(const device &Device) {
   if (ForcedBackend) {
     return detail::getSyclObjImpl(Device)->getPlugin().getBackend() ==
            *ForcedBackend;
-
+  }
   return detail::getSyclObjImpl(Device)->getPlugin().getBackend() ==
          backend::level0;
 }
@@ -65,7 +65,7 @@ device device_selector::select_device() const {
     // preference to the device of the preferred BE.
     //
     if ((score < dev_score) ||
-        (score == dev_score && isDeviceOfPreferredSyclBe(dev))) {
+        (score == dev_score && isPreferredDevice(dev))) {
       res = &dev;
       score = dev_score;
     }
@@ -105,7 +105,7 @@ int default_selector::operator()(const device &dev) const {
   if (dev.is_gpu()) {
     Score += 500;
     // Give preference to device of SYCL BE.
-    if (isDeviceOfPreferredSyclBe(dev))
+    if (isPreferredDevice(dev))
       Score += 50;
   }
 
@@ -124,7 +124,7 @@ int gpu_selector::operator()(const device &dev) const {
   if (dev.is_gpu()) {
     Score = 1000;
     // Give preference to device of SYCL BE.
-    if (isDeviceOfPreferredSyclBe(dev))
+    if (isPreferredDevice(dev))
       Score += 50;
   }
   return Score;
