@@ -57,9 +57,9 @@ else()
   add_custom_target(level-zero-loader DEPENDS ${LEVEL_ZERO_LIBRARY} COMMENT "Copying Level Zero Loader ...")
 endif()
 
-add_library (L0Loader-Headers INTERFACE)
-add_library (L0Loader::Headers ALIAS L0Loader-Headers)
-target_include_directories(L0Loader-Headers
+add_library (LevelZeroLoader-Headers INTERFACE)
+add_library (LevelZeroLoader::Headers ALIAS LevelZeroLoader-Headers)
+target_include_directories(LevelZeroLoader-Headers
   INTERFACE "${LEVEL_ZERO_INCLUDE_DIR}"
 )
 

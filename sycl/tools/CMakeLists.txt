@@ -19,7 +19,7 @@ endif()
 target_link_libraries(get_device_count_by_type
   PRIVATE
     OpenCL::Headers
-    L0Loader::Headers
+    LevelZeroLoader::Headers
     ${OpenCL_LIBRARIES}
     ${LEVEL_ZERO_LIBRARY}
     $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:cudadrv>
