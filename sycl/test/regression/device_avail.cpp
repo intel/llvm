@@ -11,7 +11,7 @@
 using namespace cl::sycl;
 
 int main() {
-    auto devices = device::get_devices(info::device_type::cpu);
-    assert(devices.size() == 1 && "CPU device should be available even when SYCL_BE is set");
-   return 0;
+  auto devices = device::get_devices(info::device_type::cpu);
+  assert(devices.size() == 1 && "CPU device should be available even when SYCL_BE is set");
+  return 0;
 }

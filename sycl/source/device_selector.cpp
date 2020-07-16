@@ -64,8 +64,7 @@ device device_selector::select_device() const {
     // from the tied set is to be returned is not defined". Here we give a
     // preference to the device of the preferred BE.
     //
-    if ((score < dev_score) ||
-        (score == dev_score && isPreferredDevice(dev))) {
+    if ((score < dev_score) || (score == dev_score && isPreferredDevice(dev))) {
       res = &dev;
       score = dev_score;
     }
