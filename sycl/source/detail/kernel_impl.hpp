@@ -62,6 +62,14 @@ public:
   /// \param ProgramImpl is a valid instance of program_impl
   kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl);
 
+  // This section means the object is non-movable and non-copyable
+  // There is no need of move and copy constructors in kernel_impl.
+  // If they need to be added, piKernelRetain method for MKernel should be present.
+  kernel_impl(const kernel_impl &) = delete;
+  kernel_impl(kernel_impl &&) = delete;
+  kernel_impl &operator=(const kernel_impl &) = delete;
+  kernel_impl &operator=(kernel_impl &&) = delete;
+
   ~kernel_impl();
 
   /// Gets a valid OpenCL kernel handle
@@ -145,13 +153,6 @@ private:
   const ContextImplPtr MContext;
   const ProgramImplPtr MProgramImpl;
   bool MCreatedFromSource = true;
-
-public:
-  // This section means the object is non-movable and non-copyable
-  kernel_impl(const kernel_impl &) = delete;
-  kernel_impl(kernel_impl &&) = delete;
-  kernel_impl &operator=(const kernel_impl &) = delete;
-  kernel_impl &operator=(kernel_impl &&) = delete;
 };
 
 } // namespace detail
