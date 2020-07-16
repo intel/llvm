@@ -450,7 +450,8 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M, const context &Context,
 
   auto BuildResult = getOrBuild<PiKernelT, invalid_object_error>(
       Cache, KernelName, AcquireF, GetF, BuildF);
-  return std::make_pair(BuildResult->Ptr.load(), &(BuildResult->MBuildResultMutex));
+  return std::make_pair(BuildResult->Ptr.load(),
+                        &(BuildResult->MBuildResultMutex));
 }
 
 RT::PiProgram
