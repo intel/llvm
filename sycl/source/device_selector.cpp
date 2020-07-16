@@ -11,6 +11,7 @@
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
 // 4.6.1 Device selection class
@@ -21,11 +22,17 @@ namespace sycl {
 // Utility function to check if device is of the preferred backend.
 // Currently preference is given to the level0 backend.
 static bool isDeviceOfPreferredSyclBe(const device &Device) {
-  if (Device.is_host())
+  if (!Device.is_gpu())
     return false;
 
-  return detail::getSyclObjImpl(Device)->getPlugin().getBackend() ==
-         backend::level0;
+  backend *ForcedBackend = detail::SYCLConfig<detail::SYCL_BE>::get();
+  if (ForcedBackend) {
+    return detail::getSyclObjImpl(Device)->getPlugin().getBackend() ==
+           *ForcedBackend;
+  } else {
+    return detail::getSyclObjImpl(Device)->getPlugin().getBackend() ==
+           backend::level0;
+  }
 }
 
 device device_selector::select_device() const {
@@ -92,16 +99,16 @@ int default_selector::operator()(const device &dev) const {
 
   int Score = REJECT_DEVICE_SCORE;
 
-  // Give preference to device of SYCL BE.
-  if (isDeviceOfPreferredSyclBe(dev))
-    Score = 50;
-
   // override always wins
   if (dev.get_info<info::device::device_type>() == detail::get_forced_type())
     Score += 1000;
 
-  if (dev.is_gpu())
+  if (dev.is_gpu()) {
     Score += 500;
+    // Give preference to device of SYCL BE.
+    if (isDeviceOfPreferredSyclBe(dev))
+      Score += 50;
+  }
 
   if (dev.is_cpu())
     Score += 300;
@@ -128,9 +135,6 @@ int cpu_selector::operator()(const device &dev) const {
   int Score = REJECT_DEVICE_SCORE;
   if (dev.is_cpu()) {
     Score = 1000;
-    // Give preference to device of SYCL BE.
-    if (isDeviceOfPreferredSyclBe(dev))
-      Score += 50;
   }
   return Score;
 }
@@ -139,9 +143,6 @@ int accelerator_selector::operator()(const device &dev) const {
   int Score = REJECT_DEVICE_SCORE;
   if (dev.is_accelerator()) {
     Score = 1000;
-    // Give preference to device of SYCL BE.
-    if (isDeviceOfPreferredSyclBe(dev))
-      Score += 50;
   }
   return Score;
 }
@@ -150,9 +151,6 @@ int host_selector::operator()(const device &dev) const {
   int Score = REJECT_DEVICE_SCORE;
   if (dev.is_host()) {
     Score = 1000;
-    // Give preference to device of SYCL BE.
-    if (isDeviceOfPreferredSyclBe(dev))
-      Score += 50;
   }
   return Score;
 }
