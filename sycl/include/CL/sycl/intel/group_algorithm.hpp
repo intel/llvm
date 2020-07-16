@@ -77,20 +77,6 @@ template <> inline id<3> linear_id_to_id(range<3> r, size_t linear_id) {
   return result;
 }
 
-template <typename T> struct is_group : std::false_type {};
-
-template <int Dimensions>
-struct is_group<group<Dimensions>> : std::true_type {};
-
-template <typename T> struct is_sub_group : std::false_type {};
-
-template <> struct is_sub_group<intel::sub_group> : std::true_type {};
-
-template <typename T>
-struct is_generic_group
-    : std::integral_constant<bool,
-                             is_group<T>::value || is_sub_group<T>::value> {};
-
 template <typename T, class BinaryOperation> struct identity {};
 
 template <typename T, typename V> struct identity<T, intel::plus<V>> {

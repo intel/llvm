@@ -678,7 +678,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
 
   std::vector<ze_device_memory_properties_t> ZeDeviceMemoryProperties;
   try {
-    ZeDeviceMemoryProperties.reserve(ZeAvailMemCount);
+    ZeDeviceMemoryProperties.resize(ZeAvailMemCount);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
