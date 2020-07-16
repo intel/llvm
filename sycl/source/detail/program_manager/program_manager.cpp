@@ -125,7 +125,8 @@ RetT *waitUntilBuilt(KernelProgramCache &Cache,
                      KernelProgramCache::BuildResult<RetT> *BuildResult) {
   // any thread which will find nullptr in cache will wait until the pointer
   // is not null anymore
-  Cache.waitUntilBuilt([BuildResult]() {
+  std::unique_lock<std::mutex> Lock(BuildResult->MBuildResultMutex);
+  Cache.waitUntilBuilt(Lock, [BuildResult]() {
     int State = BuildResult->State.load();
 
     return State == BS_Done || State == BS_Failed;
@@ -198,6 +199,7 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
 
   // only the building thread will run this
   try {
+    std::lock_guard<std::mutex> Lock(BuildResult->MBuildResultMutex);
     RetT *Desired = Build();
 
 #ifndef NDEBUG
@@ -414,7 +416,8 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M, const context &Context,
                                   const program_impl *Prg) {
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << M << ", "
-              << getRawSyclObjImpl(Context) << ", " << KernelName << ")\n";
+              << getRawSyclObjImpl(Context) << ", " << KernelName << ", "
+              << Prg->get() << ")\n";
   }
 
   RT::PiProgram Program = getBuiltPIProgram(M, Context, KernelName, Prg);
@@ -445,10 +448,9 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M, const context &Context,
     return Result;
   };
 
-  auto BuildResult = static_cast<KernelProgramCache::BuildResultKernel *>(
-      getOrBuild<PiKernelT, invalid_object_error>(Cache, KernelName, AcquireF,
-                                                  GetF, BuildF));
-  return std::make_pair(BuildResult->Ptr.load(), &(BuildResult->MKernelMutex));
+  auto BuildResult = getOrBuild<PiKernelT, invalid_object_error>(
+      Cache, KernelName, AcquireF, GetF, BuildF);
+  return std::make_pair(BuildResult->Ptr.load(), &(BuildResult->MBuildResultMutex));
 }
 
 RT::PiProgram

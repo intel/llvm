@@ -33,21 +33,20 @@ public:
     std::string Msg;
     pi_int32 Code;
 
-    bool isFilledIn() const {
-      return !Msg.empty();
-    }
+    bool isFilledIn() const { return !Msg.empty(); }
   };
 
   /// Denotes pointer to some entity with its general state and build error.
   /// The pointer is not null if and only if the entity is usable.
   /// State of the entity is provided by the user of cache instance.
   /// Currently there is only a single user - ProgramManager class.
-  template<typename T> struct BuildResult {
+  template <typename T> struct BuildResult {
     std::atomic<T *> Ptr;
     std::atomic<int> State;
     BuildError Error;
+    std::mutex MBuildResultMutex;
 
-    BuildResult(T* P, int S) : Ptr{P}, State{S}, Error{"", 0} {}
+    BuildResult(T *P, int S) : Ptr{P}, State{S}, Error{"", 0} {}
   };
 
   using PiProgramT = std::remove_pointer<RT::PiProgram>::type;
@@ -59,14 +58,8 @@ public:
 
   using PiKernelT = std::remove_pointer<RT::PiKernel>::type;
 
-  struct BuildResultKernel : public BuildResult<PiKernelT> {
-    std::mutex MKernelMutex;
-
-    BuildResultKernel(PiKernelT *P, int S) : BuildResult(P, S) {}
-  };
-
   using PiKernelPtrT = std::atomic<PiKernelT *>;
-  using KernelWithBuildStateT = BuildResultKernel;
+  using KernelWithBuildStateT = BuildResult<PiKernelT>;
   using KernelByNameT = std::map<string_class, KernelWithBuildStateT>;
   using KernelCacheT = std::map<RT::PiProgram, KernelByNameT>;
 
@@ -82,9 +75,9 @@ public:
     return {MKernelsPerProgramCache, MKernelsPerProgramCacheMutex};
   }
 
-  template <class Predicate> void waitUntilBuilt(Predicate Pred) const {
-    std::unique_lock<std::mutex> Lock(MBuildCVMutex);
-
+  template <class Predicate>
+  void waitUntilBuilt(std::unique_lock<std::mutex> &Lock,
+                      Predicate Pred) const {
     MBuildCV.wait(Lock, Pred);
   }
 
