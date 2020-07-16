@@ -29,10 +29,9 @@ static bool isDeviceOfPreferredSyclBe(const device &Device) {
   if (ForcedBackend) {
     return detail::getSyclObjImpl(Device)->getPlugin().getBackend() ==
            *ForcedBackend;
-  } else {
-    return detail::getSyclObjImpl(Device)->getPlugin().getBackend() ==
-           backend::level0;
-  }
+
+  return detail::getSyclObjImpl(Device)->getPlugin().getBackend() ==
+         backend::level0;
 }
 
 device device_selector::select_device() const {
