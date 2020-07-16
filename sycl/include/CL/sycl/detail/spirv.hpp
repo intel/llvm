@@ -114,6 +114,8 @@ static inline constexpr __spv::Scope::Flag getScope(intel::memory_scope Scope) {
   }
 }
 
+// C++ integer types are converted for SPIR-V built-ins
+// e.g. unsigned long long => unsigned long
 template <typename T, access::address_space AddressSpace>
 inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicCompareExchange(multi_ptr<T, AddressSpace> MPtr,
