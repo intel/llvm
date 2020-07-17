@@ -811,13 +811,12 @@ private:
 
 #ifdef __SYCL_DEVICE_ONLY__
   void __init() {
-    // Calculate work item's global id, this should be done once, that
-    // is why this is done in _init method, call to __init method is generated
-    // by frontend. As a result each work item will write to its own section
-    // in the flush buffer
-
-    id<1> GlobalId = __spirv::initGlobalInvocationId<1, id<1>>();
-    WIOffset = (unsigned int)GlobalId[0] * FlushBufferSize;
+    // Calculate offset in the flush buffer for each work item in the global
+    // work space. We need to avoid calling intrinsics to get global id because
+    // when stream is used in  a single_task kernel this could cause some
+    // overhead on FPGA target. That is why use global atomic variable to
+    // calculate offsets.
+    WIOffset = GlobalOffset[1].fetch_add(FlushBufferSize);
   }
 
   void __finalize() {
