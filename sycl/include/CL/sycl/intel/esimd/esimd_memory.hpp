@@ -567,7 +567,7 @@ media_block_load(AccessorTy acc, unsigned x, unsigned y) {
   static_assert(plane <= 3u, "valid plane index is in range [0, 3]");
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_EXPLICIT_SIMD__)
   constexpr unsigned int RoundedWidth =
-      Width < 4 ? 4 : __esimd::getNextPowerOf2(Width);
+      Width < 4 ? 4 : __esimd::getNextPowerOf2<Width>();
 
   if constexpr (Width < RoundedWidth) {
     constexpr unsigned int n1 = RoundedWidth / sizeof(T);
@@ -617,7 +617,7 @@ media_block_store(AccessorTy acc, unsigned x, unsigned y, simd<T, m * n> vals) {
   static_assert(plane <= 3u, "valid plane index is in range [0, 3]");
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_EXPLICIT_SIMD__)
   constexpr unsigned int RoundedWidth =
-      Width < 4 ? 4 : __esimd::getNextPowerOf2(Width);
+      Width < 4 ? 4 : __esimd::getNextPowerOf2<Width>();
   constexpr unsigned int n1 = RoundedWidth / sizeof(T);
 
   if constexpr (Width < RoundedWidth) {
