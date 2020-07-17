@@ -324,7 +324,7 @@ void visualstudio::Linker::constructMSVCLibCommand(Compilation &C,
   }
   if (Args.hasArg(options::OPT_fsycl_link_EQ) &&
       Args.hasArg(options::OPT_fintelfpga))
-    CmdArgs.push_back(C.getArgs().MakeArgString(Twine("/IGNORE:4221")));
+    CmdArgs.push_back("/IGNORE:4221");
   CmdArgs.push_back(
       C.getArgs().MakeArgString(Twine("-OUT:") + Output.getFilename()));
 
