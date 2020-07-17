@@ -39,17 +39,15 @@ public:
     typedef usm_allocator<U, AllocKind, Alignment> other;
   };
 
+  static_assert(
+      AllocKind != usm::alloc::device,
+      "usm_allocator does not support AllocKind == usm::alloc::device");
+
   usm_allocator() noexcept = delete;
   usm_allocator(const context &Ctxt, const device &Dev) noexcept
-      : MContext(Ctxt), MDevice(Dev) {
-    static_assert(AllocKind != usm::alloc::device,
-                  "Allocators do not work with device allocations.");
-  }
+      : MContext(Ctxt), MDevice(Dev) {}
   usm_allocator(const queue &Q) noexcept
-      : MContext(Q.get_context()), MDevice(Q.get_device()) {
-    static_assert(AllocKind != usm::alloc::device,
-                  "Allocators do not work with device allocations.");
-  }
+      : MContext(Q.get_context()), MDevice(Q.get_device()) {}
   usm_allocator(const usm_allocator &) noexcept = default;
   usm_allocator(usm_allocator &&) noexcept = default;
   usm_allocator &operator=(const usm_allocator &) = delete;
