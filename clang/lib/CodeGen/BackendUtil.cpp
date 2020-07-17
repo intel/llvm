@@ -895,9 +895,9 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
     PerModulePasses.add(createInstructionCombiningPass());
     PerModulePasses.add(createDeadCodeEliminationPass());
     PerModulePasses.add(createFunctionInliningPass(
-      CodeGenOpts.OptimizationLevel, CodeGenOpts.OptimizeSize,
-      (!CodeGenOpts.SampleProfileFile.empty() &&
-        CodeGenOpts.PrepareForThinLTO)));
+        CodeGenOpts.OptimizationLevel, CodeGenOpts.OptimizeSize,
+        (!CodeGenOpts.SampleProfileFile.empty() &&
+         CodeGenOpts.PrepareForThinLTO)));
     PerModulePasses.add(createSROAPass());
     PerModulePasses.add(createEarlyCSEPass(true));
     PerModulePasses.add(createInstructionCombiningPass());

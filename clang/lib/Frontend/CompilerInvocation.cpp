@@ -817,8 +817,8 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
     Opts.EmitLLVMUseLists = A->getOption().getID() == OPT_emit_llvm_uselists;
 
   // ESIMD GPU Back-end requires optimized IR
-  bool IsSyclESIMD =
-    Args.hasFlag(options::OPT_fsycl_esimd, options::OPT_fno_sycl_esimd, false);
+  bool IsSyclESIMD = Args.hasFlag(options::OPT_fsycl_esimd,
+                                  options::OPT_fno_sycl_esimd, false);
 
   Opts.DisableLLVMPasses =
       Args.hasArg(OPT_disable_llvm_passes) ||

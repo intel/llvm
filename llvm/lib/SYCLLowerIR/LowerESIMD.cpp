@@ -820,8 +820,7 @@ translateSpirvIntrinsic(CallInst *CI, StringRef SpirvIntrName,
   auto translateSpirvIntr = [&SpirvIntrName, &ESIMDToErases,
                              CI](StringRef SpvIName, auto TranslateFunc) {
     if (SpirvIntrName.consume_front(SpvIName)) {
-      Value *TranslatedV =
-        TranslateFunc(*CI, SpirvIntrName.substr(1, 1));
+      Value *TranslatedV = TranslateFunc(*CI, SpirvIntrName.substr(1, 1));
       CI->replaceAllUsesWith(TranslatedV);
       ESIMDToErases.push_back(CI);
     }

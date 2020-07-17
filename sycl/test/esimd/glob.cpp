@@ -6,8 +6,8 @@
 // translation of the register attribute)
 
 #include <CL/sycl.hpp>
-#include <iostream>
 #include <CL/sycl/intel/esimd.hpp>
+#include <iostream>
 
 using namespace cl::sycl;
 using namespace sycl::intel::gpu;

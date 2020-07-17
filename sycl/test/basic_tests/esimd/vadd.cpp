@@ -2,9 +2,9 @@
 // RUN: %clangxx -I %sycl_include %s -o %t.out -lsycl
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 
-#include <iostream>
 #include <CL/sycl.hpp>
 #include <CL/sycl/intel/esimd.hpp>
+#include <iostream>
 
 using namespace cl::sycl;
 

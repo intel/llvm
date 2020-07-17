@@ -35,7 +35,7 @@ void bar() {
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
   // CHECK-LABEL: @_Z3foov
   constexpr int VL = 32;
-  uint32_t* ptr = 0;
+  uint32_t *ptr = 0;
 
   int x = 0, y = 0, z = 0;
 
@@ -91,12 +91,12 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
       pB;
 
   auto d = __esimd_wrregion<
-    float,
-    16/*ret size*/,
-    8/*write size*/,
-    0/*vstride*/,
-    8/*row width*/,
-    1/*hstride*/>(c.data()/*dst*/, b.data()/*src*/,0/*offset*/);
+      float,
+      16 /*ret size*/,
+      8 /*write size*/,
+      0 /*vstride*/,
+      8 /*row width*/,
+      1 /*hstride*/>(c.data() /*dst*/, b.data() /*src*/, 0 /*offset*/);
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <16 x float> @llvm.genx.wrregionf.v16f32.v8f32.i16.v8i1(<16 x float> %{{[0-9a-zA-Z_.]+}}, <8 x float> %{{[0-9a-zA-Z_.]+}}, i32 0, i32 8, i32 1, i16 0, i32 0, <8 x i1> <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>)
 
   simd<int, 32> va;
@@ -109,7 +109,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
   // CHECK: %[[SI2:[0-9a-zA-Z_.]+]] = ptrtoint %opencl.image2d_wo_t addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
   // CHECK: call void @llvm.genx.media.st.v32i32(i32 0, i32 %[[SI2]], i32 0, i32 32, i32 %{{[0-9a-zA-Z_.]+}}, i32 %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}})
 
-  auto ee = __esimd_vload<int, 16>((vector_type_t<int, 16>*)(&vg));
+  auto ee = __esimd_vload<int, 16>((vector_type_t<int, 16> *)(&vg));
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <16 x i32> @llvm.genx.vload.v16i32.p4v16i32(<16 x i32> addrspace(4)* {{.*}})
   __esimd_vstore<int, 32>(&vc, va.data());
   // CHECK: store <32 x i32>  %{{[0-9a-zA-Z_.]+}}, <32 x i32> addrspace(4)* {{.*}}
