@@ -660,6 +660,16 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     if (A->getEnabled())
       Fn->setMetadata("no_global_work_offset", llvm::MDNode::get(Context, {}));
   }
+
+  if (const SYCLIntelBufferLocationAttr *A =
+          FD->getAttr<SYCLIntelBufferLocationAttr>()) {
+    std::vector<size_t> Args = A->getActualArgs();
+    std::vector<llvm::Metadata *> AttrMDArgs;
+    for (auto A : Args)
+      AttrMDArgs.push_back(llvm::ConstantAsMetadata::get(Builder.getInt32(A)));
+    Fn->setMetadata("kernel_arg_buffer_location",
+                    llvm::MDNode::get(Context, AttrMDArgs));
+  }
 }
 
 /// Determine whether the function F ends with a return stmt.

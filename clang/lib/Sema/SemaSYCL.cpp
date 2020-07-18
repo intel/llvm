@@ -80,6 +80,10 @@ public:
   /// half class.
   static bool isSyclHalfType(const QualType &Ty);
 
+  /// Checks whether given clang type is a full specialization of the SYCL
+  /// property_list class.
+  static bool isSyclBufferLocation(const QualType &Ty);
+
   /// Checks whether given clang type is a standard SYCL API class with given
   /// name.
   /// \param Ty    the clang type being checked
@@ -1171,23 +1175,28 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   // Holds the last handled field's first parameter. This doesn't store an
   // iterator as push_back invalidates iterators.
   size_t LastParamIndex = 0;
+  // This vector stores information about buffer location. If no buffer_location
+  // property of an accessor is set - the appropriate value stored in the
+  // vector = -1.
+  std::vector<size_t> BufferLocationMD;
 
-  void addParam(const FieldDecl *FD, QualType FieldTy) {
+  void addParam(const FieldDecl *FD, QualType FieldTy, size_t LocationID = -1) {
     const ConstantArrayType *CAT =
         SemaRef.getASTContext().getAsConstantArrayType(FieldTy);
     if (CAT)
       FieldTy = CAT->getElementType();
     ParamDesc newParamDesc = makeParamDesc(FD, FieldTy);
-    addParam(newParamDesc, FieldTy);
+    addParam(newParamDesc, FieldTy, LocationID);
   }
 
-  void addParam(const CXXBaseSpecifier &BS, QualType FieldTy) {
+  void addParam(const CXXBaseSpecifier &BS, QualType FieldTy,
+                size_t LocationID = -1) {
     ParamDesc newParamDesc =
         makeParamDesc(SemaRef.getASTContext(), BS, FieldTy);
-    addParam(newParamDesc, FieldTy);
+    addParam(newParamDesc, FieldTy, LocationID);
   }
 
-  void addParam(ParamDesc newParamDesc, QualType FieldTy) {
+  void addParam(ParamDesc newParamDesc, QualType FieldTy, size_t LocationID) {
     // Create a new ParmVarDecl based on the new info.
     auto *NewParam = ParmVarDecl::Create(
         SemaRef.getASTContext(), KernelDecl, SourceLocation(), SourceLocation(),
@@ -1198,13 +1207,41 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
 
     LastParamIndex = Params.size();
     Params.push_back(NewParam);
+    BufferLocationMD.push_back(LocationID);
+  }
+
+  // Obtain an integer value stored in a template parameter of buffer_location
+  // property to pass it to buffer_location kernel attribute
+  size_t handleBufferLocationProperty(QualType FieldTy) {
+    const auto *AccTy =
+        cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
+
+    // TODO: when SYCL headers' part is ready - replace this 'if' with an assert
+    if (AccTy->getTemplateArgs().size() < 6)
+      return -1;
+
+    // TODO: at this point of time it's unclear, what representation in LLVM IR
+    // is going to be for other compile time known accessor properties, hence
+    // it's not clear, how handle them in SemaSYCL. But in general property_list
+    // is a parameter pack and shall be handled appropriately.
+    const auto Prop =
+        cast<TemplateArgument>(AccTy->getTemplateArgs()[5]);
+    QualType PropTy = Prop.getAsType();
+    if (!Util::isSyclBufferLocation(PropTy))
+      return -1;
+
+    const auto *PropDecl = cast<ClassTemplateSpecializationDecl>(
+        PropTy->getAsRecordDecl());
+    return static_cast<int>(
+        PropDecl->getTemplateArgs()[0].getAsIntegral().getExtValue());
   }
 
   // All special SYCL objects must have __init method. We extract types for
   // kernel parameters from __init method parameters. We will use __init method
   // and kernel parameters which we build here to initialize special objects in
   // the kernel body.
-  bool handleSpecialType(FieldDecl *FD, QualType FieldTy) {
+  bool handleSpecialType(FieldDecl *FD, QualType FieldTy,
+                         bool isAccessorType = false) {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
@@ -1213,8 +1250,17 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     // Don't do -1 here because we count on this to be the first parameter added
     // (if any).
     size_t ParamIndex = Params.size();
-    for (const ParmVarDecl *Param : InitMethod->parameters())
-      addParam(FD, Param->getType().getCanonicalType());
+    auto ParamIt = InitMethod->parameters().begin();
+    if (*ParamIt) {
+      // Add meaningful argument (not '-1') to buffer_location attribute only
+      // for an accessor pointer
+      size_t BufferLocAttrArg =
+          isAccessorType ? handleBufferLocationProperty(FieldTy) : -1;
+      addParam(FD, (*ParamIt)->getType().getCanonicalType(), BufferLocAttrArg);
+      ++ParamIt;
+      for (; ParamIt != InitMethod->parameters().end(); ++ParamIt)
+        addParam(FD, (*ParamIt)->getType().getCanonicalType(), -1);
+    }
     LastParamIndex = ParamIndex;
     return true;
   }
@@ -1270,6 +1316,11 @@ public:
     KernelDecl->setType(FuncType);
     KernelDecl->setParams(Params);
 
+    // Add SYCLIntelBufferLocationAttr to the kernel declaration
+    auto *BufferLocAttr = SYCLIntelBufferLocationAttr::CreateImplicit(Ctx);
+    BufferLocAttr->setActualArgs(BufferLocationMD);
+    KernelDecl->addAttr(BufferLocAttr);
+
     if (ArgChecker.isValid())
       SemaRef.addSyclDeviceDecl(KernelDecl);
   }
@@ -1285,13 +1336,13 @@ public:
     // (if any).
     size_t ParamIndex = Params.size();
     for (const ParmVarDecl *Param : InitMethod->parameters())
-      addParam(BS, Param->getType().getCanonicalType());
+      addParam(BS, Param->getType().getCanonicalType(), 42);
     LastParamIndex = ParamIndex;
     return true;
   }
 
   bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
-    return handleSpecialType(FD, FieldTy);
+    return handleSpecialType(FD, FieldTy, /*isAccessorType*/ true);
   }
 
   bool handleSyclSamplerType(FieldDecl *FD, QualType FieldTy) final {
@@ -2816,6 +2867,19 @@ bool Util::isSyclSpecConstantType(const QualType &Ty) {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "experimental"},
+      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
+  return matchQualifiedTypeName(Ty, Scopes);
+}
+
+bool Util::isSyclBufferLocation(const QualType &Ty) {
+  const StringRef &Name = "buffer_location";
+  std::array<DeclContextDesc, 4> Scopes = {
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
+      // TODO: this doesn't belong to property namespace, instead it shall be
+      // in its own namespace. Change it, when the actual implementation in SYCL
+      // headers is ready
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "property"},
       Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
   return matchQualifiedTypeName(Ty, Scopes);
 }

@@ -3082,6 +3082,12 @@ static void handleMaxGlobalWorkDimAttr(Sema &S, Decl *D,
         S.Context, Attr, MaxGlobalWorkDim));
 }
 
+// Handles kernel_arg_buffer_location attr.
+static void handleBufferLocationAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
+  S.Diag(Attr.getLoc(), diag::warn_sycl_implicit_attr_usage)
+    << Attr;
+}
+
 static void handleVecTypeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!AL.hasParsedType()) {
     S.Diag(AL.getLoc(), diag::err_attribute_wrong_number_arguments) << AL << 1;
@@ -7788,6 +7794,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SYCLIntelNoGlobalWorkOffset:
     handleNoGlobalWorkOffsetAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLIntelBufferLocation:
+    handleBufferLocationAttr(S, D, AL);
     break;
   case ParsedAttr::AT_VecTypeHint:
     handleVecTypeHint(S, D, AL);

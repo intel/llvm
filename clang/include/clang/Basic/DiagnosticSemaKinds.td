@@ -10982,6 +10982,8 @@ def warn_sycl_implicit_decl
 def warn_sycl_restrict_recursion
     : Warning<"SYCL kernel cannot call a recursive function">,
       InGroup<SyclStrict>, DefaultError;
+def warn_sycl_implicit_attr_usage : Warning <
+  "%0 attribute cannot be used explicitly">, InGroup<IgnoredAttributes>;
 def err_ivdep_duplicate_arg : Error<
   "duplicate argument to 'ivdep'. attribute requires one or both of a safelen "
   "and array">;

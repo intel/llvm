@@ -1188,6 +1188,28 @@ def SYCLDeviceIndirectlyCallable : InheritableAttr {
   let PragmaAttributeSupport = 0;
 }
 
+def SYCLIntelBufferLocation : InheritableAttr {
+  let Spellings = [CXX11<"intelfpga","kernel_arg_buffer_location">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+
+  let AdditionalMembers = [{
+    std::vector<size_t> ActualArgs;
+
+    void setActualArgs(std::vector<size_t> ArgVec) {
+      ActualArgs = ArgVec;
+    }
+
+    std::vector<size_t> getActualArgs() const {
+      return ActualArgs;
+    }
+  }];
+
+  let Documentation = [SYCLIntelBufferLocationAttrDocs];
+  let HasCustomParsing = 1;
+  let PragmaAttributeSupport = 0;
+}
+
 def SYCLIntelKernelArgsRestrict : InheritableAttr {
   let Spellings = [ CXX11<"intel", "kernel_args_restrict"> ];
   let Subjects = SubjectList<[Function], ErrorDiag>;
