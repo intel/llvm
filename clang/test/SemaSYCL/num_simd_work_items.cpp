@@ -5,11 +5,11 @@
 #ifndef __SYCL_DEVICE_ONLY__
 struct FuncObj {
   [[intelfpga::num_simd_work_items(42)]] // expected-no-diagnostics
-  void operator()() {}
+  void operator()() const {}
 };
 
 template <typename name, typename Func>
-void kernel(Func kernelFunc) {
+void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 
@@ -25,11 +25,11 @@ void func_ignore() {}
 
 struct FuncObj {
   [[intelfpga::num_simd_work_items(42)]]
-  void operator()() {}
+  void operator()() const {}
 };
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 

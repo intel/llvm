@@ -12,7 +12,7 @@ inline namespace cl {
 namespace sycl {
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   // expected-note@+1 3{{called by 'kernel_single_task<AName, (lambda}}
   kernelFunc();
 }

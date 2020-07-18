@@ -50,7 +50,7 @@ void bar() {
 }
 
 template <typename Name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 #ifdef LINUX_ASM
   __asm__("int3");

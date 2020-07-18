@@ -63,7 +63,7 @@ void foo2(){};
 __float128 foo(__float128 P) { return P; }
 
 template <typename Name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   // expected-note@+1 6{{called by 'kernel}}
   kernelFunc();
 }

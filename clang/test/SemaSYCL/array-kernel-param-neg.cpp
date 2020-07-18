@@ -20,11 +20,11 @@ class E {
   int i[];
 
 public:
-  int operator()() { return i[0]; }
+  int operator()() const { return i[0]; }
 };
 
 template <typename Name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 }
 

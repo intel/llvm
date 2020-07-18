@@ -86,7 +86,7 @@ bool isa_B(A *a) {
 }
 
 template <typename N, typename L>
-__attribute__((sycl_kernel)) void kernel1(L l) {
+__attribute__((sycl_kernel)) void kernel1(const L &l) {
   l(); //#rtti_kernel  // expected-note 2{{called by 'kernel1<kernel_name, (lambda at }}
 }
 } // namespace Check_RTTI_Restriction
@@ -374,7 +374,7 @@ int use2(a_type ab, a_type *abp) {
 }
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc(); //#call_kernelFunc // expected-note 3{{called by 'kernel_single_task<fake_kernel, (lambda at}}
 }
 

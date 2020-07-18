@@ -13,7 +13,7 @@ void bar() {
 
 template <typename name, typename Func>
 // expected-no-warning@+1
-__cdecl __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__cdecl __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   // expected-error@+1{{SYCL kernel cannot call a variadic function}}
   printf("cannot call from here\n");
   // expected-no-error@+1

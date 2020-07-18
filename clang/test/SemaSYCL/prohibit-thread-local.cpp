@@ -41,7 +41,7 @@ template <typename name, typename Func>
 __attribute__((sycl_kernel))
 // expected-note@+2 2{{called by}}
 void
-kernel_single_task(Func kernelFunc) { kernelFunc(); }
+kernel_single_task(const Func &kernelFunc) { kernelFunc(); }
 
 int main() {
   // expected-note@+1 2{{called by}}

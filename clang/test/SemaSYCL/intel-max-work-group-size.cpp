@@ -5,11 +5,11 @@
 #ifndef __SYCL_DEVICE_ONLY__
 struct FuncObj {
   [[intelfpga::max_work_group_size(1, 1, 1)]] // expected-no-diagnostics
-  void operator()() {}
+  void operator()() const {}
 };
 
 template <typename name, typename Func>
-void kernel(Func kernelFunc) {
+void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 
@@ -25,19 +25,19 @@ void func_ignore() {}
 
 struct FuncObj {
   [[intelfpga::max_work_group_size(4, 4, 4)]]
-  void operator()() {}
+  void operator()() const {}
 };
 
 #ifdef TRIGGER_ERROR
 struct DAFuncObj {
   [[intelfpga::max_work_group_size(4, 4, 4)]]
   [[cl::reqd_work_group_size(8, 8, 4)]] // expected-error{{'reqd_work_group_size' attribute conflicts with 'max_work_group_size' attribute}}
-  void operator()() {}
+  void operator()() const {}
 };
 #endif // TRIGGER_ERROR
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 

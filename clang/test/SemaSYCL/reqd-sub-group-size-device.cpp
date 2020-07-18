@@ -9,12 +9,12 @@ class Functor16 {
 public:
   // expected-warning@+2 {{attribute 'intel_reqd_sub_group_size' is deprecated}}
   // expected-note@+1 {{did you mean to use 'intel::reqd_sub_group_size' instead?}}
-  [[cl::intel_reqd_sub_group_size(16)]] void operator()() {}
+  [[cl::intel_reqd_sub_group_size(16)]] void operator()() const {}
 };
 
 class Functor8 { // expected-error {{conflicting attributes applied to a SYCL kernel}}
 public:
-  [[intel::reqd_sub_group_size(8)]] void operator()() { // expected-note {{conflicting attribute is here}}
+  [[intel::reqd_sub_group_size(8)]] void operator()() const { // expected-note {{conflicting attribute is here}}
     foo();
   }
 };
@@ -26,13 +26,13 @@ public:
 
 class Functor {
 public:
-  void operator()() {
+  void operator()() const {
     foo();
   }
 };
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 
