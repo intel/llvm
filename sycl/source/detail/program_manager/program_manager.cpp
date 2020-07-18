@@ -783,8 +783,8 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
     LinkOpts = LinkOptions.c_str();
   }
 
-  // Level-Zero plugin doesn't support piProgramCompile/piProgramLink commands, program
-  // is built during piProgramCreate.
+  // Level-Zero plugin doesn't support piProgramCompile/piProgramLink commands,
+  // program is built during piProgramCreate.
   // TODO: remove this check as soon as piProgramCompile/piProgramLink will be
   // implemented in Level-Zero plugin.
   if (Context->getPlugin().getBackend() == backend::level_zero) {

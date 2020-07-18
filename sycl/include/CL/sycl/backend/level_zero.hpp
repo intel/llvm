@@ -32,8 +32,8 @@ template <> struct interop<backend::level_zero, program> {
 
 template <typename DataT, int Dimensions, access::mode AccessMode>
 struct interop<backend::level_zero, accessor<DataT, Dimensions, AccessMode,
-                                         access::target::global_buffer,
-                                         access::placeholder::false_t>> {
+                                             access::target::global_buffer,
+                                             access::placeholder::false_t>> {
   using type = char *;
 };
 

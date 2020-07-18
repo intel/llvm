@@ -1,10 +1,10 @@
-//===----------- pi_level_zero.cpp - Level Zero Plugin--------------------------==//
+//===-------- pi_level_zero.cpp - Level Zero Plugin --------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===----------------------------------------------------------------------===//
+//===------------------------------------------------------------------===//
 
 /// \file pi_level_zero.cpp
 /// Implementation of Level Zero Plugin.
@@ -26,8 +26,8 @@
 
 namespace {
 
-// Controls Level Zero calls serialization to w/a Level Zero driver being not MT ready.
-// Recognized values (can be used as a bit mask):
+// Controls Level Zero calls serialization to w/a Level Zero driver being not MT
+// ready. Recognized values (can be used as a bit mask):
 enum {
   ZeSerializeNone =
       0, // no locking or blocking (except when SYCL RT requested blocking)
@@ -754,7 +754,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // cl_khr_3d_image_writes - Extension to enable writes to 3D image memory
     //   objects.
     //
-    // Hardcoding some extensions we know are supported by all Level Zero devices.
+    // Hardcoding some extensions we know are supported by all Level Zero
+    // devices.
     SupportedExtensions += (ZE_SUPPORTED_EXTENSIONS);
     if (ZeDeviceKernelProperties.fp16Supported)
       SupportedExtensions += ("cl_khr_fp16 ");
@@ -995,24 +996,24 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_uint64{DoubleFPValue});
   }
   case PI_DEVICE_INFO_IMAGE2D_MAX_WIDTH:
-    // Until Level Zero provides needed info, hardcode default minimum values required
-    // by the SYCL specification.
+    // Until Level Zero provides needed info, hardcode default minimum values
+    // required by the SYCL specification.
     return ReturnValue(size_t{8192});
   case PI_DEVICE_INFO_IMAGE2D_MAX_HEIGHT:
-    // Until Level Zero provides needed info, hardcode default minimum values required
-    // by the SYCL specification.
+    // Until Level Zero provides needed info, hardcode default minimum values
+    // required by the SYCL specification.
     return ReturnValue(size_t{8192});
   case PI_DEVICE_INFO_IMAGE3D_MAX_WIDTH:
-    // Until Level Zero provides needed info, hardcode default minimum values required
-    // by the SYCL specification.
+    // Until Level Zero provides needed info, hardcode default minimum values
+    // required by the SYCL specification.
     return ReturnValue(size_t{2048});
   case PI_DEVICE_INFO_IMAGE3D_MAX_HEIGHT:
-    // Until Level Zero provides needed info, hardcode default minimum values required
-    // by the SYCL specification.
+    // Until Level Zero provides needed info, hardcode default minimum values
+    // required by the SYCL specification.
     return ReturnValue(size_t{2048});
   case PI_DEVICE_INFO_IMAGE3D_MAX_DEPTH:
-    // Until Level Zero provides needed info, hardcode default minimum values required
-    // by the SYCL specification.
+    // Until Level Zero provides needed info, hardcode default minimum values
+    // required by the SYCL specification.
     return ReturnValue(size_t{2048});
   case PI_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE:
     return ReturnValue(size_t{ZeDeviceImageProperties.maxImageBufferSize});
@@ -1437,9 +1438,9 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   auto HostPtrOrNull =
       (Flags & PI_MEM_FLAGS_HOST_PTR_USE) ? pi_cast<char *>(HostPtr) : nullptr;
   try {
-    *RetMem = new _pi_buffer(Context->Device->Platform,
-                             pi_cast<char *>(Ptr) /* Level Zero Memory Handle */,
-                             HostPtrOrNull);
+    *RetMem = new _pi_buffer(
+        Context->Device->Platform,
+        pi_cast<char *>(Ptr) /* Level Zero Memory Handle */, HostPtrOrNull);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1660,8 +1661,8 @@ pi_result piProgramCreate(pi_context Context, const void *IL, size_t Length,
   assert(Context);
   assert(Program);
 
-  // NOTE: the Level Zero module creation is also building the program, so we are
-  // deferring it until the program is ready to be built in piProgramBuild
+  // NOTE: the Level Zero module creation is also building the program, so we
+  // are deferring it until the program is ready to be built in piProgramBuild
   // and piProgramCompile. Also it is only then we know the build options.
   //
   ze_module_desc_t ZeModuleDesc = {};
@@ -1796,7 +1797,8 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
                         void (*PFnNotify)(pi_program Program, void *UserData),
                         void *UserData, pi_program *RetProgram) {
 
-  // TODO: Level Zero does not [yet] support linking so dummy implementation here.
+  // TODO: Level Zero does not [yet] support linking so dummy implementation
+  // here.
   assert(NumInputPrograms == 1 && InputPrograms);
   assert(RetProgram);
   *RetProgram = InputPrograms[0];
@@ -2052,9 +2054,9 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
   case PI_KERNEL_INFO_PROGRAM:
     return ReturnValue(pi_program{Kernel->Program});
   case PI_KERNEL_INFO_FUNCTION_NAME:
-    // TODO: Replace with the line in the comment once bug in the Level Zero driver will
-    // be fixed. Problem is that currently Level Zero driver truncates name of the
-    // returned kernel if it is longer than 256 symbols.
+    // TODO: Replace with the line in the comment once bug in the Level Zero
+    // driver will be fixed. Problem is that currently Level Zero driver
+    // truncates name of the returned kernel if it is longer than 256 symbols.
     //
     // return ReturnValue(ZeKernelProperties.name);
     return ReturnValue(Kernel->KernelName.c_str());
@@ -3010,8 +3012,8 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
   ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, NumEventsInWaitList,
                                           ZeEventWaitList));
 
-  // TODO: Level Zero is missing the memory "mapping" capabilities, so we are left
-  // to doing new memory allocation and a copy (read).
+  // TODO: Level Zero is missing the memory "mapping" capabilities, so we are
+  // left to doing new memory allocation and a copy (read).
   //
   // TODO: check if the input buffer is already allocated in shared
   // memory and thus is accessible from the host as is. Can we get SYCL RT
@@ -3081,8 +3083,8 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, NumEventsInWaitList,
                                           ZeEventWaitList));
 
-  // TODO: Level Zero is missing the memory "mapping" capabilities, so we are left
-  // to doing copy (write back to the device).
+  // TODO: Level Zero is missing the memory "mapping" capabilities, so we are
+  // left to doing copy (write back to the device).
   //
   // NOTE: Keep this in sync with the implementation of
   // piEnqueueMemBufferMap/piEnqueueMemImageMap.
@@ -3754,7 +3756,8 @@ pi_result piextProgramSetSpecializationConstant(pi_program Prog,
   // Pass SpecValue pointer. Spec constant value is retrieved
   // by Level-Zero when creating the modul
   //
-  // NOTE: SpecSize is unused in Level Zero, the size is known from SPIR-V by SpecID.
+  // NOTE: SpecSize is unused in Level Zero, the size is known from SPIR-V by
+  // SpecID.
   Prog->ZeSpecConstants[SpecID] = reinterpret_cast<uint64_t>(SpecValue);
 
   return PI_SUCCESS;

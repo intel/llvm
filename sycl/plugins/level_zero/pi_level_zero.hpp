@@ -1,10 +1,10 @@
-//===---------- pi_level_zero.hpp - Level Zero Plugin -------------------------===//
+//===------- pi_level_zero.hpp - Level Zero Plugin -------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===----------------------------------------------------------------------===//
+//===-----------------------------------------------------------------===//
 
 /// \defgroup sycl_pi_level_zero Level Zero Plugin
 /// \ingroup sycl_pi
@@ -56,13 +56,14 @@ struct _pi_object {
   std::atomic<pi_uint32> RefCount;
 };
 
-// Define the types that are opaque in pi.h in a manner suitabale for Level Zero plugin
+// Define the types that are opaque in pi.h in a manner suitabale for Level Zero
+// plugin
 
 struct _pi_platform {
   _pi_platform(ze_driver_handle_t Driver) : ZeDriver{Driver} {}
 
-  // Level Zero lacks the notion of a platform, but there is a driver, which is a
-  // pretty good fit to keep here.
+  // Level Zero lacks the notion of a platform, but there is a driver, which is
+  // a pretty good fit to keep here.
   ze_driver_handle_t ZeDriver;
 
   // Cache versions info from zeDriverGetProperties.
@@ -89,8 +90,8 @@ struct _pi_device : _pi_object {
   // PI platform to which this device belongs.
   pi_platform Platform;
 
-  // Immediate Level Zero command list for this device, to be used for initializations.
-  // To be created as:
+  // Immediate Level Zero command list for this device, to be used for
+  // initializations. To be created as:
   // - Immediate command list: So any command appended to it is immediately
   //   offloaded to the device.
   // - Synchronous: So implicit synchronization is made inside the level-zero
@@ -283,9 +284,9 @@ struct _pi_event : _pi_object {
   // Level Zero event pool handle.
   ze_event_pool_handle_t ZeEventPool;
 
-  // Level Zero command list where the command signaling this event was appended to.
-  // This is currently used to remember/destroy the command list after
-  // all commands in it are completed, i.e. this event signaled.
+  // Level Zero command list where the command signaling this event was appended
+  // to. This is currently used to remember/destroy the command list after all
+  // commands in it are completed, i.e. this event signaled.
   ze_command_list_handle_t ZeCommandList;
 
   // Keeps the command-queue and command associated with the event.
