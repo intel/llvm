@@ -90,7 +90,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
 }
 
 template <typename name, typename Func>
-  // expected-note@+1 2{{function implemented using recursion declared here}}
+// expected-note@+1 2{{function implemented using recursion declared here}}
 __attribute__((sycl_kernel)) void kernel_single_task2(const Func &kernelFunc) {
   kernelFunc();
   // expected-error@+1 2{{SYCL kernel cannot call a recursive function}}

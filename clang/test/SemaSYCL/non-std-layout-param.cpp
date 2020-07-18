@@ -19,7 +19,6 @@ __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 }
 
-
 void test() {
   C C0;
   C0.Y=0;

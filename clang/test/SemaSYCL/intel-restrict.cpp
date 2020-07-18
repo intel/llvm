@@ -5,8 +5,7 @@
 void func_ignore() {}
 
 struct FuncObj {
-  [[intel::kernel_args_restrict]]
-  void operator()() const {}
+  [[intel::kernel_args_restrict]] void operator()() const {}
 };
 
 template <typename name, typename Func>

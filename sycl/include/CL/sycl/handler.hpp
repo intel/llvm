@@ -741,7 +741,8 @@ private:
   // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
   // Front End to determine kernel invocation kind.
   template <typename KernelName, typename ElementType, typename KernelType>
-  __attribute__((sycl_kernel)) void kernel_parallel_for(const KernelType &KernelFunc) {
+  __attribute__((sycl_kernel)) void
+  kernel_parallel_for(const KernelType &KernelFunc) {
     KernelFunc(
         detail::Builder::getElement(static_cast<ElementType *>(nullptr)));
   }
@@ -974,7 +975,8 @@ public:
             int Dims, typename Reduction>
   detail::enable_if_t<Reduction::accessor_mode == access::mode::read_write &&
                       Reduction::has_fast_atomics && !Reduction::is_usm>
-  parallel_for(nd_range<Dims> Range, Reduction Redu, const KernelType &KernelFunc) {
+  parallel_for(nd_range<Dims> Range, Reduction Redu,
+               const KernelType &KernelFunc) {
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
                                           Redu.getUserAccessor());
   }
@@ -987,7 +989,8 @@ public:
             int Dims, typename Reduction>
   detail::enable_if_t<Reduction::accessor_mode == access::mode::read_write &&
                       Reduction::has_fast_atomics && Reduction::is_usm>
-  parallel_for(nd_range<Dims> Range, Reduction Redu, const KernelType &KernelFunc) {
+  parallel_for(nd_range<Dims> Range, Reduction Redu,
+               const KernelType &KernelFunc) {
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
                                           Redu.getUSMPointer());
   }

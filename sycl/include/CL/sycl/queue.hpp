@@ -751,7 +751,8 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(
-      nd_range<Dims> ExecutionRange, event DepEvent, const KernelType &KernelFunc
+      nd_range<Dims> ExecutionRange, event DepEvent,
+      const KernelType &KernelFunc
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
       ,
       const detail::code_location &CodeLoc = detail::code_location::current()

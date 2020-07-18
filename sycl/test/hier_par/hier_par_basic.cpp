@@ -65,7 +65,7 @@ struct PFWIFunctor {
     size_t ub = cl::sycl::min(wi_offset + wi_chunk, range_length);
 
     for (size_t ind = wi_offset; ind < ub; ind++)
-       dev_ptr[ind] += v;
+      dev_ptr[ind] += v;
   }
 
   size_t wg_chunk;

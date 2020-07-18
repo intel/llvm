@@ -5,7 +5,8 @@
 #ifndef __SYCL_DEVICE_ONLY__
 struct FuncObj {
   [[intelfpga::num_simd_work_items(42)]] // expected-no-diagnostics
-  void operator()() const {}
+  void
+  operator()() const {}
 };
 
 template <typename name, typename Func>
@@ -24,8 +25,7 @@ void foo() {
 void func_ignore() {}
 
 struct FuncObj {
-  [[intelfpga::num_simd_work_items(42)]]
-  void operator()() const {}
+  [[intelfpga::num_simd_work_items(42)]] void operator()() const {}
 };
 
 template <typename name, typename Func>
