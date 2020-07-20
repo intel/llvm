@@ -73,7 +73,6 @@ matrix:
 
     - env: BUILD_EXTERNAL=1 CHECK_TIDY=1
   allow_failures:
-    - compiler: clang
     - os: osx
   fast_finish: true
 
