@@ -1222,7 +1222,7 @@ _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Resul
 
 _A Type_ is an `OpTypeInt` of width `W` and is the type of _A_.
 
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_.
+_Eout_ and _Mout_ contain the width of the exponent and the mantissa of the floating point type of _Result_.
 Note that the exponent value (Eout) is inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
