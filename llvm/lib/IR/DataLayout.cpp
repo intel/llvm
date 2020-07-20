@@ -52,7 +52,7 @@ StructLayout::StructLayout(StructType *ST, const DataLayout &DL) {
   // Loop over each of the elements, placing them in memory.
   for (unsigned i = 0, e = NumElements; i != e; ++i) {
     Type *Ty = ST->getElementType(i);
-    const Align TyAlign(ST->isPacked() ? 1 : DL.getABITypeAlignment(Ty));
+    const Align TyAlign = ST->isPacked() ? Align(1) : DL.getABITypeAlign(Ty);
 
     // Add padding if necessary to align the data element properly.
     if (!isAligned(TyAlign, StructSize)) {
@@ -153,6 +153,8 @@ const char *DataLayout::getManglingComponent(const Triple &T) {
     return "-m:o";
   if (T.isOSWindows() && T.isOSBinFormatCOFF())
     return T.getArch() == Triple::x86 ? "-m:x" : "-m:w";
+  if (T.isOSBinFormatXCOFF())
+    return "-m:a";
   return "-m:e";
 }
 
@@ -443,6 +445,9 @@ void DataLayout::parseSpecifier(StringRef Desc) {
         break;
       case 'x':
         ManglingMode = MM_WinCOFFX86;
+        break;
+      case 'a':
+        ManglingMode = MM_XCOFF;
         break;
       }
       break;

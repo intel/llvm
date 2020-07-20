@@ -3839,6 +3839,8 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   case AMDGPU::G_AMDGPU_BUFFER_LOAD_FORMAT_D16:
   case AMDGPU::G_AMDGPU_TBUFFER_LOAD_FORMAT:
   case AMDGPU::G_AMDGPU_TBUFFER_LOAD_FORMAT_D16:
+  case AMDGPU::G_AMDGPU_TBUFFER_STORE_FORMAT:
+  case AMDGPU::G_AMDGPU_TBUFFER_STORE_FORMAT_D16:
   case AMDGPU::G_AMDGPU_BUFFER_STORE:
   case AMDGPU::G_AMDGPU_BUFFER_STORE_BYTE:
   case AMDGPU::G_AMDGPU_BUFFER_STORE_SHORT:
@@ -4230,8 +4232,7 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       OpdsMapping[2] = AMDGPU::getValueMapping(Bank, 32);
       break;
     }
-    case Intrinsic::amdgcn_end_cf:
-    case Intrinsic::amdgcn_init_exec: {
+    case Intrinsic::amdgcn_end_cf: {
       unsigned Size = getSizeInBits(MI.getOperand(1).getReg(), MRI, *TRI);
       OpdsMapping[1] = AMDGPU::getValueMapping(AMDGPU::SGPRRegBankID, Size);
       break;
@@ -4287,7 +4288,6 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     case Intrinsic::amdgcn_init_exec_from_input: {
       unsigned Size = getSizeInBits(MI.getOperand(1).getReg(), MRI, *TRI);
       OpdsMapping[1] = AMDGPU::getValueMapping(AMDGPU::SGPRRegBankID, Size);
-      OpdsMapping[2] = AMDGPU::getValueMapping(AMDGPU::SGPRRegBankID, Size);
       break;
     }
     case Intrinsic::amdgcn_ds_gws_init:

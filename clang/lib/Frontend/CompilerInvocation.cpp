@@ -788,7 +788,7 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
       Opts.setDebuggerTuning(static_cast<llvm::DebuggerKind>(Val));
   }
   Opts.DwarfVersion = getLastArgIntValue(Args, OPT_dwarf_version_EQ, 0, Diags);
-  Opts.DebugColumnInfo = Args.hasArg(OPT_dwarf_column_info);
+  Opts.DebugColumnInfo = !Args.hasArg(OPT_gno_column_info);
   Opts.EmitCodeView = Args.hasArg(OPT_gcodeview);
   Opts.CodeViewGHash = Args.hasArg(OPT_gcodeview_ghash);
   Opts.MacroDebugInfo = Args.hasArg(OPT_debug_info_macro);
@@ -864,7 +864,6 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   Opts.RerollLoops = Args.hasArg(OPT_freroll_loops);
 
   Opts.DisableIntegratedAS = Args.hasArg(OPT_fno_integrated_as);
-  Opts.CallGraphProfile = !Opts.DisableIntegratedAS;
   Opts.Autolink = !Args.hasArg(OPT_fno_autolink);
   Opts.SampleProfileFile =
       std::string(Args.getLastArgValue(OPT_fprofile_sample_use_EQ));
@@ -946,7 +945,7 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   Opts.StrictFloatCastOverflow =
       !Args.hasArg(OPT_fno_strict_float_cast_overflow);
 
-  Opts.NoZeroInitializedInBSS = Args.hasArg(OPT_mno_zero_initialized_in_bss);
+  Opts.NoZeroInitializedInBSS = Args.hasArg(OPT_fno_zero_initialized_in_bss);
   Opts.NumRegisterParameters = getLastArgIntValue(Args, OPT_mregparm, 0, Diags);
   Opts.NoExecStack = Args.hasArg(OPT_mno_exec_stack);
   Opts.SmallDataLimit =
@@ -1586,8 +1585,6 @@ bool clang::ParseDiagnosticArgs(DiagnosticOptions &Opts, ArgList &Args,
   Opts.AbsolutePath = Args.hasArg(OPT_fdiagnostics_absolute_paths);
   Opts.ShowOptionNames = !Args.hasArg(OPT_fno_diagnostics_show_option);
 
-  llvm::sys::Process::UseANSIEscapeCodes(Args.hasArg(OPT_fansi_escape_codes));
-
   // Default behavior is to not to show note include stacks.
   Opts.ShowNoteIncludeStack = false;
   if (Arg *A = Args.getLastArg(OPT_fdiagnostics_show_note_include_stack,
@@ -1694,6 +1691,9 @@ bool clang::ParseDiagnosticArgs(DiagnosticOptions &Opts, ArgList &Args,
   }
   Opts.MessageLength =
       getLastArgIntValue(Args, OPT_fmessage_length_EQ, 0, Diags);
+
+  Opts.UndefPrefixes = Args.getAllArgValues(OPT_Wundef_prefix_EQ);
+
   addDiagnosticArgs(Args, OPT_W_Group, OPT_W_value_Group, Opts.Warnings);
   addDiagnosticArgs(Args, OPT_R_Group, OPT_R_value_Group, Opts.Remarks);
 
@@ -3298,6 +3298,9 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
       Diags.Report(diag::err_drv_invalid_value) << A->getAsString(Args) << Val;
   }
 
+  if (Args.hasArg(OPT_fexperimental_strict_floating_point))
+    Opts.ExpStrictFP = true;
+
   auto FPRM = llvm::RoundingMode::NearestTiesToEven;
   if (Args.hasArg(OPT_frounding_math)) {
     FPRM = llvm::RoundingMode::Dynamic;
@@ -3739,6 +3742,10 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Res,
   }
 
   Success &= Res.parseSimpleArgs(Args, Diags);
+
+  llvm::sys::Process::UseANSIEscapeCodes(
+      Res.DiagnosticOpts->UseANSIEscapeCodes);
+
   Success &= ParseAnalyzerArgs(*Res.getAnalyzerOpts(), Args, Diags);
   Success &= ParseMigratorArgs(Res.getMigratorOpts(), Args);
   ParseDependencyOutputArgs(Res.getDependencyOutputOpts(), Args);
@@ -3870,6 +3877,10 @@ std::string CompilerInvocation::getModuleHash() const {
 
   for (StringRef Feature : LangOpts->ModuleFeatures)
     code = hash_combine(code, Feature);
+
+  code = hash_combine(code, LangOpts->ObjCRuntime);
+  const auto &BCN = LangOpts->CommentOpts.BlockCommandNames;
+  code = hash_combine(code, hash_combine_range(BCN.begin(), BCN.end()));
 
   // Extend the signature with the target options.
   code = hash_combine(code, TargetOpts->Triple, TargetOpts->CPU,

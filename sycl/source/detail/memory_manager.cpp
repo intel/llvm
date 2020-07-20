@@ -353,10 +353,12 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
           DepEvents.size(), &DepEvents[0], &OutEvent);
     } else {
       size_t SrcRowPitch = (1 == DimSrc) ? 0 : SrcSize[0];
-      size_t SrcSlicePitch = (3 == DimSrc) ? SrcSize[0] * SrcSize[1] : 0;
+      size_t SrcSlicePitch =
+          (DimSrc > 1) ? SrcSize[0] * SrcSize[1] : SrcSize[0];
 
       size_t DstRowPitch = (1 == DimDst) ? 0 : DstSize[0];
-      size_t DstSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
+      size_t DstSlicePitch =
+          (DimDst > 1) ? DstSize[0] * DstSize[1] : DstSize[0];
 
       Plugin.call<PiApiKind::piEnqueueMemBufferCopyRect>(
           Queue, SrcMem, DstMem, &SrcOffset[0], &DstOffset[0],

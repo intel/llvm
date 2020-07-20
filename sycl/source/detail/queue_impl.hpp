@@ -115,7 +115,7 @@ public:
 
   ~queue_impl() {
     throw_asynchronous();
-    if (MOpenCLInterop) {
+    if (!MHostQueue) {
       getPlugin().call<PiApiKind::piQueueRelease>(MCommandQueue);
     }
   }

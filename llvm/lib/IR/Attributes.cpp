@@ -443,6 +443,8 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "cold";
   if (hasAttribute(Attribute::ImmArg))
     return "immarg";
+  if (hasAttribute(Attribute::NoUndef))
+    return "noundef";
 
   if (hasAttribute(Attribute::ByVal)) {
     std::string Result;
@@ -597,6 +599,8 @@ Type *AttributeImpl::getValueAsType() const {
 }
 
 bool AttributeImpl::operator<(const AttributeImpl &AI) const {
+  if (this == &AI)
+    return false;
   // This sorts the attributes with Attribute::AttrKinds coming first (sorted
   // relative to their enum value) and then strings.
   if (isEnumAttribute()) {
@@ -1706,7 +1710,7 @@ AttrBuilder &AttrBuilder::merge(const AttrBuilder &B) {
 
   Attrs |= B.Attrs;
 
-  for (auto I : B.td_attrs())
+  for (const auto &I : B.td_attrs())
     TargetDepAttrs[I.first] = I.second;
 
   return *this;
@@ -1737,7 +1741,7 @@ AttrBuilder &AttrBuilder::remove(const AttrBuilder &B) {
 
   Attrs &= ~B.Attrs;
 
-  for (auto I : B.td_attrs())
+  for (const auto &I : B.td_attrs())
     TargetDepAttrs.erase(I.first);
 
   return *this;

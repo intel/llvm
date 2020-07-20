@@ -676,10 +676,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   // Confirm at least one memory is available in the device
   assert(ZeAvailMemCount > 0);
 
-  ze_device_memory_properties_t *ZeDeviceMemoryProperties;
+  std::vector<ze_device_memory_properties_t> ZeDeviceMemoryProperties;
   try {
-    ZeDeviceMemoryProperties =
-        new ze_device_memory_properties_t[ZeAvailMemCount]();
+    ZeDeviceMemoryProperties.resize(ZeAvailMemCount);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -693,7 +692,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   // TODO: cache various device properties in the PI device object,
   // and initialize them only upon they are first requested.
   ZE_CALL(zeDeviceGetMemoryProperties(ZeDevice, &ZeAvailMemCount,
-                                      ZeDeviceMemoryProperties));
+                                      ZeDeviceMemoryProperties.data()));
 
   ze_device_image_properties_t ZeDeviceImageProperties;
   ZeDeviceImageProperties.version = ZE_DEVICE_IMAGE_PROPERTIES_VERSION_CURRENT;

@@ -509,7 +509,8 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
   if (auto BF = getTranslatedValue(F))
     return static_cast<SPIRVFunction *>(BF);
 
-  if (F->isIntrinsic() && !SPIRVAllowUnknownIntrinsics) {
+  if (F->isIntrinsic() &&
+      (!SPIRVAllowUnknownIntrinsics || isKnownIntrinsic(F->getIntrinsicID()))) {
     // We should not translate LLVM intrinsics as a function
     assert(none_of(F->user_begin(), F->user_end(),
                    [this](User *U) { return getTranslatedValue(U); }) &&
@@ -596,6 +597,19 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
           .getValueAsString()
           .getAsInteger(0, Kind);
       BA->addDecorate(DecorationFuncParamIOKind, Kind);
+    }
+    if (Attrs.hasAttribute(ArgNo + 1, kVCMetadata::VCArgumentKind)) {
+      SPIRVWord Kind;
+      Attrs.getAttribute(ArgNo + 1, kVCMetadata::VCArgumentKind)
+          .getValueAsString()
+          .getAsInteger(0, Kind);
+      BA->addDecorate(DecorationFuncParamKindINTEL, Kind);
+    }
+    if (Attrs.hasAttribute(ArgNo + 1, kVCMetadata::VCArgumentDesc)) {
+      StringRef Desc =
+          Attrs.getAttribute(ArgNo + 1, kVCMetadata::VCArgumentDesc)
+              .getValueAsString();
+      BA->addDecorate(new SPIRVDecorateFuncParamDescAttr(BA, Desc.str()));
     }
   }
 }
@@ -1816,6 +1830,38 @@ void addIntelFPGADecorationsForStructMember(
   }
 }
 
+bool LLVMToSPIRV::isKnownIntrinsic(Intrinsic::ID Id) {
+  // Known intrinsics usually do not need translation of their declaration
+  switch (Id) {
+  case Intrinsic::assume:
+  case Intrinsic::bitreverse:
+  case Intrinsic::sqrt:
+  case Intrinsic::fabs:
+  case Intrinsic::ceil:
+  case Intrinsic::ctlz:
+  case Intrinsic::cttz:
+  case Intrinsic::expect:
+  case Intrinsic::fmuladd:
+  case Intrinsic::memset:
+  case Intrinsic::memcpy:
+  case Intrinsic::lifetime_start:
+  case Intrinsic::lifetime_end:
+  case Intrinsic::dbg_declare:
+  case Intrinsic::dbg_value:
+  case Intrinsic::annotation:
+  case Intrinsic::var_annotation:
+  case Intrinsic::ptr_annotation:
+  case Intrinsic::invariant_start:
+  case Intrinsic::invariant_end:
+  case Intrinsic::dbg_label:
+  case Intrinsic::trap:
+    return true;
+  default:
+    // Unknown intrinsics' declarations should always be translated
+    return false;
+  }
+}
+
 SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
                                             SPIRVBasicBlock *BB) {
   auto GetMemoryAccess = [](MemIntrinsic *MI) -> std::vector<SPIRVWord> {
@@ -1837,6 +1883,9 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     return MemoryAccess;
   };
 
+  // LLVM intrinsics with known translation to SPIR-V are handled here. They
+  // also must be registered at isKnownIntrinsic function in order to make
+  // -spirv-allow-unknown-intrinsics work correctly.
   switch (II->getIntrinsicID()) {
   case Intrinsic::assume: {
     // llvm.assume translation is currently supported only within

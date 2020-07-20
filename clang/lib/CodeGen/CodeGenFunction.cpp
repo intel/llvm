@@ -88,8 +88,8 @@ CodeGenFunction::~CodeGenFunction() {
   // seems to be a reasonable spot. We do it here, as opposed to the deletion
   // time of the CodeGenModule, because we have to ensure the IR has not yet
   // been "emitted" to the outside, thus, modifications are still sensible.
-  if (llvm::OpenMPIRBuilder *OMPBuilder = CGM.getOpenMPIRBuilder())
-    OMPBuilder->finalize();
+  if (CGM.getLangOpts().OpenMPIRBuilder)
+    CGM.getOpenMPRuntime().getOMPBuilder().finalize();
 }
 
 // Map the LangOption for exception behavior into
@@ -2215,39 +2215,13 @@ void CodeGenFunction::emitAlignmentAssumption(llvm::Value *PtrValue,
                                               SourceLocation AssumptionLoc,
                                               llvm::Value *Alignment,
                                               llvm::Value *OffsetValue) {
-  if (Alignment->getType() != IntPtrTy)
-    Alignment =
-        Builder.CreateIntCast(Alignment, IntPtrTy, false, "casted.align");
-  if (OffsetValue && OffsetValue->getType() != IntPtrTy)
-    OffsetValue =
-        Builder.CreateIntCast(OffsetValue, IntPtrTy, true, "casted.offset");
-  llvm::Value *TheCheck = nullptr;
-  if (SanOpts.has(SanitizerKind::Alignment)) {
-    llvm::Value *PtrIntValue =
-        Builder.CreatePtrToInt(PtrValue, IntPtrTy, "ptrint");
-
-    if (OffsetValue) {
-      bool IsOffsetZero = false;
-      if (const auto *CI = dyn_cast<llvm::ConstantInt>(OffsetValue))
-        IsOffsetZero = CI->isZero();
-
-      if (!IsOffsetZero)
-        PtrIntValue = Builder.CreateSub(PtrIntValue, OffsetValue, "offsetptr");
-    }
-
-    llvm::Value *Zero = llvm::ConstantInt::get(IntPtrTy, 0);
-    llvm::Value *Mask =
-        Builder.CreateSub(Alignment, llvm::ConstantInt::get(IntPtrTy, 1));
-    llvm::Value *MaskedPtr = Builder.CreateAnd(PtrIntValue, Mask, "maskedptr");
-    TheCheck = Builder.CreateICmpEQ(MaskedPtr, Zero, "maskcond");
-  }
+  llvm::Value *TheCheck;
   llvm::Instruction *Assumption = Builder.CreateAlignmentAssumption(
-      CGM.getDataLayout(), PtrValue, Alignment, OffsetValue);
-
-  if (!SanOpts.has(SanitizerKind::Alignment))
-    return;
-  emitAlignmentAssumptionCheck(PtrValue, Ty, Loc, AssumptionLoc, Alignment,
-                               OffsetValue, TheCheck, Assumption);
+      CGM.getDataLayout(), PtrValue, Alignment, OffsetValue, &TheCheck);
+  if (SanOpts.has(SanitizerKind::Alignment)) {
+    emitAlignmentAssumptionCheck(PtrValue, Ty, Loc, AssumptionLoc, Alignment,
+                                 OffsetValue, TheCheck, Assumption);
+  }
 }
 
 void CodeGenFunction::emitAlignmentAssumption(llvm::Value *PtrValue,

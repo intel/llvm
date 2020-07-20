@@ -198,6 +198,7 @@ public:
                   "T and pointerT must be same size");
   }
 
+#ifdef __ENABLE_USM_ADDR_SPACE__
   // Create atomic in global_space with one from global_device_space
   template <access::address_space _Space = addressSpace,
             typename = typename std::enable_if<
@@ -214,6 +215,7 @@ public:
   atomic(atomic<T, access::address_space::global_device_space> &&RHS) {
     Ptr = RHS.Ptr;
   }
+#endif // __ENABLE_USM_ADDR_SPACE__
 
   void store(T Operand, memory_order Order = memory_order::relaxed) {
     __spirv_AtomicStore(

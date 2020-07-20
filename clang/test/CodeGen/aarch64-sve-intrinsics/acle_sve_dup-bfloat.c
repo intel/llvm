@@ -1,10 +1,10 @@
 // REQUIRES: aarch64-registered-target
-// RUN: %clang_cc1 -D__ARM_FEATURE_SVE -D__ARM_FEATURE_SVE_BF16 -D__ARM_FEATURE_BF16_SCALAR_ARITHMETIC -triple aarch64-none-linux-gnu -target-feature +sve -target-feature +bf16 -fallow-half-arguments-and-returns -S -O1 -Werror -Wall -emit-llvm -o - %s | FileCheck %s
-// RUN: %clang_cc1 -D__ARM_FEATURE_SVE -D__ARM_FEATURE_SVE_BF16 -D__ARM_FEATURE_BF16_SCALAR_ARITHMETIC -DSVE_OVERLOADED_FORMS -triple aarch64-none-linux-gnu -target-feature +sve -target-feature +bf16 -fallow-half-arguments-and-returns -S -O1 -Werror -Wall -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -triple aarch64-none-linux-gnu -target-feature +sve -target-feature +bf16 -fallow-half-arguments-and-returns -S -O1 -Werror -Wall -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -DSVE_OVERLOADED_FORMS -triple aarch64-none-linux-gnu -target-feature +sve -target-feature +bf16 -fallow-half-arguments-and-returns -S -O1 -Werror -Wall -emit-llvm -o - %s | FileCheck %s
 
-// RUN: %clang_cc1 -D__ARM_FEATURE_SVE -D__ARM_FEATURE_SVE_BF16 -D__ARM_FEATURE_BF16_SCALAR_ARITHMETIC -triple aarch64-none-linux-gnu -target-feature +sve -target-feature +bf16 -fallow-half-arguments-and-returns -S -O1 -Werror -Wall -o - %s >/dev/null 2>%t
+// RUN: %clang_cc1 -triple aarch64-none-linux-gnu -target-feature +sve -target-feature +bf16 -fallow-half-arguments-and-returns -S -O1 -Werror -Wall -o - %s >/dev/null 2>%t
 // RUN: FileCheck --check-prefix=ASM --allow-empty %s <%t
-// RUN: %clang_cc1 -D__ARM_FEATURE_SVE -D__ARM_FEATURE_BF16_SCALAR_ARITHMETIC -triple aarch64-none-linux-gnu -target-feature +sve -target-feature +bf16 -fallow-half-arguments-and-returns -fsyntax-only -verify -verify-ignore-unexpected=error -verify-ignore-unexpected=note %s
+// RUN: %clang_cc1 -triple aarch64-none-linux-gnu -target-feature +sve -fallow-half-arguments-and-returns -fsyntax-only -verify -verify-ignore-unexpected=error -verify-ignore-unexpected=note %s
 
 // If this check fails please read test/CodeGen/aarch64-sve-intrinsics/README for instructions on how to resolve it.
 // ASM-NOT: warning
@@ -50,4 +50,14 @@ svbfloat16_t test_svdup_n_bf16_x(svbool_t pg, bfloat16_t op) {
   // CHECK: ret <vscale x 8 x bfloat> %[[INTRINSIC]]
   // expected-warning@+1 {{implicit declaration of function 'svdup_n_bf16_x'}}
   return SVE_ACLE_FUNC(svdup, _n, _bf16_x, )(pg, op);
+}
+
+svbfloat16_t test_svdup_lane_bf16(svbfloat16_t data, uint16_t index)
+{
+  // CHECK-LABEL: test_svdup_lane_bf16
+  // CHECK: %[[DUP:.*]] = call <vscale x 8 x i16> @llvm.aarch64.sve.dup.x.nxv8i16(i16 %index)
+  // CHECK: %[[INTRINSIC:.*]] = call <vscale x 8 x bfloat> @llvm.aarch64.sve.tbl.nxv8bf16(<vscale x 8 x bfloat> %data, <vscale x 8 x i16> %[[DUP]])
+  // CHECK: ret <vscale x 8 x bfloat> %[[INTRINSIC]]
+  // expected-warning@+1 {{implicit declaration of function 'svdup_lane_bf16'}}
+  return SVE_ACLE_FUNC(svdup_lane,_bf16,,)(data, index);
 }

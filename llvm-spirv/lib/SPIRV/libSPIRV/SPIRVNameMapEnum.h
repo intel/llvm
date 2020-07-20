@@ -366,6 +366,8 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationIOPipeStorageINTEL, "IOPipeStorageINTEL");
   add(DecorationVectorComputeFunctionINTEL, "VectorComputeFunctionINTEL");
   add(DecorationStackCallINTEL, "StackCallINTEL");
+  add(DecorationFuncParamKindINTEL, "FuncParamKindINTEL");
+  add(DecorationFuncParamDescINTEL, "FuncParamDescINTEL");
   add(DecorationVectorComputeVariableINTEL, "VectorComputeVariableINTEL");
   add(DecorationGlobalVariableOffsetINTEL, "GlobalVariableOffsetINTEL");
   add(DecorationFuncParamIOKind, "FuncParamIOKind");

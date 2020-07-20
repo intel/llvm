@@ -271,6 +271,8 @@ void ASTStmtReader::VisitWhileStmt(WhileStmt *S) {
     S->setConditionVariable(Record.getContext(), readDeclAs<VarDecl>());
 
   S->setWhileLoc(readSourceLocation());
+  S->setLParenLoc(readSourceLocation());
+  S->setRParenLoc(readSourceLocation());
 }
 
 void ASTStmtReader::VisitDoStmt(DoStmt *S) {
@@ -937,7 +939,9 @@ void ASTStmtReader::VisitOMPArraySectionExpr(OMPArraySectionExpr *E) {
   E->setBase(Record.readSubExpr());
   E->setLowerBound(Record.readSubExpr());
   E->setLength(Record.readSubExpr());
-  E->setColonLoc(readSourceLocation());
+  E->setStride(Record.readSubExpr());
+  E->setColonLocFirst(readSourceLocation());
+  E->setColonLocSecond(readSourceLocation());
   E->setRBracketLoc(readSourceLocation());
 }
 
@@ -1715,12 +1719,12 @@ void ASTStmtReader::VisitLambdaExpr(LambdaExpr *E) {
 
   // Read capture initializers.
   for (LambdaExpr::capture_init_iterator C = E->capture_init_begin(),
-                                      CEnd = E->capture_init_end();
+                                         CEnd = E->capture_init_end();
        C != CEnd; ++C)
     *C = Record.readSubExpr();
 
-  // Ok, not one past the end.
-  E->getStoredStmts()[NumCaptures] = Record.readSubStmt();
+  // The body will be lazily deserialized when needed from the call operator
+  // declaration.
 }
 
 void
