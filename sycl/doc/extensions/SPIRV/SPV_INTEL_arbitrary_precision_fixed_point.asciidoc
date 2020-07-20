@@ -172,17 +172,15 @@ Note that this fixed-point type does not hold information about the sign in the 
 
 In Section 3.32.13, *Arithmetic Instructions*, add the following instructions:
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpFixedSqrtINTEL* +
+9+<|*OpFixedSqrtINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and the square root of the value is returned in _Result_.
 The behavior of this function is undefined for input values < 0.
 
 _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
-_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
-
 _S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
 
@@ -197,19 +195,17 @@ _O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
 
-| 10 | 5923 | <id> Result Type | Result <id> | <id> Input Type | Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+| 9 | 5923 | <id> Result Type | Result <id> | Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpFixedRecipINTEL* +
+9+<|*OpFixedRecipINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and the reciprocal (`1/Input`) of the value is returned in _Result_.
 
 _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
-_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
-
 _S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
 
@@ -224,20 +220,18 @@ _O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
 
-| 10 | 5924 | <id> Result Type | Result <id> | <id> Input Type | Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+| 9 | 5924 | <id> Result Type | Result <id> | Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpFixedRsqrtINTEL* +
+9+<|*OpFixedRsqrtINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and the reciprocal square root (`1/sqrt(Input)`) of the value is returned in _Result_.
 The behavior of this function is undefined for input values < 0.
 
 _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
-_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
-
 _S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
 
@@ -252,16 +246,14 @@ _O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
 
-| 10 | 5925 | <id> Result Type | Result <id> | <id> Input Type | Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+| 9 | 5925 | <id> Result Type | Result <id> | Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpFixedSinINTEL* +
+9+<|*OpFixedSinINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and the sine of the value is returned in _Result_.
-
-_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
 _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
@@ -279,18 +271,16 @@ _O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
 
-| 10 | 5926 | <id> Result Type | Result <id> | <id> Input Type| Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+| 9 | 5926 | <id> Result Type | Result <id> | Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpFixedCosINTEL* +
+9+<|*OpFixedCosINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and the cosine of the value is returned in _Result_.
 
 _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
-
-_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
 _S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
@@ -306,16 +296,14 @@ _O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
 
-| 10 | 5927 | <id> Result Type | Result <id> | <id> Input Type| Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+| 9 | 5927 | <id> Result Type | Result <id> | Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpFixedSinCosINTEL* +
+9+<|*OpFixedSinCosINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and both the sine and cosine of the value are returned in _Result_.
-
-_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
 _Result Type_ is an `OpTypeInt` of `2 * rW` and is the type of _Result_.
 The lower significant bits (`rW`) of the _Result_ are used to hold the cosine value, and the more significant bits (`rW`) are used to hold the sine value.
@@ -334,19 +322,17 @@ _O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
 
-| 10 | 5928 | <id> Result Type | Result <id> | <id> Input Type| Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+| 9 | 5928 | <id> Result Type | Result <id> | Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpFixedSinPiINTEL* +
+9+<|*OpFixedSinPiINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and the sine of pi * value is returned in _Result_.
 
 _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
-_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
-
 _S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
 
@@ -361,19 +347,17 @@ _O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
 
-| 10 | 5929 | <id> Result Type | Result <id> | <id> Input Type| Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+| 9 | 5929 | <id> Result Type | Result <id> | Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpFixedCosPiINTEL* +
+9+<|*OpFixedCosPiINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and the cosine of pi * value is returned in _Result_.
 
 _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
-_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
-
 _S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
 
@@ -388,17 +372,15 @@ _O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
 
-| 10 | 5930 | <id> Result Type | Result <id> | <id> Input Type| Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+| 9 | 5930 | <id> Result Type | Result <id> | Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
 |=====
 
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpFixedSinCosPiINTEL* +
+9+<|*OpFixedSinCosPiINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and both the sine and cosine of pi * value are returned in _Result_.
-
-_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
 _Result Type_ is an `OpTypeInt` of twice the width of `rW` and is the type of _Result_.
 The lower significant bits (`rW`) of the _Result_ are used to hold the cosine value, and the more significant bits (`rW`) are used to hold the sine value.
@@ -417,19 +399,17 @@ _O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
 
-| 10 | 5931 | <id> Result Type | <id> Input Type | Result <id> | Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+| 9 | 5931 | <id> Result Type | Result <id> | Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpFixedLogINTEL* +
+9+<|*OpFixedLogINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and the log of the value is returned in _Result_.
 
 _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
-_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
-
 _S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
 
@@ -444,19 +424,17 @@ _O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
 
-| 10 | 5932 | <id> Result Type | Result <id> | <id> Input Type| Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+| 9 | 5932 | <id> Result Type | Result <id> | Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpFixedExpINTEL* +
+9+<|*OpFixedExpINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision fixed point number (ac_fixed) is passed in as the _Input_ and the exp of the value is returned in _Result_.
 
 _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
-_Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
-
 _S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
 
@@ -471,7 +449,7 @@ _O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
 
-| 10 | 5933 | <id> Result Type | Result <id> | <id> Input Type| Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
+| 9 | 5933 | <id> Result Type | Result <id> | Input <id> | _Literal_ S | _Literal_ I | _Literal_ rI | _Literal_ Q | _Literal_ O
 |=====
 
 === Validation Rules
