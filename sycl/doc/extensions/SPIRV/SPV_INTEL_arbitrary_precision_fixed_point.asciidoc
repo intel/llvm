@@ -183,16 +183,16 @@ _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
 _Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
-_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+_S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
 
-_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the input.
+_I_ is an integer literal that refers to the location of the fixed-point relative to the MSB of the input.
 
-_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result.
+_rI_ is an integer literal that refers to the location of the fixed-point relative to the MSB of the result.
 
-_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+_Q_ is an integer literal chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
 
-_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+_O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
@@ -210,16 +210,16 @@ _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
 _Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
-_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+_S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
 
-_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the input.
+_I_ is an integer literal that refers to the location of the fixed-point relative to the MSB of the input.
 
-_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result.
+_rI_ is an integer literal that refers to the location of the fixed-point relative to the MSB of the result.
 
-_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+_Q_ is an integer literal chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
 
-_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+_O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
@@ -238,16 +238,16 @@ _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
 _Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
-_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+_S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
 
-_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the input.
+_I_ is an integer literal that refers to the location of the fixed-point relative to the MSB of the input.
 
-_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result.
+_rI_ is an integer literal that refers to the location of the fixed-point relative to the MSB of the result.
 
-_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+_Q_ is an integer literal chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
 
-_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+_O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
@@ -265,16 +265,16 @@ _Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
 _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
-_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+_S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
 
-_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the input type.
+_I_ is an integer literal that refers to the location of the fixed-point relative to the MSB of the input type.
 
-_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result type.
+_rI_ is an integer literal that refers to the location of the fixed-point relative to the MSB of the result type.
 
-_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+_Q_ is an integer literal chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
 
-_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+_O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
@@ -292,16 +292,16 @@ _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
 _Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
-_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+_S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
 
-_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
+_I_ is an integer literal that refers to the location of the fixed-point relative to the MSB.
 
-_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result type.
+_rI_ is an integer literal that refers to the location of the fixed-point relative to the MSB of the result type.
 
-_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+_Q_ is an integer literal chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
 
-_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+_O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
@@ -320,16 +320,16 @@ _Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 _Result Type_ is an `OpTypeInt` of `2 * rW` and is the type of _Result_.
 The lower significant bits (`rW`) of the _Result_ are used to hold the cosine value, and the more significant bits (`rW`) are used to hold the sine value.
 
-_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+_S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
 
-_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
+_I_ is an integer literal that refers to the location of the fixed-point relative to the MSB.
 
-_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result type.
+_rI_ is an integer literal that refers to the location of the fixed-point relative to the MSB of the result type.
 
-_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+_Q_ is an integer literal chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
 
-_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+_O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
@@ -347,16 +347,16 @@ _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
 _Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
-_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+_S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
 
-_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
+_I_ is an integer literal that refers to the location of the fixed-point relative to the MSB.
 
-_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result type.
+_rI_ is an integer literal that refers to the location of the fixed-point relative to the MSB of the result type.
 
-_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+_Q_ is an integer literal chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
 
-_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+_O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
@@ -374,16 +374,16 @@ _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
 _Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
-_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+_S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
 
-_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
+_I_ is an integer literal that refers to the location of the fixed-point relative to the MSB.
 
-_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result type.
+_rI_ is an integer literal that refers to the location of the fixed-point relative to the MSB of the result type.
 
-_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+_Q_ is an integer literal chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
 
-_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+_O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
@@ -403,16 +403,16 @@ _Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 _Result Type_ is an `OpTypeInt` of twice the width of `rW` and is the type of _Result_.
 The lower significant bits (`rW`) of the _Result_ are used to hold the cosine value, and the more significant bits (`rW`) are used to hold the sine value.
 
-_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+_S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
 
-_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
+_I_ is an integer literal that refers to the location of the fixed-point relative to the MSB.
 
-_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result type.
+_rI_ is an integer literal that refers to the location of the fixed-point relative to the MSB of the result type.
 
-_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+_Q_ is an integer literal chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
 
-_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+_O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
@@ -430,16 +430,16 @@ _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
 _Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
-_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+_S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
 
-_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
+_I_ is an integer literal that refers to the location of the fixed-point relative to the MSB.
 
-_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result type.
+_rI_ is an integer literal that refers to the location of the fixed-point relative to the MSB of the result type.
 
-_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+_Q_ is an integer literal chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
 
-_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+_O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
@@ -457,16 +457,16 @@ _Result Type_ is an `OpTypeInt` of width _rW_ and is the type of _Result_.
 
 _Input Type_ is an `OpTypeInt` of width _W_ and is the type of _Input_.
 
-_S_ is an `OpTypeBool` that indicates if the input and output are signed or unsigned.
+_S_ is an integer literal, treated as a boolean, that indicates if the input and output are signed or unsigned.
 A value of `1` indicates that the two types are signed.
 
-_I_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB.
+_I_ is an integer literal that refers to the location of the fixed-point relative to the MSB.
 
-_rI_ is an `OpTypeInt` that refers to the location of the fixed-point relative to the MSB of the result type.
+_rI_ is an integer literal that refers to the location of the fixed-point relative to the MSB of the result type.
 
-_Q_ is an `OpTypeInt` chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
+_Q_ is an integer literal chosen from _Table 3.16b_ that indicates the Quantization Mode of this operation.
 
-_O_ is an `OpTypeInt` chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
+_O_ is an integer literal chosen from _Table 3.16c_ that indicates the Overflow Mode of this operation.
 
 | Capability:
 *ArbitraryPrecisionFixedPointINTEL*
