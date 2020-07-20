@@ -416,8 +416,7 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M, const context &Context,
                                   const program_impl *Prg) {
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << M << ", "
-              << getRawSyclObjImpl(Context) << ", " << KernelName << ", "
-              << Prg->get() << ")\n";
+              << getRawSyclObjImpl(Context) << ", " << KernelName << ")\n";
   }
 
   RT::PiProgram Program = getBuiltPIProgram(M, Context, KernelName, Prg);

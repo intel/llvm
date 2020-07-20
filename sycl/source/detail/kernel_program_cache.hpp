@@ -33,20 +33,22 @@ public:
     std::string Msg;
     pi_int32 Code;
 
-    bool isFilledIn() const { return !Msg.empty(); }
+    bool isFilledIn() const {
+      return !Msg.empty();
+    }
   };
 
   /// Denotes pointer to some entity with its general state and build error.
   /// The pointer is not null if and only if the entity is usable.
   /// State of the entity is provided by the user of cache instance.
   /// Currently there is only a single user - ProgramManager class.
-  template <typename T> struct BuildResult {
+  template<typename T> struct BuildResult {
     std::atomic<T *> Ptr;
     std::atomic<int> State;
     BuildError Error;
     std::mutex MBuildResultMutex;
 
-    BuildResult(T *P, int S) : Ptr{P}, State{S}, Error{"", 0} {}
+    BuildResult(T* P, int S) : Ptr{P}, State{S}, Error{"", 0} {}
   };
 
   using PiProgramT = std::remove_pointer<RT::PiProgram>::type;
@@ -88,7 +90,6 @@ private:
   std::mutex MKernelsPerProgramCacheMutex;
 
   mutable std::condition_variable MBuildCV;
-  mutable std::mutex MBuildCVMutex;
 
   ProgramCacheT MCachedPrograms;
   KernelCacheT MKernelsPerProgramCache;
