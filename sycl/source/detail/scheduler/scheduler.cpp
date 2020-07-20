@@ -231,7 +231,7 @@ Scheduler::Scheduler() {
   sycl::device HostDevice;
   DefaultHostQueue = QueueImplPtr(
       new queue_impl(detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
-                     QueueOrder::Ordered, /*PropList=*/{}));
+                     /*PropList=*/{}));
 }
 
 void Scheduler::lockSharedTimedMutex(

@@ -7694,6 +7694,12 @@ SDValue DAGCombiner::visitRotate(SDNode *N) {
       return DAG.getNode(N->getOpcode(), dl, VT, N0, Amt);
   }
 
+  // rot i16 X, 8 --> bswap X
+  auto *RotAmtC = isConstOrConstSplat(N1);
+  if (RotAmtC && RotAmtC->getAPIntValue() == 8 &&
+      VT.getScalarSizeInBits() == 16 && hasOperation(ISD::BSWAP, VT))
+    return DAG.getNode(ISD::BSWAP, dl, VT, N0);
+
   // Simplify the operands using demanded-bits information.
   if (SimplifyDemandedBits(SDValue(N, 0)))
     return SDValue(N, 0);
@@ -14093,8 +14099,8 @@ SDValue DAGCombiner::rebuildSetCC(SDValue N) {
     }
   }
 
-  // Transform br(xor(x, y)) -> br(x != y)
-  // Transform br(xor(xor(x,y), 1)) -> br (x == y)
+  // Transform (brcond (xor x, y)) -> (brcond (setcc, x, y, ne))
+  // Transform (brcond (xor (xor x, y), -1)) -> (brcond (setcc, x, y, eq))
   if (N.getOpcode() == ISD::XOR) {
     // Because we may call this on a speculatively constructed
     // SimplifiedSetCC Node, we need to simplify this node first.
@@ -14118,16 +14124,17 @@ SDValue DAGCombiner::rebuildSetCC(SDValue N) {
     if (N.getOpcode() != ISD::XOR)
       return N;
 
-    SDNode *TheXor = N.getNode();
-
-    SDValue Op0 = TheXor->getOperand(0);
-    SDValue Op1 = TheXor->getOperand(1);
+    SDValue Op0 = N->getOperand(0);
+    SDValue Op1 = N->getOperand(1);
 
     if (Op0.getOpcode() != ISD::SETCC && Op1.getOpcode() != ISD::SETCC) {
       bool Equal = false;
-      if (isOneConstant(Op0) && Op0.hasOneUse() &&
-          Op0.getOpcode() == ISD::XOR) {
-        TheXor = Op0.getNode();
+      // (brcond (xor (xor x, y), -1)) -> (brcond (setcc x, y, eq))
+      if (isBitwiseNot(N) && Op0.hasOneUse() && Op0.getOpcode() == ISD::XOR &&
+          Op0.getValueType() == MVT::i1) {
+        N = Op0;
+        Op0 = N->getOperand(0);
+        Op1 = N->getOperand(1);
         Equal = true;
       }
 
@@ -14135,7 +14142,7 @@ SDValue DAGCombiner::rebuildSetCC(SDValue N) {
       if (LegalTypes)
         SetCCVT = getSetCCResultType(SetCCVT);
       // Replace the uses of XOR with SETCC
-      return DAG.getSetCC(SDLoc(TheXor), SetCCVT, Op0, Op1,
+      return DAG.getSetCC(SDLoc(N), SetCCVT, Op0, Op1,
                           Equal ? ISD::SETEQ : ISD::SETNE);
     }
   }
@@ -15762,7 +15769,14 @@ SDValue DAGCombiner::TransformFPLoadStorePair(SDNode *N) {
         ST->getPointerInfo().getAddrSpace() != 0)
       return SDValue();
 
-    EVT IntVT = EVT::getIntegerVT(*DAG.getContext(), VT.getSizeInBits());
+    TypeSize VTSize = VT.getSizeInBits();
+
+    // We don't know the size of scalable types at compile time so we cannot
+    // create an integer of the equivalent size.
+    if (VTSize.isScalable())
+      return SDValue();
+
+    EVT IntVT = EVT::getIntegerVT(*DAG.getContext(), VTSize.getFixedSize());
     if (!TLI.isOperationLegal(ISD::LOAD, IntVT) ||
         !TLI.isOperationLegal(ISD::STORE, IntVT) ||
         !TLI.isDesirableToTransformToIntegerOp(ISD::LOAD, VT) ||
@@ -16541,14 +16555,27 @@ bool DAGCombiner::tryStoreMergeOfLoads(SmallVectorImpl<MemOpLink> &StoreNodes,
   }
 
   while (NumConsecutiveStores >= 2 && LoadNodes.size() >= 2) {
-    // If we have load/store pair instructions and we only have two values,
-    // don't bother merging.
     Align RequiredAlignment;
-    if (LoadNodes.size() == 2 && TLI.hasPairedLoad(MemVT, RequiredAlignment) &&
-        StoreNodes[0].MemNode->getAlign() >= RequiredAlignment) {
-      StoreNodes.erase(StoreNodes.begin(), StoreNodes.begin() + 2);
-      LoadNodes.erase(LoadNodes.begin(), LoadNodes.begin() + 2);
-      break;
+    bool NeedRotate = false;
+    if (LoadNodes.size() == 2) {
+      // If we have load/store pair instructions and we only have two values,
+      // don't bother merging.
+      if (TLI.hasPairedLoad(MemVT, RequiredAlignment) &&
+          StoreNodes[0].MemNode->getAlign() >= RequiredAlignment) {
+        StoreNodes.erase(StoreNodes.begin(), StoreNodes.begin() + 2);
+        LoadNodes.erase(LoadNodes.begin(), LoadNodes.begin() + 2);
+        break;
+      }
+      // If the loads are reversed, see if we can rotate the halves into place.
+      int64_t Offset0 = LoadNodes[0].OffsetFromBase;
+      int64_t Offset1 = LoadNodes[1].OffsetFromBase;
+      EVT PairVT = EVT::getIntegerVT(Context, ElementSizeBytes * 8 * 2);
+      if (Offset0 - Offset1 == ElementSizeBytes &&
+          (hasOperation(ISD::ROTL, PairVT) ||
+           hasOperation(ISD::ROTR, PairVT))) {
+        std::swap(LoadNodes[0], LoadNodes[1]);
+        NeedRotate = true;
+      }
     }
     LSBaseSDNode *FirstInChain = StoreNodes[0].MemNode;
     unsigned FirstStoreAS = FirstInChain->getAddressSpace();
@@ -16713,8 +16740,18 @@ bool DAGCombiner::tryStoreMergeOfLoads(SmallVectorImpl<MemOpLink> &StoreNodes,
       NewLoad = DAG.getLoad(
           JointMemOpVT, LoadDL, FirstLoad->getChain(), FirstLoad->getBasePtr(),
           FirstLoad->getPointerInfo(), FirstLoadAlign, LdMMOFlags);
+      SDValue StoreOp = NewLoad;
+      if (NeedRotate) {
+        unsigned LoadWidth = ElementSizeBytes * 8 * 2;
+        assert(JointMemOpVT == EVT::getIntegerVT(Context, LoadWidth) &&
+               "Unexpected type for rotate-able load pair");
+        SDValue RotAmt =
+            DAG.getShiftAmountConstant(LoadWidth / 2, JointMemOpVT, LoadDL);
+        // Target can convert to the identical ROTR if it does not have ROTL.
+        StoreOp = DAG.getNode(ISD::ROTL, LoadDL, JointMemOpVT, NewLoad, RotAmt);
+      }
       NewStore = DAG.getStore(
-          NewStoreChain, StoreDL, NewLoad, FirstInChain->getBasePtr(),
+          NewStoreChain, StoreDL, StoreOp, FirstInChain->getBasePtr(),
           FirstInChain->getPointerInfo(), FirstStoreAlign, StMMOFlags);
     } else { // This must be the truncstore/extload case
       EVT ExtendedTy =

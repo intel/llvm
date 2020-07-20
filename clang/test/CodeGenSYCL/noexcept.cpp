@@ -18,15 +18,15 @@ void f3() {}
 
 void foo_noexcept() noexcept {
   // CHECK-DEVICE: call spir_func void @_Z2f1v()
-  // CHECK-HOST-LIN: invoke void @_Z2f1v()
-  // CHECK-HOST-WIN: invoke void @"?f1@@YAXXZ"()
+  // CHECK-HOST-LIN: call void @_Z2f1v()
+  // CHECK-HOST-WIN: call void @"?f1@@YAXXZ"()
   f1();
 }
 
 void foo_throw() throw() {
   // CHECK-DEVICE: call spir_func void @_Z2f2v()
-  // CHECK-HOST-LIN: invoke void @_Z2f2v()
-  // CHECK-HOST-WIN: invoke void @"?f3@@YAXXZ"()
+  // CHECK-HOST-LIN: call void @_Z2f2v()
+  // CHECK-HOST-WIN: call void @"?f3@@YAXXZ"()
   f2();
 }
 
@@ -38,14 +38,13 @@ struct A {
 void foo_cleanup() {
   A a;
   // CHECK-DEVICE: call spir_func void @_Z2f3v()
-  // CHECK-HOST: invoke void @_Z2f3v()
+  // CHECK-HOST: call void @_Z2f3v()
   f3();
   // CHECK-DEVICE: call spir_func void @_ZN1AD1Ev
   // Regular + exception cleanup
   // CHECK-HOST-LIN: call void @_ZN1AD1Ev
-  // CHECK-HOST-LIN: call void @_ZN1AD1Ev
+  // CHECK-HOST-LIN: call void @_ZN1AD2Ev
   // CHECK-HOST-WIN: call void @"??1A@@QEAA@XZ"(%struct.A* %a)
-  // CHECK-HOST-WIN: call void @"??1A@@QEAA@XZ"(%struct.A* %a) #4 [ "funclet"(token %0) ]
 }
 
 template <typename name, typename Func>

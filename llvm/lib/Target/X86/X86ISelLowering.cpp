@@ -44523,6 +44523,8 @@ static SDValue combineFaddFsub(SDNode *N, SelectionDAG &DAG,
       isHorizontalBinOp(LHS, RHS, DAG, Subtarget, IsFadd))
     return DAG.getNode(HorizOpcode, SDLoc(N), VT, LHS, RHS);
 
+  // NOTE: isHorizontalBinOp may have changed LHS/RHS variables.
+
   return SDValue();
 }
 
@@ -46129,13 +46131,22 @@ static SDValue combineFMA(SDNode *N, SelectionDAG &DAG,
   if (!TLI.isTypeLegal(VT))
     return SDValue();
 
-  EVT ScalarVT = VT.getScalarType();
-  if ((ScalarVT != MVT::f32 && ScalarVT != MVT::f64) || !Subtarget.hasAnyFMA())
-    return SDValue();
-
   SDValue A = N->getOperand(IsStrict ? 1 : 0);
   SDValue B = N->getOperand(IsStrict ? 2 : 1);
   SDValue C = N->getOperand(IsStrict ? 3 : 2);
+
+  // If the operation allows fast-math and the target does not support FMA,
+  // split this into mul+add to avoid libcall(s).
+  SDNodeFlags Flags = N->getFlags();
+  if (!IsStrict && Flags.hasAllowReassociation() &&
+      TLI.isOperationExpand(ISD::FMA, VT)) {
+    SDValue Fmul = DAG.getNode(ISD::FMUL, dl, VT, A, B, Flags);
+    return DAG.getNode(ISD::FADD, dl, VT, Fmul, C, Flags);
+  }
+
+  EVT ScalarVT = VT.getScalarType();
+  if ((ScalarVT != MVT::f32 && ScalarVT != MVT::f64) || !Subtarget.hasAnyFMA())
+    return SDValue();
 
   auto invertIfNegative = [&DAG, &TLI, &DCI](SDValue &V) {
     bool CodeSize = DAG.getMachineFunction().getFunction().hasOptSize();
@@ -47604,6 +47615,30 @@ static SDValue matchPMADDWD_2(SelectionDAG &DAG, SDValue N0, SDValue N1,
                           PMADDBuilder);
 }
 
+static SDValue combineAddOrSubToHADDorHSUB(SDNode *N, SelectionDAG &DAG,
+                                           const X86Subtarget &Subtarget) {
+  EVT VT = N->getValueType(0);
+  SDValue Op0 = N->getOperand(0);
+  SDValue Op1 = N->getOperand(1);
+  bool IsAdd = N->getOpcode() == ISD::ADD;
+  assert((IsAdd || N->getOpcode() == ISD::SUB) && "Wrong opcode");
+
+  if ((VT == MVT::v8i16 || VT == MVT::v4i32 || VT == MVT::v16i16 ||
+       VT == MVT::v8i32) &&
+      Subtarget.hasSSSE3() &&
+      isHorizontalBinOp(Op0, Op1, DAG, Subtarget, IsAdd)) {
+    auto HOpBuilder = [IsAdd](SelectionDAG &DAG, const SDLoc &DL,
+                              ArrayRef<SDValue> Ops) {
+      return DAG.getNode(IsAdd ? X86ISD::HADD : X86ISD::HSUB,
+                         DL, Ops[0].getValueType(), Ops);
+    };
+    return SplitOpsAndApply(DAG, Subtarget, SDLoc(N), VT, {Op0, Op1},
+                            HOpBuilder);
+  }
+
+  return SDValue();
+}
+
 static SDValue combineAdd(SDNode *N, SelectionDAG &DAG,
                           TargetLowering::DAGCombinerInfo &DCI,
                           const X86Subtarget &Subtarget) {
@@ -47617,17 +47652,8 @@ static SDValue combineAdd(SDNode *N, SelectionDAG &DAG,
     return MAdd;
 
   // Try to synthesize horizontal adds from adds of shuffles.
-  if ((VT == MVT::v8i16 || VT == MVT::v4i32 || VT == MVT::v16i16 ||
-       VT == MVT::v8i32) &&
-      Subtarget.hasSSSE3() &&
-      isHorizontalBinOp(Op0, Op1, DAG, Subtarget, true)) {
-    auto HADDBuilder = [](SelectionDAG &DAG, const SDLoc &DL,
-                          ArrayRef<SDValue> Ops) {
-      return DAG.getNode(X86ISD::HADD, DL, Ops[0].getValueType(), Ops);
-    };
-    return SplitOpsAndApply(DAG, Subtarget, SDLoc(N), VT, {Op0, Op1},
-                            HADDBuilder);
-  }
+  if (SDValue V = combineAddOrSubToHADDorHSUB(N, DAG, Subtarget))
+    return V;
 
   // If vectors of i1 are legal, turn (add (zext (vXi1 X)), Y) into
   // (sub Y, (sext (vXi1 X))).
@@ -47800,18 +47826,8 @@ static SDValue combineSub(SDNode *N, SelectionDAG &DAG,
   }
 
   // Try to synthesize horizontal subs from subs of shuffles.
-  EVT VT = N->getValueType(0);
-  if ((VT == MVT::v8i16 || VT == MVT::v4i32 || VT == MVT::v16i16 ||
-       VT == MVT::v8i32) &&
-      Subtarget.hasSSSE3() &&
-      isHorizontalBinOp(Op0, Op1, DAG, Subtarget, false)) {
-    auto HSUBBuilder = [](SelectionDAG &DAG, const SDLoc &DL,
-                          ArrayRef<SDValue> Ops) {
-      return DAG.getNode(X86ISD::HSUB, DL, Ops[0].getValueType(), Ops);
-    };
-    return SplitOpsAndApply(DAG, Subtarget, SDLoc(N), VT, {Op0, Op1},
-                            HSUBBuilder);
-  }
+  if (SDValue V = combineAddOrSubToHADDorHSUB(N, DAG, Subtarget))
+    return V;
 
   // Try to create PSUBUS if SUB's argument is max/min
   if (SDValue V = combineSubToSubus(N, DAG, Subtarget))

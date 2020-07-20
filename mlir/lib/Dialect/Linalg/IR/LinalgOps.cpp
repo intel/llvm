@@ -72,12 +72,11 @@ static LogicalResult foldMemRefCast(Operation *op) {
 
 void GenericOp::build(
     OpBuilder &builder, OperationState &result, ArrayRef<Type> resultTypes,
-    ValueRange args, int64_t inputCount, int64_t outputCount,
+    ValueRange args, int64_t argsIn, int64_t argsOut,
     ArrayRef<AffineMap> indexingMaps, ArrayRef<StringRef> iteratorTypes,
     function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild) {
-  build(builder, result, resultTypes, args,
-        builder.getI64IntegerAttr(inputCount),
-        builder.getI64IntegerAttr(outputCount),
+  build(builder, result, resultTypes, args, builder.getI64IntegerAttr(argsIn),
+        builder.getI64IntegerAttr(argsOut),
         builder.getAffineMapArrayAttr(indexingMaps),
         builder.getStrArrayAttr(iteratorTypes),
         /*doc=*/nullptr, /*library_call=*/nullptr);
@@ -96,13 +95,12 @@ void GenericOp::build(
 
 void IndexedGenericOp::build(
     OpBuilder &builder, OperationState &result, ArrayRef<Type> resultTypes,
-    ValueRange args, int64_t inputCount, int64_t outputCount,
+    ValueRange args, int64_t argsIn, int64_t argsOut,
     ArrayRef<AffineMap> indexingMaps, ArrayRef<StringRef> iteratorTypes,
     function_ref<void(OpBuilder &, Location, ValueRange, ValueRange)>
         bodyBuild) {
-  build(builder, result, resultTypes, args,
-        builder.getI64IntegerAttr(inputCount),
-        builder.getI64IntegerAttr(outputCount),
+  build(builder, result, resultTypes, args, builder.getI64IntegerAttr(argsIn),
+        builder.getI64IntegerAttr(argsOut),
         builder.getAffineMapArrayAttr(indexingMaps),
         builder.getStrArrayAttr(iteratorTypes),
         /*doc=*/nullptr, /*library_call=*/nullptr);
@@ -590,6 +588,8 @@ void mlir::linalg::ReshapeOp::build(OpBuilder &b, OperationState &result,
   result.addAttribute(ReshapeOp::getReassociationAttrName(),
                       b.getAffineMapArrayAttr(maps));
 }
+
+Value mlir::linalg::ReshapeOp::getViewSource() { return src(); }
 
 // Common verifier for reshape-like types. Fills `expandedType` and
 // `collapsedType` with the proper `src` or `result` type.
