@@ -12,9 +12,9 @@
 #include <CL/__spirv/spirv_vars.hpp>
 #include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
+#include <CL/sycl/ext/oneapi/functional.hpp>
+#include <CL/sycl/ext/oneapi/sub_group.hpp>
 #include <CL/sycl/group.hpp>
-#include <CL/sycl/intel/functional.hpp>
-#include <CL/sycl/intel/sub_group.hpp>
 
 #ifndef __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -32,7 +32,8 @@ template <> inline size_t get_local_linear_range<group<3>>(group<3> g) {
   return g.get_local_range(0) * g.get_local_range(1) * g.get_local_range(2);
 }
 template <>
-inline size_t get_local_linear_range<intel::sub_group>(intel::sub_group g) {
+inline size_t
+get_local_linear_range<intel::sub_group>(ext::oneapi::sub_group g) {
   return g.get_local_range()[0];
 }
 
@@ -53,8 +54,8 @@ __SYCL_GROUP_GET_LOCAL_LINEAR_ID(3);
 #endif // __SYCL_DEVICE_ONLY__
 
 template <>
-inline intel::sub_group::linear_id_type
-get_local_linear_id<intel::sub_group>(intel::sub_group g) {
+inline ext::oneapi::sub_group::linear_id_type
+get_local_linear_id<ext::oneapi::sub_group>(ext::oneapi::sub_group g) {
   return g.get_local_id()[0];
 }
 
@@ -79,15 +80,15 @@ template <> inline id<3> linear_id_to_id(range<3> r, size_t linear_id) {
 
 template <typename T, class BinaryOperation> struct identity {};
 
-template <typename T, typename V> struct identity<T, intel::plus<V>> {
+template <typename T, typename V> struct identity<T, ext::oneapi::plus<V>> {
   static constexpr T value = 0;
 };
 
-template <typename T, typename V> struct identity<T, intel::minimum<V>> {
+template <typename T, typename V> struct identity<T, ext::oneapi::minimum<V>> {
   static constexpr T value = (std::numeric_limits<T>::max)();
 };
 
-template <typename T, typename V> struct identity<T, intel::maximum<V>> {
+template <typename T, typename V> struct identity<T, ext::oneapi::maximum<V>> {
   static constexpr T value = std::numeric_limits<T>::lowest();
 };
 
@@ -112,7 +113,8 @@ Function for_each(Group g, Ptr first, Ptr last, Function f) {
 
 } // namespace detail
 
-namespace intel {
+namespace ext {
+namespace oneapi {
 
 template <typename T>
 using EnableIfIsScalarArithmetic = cl::sycl::detail::enable_if_t<
@@ -822,7 +824,8 @@ template <typename Group> bool leader(Group g) {
 #endif
 }
 
-} // namespace intel
+} // namespace oneapi
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 #endif // __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__

@@ -17,6 +17,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace intel {
 namespace gpu {
 
@@ -115,5 +116,6 @@ template <typename T, typename U> T getBaseRegion(std::pair<T, U> Reg) {
 
 } // namespace gpu
 } // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

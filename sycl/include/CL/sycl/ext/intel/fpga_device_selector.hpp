@@ -12,6 +12,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace intel {
 
 class platform_selector : public device_selector {
@@ -48,5 +49,6 @@ public:
 };
 
 } // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

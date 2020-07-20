@@ -22,7 +22,8 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace experimental {
+namespace ext {
+namespace oneapi {
 
 class spec_const_error : public compile_program_error {
   using compile_program_error::compile_program_error;
@@ -56,6 +57,7 @@ public:
   }
 };
 
-} // namespace experimental
+} // namespace oneapi
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

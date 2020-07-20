@@ -12,6 +12,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace intel {
 
 template <typename T> T fpga_reg(const T &t) {
@@ -23,6 +24,7 @@ template <typename T> T fpga_reg(const T &t) {
 }
 
 } // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 

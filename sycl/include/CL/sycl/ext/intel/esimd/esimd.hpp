@@ -10,11 +10,12 @@
 
 #pragma once
 
-#include <CL/sycl/intel/esimd/detail/esimd_intrin.hpp>
-#include <CL/sycl/intel/esimd/detail/esimd_types.hpp>
+#include <CL/sycl/ext/intel/esimd/detail/esimd_intrin.hpp>
+#include <CL/sycl/ext/intel/esimd/detail/esimd_types.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace intel {
 namespace gpu {
 
@@ -445,6 +446,7 @@ ESIMD_INLINE simd<U, n> convert(simd<T, n> val) {
 
 } // namespace gpu
 } // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 

@@ -15,6 +15,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace intel {
 namespace gpu {
 
@@ -107,5 +108,6 @@ enum class CacheHint : uint8_t {
 } // namespace gpu
 
 } // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -41,6 +41,7 @@ static ESIMD_INLINE constexpr unsigned log2(unsigned n) {
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace intel {
 namespace gpu {
 
@@ -211,5 +212,6 @@ template <> struct word_type<uint> { using type = ushort; };
 } // namespace details
 } // namespace gpu
 } // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

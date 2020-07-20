@@ -9,11 +9,12 @@
 #pragma once
 
 #include <CL/sycl/accessor.hpp>
-#include <CL/sycl/intel/group_algorithm.hpp>
+#include <CL/sycl/ext/oneapi/group_algorithm.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace intel {
+namespace ext {
+namespace oneapi {
 
 namespace detail {
 
@@ -27,8 +28,8 @@ using cl::sycl::detail::remove_AS;
 
 template <typename T, class BinaryOperation>
 using IsReduPlus = detail::bool_constant<
-    std::is_same<BinaryOperation, intel::plus<T>>::value ||
-    std::is_same<BinaryOperation, intel::plus<void>>::value>;
+    std::is_same<BinaryOperation, ext::oneapi::plus<T>>::value ||
+    std::is_same<BinaryOperation, ext::oneapi::plus<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsReduMultiplies = detail::bool_constant<
@@ -37,28 +38,28 @@ using IsReduMultiplies = detail::bool_constant<
 
 template <typename T, class BinaryOperation>
 using IsReduMinimum = detail::bool_constant<
-    std::is_same<BinaryOperation, intel::minimum<T>>::value ||
-    std::is_same<BinaryOperation, intel::minimum<void>>::value>;
+    std::is_same<BinaryOperation, ext::oneapi::minimum<T>>::value ||
+    std::is_same<BinaryOperation, ext::oneapi::minimum<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsReduMaximum = detail::bool_constant<
-    std::is_same<BinaryOperation, intel::maximum<T>>::value ||
-    std::is_same<BinaryOperation, intel::maximum<void>>::value>;
+    std::is_same<BinaryOperation, ext::oneapi::maximum<T>>::value ||
+    std::is_same<BinaryOperation, ext::oneapi::maximum<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsReduBitOR = detail::bool_constant<
-    std::is_same<BinaryOperation, intel::bit_or<T>>::value ||
-    std::is_same<BinaryOperation, intel::bit_or<void>>::value>;
+    std::is_same<BinaryOperation, ext::oneapi::bit_or<T>>::value ||
+    std::is_same<BinaryOperation, ext::oneapi::bit_or<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsReduBitXOR = detail::bool_constant<
-    std::is_same<BinaryOperation, intel::bit_xor<T>>::value ||
-    std::is_same<BinaryOperation, intel::bit_xor<void>>::value>;
+    std::is_same<BinaryOperation, ext::oneapi::bit_xor<T>>::value ||
+    std::is_same<BinaryOperation, ext::oneapi::bit_xor<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsReduBitAND = detail::bool_constant<
-    std::is_same<BinaryOperation, intel::bit_and<T>>::value ||
-    std::is_same<BinaryOperation, intel::bit_and<void>>::value>;
+    std::is_same<BinaryOperation, ext::oneapi::bit_and<T>>::value ||
+    std::is_same<BinaryOperation, ext::oneapi::bit_and<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsReduOptForFastAtomicFetch =
@@ -166,7 +167,7 @@ private:
 /// using those operations, which are based on functionality provided by
 /// sycl::atomic class.
 ///
-/// For example, it is known that 0 is identity for intel::plus operations
+/// For example, it is known that 0 is identity for ext::oneapi::plus operations
 /// accepting native scalar types to which scalar 0 is convertible.
 /// Also, for int32/64 types the atomic_combine() is lowered to
 /// sycl::atomic::fetch_add().
@@ -308,7 +309,8 @@ public:
         .fetch_and(MValue);
   }
 
-  /// Atomic MIN operation: *ReduVarPtr = intel::minimum(*ReduVarPtr, MValue);
+  /// Atomic MIN operation: *ReduVarPtr = ext::oneapi::minimum(*ReduVarPtr,
+  /// MValue);
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
@@ -318,7 +320,8 @@ public:
         .fetch_min(MValue);
   }
 
-  /// Atomic MAX operation: *ReduVarPtr = intel::maximum(*ReduVarPtr, MValue);
+  /// Atomic MAX operation: *ReduVarPtr = ext::oneapi::maximum(*ReduVarPtr,
+  /// MValue);
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               (is_geninteger32bit<T>::value || is_geninteger64bit<T>::value) &&
@@ -599,11 +602,12 @@ struct get_reduction_aux_kernel_name_t {
 /// Implements a command group function that enqueues a kernel that calls
 /// user's lambda function KernelFunc and also does one iteration of reduction
 /// of elements computed in user's lambda function.
-/// This version uses intel::reduce() algorithm to reduce elements in each
+/// This version uses ext::oneapi::reduce() algorithm to reduce elements in each
 /// of work-groups, then it calls fast sycl atomic operations to update
 /// user's reduction variable.
 ///
-/// Briefly: calls user's lambda, intel::reduce() + atomic, INT + ADD/MIN/MAX.
+/// Briefly: calls user's lambda, ext::oneapi::reduce() + atomic, INT +
+/// ADD/MIN/MAX.
 template <typename KernelName, typename KernelType, int Dims, class Reduction,
           bool UniformWG, typename OutputT>
 enable_if_t<Reduction::has_fast_reduce && Reduction::has_fast_atomics>
@@ -622,7 +626,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
         (UniformWG || NDIt.get_global_linear_id() < NWorkItems)
             ? Reducer.MValue
             : Reducer.getIdentity();
-    Reducer.MValue = intel::reduce(NDIt.get_group(), Val, BOp);
+    Reducer.MValue = ext::oneapi::reduce(NDIt.get_group(), Val, BOp);
     if (NDIt.get_local_linear_id() == 0)
       Reducer.atomic_combine(Reduction::getOutPointer(Out));
   });
@@ -716,11 +720,11 @@ reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 /// Implements a command group function that enqueues a kernel that
 /// calls user's lambda function and does one iteration of reduction
 /// of elements in each of work-groups.
-/// This version uses intel::reduce() algorithm to reduce elements in each
+/// This version uses ext::oneapi::reduce() algorithm to reduce elements in each
 /// of work-groups. At the end of each work-groups the partial sum is written
 /// to a global buffer.
 ///
-/// Briefly: user's lambda, intel:reduce(), FP + ADD/MIN/MAX.
+/// Briefly: user's lambda, ext::oneapi:reduce(), FP + ADD/MIN/MAX.
 template <typename KernelName, typename KernelType, int Dims, class Reduction,
           bool UniformWG, typename OutputT>
 enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
@@ -750,7 +754,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
             ? Reducer.MValue
             : Reducer.getIdentity();
     typename Reduction::binary_operation BOp;
-    PSum = intel::reduce(NDIt.get_group(), PSum, BOp);
+    PSum = ext::oneapi::reduce(NDIt.get_group(), PSum, BOp);
     if (NDIt.get_local_linear_id() == 0) {
       if (IsUpdateOfUserVar)
         PSum = BOp(*(Reduction::getOutPointer(Out)), PSum);
@@ -863,11 +867,12 @@ reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 
 /// Implements a command group function that enqueues a kernel that does one
 /// iteration of reduction of elements in each of work-groups.
-/// This version uses intel::reduce() algorithm to reduce elements in each
+/// This version uses ext::oneapi::reduce() algorithm to reduce elements in each
 /// of work-groups. At the end of each work-groups the partial sum is written
 /// to a global buffer.
 ///
-/// Briefly: aux kernel, intel:reduce(), reproducible results,FP + ADD/MIN/MAX
+/// Briefly: aux kernel, ext::oneapi:reduce(), reproducible results,FP +
+/// ADD/MIN/MAX
 template <typename KernelName, typename KernelType, int Dims, class Reduction,
           bool UniformWG, typename InputT, typename OutputT>
 enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
@@ -887,7 +892,7 @@ reduAuxCGFuncImpl(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
         (UniformWG || (GID < NWorkItems))
             ? In[GID]
             : Reduction::reducer_type::getIdentity();
-    PSum = intel::reduce(NDIt.get_group(), PSum, BOp);
+    PSum = ext::oneapi::reduce(NDIt.get_group(), PSum, BOp);
     if (NDIt.get_local_linear_id() == 0) {
       if (IsUpdateOfUserVar)
         PSum = BOp(*(Reduction::getOutPointer(Out)), PSum);
@@ -1054,6 +1059,7 @@ reduction(T *VarPtr, BinaryOperation) {
                                 access::mode::read_write>(VarPtr);
 }
 
-} // namespace intel
+} // namespace oneapi
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

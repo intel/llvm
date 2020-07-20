@@ -12,14 +12,15 @@
 
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp> // to define C++14,17 extensions
+#include <CL/sycl/ext/intel/esimd/detail/esimd_region.hpp>
+#include <CL/sycl/ext/intel/esimd/esimd_enum.hpp>
 #include <CL/sycl/half_type.hpp>
-#include <CL/sycl/intel/esimd/detail/esimd_region.hpp>
-#include <CL/sycl/intel/esimd/esimd_enum.hpp>
 #include <cstdint>
 #include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace intel {
 namespace gpu {
 
@@ -257,5 +258,6 @@ inline std::istream &operator>>(std::istream &I, half &rhs) {
 
 } // namespace gpu
 } // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -8,6 +8,6 @@
 
 #pragma once
 
-#include <CL/sycl/intel/atomic_enums.hpp>
-#include <CL/sycl/intel/atomic_fence.hpp>
-#include <CL/sycl/intel/atomic_ref.hpp>
+#include <CL/sycl/ext/oneapi/atomic_enums.hpp>
+#include <CL/sycl/ext/oneapi/atomic_fence.hpp>
+#include <CL/sycl/ext/oneapi/atomic_ref.hpp>

@@ -13,7 +13,7 @@
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/intel/atomic_enums.hpp>
+#include <CL/sycl/ext/oneapi/atomic_enums.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <atomic>
@@ -27,14 +27,15 @@ namespace sycl {
 template <typename pointerT, access::address_space AddressSpace>
 class multi_ptr;
 
-namespace intel {
+namespace ext {
+namespace oneapi {
 namespace detail {
 
-// Import from detail:: into intel::detail:: to improve readability later
+// Import from detail:: into oneapi::detail:: to improve readability later
 using namespace ::cl::sycl::detail;
 
-using memory_order = cl::sycl::intel::memory_order;
-using memory_scope = cl::sycl::intel::memory_scope;
+using memory_order = cl::sycl::ext::oneapi::memory_order;
+using memory_scope = cl::sycl::ext::oneapi::memory_scope;
 
 template <typename T>
 using IsValidAtomicType =
@@ -527,6 +528,7 @@ public:
                                 AddressSpace>::atomic_ref_impl;
 };
 
-} // namespace intel
+} // namespace oneapi
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -11,9 +11,9 @@
 
 #pragma once
 
-#include <CL/sycl/intel/esimd/detail/esimd_types.hpp>
-#include <CL/sycl/intel/esimd/detail/esimd_util.hpp>
-#include <CL/sycl/intel/esimd/esimd_enum.hpp>
+#include <CL/sycl/ext/intel/esimd/detail/esimd_types.hpp>
+#include <CL/sycl/ext/intel/esimd/detail/esimd_util.hpp>
+#include <CL/sycl/ext/intel/esimd/esimd_enum.hpp>
 #include <cstdint>
 
 // \brief __esimd_rdregion: region access intrinsic.
@@ -60,8 +60,9 @@
 //
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth = 0>
-SYCL_EXTERNAL sycl::intel::gpu::vector_type_t<T, M>
-__esimd_rdregion(sycl::intel::gpu::vector_type_t<T, N> Input, uint16_t Offset);
+SYCL_EXTERNAL sycl::ext::intel::gpu::vector_type_t<T, M>
+__esimd_rdregion(sycl::ext::intel::gpu::vector_type_t<T, N> Input,
+                 uint16_t Offset);
 
 // __esimd_wrregion returns the updated vector with the region updated.
 //
@@ -112,10 +113,11 @@ __esimd_rdregion(sycl::intel::gpu::vector_type_t<T, N> Input, uint16_t Offset);
 //
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth = 0>
-SYCL_EXTERNAL sycl::intel::gpu::vector_type_t<T, N>
-__esimd_wrregion(sycl::intel::gpu::vector_type_t<T, N> OldVal,
-                 sycl::intel::gpu::vector_type_t<T, M> NewVal, uint16_t Offset,
-                 sycl::intel::gpu::mask_type_t<M> Mask = 1);
+SYCL_EXTERNAL sycl::ext::intel::gpu::vector_type_t<T, N>
+__esimd_wrregion(sycl::ext::intel::gpu::vector_type_t<T, N> OldVal,
+                 sycl::ext::intel::gpu::vector_type_t<T, M> NewVal,
+                 uint16_t Offset,
+                 sycl::ext::intel::gpu::mask_type_t<M> Mask = 1);
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -218,37 +220,41 @@ readRegion(const vector_type_t<BT, BN> &Base, std::pair<T, U> Region) {
 // optimization on simd object
 //
 template <typename T, int N>
-SYCL_EXTERNAL sycl::intel::gpu::vector_type_t<T, N>
-__esimd_vload(const sycl::intel::gpu::vector_type_t<T, N> *ptr);
+SYCL_EXTERNAL sycl::ext::intel::gpu::vector_type_t<T, N>
+__esimd_vload(const sycl::ext::intel::gpu::vector_type_t<T, N> *ptr);
 
 // vstore
 //
 // map to the backend vstore intrinsic, used by compiler to control
 // optimization on simd object
 template <typename T, int N>
-SYCL_EXTERNAL void __esimd_vstore(sycl::intel::gpu::vector_type_t<T, N> *ptr,
-                                  sycl::intel::gpu::vector_type_t<T, N> vals);
+SYCL_EXTERNAL void
+__esimd_vstore(sycl::ext::intel::gpu::vector_type_t<T, N> *ptr,
+               sycl::ext::intel::gpu::vector_type_t<T, N> vals);
 
 template <typename T, int N>
-SYCL_EXTERNAL uint16_t __esimd_any(sycl::intel::gpu::vector_type_t<T, N> src);
+SYCL_EXTERNAL uint16_t
+__esimd_any(sycl::ext::intel::gpu::vector_type_t<T, N> src);
 
 template <typename T, int N>
-SYCL_EXTERNAL uint16_t __esimd_all(sycl::intel::gpu::vector_type_t<T, N> src);
+SYCL_EXTERNAL uint16_t
+__esimd_all(sycl::ext::intel::gpu::vector_type_t<T, N> src);
 
 #ifndef __SYCL_DEVICE_ONLY__
 
 // Implementations of ESIMD intrinsics for the SYCL host device
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth>
-SYCL_EXTERNAL sycl::intel::gpu::vector_type_t<T, M>
-__esimd_rdregion(sycl::intel::gpu::vector_type_t<T, N> Input, uint16_t Offset) {
+SYCL_EXTERNAL sycl::ext::intel::gpu::vector_type_t<T, M>
+__esimd_rdregion(sycl::ext::intel::gpu::vector_type_t<T, N> Input,
+                 uint16_t Offset) {
   uint16_t EltOffset = Offset / sizeof(T);
   assert(Offset % sizeof(T) == 0);
 
   int NumRows = M / Width;
   assert(M % Width == 0);
 
-  sycl::intel::gpu::vector_type_t<T, M> Result;
+  sycl::ext::intel::gpu::vector_type_t<T, M> Result;
   int Index = 0;
   for (int i = 0; i < NumRows; ++i) {
     for (int j = 0; j < Width; ++j) {
@@ -260,17 +266,17 @@ __esimd_rdregion(sycl::intel::gpu::vector_type_t<T, N> Input, uint16_t Offset) {
 
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth>
-SYCL_EXTERNAL sycl::intel::gpu::vector_type_t<T, N>
-__esimd_wrregion(sycl::intel::gpu::vector_type_t<T, N> OldVal,
-                 sycl::intel::gpu::vector_type_t<T, M> NewVal, uint16_t Offset,
-                 sycl::intel::gpu::mask_type_t<M> Mask) {
+SYCL_EXTERNAL sycl::ext::intel::gpu::vector_type_t<T, N>
+__esimd_wrregion(sycl::ext::intel::gpu::vector_type_t<T, N> OldVal,
+                 sycl::ext::intel::gpu::vector_type_t<T, M> NewVal,
+                 uint16_t Offset, sycl::ext::intel::gpu::mask_type_t<M> Mask) {
   uint16_t EltOffset = Offset / sizeof(T);
   assert(Offset % sizeof(T) == 0);
 
   int NumRows = M / Width;
   assert(M % Width == 0);
 
-  sycl::intel::gpu::vector_type_t<T, N> Result = OldVal;
+  sycl::ext::intel::gpu::vector_type_t<T, N> Result = OldVal;
   int Index = 0;
   for (int i = 0; i < NumRows; ++i) {
     for (int j = 0; j < Width; ++j) {
