@@ -35,7 +35,7 @@ int main() {
   bool IsOpenCLV20 = false; // Backend is OpenCL 2.0
   bool IsOpenCLV2x = false; // Backend is OpenCL 2.x
   if (D.get_platform().get_backend() == backend::opencl) {
-    string_class OCLVersionStr = D.get_info<info::device::version>();
+    string_class VersionString = D.get_info<info::device::version>();
     IsOpenCL = true;
     IsOpenCLV1x = (VersionString.find("OpenCL 1.") == 0);
     IsOpenCLV20 = (VersionString.find("OpenCL 2.0") == 0);

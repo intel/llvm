@@ -55,14 +55,7 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
   bool IsOpenCLV1x = false; // Backend is OpenCL 1.x
   bool IsOpenCLV20 = false; // Backend is OpenCL 2.0
   if (Platform.get_backend() == cl::sycl::backend::opencl) {
-    size_t VersionStringSize = 0;
-    Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_VERSION, 0,
-                                            nullptr, &VersionStringSize);
-    std::unique_ptr<char[]> Version(new char[VersionStringSize]);
-    Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_VERSION,
-                                            VersionStringSize, Version.get(),
-                                            nullptr);
-    std::string VersionString(Version.get(), VersionStringSize);
+    string_class VersionString = DeviceImpl.get_info<info::device::version>();
     IsOpenCL = true;
     IsOpenCLV1x = (VersionString.find("OpenCL 1.") == 0);
     IsOpenCLV20 = (VersionString.find("OpenCL 2.0") == 0);
