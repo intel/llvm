@@ -63,6 +63,7 @@ def dump_symbols(target_path, output):
     symbols = parse_readobj_output(readobj_out)
     symbols.sort()
     out.write("\n".join(symbols))
+    out.write("\n")
 
 
 def compare_results(ref_records, records):
