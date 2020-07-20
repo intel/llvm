@@ -3015,7 +3015,7 @@ static void handleSubGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
 
   if (AL.getAttributeSpellingListIndex() ==
-          IntelReqdSubGroupSizeAttr::CXX11_cl_intel_reqd_sub_group_size)
+      IntelReqdSubGroupSizeAttr::CXX11_cl_intel_reqd_sub_group_size)
     S.Diag(AL.getLoc(), diag::warn_attribute_spelling_deprecated) << AL;
 
   S.addIntelReqdSubGroupSizeAttr(D, AL, E);

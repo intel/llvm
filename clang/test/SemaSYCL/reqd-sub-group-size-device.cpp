@@ -59,7 +59,7 @@ void bar() {
   kernel<class kernel_name5>([]() [[cl::intel_reqd_sub_group_size(2)]] { });
   // expected-warning@+1{{previous spelling of attribute 'intel_reqd_sub_group_size' is deprecated}}
   kernel<class kernel_name6>([]() [[cl::intel_reqd_sub_group_size(4)]] { foo(); });
-  kernel<class kernel_name7>([]() [[intel::reqd_sub_group_size(6)]] { });
+  kernel<class kernel_name7>([]() [[intel::reqd_sub_group_size(6)]]{});
 
   Functor4 f4;
   kernel<class kernel_name8>(f4);
