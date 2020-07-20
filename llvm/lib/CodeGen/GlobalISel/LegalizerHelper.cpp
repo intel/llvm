@@ -1639,6 +1639,44 @@ LegalizerHelper::widenScalarInsert(MachineInstr &MI, unsigned TypeIdx,
 }
 
 LegalizerHelper::LegalizeResult
+LegalizerHelper::widenScalarAddSubSat(MachineInstr &MI, unsigned TypeIdx,
+                                      LLT WideTy) {
+  bool IsSigned = MI.getOpcode() == TargetOpcode::G_SADDSAT ||
+                  MI.getOpcode() == TargetOpcode::G_SSUBSAT;
+  // We can convert this to:
+  //   1. Any extend iN to iM
+  //   2. SHL by M-N
+  //   3. [US][ADD|SUB]SAT
+  //   4. L/ASHR by M-N
+  //
+  // It may be more efficient to lower this to a min and a max operation in
+  // the higher precision arithmetic if the promoted operation isn't legal,
+  // but this decision is up to the target's lowering request.
+  Register DstReg = MI.getOperand(0).getReg();
+
+  unsigned NewBits = WideTy.getScalarSizeInBits();
+  unsigned SHLAmount = NewBits - MRI.getType(DstReg).getScalarSizeInBits();
+
+  auto LHS = MIRBuilder.buildAnyExt(WideTy, MI.getOperand(1));
+  auto RHS = MIRBuilder.buildAnyExt(WideTy, MI.getOperand(2));
+  auto ShiftK = MIRBuilder.buildConstant(WideTy, SHLAmount);
+  auto ShiftL = MIRBuilder.buildShl(WideTy, LHS, ShiftK);
+  auto ShiftR = MIRBuilder.buildShl(WideTy, RHS, ShiftK);
+
+  auto WideInst = MIRBuilder.buildInstr(MI.getOpcode(), {WideTy},
+                                        {ShiftL, ShiftR}, MI.getFlags());
+
+  // Use a shift that will preserve the number of sign bits when the trunc is
+  // folded away.
+  auto Result = IsSigned ? MIRBuilder.buildAShr(WideTy, WideInst, ShiftK)
+                         : MIRBuilder.buildLShr(WideTy, WideInst, ShiftK);
+
+  MIRBuilder.buildTrunc(DstReg, Result);
+  MI.eraseFromParent();
+  return Legalized;
+}
+
+LegalizerHelper::LegalizeResult
 LegalizerHelper::widenScalar(MachineInstr &MI, unsigned TypeIdx, LLT WideTy) {
   switch (MI.getOpcode()) {
   default:
@@ -1674,6 +1712,11 @@ LegalizerHelper::widenScalar(MachineInstr &MI, unsigned TypeIdx, LLT WideTy) {
     MI.eraseFromParent();
     return Legalized;
   }
+  case TargetOpcode::G_SADDSAT:
+  case TargetOpcode::G_SSUBSAT:
+  case TargetOpcode::G_UADDSAT:
+  case TargetOpcode::G_USUBSAT:
+    return widenScalarAddSubSat(MI, TypeIdx, WideTy);
   case TargetOpcode::G_CTTZ:
   case TargetOpcode::G_CTTZ_ZERO_UNDEF:
   case TargetOpcode::G_CTLZ:
@@ -1865,21 +1908,25 @@ LegalizerHelper::widenScalar(MachineInstr &MI, unsigned TypeIdx, LLT WideTy) {
     Observer.changedInstr(MI);
     return Legalized;
   case TargetOpcode::G_SITOFP:
-    if (TypeIdx != 1)
-      return UnableToLegalize;
     Observer.changingInstr(MI);
-    widenScalarSrc(MI, WideTy, 1, TargetOpcode::G_SEXT);
+
+    if (TypeIdx == 0)
+      widenScalarDst(MI, WideTy, 0, TargetOpcode::G_FPTRUNC);
+    else
+      widenScalarSrc(MI, WideTy, 1, TargetOpcode::G_SEXT);
+
     Observer.changedInstr(MI);
     return Legalized;
-
   case TargetOpcode::G_UITOFP:
-    if (TypeIdx != 1)
-      return UnableToLegalize;
     Observer.changingInstr(MI);
-    widenScalarSrc(MI, WideTy, 1, TargetOpcode::G_ZEXT);
+
+    if (TypeIdx == 0)
+      widenScalarDst(MI, WideTy, 0, TargetOpcode::G_FPTRUNC);
+    else
+      widenScalarSrc(MI, WideTy, 1, TargetOpcode::G_ZEXT);
+
     Observer.changedInstr(MI);
     return Legalized;
-
   case TargetOpcode::G_LOAD:
   case TargetOpcode::G_SEXTLOAD:
   case TargetOpcode::G_ZEXTLOAD:
@@ -3414,6 +3461,10 @@ LegalizerHelper::fewerElementsVector(MachineInstr &MI, unsigned TypeIdx,
   case G_FSHL:
   case G_FSHR:
   case G_FREEZE:
+  case G_SADDSAT:
+  case G_SSUBSAT:
+  case G_UADDSAT:
+  case G_USUBSAT:
     return reduceOperationWidth(MI, TypeIdx, NarrowTy);
   case G_SHL:
   case G_LSHR:

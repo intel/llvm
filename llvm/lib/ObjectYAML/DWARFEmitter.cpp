@@ -168,7 +168,7 @@ Error DWARFYAML::emitDebugRanges(raw_ostream &OS, const DWARFYAML::Data &DI) {
     if (DebugRanges.AddrSize)
       AddrSize = *DebugRanges.AddrSize;
     else
-      AddrSize = DI.Is64bit ? 8 : 4;
+      AddrSize = DI.Is64BitAddrSize ? 8 : 4;
     for (auto Entry : DebugRanges.Entries) {
       if (Error Err = writeVariableSizedInteger(Entry.LowOffset, AddrSize, OS,
                                                 DI.IsLittleEndian))
@@ -381,7 +381,7 @@ Error DWARFYAML::emitDebugAddr(raw_ostream &OS, const Data &DI) {
     if (TableEntry.AddrSize)
       AddrSize = *TableEntry.AddrSize;
     else
-      AddrSize = DI.Is64bit ? 8 : 4;
+      AddrSize = DI.Is64BitAddrSize ? 8 : 4;
 
     uint64_t Length;
     if (TableEntry.Length)
@@ -410,6 +410,31 @@ Error DWARFYAML::emitDebugAddr(raw_ostream &OS, const Data &DI) {
           return createStringError(errc::not_supported,
                                    "unable to write debug_addr address: %s",
                                    toString(std::move(Err)).c_str());
+    }
+  }
+
+  return Error::success();
+}
+
+Error DWARFYAML::emitDebugStrOffsets(raw_ostream &OS, const Data &DI) {
+  assert(DI.DebugStrOffsets && "unexpected emitDebugStrOffsets() call");
+  for (const DWARFYAML::StringOffsetsTable &Table : *DI.DebugStrOffsets) {
+    uint64_t Length;
+    if (Table.Length)
+      Length = *Table.Length;
+    else
+      // sizeof(version) + sizeof(padding) = 4
+      Length =
+          4 + Table.Offsets.size() * (Table.Format == dwarf::DWARF64 ? 8 : 4);
+
+    writeInitialLength(Table.Format, Length, OS, DI.IsLittleEndian);
+    writeInteger((uint16_t)Table.Version, OS, DI.IsLittleEndian);
+    writeInteger((uint16_t)Table.Padding, OS, DI.IsLittleEndian);
+
+    for (uint64_t Offset : Table.Offsets) {
+      cantFail(writeVariableSizedInteger(Offset,
+                                         Table.Format == dwarf::DWARF64 ? 8 : 4,
+                                         OS, DI.IsLittleEndian));
     }
   }
 

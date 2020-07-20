@@ -42,13 +42,27 @@ template <typename Group> bool GroupAny(bool pred) {
 }
 
 // Broadcast with scalar local index
+// Work-group supports any integral type
+// Sub-group currently supports only uint32_t
 template <typename Group, typename T, typename IdT>
-detail::enable_if_t<std::is_integral<IdT>::value, T>
+detail::enable_if_t<is_group<Group>::value && std::is_integral<IdT>::value, T>
 GroupBroadcast(T x, IdT local_id) {
   using OCLT = detail::ConvertToOpenCLType_t<T>;
   using OCLIdT = detail::ConvertToOpenCLType_t<IdT>;
   OCLT ocl_x = detail::convertDataToType<T, OCLT>(x);
   OCLIdT ocl_id = detail::convertDataToType<IdT, OCLIdT>(local_id);
+  return __spirv_GroupBroadcast(group_scope<Group>::value, ocl_x, ocl_id);
+}
+template <typename Group, typename T, typename IdT>
+detail::enable_if_t<is_sub_group<Group>::value && std::is_integral<IdT>::value,
+                    T>
+GroupBroadcast(T x, IdT local_id) {
+  using SGIdT = uint32_t;
+  SGIdT sg_local_id = static_cast<SGIdT>(local_id);
+  using OCLT = detail::ConvertToOpenCLType_t<T>;
+  using OCLIdT = detail::ConvertToOpenCLType_t<SGIdT>;
+  OCLT ocl_x = detail::convertDataToType<T, OCLT>(x);
+  OCLIdT ocl_id = detail::convertDataToType<SGIdT, OCLIdT>(sg_local_id);
   return __spirv_GroupBroadcast(group_scope<Group>::value, ocl_x, ocl_id);
 }
 

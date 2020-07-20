@@ -3460,6 +3460,10 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
     return true;
   F->addFnAttr(kVCMetadata::VCFunction);
 
+  SPIRVWord SIMTMode = 0;
+  if (BF->hasDecorate(DecorationSIMTCallINTEL, 0, &SIMTMode))
+    F->addFnAttr(kVCMetadata::VCSIMTCall, std::to_string(SIMTMode));
+
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
        ++I) {
     auto ArgNo = I->getArgNo();
@@ -3468,6 +3472,18 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
     if (BA->hasDecorate(DecorationFuncParamIOKind, 0, &Kind)) {
       Attribute Attr = Attribute::get(*Context, kVCMetadata::VCArgumentIOKind,
                                       std::to_string(Kind));
+      F->addAttribute(ArgNo + 1, Attr);
+    }
+    if (BA->hasDecorate(DecorationFuncParamKindINTEL, 0, &Kind)) {
+      Attribute Attr = Attribute::get(*Context, kVCMetadata::VCArgumentKind,
+                                      std::to_string(Kind));
+      F->addAttribute(ArgNo + 1, Attr);
+    }
+    if (BA->hasDecorate(DecorationFuncParamDescINTEL)) {
+      auto Desc =
+          BA->getDecorationStringLiteral(DecorationFuncParamDescINTEL).front();
+      Attribute Attr =
+          Attribute::get(*Context, kVCMetadata::VCArgumentDesc, Desc);
       F->addAttribute(ArgNo + 1, Attr);
     }
   }

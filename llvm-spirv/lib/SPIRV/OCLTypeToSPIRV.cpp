@@ -58,8 +58,7 @@ namespace SPIRV {
 
 char OCLTypeToSPIRV::ID = 0;
 
-OCLTypeToSPIRV::OCLTypeToSPIRV()
-    : ModulePass(ID), M(nullptr), Ctx(nullptr), CLVer(0) {
+OCLTypeToSPIRV::OCLTypeToSPIRV() : ModulePass(ID), M(nullptr), Ctx(nullptr) {
   initializeOCLTypeToSPIRVPass(*PassRegistry::getPassRegistry());
 }
 
