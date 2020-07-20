@@ -92,11 +92,6 @@ using namespace OCLUtil;
 
 namespace SPIRV {
 
-cl::opt<bool> SPIRVAllowUnknownIntrinsics(
-    "spirv-allow-unknown-intrinsics", cl::init(false),
-    cl::desc("Unknown LLVM intrinsics will be translated as external function "
-             "calls in SPIR-V"));
-
 static void foreachKernelArgMD(
     MDNode *MD, SPIRVFunction *BF,
     std::function<void(const std::string &Str, SPIRVFunctionParameter *BA)>
@@ -313,8 +308,11 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
     // extension
     if (!BM->isAllowedToUseExtension(
             ExtensionID::SPV_INTEL_usm_storage_classes) &&
-        ((AddrSpc == SPIRAS_GlobalDevice) || (AddrSpc == SPIRAS_GlobalHost)))
-      AddrSpc = SPIRAS_Global;
+        ((AddrSpc == SPIRAS_GlobalDevice) || (AddrSpc == SPIRAS_GlobalHost))) {
+      auto NewType =
+          PointerType::get(T->getPointerElementType(), SPIRAS_Global);
+      return mapType(T, transType(NewType));
+    }
     if (ST && !ST->isSized()) {
       Op OpCode;
       StringRef STName = ST->getName();
@@ -509,8 +507,8 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
   if (auto BF = getTranslatedValue(F))
     return static_cast<SPIRVFunction *>(BF);
 
-  if (F->isIntrinsic() &&
-      (!SPIRVAllowUnknownIntrinsics || isKnownIntrinsic(F->getIntrinsicID()))) {
+  if (F->isIntrinsic() && (!BM->isSPIRVAllowUnknownIntrinsicsEnabled() ||
+                           isKnownIntrinsic(F->getIntrinsicID()))) {
     // We should not translate LLVM intrinsics as a function
     assert(none_of(F->user_begin(), F->user_end(),
                    [this](User *U) { return getTranslatedValue(U); }) &&
@@ -586,6 +584,14 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
     BF->addDecorate(DecorationVectorComputeFunctionINTEL);
   else
     return;
+
+  if (Attrs.hasFnAttribute(kVCMetadata::VCSIMTCall)) {
+    SPIRVWord SIMTMode = 0;
+    Attrs.getAttribute(AttributeList::FunctionIndex, kVCMetadata::VCSIMTCall)
+        .getValueAsString()
+        .getAsInteger(0, SIMTMode);
+    BF->addDecorate(DecorationSIMTCallINTEL, SIMTMode);
+  }
 
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
        ++I) {
@@ -2131,7 +2137,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     // change is pending the trap/abort intrisinc implementation.
     return nullptr;
   default:
-    if (SPIRVAllowUnknownIntrinsics)
+    if (BM->isSPIRVAllowUnknownIntrinsicsEnabled())
       return BM->addCallInst(
           transFunctionDecl(II->getCalledFunction()),
           transArguments(II, BB,

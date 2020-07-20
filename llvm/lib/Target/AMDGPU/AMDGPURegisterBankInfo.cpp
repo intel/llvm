@@ -2989,6 +2989,7 @@ void AMDGPURegisterBankInfo::applyMappingImpl(
       constrainOpWithReadfirstlane(MI, MRI, 3); // Index
       return;
     }
+    case Intrinsic::amdgcn_ballot:
     case Intrinsic::amdgcn_interp_p1:
     case Intrinsic::amdgcn_interp_p2:
     case Intrinsic::amdgcn_interp_mov:
@@ -3360,7 +3361,7 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   const MachineFunction &MF = *MI.getParent()->getParent();
   const MachineRegisterInfo &MRI = MF.getRegInfo();
 
-  if (MI.isCopy()) {
+  if (MI.isCopy() || MI.getOpcode() == AMDGPU::G_FREEZE) {
     // The default logic bothers to analyze impossible alternative mappings. We
     // want the most straightforward mapping, so just directly handle this.
     const RegisterBank *DstBank = getRegBank(MI.getOperand(0).getReg(), MRI,
@@ -3376,9 +3377,15 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       return getInvalidInstructionMapping();
 
     const ValueMapping &ValMap = getValueMapping(0, Size, *DstBank);
+    unsigned OpdsMappingSize = MI.isCopy() ? 1 : 2;
+    SmallVector<const ValueMapping *, 1> OpdsMapping(OpdsMappingSize);
+    OpdsMapping[0] = &ValMap;
+    if (MI.getOpcode() == AMDGPU::G_FREEZE)
+      OpdsMapping[1] = &ValMap;
+
     return getInstructionMapping(
         1, /*Cost*/ 1,
-        /*OperandsMapping*/ getOperandsMapping({&ValMap}), 1);
+        /*OperandsMapping*/ getOperandsMapping(OpdsMapping), OpdsMappingSize);
   }
 
   if (MI.isRegSequence()) {
@@ -4158,6 +4165,13 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       // Must be SGPR, but we must take whatever the original bank is and fix it
       // later.
       OpdsMapping[M0Idx] = AMDGPU::getValueMapping(M0Bank, 32);
+      break;
+    }
+    case Intrinsic::amdgcn_ballot: {
+      unsigned DstSize = MRI.getType(MI.getOperand(0).getReg()).getSizeInBits();
+      unsigned SrcSize = MRI.getType(MI.getOperand(2).getReg()).getSizeInBits();
+      OpdsMapping[0] = AMDGPU::getValueMapping(AMDGPU::SGPRRegBankID, DstSize);
+      OpdsMapping[2] = AMDGPU::getValueMapping(AMDGPU::VCCRegBankID, SrcSize);
       break;
     }
     }

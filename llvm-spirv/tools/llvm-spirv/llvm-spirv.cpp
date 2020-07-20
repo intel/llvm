@@ -178,6 +178,11 @@ static cl::opt<SPIRV::FPContractMode> FPCMode(
             SPIRV::FPContractMode::Fast, "fast",
             "allow all operations to be contracted for all entry points")));
 
+cl::opt<bool> SPIRVAllowUnknownIntrinsics(
+    "spirv-allow-unknown-intrinsics", cl::init(false),
+    cl::desc("Unknown LLVM intrinsics will be translated as external function "
+             "calls in SPIR-V"));
+
 static std::string removeExt(const std::string &FileName) {
   size_t Pos = FileName.find_last_of(".");
   if (Pos != std::string::npos)
@@ -551,6 +556,16 @@ int main(int Ac, char **Av) {
   if (IsReverse && !SpecConst.empty()) {
     if (parseSpecConstOpt(SpecConst, Opts))
       return -1;
+  }
+
+  if (SPIRVAllowUnknownIntrinsics.getNumOccurrences() != 0) {
+    if (IsReverse) {
+      errs()
+          << "Note: --spirv-allow-unknown-intrinsics option ignored as it only "
+             "affects translation from LLVM IR to SPIR-V";
+    } else {
+      Opts.setSPIRVAllowUnknownIntrinsicsEnabled(SPIRVAllowUnknownIntrinsics);
+    }
   }
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
