@@ -12,7 +12,7 @@
 using namespace cl::sycl;
 using namespace sycl::intel::gpu;
 
-#define VL 16
+constexpr unsigned VL = 16;
 
 ESIMD_PRIVATE ESIMD_REGISTER(17) simd<int, VL> vc;
 // CHECK-DAG: @vc = {{.+}} <16 x i32> zeroinitializer, align 64 #0
