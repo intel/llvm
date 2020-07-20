@@ -71,7 +71,11 @@ int main() {
   check_size<detail::sampler_impl, 8>();
 #else
   check_size<private_memory<int, 1>, 8>();
+#ifdef _MSC_VER
+  check_size<detail::sampler_impl, 80>();
+#else
   check_size<detail::sampler_impl, 72>();
+#endif
 #endif
   check_size<program, 16>();
   check_size<range<1>, 8>();
