@@ -5,6 +5,9 @@
 
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/buffer.hpp>
+#include <CL/sycl/detail/accessor_impl.hpp>
+#include <CL/sycl/detail/buffer_impl.hpp>
+#include <CL/sycl/detail/image_impl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_event.hpp>
 #include <CL/sycl/device_selector.hpp>
@@ -33,9 +36,16 @@ void check_size() {
 
 int main() {
   using accessor_t = accessor<int, 1, access::mode::read,
-                              access::target::global_buffer, access::placeholder::true_t>;
+                              access::target::global_buffer,
+                              access::placeholder::true_t>;
   check_size<accessor_t, 32>();
+  check_size<detail::AccessorImplDevice<1>, 24>();
+  check_size<detail::LocalAccessorBaseDevice<1>, 24>();
+  check_size<detail::AccessorImplHost, 128>();
+  check_size<detail::AccessorBaseHost, 16>();
+  check_size<detail::LocalAccessorImplHost, 56>();
   check_size<buffer<int>, 40>();
+  check_size<detail::buffer_impl, 256>();
   check_size<context, 16>();
   check_size<cpu_selector, 8>();
   check_size<device, 16>();
@@ -49,6 +59,7 @@ int main() {
   check_size<handler, 560>();
 #endif
   check_size<image<1>, 16>();
+  check_size<detail::image_impl<1>, 312>();
   check_size<kernel, 16>();
   check_size<platform, 16>();
 #ifdef __SYCL_DEVICE_ONLY__
