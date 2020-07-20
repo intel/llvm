@@ -948,7 +948,11 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
         setOperationAction(ISD::INSERT_SUBVECTOR, VT, Custom);
         setOperationAction(ISD::SPLAT_VECTOR, VT, Custom);
         setOperationAction(ISD::SELECT, VT, Custom);
+        setOperationAction(ISD::FADD, VT, Custom);
+        setOperationAction(ISD::FDIV, VT, Custom);
         setOperationAction(ISD::FMA, VT, Custom);
+        setOperationAction(ISD::FMUL, VT, Custom);
+        setOperationAction(ISD::FSUB, VT, Custom);
       }
     }
 
@@ -963,12 +967,15 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
           addTypeForFixedLengthSVE(VT);
 
       // 64bit results can mean a bigger than NEON input.
-      for (auto VT : {MVT::v8i8, MVT::v4i16, MVT::v2i32})
+      for (auto VT : {MVT::v8i8, MVT::v4i16})
         setOperationAction(ISD::TRUNCATE, VT, Custom);
+      setOperationAction(ISD::FP_ROUND, MVT::v4f16, Custom);
 
       // 128bit results imply a bigger than NEON input.
       for (auto VT : {MVT::v16i8, MVT::v8i16, MVT::v4i32})
         setOperationAction(ISD::TRUNCATE, VT, Custom);
+      for (auto VT : {MVT::v8f16, MVT::v4f32})
+        setOperationAction(ISD::FP_ROUND, VT, Expand);
     }
   }
 
@@ -1480,11 +1487,14 @@ const char *AArch64TargetLowering::getTargetNodeName(unsigned Opcode) const {
     MAKE_CASE(AArch64ISD::FADD_PRED)
     MAKE_CASE(AArch64ISD::FADDA_PRED)
     MAKE_CASE(AArch64ISD::FADDV_PRED)
+    MAKE_CASE(AArch64ISD::FDIV_PRED)
     MAKE_CASE(AArch64ISD::FMA_PRED)
     MAKE_CASE(AArch64ISD::FMAXV_PRED)
     MAKE_CASE(AArch64ISD::FMAXNMV_PRED)
     MAKE_CASE(AArch64ISD::FMINV_PRED)
     MAKE_CASE(AArch64ISD::FMINNMV_PRED)
+    MAKE_CASE(AArch64ISD::FMUL_PRED)
+    MAKE_CASE(AArch64ISD::FSUB_PRED)
     MAKE_CASE(AArch64ISD::NOT)
     MAKE_CASE(AArch64ISD::BIT)
     MAKE_CASE(AArch64ISD::CBZ)
@@ -2712,13 +2722,19 @@ SDValue AArch64TargetLowering::LowerFP_ROUND(SDValue Op,
                                              SelectionDAG &DAG) const {
   bool IsStrict = Op->isStrictFPOpcode();
   SDValue SrcVal = Op.getOperand(IsStrict ? 1 : 0);
-  if (SrcVal.getValueType() != MVT::f128) {
+  EVT SrcVT = SrcVal.getValueType();
+
+  if (SrcVT != MVT::f128) {
+    // Expand cases where the input is a vector bigger than NEON.
+    if (useSVEForFixedLengthVectorVT(SrcVT))
+      return SDValue();
+
     // It's legal except when f128 is involved
     return Op;
   }
 
   RTLIB::Libcall LC;
-  LC = RTLIB::getFPROUND(SrcVal.getValueType(), Op.getValueType());
+  LC = RTLIB::getFPROUND(SrcVT, Op.getValueType());
 
   // FP_ROUND node has a second operand indicating whether it is known to be
   // precise. That doesn't take part in the LibCall so we can't directly use
@@ -3459,16 +3475,23 @@ SDValue AArch64TargetLowering::LowerOperation(SDValue Op,
   case ISD::UMULO:
     return LowerXALUO(Op, DAG);
   case ISD::FADD:
-    if (useSVEForFixedLengthVectorVT(Op.getValueType()))
+    if (Op.getValueType().isScalableVector() ||
+        useSVEForFixedLengthVectorVT(Op.getValueType()))
       return LowerToPredicatedOp(Op, DAG, AArch64ISD::FADD_PRED);
     return LowerF128Call(Op, DAG, RTLIB::ADD_F128);
   case ISD::FSUB:
+    if (Op.getValueType().isScalableVector())
+      return LowerToPredicatedOp(Op, DAG, AArch64ISD::FSUB_PRED);
     return LowerF128Call(Op, DAG, RTLIB::SUB_F128);
   case ISD::FMUL:
+    if (Op.getValueType().isScalableVector())
+      return LowerToPredicatedOp(Op, DAG, AArch64ISD::FMUL_PRED);
     return LowerF128Call(Op, DAG, RTLIB::MUL_F128);
   case ISD::FMA:
     return LowerToPredicatedOp(Op, DAG, AArch64ISD::FMA_PRED);
   case ISD::FDIV:
+    if (Op.getValueType().isScalableVector())
+      return LowerToPredicatedOp(Op, DAG, AArch64ISD::FDIV_PRED);
     return LowerF128Call(Op, DAG, RTLIB::DIV_F128);
   case ISD::FP_ROUND:
   case ISD::STRICT_FP_ROUND:

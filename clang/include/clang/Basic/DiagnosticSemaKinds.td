@@ -2847,6 +2847,13 @@ def err_attribute_invalid_vector_type : Error<"invalid vector element type %0">;
 def err_attribute_invalid_matrix_type : Error<"invalid matrix element type %0">;
 def err_attribute_bad_neon_vector_size : Error<
   "Neon vector size must be 64 or 128 bits">;
+def err_attribute_invalid_sve_type : Error<
+  "%0 attribute applied to non-SVE type %1">;
+def err_attribute_bad_sve_vector_size : Error<
+  "invalid SVE vector size '%0', must match value set by "
+  "'-msve-vector-bits' ('%1')">;
+def err_attribute_arm_feature_sve_bits_unsupported : Error<
+  "%0 is not supported when '-msve-vector-bits=<bits>' is not specified">;
 def err_attribute_requires_positive_integer : Error<
   "%0 attribute requires a %select{positive|non-negative}1 "
   "integral compile time constant expression">;
@@ -7980,6 +7987,8 @@ def err_atomic_builtin_pointer_size : Error<
 def err_atomic_exclusive_builtin_pointer_size : Error<
   "address argument to load or store exclusive builtin must be a pointer to"
   " 1,2,4 or 8 byte type (%0 invalid)">;
+def err_atomic_builtin_ext_int_size : Error<
+  "Atomic memory operand must have a power-of-two size">;
 def err_atomic_op_needs_atomic : Error<
   "address argument to atomic operation must be a pointer to _Atomic "
   "type (%0 invalid)">;

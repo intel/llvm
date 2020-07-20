@@ -1196,7 +1196,8 @@ void Darwin::addProfileRTLibs(const ArgList &Args,
   // runtime's functionality.
   if (hasExportSymbolDirective(Args)) {
     if (ForGCOV) {
-      addExportedSymbol(CmdArgs, "___gcov_flush");
+      addExportedSymbol(CmdArgs, "___gcov_dump");
+      addExportedSymbol(CmdArgs, "___gcov_reset");
       addExportedSymbol(CmdArgs, "_flush_fn_list");
       addExportedSymbol(CmdArgs, "_writeout_fn_list");
       addExportedSymbol(CmdArgs, "_reset_fn_list");
@@ -2721,6 +2722,7 @@ SanitizerMask Darwin::getSupportedSanitizers() const {
   Res |= SanitizerKind::Fuzzer;
   Res |= SanitizerKind::FuzzerNoLink;
   Res |= SanitizerKind::Function;
+  Res |= SanitizerKind::ObjCCast;
 
   // Prior to 10.9, macOS shipped a version of the C++ standard library without
   // C++11 support. The same is true of iOS prior to version 5. These OS'es are
