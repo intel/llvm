@@ -1166,7 +1166,7 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 Two `OpTypeInts` representing arbitrary precision floating point number (ihc_float) and arbitrary precision integer number are passed in as _A_ and _B_ respectively.
 The value of `A^B` is returned in _Result_ where `B` is an integer of arbitrary size.
 
-_Result Type_ is an `OpTypeInt` of width `1+E+M` and is the type of _Result_.
+_Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
 _A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
 
