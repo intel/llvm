@@ -55,6 +55,8 @@ def dump_symbols(target_path, output):
     out.write(" %sycl_tools_src_dir/abi_check.py --mode check_symbols")
     out.write(" --reference %s %sycl_libs_dir/")
     out.write(os.path.basename(target_path))
+    # TODO properly put OS name once Windows is supported
+    out.write("\n# REQUIRES: linux")
     out.write("\n\n")
     readobj_out = subprocess.check_output([get_llvm_bin_path()+"llvm-readobj",
                                            "-t", target_path])
