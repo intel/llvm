@@ -16,7 +16,7 @@ Ajaykumar Kannan, Intel
 
 == Notice
 
-Copyright (c) 2020 Intel Corporation.  All rights reserved.
+Copyright (c) 2020 Intel Corporation. All rights reserved.
 
 == Status
 
@@ -224,19 +224,15 @@ Allows the use of various operations for arbitrary precision floating-point math
 
 In Section 3.32.13, *Arithmetic Instructions*, add the following instructions:
 
-[cols="14", width="100%"]
+[cols="12", width="100%"]
 |=====
-13+<|*OpArbitraryFloatAddINTEL* +
+11+<|*OpArbitraryFloatAddINTEL* +
 
 Two `OpTypeInts` representing two arbitrary precision floating point numbers (ihc_float) are passed in as _A_ and _B_ and the result of `A+B` is returned in _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_B Type_ is an `OpTypeInt` of width `1+E2+M2` and is the type of _B_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_, _A_, and _B_.
+_M*_ contains the width of the mantissa of the floating point types within _Result_, _A_, and _B_.
 Note that the exponent values (E1, E2, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -247,22 +243,18 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 13 | 5846 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | <id> B Type | B <id> | _Literal_ M2 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 11 | 5846 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | B <id> | _Literal_ M2 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="14", width="100%"]
+[cols="12", width="100%"]
 |=====
-13+<|*OpArbitraryFloatSubINTEL* +
+11+<|*OpArbitraryFloatSubINTEL* +
 
 Two `OpTypeInts` representing two arbitrary precision floating point numbers (ihc_float) are passed in as _A_ and _B_ and the result of `A-B` is returned in _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_B Type_ is an `OpTypeInt` of width `1+E2+M2` and is the type of _B_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_, _A_, and _B_.
+_M* contains the width of the mantissa of the floating point types within _Result_, _A_, and _B_.
 Note that the exponent values (E1, E2, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -273,22 +265,18 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 13 | 5847 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | <id> B Type | B <id> | _Literal_ M2 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 11 | 5847 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | B <id> | _Literal_ M2 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="14", width="100%"]
+[cols="12", width="100%"]
 |=====
-13+<|*OpArbitraryFloatMulINTEL* +
+11+<|*OpArbitraryFloatMulINTEL* +
 
 Two `OpTypeInts` representing two arbitrary precision floating point numbers (ihc_float) are passed in as _A_ and _B_ and the result of `A*B` is returned in _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_B Type_ is an `OpTypeInt` of width `1+E2+M2` and is the type of _B_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_, _A_, and _B_.
+_M* contains the width of the mantissa of the floating point types within _Result_, _A_, and _B_.
 Note that the exponent values (E1, E2, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -299,22 +287,18 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 13 | 5848 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | <id> B Type | B <id> | _Literal_ M2 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 11 | 5848 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | B <id> | _Literal_ M2 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="14", width="100%"]
+[cols="12", width="100%"]
 |=====
-13+<|*OpArbitraryFloatDivINTEL* +
+11+<|*OpArbitraryFloatDivINTEL* +
 
 Two `OpTypeInts` representing two arbitrary precision floating point numbers (ihc_float) are passed in as _A_ and _B_ and the result of `A/B` is returned in _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_B Type_ is an `OpTypeInt` of width `1+E2+M2` and is the type of _B_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_, _A_, and _B_.
+_M* contains the width of the mantissa of the floating point types within _Result_, _A_, and _B_.
 Note that the exponent values (E1, E2, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -325,141 +309,109 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 13 | 5849 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | <id> B Type | B <id> | _Literal_ M2 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 11 | 5849 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | B <id> | _Literal_ M2 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="10", width="100%"]
+[cols="8", width="100%"]
 |=====
-9+<|*OpArbitraryFloatGTINTEL* +
+7+<|*OpArbitraryFloatGTINTEL* +
 
 Two `OpTypeInts` representing two arbitrary precision floating point numbers (ihc_float) are passed in as _A_ and _B_.
 The two numbers are compared and a value of `true` is returned in _Result_ if `A > B`.
 Otherwise, a value of `false` is returned.
 
-_Result Type_ must be a Boolean type.
+_Result Type_ must be a Boolean.
 
-_Result_ is of type `OpTypeBool`.
-
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_B Type_ is an `OpTypeInt` of width `1+E2+M2` and is the type of _B_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _A_ and _B_.
+_M* contains the width of the mantissa of the floating point types within _A_ and _B_.
 Note that the exponent values (E1, E2) are inferred from the width of the `OpTypeInt`.
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 9 | 5850 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | <id> B Type | B <id> | _Literal_ M2
+| 7 | 5850 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | B <id> | _Literal_ M2
 |=====
 
-[cols="10", width="100%"]
+[cols="8", width="100%"]
 |=====
-9+<|*OpArbitraryFloatGEINTEL* +
+7+<|*OpArbitraryFloatGEINTEL* +
 
 Two `OpTypeInts` representing two arbitrary precision floating point numbers (ihc_float) are passed in as _A_ and _B_.
 The two numbers are compared and a value of `true` is returned in _Result_ if `A >= B`.
 Otherwise, a value of `false` is returned.
 
-_Result Type_ must be a Boolean type.
+_Result Type_ must be a Boolean.
 
-_Result_ is of type `OpTypeBool`.
-
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_B Type_ is an `OpTypeInt` of width `1+E2+M2` and is the type of _B_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _A_ and _B_.
+_M* contains the width of the mantissa of the floating point types within _A_ and _B_.
 Note that the exponent values (E1, E2) are inferred from the width of the `OpTypeInt`.
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 9 | 5851 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | <id> B Type | B <id> | _Literal_ M2
+| 7 | 5851 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | B <id> | _Literal_ M2
 |=====
 
-[cols="10", width="100%"]
+[cols="8", width="100%"]
 |=====
-9+<|*OpArbitraryFloatLTINTEL* +
+7+<|*OpArbitraryFloatLTINTEL* +
 
 Two `OpTypeInts` representing two arbitrary precision floating point numbers (ihc_float) are passed in as _A_ and _B_.
 The two numbers are compared and a value of `true` is returned in _Result_ if `A < B`.
 Otherwise, a value of `false` is returned.
 
-_Result Type_ must be a Boolean type.
+_Result Type_ must be a Boolean.
 
-_Result_ is of type `OpTypeBool`.
-
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_B Type_ is an `OpTypeInt` of width `1+E2+M2` and is the type of _B_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _A_ and _B_.
+_M* contains the width of the mantissa of the floating point types within _A_ and _B_.
 Note that the exponent values (E1, E2) are inferred from the width of the `OpTypeInt`.
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 9 | 5852 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | <id> B Type | B <id> | _Literal_ M2
+| 7 | 5852 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | B <id> | _Literal_ M2
 |=====
 
-[cols="10", width="100%"]
+[cols="8", width="100%"]
 |=====
-9+<|*OpArbitraryFloatLEINTEL* +
+7+<|*OpArbitraryFloatLEINTEL* +
 
 Two `OpTypeInts` representing two arbitrary precision floating point numbers (ihc_float) are passed in as _A_ and _B_.
 The two numbers are compared and a value of `true` is returned in _Result_ if `A \<= B`.
 Otherwise, a value of `false` is returned.
 
-_Result Type_ must be a Boolean type.
+_Result Type_ must be a Boolean.
 
-_Result_ is of type `OpTypeBool`.
-
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_B Type_ is an `OpTypeInt` of width `1+E2+M2` and is the type of _B_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _A_ and _B_.
+_M* contains the width of the mantissa of the floating point types within _A_ and _B_.
 Note that the exponent values (E1, E2) are inferred from the width of the `OpTypeInt`.
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 9 | 5853 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | <id> B Type | B <id> | _Literal_ M2
+| 7 | 5853 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | B <id> | _Literal_ M2
 |=====
 
-[cols="10", width="100%"]
+[cols="8", width="100%"]
 |=====
-9+<|*OpArbitraryFloatEQINTEL* +
+7+<|*OpArbitraryFloatEQINTEL* +
 
 Two `OpTypeInts` representing two arbitrary precision floating point numbers (ihc_float) are passed in as _A_ and _B_.
 The two numbers are compared and a value of `true` is returned in _Result_ if `A == B`.
 Otherwise, a value of `false` is returned.
 
-_Result Type_ must be a Boolean type.
+_Result Type_ must be a Boolean.
 
-_Result_ is of type `OpTypeBool`.
-
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_B Type_ is an `OpTypeInt` of width `1+E2+M2` and is the type of _B_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _A_ and _B_.
+_M* contains the width of the mantissa of the floating point types within _A_ and _B_.
 Note that the exponent values (E1, E2) are inferred from the width of the `OpTypeInt`.
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 9 | 5854 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | <id> B Type | B <id> | _Literal_ M2
+| 7 | 5854 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | B <id> | _Literal_ M2
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatRecipINTEL* +
+9+<|*OpArbitraryFloatRecipINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The reciprocal of _A_ is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -470,21 +422,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5855 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5855 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatRSqrtINTEL* +
+9+<|*OpArbitraryFloatRSqrtINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The reciprocal of the square root of _A_ is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -495,21 +445,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5856 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5856 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatCbrtINTEL* +
+9+<|*OpArbitraryFloatCbrtINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The cube root of _A_ is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -520,23 +468,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5857 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5857 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="14", width="100%"]
+[cols="12", width="100%"]
 |=====
-13+<|*OpArbitraryFloatHypotINTEL* +
+11+<|*OpArbitraryFloatHypotINTEL* +
 
 Two `OpTypeInts` representing two arbitrary precision floating point numbers (ihc_float) are passed in as _A_ and _B_.
 The hypotenuse sqrt(_A_^2 + _B_^2) is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_B Type_ is an `OpTypeInt` of width `1+E2+M2` and is the type of _B_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_, _A_, and _B_.
+_M* contains the width of the mantissa of the floating point types within _Result_, _A_, and _B_.
 Note that the exponent values (E1, E2, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -547,21 +491,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 13 | 5858 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | <id> B Type | B <id> | _Literal_ M2 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 11 | 5858 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | B <id> | _Literal_ M2 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatSqrtINTEL* +
+9+<|*OpArbitraryFloatSqrtINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The square root of _A_ is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -572,21 +514,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5859 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5859 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatLogINTEL* +
+9+<|*OpArbitraryFloatLogINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The `ln(A)` of _A_ is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -597,21 +537,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5860 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5860 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatLog2INTEL* +
+9+<|*OpArbitraryFloatLog2INTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The `log2(A)` of _A_ is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -622,21 +560,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5861 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5861 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatLog10INTEL* +
+9+<|*OpArbitraryFloatLog10INTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The `log10(A)` of _A_ is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -647,21 +583,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5862 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5862 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatLog1pINTEL* +
+9+<|*OpArbitraryFloatLog1pINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The `ln(1+A)` of _A_ is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -672,21 +606,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5863 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5863 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatExpINTEL* +
+9+<|*OpArbitraryFloatExpINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The `e^(A)` of _A_ is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -697,21 +629,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5864 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5864 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatExp2INTEL* +
+9+<|*OpArbitraryFloatExp2INTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The `2^(A)` of _A_ is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -722,21 +652,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5865 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5865 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatExp10INTEL* +
+9+<|*OpArbitraryFloatExp10INTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The `10^(A)` of _A_ is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -747,21 +675,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5866 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5866 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatExp1mINTEL* +
+9+<|*OpArbitraryFloatExp1mINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The `(e^A)-1` of _A_ is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -772,21 +698,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5867 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5867 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatSinINTEL* +
+9+<|*OpArbitraryFloatSinINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The sine of _A_ is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -797,21 +721,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5868 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5868 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatCosINTEL* +
+9+<|*OpArbitraryFloatCosINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The cosine of _A_ is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -822,12 +744,12 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5869 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5869 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatSinCosINTEL* +
+9+<|*OpArbitraryFloatSinCosINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The sine and cosine of _A_ is returned as _Result_.
@@ -835,9 +757,7 @@ The sine and cosine of _A_ is returned as _Result_.
 _Result Type_ is an `OpTypeInt` of width `2*(1+Eout+Mout)` and is the type of _Result_.
 The _Result_ holds both the sine and cosine with the lower significant bits holding the cosine result, and the more significant bits holding the sine results.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -848,21 +768,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5870 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5870 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatSinPiINTEL* +
+9+<|*OpArbitraryFloatSinPiINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The `sin(A*pi)` is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -873,21 +791,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5871 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5871 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatCosPiINTEL* +
+9+<|*OpArbitraryFloatCosPiINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The `cos(A*pi)` is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -898,12 +814,12 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5872 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5872 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatSinCosPiINTEL* +
+9+<|*OpArbitraryFloatSinCosPiINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The sine and cosine of `A*pi` is returned as _Result_.
@@ -911,9 +827,7 @@ The sine and cosine of `A*pi` is returned as _Result_.
 _Result Type_ is an `OpTypeInt` of width `2*(1+Eout+Mout)` and is the type of _Result_.
 The _Result_ holds both the sine and cosine with the lower significant bits holding the cosine result, and the more significant bits holding the sine results.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -924,21 +838,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5840 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5840 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatASinINTEL* +
+9+<|*OpArbitraryFloatASinINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The `arcsin(A)` is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -949,21 +861,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5873 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5873 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatASinPiINTEL* +
+9+<|*OpArbitraryFloatASinPiINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The `arcsin(A*pi)` is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -974,21 +884,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5874 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5874 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatACosINTEL* +
+9+<|*OpArbitraryFloatACosINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The `arccos(A)` is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -999,21 +907,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5875 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5875 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatACosPiINTEL* +
+9+<|*OpArbitraryFloatACosPiINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The `arccos(A*pi)` is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -1024,21 +930,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5876 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5876 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatATanINTEL* +
+9+<|*OpArbitraryFloatATanINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The `arctan(A)` is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -1049,21 +953,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5877 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5877 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatATanPiINTEL* +
+9+<|*OpArbitraryFloatATanPiINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 The `arctan(A*pi)` is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -1074,23 +976,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5878 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5878 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="14", width="100%"]
+[cols="12", width="100%"]
 |=====
-13+<|*OpArbitraryFloatTan2INTEL* +
+11+<|*OpArbitraryFloatTan2INTEL* +
 
 Two `OpTypeInts` representing two arbitrary precision floating point numbers (ihc_float) are passed in as _A_ and _B_.
 The `arctan2(A,B) = arctan(A/B)` is returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_B Type_ is an `OpTypeInt` of width `1+E2+M2` and is the type of _B_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_, _A_, and _B_.
+_M* contains the width of the mantissa of the floating point types within _Result_, _A_, and _B_.
 Note that the exponent values (E1, E2, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -1101,23 +999,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 13 | 5879 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | <id> B Type | B <id> | _Literal_ M2 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 11 | 5879 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | B <id> | _Literal_ M2 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="14", width="100%"]
+[cols="12", width="100%"]
 |=====
-13+<|*OpArbitraryFloatPowINTEL* +
+11+<|*OpArbitraryFloatPowINTEL* +
 
 Two `OpTypeInts` representing two arbitrary precision floating point numbers (ihc_float) are passed in as _A_ and _B_.
 The value of `A^B` is returned in _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_B Type_ is an `OpTypeInt` of width `1+E2+M2` and is the type of _B_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_, _A_, and _B_.
+_M* contains the width of the mantissa of the floating point types within _Result_, _A_, and _B_.
 Note that the exponent values (E1, E2, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -1128,23 +1022,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 13 | 5880 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | <id> B Type | B <id> | _Literal_ M2 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 11 | 5880 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | B <id> | _Literal_ M2 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="14", width="100%"]
+[cols="12", width="100%"]
 |=====
-13+<|*OpArbitraryFloatPowRINTEL* +
+11+<|*OpArbitraryFloatPowRINTEL* +
 
 Two `OpTypeInts` representing two arbitrary precision floating point numbers (ihc_float) are passed in as _A_ and _B_.
 The value of `A^B` is returned in _Result_. However, `A >= 0`, otherwise, the result is undefined.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_B Type_ is an `OpTypeInt` of width `1+E2+M2` and is the type of _B_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_, _A_, and _B_.
+_M* contains the width of the mantissa of the floating point types within _Result_, _A_, and _B_.
 Note that the exponent values (E1, E2, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -1155,24 +1045,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 13 | 5881 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | <id> B Type | B <id> | _Literal_ M2 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 11 | 5881 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | B <id> | _Literal_ M2 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-
-[cols="13", width="100%"]
+[cols="11", width="100%"]
 |=====
-12+<|*OpArbitraryFloatPowNINTEL* +
+10+<|*OpArbitraryFloatPowNINTEL* +
 
 Two `OpTypeInts` representing arbitrary precision floating point number (ihc_float) and arbitrary precision integer number are passed in as _A_ and _B_ respectively.
 The value of `A^B` is returned in _Result_ where `B` is an integer of arbitrary size.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_B Type_ is an `OpTypeInt` of width `W` and is the type of _B_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -1183,21 +1068,19 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 12 | 5882 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | <id> B Type | B <id> | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 10 | 5882 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | B <id> | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="11", width="100%"]
+[cols="10", width="100%"]
 |=====
-10+<|*OpArbitraryFloatCastINTEL* +
+9+<|*OpArbitraryFloatCastINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 It is type casted into an arbitrary precision floating point number with the new specification (Eout, Mout) and returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
 
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
-
-_E*_ and _M*_ contain the width of the exponent and the mantissa of the floating point types within _Result_ and _A_.
+_M* contains the width of the mantissa of the floating point types within _Result_ and _A_.
 Note that the exponent values (E1, Eout) are inferred from the width of the `OpTypeInt`.
 
 _EnableSubnormals_ specifies whether subnormal numbers should be supported or flushed to zero before and after the operation and is chosen from _Table 3.16a_.
@@ -1208,19 +1091,17 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 10 | 5841 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 9 | 5841 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="10", width="100%"]
+[cols="9", width="100%"]
 |=====
-9+<|*OpArbitraryFloatCastFromIntINTEL* +
+8+<|*OpArbitraryFloatCastFromIntINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision integer is passed in as _A_.
 It is type casted into an arbitrary precision floating point number with the new specification (Eout, Mout) and returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `1+Eout+Mout` and is the type of _Result_.
-
-_A Type_ is an `OpTypeInt` of width `W` and is the type of _A_.
 
 _Eout_ and _Mout_ contain the width of the exponent and the mantissa of the floating point type of _Result_.
 Note that the exponent value (Eout) is inferred from the width of the `OpTypeInt`.
@@ -1233,19 +1114,17 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 9 | 5842 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 8 | 5842 | <id> Result Type | Result <id> | A <id> | _Literal_ Mout | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
-[cols="10", width="100%"]
+[cols="9", width="100%"]
 |=====
-9+<|*OpArbitraryFloatCastToIntINTEL* +
+8+<|*OpArbitraryFloatCastToIntINTEL* +
 
 An `OpTypeInt` representing an arbitrary precision floating point number (ihc_float) is passed in as _A_.
 It is type casted into an arbitrary precision integer with width `W` and returned as _Result_.
 
 _Result Type_ is an `OpTypeInt` of width `W` and is the type of _Result_.
-
-_A Type_ is an `OpTypeInt` of width `1+E1+M1` and is the type of _A_.
 
 _E1_ and _M1_ contain the width of the exponent and the mantissa of the floating point type of _A_.
 Note that the exponent value (E1) is inferred from the width of the `OpTypeInt`.
@@ -1258,7 +1137,7 @@ _RoundingAccuracy_ controls the accuracy of the rounding operation and is chosen
 
 | Capability:
 *ArbitraryPrecisionFloatingPointINTEL*
-| 9 | 5843 | <id> Result Type | Result <id> | <id> A Type | A <id> | _Literal_ M1 | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
+| 8 | 5843 | <id> Result Type | Result <id> | A <id> | _Literal_ M1 | _Literal_ EnableSubnormals | _Literal_ RoundingMode | _Literal_ RoundingAccuracy
 |=====
 
 === Validation Rules
@@ -1276,5 +1155,5 @@ None.
 |Rev |Date |Author |Changes
 |A |2020-01-30 |Ajaykumar Kannan |Initial Version
 |B |2020-05-22 |Ajaykumar Kannan |Addressed a number of issues
-|C |2020-06-19 |Ajaykumar Kannan |Initial Public Release
+|C |2020-07-19 |Ajaykumar Kannan |Initial Public Release
 |===================================================================
