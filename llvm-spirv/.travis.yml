@@ -24,15 +24,18 @@ before_install:
     if [ $TRAVIS_OS_NAME == "linux" ]; then
       curl -L "https://apt.llvm.org/llvm-snapshot.gpg.key" | sudo apt-key add -
       curl -L "http://packages.lunarg.com/lunarg-signing-key-pub.asc" | sudo apt-key add -
+      curl -L "https://apt.kitware.com/keys/kitware-archive-latest.asc" | sudo apt-key add -
       echo "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic main" | sudo tee -a ${TRAVIS_ROOT}/etc/apt/sources.list
       echo "deb https://packages.lunarg.com/vulkan bionic main" | sudo tee -a ${TRAVIS_ROOT}/etc/apt/sources.list
+      echo "deb https://apt.kitware.com/ubuntu/ bionic main" | sudo tee -a ${TRAVIS_ROOT}/etc/apt/sources.list
       sudo apt-get update
       sudo apt-get -yq --no-install-suggests --no-install-recommends install \
         llvm-${LLVM_VERSION}-dev \
         clang-${LLVM_VERSION} \
         clang-format-${LLVM_VERSION} \
         clang-tidy-${LLVM_VERSION} \
-        spirv-tools
+        spirv-tools \
+        cmake
     fi
 
 compiler:
@@ -90,6 +93,7 @@ script:
       export PKG_CONFIG_PATH=$PWD/install/lib/pkgconfig
     fi
   - mkdir build && cd build
+  - PATH=/usr/bin:$PATH
   - |
     if [ $BUILD_EXTERNAL == "1" ]; then
       if [ $CHECK_FORMAT != "1" ]; then
