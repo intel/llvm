@@ -448,6 +448,8 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return PI_INVALID_VALUE;
   }
 
+  static std::vector<pi_platform> piPlatformsCache;
+
   // This is a good time to initialize Level Zero.
   // TODO: We can still safely recover if something goes wrong during the init.
   // Implement handling segfault using sigaction.
@@ -470,6 +472,15 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   // Level Zero does not have concept of Platforms, but Level Zero driver is the
   // closest match.
   if (Platforms && NumEntries > 0) {
+    if (piPlatformsCache.size() > 0) {
+      // return the saved pi_platform from the cache
+      Platforms[0] = piPlatformsCache[0];
+      if (NumPlatforms) {
+        *NumPlatforms = 1;
+      }
+      return PI_SUCCESS;
+    }
+
     uint32_t ZeDriverCount = 0;
     ZE_CALL(zeDriverGet(&ZeDriverCount, nullptr));
     if (ZeDriverCount == 0) {
@@ -507,6 +518,8 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
       Platforms[0]->ZeDriverApiVersion =
           std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + std::string(".") +
           std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
+      // save a copy in the cache for future uses
+      piPlatformsCache.push_back(Platforms[0]);
     } catch (const std::bad_alloc &) {
       return PI_OUT_OF_HOST_MEMORY;
     } catch (...) {
@@ -596,13 +609,27 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
                        pi_uint32 *NumDevices) {
 
   assert(Platform);
+  // save discovered pi_devices for quick return
+  static std::vector<pi_device> piDevicesCache;
+
   ze_driver_handle_t ZeDriver = Platform->ZeDriver;
 
   // Get number of devices supporting Level Zero
   uint32_t ZeDeviceCount = 0;
   const bool AskingForGPU = (DeviceType & PI_DEVICE_TYPE_GPU);
   const bool AskingForDefault = (DeviceType == PI_DEVICE_TYPE_DEFAULT);
-  ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, nullptr));
+
+  if (piDevicesCache.size() != 0) {
+    for (uint32_t i = 0; i < piDevicesCache.size(); i++) {
+      if (piDevicesCache[i]->Platform == Platform) {
+        ZeDeviceCount++;
+      }
+    }
+  }
+  if (ZeDeviceCount == 0) {
+    ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, nullptr));
+  }
+
   if (ZeDeviceCount == 0 || !(AskingForGPU || AskingForDefault)) {
     if (NumDevices)
       *NumDevices = 0;
@@ -618,6 +645,17 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     return PI_SUCCESS;
   }
 
+  // if devices are already captured in cache, return them from the cache.
+  uint32_t count = 0;
+  for (uint32_t i = 0; i < piDevicesCache.size(); i++) {
+    if (piDevicesCache[i]->Platform == Platform) {
+      Devices[count++] = piDevicesCache[i];
+    }
+  }
+  if (count == ZeDeviceCount) {
+    return PI_SUCCESS;
+  }
+
   try {
     std::vector<ze_device_handle_t> ZeDevices(ZeDeviceCount);
     ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, ZeDevices.data()));
@@ -629,6 +667,8 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
         if (Result != PI_SUCCESS) {
           return Result;
         }
+        // save a copy in the cache for future uses.
+        piDevicesCache.push_back(Devices[I]);
       }
     }
   } catch (const std::bad_alloc &) {
