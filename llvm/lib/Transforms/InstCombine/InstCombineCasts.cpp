@@ -862,6 +862,9 @@ Instruction *InstCombiner::visitTrunc(TruncInst &Trunc) {
   if (Instruction *I = foldVecTruncToExtElt(Trunc, *this))
     return I;
 
+  if (Trunc.getModule()->getTargetTriple().substr(0, 4) == "spir")
+    return nullptr;
+
   // Whenever an element is extracted from a vector, and then truncated,
   // canonicalize by converting it to a bitcast followed by an
   // extractelement.
