@@ -47,6 +47,7 @@ The datatype is additionally described with two parameters:
 * _M_: represents the number of mantissa bits
 
 The total width of the type is `E+M+1` where the last bit is used to represent the sign.
+Note that the signedness capabilities of `OpTypeInt` are not used for any of the operations.
 The data layout is shown below:
 
 `[ S (sign bit) ][ E (Exponent) ][ M (Mantissa) ]`
@@ -217,7 +218,7 @@ Modify Section 3.31, *Capability*, adding a row to the Capability table:
 
 Allows the use of various operations for arbitrary precision floating-point math
 
-| *ArbitraryPrecisionIntegersINTEL* |
+| *ArbitraryPrecisionIntegersINTEL*, *Kernel* |
 |====
 
 === Instructions
