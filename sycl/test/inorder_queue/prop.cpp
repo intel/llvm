@@ -40,6 +40,8 @@ int CheckQueueOrder(const queue &q) {
   expected_result = dev.is_host() ? true : q.is_in_order();
   if (!expected_result)
     return -2;
+
+  return 0;
 }
 
 int main() {
@@ -57,7 +59,7 @@ int main() {
   queue q2{
       ctx, dev, exception_handler, {sycl::property::queue::in_order()}};
 
-  int res = CheckQueueOrder(q2);
+  res = CheckQueueOrder(q2);
   if (res != 0)
     return res;
 
