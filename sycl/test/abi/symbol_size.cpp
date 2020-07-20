@@ -8,6 +8,8 @@
 #include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/detail/buffer_impl.hpp>
 #include <CL/sycl/detail/image_impl.hpp>
+#include <CL/sycl/detail/sampler_impl.hpp>
+#include <CL/sycl/detail/stream_impl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_event.hpp>
 #include <CL/sycl/device_selector.hpp>
@@ -45,7 +47,6 @@ int main() {
   check_size<detail::AccessorBaseHost, 16>();
   check_size<detail::LocalAccessorImplHost, 56>();
   check_size<buffer<int>, 40>();
-  check_size<detail::buffer_impl, 256>();
   check_size<context, 16>();
   check_size<cpu_selector, 8>();
   check_size<device, 16>();
@@ -55,22 +56,28 @@ int main() {
   check_size<gpu_selector, 8>();
 #ifdef _MSC_VER
   check_size<handler, 552>();
+  check_size<detail::buffer_impl, 288>();
+  check_size<detail::image_impl<1>, 344>();
 #else
   check_size<handler, 560>();
+  check_size<detail::buffer_impl, 256>();
+  check_size<detail::image_impl<1>, 312>();
 #endif
   check_size<image<1>, 16>();
-  check_size<detail::image_impl<1>, 312>();
   check_size<kernel, 16>();
   check_size<platform, 16>();
 #ifdef __SYCL_DEVICE_ONLY__
   check_size<private_memory<int, 1>, 4>();
+  check_size<detail::sampler_impl, 8>();
 #else
   check_size<private_memory<int, 1>, 8>();
+  check_size<detail::sampler_impl, 72>();
 #endif
   check_size<program, 16>();
   check_size<range<1>, 8>();
   check_size<sampler, 16>();
   check_size<stream, 144>();
+  check_size<detail::stream_impl, 120>();
   check_size<queue, 16>();
 
   return 0;
