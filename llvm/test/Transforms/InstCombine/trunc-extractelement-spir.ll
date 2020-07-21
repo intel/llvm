@@ -4,7 +4,7 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir"
 
 define i32 @shrinkExtractElt_i64_to_i32_0(<3 x i64> %x) {
-; LE-LABEL: @shrinkExtractElt_i64_to_i32_0(
+; CHECK-LABEL: @shrinkExtractElt_i64_to_i32_0(
 ; CHECK-NOT:    [[TMP1:%.*]] = bitcast <3 x i64> [[X:%.*]] to <6 x i32>
 ; CHECK-NOT:    [[T:%.*]] = extractelement <6 x i32> [[TMP1]], i32 0
 
