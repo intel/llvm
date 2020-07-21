@@ -10,7 +10,6 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/spec_constant_impl.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/device.hpp>
@@ -21,6 +20,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <detail/spec_constant_impl.hpp>
 
 #include <algorithm>
 #include <cassert>
