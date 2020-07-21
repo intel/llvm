@@ -40,14 +40,14 @@ void accessor_test(queue q, size_t N) {
   // All work-items increment by 1, so final value should be equal to N
   assert(sum == N);
 
-  // Fetch returns original value: will be in [0, N-1]
-  auto min_e = std::min_element(output.begin(), output.end());
-  auto max_e = std::max_element(output.begin(), output.end());
-  assert(*min_e == 0 && *max_e == N - 1);
-
   // Intermediate values should be unique
   std::sort(output.begin(), output.end());
   assert(std::unique(output.begin(), output.end()) == output.end());
+
+  // Fetch returns original value: will be in [0, N-1]
+  auto min_e = output[0];
+  auto max_e = output[output.size()-1];
+  assert(min_e == 0 && max_e == N - 1);
 }
 
 int main() {
