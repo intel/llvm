@@ -63,6 +63,8 @@ void local_accessor_test(queue q, size_t N, size_t L = 8) {
       auto out = output_buf.template get_access<access::mode::read_write>(cgh);
       cgh.parallel_for(nd_range<1>(N, L), [=](nd_item<1> it) {
         int grp = it.get_group(0);
+        sum[0].store(0);
+        it.barrier();
         static_assert(std::is_same<decltype(sum[0]), atomic_ref<T, intel::memory_order::relaxed, intel::memory_scope::device, access::address_space::local_space>>::value, "local atomic_accessor returns incorrect atomic_ref");
         T result = sum[0].fetch_add(T(1));
         if (result == it.get_local_range(0) - 1) {
@@ -81,6 +83,9 @@ int main() {
   queue q;
   constexpr int N = 32;
   accessor_test<int>(q, N);
-  local_accessor_test<int>(q, N);
+  // TODO: Enable local accessor test for host when barrier is supported
+  if (!q.get_device().is_host()) {
+    local_accessor_test<int>(q, N);
+  }
   std::cout << "Test passed." << std::endl;
 }
