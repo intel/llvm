@@ -7,7 +7,9 @@
 
 class Functor16 {
 public:
-  [[intel::reqd_sub_group_size(16)]] void operator()() {}
+  // expected-warning@+2 {{attribute 'intel_reqd_sub_group_size' is deprecated}}
+  // expected-note@+1 {{did you mean to use 'intel::reqd_sub_group_size' instead?}}
+  [[cl::intel_reqd_sub_group_size(16)]] void operator()() {}
 };
 
 class Functor8 { // expected-error {{conflicting attributes applied to a SYCL kernel}}
@@ -53,9 +55,12 @@ void bar() {
 
   kernel<class kernel_name5>([]() [[intel::reqd_sub_group_size(2)]] { });
   kernel<class kernel_name6>([]() [[intel::reqd_sub_group_size(4)]] { foo(); });
+  // expected-warning@+2 {{attribute 'intel_reqd_sub_group_size' is deprecated}}
+  // expected-note@+1 {{did you mean to use 'intel::reqd_sub_group_size' instead?}}
+  kernel<class kernel_name7>([]() [[cl::intel_reqd_sub_group_size(6)]]{});
 
   Functor4 f4;
-  kernel<class kernel_name7>(f4);
+  kernel<class kernel_name8>(f4);
 }
 
 [[intel::reqd_sub_group_size(16)]] SYCL_EXTERNAL void B();
@@ -87,5 +92,8 @@ void bar() {
 // CHECK: IntelReqdSubGroupSizeAttr {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name7
+// CHECK: IntelReqdSubGroupSizeAttr {{.*}}
+// CHECK-NEXT: IntegerLiteral{{.*}}6{{$}}
+// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name8
 // CHECK: IntelReqdSubGroupSizeAttr {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
