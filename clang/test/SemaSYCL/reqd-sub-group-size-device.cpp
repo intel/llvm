@@ -1,21 +1,21 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -DTRIGGER_ERROR %s
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
 
-// expected-warning@+1{{previous spelling of attribute 'intel_reqd_sub_group_size' is deprecated}}
+// expected-warning@+1{{attribute 'intel_reqd_sub_group_size' is deprecated, did you mean to use 'reqd_sub_group_size' instead?}}
 [[cl::intel_reqd_sub_group_size(4)]] void foo() {} // expected-note {{conflicting attribute is here}}
 // expected-note@-1 {{conflicting attribute is here}}
 [[cl::intel_reqd_sub_group_size(32)]] void baz() {} // expected-note {{conflicting attribute is here}}
-// expected-warning@-1{{previous spelling of attribute 'intel_reqd_sub_group_size' is deprecated}}
+// expected-warning@-1{{attribute 'intel_reqd_sub_group_size' is deprecated, did you mean to use 'reqd_sub_group_size' instead?}}
 
 class Functor16 {
 public:
-  // expected-warning@+1{{previous spelling of attribute 'intel_reqd_sub_group_size' is deprecated}}
+  // expected-warning@+1{{attribute 'intel_reqd_sub_group_size' is deprecated, did you mean to use 'reqd_sub_group_size' instead?}}
   [[cl::intel_reqd_sub_group_size(16)]] void operator()() {}
 };
 
 class Functor8 { // expected-error {{conflicting attributes applied to a SYCL kernel}}
 public:
-  // expected-warning@+1{{previous spelling of attribute 'intel_reqd_sub_group_size' is deprecated}}
+  // expected-warning@+1{{attribute 'intel_reqd_sub_group_size' is deprecated, did you mean to use 'reqd_sub_group_size' instead?}}
   [[cl::intel_reqd_sub_group_size(8)]] void operator()() { // expected-note {{conflicting attribute is here}}
     foo();
   }
@@ -55,9 +55,9 @@ void bar() {
   });
 #endif
 
-  // expected-warning@+1{{previous spelling of attribute 'intel_reqd_sub_group_size' is deprecated}}
+  // expected-warning@+1{{attribute 'intel_reqd_sub_group_size' is deprecated, did you mean to use 'reqd_sub_group_size' instead?}}
   kernel<class kernel_name5>([]() [[cl::intel_reqd_sub_group_size(2)]] { });
-  // expected-warning@+1{{previous spelling of attribute 'intel_reqd_sub_group_size' is deprecated}}
+  // expected-warning@+1{{attribute 'intel_reqd_sub_group_size' is deprecated, did you mean to use 'reqd_sub_group_size' instead?}}
   kernel<class kernel_name6>([]() [[cl::intel_reqd_sub_group_size(4)]] { foo(); });
   kernel<class kernel_name7>([]() [[intel::reqd_sub_group_size(6)]]{});
 
@@ -65,22 +65,22 @@ void bar() {
   kernel<class kernel_name8>(f4);
 }
 
-// expected-warning@+1{{previous spelling of attribute 'intel_reqd_sub_group_size' is deprecated}}
+// expected-warning@+1{{attribute 'intel_reqd_sub_group_size' is deprecated, did you mean to use 'reqd_sub_group_size' instead?}}
 [[cl::intel_reqd_sub_group_size(16)]] SYCL_EXTERNAL void B();
-// expected-warning@+1{{previous spelling of attribute 'intel_reqd_sub_group_size' is deprecated}}
+// expected-warning@+1{{attribute 'intel_reqd_sub_group_size' is deprecated, did you mean to use 'reqd_sub_group_size' instead?}}
 [[cl::intel_reqd_sub_group_size(16)]] void A() {
 }
-// expected-warning@+1{{previous spelling of attribute 'intel_reqd_sub_group_size' is deprecated}}
+// expected-warning@+1{{attribute 'intel_reqd_sub_group_size' is deprecated, did you mean to use 'reqd_sub_group_size' instead?}}
 [[cl::intel_reqd_sub_group_size(16)]] SYCL_EXTERNAL void B() {
   A();
 }
 
 #ifdef TRIGGER_ERROR
-// expected-warning@+2{{previous spelling of attribute 'intel_reqd_sub_group_size' is deprecated}}
+// expected-warning@+2{{attribute 'intel_reqd_sub_group_size' is deprecated, did you mean to use 'reqd_sub_group_size' instead?}}
 // expected-note@+1 {{conflicting attribute is here}}
 [[cl::intel_reqd_sub_group_size(2)]] void sg_size2() {}
 
-// expected-warning@+3{{previous spelling of attribute 'intel_reqd_sub_group_size' is deprecated}}
+// expected-warning@+3{{attribute 'intel_reqd_sub_group_size' is deprecated, did you mean to use 'reqd_sub_group_size' instead?}}
 // expected-note@+2 {{conflicting attribute is here}}
 // expected-error@+1 {{conflicting attributes applied to a SYCL kernel}}
 [[cl::intel_reqd_sub_group_size(4)]] __attribute__((sycl_device)) void sg_size4() {

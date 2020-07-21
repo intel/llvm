@@ -10970,7 +10970,7 @@ def warn_ivdep_redundant : Warning <"ignoring redundant Intel FPGA loop "
   "attribute 'ivdep': safelen %select{INF|%1}0 >= safelen %select{INF|%3}2">,
   InGroup<IgnoredAttributes>;
 def warn_attribute_spelling_deprecated : Warning<
-  "previous spelling of attribute %0 is deprecated">,
+  "attribute %0 is deprecated, did you mean to use 'reqd_sub_group_size' instead?">,
   InGroup<DeprecatedAttributes>;
 
 // errors of expect.with.probability
