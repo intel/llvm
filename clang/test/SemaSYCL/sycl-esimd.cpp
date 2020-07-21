@@ -16,7 +16,8 @@ void kernel0(F f) __attribute__((sycl_kernel)) {
   f();
 }
 
-// expected-warning@+2{{attribute 'intel_reqd_sub_group_size' is deprecated, did you mean to use 'reqd_sub_group_size' instead?}}
+// expected-warning@+3{{attribute 'intel_reqd_sub_group_size' is deprecated}}
+// expected-note@+2 {{did you mean to use 'intel::reqd_sub_group_size' instead?}}
 // expected-note@+1{{conflicting attribute is here}}
 [[cl::intel_reqd_sub_group_size(2)]] void g0() {}
 

@@ -5,7 +5,8 @@
 template <int SIZE>
 class KernelFunctor {
 public:
-  // expected-warning@+2{{attribute 'intel_reqd_sub_group_size' is deprecated, did you mean to use 'reqd_sub_group_size' instead?}}
+  // expected-warning@+3{{attribute 'intel_reqd_sub_group_size' is deprecated}}
+  // expected-note@+2 {{did you mean to use 'intel::reqd_sub_group_size' instead?}}
   // expected-error@+1{{'intel_reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
   [[cl::intel_reqd_sub_group_size(SIZE)]] void operator()() {}
 };
