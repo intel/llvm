@@ -333,7 +333,7 @@ The effects of a call to +atomic_fence+ depend on the value of the +order+ param
 
 ==== Atomic Accessor
 
-The +atomic_accessor+ class replaces accessors created with +access::mode::atomic+.  All operators of +atomic_accessor+ which provide access to an element of the underlying buffer do so by wrapping the element in an +atomic_ref+.  In order to guarantee that all accesses to the underlying buffer are atomic, an +atomic_accessor+ does not allow direct access to the buffer via +get_pointer()+.
+The +atomic_accessor+ class replaces accessors created with +access::mode::atomic+.  All operators of +atomic_accessor+ which provide access to an element of the underlying memory do so by wrapping the element in an +atomic_ref+.  In order to guarantee that all accesses to the underlying memory are atomic, an +atomic_accessor+ does not allow direct access to the memory via +get_pointer()+.
 
 All other member functions are as defined in the +accessor+ class.
 
@@ -341,16 +341,16 @@ All other member functions are as defined in the +accessor+ class.
 | Member Function | Description
 
 | `operator atomic_ref<DataT, DefaultOrder, DefaultScope, access::address_space::global_space>() const`
-| Available only when: `Dimensions == 0`.  Returns an `atomic_ref` associated with the element stored in the underlying `buffer`.
+| Available only when: `Dimensions == 0`.  Returns an `atomic_ref` associated with the element stored in the underlying `buffer` or work-group local memory.
 
 | `atomic_ref<DataT, DefaultOrder, DefaultScope, access::address_space::global_space> operator[](id<Dimensions> index) const`
-| Available only when: `Dimensions > 0`.  Returns an `atomic_ref` associated with the element stored at the specified _index_ in the underlying `buffer`.
+| Available only when: `Dimensions > 0`.  Returns an `atomic_ref` associated with the element stored at the specified _index_ in the underlying `buffer` or work-group local memory.
 
 | `atomic_ref<DataT, DefaultOrder, DefaultScope, access::address_space::global_space> operator[](size_t index) const`
-| Available only when: `Dimensions == 1`.  Returns an `atomic_ref` associated with the element stored at the specified _index_ in the underlying `buffer`.
+| Available only when: `Dimensions == 1`.  Returns an `atomic_ref` associated with the element stored at the specified _index_ in the underlying `buffer` or work-group local memory.
 
 | `global_ptr<DataT> get_pointer() const = delete`
-| Direct access to the underlying buffer is not permitted.
+| Direct access to the underlying `buffer` or work-group local memory is not permitted.
 
 |===
 
