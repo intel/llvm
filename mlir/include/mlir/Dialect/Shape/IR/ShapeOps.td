@@ -154,6 +154,7 @@ def Shape_ShapeEqOp : Shape_Op<"shape_eq", [Commutative, NoSideEffect]> {
   let results = (outs I1:$result);
 
   let assemblyFormat = "$lhs `,` $rhs attr-dict `:` type($lhs) `,` type($rhs)";
+  let hasFolder = 1;
 }
 
 def Shape_FromExtentsOp : Shape_Op<"from_extents", [NoSideEffect]> {
@@ -194,13 +195,13 @@ def Shape_FromExtentTensorOp : Shape_Op<"from_extent_tensor", [NoSideEffect]> {
 def Shape_RankOp : Shape_Op<"rank", [NoSideEffect]> {
   let summary = "Gets the rank of a shape";
   let description = [{
-    Returns the rank of the shape, i.e. the number of extents.
+    Returns the rank of the shape or extent tensor, i.e. the number of extents.
   }];
 
-  let arguments = (ins Shape_ShapeType:$shape);
+  let arguments = (ins Shape_ShapeOrExtentTensorType:$shape);
   let results = (outs Shape_SizeType:$rank);
 
-  let assemblyFormat = "attr-dict $shape";
+  let assemblyFormat = "$shape `:` type($shape) attr-dict";
 
   let hasFolder = 1;
   let hasCanonicalizer = 1;
@@ -609,8 +610,9 @@ def Shape_AssumingYieldOp : Shape_Op<"assuming_yield",
 def Shape_CstrBroadcastableOp : Shape_Op<"cstr_broadcastable", [Commutative]> {
   let summary = "Determines if 2 shapes can be successfully broadcasted";
   let description = [{
-    Given 2 input shapes, return a witness specifying if they are broadcastable.
-    This broadcastable follows the same logic as what shape.broadcast documents.
+    Given two input shapes or extent tensors, return a witness specifying if
+    they are broadcastable. This broadcastable follows the same logic as what
+    shape.broadcast documents.
 
     "cstr" operations represent runtime assertions.
 
@@ -621,10 +623,11 @@ def Shape_CstrBroadcastableOp : Shape_Op<"cstr_broadcastable", [Commutative]> {
     ```
   }];
 
-  let arguments = (ins Shape_ShapeType:$lhs, Shape_ShapeType:$rhs);
+  let arguments = (ins Shape_ShapeOrExtentTensorType:$lhs,
+                       Shape_ShapeOrExtentTensorType:$rhs);
   let results = (outs Shape_WitnessType:$result);
 
-  let assemblyFormat = "$lhs `,` $rhs attr-dict";
+  let assemblyFormat = "$lhs `,` $rhs `:` type($lhs) `,` type($rhs) attr-dict";
 
   let hasCanonicalizer = 1;
   let hasFolder = 1;
