@@ -1944,11 +1944,9 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   StringRef KernelName(getLangOpts().SYCLUnnamedLambda ? StableName
                                                        : CalculatedName);
   if (KernelObj->isLambda()) {
-    for (const LambdaCapture &LC : KernelObj->captures()) {
-      if (LC.capturesThis() && LC.isImplicit()) {
+    for (const LambdaCapture &LC : KernelObj->captures())
+      if (LC.capturesThis() && LC.isImplicit())
         Diag(LC.getLocation(), diag::err_implicit_this_capture);
-      }
-    }
   }
   SyclKernelFieldChecker checker(*this);
   SyclKernelDeclCreator kernel_decl(
