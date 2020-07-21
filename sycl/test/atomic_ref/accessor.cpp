@@ -25,7 +25,8 @@ void accessor_test(queue q, size_t N) {
     q.submit([&](handler &cgh) {
 #if __cplusplus > 201402L
       static_assert(std::is_same<decltype(atomic_accessor(sum_buf, cgh, relaxed_order, device_scope)),
-                                 atomic_accessor<T, 1, intel::memory_order::relaxed, intel::memory_scope::device>>::value, "atomic_accessor type incorrectly deduced");
+                                 atomic_accessor<T, 1, intel::memory_order::relaxed, intel::memory_scope::device>>::value,
+                    "atomic_accessor type incorrectly deduced");
 #endif
       auto sum = atomic_accessor<T, 1, intel::memory_order::relaxed, intel::memory_scope::device>(sum_buf, cgh);
       auto out = output_buf.template get_access<access::mode::discard_write>(cgh);
@@ -46,7 +47,7 @@ void accessor_test(queue q, size_t N) {
 
   // Fetch returns original value: will be in [0, N-1]
   auto min_e = output[0];
-  auto max_e = output[output.size()-1];
+  auto max_e = output[output.size() - 1];
   assert(min_e == 0 && max_e == N - 1);
 }
 
