@@ -228,7 +228,7 @@ namespace detail {
 namespace buffer_ {
 class use_pinned_host_memory
     : public detail::Prop<detail::PropKind::BufferUsePinnedHostMemory> {};
-} // namespace buffer
+} // namespace buffer_
 } // namespace detail
 
 namespace queue {

@@ -108,9 +108,10 @@ public:
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
     if (Props.has_property<sycl::property::buffer::use_host_ptr>())
-      throw sycl::invalid_object_error("Buffer constructor from a pair of iterator "
-                                "values cannot have the use_host_ptr property.",
-                                PI_INVALID_OPERATION);
+      throw sycl::invalid_object_error(
+          "Buffer constructor from a pair of iterator values cannot have the "
+          "use_host_ptr property.",
+          PI_INVALID_OPERATION);
 
     BaseT::handleHostData(First, Last, RequiredAlign);
   }
@@ -127,9 +128,10 @@ public:
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
     if (Props.has_property<sycl::property::buffer::use_host_ptr>())
-      throw sycl::invalid_object_error("Buffer constructor from a pair of iterator "
-                                "values cannot have the use_host_ptr property.",
-                                PI_INVALID_OPERATION);
+      throw sycl::invalid_object_error(
+          "Buffer constructor from a pair of iterator values cannot have the "
+          "use_host_ptr property.",
+          PI_INVALID_OPERATION);
 
     BaseT::handleHostData(First, Last, RequiredAlign);
   }
