@@ -1377,7 +1377,7 @@ enum Op {
   OpUSubSatINTEL = 5596,
   OpIMul32x16INTEL = 5597,
   OpUMul32x16INTEL = 5598,
-  OpFunctionPointerINTEL = 5600,
+  OpConstFunctionPointerINTEL = 5600,
   OpFunctionPointerCallINTEL = 5601,
   OpAsmTargetINTEL = 5609,
   OpAsmINTEL = 5610,

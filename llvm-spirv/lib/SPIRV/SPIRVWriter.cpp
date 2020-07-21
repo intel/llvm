@@ -664,28 +664,30 @@ SPIRVValue *LLVMToSPIRV::transConstant(Value *V) {
   if (auto ConstDA = dyn_cast<ConstantDataArray>(V)) {
     std::vector<SPIRVValue *> BV;
     for (unsigned I = 0, E = ConstDA->getNumElements(); I != E; ++I)
-      BV.push_back(transValue(ConstDA->getElementAsConstant(I), nullptr));
+      BV.push_back(transValue(ConstDA->getElementAsConstant(I), nullptr, true,
+                              FuncTransMode::Pointer));
     return BM->addCompositeConstant(transType(V->getType()), BV);
   }
 
   if (auto ConstA = dyn_cast<ConstantArray>(V)) {
     std::vector<SPIRVValue *> BV;
     for (auto I = ConstA->op_begin(), E = ConstA->op_end(); I != E; ++I)
-      BV.push_back(transValue(*I, nullptr));
+      BV.push_back(transValue(*I, nullptr, true, FuncTransMode::Pointer));
     return BM->addCompositeConstant(transType(V->getType()), BV);
   }
 
   if (auto ConstDV = dyn_cast<ConstantDataVector>(V)) {
     std::vector<SPIRVValue *> BV;
     for (unsigned I = 0, E = ConstDV->getNumElements(); I != E; ++I)
-      BV.push_back(transValue(ConstDV->getElementAsConstant(I), nullptr));
+      BV.push_back(transValue(ConstDV->getElementAsConstant(I), nullptr, true,
+                              FuncTransMode::Pointer));
     return BM->addCompositeConstant(transType(V->getType()), BV);
   }
 
   if (auto ConstV = dyn_cast<ConstantVector>(V)) {
     std::vector<SPIRVValue *> BV;
     for (auto I = ConstV->op_begin(), E = ConstV->op_end(); I != E; ++I)
-      BV.push_back(transValue(*I, nullptr));
+      BV.push_back(transValue(*I, nullptr, true, FuncTransMode::Pointer));
     return BM->addCompositeConstant(transType(V->getType()), BV);
   }
 
@@ -750,6 +752,8 @@ SPIRVValue *LLVMToSPIRV::transValue(Value *V, SPIRVBasicBlock *BB,
                                     FuncTransMode FuncTrans) {
   LLVMToSPIRVValueMap::iterator Loc = ValueMap.find(V);
   if (Loc != ValueMap.end() && (!Loc->second->isForward() || CreateForward) &&
+      // do not return forward-decl of a function if we
+      // actually want to create a function pointer
       !(FuncTrans == FuncTransMode::Pointer && isa<Function>(V)))
     return Loc->second;
 
@@ -806,7 +810,6 @@ SPIRVInstruction *LLVMToSPIRV::transCmpInst(CmpInst *Cmp, SPIRVBasicBlock *BB) {
 SPIRV::SPIRVInstruction *LLVMToSPIRV::transUnaryInst(UnaryInstruction *U,
                                                      SPIRVBasicBlock *BB) {
   Op BOC = OpNop;
-  SPIRVValue *Op = nullptr;
   if (auto Cast = dyn_cast<AddrSpaceCastInst>(U)) {
     const auto SrcAddrSpace = Cast->getSrcTy()->getPointerAddressSpace();
     const auto DestAddrSpace = Cast->getDestTy()->getPointerAddressSpace();
@@ -854,20 +857,9 @@ SPIRV::SPIRVInstruction *LLVMToSPIRV::transUnaryInst(UnaryInstruction *U,
   } else {
     auto OpCode = U->getOpcode();
     BOC = OpCodeMap::map(OpCode);
-
-    if (Function *F = dyn_cast<Function>(U->getOperand(0))) {
-      if (!BM->checkExtension(ExtensionID::SPV_INTEL_function_pointers,
-                              SPIRVEC_FunctionPointers, toString(U)))
-        return nullptr;
-      assert(isa<CastInst>(U) && "Illegal unary operation on function pointer");
-      Op = BM->addFunctionPointerINTELInst(
-          transType(F->getType()),
-          static_cast<SPIRVFunction *>(transValue(F, BB)), BB);
-    }
   }
 
-  if (!Op)
-    Op = transValue(U->getOperand(0), BB);
+  auto Op = transValue(U->getOperand(0), BB, true, FuncTransMode::Pointer);
   return BM->addUnaryInst(transBoolOpCode(Op, BOC), transType(U->getType()), Op,
                           BB);
 }
@@ -1080,9 +1072,9 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     if (!BM->checkExtension(ExtensionID::SPV_INTEL_function_pointers,
                             SPIRVEC_FunctionPointers, toString(V)))
       return nullptr;
-    return BM->addFunctionPointerINTELInst(
+    return BM->addConstFunctionPointerINTEL(
         transType(F->getType()),
-        static_cast<SPIRVFunction *>(transValue(F, BB)), BB);
+        static_cast<SPIRVFunction *>(transValue(F, nullptr)));
   }
 
   if (auto GV = dyn_cast<GlobalVariable>(V)) {

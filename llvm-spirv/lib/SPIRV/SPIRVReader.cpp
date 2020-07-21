@@ -1561,6 +1561,14 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return mapValue(BV, transValue(BI, nullptr, nullptr, false));
   }
 
+  case OpConstFunctionPointerINTEL: {
+    SPIRVConstFunctionPointerINTEL *BC =
+        static_cast<SPIRVConstFunctionPointerINTEL *>(BV);
+    SPIRVFunction *F = BC->getFunction();
+    BV->setName(F->getName());
+    return mapValue(BV, transFunction(F));
+  }
+
   case OpUndef:
     return mapValue(BV, UndefValue::get(transType(BV->getType())));
 
@@ -2277,14 +2285,6 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     // Don't set attributes, because at translation time we don't know which
     // function exactly we are calling.
     return mapValue(BV, Call);
-  }
-
-  case OpFunctionPointerINTEL: {
-    SPIRVFunctionPointerINTEL *BC =
-        static_cast<SPIRVFunctionPointerINTEL *>(BV);
-    SPIRVFunction *F = BC->getFunction();
-    BV->setName(F->getName());
-    return mapValue(BV, transFunction(F));
   }
 
   case OpAssumeTrueINTEL: {
