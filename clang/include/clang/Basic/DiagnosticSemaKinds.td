@@ -10973,7 +10973,7 @@ def warn_attribute_spelling_deprecated : Warning<
   "attribute %0 is deprecated">,
   InGroup<DeprecatedAttributes>;
 def note_spelling_suggestion : Note<
-  "did you mean to use 'intel::reqd_sub_group_size' instead?">;
+  "did you mean to use %0 instead?">;
 
 // errors of expect.with.probability
 def err_probability_not_constant_float : Error<
