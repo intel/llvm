@@ -105,7 +105,7 @@ private:
             cl::sycl::access::target AccessTarget, access::placeholder IsPlaceholder>
   friend class detail::image_accessor;
 };
-} // namespace detail
+} // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
