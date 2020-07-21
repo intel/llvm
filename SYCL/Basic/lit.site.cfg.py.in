@@ -21,6 +21,7 @@ config.opencl_include_dir = config.sycl_include
 config.target_devices = lit_config.params.get("target_devices", "@SYCL_TARGET_DEVICES@")
 config.sycl_be = lit_config.params.get("sycl_be", "@SYCL_BE@")
 config.sycl_threads_lib = '@SYCL_THREADS_LIB@'
+config.extra_environment = lit_config.params.get("extra_environment", "@LIT_EXTRA_ENVIRONMENT@")
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)

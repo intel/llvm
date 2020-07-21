@@ -9,7 +9,7 @@ execution on all supported devices and SYCL backends.
 
 # Execution
 ```
-git clone <GIT_REPO> # e.g. https://github.com/vladimirlaz/llvm-test-suite
+git clone <GIT_REPO> # e.g. https://github.com/intel/llvm-test-suite
 cd llvm-test-suite
 mkdir build
 cd build
@@ -85,9 +85,12 @@ cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE
 
 # LIT parameters can be passed to LIT executor:
  - **dpcpp_compiler** - full path to dpcpp compiler;
- - **target_device** - comma separated list of target devices (cpu, gpu, acc, host);
+ - **target_device** - comma-separated list of target devices (cpu, gpu, acc, host);
  - **sycl_be** - SYCL backedn to be used (PI_OPENCL, PI_LEVEL, PI_CUDA);
- - **dump_ir** - if IR dumping is supported for compiler (True, False).
+ - **dump_ir** - if IR dumping is supported for compiler (True, False);
+ - **extra_environment** - comma-separated list of variables with values to be
+   added to test environment. Can be also set by LIT_EXTRA_ENVIRONMENT variable
+   in cmake.
 
 # LIT features which can be used to configure test execution:
  - **windows**, **linux** - host OS;

@@ -66,12 +66,15 @@ elif platform.system() == "Darwin":
 
 llvm_config.with_environment('PATH', config.sycl_tools_dir, append_path=True)
 
+for env_pair in config.extra_environment.split(','):
+    if env_pair:
+        [var,val]=env_pair.split("=")
+        llvm_config.with_environment(var,val)
+
 config.substitutions.append( ('%sycl_libs_dir',  config.sycl_libs_dir ) )
 config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
-#config.substitutions.append( ('%sycl_source_dir', config.sycl_source_dir) )
 config.substitutions.append( ('%opencl_libs_dir',  config.opencl_libs_dir) )
 config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
-#config.substitutions.append( ('%cuda_toolkit_include',  config.cuda_toolkit_include) )
 
 llvm_config.use_clang()
 
