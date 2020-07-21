@@ -14,14 +14,14 @@ namespace s = cl::sycl;
 int main() {
   // max
   {
-    s::cl_int2 r{ 0 };
+    s::cl_int2 r{0};
     {
       s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class maxSI2SI2>([=]() {
-          AccR[0] = s::max(s::cl_int2{ 5, 3 }, s::cl_int2{ 2, 7 });
+          AccR[0] = s::max(s::cl_int2{5, 3}, s::cl_int2{2, 7});
         });
       });
     }
@@ -33,14 +33,14 @@ int main() {
 
   // max
   {
-    s::cl_uint2 r{ 0 };
+    s::cl_uint2 r{0};
     {
       s::buffer<s::cl_uint2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class maxUI2UI2>([=]() {
-          AccR[0] = s::max(s::cl_uint2{ 5, 3 }, s::cl_uint2{ 2, 7 });
+          AccR[0] = s::max(s::cl_uint2{5, 3}, s::cl_uint2{2, 7});
         });
       });
     }
@@ -52,14 +52,14 @@ int main() {
 
   // max
   {
-    s::cl_int2 r{ 0 };
+    s::cl_int2 r{0};
     {
       s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class maxSI2SI1>([=]() {
-          AccR[0] = s::max(s::cl_int2{ 5, 3 }, s::cl_int{ 2 });
+          AccR[0] = s::max(s::cl_int2{5, 3}, s::cl_int{2});
         });
       });
     }
@@ -71,14 +71,14 @@ int main() {
 
   // max (longlong2)
   {
-    s::longlong2 r{ 0 };
+    s::longlong2 r{0};
     {
       s::buffer<s::longlong2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class maxSLL2SLL1>([=]() {
-          AccR[0] = s::max(s::longlong2{ 5, 3 }, s::longlong{ 2 });
+          AccR[0] = s::max(s::longlong2{5, 3}, s::longlong{2});
         });
       });
     }
@@ -90,14 +90,14 @@ int main() {
 
   // max
   {
-    s::cl_uint2 r{ 0 };
+    s::cl_uint2 r{0};
     {
       s::buffer<s::cl_uint2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class maxUI2UI1>([=]() {
-          AccR[0] = s::max(s::cl_uint2{ 5, 3 }, s::cl_uint{ 2 });
+          AccR[0] = s::max(s::cl_uint2{5, 3}, s::cl_uint{2});
         });
       });
     }
@@ -109,14 +109,14 @@ int main() {
 
   // max (ulonglong2)
   {
-    s::ulonglong2 r{ 0 };
+    s::ulonglong2 r{0};
     {
       s::buffer<s::ulonglong2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class maxULL2ULL1>([=]() {
-          AccR[0] = s::max(s::ulonglong2{ 5, 3 }, s::ulonglong{ 2 });
+          AccR[0] = s::max(s::ulonglong2{5, 3}, s::ulonglong{2});
         });
       });
     }
@@ -125,17 +125,17 @@ int main() {
     assert(r1 == 5);
     assert(r2 == 3);
   }
-  
+
   // min
   {
-    s::cl_int2 r{ 0 };
+    s::cl_int2 r{0};
     {
       s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class minSI2SI2>([=]() {
-          AccR[0] = s::min(s::cl_int2{ 5, 3 }, s::cl_int2{ 2, 7 });
+          AccR[0] = s::min(s::cl_int2{5, 3}, s::cl_int2{2, 7});
         });
       });
     }
@@ -147,14 +147,14 @@ int main() {
 
   // min
   {
-    s::cl_uint2 r{ 0 };
+    s::cl_uint2 r{0};
     {
       s::buffer<s::cl_uint2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class minUI2UI2>([=]() {
-          AccR[0] = s::min(s::cl_uint2{ 5, 3 }, s::cl_uint2{ 2, 7 });
+          AccR[0] = s::min(s::cl_uint2{5, 3}, s::cl_uint2{2, 7});
         });
       });
     }
@@ -166,14 +166,14 @@ int main() {
 
   // min
   {
-    s::cl_int2 r{ 0 };
+    s::cl_int2 r{0};
     {
       s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class minSI2SI1>([=]() {
-          AccR[0] = s::min(s::cl_int2{ 5, 3 }, s::cl_int{ 2 });
+          AccR[0] = s::min(s::cl_int2{5, 3}, s::cl_int{2});
         });
       });
     }
@@ -185,14 +185,14 @@ int main() {
 
   // min
   {
-    s::cl_uint2 r{ 0 };
+    s::cl_uint2 r{0};
     {
       s::buffer<s::cl_uint2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class minUI2UI1>([=]() {
-          AccR[0] = s::min(s::cl_uint2{ 5, 3 }, s::cl_uint{ 2 });
+          AccR[0] = s::min(s::cl_uint2{5, 3}, s::cl_uint{2});
         });
       });
     }
@@ -204,14 +204,14 @@ int main() {
 
   // abs
   {
-    s::cl_uint2 r{ 0 };
+    s::cl_uint2 r{0};
     {
       s::buffer<s::cl_uint2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class absSI2>([=]() {
-          AccR[0] = s::abs(s::cl_int2{ -5, -2 });
+          AccR[0] = s::abs(s::cl_int2{-5, -2});
         });
       });
     }
@@ -223,14 +223,14 @@ int main() {
 
   // abs (longlong)
   {
-    s::ulonglong2 r{ 0 };
+    s::ulonglong2 r{0};
     {
       s::buffer<s::ulonglong2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class absSL2>([=]() {
-          AccR[0] = s::abs(s::longlong2{ -5, -2 });
+          AccR[0] = s::abs(s::longlong2{-5, -2});
         });
       });
     }
@@ -242,14 +242,14 @@ int main() {
 
   // abs_diff
   {
-    s::cl_uint2 r{ 0 };
+    s::cl_uint2 r{0};
     {
       s::buffer<s::cl_uint2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class abs_diffSI2SI2>([=]() {
-          AccR[0] = s::abs_diff(s::cl_int2{ -5, -2 }, s::cl_int2{ -1, -1 });
+          AccR[0] = s::abs_diff(s::cl_int2{-5, -2}, s::cl_int2{-1, -1});
         });
       });
     }
@@ -261,15 +261,15 @@ int main() {
 
   // add_sat
   {
-    s::cl_int2 r{ 0 };
+    s::cl_int2 r{0};
     {
       s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class add_satSI2SI2>([=]() {
-          AccR[0] = s::add_sat(s::cl_int2{ 0x7FFFFFFF, 0x7FFFFFFF },
-                               s::cl_int2{ 100, 90 });
+          AccR[0] = s::add_sat(s::cl_int2{0x7FFFFFFF, 0x7FFFFFFF},
+                               s::cl_int2{100, 90});
         });
       });
     }
@@ -281,15 +281,15 @@ int main() {
 
   // hadd
   {
-    s::cl_int2 r{ 0 };
+    s::cl_int2 r{0};
     {
       s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class haddSI2SI2>([=]() {
-          AccR[0] = s::hadd(s::cl_int2{ 0x0000007F, 0x0000007F },
-                            s::cl_int2{ 0x00000020, 0x00000020 });
+          AccR[0] = s::hadd(s::cl_int2{0x0000007F, 0x0000007F},
+                            s::cl_int2{0x00000020, 0x00000020});
         });
       });
     }
@@ -301,15 +301,15 @@ int main() {
 
   // rhadd
   {
-    s::cl_int2 r{ 0 };
+    s::cl_int2 r{0};
     {
       s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class rhaddSI2SI2>([=]() {
-          AccR[0] = s::rhadd(s::cl_int2{ 0x0000007F, 0x0000007F },
-                             s::cl_int2{ 0x00000020, 0x00000020 });
+          AccR[0] = s::rhadd(s::cl_int2{0x0000007F, 0x0000007F},
+                             s::cl_int2{0x00000020, 0x00000020});
         });
       });
     }
@@ -321,15 +321,15 @@ int main() {
 
   // clamp - 1
   {
-    s::cl_int2 r{ 0 };
+    s::cl_int2 r{0};
     {
       s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class clampSI2SI2SI2>([=]() {
-          AccR[0] = s::clamp(s::cl_int2{ 5, 5 }, s::cl_int2{ 10, 10 },
-                             s::cl_int2{ 30, 30 });
+          AccR[0] = s::clamp(s::cl_int2{5, 5}, s::cl_int2{10, 10},
+                             s::cl_int2{30, 30});
         });
       });
     }
@@ -341,15 +341,14 @@ int main() {
 
   // clamp - 2
   {
-    s::cl_int2 r{ 0 };
+    s::cl_int2 r{0};
     {
       s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class clampSI2SI1SI1>([=]() {
-          AccR[0] =
-              s::clamp(s::cl_int2{ 5, 5 }, s::cl_int{ 10 }, s::cl_int{ 30 });
+          AccR[0] = s::clamp(s::cl_int2{5, 5}, s::cl_int{10}, s::cl_int{30});
         });
       });
     }
@@ -361,14 +360,14 @@ int main() {
 
   // clz
   {
-    s::cl_int2 r{ 0 };
+    s::cl_int2 r{0};
     {
       s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class clzSI2>([=]() {
-          AccR[0] = s::clz(s::cl_int2{ 0x0FFFFFFF, 0x0FFFFFFF });
+          AccR[0] = s::clz(s::cl_int2{0x0FFFFFFF, 0x0FFFFFFF});
         });
       });
     }
@@ -380,14 +379,14 @@ int main() {
 
   // ctz
   {
-    s::cl_int2 r{ 0 };
+    s::cl_int2 r{0};
     {
       s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class ctzSI2>([=]() {
-          AccR[0] = s::ext::oneapi::ctz(s::cl_int2{ 0x7FFFFFF0, 0x7FFFFFF0 });
+          AccR[0] = s::ext::oneapi::ctz(s::cl_int2{0x7FFFFFF0, 0x7FFFFFF0});
         });
       });
     }
@@ -399,16 +398,16 @@ int main() {
 
   // mad_hi
   {
-    s::cl_int2 r{ 0 };
+    s::cl_int2 r{0};
     {
       s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class mad_hiSI2SI2SI2>([=]() {
-          AccR[0] = s::mad_hi(s::cl_int2{ 0x10000000, 0x10000000 },
-                              s::cl_int2{ 0x00000100, 0x00000100 },
-                              s::cl_int2{ 1, 1 });
+          AccR[0] =
+              s::mad_hi(s::cl_int2{0x10000000, 0x10000000},
+                        s::cl_int2{0x00000100, 0x00000100}, s::cl_int2{1, 1});
         });
       });
     }
@@ -420,16 +419,16 @@ int main() {
 
   // mad_sat
   {
-    s::cl_int2 r{ 0 };
+    s::cl_int2 r{0};
     {
       s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class mad_satSI2SI2SI2>([=]() {
-          AccR[0] = s::mad_sat(s::cl_int2{ 0x10000000, 0x10000000 },
-                               s::cl_int2{ 0x00000100, 0x00000100 },
-                               s::cl_int2{ 1, 1 });
+          AccR[0] =
+              s::mad_sat(s::cl_int2{0x10000000, 0x10000000},
+                         s::cl_int2{0x00000100, 0x00000100}, s::cl_int2{1, 1});
         });
       });
     }
@@ -441,15 +440,15 @@ int main() {
 
   // mul_hi
   {
-    s::cl_int2 r{ 0 };
+    s::cl_int2 r{0};
     {
       s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class mul_hiSI2SI2>([=]() {
-          AccR[0] = s::mul_hi(s::cl_int2{ 0x10000000, 0x10000000 },
-                              s::cl_int2{ 0x00000100, 0x00000100 });
+          AccR[0] = s::mul_hi(s::cl_int2{0x10000000, 0x10000000},
+                              s::cl_int2{0x00000100, 0x00000100});
         });
       });
     }
@@ -461,15 +460,15 @@ int main() {
 
   // rotate
   {
-    s::cl_int2 r{ 0 };
+    s::cl_int2 r{0};
     {
       s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class rotateSI2SI2>([=]() {
-          AccR[0] = s::rotate(s::cl_int2{ 0x11100000, 0x11100000 },
-                              s::cl_int2{ 12, 12 });
+          AccR[0] =
+              s::rotate(s::cl_int2{0x11100000, 0x11100000}, s::cl_int2{12, 12});
         });
       });
     }
@@ -482,50 +481,49 @@ int main() {
   // sub_sat
   {
     auto TestSubSat = [](s::cl_int2 x, s::cl_int2 y) {
-      s::cl_int2 r{ 0 };
+      s::cl_int2 r{0};
       {
         s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
         s::queue myQueue;
         myQueue.submit([&](s::handler &cgh) {
           auto AccR = BufR.get_access<s::access::mode::write>(cgh);
-          cgh.single_task<class sub_satSI2SI2>([=]() {
-            AccR[0] = s::sub_sat(x, y);
-          });
+          cgh.single_task<class sub_satSI2SI2>(
+              [=]() { AccR[0] = s::sub_sat(x, y); });
         });
       }
       return r;
     };
-    s::cl_int2 r1 = TestSubSat(s::cl_int2{ 10, 10 },
-                               s::cl_int2{ 0x80000000, 0x80000000 });
+    s::cl_int2 r1 =
+        TestSubSat(s::cl_int2{10, 10}, s::cl_int2{0x80000000, 0x80000000});
     s::cl_int r1x = r1.x();
     s::cl_int r1y = r1.y();
     assert(r1x == 0x7FFFFFFF);
     assert(r1y == 0x7FFFFFFF);
-    s::cl_int2 r2 = TestSubSat(s::cl_int2{ 0x7FFFFFFF, 0x80000000 },
-                               s::cl_int2{ 0xFFFFFFFF, 0x00000001 });
+    s::cl_int2 r2 = TestSubSat(s::cl_int2{0x7FFFFFFF, 0x80000000},
+                               s::cl_int2{0xFFFFFFFF, 0x00000001});
     s::cl_int r2x = r2.x();
     s::cl_int r2y = r2.y();
     assert(r2x == 0x7FFFFFFF);
     assert(r2y == 0x80000000);
-    s::cl_int2 r3 = TestSubSat(s::cl_int2{ 10499, 30678 },
-                               s::cl_int2{ 30678, 10499 });
+    s::cl_int2 r3 =
+        TestSubSat(s::cl_int2{10499, 30678}, s::cl_int2{30678, 10499});
     s::cl_int r3x = r3.x();
     s::cl_int r3y = r3.y();
     assert(r3x == -20179);
-    assert(r3y ==  20179);
+    assert(r3y == 20179);
   }
 
   // upsample - 1
   {
-    s::cl_ushort2 r{ 0 };
+    s::cl_ushort2 r{0};
     {
       s::buffer<s::cl_ushort2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class upsampleUC2UC2>([=]() {
-          AccR[0] = s::upsample(s::cl_uchar2{ 0x10, 0x10 },
-                                s::cl_uchar2{ 0x10, 0x10 });
+          AccR[0] =
+              s::upsample(s::cl_uchar2{0x10, 0x10}, s::cl_uchar2{0x10, 0x10});
         });
       });
     }
@@ -537,15 +535,15 @@ int main() {
 
   // upsample - 2
   {
-    s::cl_short2 r{ 0 };
+    s::cl_short2 r{0};
     {
       s::buffer<s::cl_short2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class upsampleSC2UC2>([=]() {
-          AccR[0] = s::upsample(s::cl_char2{ 0x10, 0x10 },
-                                s::cl_uchar2{ 0x10, 0x10 });
+          AccR[0] =
+              s::upsample(s::cl_char2{0x10, 0x10}, s::cl_uchar2{0x10, 0x10});
         });
       });
     }
@@ -557,15 +555,15 @@ int main() {
 
   // upsample - 3
   {
-    s::cl_uint2 r{ 0 };
+    s::cl_uint2 r{0};
     {
       s::buffer<s::cl_uint2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class upsampleUS2US2>([=]() {
-          AccR[0] = s::upsample(s::cl_ushort2{ 0x0010, 0x0010 },
-                                s::cl_ushort2{ 0x0010, 0x0010 });
+          AccR[0] = s::upsample(s::cl_ushort2{0x0010, 0x0010},
+                                s::cl_ushort2{0x0010, 0x0010});
         });
       });
     }
@@ -577,15 +575,15 @@ int main() {
 
   // upsample - 4
   {
-    s::cl_int2 r{ 0 };
+    s::cl_int2 r{0};
     {
       s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class upsampleSS2US2>([=]() {
-          AccR[0] = s::upsample(s::cl_short2{ 0x0010, 0x0010 },
-                                s::cl_ushort2{ 0x0010, 0x0010 });
+          AccR[0] = s::upsample(s::cl_short2{0x0010, 0x0010},
+                                s::cl_ushort2{0x0010, 0x0010});
         });
       });
     }
@@ -597,15 +595,15 @@ int main() {
 
   // upsample - 5
   {
-    s::cl_ulong2 r{ 0 };
+    s::cl_ulong2 r{0};
     {
       s::buffer<s::cl_ulong2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class upsampleUI2UI2>([=]() {
-          AccR[0] = s::upsample(s::cl_uint2{ 0x00000010, 0x00000010 },
-                                s::cl_uint2{ 0x00000010, 0x00000010 });
+          AccR[0] = s::upsample(s::cl_uint2{0x00000010, 0x00000010},
+                                s::cl_uint2{0x00000010, 0x00000010});
         });
       });
     }
@@ -617,15 +615,15 @@ int main() {
 
   // upsample - 6
   {
-    s::cl_long2 r{ 0 };
+    s::cl_long2 r{0};
     {
       s::buffer<s::cl_long2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class upsampleSI2UI2>([=]() {
-          AccR[0] = s::upsample(s::cl_int2{ 0x00000010, 0x00000010 },
-                                s::cl_uint2{ 0x00000010, 0x00000010 });
+          AccR[0] = s::upsample(s::cl_int2{0x00000010, 0x00000010},
+                                s::cl_uint2{0x00000010, 0x00000010});
         });
       });
     }
@@ -637,14 +635,14 @@ int main() {
 
   // popcount
   {
-    s::cl_int2 r{ 0 };
+    s::cl_int2 r{0};
     {
       s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class popcountSI2>([=]() {
-          AccR[0] = s::popcount(s::cl_int2{ 0x000000FF, 0x000000FF });
+          AccR[0] = s::popcount(s::cl_int2{0x000000FF, 0x000000FF});
         });
       });
     }
@@ -656,15 +654,15 @@ int main() {
 
   // mad24
   {
-    s::cl_int2 r{ 0 };
+    s::cl_int2 r{0};
     {
       s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class mad24SI2SI2SI2>([=]() {
-          AccR[0] = s::mad24(s::cl_int2{ 0xFFFFFFFF, 0xFFFFFFFF },
-                             s::cl_int2{ 20, 20 }, s::cl_int2{ 20, 20 });
+          AccR[0] = s::mad24(s::cl_int2{0xFFFFFFFF, 0xFFFFFFFF},
+                             s::cl_int2{20, 20}, s::cl_int2{20, 20});
         });
       });
     }
@@ -676,15 +674,15 @@ int main() {
 
   // mul24
   {
-    s::cl_int2 r{ 0 };
+    s::cl_int2 r{0};
     {
       s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class mul24SI2SI2SI2>([=]() {
-          AccR[0] = s::mul24(s::cl_int2{ 0xFFFFFFFF, 0xFFFFFFFF },
-                             s::cl_int2{ 20, 20 });
+          AccR[0] =
+              s::mul24(s::cl_int2{0xFFFFFFFF, 0xFFFFFFFF}, s::cl_int2{20, 20});
         });
       });
     }
