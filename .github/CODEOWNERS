@@ -49,8 +49,8 @@ sycl/source/stream.cpp @againull
 
 # Specialization constant
 sycl/include/CL/sycl/detail/sycl_fe_intrins.hpp @kbobrovs
-sycl/include/CL/sycl/detail/spec_constant_impl.hpp @kbobrovs
 sycl/include/CL/sycl/experimental/spec_constant.hpp @kbobrovs
+sycl/source/detail/spec_constant_impl.hpp @kbobrovs
 
 # Program manager
 sycl/source/detail/program_manager @kbobrovs
