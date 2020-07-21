@@ -2027,7 +2027,8 @@ void Sema::MarkDevice(void) {
               Diag(Attr->getLocation(), diag::note_conflicting_attribute);
               SYCLKernel->setInvalidDecl();
             }
-          } else if (auto *Existing = SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+          } else if (auto *Existing =
+                         SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
             if (Existing->getXDim() < Attr->getXDim() ||
                 Existing->getYDim() < Attr->getYDim() ||
                 Existing->getZDim() < Attr->getZDim()) {
