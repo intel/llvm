@@ -24,11 +24,10 @@ void accessor_test(queue q, size_t N) {
 
     q.submit([&](handler &cgh) {
 #if __cplusplus > 201402L
-      auto sum = atomic_accessor(sum_buf, cgh, relaxed_order, device_scope);
-      static_assert(std::is_same<decltype(sum), atomic_accessor<T, 1, intel::memory_order::relaxed, intel::memory_scope::device>>::value, "atomic_accessor type incorrectly deduced");
-#else
-      auto sum = atomic_accessor<T, 1, intel::memory_order::relaxed, intel::memory_scope::device>(sum_buf, cgh);
+      static_assert(std::is_same<decltype(atomic_accessor(sum_buf, cgh, relaxed_order, device_scope)),
+                                 atomic_accessor<T, 1, intel::memory_order::relaxed, intel::memory_scope::device>>::value, "atomic_accessor type incorrectly deduced");
 #endif
+      auto sum = atomic_accessor<T, 1, intel::memory_order::relaxed, intel::memory_scope::device>(sum_buf, cgh);
       auto out = output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
