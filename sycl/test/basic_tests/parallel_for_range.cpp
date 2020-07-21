@@ -1,7 +1,7 @@
 // XFAIL: cuda || level0
 // CUDA exposes broken hierarchical parallelism.
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out && echo "TEST. Makeing the line too long"
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
