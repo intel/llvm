@@ -1,26 +1,18 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -DTRIGGER_ERROR %s
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
 
-// expected-warning@+2 {{attribute 'intel_reqd_sub_group_size' is deprecated}}
-// expected-note@+1 {{did you mean to use 'intel::reqd_sub_group_size' instead?}}
-[[cl::intel_reqd_sub_group_size(4)]] void foo() {} // expected-note {{conflicting attribute is here}}
+[[intel::reqd_sub_group_size(4)]] void foo() {} // expected-note {{conflicting attribute is here}}
 // expected-note@-1 {{conflicting attribute is here}}
-[[cl::intel_reqd_sub_group_size(32)]] void baz() {} // expected-note {{conflicting attribute is here}}
-// expected-note@-1 {{did you mean to use 'intel::reqd_sub_group_size' instead?}}
-// expected-warning@-2 {{attribute 'intel_reqd_sub_group_size' is deprecated}}
+[[intel::reqd_sub_group_size(32)]] void baz() {} // expected-note {{conflicting attribute is here}}
 
 class Functor16 {
 public:
-  // expected-warning@+2 {{attribute 'intel_reqd_sub_group_size' is deprecated}}
-  // expected-note@+1 {{did you mean to use 'intel::reqd_sub_group_size' instead?}}
-  [[cl::intel_reqd_sub_group_size(16)]] void operator()() {}
+  [[intel::reqd_sub_group_size(16)]] void operator()() {}
 };
 
 class Functor8 { // expected-error {{conflicting attributes applied to a SYCL kernel}}
 public:
-  // expected-warning@+2 {{attribute 'intel_reqd_sub_group_size' is deprecated}}
-  // expected-note@+1 {{did you mean to use 'intel::reqd_sub_group_size' instead?}}
-  [[cl::intel_reqd_sub_group_size(8)]] void operator()() { // expected-note {{conflicting attribute is here}}
+  [[intel::reqd_sub_group_size(8)]] void operator()() { // expected-note {{conflicting attribute is here}}
     foo();
   }
 };
@@ -59,43 +51,28 @@ void bar() {
   });
 #endif
 
-  // expected-warning@+2 {{attribute 'intel_reqd_sub_group_size' is deprecated}}
-  // expected-note@+1 {{did you mean to use 'intel::reqd_sub_group_size' instead?}}
-  kernel<class kernel_name5>([]() [[cl::intel_reqd_sub_group_size(2)]] { });
-  // expected-warning@+2 {{attribute 'intel_reqd_sub_group_size' is deprecated}}
-  // expected-note@+1 {{did you mean to use 'intel::reqd_sub_group_size' instead?}}
-  kernel<class kernel_name6>([]() [[cl::intel_reqd_sub_group_size(4)]] { foo(); });
-  kernel<class kernel_name7>([]() [[intel::reqd_sub_group_size(6)]]{});
+  kernel<class kernel_name5>([]() [[intel::reqd_sub_group_size(2)]] { });
+  kernel<class kernel_name6>([]() [[intel::reqd_sub_group_size(4)]] { foo(); });
 
   Functor4 f4;
-  kernel<class kernel_name8>(f4);
+  kernel<class kernel_name7>(f4);
 }
 
-// expected-warning@+2 {{attribute 'intel_reqd_sub_group_size' is deprecated}}
-// expected-note@+1 {{did you mean to use 'intel::reqd_sub_group_size' instead?}}
-[[cl::intel_reqd_sub_group_size(16)]] SYCL_EXTERNAL void B();
-// expected-warning@+2 {{attribute 'intel_reqd_sub_group_size' is deprecated}}
-// expected-note@+1 {{did you mean to use 'intel::reqd_sub_group_size' instead?}}
-[[cl::intel_reqd_sub_group_size(16)]] void A() {
+[[intel::reqd_sub_group_size(16)]] SYCL_EXTERNAL void B();
+[[intel::reqd_sub_group_size(16)]] void A() {
 }
 
-// expected-warning@+2 {{attribute 'intel_reqd_sub_group_size' is deprecated}}
-// expected-note@+1 {{did you mean to use 'intel::reqd_sub_group_size' instead?}}
-[[cl::intel_reqd_sub_group_size(16)]] SYCL_EXTERNAL void B() {
+[[intel::reqd_sub_group_size(16)]] SYCL_EXTERNAL void B() {
   A();
 }
 
 #ifdef TRIGGER_ERROR
-// expected-warning@+3 {{attribute 'intel_reqd_sub_group_size' is deprecated}}
-// expected-note@+2 {{did you mean to use 'intel::reqd_sub_group_size' instead?}}
 // expected-note@+1 {{conflicting attribute is here}}
-[[cl::intel_reqd_sub_group_size(2)]] void sg_size2() {}
+[[intel::reqd_sub_group_size(2)]] void sg_size2() {}
 
-// expected-warning@+4 {{attribute 'intel_reqd_sub_group_size' is deprecated}}
-// expected-note@+3 {{did you mean to use 'intel::reqd_sub_group_size' instead?}}
 // expected-note@+2 {{conflicting attribute is here}}
 // expected-error@+1 {{conflicting attributes applied to a SYCL kernel}}
-[[cl::intel_reqd_sub_group_size(4)]] __attribute__((sycl_device)) void sg_size4() {
+[[intel::reqd_sub_group_size(4)]] __attribute__((sycl_device)) void sg_size4() {
   sg_size2();
 }
 #endif
@@ -110,8 +87,5 @@ void bar() {
 // CHECK: IntelReqdSubGroupSizeAttr {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name7
-// CHECK: IntelReqdSubGroupSizeAttr {{.*}}
-// CHECK-NEXT: IntegerLiteral{{.*}}6{{$}}
-// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name8
 // CHECK: IntelReqdSubGroupSizeAttr {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
