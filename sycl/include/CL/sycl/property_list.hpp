@@ -309,12 +309,14 @@ public:
     if (!has_property<propertyT>()) {
       throw sycl::invalid_object_error();
     }
-    const auto &PropHolder = std::get<(int)(propertyT::getKind())>(m_PropsList);
+    const auto &PropHolder =
+        std::get<static_cast<int>(propertyT::getKind())>(m_PropsList);
     return PropHolder.getProp();
   }
 
   template <typename propertyT> bool has_property() const {
-    if ((int)(propertyT::getKind()) > property::detail::PropKind::PropKindSize)
+    if (static_cast<int>(propertyT::getKind()) >
+        property::detail::PropKind::PropKindSize)
       return false;
     return std::get<(int)(propertyT::getKind())>(m_PropsList).isInitialized();
   }
@@ -324,7 +326,7 @@ private:
 
   template <typename... propertyTN, class PropT>
   void ctorHelper(PropT &Prop, propertyTN... props) {
-    std::get<(int)(PropT::getKind())>(m_PropsList).setProp(Prop);
+    std::get<static_cast<int>(PropT::getKind())>(m_PropsList).setProp(Prop);
     ctorHelper(props...);
   }
 
