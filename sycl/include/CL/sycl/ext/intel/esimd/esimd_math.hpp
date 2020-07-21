@@ -10,15 +10,16 @@
 
 #pragma once
 
-#include <CL/sycl/intel/esimd/detail/esimd_math_intrin.hpp>
-#include <CL/sycl/intel/esimd/detail/esimd_types.hpp>
-#include <CL/sycl/intel/esimd/detail/esimd_util.hpp>
-#include <CL/sycl/intel/esimd/esimd.hpp>
-#include <CL/sycl/intel/esimd/esimd_enum.hpp>
+#include <CL/sycl/ext/intel/esimd/detail/esimd_math_intrin.hpp>
+#include <CL/sycl/ext/intel/esimd/detail/esimd_types.hpp>
+#include <CL/sycl/ext/intel/esimd/detail/esimd_util.hpp>
+#include <CL/sycl/ext/intel/esimd/esimd.hpp>
+#include <CL/sycl/ext/intel/esimd/esimd_enum.hpp>
 #include <cstdint>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace intel {
 namespace gpu {
 
@@ -1946,5 +1947,6 @@ simd<T, N> esimd_dp4(simd<T, N> v1, simd<T, N> v2) {
 
 } // namespace gpu
 } // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

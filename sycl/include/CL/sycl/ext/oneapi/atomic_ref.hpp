@@ -128,16 +128,16 @@ class atomic_ref_base {
       detail::IsValidAtomicType<T>::value,
       "Invalid atomic type.  Valid types are arithmetic and pointer types");
   static_assert(!std::is_same<T, bool>::value,
-                "intel::atomic_ref does not support bool type");
+                "ext::oneapi::atomic_ref does not support bool type");
   static_assert(!(std::is_same<T, char>::value ||
                   std::is_same<T, signed char>::value ||
                   std::is_same<T, unsigned char>::value),
-                "intel::atomic_ref does not support char type");
+                "ext::oneapi::atomic_ref does not support char type");
   static_assert(!(std::is_same<T, short>::value ||
                   std::is_same<T, unsigned short>::value),
-                "intel::atomic_ref does not support short type");
+                "ext::oneapi::atomic_ref does not support short type");
   static_assert(!std::is_pointer<T>::value,
-                "intel::atomic_ref does not yet support pointer types");
+                "ext::oneapi::atomic_ref does not yet support pointer types");
   static_assert(detail::IsValidAtomicAddressSpace<AddressSpace>::value,
                 "Invalid atomic address_space.  Valid address spaces are: "
                 "global_space, local_space, global_device_space");

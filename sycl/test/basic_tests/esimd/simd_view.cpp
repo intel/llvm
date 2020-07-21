@@ -1,11 +1,11 @@
 // RUN: %clangxx -fsycl -fsycl-explicit-simd -fsycl-device-only -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
 
-#include <CL/sycl/intel/esimd.hpp>
+#include <CL/sycl/ext/intel/esimd.hpp>
 #include <limits>
 #include <utility>
 
-using namespace sycl::intel::gpu;
+using namespace sycl::ext::intel::gpu;
 
 bool test_simd_view_ctors() __attribute__((sycl_device)) {
   simd<int, 16> v0(0, 1);

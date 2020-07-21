@@ -17,11 +17,13 @@
 
 #include "helper.hpp"
 #include <CL/sycl.hpp>
-template <typename T, int N> class sycl_subgr;
+template <typename T, int N>
+class sycl_subgr;
 
 using namespace cl::sycl;
 
-template <typename T, int N> void check(queue &Queue) {
+template <typename T, int N>
+void check(queue &Queue) {
   const int G = 1024, L = 128;
   try {
     nd_range<1> NdRange(G, L);
@@ -40,7 +42,7 @@ template <typename T, int N> void check(queue &Queue) {
       accessor<T, 1, access::mode::read_write, access::target::local> LocalMem(
           {L}, cgh);
       cgh.parallel_for<sycl_subgr<T, N>>(NdRange, [=](nd_item<1> NdItem) {
-        intel::sub_group SG = NdItem.get_sub_group();
+        ext::oneapi::sub_group SG = NdItem.get_sub_group();
         if (SG.get_group_id().get(0) % N == 0) {
           size_t SGOffset =
               SG.get_group_id().get(0) * SG.get_max_local_range().get(0);
@@ -94,7 +96,8 @@ template <typename T, int N> void check(queue &Queue) {
     exit(1);
   }
 }
-template <typename T> void check(queue &Queue) {
+template <typename T>
+void check(queue &Queue) {
   const int G = 128, L = 64;
   try {
     nd_range<1> NdRange(G, L);
@@ -114,7 +117,7 @@ template <typename T> void check(queue &Queue) {
       accessor<T, 1, access::mode::read_write, access::target::local> LocalMem(
           {L}, cgh);
       cgh.parallel_for<sycl_subgr<T, 0>>(NdRange, [=](nd_item<1> NdItem) {
-        intel::sub_group SG = NdItem.get_sub_group();
+        ext::oneapi::sub_group SG = NdItem.get_sub_group();
         if (NdItem.get_global_id(0) == 0)
           sgsizeacc[0] = SG.get_max_local_range()[0];
         size_t SGOffset =

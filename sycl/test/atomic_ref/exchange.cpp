@@ -9,7 +9,7 @@
 #include <numeric>
 #include <vector>
 using namespace sycl;
-using namespace sycl::intel;
+using namespace sycl::ext::oneapi;
 
 template <typename T>
 class exchange_kernel;
@@ -29,7 +29,7 @@ void exchange_test(queue q, size_t N) {
       auto out = output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for<exchange_kernel<T>>(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = atomic_ref<T, intel::memory_order::relaxed, intel::memory_scope::device, access::address_space::global_space>(exc[0]);
+        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed, ext::oneapi::memory_scope::device, access::address_space::global_space>(exc[0]);
         out[gid] = atm.exchange(gid);
       });
     });

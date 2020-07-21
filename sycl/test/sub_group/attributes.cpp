@@ -18,13 +18,13 @@
 
 #include <CL/sycl.hpp>
 
-#define KERNEL_FUNCTOR_WITH_SIZE(SIZE)                                         \
-  class KernelFunctor##SIZE {                                                  \
-  public:                                                                      \
-    [[cl::intel_reqd_sub_group_size(SIZE)]] void                               \
-    operator()(cl::sycl::nd_item<1> Item) {                                    \
-      const auto GID = Item.get_global_id();                                   \
-    }                                                                          \
+#define KERNEL_FUNCTOR_WITH_SIZE(SIZE)           \
+  class KernelFunctor##SIZE {                    \
+  public:                                        \
+    [[cl::intel_reqd_sub_group_size(SIZE)]] void \
+    operator()(cl::sycl::nd_item<1> Item) {      \
+      const auto GID = Item.get_global_id();     \
+    }                                            \
   };
 
 KERNEL_FUNCTOR_WITH_SIZE(1);
@@ -44,7 +44,8 @@ inline uint32_t flp2(uint32_t X) {
   return X - (X >> 1);
 }
 
-template <typename Fn> inline void submit(cl::sycl::queue &Q) {
+template <typename Fn>
+inline void submit(cl::sycl::queue &Q) {
   Q.submit([](cl::sycl::handler &cgh) {
     Fn F;
     cgh.parallel_for(cl::sycl::nd_range<1>{64, 16}, F);

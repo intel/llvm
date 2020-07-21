@@ -245,7 +245,7 @@ int main() {
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class ctzSI1>([=]() {
-          AccR[0] = s::intel::ctz(s::cl_int{ 0x7FFFFFF0 });
+          AccR[0] = s::ext::oneapi::ctz(s::cl_int{ 0x7FFFFFF0 });
         });
       });
     }

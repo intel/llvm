@@ -12,7 +12,7 @@
 #include <cassert>
 #include <numeric>
 using namespace sycl;
-using namespace sycl::intel;
+using namespace sycl::ext::oneapi;
 
 class broadcast_kernel;
 

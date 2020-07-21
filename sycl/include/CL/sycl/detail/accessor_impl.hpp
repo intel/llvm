@@ -17,12 +17,14 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace intel {
 namespace gpu {
 // Forward declare a "back-door" access class to support ESIMD.
 class AccessorPrivateProxy;
 } // namespace gpu
 } // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
@@ -170,7 +172,7 @@ protected:
   AccessorImplPtr impl;
 
 private:
-  friend class sycl::intel::gpu::AccessorPrivateProxy;
+  friend class sycl::ext::intel::gpu::AccessorPrivateProxy;
 };
 
 class __SYCL_EXPORT LocalAccessorImplHost {

@@ -14,7 +14,7 @@
 #include <numeric>
 #include <vector>
 using namespace sycl;
-using namespace sycl::intel;
+using namespace sycl::ext::oneapi;
 
 template <class BinaryOperation, int TestNumber>
 class inclusive_scan_kernel;

@@ -19,9 +19,11 @@
 #include <CL/sycl.hpp>
 #include <limits>
 #include <numeric>
-template <typename T> class sycl_subgr;
+template <typename T>
+class sycl_subgr;
 using namespace cl::sycl;
-template <typename T> void check(queue &Queue, size_t G = 240, size_t L = 60) {
+template <typename T>
+void check(queue &Queue, size_t G = 240, size_t L = 60) {
   try {
     nd_range<1> NdRange(G, L);
     std::vector<T> data(G);
@@ -33,7 +35,7 @@ template <typename T> void check(queue &Queue, size_t G = 240, size_t L = 60) {
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
 
       cgh.parallel_for<sycl_subgr<T>>(NdRange, [=](nd_item<1> NdItem) {
-        intel::sub_group SG = NdItem.get_sub_group();
+        ext::oneapi::sub_group SG = NdItem.get_sub_group();
         size_t lid = SG.get_local_id().get(0);
         size_t gid = NdItem.get_global_id(0);
         size_t SGoff = gid - lid;

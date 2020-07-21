@@ -172,7 +172,8 @@ checkValueRange(const T &V) {
 
 } // namespace detail
 
-namespace intel {
+namespace ext {
+namespace oneapi {
 namespace detail {
 template <typename T, class BinaryOperation, int Dims, bool IsUSM,
           access::mode AccMode, access::placeholder IsPlaceholder>
@@ -196,7 +197,8 @@ enable_if_t<!Reduction::has_fast_atomics>
 reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
               Reduction &Redu);
 } // namespace detail
-} // namespace intel
+} // namespace oneapi
+} // namespace ext
 
 /// Command group handler class.
 ///
@@ -339,7 +341,7 @@ private:
   // Recursively calls itself until arguments pack is fully processed.
   // The version for regular(standard layout) argument.
   template <typename T, typename... Ts>
-  void setArgsHelper(int ArgIndex, T &&Arg, Ts &&... Args) {
+  void setArgsHelper(int ArgIndex, T &&Arg, Ts &&...Args) {
     set_arg(ArgIndex, std::move(Arg));
     setArgsHelper(++ArgIndex, std::move(Args)...);
   }
@@ -806,7 +808,7 @@ public:
   /// Registers pack of arguments(Args) with indexes starting from 0.
   ///
   /// \param Args are argument values to be set.
-  template <typename... Ts> void set_args(Ts &&... Args) {
+  template <typename... Ts> void set_args(Ts &&...Args) {
     setArgsHelper(0, std::move(Args)...);
   }
 
@@ -968,8 +970,8 @@ public:
   detail::enable_if_t<Reduction::accessor_mode == access::mode::read_write &&
                       Reduction::has_fast_atomics && !Reduction::is_usm>
   parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
-    intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
-                                          Redu.getUserAccessor());
+    ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
+                                                Redu.getUserAccessor());
   }
 
   /// Implements parallel_for() accepting nd_range and 1 reduction variable
@@ -981,8 +983,8 @@ public:
   detail::enable_if_t<Reduction::accessor_mode == access::mode::read_write &&
                       Reduction::has_fast_atomics && Reduction::is_usm>
   parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
-    intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
-                                          Redu.getUSMPointer());
+    ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
+                                                Redu.getUSMPointer());
   }
 
   /// Implements parallel_for() accepting nd_range and 1 reduction variable
@@ -1002,8 +1004,8 @@ public:
   parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
     shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     auto RWAcc = Redu.getReadWriteScalarAcc(*this);
-    intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
-                                          RWAcc);
+    ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
+                                                RWAcc);
     this->finalize();
 
     // Copy from RWAcc to user's reduction accessor.
@@ -1030,7 +1032,7 @@ public:
   /// TODO: Need to handle more than 1 reduction in parallel_for().
   /// TODO: Support HOST. The kernels called by this parallel_for() may use
   /// some functionality that is not yet supported on HOST such as:
-  /// barrier(), and intel::reduce() that also may be used in more
+  /// barrier(), and ext::oneapi::reduce() that also may be used in more
   /// optimized implementations waiting for their turn of code-review.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims, typename Reduction>
@@ -1052,7 +1054,7 @@ public:
     //    necessary to reduce all partial sums into one final sum.
 
     // 1. Call the kernel that includes user's lambda function.
-    intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
+    ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
     shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     this->finalize();
 
@@ -1082,8 +1084,8 @@ public:
       // Associate it with handler manually.
       if (NWorkGroups == 1 && !Reduction::is_usm)
         Redu.associateWithHandler(AuxHandler);
-      intel::detail::reduAuxCGFunc<KernelName, KernelType>(AuxHandler, Range,
-                                                           NWorkItems, Redu);
+      ext::oneapi::detail::reduAuxCGFunc<KernelName, KernelType>(
+          AuxHandler, Range, NWorkItems, Redu);
       MLastEvent = AuxHandler.finalize();
 
       NWorkItems = NWorkGroups;
@@ -1812,7 +1814,7 @@ private:
   // in handler from reduction_impl methods.
   template <typename T, class BinaryOperation, int Dims, bool IsUSM,
             access::mode AccMode, access::placeholder IsPlaceholder>
-  friend class intel::detail::reduction_impl;
+  friend class ext::oneapi::detail::reduction_impl;
 
   friend void detail::associateWithHandler(handler &,
                                            detail::AccessorBaseHost *,

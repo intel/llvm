@@ -46,7 +46,7 @@ void testId(T Identity, size_t WGSize, size_t NWItems) {
     range<1> LocalRange(WGSize);
     nd_range<1> NDRange(GlobalRange, LocalRange);
     CGH.parallel_for<SomeIdClass<T, Dim, BinaryOperation>>(
-        NDRange, intel::reduction(Out, Identity, BOp), [=](nd_item<1> NDIt, auto &Sum) {
+        NDRange, ext::oneapi::reduction(Out, Identity, BOp), [=](nd_item<1> NDIt, auto &Sum) {
           Sum.combine(In[NDIt.get_global_linear_id()]);
         });
   });
@@ -86,7 +86,7 @@ void testNoId(T Identity, size_t WGSize, size_t NWItems) {
     range<1> LocalRange(WGSize);
     nd_range<1> NDRange(GlobalRange, LocalRange);
     CGH.parallel_for<SomeNoIdClass<T, Dim, BinaryOperation>>(
-        NDRange, intel::reduction(Out, BOp), [=](nd_item<1> NDIt, auto &Sum) {
+        NDRange, ext::oneapi::reduction(Out, BOp), [=](nd_item<1> NDIt, auto &Sum) {
           Sum.combine(In[NDIt.get_global_linear_id()]);
         });
   });
@@ -110,8 +110,8 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
 
 int main() {
 #if __cplusplus >= 201402L
-  test<float, 0, intel::maximum<>>(getMinimumFPValue<float>(), 7, 7 * 5);
-  test<signed char, 0, intel::plus<>>(0, 7, 49);
+  test<float, 0, ext::oneapi::maximum<>>(getMinimumFPValue<float>(), 7, 7 * 5);
+  test<signed char, 0, ext::oneapi::plus<>>(0, 7, 49);
   test<unsigned char, 1, std::multiplies<>>(1, 4, 16);
 #endif // __cplusplus >= 201402L
 

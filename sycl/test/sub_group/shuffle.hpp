@@ -43,7 +43,7 @@ void check(queue &Queue, size_t G = 240, size_t L = 60) {
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
 
       cgh.parallel_for<sycl_subgr<T, N>>(NdRange, [=](nd_item<1> NdItem) {
-        intel::sub_group SG = NdItem.get_sub_group();
+        ext::oneapi::sub_group SG = NdItem.get_sub_group();
         uint32_t wggid = NdItem.get_global_id(0);
         uint32_t sgid = SG.get_group_id().get(0);
         vec<T, N> vwggid(wggid), vsgid(sgid);
@@ -150,7 +150,7 @@ void check(queue &Queue, size_t G = 240, size_t L = 60) {
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
 
       cgh.parallel_for<sycl_subgr<T, 0>>(NdRange, [=](nd_item<1> NdItem) {
-        intel::sub_group SG = NdItem.get_sub_group();
+        ext::oneapi::sub_group SG = NdItem.get_sub_group();
         uint32_t wggid = NdItem.get_global_id(0);
         uint32_t sgid = SG.get_group_id().get(0);
         if (wggid == 0)

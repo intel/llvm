@@ -12,9 +12,9 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/helpers.hpp>
+#include <CL/sycl/ext/oneapi/sub_group.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/id.hpp>
-#include <CL/sycl/intel/sub_group.hpp>
 #include <CL/sycl/item.hpp>
 #include <CL/sycl/nd_range.hpp>
 #include <CL/sycl/range.hpp>
@@ -67,7 +67,9 @@ public:
 
   group<dimensions> get_group() const { return Group; }
 
-  intel::sub_group get_sub_group() const { return intel::sub_group(); }
+  ext::oneapi::sub_group get_sub_group() const {
+    return ext::oneapi::sub_group();
+  }
 
   size_t ALWAYS_INLINE get_group(int dimension) const {
     size_t Size = Group[dimension];

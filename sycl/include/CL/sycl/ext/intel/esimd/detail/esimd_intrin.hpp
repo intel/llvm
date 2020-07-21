@@ -121,6 +121,7 @@ __esimd_wrregion(sycl::ext::intel::gpu::vector_type_t<T, N> OldVal,
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace intel {
 namespace gpu {
 // TODO dependencies on the std SYCL concepts like images
@@ -211,6 +212,7 @@ readRegion(const vector_type_t<BT, BN> &Base, std::pair<T, U> Region) {
 
 } // namespace gpu
 } // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 

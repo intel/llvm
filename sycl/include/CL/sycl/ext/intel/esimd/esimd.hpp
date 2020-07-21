@@ -453,7 +453,7 @@ ESIMD_INLINE simd<U, n> convert(simd<T, n> val) {
 #ifndef __SYCL_DEVICE_ONLY__
 template <typename Ty, int N>
 std::ostream &operator<<(std::ostream &OS,
-                         const sycl::intel::gpu::simd<Ty, N> &V) {
+                         const sycl::ext::intel::gpu::simd<Ty, N> &V) {
   OS << "{";
   for (int I = 0; I < N; I++) {
     OS << V[I];
