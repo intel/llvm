@@ -53,7 +53,7 @@ void bar() {
   });
 #endif
 
-  kernel<class kernel_name5>([]() [[intel::reqd_sub_group_size(2)]] { });
+  kernel<class kernel_name5>([]() [[intel::reqd_sub_group_size(2)]]{});
   kernel<class kernel_name6>([]() [[intel::reqd_sub_group_size(4)]] { foo(); });
   // expected-warning@+2 {{attribute 'intel_reqd_sub_group_size' is deprecated}}
   // expected-note@+1 {{did you mean to use 'intel::reqd_sub_group_size' instead?}}
