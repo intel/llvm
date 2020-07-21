@@ -59,7 +59,7 @@ public:
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
     if (Props.has_property<
-            sycl::oneapi::property::buffer::use_pinned_host_memory>())
+            sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
       throw sycl::invalid_object_error(
           "The use_pinned_host_memory cannot be used with host pointer",
           PI_INVALID_OPERATION);
@@ -73,7 +73,7 @@ public:
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
     if (Props.has_property<
-            sycl::oneapi::property::buffer::use_pinned_host_memory>())
+            sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
       throw sycl::invalid_object_error(
           "The use_pinned_host_memory cannot be used with host pointer",
           PI_INVALID_OPERATION);
@@ -88,7 +88,7 @@ public:
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
     if (Props.has_property<
-            sycl::oneapi::property::buffer::use_pinned_host_memory>())
+            sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
       throw sycl::invalid_object_error(
           "The use_pinned_host_memory cannot be used with host pointer",
           PI_INVALID_OPERATION);

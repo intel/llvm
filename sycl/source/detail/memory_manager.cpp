@@ -171,7 +171,7 @@ MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
     CreationFlags |= HostPtrReadOnly ? PI_MEM_FLAGS_HOST_PTR_COPY
                                      : PI_MEM_FLAGS_HOST_PTR_USE;
   else if (PropsList.has_property<
-               sycl::oneapi::property::buffer::use_pinned_host_memory>())
+               sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
     CreationFlags |= PI_MEM_FLAGS_HOST_PTR_ALLOC;
 
   RT::PiMem NewMem = nullptr;

@@ -8,9 +8,9 @@
 int main() {
   const sycl::range<1> N{1};
   sycl::buffer<int, 1> Buf(
-      N, {sycl::oneapi::property::buffer::use_pinned_host_memory()});
+      N, {sycl::ext::oneapi::property::buffer::use_pinned_host_memory()});
   if (!Buf.has_property<
-          sycl::oneapi::property::buffer::use_pinned_host_memory>()) {
+          sycl::ext::oneapi::property::buffer::use_pinned_host_memory>()) {
     std::cerr << "Buffer should have the use_pinned_host_memory property"
               << std::endl;
     return 1;
@@ -25,7 +25,7 @@ int main() {
   try {
     int Data = 0;
     sycl::buffer<int, 1> Buf(
-        &Data, N, {sycl::oneapi::property::buffer::use_pinned_host_memory()});
+        &Data, N, {sycl::ext::oneapi::property::buffer::use_pinned_host_memory()});
     // Expected that exception is thrown
     return 1;
   } catch (sycl::invalid_object_error &E) {

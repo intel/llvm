@@ -47,7 +47,7 @@ class noinit;
 
 namespace detail {
 
-// Will be aliased in the sycl::oneapi::property namespace
+// Will be aliased in the sycl::ext::oneapi::property namespace
 namespace buffer_ {
 class use_pinned_host_memory;
 }
@@ -242,6 +242,7 @@ class noinit : public detail::Prop<detail::PropKind::NoInit> {};
 
 } // namespace property
 
+namespace ext {
 namespace oneapi {
 namespace property {
 namespace buffer {
@@ -250,6 +251,7 @@ using use_pinned_host_memory =
 } // namespace buffer
 } // namespace property
 } // namespace oneapi
+} // namespace ext
 
 #if __cplusplus > 201402L
 
