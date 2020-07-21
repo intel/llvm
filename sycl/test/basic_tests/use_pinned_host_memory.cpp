@@ -25,7 +25,8 @@ int main() {
   try {
     int Data = 0;
     sycl::buffer<int, 1> Buf(
-        &Data, N, {sycl::ext::oneapi::property::buffer::use_pinned_host_memory()});
+        &Data, N,
+        {sycl::ext::oneapi::property::buffer::use_pinned_host_memory()});
     // Expected that exception is thrown
     return 1;
   } catch (sycl::invalid_object_error &E) {
