@@ -933,7 +933,8 @@ public:
   }
 
   template <typename... Handlers>
-  void VisitRecordBases(const CXXRecordDecl *KernelFunctor, Handlers &... handlers) {
+  void VisitRecordBases(const CXXRecordDecl *KernelFunctor,
+                        Handlers &... handlers) {
     VisitRecordHelper(KernelFunctor, KernelFunctor->bases(), handlers...);
   }
 
