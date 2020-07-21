@@ -33,7 +33,7 @@ int main() {
   auto dev = q.get_device();
 
   bool result = true;
-  cl_command_queue cq = q.get(); 
+  cl_command_queue cq = q.get();
   bool expected_result = dev.is_host() ? true : getQueueOrder(cq);
   if (expected_result != result) {
     std::cout << "Resulting queue order is OOO but expected order is inorder"
