@@ -50,9 +50,36 @@ void accessor_test(queue q, size_t N) {
   assert(min_e == 0 && max_e == N - 1);
 }
 
+// Simplified form of accessor_test for local memory
+template <typename T>
+void local_accessor_test(queue q, size_t N, size_t L = 8) {
+  assert(N % L == 0);
+  std::vector<T> output(N / L, 0);
+  {
+    buffer<T> output_buf(output.data(), output.size());
+    q.submit([&](handler &cgh) {
+      auto sum = atomic_accessor<T, 1, intel::memory_order::relaxed, intel::memory_scope::device, access::target::local>(1, cgh);
+      auto out = output_buf.template get_access<access::mode::read_write>(cgh);
+      cgh.parallel_for(nd_range<1>(N, L), [=](nd_item<1> it) {
+        int grp = it.get_group(0);
+        static_assert(std::is_same<decltype(sum[0]), atomic_ref<T, intel::memory_order::relaxed, intel::memory_scope::device, access::address_space::local_space>>::value, "local atomic_accessor returns incorrect atomic_ref");
+        T result = sum[0].fetch_add(T(1));
+        if (result == it.get_local_range(0) - 1) {
+          out[grp] = result;
+        }
+      });
+    });
+  }
+
+  // All work-items increment by 1, and last in the group writes out old value
+  // All values should be L-1
+  assert(std::all_of(output.begin(), output.end(), [=](T x) { return x == L - 1; }));
+}
+
 int main() {
   queue q;
   constexpr int N = 32;
   accessor_test<int>(q, N);
+  local_accessor_test<int>(q, N);
   std::cout << "Test passed." << std::endl;
 }
