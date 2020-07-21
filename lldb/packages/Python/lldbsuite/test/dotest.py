@@ -272,12 +272,16 @@ def parseOptionsAndInitTestdirs():
         configuration.dsymutil = seven.get_command_output(
             'xcrun -find -toolchain default dsymutil')
 
+
+    # The lldb-dotest script produced by the CMake build passes in a path to a
+    # working FileCheck and yaml2obj binary. So does one specific Xcode
+    # project target. However, when invoking dotest.py directly, a valid
+    # --filecheck and --yaml2obj option needs to be given.
     if args.filecheck:
-        # The lldb-dotest script produced by the CMake build passes in a path
-        # to a working FileCheck binary. So does one specific Xcode project
-        # target. However, when invoking dotest.py directly, a valid --filecheck
-        # option needs to be given.
         configuration.filecheck = os.path.abspath(args.filecheck)
+
+    if args.yaml2obj:
+        configuration.yaml2obj = os.path.abspath(args.yaml2obj)
 
     if not configuration.get_filecheck_path():
         logging.warning('No valid FileCheck executable; some tests may fail...')
@@ -363,7 +367,10 @@ def parseOptionsAndInitTestdirs():
                     args.executable)
             sys.exit(-1)
 
-    if args.server:
+    if args.server and args.out_of_tree_debugserver:
+        logging.warning('Both --server and --out-of-tree-debugserver are set')
+
+    if args.server and not args.out_of_tree_debugserver:
         os.environ['LLDB_DEBUGSERVER_PATH'] = args.server
 
     if args.excluded:
@@ -400,19 +407,6 @@ def parseOptionsAndInitTestdirs():
 
     if do_help:
         usage(parser)
-
-    if args.results_file:
-        configuration.results_filename = args.results_file
-
-    if args.results_formatter:
-        configuration.results_formatter_name = args.results_formatter
-    if args.results_formatter_options:
-        configuration.results_formatter_options = args.results_formatter_options
-
-    # Default to using the BasicResultsFormatter if no formatter is specified.
-    if configuration.results_formatter_name is None:
-        configuration.results_formatter_name = (
-            "lldbsuite.test_event.formatter.results_formatter.ResultsFormatter")
 
     # Reproducer arguments
     if args.capture_path and args.replay_path:
@@ -462,16 +456,10 @@ def parseOptionsAndInitTestdirs():
 
 def setupTestResults():
     """Sets up test results-related objects based on arg settings."""
-    # Setup the results formatter configuration.
-    formatter_config = formatter.FormatterConfig()
-    formatter_config.filename = configuration.results_filename
-    formatter_config.formatter_name = configuration.results_formatter_name
-    formatter_config.formatter_options = (
-        configuration.results_formatter_options)
 
     # Create the results formatter.
     formatter_spec = formatter.create_results_formatter(
-        formatter_config)
+            "lldbsuite.test_event.formatter.results_formatter.ResultsFormatter")
     if formatter_spec is not None and formatter_spec.formatter is not None:
         configuration.results_formatter_object = formatter_spec.formatter
 

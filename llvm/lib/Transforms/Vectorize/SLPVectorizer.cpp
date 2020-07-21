@@ -3022,19 +3022,24 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
       return;
     }
     case Instruction::Call: {
-      // Check if the calls are all to the same vectorizable intrinsic.
+      // Check if the calls are all to the same vectorizable intrinsic or
+      // library function.
       CallInst *CI = cast<CallInst>(VL0);
-      // Check if this is an Intrinsic call or something that can be
-      // represented by an intrinsic call
       Intrinsic::ID ID = getVectorIntrinsicIDForCall(CI, TLI);
-      if (!isTriviallyVectorizable(ID)) {
+
+      VFShape Shape = VFShape::get(
+          *CI, {static_cast<unsigned int>(VL.size()), false /*Scalable*/},
+          false /*HasGlobalPred*/);
+      Function *VecFunc = VFDatabase(*CI).getVectorizedFunction(Shape);
+
+      if (!VecFunc && !isTriviallyVectorizable(ID)) {
         BS.cancelScheduling(VL, VL0);
         newTreeEntry(VL, None /*not vectorized*/, S, UserTreeIdx,
                      ReuseShuffleIndicies);
         LLVM_DEBUG(dbgs() << "SLP: Non-vectorizable call.\n");
         return;
       }
-      Function *Int = CI->getCalledFunction();
+      Function *F = CI->getCalledFunction();
       unsigned NumArgs = CI->getNumArgOperands();
       SmallVector<Value*, 4> ScalarArgs(NumArgs, nullptr);
       for (unsigned j = 0; j != NumArgs; ++j)
@@ -3042,8 +3047,10 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
           ScalarArgs[j] = CI->getArgOperand(j);
       for (Value *V : VL) {
         CallInst *CI2 = dyn_cast<CallInst>(V);
-        if (!CI2 || CI2->getCalledFunction() != Int ||
+        if (!CI2 || CI2->getCalledFunction() != F ||
             getVectorIntrinsicIDForCall(CI2, TLI) != ID ||
+            (VecFunc &&
+             VecFunc != VFDatabase(*CI2).getVectorizedFunction(Shape)) ||
             !CI->hasIdenticalOperandBundleSchema(*CI2)) {
           BS.cancelScheduling(VL, VL0);
           newTreeEntry(VL, None /*not vectorized*/, S, UserTreeIdx,
@@ -4507,7 +4514,8 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
       Intrinsic::ID ID = getVectorIntrinsicIDForCall(CI, TLI);
 
       auto VecCallCosts = getVectorCallCosts(CI, VecTy, TTI, TLI);
-      bool UseIntrinsic = VecCallCosts.first <= VecCallCosts.second;
+      bool UseIntrinsic = ID != Intrinsic::not_intrinsic &&
+                          VecCallCosts.first <= VecCallCosts.second;
 
       Value *ScalarArg = nullptr;
       std::vector<Value *> OpVecs;
@@ -4527,15 +4535,15 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
         OpVecs.push_back(OpVec);
       }
 
-      Module *M = F->getParent();
-      Type *Tys[] = {FixedVectorType::get(CI->getType(), E->Scalars.size())};
-      Function *CF = Intrinsic::getDeclaration(M, ID, Tys);
-
+      Function *CF;
       if (!UseIntrinsic) {
         VFShape Shape = VFShape::get(
             *CI, {static_cast<unsigned>(VecTy->getNumElements()), false},
             false /*HasGlobalPred*/);
         CF = VFDatabase(*CI).getVectorizedFunction(Shape);
+      } else {
+        Type *Tys[] = {FixedVectorType::get(CI->getType(), E->Scalars.size())};
+        CF = Intrinsic::getDeclaration(F->getParent(), ID, Tys);
       }
 
       SmallVector<OperandBundleDef, 1> OpBundles;
@@ -7361,6 +7369,7 @@ bool SLPVectorizerPass::vectorizeChainsInBlock(BasicBlock *BB, BoUpSLP &R) {
   bool Changed = false;
   SmallVector<Value *, 4> Incoming;
   SmallPtrSet<Value *, 16> VisitedInstrs;
+  unsigned MaxVecRegSize = R.getMaxVecRegSize();
 
   bool HaveVectorizedPhiNodes = true;
   while (HaveVectorizedPhiNodes) {
@@ -7387,8 +7396,18 @@ bool SLPVectorizerPass::vectorizeChainsInBlock(BasicBlock *BB, BoUpSLP &R) {
 
       // Look for the next elements with the same type.
       SmallVector<Value *, 4>::iterator SameTypeIt = IncIt;
+      Type *EltTy = (*IncIt)->getType();
+      unsigned EltSize = EltTy->isSized() ? DL->getTypeSizeInBits(EltTy)
+                                          : MaxVecRegSize;
+      unsigned MaxNumElts = MaxVecRegSize / EltSize;
+      if (MaxNumElts < 2) {
+        ++IncIt;
+        continue;
+      }
+
       while (SameTypeIt != E &&
-             (*SameTypeIt)->getType() == (*IncIt)->getType()) {
+             (*SameTypeIt)->getType() == EltTy &&
+             static_cast<unsigned>(SameTypeIt - IncIt) < MaxNumElts) {
         VisitedInstrs.insert(*SameTypeIt);
         ++SameTypeIt;
       }

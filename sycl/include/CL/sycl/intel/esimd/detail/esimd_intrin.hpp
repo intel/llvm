@@ -12,6 +12,7 @@
 #pragma once
 
 #include <CL/sycl/intel/esimd/detail/esimd_types.hpp>
+#include <CL/sycl/intel/esimd/detail/esimd_util.hpp>
 #include <CL/sycl/intel/esimd/esimd_enum.hpp>
 #include <cstdint>
 
@@ -139,11 +140,6 @@ public:
   }
 #endif
 };
-
-constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
-  // encoding requires 2^ElemsPerAddrEncoded
-  return (1 << ElemsPerAddrEncoded);
-}
 
 /// read from a basic region of a vector, return a vector
 template <typename BT, int BN, typename RTy>

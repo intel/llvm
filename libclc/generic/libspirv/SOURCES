@@ -1,3 +1,4 @@
+float16.cl
 subnormal_config.cl
 subnormal_helper_func.ll
 async/async_work_group_strided_copy.cl

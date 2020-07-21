@@ -554,7 +554,7 @@ public:
 
 /// Represents a call to a block.
 ///
-/// Example: <tt>^{ /* ... */ }()</tt>
+/// Example: <tt>^{ statement-body }()</tt>
 class BlockCall : public CallEvent {
   friend class CallEventManager;
 
@@ -787,6 +787,10 @@ public:
     // For member operator calls argument 0 on the expression corresponds
     // to implicit this-parameter on the declaration.
     return CallArgumentIndex + 1;
+  }
+
+  OverloadedOperatorKind getOverloadedOperator() const {
+    return getOriginExpr()->getOperator();
   }
 };
 

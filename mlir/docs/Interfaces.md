@@ -21,16 +21,16 @@ transformations/analyses.
 
 ### Dialect Interfaces
 
-Dialect interfaces are generally useful for transformation passes or
-analyses that want to operate generically on a set of operations,
-which might even be defined in different dialects. These
-interfaces generally involve wide coverage over the entire dialect and are only
-used for a handful of transformations/analyses. In these cases, registering the
-interface directly on each operation is overly complex and cumbersome. The
-interface is not core to the operation, just to the specific transformation. An
-example of where this type of interface would be used is inlining. Inlining
-generally queries high-level information about the operations within a dialect,
-like legality and cost modeling, that often is not specific to one operation.
+Dialect interfaces are generally useful for transformation passes or analyses
+that want to operate generically on a set of attributes/operations/types, which
+might even be defined in different dialects. These interfaces generally involve
+wide coverage over the entire dialect and are only used for a handful of
+transformations/analyses. In these cases, registering the interface directly on
+each operation is overly complex and cumbersome. The interface is not core to
+the operation, just to the specific transformation. An example of where this
+type of interface would be used is inlining. Inlining generally queries
+high-level information about the operations within a dialect, like legality and
+cost modeling, that often is not specific to one operation.
 
 A dialect interface can be defined by inheriting from the CRTP base class
 `DialectInterfaceBase::Base`. This class provides the necessary utilities for
@@ -106,24 +106,25 @@ if(!interface.isLegalToInline(...))
    ...
 ```
 
-### Operation Interfaces
+### Attribute/Operation/Type Interfaces
 
-Operation interfaces, as the name suggests, are those registered at the
-Operation level. These interfaces provide access to derived operations
-by providing a virtual interface that must be implemented. As an example, the
-`Linalg` dialect may implement an interface that provides general queries about
-some of the dialects library operations. These queries may provide things like:
-the number of parallel loops; the number of inputs and outputs; etc.
+Attribute/Operation/Type interfaces, as the names suggest, are those registered
+at the level of a specific attribute/operation/type. These interfaces provide
+access to derived objects by providing a virtual interface that must be
+implemented. As an example, the `Linalg` dialect may implement an interface that
+provides general queries about some of the dialects library operations. These
+queries may provide things like: the number of parallel loops; the number of
+inputs and outputs; etc.
 
-Operation interfaces are defined by overriding the CRTP base class
-`OpInterface`. This class takes, as a template parameter, a `Traits` class that
-defines a `Concept` and a `Model` class. These classes provide an implementation
-of concept-based polymorphism, where the Concept defines a set of virtual
-methods that are overridden by the Model that is templated on the concrete
-operation type. It is important to note that these classes should be pure in
-that they contain no non-static data members. Operations that wish to override
-this interface should add the provided trait `OpInterface<..>::Trait` upon
-registration.
+These interfaces are defined by overriding the CRTP base class `AttrInterface`,
+`OpInterface`, or `TypeInterface` respectively. These classes take, as a
+template parameter, a `Traits` class that defines a `Concept` and a `Model`
+class. These classes provide an implementation of concept-based polymorphism,
+where the Concept defines a set of virtual methods that are overridden by the
+Model that is templated on the concrete object type. It is important to note
+that these classes should be pure in that they contain no non-static data
+members. Objects that wish to override this interface should add the provided
+trait `*Interface<..>::Trait` to the trait list upon registration.
 
 ```c++
 struct ExampleOpInterfaceTraits {
@@ -182,8 +183,7 @@ if (ExampleOpInterface example = dyn_cast<ExampleOpInterface>(op))
 
 Operation interfaces require a bit of boiler plate to connect all of the pieces
 together. The ODS(Operation Definition Specification) framework provides
-simplified mechanisms for
-[defining interfaces](OpDefinitions.md#operation-interfaces).
+simplified mechanisms for [defining interfaces](OpDefinitions.md#interfaces).
 
 As an example, using the ODS framework would allow for defining the example
 interface above as:
@@ -202,3 +202,29 @@ def ExampleOpInterface : OpInterface<"ExampleOpInterface"> {
   ];
 }
 ```
+
+#### Operation Interface List
+
+MLIR includes standard interfaces providing functionality that is
+likely to be common across many different operations. Below is a list
+of some key interfaces that may be used directly by any dialect. The
+format of the header for each interface section goes as follows:
+
+*   `Interface class name`
+    -   (`C++ class` -- `ODS class`(if applicable))
+
+##### CallInterfaces
+
+*   `CallOpInterface` - Used to represent operations like 'call'
+    -   `CallInterfaceCallable getCallableForCallee()`
+*   `CallableOpInterface` - Used to represent the target callee of call.
+    -   `Region * getCallableRegion()`
+    -   `ArrayRef<Type> getCallableResults()`
+
+##### RegionKindInterfaces
+
+*   `RegionKindInterface` - Used to describe the abstract semantics of regions.
+     - `RegionKind getRegionKind(unsigned index)` - Return the kind of the region with the given index inside this operation.
+         - RegionKind::Graph - represents a graph region without control flow semantics
+         - RegionKind::SSACFG - represents an [SSA-style control flow](LangRef.md#modeling-control-flow) region with basic blocks and reachability
+     - `hasSSADominance(unsigned index)` - Return true if the region with the given index inside this operation requires dominance.

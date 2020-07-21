@@ -1,8 +1,5 @@
 // REQUIRES: gpu, opencl
 
-// RUN: sycl-ls --verbose >%t.default.out
-// RUN: FileCheck %s --check-prefixes=CHECK-GPU-BUILTIN,CHECK-GPU-CUSTOM --input-file %t.default.out
-
 // RUN: env SYCL_BE=PI_OPENCL sycl-ls --verbose >%t.opencl.out
 // RUN: FileCheck %s --check-prefixes=CHECK-GPU-BUILTIN,CHECK-GPU-CUSTOM --input-file %t.opencl.out
 

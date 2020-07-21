@@ -330,11 +330,11 @@ public:
   LazyValueInfoAnnotatedWriter(LazyValueInfoImpl *L, DominatorTree &DTree)
       : LVIImpl(L), DT(DTree) {}
 
-  virtual void emitBasicBlockStartAnnot(const BasicBlock *BB,
-                                        formatted_raw_ostream &OS);
+  void emitBasicBlockStartAnnot(const BasicBlock *BB,
+                                formatted_raw_ostream &OS) override;
 
-  virtual void emitInstructionAnnot(const Instruction *I,
-                                    formatted_raw_ostream &OS);
+  void emitInstructionAnnot(const Instruction *I,
+                            formatted_raw_ostream &OS) override;
 };
 }
 namespace {
@@ -1093,13 +1093,24 @@ Optional<ValueLatticeElement> LazyValueInfoImpl::solveBlockValueExtractValue(
   return ValueLatticeElement::getOverdefined();
 }
 
-static bool matchICmpOperand(const APInt *&Offset, Value *LHS, Value *Val) {
+static bool matchICmpOperand(const APInt *&Offset, Value *LHS, Value *Val,
+                             ICmpInst::Predicate Pred) {
   if (LHS == Val)
     return true;
 
   // Handle range checking idiom produced by InstCombine. We will subtract the
   // offset from the allowed range for RHS in this case.
   if (match(LHS, m_Add(m_Specific(Val), m_APInt(Offset))))
+    return true;
+
+  // If (x | y) < C, then (x < C) && (y < C).
+  if (match(LHS, m_c_Or(m_Specific(Val), m_Value())) &&
+      (Pred == ICmpInst::ICMP_ULT || Pred == ICmpInst::ICMP_ULE))
+    return true;
+
+  // If (x & y) > C, then (x > C) && (y > C).
+  if (match(LHS, m_c_And(m_Specific(Val), m_Value())) &&
+      (Pred == ICmpInst::ICMP_UGT || Pred == ICmpInst::ICMP_UGE))
     return true;
 
   return false;
@@ -1127,10 +1138,10 @@ static ValueLatticeElement getValueFromICmpCondition(Value *Val, ICmpInst *ICI,
     return ValueLatticeElement::getOverdefined();
 
   const APInt *Offset = nullptr;
-  if (!matchICmpOperand(Offset, LHS, Val)) {
+  if (!matchICmpOperand(Offset, LHS, Val, EdgePred)) {
     std::swap(LHS, RHS);
     EdgePred = CmpInst::getSwappedPredicate(EdgePred);
-    if (!matchICmpOperand(Offset, LHS, Val))
+    if (!matchICmpOperand(Offset, LHS, Val, EdgePred))
       return ValueLatticeElement::getOverdefined();
   }
 

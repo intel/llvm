@@ -472,7 +472,7 @@ bool TargetPassConfig::hasLimitedCodeGenPipeline() {
 }
 
 std::string
-TargetPassConfig::getLimitedCodeGenPipelineReason(const char *Separator) const {
+TargetPassConfig::getLimitedCodeGenPipelineReason(const char *Separator) {
   if (!hasLimitedCodeGenPipeline())
     return std::string();
   std::string Res;
@@ -879,7 +879,7 @@ bool TargetPassConfig::addISelPasses() {
     addPass(createLowerEmuTLSPass());
 
   addPass(createPreISelIntrinsicLoweringPass());
-  addPass(createTargetTransformInfoWrapperPass(TM->getTargetIRAnalysis()));
+  PM->add(createTargetTransformInfoWrapperPass(TM->getTargetIRAnalysis()));
   addIRPasses();
   addCodeGenPrepare();
   addPassesToHandleExceptions();

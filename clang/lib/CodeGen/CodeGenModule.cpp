@@ -225,14 +225,6 @@ void CodeGenModule::createOpenMPRuntime() {
       OpenMPRuntime.reset(new CGOpenMPRuntime(*this));
     break;
   }
-
-  // The OpenMP-IR-Builder should eventually replace the above runtime codegens
-  // but we are not there yet so they both reside in CGModule for now and the
-  // OpenMP-IR-Builder is opt-in only.
-  if (LangOpts.OpenMPIRBuilder) {
-    OMPBuilder.reset(new llvm::OpenMPIRBuilder(TheModule));
-    OMPBuilder->initialize();
-  }
 }
 
 void CodeGenModule::createCUDARuntime() {
@@ -1260,6 +1252,9 @@ void CodeGenModule::AddGlobalCtor(llvm::Function *Ctor, int Priority,
 /// when the module is unloaded.
 void CodeGenModule::AddGlobalDtor(llvm::Function *Dtor, int Priority) {
   if (CodeGenOpts.RegisterGlobalDtorsWithAtExit) {
+    if (getCXXABI().useSinitAndSterm())
+      llvm::report_fatal_error(
+          "register global dtors with atexit() is not supported yet");
     DtorsUsingAtExit[Priority].push_back(Dtor);
     return;
   }
@@ -2642,11 +2637,6 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
     }
   }
 
-  if (LangOpts.SYCLIsDevice && MustBeEmitted(Global)) {
-    addDeferredDeclToEmit(GD);
-    return;
-  }
-
   // Ignore declarations, they will be emitted on their first use.
   if (const auto *FD = dyn_cast<FunctionDecl>(Global)) {
     // Forward declarations are emitted lazily on first use.
@@ -2696,6 +2686,13 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
         GetAddrOfGlobalVar(VD);
       return;
     }
+  }
+
+  // clang::ParseAST ensures that we emit the SYCL devices at the end, so
+  // anything that is a device (or indirectly called) will be handled later.
+  if (LangOpts.SYCLIsDevice && MustBeEmitted(Global)) {
+    addDeferredDeclToEmit(GD);
+    return;
   }
 
   // Defer code generation to first use when possible, e.g. if this is an inline

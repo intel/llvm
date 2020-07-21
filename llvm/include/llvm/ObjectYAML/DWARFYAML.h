@@ -98,11 +98,7 @@ struct PubSection {
   uint16_t Version;
   uint32_t UnitOffset;
   uint32_t UnitSize;
-  bool IsGNUStyle = false;
   std::vector<PubEntry> Entries;
-
-  PubSection() = default;
-  PubSection(bool IsGNUStyle) : IsGNUStyle(IsGNUStyle) {}
 };
 
 struct FormValue {
@@ -116,8 +112,15 @@ struct Entry {
   std::vector<FormValue> Values;
 };
 
+/// Class that contains helpful context information when mapping YAML into DWARF
+/// data structures.
+struct DWARFContext {
+  bool IsGNUPubSec = false;
+};
+
 struct Unit {
-  InitialLength Length;
+  dwarf::DwarfFormat Format;
+  uint64_t Length;
   uint16_t Version;
   llvm::dwarf::UnitType Type; // Added in DWARF 5
   yaml::Hex64 AbbrOffset;
@@ -174,11 +177,20 @@ struct AddrTableEntry {
   std::vector<SegAddrPair> SegAddrPairs;
 };
 
+struct StringOffsetsTable {
+  dwarf::DwarfFormat Format;
+  Optional<yaml::Hex64> Length;
+  yaml::Hex16 Version;
+  yaml::Hex16 Padding;
+  std::vector<yaml::Hex64> Offsets;
+};
+
 struct Data {
   bool IsLittleEndian;
-  bool Is64bit;
+  bool Is64BitAddrSize;
   std::vector<Abbrev> AbbrevDecls;
   std::vector<StringRef> DebugStrings;
+  Optional<std::vector<StringOffsetsTable>> DebugStrOffsets;
   std::vector<ARange> ARanges;
   std::vector<Ranges> DebugRanges;
   std::vector<AddrTableEntry> DebugAddr;
@@ -215,6 +227,7 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::LineTable)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::LineTableOpcode)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::SegAddrPair)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::AddrTableEntry)
+LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::StringOffsetsTable)
 
 namespace llvm {
 namespace yaml {
@@ -285,6 +298,10 @@ template <> struct MappingTraits<DWARFYAML::SegAddrPair> {
 
 template <> struct MappingTraits<DWARFYAML::AddrTableEntry> {
   static void mapping(IO &IO, DWARFYAML::AddrTableEntry &AddrTable);
+};
+
+template <> struct MappingTraits<DWARFYAML::StringOffsetsTable> {
+  static void mapping(IO &IO, DWARFYAML::StringOffsetsTable &StrOffsetsTable);
 };
 
 template <> struct MappingTraits<DWARFYAML::InitialLength> {

@@ -2989,6 +2989,7 @@ void AMDGPURegisterBankInfo::applyMappingImpl(
       constrainOpWithReadfirstlane(MI, MRI, 3); // Index
       return;
     }
+    case Intrinsic::amdgcn_ballot:
     case Intrinsic::amdgcn_interp_p1:
     case Intrinsic::amdgcn_interp_p2:
     case Intrinsic::amdgcn_interp_mov:
@@ -3360,7 +3361,7 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   const MachineFunction &MF = *MI.getParent()->getParent();
   const MachineRegisterInfo &MRI = MF.getRegInfo();
 
-  if (MI.isCopy()) {
+  if (MI.isCopy() || MI.getOpcode() == AMDGPU::G_FREEZE) {
     // The default logic bothers to analyze impossible alternative mappings. We
     // want the most straightforward mapping, so just directly handle this.
     const RegisterBank *DstBank = getRegBank(MI.getOperand(0).getReg(), MRI,
@@ -3376,9 +3377,15 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       return getInvalidInstructionMapping();
 
     const ValueMapping &ValMap = getValueMapping(0, Size, *DstBank);
+    unsigned OpdsMappingSize = MI.isCopy() ? 1 : 2;
+    SmallVector<const ValueMapping *, 1> OpdsMapping(OpdsMappingSize);
+    OpdsMapping[0] = &ValMap;
+    if (MI.getOpcode() == AMDGPU::G_FREEZE)
+      OpdsMapping[1] = &ValMap;
+
     return getInstructionMapping(
         1, /*Cost*/ 1,
-        /*OperandsMapping*/ getOperandsMapping({&ValMap}), 1);
+        /*OperandsMapping*/ getOperandsMapping(OpdsMapping), OpdsMappingSize);
   }
 
   if (MI.isRegSequence()) {
@@ -3839,6 +3846,8 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   case AMDGPU::G_AMDGPU_BUFFER_LOAD_FORMAT_D16:
   case AMDGPU::G_AMDGPU_TBUFFER_LOAD_FORMAT:
   case AMDGPU::G_AMDGPU_TBUFFER_LOAD_FORMAT_D16:
+  case AMDGPU::G_AMDGPU_TBUFFER_STORE_FORMAT:
+  case AMDGPU::G_AMDGPU_TBUFFER_STORE_FORMAT_D16:
   case AMDGPU::G_AMDGPU_BUFFER_STORE:
   case AMDGPU::G_AMDGPU_BUFFER_STORE_BYTE:
   case AMDGPU::G_AMDGPU_BUFFER_STORE_SHORT:
@@ -4158,6 +4167,13 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       OpdsMapping[M0Idx] = AMDGPU::getValueMapping(M0Bank, 32);
       break;
     }
+    case Intrinsic::amdgcn_ballot: {
+      unsigned DstSize = MRI.getType(MI.getOperand(0).getReg()).getSizeInBits();
+      unsigned SrcSize = MRI.getType(MI.getOperand(2).getReg()).getSizeInBits();
+      OpdsMapping[0] = AMDGPU::getValueMapping(AMDGPU::SGPRRegBankID, DstSize);
+      OpdsMapping[2] = AMDGPU::getValueMapping(AMDGPU::VCCRegBankID, SrcSize);
+      break;
+    }
     }
     break;
   }
@@ -4230,8 +4246,7 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       OpdsMapping[2] = AMDGPU::getValueMapping(Bank, 32);
       break;
     }
-    case Intrinsic::amdgcn_end_cf:
-    case Intrinsic::amdgcn_init_exec: {
+    case Intrinsic::amdgcn_end_cf: {
       unsigned Size = getSizeInBits(MI.getOperand(1).getReg(), MRI, *TRI);
       OpdsMapping[1] = AMDGPU::getValueMapping(AMDGPU::SGPRRegBankID, Size);
       break;
@@ -4287,7 +4302,6 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     case Intrinsic::amdgcn_init_exec_from_input: {
       unsigned Size = getSizeInBits(MI.getOperand(1).getReg(), MRI, *TRI);
       OpdsMapping[1] = AMDGPU::getValueMapping(AMDGPU::SGPRRegBankID, Size);
-      OpdsMapping[2] = AMDGPU::getValueMapping(AMDGPU::SGPRRegBankID, Size);
       break;
     }
     case Intrinsic::amdgcn_ds_gws_init:

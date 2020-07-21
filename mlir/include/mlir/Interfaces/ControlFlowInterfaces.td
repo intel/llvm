@@ -25,6 +25,8 @@ def BranchOpInterface : OpInterface<"BranchOpInterface"> {
     This interface provides information for branching terminator operations,
     i.e. terminator operations with successors.
   }];
+  let cppNamespace = "::mlir";
+
   let methods = [
     InterfaceMethod<[{
         Returns a mutable range of operands that correspond to the arguments of
@@ -55,10 +57,10 @@ def BranchOpInterface : OpInterface<"BranchOpInterface"> {
       }],
       "Optional<BlockArgument>", "getSuccessorBlockArgument",
       (ins "unsigned":$operandIndex), [{
-        Operation *opaqueOp = op;
+        Operation *opaqueOp = $_op;
         for (unsigned i = 0, e = opaqueOp->getNumSuccessors(); i != e; ++i) {
           if (Optional<BlockArgument> arg = detail::getBranchSuccessorArgument(
-                op.getSuccessorOperands(i), operandIndex,
+                $_op.getSuccessorOperands(i), operandIndex,
                 opaqueOp->getSuccessor(i)))
             return arg;
         }
@@ -96,12 +98,14 @@ def RegionBranchOpInterface : OpInterface<"RegionBranchOpInterface"> {
     branching behavior between held regions, i.e. this interface allows for
     expressing control flow information for region holding operations.
   }];
+  let cppNamespace = "::mlir";
+
   let methods = [
     InterfaceMethod<[{
         Returns the operands of this operation used as the entry arguments when
-        entering the region at `index`, which was specified as a successor by
-        `getSuccessorRegions`. These operands should correspond 1-1 with the
-        successor inputs specified in `getSuccessorRegions`, and may corre
+        entering the region at `index`, which was specified as a successor of this
+        operation by `getSuccessorRegions`. These operands should correspond 1-1
+        with the successor inputs specified in `getSuccessorRegions`.
       }],
       "OperandRange", "getSuccessorEntryOperands",
       (ins "unsigned":$index), [{}], /*defaultImplementation=*/[{
@@ -128,6 +132,19 @@ def RegionBranchOpInterface : OpInterface<"RegionBranchOpInterface"> {
            "SmallVectorImpl<RegionSuccessor> &":$regions)
     >
   ];
+
+  let verify = [{
+    static_assert(!ConcreteOpType::template hasTrait<OpTrait::ZeroRegion>(),
+                  "expected operation to have non-zero regions");
+    return success();
+  }];
+
+  let extraClassDeclaration = [{
+    /// Verify types along control flow edges described by this interface.
+    static LogicalResult verifyTypes(Operation *op) {
+      return detail::verifyTypesAlongControlFlowEdges(op);
+    }
+  }];
 }
 
 //===----------------------------------------------------------------------===//

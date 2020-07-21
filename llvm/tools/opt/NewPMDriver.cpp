@@ -34,6 +34,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/IPO/ThinLTOBitcodeWriter.h"
+#include "llvm/Transforms/Instrumentation/AddressSanitizer.h"
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
 #include "llvm/Transforms/Utils/Debugify.h"
 
@@ -102,9 +103,7 @@ static cl::opt<std::string> OptimizerLastEPPipeline(
     cl::Hidden);
 
 // Individual pipeline tuning options.
-static cl::opt<bool> DisableLoopUnrolling(
-    "new-pm-disable-loop-unrolling",
-    cl::desc("Disable loop unrolling in all relevant passes"), cl::init(false));
+extern cl::opt<bool> DisableLoopUnrolling;
 
 extern cl::opt<PGOKind> PGOKindFlag;
 extern cl::opt<std::string> ProfileFile;
@@ -299,6 +298,25 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
         }
         return false;
       });
+  PB.registerPipelineParsingCallback(
+      [](StringRef Name, ModulePassManager &MPM,
+         ArrayRef<PassBuilder::PipelineElement>) {
+        if (Name == "asan-pipeline") {
+          MPM.addPass(
+              RequireAnalysisPass<ASanGlobalsMetadataAnalysis, Module>());
+          MPM.addPass(
+              createModuleToFunctionPassAdaptor(AddressSanitizerPass()));
+          MPM.addPass(ModuleAddressSanitizerPass());
+          return true;
+        } else if (Name == "asan-function-pipeline") {
+          MPM.addPass(
+              RequireAnalysisPass<ASanGlobalsMetadataAnalysis, Module>());
+          MPM.addPass(
+              createModuleToFunctionPassAdaptor(AddressSanitizerPass()));
+          return true;
+        }
+        return false;
+      });
 
 #define HANDLE_EXTENSION(Ext)                                                  \
   get##Ext##PluginInfo().RegisterPassBuilderCallbacks(PB);
@@ -360,8 +378,11 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
     }
   }
   for (auto PassName : NonAAPasses) {
-    if (auto Err =
-            PB.parsePassPipeline(MPM, PassName, VerifyEachPass, DebugPM)) {
+    std::string ModifiedPassName(PassName.begin(), PassName.end());
+    if (PB.isAnalysisPassName(PassName))
+      ModifiedPassName = "require<" + ModifiedPassName + ">";
+    if (auto Err = PB.parsePassPipeline(MPM, ModifiedPassName, VerifyEachPass,
+                                        DebugPM)) {
       errs() << Arg0 << ": " << toString(std::move(Err)) << "\n";
       return false;
     }

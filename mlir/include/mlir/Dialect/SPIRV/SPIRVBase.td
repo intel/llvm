@@ -162,7 +162,7 @@ class Extension<list<StrEnumAttrCase> extensions> : Availability {
     AND (`Extension::C`) AND (`Extension::D` OR `Extension::E`) is enabled.
   }];
 
-  // TODO(antiagainst): Returning SmallVector<ArrayRef<...>> is not recommended.
+  // TODO: Returning SmallVector<ArrayRef<...>> is not recommended.
   // Find a better way for this.
   let queryFnRetType = "::llvm::SmallVector<::llvm::ArrayRef<"
                           "::mlir::spirv::Extension>, 1>";
@@ -226,9 +226,8 @@ class Capability<list<I32EnumAttrCase> capabilities> : Availability {
   let instance = "ref";
 }
 
-// TODO(antiagainst): the following interfaces definitions are duplicating with
-// the above. Remove them once we are able to support dialect-specific contents
-// in ODS.
+// TODO: the following interfaces definitions are duplicating with the above.
+// Remove them once we are able to support dialect-specific contents in ODS.
 def QueryMinVersionInterface : OpInterface<"QueryMinVersionInterface"> {
   let methods = [InterfaceMethod<"", "::mlir::spirv::Version", "getMinVersion">];
 }
@@ -3061,7 +3060,7 @@ def SPV_IntVec4 : SPV_Vec4<SPV_Integer>;
 def SPV_IOrUIVec4 : SPV_Vec4<SPV_SignlessOrUnsignedInt>;
 def SPV_Int32Vec4 : SPV_Vec4<AnyI32>;
 
-// TODO(ravishankarm): From 1.4, this should also include Composite type.
+// TODO: From 1.4, this should also include Composite type.
 def SPV_SelectType : AnyTypeOf<[SPV_Scalar, SPV_Vector, SPV_AnyPtr]>;
 
 //===----------------------------------------------------------------------===//
@@ -3151,6 +3150,7 @@ def SPV_OC_OpUConvert                  : I32EnumAttrCase<"OpUConvert", 113>;
 def SPV_OC_OpSConvert                  : I32EnumAttrCase<"OpSConvert", 114>;
 def SPV_OC_OpFConvert                  : I32EnumAttrCase<"OpFConvert", 115>;
 def SPV_OC_OpBitcast                   : I32EnumAttrCase<"OpBitcast", 124>;
+def SPV_OC_OpSNegate                   : I32EnumAttrCase<"OpSNegate", 126>;
 def SPV_OC_OpFNegate                   : I32EnumAttrCase<"OpFNegate", 127>;
 def SPV_OC_OpIAdd                      : I32EnumAttrCase<"OpIAdd", 128>;
 def SPV_OC_OpFAdd                      : I32EnumAttrCase<"OpFAdd", 129>;
@@ -3167,6 +3167,7 @@ def SPV_OC_OpSMod                      : I32EnumAttrCase<"OpSMod", 139>;
 def SPV_OC_OpFRem                      : I32EnumAttrCase<"OpFRem", 140>;
 def SPV_OC_OpFMod                      : I32EnumAttrCase<"OpFMod", 141>;
 def SPV_OC_OpMatrixTimesScalar         : I32EnumAttrCase<"OpMatrixTimesScalar", 143>;
+def SPV_OC_OpMatrixTimesMatrix         : I32EnumAttrCase<"OpMatrixTimesMatrix", 146>;
 def SPV_OC_OpLogicalEqual              : I32EnumAttrCase<"OpLogicalEqual", 164>;
 def SPV_OC_OpLogicalNotEqual           : I32EnumAttrCase<"OpLogicalNotEqual", 165>;
 def SPV_OC_OpLogicalOr                 : I32EnumAttrCase<"OpLogicalOr", 166>;
@@ -3271,10 +3272,11 @@ def SPV_OpcodeAttr :
       SPV_OC_OpCompositeInsert, SPV_OC_OpTranspose, SPV_OC_OpConvertFToU,
       SPV_OC_OpConvertFToS, SPV_OC_OpConvertSToF, SPV_OC_OpConvertUToF,
       SPV_OC_OpUConvert, SPV_OC_OpSConvert, SPV_OC_OpFConvert, SPV_OC_OpBitcast,
-      SPV_OC_OpFNegate, SPV_OC_OpIAdd, SPV_OC_OpFAdd, SPV_OC_OpISub, SPV_OC_OpFSub,
-      SPV_OC_OpIMul, SPV_OC_OpFMul, SPV_OC_OpUDiv, SPV_OC_OpSDiv, SPV_OC_OpFDiv,
-      SPV_OC_OpUMod, SPV_OC_OpSRem, SPV_OC_OpSMod, SPV_OC_OpFRem, SPV_OC_OpFMod,
-      SPV_OC_OpMatrixTimesScalar, SPV_OC_OpLogicalEqual, SPV_OC_OpLogicalNotEqual,
+      SPV_OC_OpSNegate, SPV_OC_OpFNegate, SPV_OC_OpIAdd, SPV_OC_OpFAdd,
+      SPV_OC_OpISub, SPV_OC_OpFSub, SPV_OC_OpIMul, SPV_OC_OpFMul, SPV_OC_OpUDiv,
+      SPV_OC_OpSDiv, SPV_OC_OpFDiv, SPV_OC_OpUMod, SPV_OC_OpSRem, SPV_OC_OpSMod,
+      SPV_OC_OpFRem, SPV_OC_OpFMod, SPV_OC_OpMatrixTimesScalar,
+      SPV_OC_OpMatrixTimesMatrix, SPV_OC_OpLogicalEqual, SPV_OC_OpLogicalNotEqual,
       SPV_OC_OpLogicalOr, SPV_OC_OpLogicalAnd, SPV_OC_OpLogicalNot, SPV_OC_OpSelect,
       SPV_OC_OpIEqual, SPV_OC_OpINotEqual, SPV_OC_OpUGreaterThan,
       SPV_OC_OpSGreaterThan, SPV_OC_OpUGreaterThanEqual, SPV_OC_OpSGreaterThanEqual,
@@ -3317,9 +3319,9 @@ def SPV_OpcodeAttr :
 // Base class for all SPIR-V ops.
 class SPV_Op<string mnemonic, list<OpTrait> traits = []> :
     Op<SPIRV_Dialect, mnemonic, !listconcat(traits, [
-         // TODO(antiagainst): We don't need all of the following traits for
-         // every op; only the suitable ones should be added automatically
-         // after ODS supports dialect-specific contents.
+         // TODO: We don't need all of the following traits for every op; only
+         // the suitable ones should be added automatically after ODS supports
+         // dialect-specific contents.
          DeclareOpInterfaceMethods<QueryMinVersionInterface>,
          DeclareOpInterfaceMethods<QueryMaxVersionInterface>,
          DeclareOpInterfaceMethods<QueryExtensionInterface>,

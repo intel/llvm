@@ -4,7 +4,13 @@ add_subdirectory(SDBM)
 add_subdirectory(lib)
 
 llvm_canonicalize_cmake_booleans(
+  MLIR_BINDINGS_PYTHON_ENABLED
   LLVM_BUILD_EXAMPLES
+  MLIR_CUDA_CONVERSIONS_ENABLED
+  MLIR_CUDA_RUNNER_ENABLED
+  MLIR_ROCM_CONVERSIONS_ENABLED
+  MLIR_ROCM_RUNNER_ENABLED
+  MLIR_VULKAN_RUNNER_ENABLED
   )
 
 # Passed to lit.site.cfg.py.in to set up the path where to find the libraries
@@ -38,6 +44,7 @@ set(MLIR_TEST_DEPENDS
   mlir-edsc-builder-api-test
   mlir-linalg-ods-gen
   mlir-opt
+  mlir-reduce
   mlir-sdbm-api-test
   mlir-tblgen
   mlir-translate
@@ -77,6 +84,12 @@ if(MLIR_VULKAN_RUNNER_ENABLED)
   )
 endif()
 
+if(MLIR_BINDINGS_PYTHON_ENABLED)
+  list(APPEND MLIR_TEST_DEPENDS
+    MLIRBindingsPythonExtension
+  )
+endif()
+
 add_lit_testsuite(check-mlir "Running the MLIR regression tests"
   ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS ${MLIR_TEST_DEPENDS}
@@ -84,5 +97,5 @@ add_lit_testsuite(check-mlir "Running the MLIR regression tests"
 set_target_properties(check-mlir PROPERTIES FOLDER "Tests")
 
 add_lit_testsuites(MLIR ${CMAKE_CURRENT_SOURCE_DIR}
-  DEPENDS ${MLIR_TEST_DEPS}
+  DEPENDS ${MLIR_TEST_DEPENDS}
 )

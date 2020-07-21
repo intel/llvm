@@ -219,6 +219,8 @@ public:
   bool MIsBlockable = false;
   /// Counts the number of memory objects this command is a leaf for.
   unsigned MLeafCounter = 0;
+  /// Used for marking the node as visited during graph traversal.
+  bool MVisited = false;
 
   enum class BlockReason : int { HostAccessor = 0, HostTask };
 

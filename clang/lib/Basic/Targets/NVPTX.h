@@ -46,8 +46,8 @@ static const int NVPTXDWARFAddrSpaceMap[] = {
     -1, // Default, opencl_private or opencl_generic - not defined
     5,  // opencl_global
     -1,
-    8,  // opencl_local or cuda_shared
-    4,  // opencl_constant or cuda_constant
+    8, // opencl_local or cuda_shared
+    4, // opencl_constant or cuda_constant
 };
 
 class LLVM_LIBRARY_VISIBILITY NVPTXTargetInfo : public TargetInfo {
@@ -144,6 +144,7 @@ public:
     Opts.support("cl_khr_int64_base_atomics");
     Opts.support("cl_khr_int64_extended_atomics");
     Opts.support("cl_khr_fp16");
+    Opts.support("cl_khr_3d_image_writes");
   }
 
   /// \returns If a target requires an address within a target specific address

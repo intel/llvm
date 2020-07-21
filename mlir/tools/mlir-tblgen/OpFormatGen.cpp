@@ -10,8 +10,8 @@
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/TableGen/Format.h"
 #include "mlir/TableGen/GenInfo.h"
+#include "mlir/TableGen/Interfaces.h"
 #include "mlir/TableGen/OpClass.h"
-#include "mlir/TableGen/OpInterfaces.h"
 #include "mlir/TableGen/OpTrait.h"
 #include "mlir/TableGen/Operator.h"
 #include "llvm/ADT/MapVector.h"
@@ -270,6 +270,10 @@ private:
 //===----------------------------------------------------------------------===//
 
 namespace {
+
+using ConstArgument =
+    llvm::PointerUnion<const NamedAttribute *, const NamedTypeConstraint *>;
+
 struct OperationFormat {
   /// This class represents a specific resolver for an operand or result type.
   class TypeResolution {
@@ -280,15 +284,22 @@ struct OperationFormat {
     Optional<int> getBuilderIdx() const { return builderIdx; }
     void setBuilderIdx(int idx) { builderIdx = idx; }
 
-    /// Get the variable this type is resolved to, or None.
-    const NamedTypeConstraint *getVariable() const { return variable; }
+    /// Get the variable this type is resolved to, or nullptr.
+    const NamedTypeConstraint *getVariable() const {
+      return resolver.dyn_cast<const NamedTypeConstraint *>();
+    }
+    /// Get the attribute this type is resolved to, or nullptr.
+    const NamedAttribute *getAttribute() const {
+      return resolver.dyn_cast<const NamedAttribute *>();
+    }
+    /// Get the transformer for the type of the variable, or None.
     Optional<StringRef> getVarTransformer() const {
       return variableTransformer;
     }
-    void setVariable(const NamedTypeConstraint *var,
-                     Optional<StringRef> transformer) {
-      variable = var;
+    void setResolver(ConstArgument arg, Optional<StringRef> transformer) {
+      resolver = arg;
       variableTransformer = transformer;
+      assert(getVariable() || getAttribute());
     }
 
   private:
@@ -296,8 +307,8 @@ struct OperationFormat {
     /// 'buildableTypes' in the parent format.
     Optional<int> builderIdx;
     /// If the type is resolved based upon another operand or result, this is
-    /// the variable that this type is resolved to.
-    const NamedTypeConstraint *variable;
+    /// the variable or the attribute that this type is resolved to.
+    ConstArgument resolver;
     /// If the type is resolved based upon another operand or result, this is
     /// a transformer to apply to the variable when resolving.
     Optional<StringRef> variableTransformer;
@@ -362,6 +373,15 @@ const char *const attrParserCode = R"(
   if (parser.parseAttribute({1}Attr{2}, "{1}", result.attributes))
     return failure();
 )";
+const char *const optionalAttrParserCode = R"(
+  {0} {1}Attr;
+  {
+    ::mlir::OptionalParseResult parseResult =
+      parser.parseOptionalAttribute({1}Attr{2}, "{1}", result.attributes);
+    if (parseResult.hasValue() && failed(*parseResult))
+      return failure();
+  }
+)";
 
 /// The code snippet used to generate a parser call for an enum attribute.
 ///
@@ -384,6 +404,30 @@ const char *const enumAttrParserCode = R"(
              << "{0} attribute specification: " << attrVal;
 
     result.addAttribute("{0}", {3});
+  }
+)";
+const char *const optionalEnumAttrParserCode = R"(
+  Attribute {0}Attr;
+  {
+    ::mlir::StringAttr attrVal;
+    ::mlir::NamedAttrList attrStorage;
+    auto loc = parser.getCurrentLocation();
+
+    ::mlir::OptionalParseResult parseResult =
+      parser.parseOptionalAttribute(attrVal, parser.getBuilder().getNoneType(),
+                                    "{0}", attrStorage);
+    if (parseResult.hasValue()) {
+      if (failed(*parseResult))
+        return failure();
+
+      auto attrOptional = {1}::{2}(attrVal.getValue());
+      if (!attrOptional)
+        return parser.emitError(loc, "invalid ")
+               << "{0} attribute specification: " << attrVal;
+
+      {0}Attr = {3};
+      result.addAttribute("{0}", {0}Attr);
+    }
   }
 )";
 
@@ -588,11 +632,15 @@ static void genElementParser(Element *element, OpMethodBody &body,
 
     // Generate a special optional parser for the first element to gate the
     // parsing of the rest of the elements.
-    if (auto *literal = dyn_cast<LiteralElement>(&*elements.begin())) {
+    Element *firstElement = &*elements.begin();
+    if (auto *attrVar = dyn_cast<AttributeVariable>(firstElement)) {
+      genElementParser(attrVar, body, attrTypeCtx);
+      body << "  if (" << attrVar->getVar()->name << "Attr) {\n";
+    } else if (auto *literal = dyn_cast<LiteralElement>(firstElement)) {
       body << "  if (succeeded(parser.parseOptional";
       genLiteralParser(literal->getLiteral(), body);
       body << ")) {\n";
-    } else if (auto *opVar = dyn_cast<OperandVariable>(&*elements.begin())) {
+    } else if (auto *opVar = dyn_cast<OperandVariable>(firstElement)) {
       genElementParser(opVar, body, attrTypeCtx);
       body << "  if (!" << opVar->getVar()->name << "Operands.empty()) {\n";
     }
@@ -624,7 +672,9 @@ static void genElementParser(Element *element, OpMethodBody &body,
                     "attrOptional.getValue()");
       }
 
-      body << formatv(enumAttrParserCode, var->name, enumAttr.getCppNamespace(),
+      body << formatv(var->attr.isOptional() ? optionalEnumAttrParserCode
+                                             : enumAttrParserCode,
+                      var->name, enumAttr.getCppNamespace(),
                       enumAttr.getStringToSymbolFnName(), attrBuilderStr);
       return;
     }
@@ -637,8 +687,9 @@ static void genElementParser(Element *element, OpMethodBody &body,
       os << ", " << tgfmt(*typeBuilder, &attrTypeCtx);
     }
 
-    body << formatv(attrParserCode, var->attr.getStorageType(), var->name,
-                    attrTypeStr);
+    body << formatv(var->attr.isOptional() ? optionalAttrParserCode
+                                           : attrParserCode,
+                    var->attr.getStorageType(), var->name, attrTypeStr);
   } else if (auto *operand = dyn_cast<OperandVariable>(element)) {
     ArgumentLengthKind lengthKind = getArgumentLengthKind(operand->getVar());
     StringRef name = operand->getVar()->name;
@@ -729,7 +780,7 @@ void OperationFormat::genParserTypeResolution(Operator &op,
       continue;
     // Ensure that we don't verify the same variables twice.
     const NamedTypeConstraint *variable = resolver.getVariable();
-    if (!verifiedVariables.insert(variable).second)
+    if (!variable || !verifiedVariables.insert(variable).second)
       continue;
 
     auto constraint = variable->constraint;
@@ -764,6 +815,12 @@ void OperationFormat::genParserTypeResolution(Operator &op,
         body << tgfmt(*tform, &FmtContext().withSelf(var->name + "Types[0]"));
       else
         body << var->name << "Types";
+    } else if (const NamedAttribute *attr = resolver.getAttribute()) {
+      if (Optional<StringRef> tform = resolver.getVarTransformer())
+        body << tgfmt(*tform,
+                      &FmtContext().withSelf(attr->name + "Attr.getType()"));
+      else
+        body << attr->name << "Attr.getType()";
     } else {
       body << curVar << "Types";
     }
@@ -840,10 +897,28 @@ void OperationFormat::genParserTypeResolution(Operator &op,
   for (unsigned i = 0, e = op.getNumOperands(); i != e; ++i) {
     NamedTypeConstraint &operand = op.getOperand(i);
     body << "  if (parser.resolveOperands(" << operand.name << "Operands, ";
-    emitTypeResolver(operandTypes[i], operand.name);
 
-    // If this isn't a buildable type, verify the sizes match by adding the loc.
-    if (!operandTypes[i].getBuilderIdx())
+    // Resolve the type of this operand.
+    TypeResolution &operandType = operandTypes[i];
+    emitTypeResolver(operandType, operand.name);
+
+    // If the type is resolved by a non-variadic variable, index into the
+    // resolved type list. This allows for resolving the types of a variadic
+    // operand list from a non-variadic variable.
+    bool verifyOperandAndTypeSize = true;
+    if (auto *resolverVar = operandType.getVariable()) {
+      if (!resolverVar->isVariadic() && !operandType.getVarTransformer()) {
+        body << "[0]";
+        verifyOperandAndTypeSize = false;
+      }
+    } else {
+      verifyOperandAndTypeSize = !operandType.getBuilderIdx();
+    }
+
+    // Check to see if the sizes between the types and operands must match. If
+    // they do, provide the operand location to select the proper resolution
+    // overload.
+    if (verifyOperandAndTypeSize)
       body << ", " << operand.name << "OperandsLoc";
     body << ", result.operands))\n    return failure();\n";
   }
@@ -1335,7 +1410,7 @@ private:
   /// type as well as an optional transformer to apply to that type in order to
   /// properly resolve the type of a variable.
   struct TypeResolutionInstance {
-    const NamedTypeConstraint *type;
+    ConstArgument resolver;
     Optional<StringRef> transformer;
   };
 
@@ -1374,10 +1449,15 @@ private:
   void handleSameTypesConstraint(
       llvm::StringMap<TypeResolutionInstance> &variableTyResolver,
       bool includeResults);
+  /// Check for inferable type resolution based on another operand, result, or
+  /// attribute.
+  void handleTypesMatchConstraint(
+      llvm::StringMap<TypeResolutionInstance> &variableTyResolver,
+      llvm::Record def);
 
-  /// Returns an argument with the given name that has been seen within the
-  /// format.
-  const NamedTypeConstraint *findSeenArg(StringRef name);
+  /// Returns an argument or attribute with the given name that has been seen
+  /// within the format.
+  ConstArgument findSeenArg(StringRef name);
 
   /// Parse a specific element.
   LogicalResult parseElement(std::unique_ptr<Element> &element,
@@ -1486,9 +1566,7 @@ LogicalResult FormatParser::parse() {
     } else if (def.getName() == "SameOperandsAndResultType") {
       handleSameTypesConstraint(variableTyResolver, /*includeResults=*/true);
     } else if (def.isSubClassOf("TypesMatchWith")) {
-      if (const auto *lhsArg = findSeenArg(def.getValueAsString("lhs")))
-        variableTyResolver[def.getValueAsString("rhs")] = {
-            lhsArg, def.getValueAsString("transformer")};
+      handleTypesMatchConstraint(variableTyResolver, def);
     }
   }
 
@@ -1597,8 +1675,8 @@ LogicalResult FormatParser::verifyOperands(
     // Check to see if we can infer this type from another variable.
     auto varResolverIt = variableTyResolver.find(op.getOperand(i).name);
     if (varResolverIt != variableTyResolver.end()) {
-      fmt.operandTypes[i].setVariable(varResolverIt->second.type,
-                                      varResolverIt->second.transformer);
+      TypeResolutionInstance &resolver = varResolverIt->second;
+      fmt.operandTypes[i].setResolver(resolver.resolver, resolver.transformer);
       continue;
     }
 
@@ -1636,8 +1714,8 @@ LogicalResult FormatParser::verifyResults(
     // Check to see if we can infer this type from another variable.
     auto varResolverIt = variableTyResolver.find(op.getResultName(i));
     if (varResolverIt != variableTyResolver.end()) {
-      fmt.resultTypes[i].setVariable(varResolverIt->second.type,
-                                     varResolverIt->second.transformer);
+      TypeResolutionInstance resolver = varResolverIt->second;
+      fmt.resultTypes[i].setResolver(resolver.resolver, resolver.transformer);
       continue;
     }
 
@@ -1684,7 +1762,7 @@ void FormatParser::handleAllTypesMatchConstraint(
     llvm::StringMap<TypeResolutionInstance> &variableTyResolver) {
   for (unsigned i = 0, e = values.size(); i != e; ++i) {
     // Check to see if this value matches a resolved operand or result type.
-    const NamedTypeConstraint *arg = findSeenArg(values[i]);
+    ConstArgument arg = findSeenArg(values[i]);
     if (!arg)
       continue;
 
@@ -1721,11 +1799,23 @@ void FormatParser::handleSameTypesConstraint(
   }
 }
 
-const NamedTypeConstraint *FormatParser::findSeenArg(StringRef name) {
-  if (auto *arg = findArg(op.getOperands(), name))
+void FormatParser::handleTypesMatchConstraint(
+    llvm::StringMap<TypeResolutionInstance> &variableTyResolver,
+    llvm::Record def) {
+  StringRef lhsName = def.getValueAsString("lhs");
+  StringRef rhsName = def.getValueAsString("rhs");
+  StringRef transformer = def.getValueAsString("transformer");
+  if (ConstArgument arg = findSeenArg(lhsName))
+    variableTyResolver[rhsName] = {arg, transformer};
+}
+
+ConstArgument FormatParser::findSeenArg(StringRef name) {
+  if (const NamedTypeConstraint *arg = findArg(op.getOperands(), name))
     return seenOperandTypes.test(arg - op.operand_begin()) ? arg : nullptr;
-  if (auto *arg = findArg(op.getResults(), name))
+  if (const NamedTypeConstraint *arg = findArg(op.getResults(), name))
     return seenResultTypes.test(arg - op.result_begin()) ? arg : nullptr;
+  if (const NamedAttribute *attr = findArg(op.getAttributes(), name))
+    return seenAttrs.find_as(attr) != seenAttrs.end() ? attr : nullptr;
   return nullptr;
 }
 
@@ -1860,10 +1950,11 @@ LogicalResult FormatParser::parseOptional(std::unique_ptr<Element> &element,
 
   // The first element of the group must be one that can be parsed/printed in an
   // optional fashion.
-  if (!isa<LiteralElement>(&*elements.front()) &&
-      !isa<OperandVariable>(&*elements.front()))
-    return emitError(curLoc, "first element of an operand group must be a "
-                             "literal or operand");
+  Element *firstElement = &*elements.front();
+  if (!isa<AttributeVariable>(firstElement) &&
+      !isa<LiteralElement>(firstElement) && !isa<OperandVariable>(firstElement))
+    return emitError(curLoc, "first element of an operand group must be an "
+                             "attribute, literal, or operand");
 
   // After parsing all of the elements, ensure that all type directives refer
   // only to elements within the group.
@@ -2068,7 +2159,7 @@ FormatParser::parseTypeDirectiveOperand(std::unique_ptr<Element> &element) {
 //===----------------------------------------------------------------------===//
 
 void mlir::tblgen::generateOpFormat(const Operator &constOp, OpClass &opClass) {
-  // TODO(riverriddle) Operator doesn't expose all necessary functionality via
+  // TODO: Operator doesn't expose all necessary functionality via
   // the const interface.
   Operator &op = const_cast<Operator &>(constOp);
   if (!op.hasAssemblyFormat())

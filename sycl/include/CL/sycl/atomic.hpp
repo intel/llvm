@@ -173,6 +173,7 @@ namespace sycl {
 template <typename T, access::address_space addressSpace =
                           access::address_space::global_space>
 class atomic {
+  friend class atomic<T, access::address_space::global_space>;
   static_assert(detail::IsValidAtomicType<T>::value,
                 "Invalid SYCL atomic type. Valid types are: int, "
                 "unsigned int, long, unsigned long, long long, unsigned "
@@ -196,6 +197,25 @@ public:
     static_assert(sizeof(T) == sizeof(pointerT),
                   "T and pointerT must be same size");
   }
+
+#ifdef __ENABLE_USM_ADDR_SPACE__
+  // Create atomic in global_space with one from global_device_space
+  template <access::address_space _Space = addressSpace,
+            typename = typename std::enable_if<
+                _Space == addressSpace &&
+                addressSpace == access::address_space::global_space>::type>
+  atomic(const atomic<T, access::address_space::global_device_space> &RHS) {
+    Ptr = RHS.Ptr;
+  }
+
+  template <access::address_space _Space = addressSpace,
+            typename = typename std::enable_if<
+                _Space == addressSpace &&
+                addressSpace == access::address_space::global_space>::type>
+  atomic(atomic<T, access::address_space::global_device_space> &&RHS) {
+    Ptr = RHS.Ptr;
+  }
+#endif // __ENABLE_USM_ADDR_SPACE__
 
   void store(T Operand, memory_order Order = memory_order::relaxed) {
     __spirv_AtomicStore(

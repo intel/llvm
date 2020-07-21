@@ -34,10 +34,11 @@ Error emitDebugStr(raw_ostream &OS, const Data &DI);
 Error emitDebugAranges(raw_ostream &OS, const Data &DI);
 Error emitDebugRanges(raw_ostream &OS, const Data &DI);
 Error emitPubSection(raw_ostream &OS, const PubSection &Sect,
-                     bool IsLittleEndian);
+                     bool IsLittleEndian, bool IsGNUPubSec = false);
 Error emitDebugInfo(raw_ostream &OS, const Data &DI);
 Error emitDebugLine(raw_ostream &OS, const Data &DI);
 Error emitDebugAddr(raw_ostream &OS, const Data &DI);
+Error emitDebugStrOffsets(raw_ostream &OS, const Data &DI);
 
 Expected<StringMap<std::unique_ptr<MemoryBuffer>>>
 emitDebugSections(StringRef YAMLString, bool ApplyFixups = false,

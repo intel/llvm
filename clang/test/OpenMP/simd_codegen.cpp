@@ -26,7 +26,7 @@
 // OMP50-DAG: [[LAST_IV:@.+]] = {{.*}}common global i64 0
 // OMP50-DAG: [[LAST_A:@.+]] = {{.*}}common global i32 0
 
-long long get_val() { return 0; }
+long long get_val() { extern void mayThrow(); mayThrow(); return 0; }
 double *g_ptr;
 
 struct S {
@@ -798,7 +798,7 @@ void bartfoo() {
 
 #endif // OMP5
 // TERM_DEBUG-LABEL: bar
-int bar() {return 0;};
+int bar() { extern void mayThrow(); mayThrow(); return 0; };
 
 // TERM_DEBUG-LABEL: parallel_simd
 void parallel_simd(float *a) {
@@ -817,9 +817,25 @@ void parallel_simd(float *a) {
 // TERM_DEBUG: !{{[0-9]+}} = !DILocation(line: [[@LINE-11]],
 
 // CHECK-LABEL: S8
+// CHECK-DAG: ptrtoint [[SS_TY]]* %{{.+}} to i64
+// CHECK-DAG: ptrtoint [[SS_TY]]* %{{.+}} to i64
+// CHECK-DAG: ptrtoint [[SS_TY]]* %{{.+}} to i64
+// CHECK-DAG: ptrtoint [[SS_TY]]* %{{.+}} to i64
+
+// CHECK-DAG: and i64 %{{.+}}, 15
+// CHECK-DAG: icmp eq i64 %{{.+}}, 0
 // CHECK-DAG: call void @llvm.assume(i1
+
+// CHECK-DAG: and i64 %{{.+}}, 7
+// CHECK-DAG: icmp eq i64 %{{.+}}, 0
 // CHECK-DAG: call void @llvm.assume(i1
+
+// CHECK-DAG: and i64 %{{.+}}, 15
+// CHECK-DAG: icmp eq i64 %{{.+}}, 0
 // CHECK-DAG: call void @llvm.assume(i1
+
+// CHECK-DAG: and i64 %{{.+}}, 3
+// CHECK-DAG: icmp eq i64 %{{.+}}, 0
 // CHECK-DAG: call void @llvm.assume(i1
 struct SS {
   SS(): a(0) {}

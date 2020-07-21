@@ -10,7 +10,6 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/spec_constant_impl.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/device.hpp>
@@ -21,6 +20,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <detail/spec_constant_impl.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -329,8 +329,11 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
           ? createSpirvProgram(Ctx, RawImg.BinaryStart, ImgSize)
           : createBinaryProgram(Ctx, RawImg.BinaryStart, ImgSize);
 
-  // associate the PI program with the image it was created for
-  NativePrograms[Res] = &Img;
+  {
+    auto LockGuard = Ctx->getKernelProgramCache().acquireCachedPrograms();
+    // associate the PI program with the image it was created for
+    NativePrograms[Res] = &Img;
+  }
 
   if (DbgProgMgr > 1)
     std::cerr << "created program: " << Res
@@ -374,7 +377,11 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
     // Link a fallback implementation of device libraries if they are not
     // supported by a device compiler.
     // Pre-compiled programs are supposed to be already linked.
-    const bool LinkDeviceLibs = Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV;
+    // If device image is not SPIRV, DeviceLibReqMask will be 0 which means
+    // no fallback device library will be linked.
+    uint32_t DeviceLibReqMask = 0;
+    if (Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV)
+      DeviceLibReqMask = getDeviceLibReqMask(Img);
 
     const std::vector<device> &Devices = ContextImpl->getDevices();
     std::vector<RT::PiDevice> PiDevices(Devices.size());
@@ -386,7 +393,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, Img.getCompileOptions(),
               Img.getLinkOptions(), PiDevices,
-              ContextImpl->getCachedLibPrograms(), LinkDeviceLibs);
+              ContextImpl->getCachedLibPrograms(), DeviceLibReqMask);
 
     return BuiltProgram.release();
   };
@@ -510,15 +517,15 @@ static bool loadDeviceLib(const ContextImplPtr Context, const char *Name,
 
 static const char *getDeviceLibFilename(DeviceLibExt Extension) {
   switch (Extension) {
-  case cl_intel_devicelib_assert:
+  case DeviceLibExt::cl_intel_devicelib_assert:
     return "libsycl-fallback-cassert.spv";
-  case cl_intel_devicelib_math:
+  case DeviceLibExt::cl_intel_devicelib_math:
     return "libsycl-fallback-cmath.spv";
-  case cl_intel_devicelib_math_fp64:
+  case DeviceLibExt::cl_intel_devicelib_math_fp64:
     return "libsycl-fallback-cmath-fp64.spv";
-  case cl_intel_devicelib_complex:
+  case DeviceLibExt::cl_intel_devicelib_complex:
     return "libsycl-fallback-complex.spv";
-  case cl_intel_devicelib_complex_fp64:
+  case DeviceLibExt::cl_intel_devicelib_complex_fp64:
     return "libsycl-fallback-complex-fp64.spv";
   }
   throw compile_program_error("Unhandled (new?) device library extension",
@@ -527,15 +534,15 @@ static const char *getDeviceLibFilename(DeviceLibExt Extension) {
 
 static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
   switch (Extension) {
-  case cl_intel_devicelib_assert:
+  case DeviceLibExt::cl_intel_devicelib_assert:
     return "cl_intel_devicelib_assert";
-  case cl_intel_devicelib_math:
+  case DeviceLibExt::cl_intel_devicelib_math:
     return "cl_intel_devicelib_math";
-  case cl_intel_devicelib_math_fp64:
+  case DeviceLibExt::cl_intel_devicelib_math_fp64:
     return "cl_intel_devicelib_math_fp64";
-  case cl_intel_devicelib_complex:
+  case DeviceLibExt::cl_intel_devicelib_complex:
     return "cl_intel_devicelib_complex";
-  case cl_intel_devicelib_complex_fp64:
+  case DeviceLibExt::cl_intel_devicelib_complex_fp64:
     return "cl_intel_devicelib_complex_fp64";
   }
   throw compile_program_error("Unhandled (new?) device library extension",
@@ -677,21 +684,27 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
   return *Img;
 }
 
+static bool isDeviceLibRequired(DeviceLibExt Ext, uint32_t DeviceLibReqMask) {
+  uint32_t Mask =
+      0x1 << (static_cast<uint32_t>(Ext) -
+              static_cast<uint32_t>(DeviceLibExt::cl_intel_devicelib_assert));
+  return ((DeviceLibReqMask & Mask) == Mask);
+}
+
 static std::vector<RT::PiProgram>
 getDeviceLibPrograms(const ContextImplPtr Context,
                      const std::vector<RT::PiDevice> &Devices,
-                     std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms) {
+                     std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms,
+                     uint32_t DeviceLibReqMask) {
   std::vector<RT::PiProgram> Programs;
 
-  // TODO: SYCL compiler should generate a list of required extensions for a
-  // particular program in order to allow us do a more fine-grained check here.
-  // Require *all* possible devicelib extensions for now.
   std::pair<DeviceLibExt, bool> RequiredDeviceLibExt[] = {
-      {cl_intel_devicelib_assert, /* is fallback loaded? */ false},
-      {cl_intel_devicelib_math, false},
-      {cl_intel_devicelib_math_fp64, false},
-      {cl_intel_devicelib_complex, false},
-      {cl_intel_devicelib_complex_fp64, false}};
+      {DeviceLibExt::cl_intel_devicelib_assert,
+       /* is fallback loaded? */ false},
+      {DeviceLibExt::cl_intel_devicelib_math, false},
+      {DeviceLibExt::cl_intel_devicelib_math_fp64, false},
+      {DeviceLibExt::cl_intel_devicelib_complex, false},
+      {DeviceLibExt::cl_intel_devicelib_complex_fp64, false}};
 
   // Disable all devicelib extensions requiring fp64 support if at least
   // one underlying device doesn't support cl_khr_fp64.
@@ -718,8 +731,11 @@ getDeviceLibPrograms(const ContextImplPtr Context,
         continue;
       }
 
-      if ((Ext == cl_intel_devicelib_math_fp64 ||
-           Ext == cl_intel_devicelib_complex_fp64) &&
+      if (!isDeviceLibRequired(Ext, DeviceLibReqMask)) {
+        continue;
+      }
+      if ((Ext == DeviceLibExt::cl_intel_devicelib_math_fp64 ||
+           Ext == DeviceLibExt::cl_intel_devicelib_complex_fp64) &&
           !fp64Support) {
         continue;
       }
@@ -749,7 +765,7 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
                       const string_class &LinkOptions,
                       const std::vector<RT::PiDevice> &Devices,
                       std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms,
-                      bool LinkDeviceLibs) {
+                      uint32_t DeviceLibReqMask) {
 
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::build(" << Program.get() << ", "
@@ -757,6 +773,7 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
               << Devices.size() << ")\n";
   }
 
+  bool LinkDeviceLibs = (DeviceLibReqMask != 0);
   const char *CompileOpts = std::getenv("SYCL_PROGRAM_COMPILE_OPTIONS");
   if (!CompileOpts) {
     CompileOpts = CompileOptions.c_str();
@@ -784,14 +801,13 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
 
   std::vector<RT::PiProgram> LinkPrograms;
   if (LinkDeviceLibs) {
-    LinkPrograms = getDeviceLibPrograms(Context, Devices, CachedLibPrograms);
+    LinkPrograms = getDeviceLibPrograms(Context, Devices, CachedLibPrograms,
+                                        DeviceLibReqMask);
   }
 
   const detail::plugin &Plugin = Context->getPlugin();
   if (LinkPrograms.empty()) {
     std::string Opts(CompileOpts);
-    Opts += " ";
-    Opts += LinkOpts;
 
     RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
         Program.get(), Devices.size(), Devices.data(), Opts.c_str(), nullptr,
@@ -982,6 +998,18 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
     }
   }
   Prg.flush_spec_constants(*Img, NativePrg);
+}
+
+// If the kernel is loaded from spv file, it may not include DeviceLib require
+// mask, sycl runtime won't know which fallback device libraries are needed. In
+// such case, the safest way is to load all fallback device libraries.
+uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
+  const pi::DeviceBinaryImage::PropertyRange &DLMRange =
+      Img.getDeviceLibReqMask();
+  if (DLMRange.isAvailable())
+    return pi::DeviceBinaryProperty(*(DLMRange.begin())).asUint32();
+  else
+    return 0xFFFFFFFF;
 }
 
 } // namespace detail
