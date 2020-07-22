@@ -8,5 +8,6 @@
 
 #pragma once
 #include <CL/sycl/ext/intel/fpga_device_selector.hpp>
+#include <CL/sycl/ext/intel/fpga_lsu.hpp>
 #include <CL/sycl/ext/intel/fpga_reg.hpp>
 #include <CL/sycl/ext/oneapi/pipes.hpp>

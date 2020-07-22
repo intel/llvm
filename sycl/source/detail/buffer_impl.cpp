@@ -29,7 +29,7 @@ void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
 
   return MemoryManager::allocateMemBuffer(
       std::move(Context), this, UserPtr, BaseT::MHostPtrReadOnly,
-      BaseT::getSize(), BaseT::MInteropEvent, BaseT::MInteropContext,
+      BaseT::getSize(), BaseT::MInteropEvent, BaseT::MInteropContext, MProps,
       OutEventToWait);
 }
 } // namespace detail

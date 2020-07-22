@@ -511,8 +511,8 @@ private:
 
   template <typename T, int Dim, access::mode Mode, access::target Target,
             access::placeholder IsPH>
-  detail::enable_if_t<Dim == 0 && Mode == access::mode::atomic, T>
-  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) const {
+  static detail::enable_if_t<Dim == 0 && Mode == access::mode::atomic, T>
+  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) {
 #ifdef __ENABLE_USM_ADDR_SPACE__
     atomic<T, access::address_space::global_device_space> AtomicSrc = Src;
 #else
@@ -523,23 +523,23 @@ private:
 
   template <typename T, int Dim, access::mode Mode, access::target Target,
             access::placeholder IsPH>
-  detail::enable_if_t<(Dim > 0) && Mode == access::mode::atomic, T>
-  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) const {
+  static detail::enable_if_t<(Dim > 0) && Mode == access::mode::atomic, T>
+  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) {
     id<Dim> Id = getDelinearizedIndex(Src.get_range(), 0);
     return Src[Id].load();
   }
 
   template <typename T, int Dim, access::mode Mode, access::target Target,
             access::placeholder IsPH>
-  detail::enable_if_t<Mode != access::mode::atomic, T>
-  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) const {
+  static detail::enable_if_t<Mode != access::mode::atomic, T>
+  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) {
     return *(Src.get_pointer());
   }
 
   template <typename T, int Dim, access::mode Mode, access::target Target,
             access::placeholder IsPH>
-  detail::enable_if_t<Dim == 0 && Mode == access::mode::atomic, void>
-  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) const {
+  static detail::enable_if_t<Dim == 0 && Mode == access::mode::atomic, void>
+  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) {
 #ifdef __ENABLE_USM_ADDR_SPACE__
     atomic<T, access::address_space::global_device_space> AtomicDst = Dst;
 #else
@@ -550,16 +550,16 @@ private:
 
   template <typename T, int Dim, access::mode Mode, access::target Target,
             access::placeholder IsPH>
-  detail::enable_if_t<(Dim > 0) && Mode == access::mode::atomic, void>
-  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) const {
+  static detail::enable_if_t<(Dim > 0) && Mode == access::mode::atomic, void>
+  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) {
     id<Dim> Id = getDelinearizedIndex(Dst.get_range(), 0);
     Dst[Id].store(V);
   }
 
   template <typename T, int Dim, access::mode Mode, access::target Target,
             access::placeholder IsPH>
-  detail::enable_if_t<Mode != access::mode::atomic, void>
-  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) const {
+  static detail::enable_if_t<Mode != access::mode::atomic, void>
+  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) {
     *(Dst.get_pointer()) = V;
   }
 
