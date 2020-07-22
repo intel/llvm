@@ -3472,9 +3472,10 @@ code. See `cl_intel_required_subgroup_size
 for details.
 
 SYCL documentation:
-The [[cl::intel_reqd_sub_group_size(n)]] attribute indicates that the kernel
-must be compiled and executed with a sub-group of size n. The value of n must be
-set to a sub-group size supported by the device, or device compilation will fail.
+The [[cl::intel_reqd_sub_group_size(n)]] and [[intel::reqd_sub_group_size(n)]]
+attribute indicates that the kernel must be compiled and executed with a
+sub-group of size n. The value of n must be set to a sub-group size supported
+by the device, or device compilation will fail.
 
 In addition to device functions, the required sub-group size attribute may also
 be specified in the definition of a named functor object and lambda functions,
@@ -3492,6 +3493,19 @@ as in the examples below:
 
   kernel<class kernel_name>(
   []() [[cl::intel_reqd_sub_group_size(n)]] {
+       /* kernel code */
+  });
+
+  class Functor
+  {
+      [[intel::reqd_sub_group_size(16)]] void operator()(item<1> item)
+      {
+          /* kernel code */
+      }
+  }
+
+  kernel<class kernel_name>(
+  []() [[intel::reqd_sub_group_size(n)]] {
        /* kernel code */
   });
 
