@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUNx: %ACC_RUN_PLACEHOLDER %t.out
-//==--------------- fpga_lsu.cpp - SYCL FPGA pipes test --------------------==//
+//==----------------- fpga_lsu.cpp - SYCL FPGA LSU test --------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -29,8 +29,10 @@ int test_lsu(cl::sycl::queue Queue) {
     cl::sycl::buffer<int, 1> input_buffer(input_data, 1);
 
     Queue.submit([&](cl::sycl::handler &cgh) {
-      auto output_accessor = output_buffer.get_access<cl::sycl::access::mode::write>(cgh);
-      auto input_accessor = input_buffer.get_access<cl::sycl::access::mode::read>(cgh);
+      auto output_accessor =
+          output_buffer.get_access<cl::sycl::access::mode::write>(cgh);
+      auto input_accessor =
+          input_buffer.get_access<cl::sycl::access::mode::read>(cgh);
 
       cgh.single_task<class kernel>([=] {
         auto input_ptr = input_accessor.get_pointer();
