@@ -17,10 +17,42 @@ namespace __esimd {
 /// Constant in number of bytes.
 enum { BYTE = 1, WORD = 2, DWORD = 4, QWORD = 8, OWORD = 16, GRF = 32 };
 
-/// Compute the next power of 2 at compile time.
-static ESIMD_INLINE constexpr unsigned int getNextPowerOf2(unsigned int n,
-                                                           unsigned int k = 1) {
-  return (k >= n) ? k : getNextPowerOf2(n, k * 2);
+/// Compute next power of 2 of a constexpr with guaranteed compile-time
+/// evaluation.
+template <unsigned int N, unsigned int K, bool K_gt_eq_N> struct NextPowerOf2;
+
+template <unsigned int N, unsigned int K> struct NextPowerOf2<N, K, true> {
+  static constexpr unsigned int get() { return K; }
+};
+
+template <unsigned int N, unsigned int K> struct NextPowerOf2<N, K, false> {
+  static constexpr unsigned int get() {
+    return NextPowerOf2<N, K * 2, K * 2 >= N>::get();
+  }
+};
+
+template <unsigned int N> unsigned int getNextPowerOf2() {
+  return NextPowerOf2<N, 1, (1 >= N)>::get();
+}
+
+template <> unsigned int getNextPowerOf2<0>() { return 0; }
+
+/// Compute binary logarithm of a constexpr with guaranteed compile-time
+/// evaluation.
+template <unsigned int N, bool N_gt_1> struct Log2;
+
+template <unsigned int N> struct Log2<N, false> {
+  static constexpr unsigned int get() { return 0; }
+};
+
+template <unsigned int N> struct Log2<N, true> {
+  static constexpr unsigned int get() {
+    return 1 + Log2<(N >> 1), ((N >> 1) > 1)>::get();
+  }
+};
+
+template <unsigned int N> constexpr unsigned int log2() {
+  return Log2<N, (N > 1)>::get();
 }
 
 /// Check if a given 32 bit positive integer is a power of 2 at compile time.
@@ -31,10 +63,6 @@ static ESIMD_INLINE constexpr bool isPowerOf2(unsigned int n) {
 static ESIMD_INLINE constexpr bool isPowerOf2(unsigned int n,
                                               unsigned int limit) {
   return (n & (n - 1)) == 0 && n <= limit;
-}
-
-static ESIMD_INLINE constexpr unsigned log2(unsigned n) {
-  return (n > 1) ? 1 + log2(n >> 1) : 0;
 }
 
 } // namespace __esimd

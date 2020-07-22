@@ -29,11 +29,10 @@ bool getQueueOrder(cl_command_queue cq) {
                                                                   : true;
 }
 
-int main() {
-  queue q{property::queue::in_order()};
+int CheckQueueOrder(const queue &q) {
   auto dev = q.get_device();
-  
-  cl_command_queue cq = q.get(); 
+
+  cl_command_queue cq = q.get();
   bool expected_result = dev.is_host() ? true : getQueueOrder(cq);
   if (!expected_result)
     return -1;
@@ -41,6 +40,28 @@ int main() {
   expected_result = dev.is_host() ? true : q.is_in_order();
   if (!expected_result)
     return -2;
+
+  return 0;
+}
+
+int main() {
+  queue q1{property::queue::in_order()};
+  int res = CheckQueueOrder(q1);
+  if (res != 0)
+    return res;
+
+  device dev{cl::sycl::default_selector{}};
+  context ctx{dev};
+
+  auto exception_handler = [](cl::sycl::exception_list exceptions) {
+  };
+
+  queue q2{
+      ctx, dev, exception_handler, {sycl::property::queue::in_order()}};
+
+  res = CheckQueueOrder(q2);
+  if (res != 0)
+    return res;
 
   return 0;
 }

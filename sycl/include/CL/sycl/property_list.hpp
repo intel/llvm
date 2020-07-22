@@ -47,6 +47,11 @@ class noinit;
 
 namespace detail {
 
+// Will be aliased in the sycl::ext::oneapi::property namespace
+namespace buffer_ {
+class use_pinned_host_memory;
+}
+
 // List of all properties' IDs.
 enum PropKind {
   // Buffer properties
@@ -65,6 +70,8 @@ enum PropKind {
 
   // Accessor
   NoInit,
+
+  BufferUsePinnedHostMemory,
 
   PropKindSize
 };
@@ -148,6 +155,8 @@ RegisterProp(PropKind::ImageContextBound, image::context_bound);
 RegisterProp(PropKind::BufferUseHostPtr, buffer::use_host_ptr);
 RegisterProp(PropKind::BufferUseMutex, buffer::use_mutex);
 RegisterProp(PropKind::BufferContextBound, buffer::context_bound);
+RegisterProp(PropKind::BufferUsePinnedHostMemory,
+             buffer_::use_pinned_host_memory);
 
 // Queue
 RegisterProp(PropKind::QueueEnableProfiling, queue::enable_profiling);
@@ -212,7 +221,15 @@ class context_bound
 public:
   context_bound(cl::sycl::context Context) : ContextBoundBase(Context) {}
 };
+
 } // namespace buffer
+
+namespace detail {
+namespace buffer_ {
+class use_pinned_host_memory
+    : public detail::Prop<detail::PropKind::BufferUsePinnedHostMemory> {};
+} // namespace buffer_
+} // namespace detail
 
 namespace queue {
 class enable_profiling
@@ -224,6 +241,17 @@ class in_order : public detail::Prop<detail::PropKind::InOrder> {};
 class noinit : public detail::Prop<detail::PropKind::NoInit> {};
 
 } // namespace property
+
+namespace ext {
+namespace oneapi {
+namespace property {
+namespace buffer {
+using use_pinned_host_memory =
+    sycl::property::detail::buffer_::use_pinned_host_memory;
+} // namespace buffer
+} // namespace property
+} // namespace oneapi
+} // namespace ext
 
 #if __cplusplus > 201402L
 
@@ -280,17 +308,18 @@ public:
   }
 
   template <typename propertyT> propertyT get_property() const {
-    static_assert((int)(propertyT::getKind()) <=
-                      property::detail::PropKind::PropKindSize,
-                  "Invalid option passed.");
-    const auto &PropHolder = std::get<(int)(propertyT::getKind())>(m_PropsList);
-    if (PropHolder.isInitialized()) {
-      return PropHolder.getProp();
+    if (!has_property<propertyT>()) {
+      throw sycl::invalid_object_error();
     }
-    throw invalid_object_error();
+    const auto &PropHolder =
+        std::get<static_cast<int>(propertyT::getKind())>(m_PropsList);
+    return PropHolder.getProp();
   }
 
   template <typename propertyT> bool has_property() const {
+    if (static_cast<int>(propertyT::getKind()) >
+        property::detail::PropKind::PropKindSize)
+      return false;
     return std::get<(int)(propertyT::getKind())>(m_PropsList).isInitialized();
   }
 
@@ -299,7 +328,7 @@ private:
 
   template <typename... propertyTN, class PropT>
   void ctorHelper(PropT &Prop, propertyTN... props) {
-    std::get<(int)(PropT::getKind())>(m_PropsList).setProp(Prop);
+    std::get<static_cast<int>(PropT::getKind())>(m_PropsList).setProp(Prop);
     ctorHelper(props...);
   }
 

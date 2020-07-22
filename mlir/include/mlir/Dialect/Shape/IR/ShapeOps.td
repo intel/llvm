@@ -53,7 +53,7 @@ def Shape_WitnessType : DialectType<ShapeDialect,
 class Shape_Op<string mnemonic, list<OpTrait> traits = []> :
     Op<ShapeDialect, mnemonic, traits>;
 
-def Shape_AddOp : Shape_Op<"add", [SameOperandsAndResultType]> {
+def Shape_AddOp : Shape_Op<"add", [Commutative, SameOperandsAndResultType]> {
   let summary = "Addition of sizes";
   let description = [{
     Adds two valid sizes as follows:
@@ -67,7 +67,7 @@ def Shape_AddOp : Shape_Op<"add", [SameOperandsAndResultType]> {
   let assemblyFormat = "$lhs `,` $rhs attr-dict";
 }
 
-def Shape_BroadcastOp : Shape_Op<"broadcast", []> {
+def Shape_BroadcastOp : Shape_Op<"broadcast", [Commutative]> {
   let summary = "Returns the broadcasted output shape of two inputs";
   let description = [{
     Computes the broadcasted output shape following:
@@ -89,6 +89,8 @@ def Shape_BroadcastOp : Shape_Op<"broadcast", []> {
   let arguments = (ins Shape_ShapeType:$lhs, Shape_ShapeType:$rhs,
                    OptionalAttr<StrAttr>:$error);
   let results = (outs Shape_ShapeType:$result);
+
+  let assemblyFormat = "$lhs `,` $rhs attr-dict";
 
   let hasFolder = 1;
 }
@@ -136,6 +138,22 @@ def Shape_ConstSizeOp : Shape_Op<"const_size", [
 
   let assemblyFormat = "$value attr-dict";
   let hasFolder = 1;
+}
+
+def Shape_ShapeEqOp : Shape_Op<"shape_eq", [Commutative, NoSideEffect]> {
+  let summary = "Returns whether the input shapes or extent tensors are equal";
+  let description = [{
+    Takes two shape or extent tensor operands and determines whether they are
+    equal. When extent tensors are compared to shapes they are regarded as their
+    equivalent non-error shapes. Error shapes can be tested for equality like
+    any other shape value, meaning that the error value is equal to itself.
+  }];
+
+  let arguments = (ins Shape_ShapeOrExtentTensorType:$lhs,
+                       Shape_ShapeOrExtentTensorType:$rhs);
+  let results = (outs I1:$result);
+
+  let assemblyFormat = "$lhs `,` $rhs attr-dict `:` type($lhs) `,` type($rhs)";
 }
 
 def Shape_FromExtentsOp : Shape_Op<"from_extents", [NoSideEffect]> {
@@ -252,7 +270,7 @@ def Shape_IndexToSizeOp : Shape_Op<"index_to_size", [NoSideEffect]> {
   let hasCanonicalizer = 1;
 }
 
-def Shape_JoinOp : Shape_Op<"join", []> {
+def Shape_JoinOp : Shape_Op<"join", [Commutative]> {
   let summary = "Returns the least general shape.size of its operands";
   let description = [{
     An operation that computes the least general shape of input operands.
@@ -285,7 +303,7 @@ def Shape_JoinOp : Shape_Op<"join", []> {
   let results = (outs Shape_ShapeOrSizeType:$result);
 }
 
-def Shape_MulOp : Shape_Op<"mul", [SameOperandsAndResultType]> {
+def Shape_MulOp : Shape_Op<"mul", [Commutative, SameOperandsAndResultType]> {
   let summary = "Multiplication of sizes";
   let description = [{
     Multiplies two valid sizes as follows:
@@ -320,23 +338,26 @@ def Shape_NumElementsOp : Shape_Op<"num_elements", [NoSideEffect]> {
 
 def Shape_ReduceOp : Shape_Op<"reduce",
     [SingleBlockImplicitTerminator<"YieldOp">]> {
-  let summary = "Returns an expression reduced over a shape";
+  let summary = "Returns an expression reduced over a shape or extent tensor";
   let description = [{
-    An operation that takes as input a shape, number of initial values and has a
-    region/function that is applied repeatedly for every dimension of the shape.
+    An operation that takes as input a shape or extent tensor, and a number of
+    initial values. This operation has a region/function that is applied
+    repeatedly for every extent of the input. Starting with the initial values,
+    the individual extents are then aggregated as defined by the associated
+    region.
 
     Conceptually this op performs the following reduction:
 
     ```
     res[] = init;
-    for (int i = 0, e = shape.rank(); i != e; ++i) {
+    for (int i = 0, i < shape.rank(); i++) {
       res = fn(i, shape[i], res[0], ..., res[n]);
     }
     ```
 
-    Where fn is provided by the user and the result of the reduce op is the
+    Where `fn` is provided by the user and the result of the reduce op is the
     last computed output of the reduce function. As an example, computing the
-    number of elements
+    number of elements can be defined as follows:
 
     ```mlir
     func @reduce(%shape : !shape.shape, %init : !shape.size) -> !shape.size {
@@ -349,11 +370,10 @@ def Shape_ReduceOp : Shape_Op<"reduce",
       return %num_elements : !shape.size
     }
     ```
-
-    If the shape is unranked, then the results of the op is also unranked.
   }];
 
-  let arguments = (ins Shape_ShapeType:$shape, Variadic<AnyType>:$initVals);
+  let arguments = (ins Shape_ShapeOrExtentTensorType:$shape,
+                       Variadic<AnyType>:$initVals);
   let results = (outs Variadic<AnyType>:$result);
   let regions = (region SizedRegion<1>:$region);
 
@@ -472,6 +492,7 @@ def Shape_ConcatOp : Shape_Op<"concat", []> {
   let arguments = (ins Shape_ShapeType:$lhs, Shape_ShapeType:$rhs);
   let results = (outs Shape_ShapeType:$result);
 
+  let assemblyFormat = "$lhs `,` $rhs attr-dict";
   let hasFolder = 1;
 }
 

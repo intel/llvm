@@ -2167,6 +2167,11 @@ namespace PR21786 {
 namespace PR21859 {
   constexpr int Fun() { return; } // expected-error {{non-void constexpr function 'Fun' should return a value}}
   constexpr int Var = Fun();
+
+  template <typename T> constexpr int FunT1() { return; } // expected-error {{non-void constexpr function 'FunT1' should return a value}}
+  template <typename T> constexpr int FunT2() { return 0; }
+  template <> constexpr int FunT2<double>() { return 0; }
+  template <> constexpr int FunT2<int>() { return; } // expected-error {{non-void constexpr function 'FunT2<int>' should return a value}}
 }
 
 struct InvalidRedef {
@@ -2321,4 +2326,23 @@ namespace array_size {
     f2(a); // expected-note {{instantiation of}}
     f3(a);
   }
+}
+
+namespace flexible_array {
+  struct A { int x; char arr[]; }; // expected-warning {{C99}} expected-note {{here}}
+  constexpr A a = {1};
+  static_assert(a.x == 1, "");
+  static_assert(&a.arr != nullptr, "");
+  static_assert(a.arr[0], ""); // expected-error {{constant expression}} expected-note {{array member without known bound}}
+  static_assert(a.arr[1], ""); // expected-error {{constant expression}} expected-note {{array member without known bound}}
+
+  constexpr A b[] = {{1}, {2}, {3}}; // expected-warning {{flexible array member}}
+  static_assert(b[0].x == 1, "");
+  static_assert(b[1].x == 2, "");
+  static_assert(b[2].x == 3, "");
+  static_assert(b[2].arr[0], ""); // expected-error {{constant expression}} expected-note {{array member without known bound}}
+
+  // If we ever start to accept this, we'll need to ensure we can
+  // constant-evaluate it properly.
+  constexpr A c = {1, 2, 3}; // expected-error {{initialization of flexible array member}}
 }
