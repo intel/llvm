@@ -911,6 +911,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
 
 void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
   std::queue<Command *> CmdsToVisit({FinishedCmd});
+  std::vector<Command *> CmdsToDelete;
   std::vector<Command *> Visited;
 
   // Traverse the graph using BFS
@@ -948,12 +949,16 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
       Command *DepCmd = Dep.MDepCommand;
       DepCmd->MUsers.erase(Cmd);
     }
-    Cmd->getEvent()->setCommand(nullptr);
 
+    CmdsToDelete.push_back(Cmd);
     Visited.pop_back();
-    delete Cmd;
   }
   unmarkVisitedNodes(Visited);
+
+  for (Command *Cmd : CmdsToDelete) {
+    Cmd->getEvent()->setCommand(nullptr);
+    delete Cmd;
+  }
 }
 
 void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
