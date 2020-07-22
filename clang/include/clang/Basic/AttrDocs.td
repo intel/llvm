@@ -3498,7 +3498,7 @@ as in the examples below:
 
   class Functor
   {
-      void operator()(item<1> item) [[intel::reqd_sub_group_size(16)]]
+      [[intel::reqd_sub_group_size(16)]] void operator()(item<1> item)
       {
           /* kernel code */
       }
