@@ -388,8 +388,10 @@ private:
 
   template <typename T> struct ShouldEnableSetArgHelper {
     static constexpr bool value = std::is_trivially_copyable<T>::value
+#ifdef CL_SYCL_LANGUAGE_VERSION
 #if CL_SYCL_LANGUAGE_VERSION <= 121
                                   && std::is_standard_layout<T>::value
+#endif
 #endif
         ;
   };
