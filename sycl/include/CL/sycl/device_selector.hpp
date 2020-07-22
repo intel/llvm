@@ -87,5 +87,26 @@ public:
   int operator()(const device &dev) const override;
 };
 
+namespace ext {
+namespace oneapi {
+
+/// Selects device based on string.
+///
+/// \sa device
+///
+/// \ingroup sycl_api_dev_sel
+class __SYCL_EXPORT string_selector : public device_selector {
+public:
+  string_selector(std::string filter);
+  int operator()(const device &dev) const override;
+
+private:
+  std::vector<std::string> mPlatforms;
+  std::vector<std::string> mDeviceTypes;
+  default_selector mRanker;
+};
+} // namespace oneapi
+} // namespace ext
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

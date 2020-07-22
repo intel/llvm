@@ -157,5 +157,102 @@ int host_selector::operator()(const device &dev) const {
   return Score;
 }
 
+namespace detail {
+std::vector<std::string> tokenize(std::string filter, std::string delim) {
+  std::vector<std::string> Tokens;
+  size_t Pos = 0;
+  std::string Input = filter;
+  std::string Tok;
+
+  while ((Pos = Input.find(delim)) != std::string::npos) {
+    Tok = Input.substr(0, Pos);
+    Input.erase(0, Pos + delim.length());
+    Tokens.push_back(Tok);
+  }
+
+  return Tokens;
+}
+
+enum TokenType { TokPlatform, TokDeviceType, TokUnknown };
+
+TokenType parse_kind(std::string token) {
+  TokenType Result = TokUnknown;
+
+  if (token.find("platform=") != std::string::npos)
+    Result = TokPlatform;
+  if (token.find("type=") != std::string::npos)
+    Result = TokDeviceType;
+
+  return Result;
+}
+
+std::string strip_kind(std::string token, TokenType tty) {
+  std::string Prefix = "";
+
+  if (tty == TokPlatform) {
+    Prefix = "platform=";
+  } else if (tty == TokDeviceType) {
+    Prefix = "type=";
+  }
+
+  return token.substr(Prefix.size());
+}
+} // namespace detail
+
+namespace ext {
+namespace oneapi {
+string_selector::string_selector(std::string filter) {
+  std::vector<std::string> Tokens = detail::tokenize(filter, ";");
+
+  for (auto Tok : Tokens) {
+    detail::TokenType TTy = detail::parse_kind(Tok);
+
+    if (TTy == detail::TokPlatform) {
+      std::string SubTok = detail::strip_kind(Tok, detail::TokPlatform);
+      std::vector<std::string> PlatTokens = detail::tokenize(SubTok, ",");
+
+      mPlatforms.insert(mPlatforms.end(), PlatTokens.begin(), PlatTokens.end());
+    } else if (TTy == detail::TokDeviceType) {
+      std::string SubTok = detail::strip_kind(Tok, detail::TokDeviceType);
+      std::vector<std::string> TypeTokens = detail::tokenize(SubTok, ",");
+
+      mDeviceTypes.insert(mDeviceTypes.end(), TypeTokens.begin(),
+                          TypeTokens.end());
+    } else {
+      throw runtime_error("Invalid string_selector input!", PI_INVALID_VALUE);
+    }
+  }
+}
+
+int string_selector::operator()(const device &dev) const {
+  int Score = REJECT_DEVICE_SCORE;
+  std::string PlatformName =
+      dev.get_platform().get_info<info::platform::name>();
+
+  if (mPlatforms.empty() && mDeviceTypes.empty()) {
+    Score = mRanker(dev);
+  } else if (!mPlatforms.empty() && mDeviceTypes.empty()) {
+    for (auto Plat : mPlatforms) {
+      Score = mRanker(dev);
+    }
+  } else if (mPlatforms.empty() && !mDeviceTypes.empty()) {
+    for (auto DT : mDeviceTypes) {
+      if ((DT == "cpu" && dev.is_cpu()) || (DT == "gpu" && dev.is_gpu()))
+        Score = mRanker(dev);
+    }
+  } else {
+    for (auto Plat : mPlatforms) {
+      for (auto DT : mDeviceTypes) {
+        if ((PlatformName.find(Plat) != std::string::npos) &&
+            ((DT == "cpu" && dev.is_cpu()) || (DT == "gpu" && dev.is_gpu())))
+          Score = mRanker(dev);
+      }
+    }
+  }
+
+  return Score;
+}
+} // namespace oneapi
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
