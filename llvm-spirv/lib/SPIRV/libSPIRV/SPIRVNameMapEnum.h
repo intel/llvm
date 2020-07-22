@@ -362,6 +362,10 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationMergeINTEL, "MergeINTEL");
   add(DecorationBankBitsINTEL, "BankBitsINTEL");
   add(DecorationForcePow2DepthINTEL, "ForcePow2DepthINTEL");
+  add(DecorationBurstCoalesceINTEL, "BurstCoalesceINTEL");
+  add(DecorationCacheSizeINTEL, "CacheSizeINTEL");
+  add(DecorationDontStaticallyCoalesceINTEL, "DontStaticallyCoalesceINTEL");
+  add(DecorationPrefetchINTEL, "PrefetchINTEL");
   add(DecorationReferencedIndirectlyINTEL, "ReferencedIndirectlyINTEL");
   add(DecorationIOPipeStorageINTEL, "IOPipeStorageINTEL");
   add(DecorationVectorComputeFunctionINTEL, "VectorComputeFunctionINTEL");
@@ -534,6 +538,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilitySubgroupAvcMotionEstimationChromaINTEL,
       "SubgroupAvcMotionEstimationChromaINTEL");
   add(CapabilityFPGAMemoryAttributesINTEL, "FPGAMemoryAttributesINTEL");
+  add(CapabilityFPGAMemoryAccessesINTEL, "FPGAMemoryAccessesINTEL");
   add(CapabilityArbitraryPrecisionIntegersINTEL,
       "ArbitraryPrecisionIntegersINTEL");
   add(CapabilityFPGALoopControlsINTEL, "FPGALoopControlsINTEL");

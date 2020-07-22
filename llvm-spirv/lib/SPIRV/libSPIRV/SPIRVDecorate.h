@@ -155,6 +155,11 @@ public:
     case DecorationBankBitsINTEL:
     case DecorationForcePow2DepthINTEL:
       return getSet(ExtensionID::SPV_INTEL_fpga_memory_attributes);
+    case DecorationBurstCoalesceINTEL:
+    case DecorationCacheSizeINTEL:
+    case DecorationDontStaticallyCoalesceINTEL:
+    case DecorationPrefetchINTEL:
+      return getSet(ExtensionID::SPV_INTEL_fpga_memory_accesses);
     case DecorationReferencedIndirectlyINTEL:
       return getSet(ExtensionID::SPV_INTEL_function_pointers);
     case DecorationIOPipeStorageINTEL:
@@ -255,6 +260,11 @@ public:
     case DecorationBankBitsINTEL:
     case DecorationForcePow2DepthINTEL:
       return getSet(ExtensionID::SPV_INTEL_fpga_memory_attributes);
+    case DecorationBurstCoalesceINTEL:
+    case DecorationCacheSizeINTEL:
+    case DecorationDontStaticallyCoalesceINTEL:
+    case DecorationPrefetchINTEL:
+      return getSet(ExtensionID::SPV_INTEL_fpga_memory_accesses);
     case DecorationIOPipeStorageINTEL:
       return getSet(ExtensionID::SPV_INTEL_io_pipes);
     default:
