@@ -17,13 +17,11 @@
 
 #include "helper.hpp"
 #include <CL/sycl.hpp>
-template <typename T, int N>
-class sycl_subgr;
+template <typename T, int N> class sycl_subgr;
 
 using namespace cl::sycl;
 
-template <typename T, int N>
-void check(queue &Queue) {
+template <typename T, int N> void check(queue &Queue) {
   const int G = 1024, L = 128;
   try {
     nd_range<1> NdRange(G, L);
@@ -96,8 +94,7 @@ void check(queue &Queue) {
     exit(1);
   }
 }
-template <typename T>
-void check(queue &Queue) {
+template <typename T> void check(queue &Queue) {
   const int G = 128, L = 64;
   try {
     nd_range<1> NdRange(G, L);

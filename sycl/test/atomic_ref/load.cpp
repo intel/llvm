@@ -11,11 +11,9 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi;
 
-template <typename T>
-class load_kernel;
+template <typename T> class load_kernel;
 
-template <typename T>
-void load_test(queue q, size_t N) {
+template <typename T> void load_test(queue q, size_t N) {
   T initial = 42;
   T load = initial;
   std::vector<T> output(N);
@@ -26,10 +24,13 @@ void load_test(queue q, size_t N) {
 
     q.submit([&](handler &cgh) {
       auto ld = load_buf.template get_access<access::mode::read_write>(cgh);
-      auto out = output_buf.template get_access<access::mode::discard_write>(cgh);
+      auto out =
+          output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for<load_kernel<T>>(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed, ext::oneapi::memory_scope::device, access::address_space::global_space>(ld[0]);
+        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed,
+                              ext::oneapi::memory_scope::device,
+                              access::address_space::global_space>(ld[0]);
         out[gid] = atm.load();
       });
     });
@@ -37,7 +38,8 @@ void load_test(queue q, size_t N) {
 
   // All work-items should read the same value
   // Atomicity isn't tested here, but support for load() is
-  assert(std::all_of(output.begin(), output.end(), [&](T x) { return (x == initial); }));
+  assert(std::all_of(output.begin(), output.end(),
+                     [&](T x) { return (x == initial); }));
 }
 
 int main() {
@@ -59,7 +61,7 @@ int main() {
   load_test<unsigned long long>(q, N);
   load_test<float>(q, N);
   load_test<double>(q, N);
-  //load_test<char*>(q, N);
+  // load_test<char*>(q, N);
 
   std::cout << "Test passed." << std::endl;
 }

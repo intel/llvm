@@ -18,10 +18,8 @@
 
 using namespace cl::sycl;
 
-template <typename T, int Dim, class BinaryOperation>
-class SomeIdClass;
-template <typename T, int Dim, class BinaryOperation>
-class SomeNoIdClass;
+template <typename T, int Dim, class BinaryOperation> class SomeIdClass;
+template <typename T, int Dim, class BinaryOperation> class SomeNoIdClass;
 
 // Checks reductions initialized with transparent functor and explicitly set
 // identity value.
@@ -46,7 +44,8 @@ void testId(T Identity, size_t WGSize, size_t NWItems) {
     range<1> LocalRange(WGSize);
     nd_range<1> NDRange(GlobalRange, LocalRange);
     CGH.parallel_for<SomeIdClass<T, Dim, BinaryOperation>>(
-        NDRange, ext::oneapi::reduction(Out, Identity, BOp), [=](nd_item<1> NDIt, auto &Sum) {
+        NDRange, ext::oneapi::reduction(Out, Identity, BOp),
+        [=](nd_item<1> NDIt, auto &Sum) {
           Sum.combine(In[NDIt.get_global_linear_id()]);
         });
   });
@@ -86,7 +85,8 @@ void testNoId(T Identity, size_t WGSize, size_t NWItems) {
     range<1> LocalRange(WGSize);
     nd_range<1> NDRange(GlobalRange, LocalRange);
     CGH.parallel_for<SomeNoIdClass<T, Dim, BinaryOperation>>(
-        NDRange, ext::oneapi::reduction(Out, BOp), [=](nd_item<1> NDIt, auto &Sum) {
+        NDRange, ext::oneapi::reduction(Out, BOp),
+        [=](nd_item<1> NDIt, auto &Sum) {
           Sum.combine(In[NDIt.get_global_linear_id()]);
         });
   });

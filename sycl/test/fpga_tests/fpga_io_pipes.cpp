@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include <CL/sycl.hpp>
-#include <CL/sycl/intel/fpga_extensions.hpp>
+#include <CL/sycl/ext/intel/fpga_extensions.hpp>
 #include <fstream>
 #include <iostream>
 

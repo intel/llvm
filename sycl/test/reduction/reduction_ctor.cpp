@@ -10,7 +10,6 @@
 
 using namespace cl::sycl;
 
-
 template <typename T, typename Reduction>
 void test_reducer(Reduction &Redu, T A, T B) {
   typename Reduction::reducer_type Reducer;
@@ -35,34 +34,25 @@ void test_reducer(Reduction &Redu, T Identity, T A, T B) {
          "Wrong result of binary operation.");
 }
 
-template <typename T, int Dim, class BinaryOperation>
-class Known;
-template <typename T, int Dim, class BinaryOperation>
-class Unknown;
+template <typename T, int Dim, class BinaryOperation> class Known;
+template <typename T, int Dim, class BinaryOperation> class Unknown;
 
-template <typename T>
-struct Point {
+template <typename T> struct Point {
   Point() : X(0), Y(0) {}
   Point(T X, T Y) : X(X), Y(Y) {}
   Point(T V) : X(V), Y(V) {}
-  bool operator==(const Point &P) const {
-    return P.X == X && P.Y == Y;
-  }
+  bool operator==(const Point &P) const { return P.X == X && P.Y == Y; }
   T X;
   T Y;
 };
 
-template <typename T>
-bool operator==(const Point<T> &A, const Point<T> &B) {
+template <typename T> bool operator==(const Point<T> &A, const Point<T> &B) {
   return A.X == B.X && A.Y == B.Y;
 }
 
-template <class T>
-struct PointPlus {
+template <class T> struct PointPlus {
   using P = Point<T>;
-  P operator()(const P &A, const P &B) const {
-    return P(A.X + B.X, A.Y + B.Y);
-  }
+  P operator()(const P &A, const P &B) const { return P(A.X + B.X, A.Y + B.Y); }
 };
 
 template <typename T, int Dim, class BinaryOperation>
@@ -78,8 +68,7 @@ void testKnown(T Identity, T A, T B) {
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
         ReduAcc(ReduBuf, CGH);
     auto Redu = ext::oneapi::reduction(ReduAcc, BOp);
-    assert(Redu.getIdentity() == Identity &&
-           "Failed getIdentity() check().");
+    assert(Redu.getIdentity() == Identity && "Failed getIdentity() check().");
     test_reducer(Redu, A, B);
     test_reducer(Redu, Identity, A, B);
 
@@ -100,8 +89,7 @@ void testUnknown(T Identity, T A, T B) {
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
         ReduAcc(ReduBuf, CGH);
     auto Redu = ext::oneapi::reduction(ReduAcc, Identity, BOp);
-    assert(Redu.getIdentity() == Identity &&
-           "Failed getIdentity() check().");
+    assert(Redu.getIdentity() == Identity && "Failed getIdentity() check().");
     test_reducer(Redu, Identity, A, B);
 
     // Command group must have at least one task in it. Use an empty one.
@@ -124,16 +112,22 @@ int main() {
   testBoth<int, ext::oneapi::bit_or<int>>(0, 1, 8);
   testBoth<int, ext::oneapi::bit_xor<int>>(0, 7, 3);
   testBoth<int, ext::oneapi::bit_and<int>>(~0, 7, 3);
-  testBoth<int, ext::oneapi::minimum<int>>((std::numeric_limits<int>::max)(), 7, 3);
-  testBoth<int, ext::oneapi::maximum<int>>((std::numeric_limits<int>::min)(), 7, 3);
+  testBoth<int, ext::oneapi::minimum<int>>((std::numeric_limits<int>::max)(), 7,
+                                           3);
+  testBoth<int, ext::oneapi::maximum<int>>((std::numeric_limits<int>::min)(), 7,
+                                           3);
 
   testBoth<float, ext::oneapi::plus<float>>(0, 1, 7);
   testBoth<float, std::multiplies<float>>(1, 1, 7);
-  testBoth<float, ext::oneapi::minimum<float>>(getMaximumFPValue<float>(), 7, 3);
-  testBoth<float, ext::oneapi::maximum<float>>(getMinimumFPValue<float>(), 7, 3);
+  testBoth<float, ext::oneapi::minimum<float>>(getMaximumFPValue<float>(), 7,
+                                               3);
+  testBoth<float, ext::oneapi::maximum<float>>(getMinimumFPValue<float>(), 7,
+                                               3);
 
-  testUnknown<Point<float>, 0, PointPlus<float>>(Point<float>(0), Point<float>(1), Point<float>(7));
-  testUnknown<Point<float>, 1, PointPlus<float>>(Point<float>(0), Point<float>(1), Point<float>(7));
+  testUnknown<Point<float>, 0, PointPlus<float>>(
+      Point<float>(0), Point<float>(1), Point<float>(7));
+  testUnknown<Point<float>, 1, PointPlus<float>>(
+      Point<float>(0), Point<float>(1), Point<float>(7));
 
   std::cout << "Test passed\n";
   return 0;

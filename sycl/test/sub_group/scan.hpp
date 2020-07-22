@@ -10,8 +10,7 @@
 #include <CL/sycl.hpp>
 #include <limits>
 
-template <typename T, class BinaryOperation>
-class sycl_subgr;
+template <typename T, class BinaryOperation> class sycl_subgr;
 
 using namespace cl::sycl;
 
@@ -73,8 +72,7 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
   }
 }
 
-template <typename T>
-void check(queue &Queue, size_t G = 120, size_t L = 60) {
+template <typename T> void check(queue &Queue, size_t G = 120, size_t L = 60) {
   // limit data range for half to avoid rounding issues
   if (std::is_same<T, cl::sycl::half>::value) {
     G = 64;
@@ -87,21 +85,21 @@ void check(queue &Queue, size_t G = 120, size_t L = 60) {
   check_op<T>(Queue, T(0), ext::oneapi::minimum<T>(), false, G, L);
   if (std::is_floating_point<T>::value ||
       std::is_same<T, cl::sycl::half>::value) {
-    check_op<T>(Queue, std::numeric_limits<T>::infinity(), ext::oneapi::minimum<T>(),
-                true, G, L);
+    check_op<T>(Queue, std::numeric_limits<T>::infinity(),
+                ext::oneapi::minimum<T>(), true, G, L);
   } else {
-    check_op<T>(Queue, std::numeric_limits<T>::max(), ext::oneapi::minimum<T>(), true,
-                G, L);
+    check_op<T>(Queue, std::numeric_limits<T>::max(), ext::oneapi::minimum<T>(),
+                true, G, L);
   }
 
   check_op<T>(Queue, T(G), ext::oneapi::maximum<T>(), false, G, L);
   if (std::is_floating_point<T>::value ||
       std::is_same<T, cl::sycl::half>::value) {
-    check_op<T>(Queue, -std::numeric_limits<T>::infinity(), ext::oneapi::maximum<T>(),
-                true, G, L);
+    check_op<T>(Queue, -std::numeric_limits<T>::infinity(),
+                ext::oneapi::maximum<T>(), true, G, L);
   } else {
-    check_op<T>(Queue, std::numeric_limits<T>::min(), ext::oneapi::maximum<T>(), true,
-                G, L);
+    check_op<T>(Queue, std::numeric_limits<T>::min(), ext::oneapi::maximum<T>(),
+                true, G, L);
   }
 
 #if __cplusplus >= 201402L
@@ -111,21 +109,21 @@ void check(queue &Queue, size_t G = 120, size_t L = 60) {
   check_op<T>(Queue, T(0), ext::oneapi::minimum<>(), false, G, L);
   if (std::is_floating_point<T>::value ||
       std::is_same<T, cl::sycl::half>::value) {
-    check_op<T>(Queue, std::numeric_limits<T>::infinity(), ext::oneapi::minimum<>(),
-                true, G, L);
+    check_op<T>(Queue, std::numeric_limits<T>::infinity(),
+                ext::oneapi::minimum<>(), true, G, L);
   } else {
-    check_op<T>(Queue, std::numeric_limits<T>::max(), ext::oneapi::minimum<>(), true,
-                G, L);
+    check_op<T>(Queue, std::numeric_limits<T>::max(), ext::oneapi::minimum<>(),
+                true, G, L);
   }
 
   check_op<T>(Queue, T(G), ext::oneapi::maximum<>(), false, G, L);
   if (std::is_floating_point<T>::value ||
       std::is_same<T, cl::sycl::half>::value) {
-    check_op<T>(Queue, -std::numeric_limits<T>::infinity(), ext::oneapi::maximum<>(),
-                true, G, L);
+    check_op<T>(Queue, -std::numeric_limits<T>::infinity(),
+                ext::oneapi::maximum<>(), true, G, L);
   } else {
-    check_op<T>(Queue, std::numeric_limits<T>::min(), ext::oneapi::maximum<>(), true,
-                G, L);
+    check_op<T>(Queue, std::numeric_limits<T>::min(), ext::oneapi::maximum<>(),
+                true, G, L);
   }
 #endif
 }

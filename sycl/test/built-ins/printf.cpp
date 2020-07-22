@@ -78,18 +78,15 @@ int main() {
 
         // However, you are still able to print them by-element:
         {
-          ext::oneapi::printf(format_vec, (int32_t)v4.w(),
-                                      (int32_t)v4.z(), (int32_t)v4.y(),
-                                      (int32_t)v4.x());
+          ext::oneapi::printf(format_vec, (int32_t)v4.w(), (int32_t)v4.z(),
+                              (int32_t)v4.y(), (int32_t)v4.x());
         }
 #else
         // On host side you always have to print them by-element:
-        ext::oneapi::printf(format_vec, (int32_t)v4.x(),
-                                    (int32_t)v4.y(), (int32_t)v4.z(),
-                                    (int32_t)v4.w());
-        ext::oneapi::printf(format_vec, (int32_t)v4.w(),
-                                    (int32_t)v4.z(), (int32_t)v4.y(),
-                                    (int32_t)v4.x());
+        ext::oneapi::printf(format_vec, (int32_t)v4.x(), (int32_t)v4.y(),
+                            (int32_t)v4.z(), (int32_t)v4.w());
+        ext::oneapi::printf(format_vec, (int32_t)v4.w(), (int32_t)v4.z(),
+                            (int32_t)v4.y(), (int32_t)v4.x());
 #endif // __SYCL_DEVICE_ONLY__
        // CHECK-NEXT: 5,6,7,8
        // CHECK-NEXT: 8,7,6,5
@@ -127,8 +124,8 @@ int main() {
     // CHECK-NEXT: {{[0-9]+}}: Hello, World!
   }
 
-// FIXME: strictly check output order once the bug mentioned above is fixed
-// CHECK: {{(Hello, World!)?}}
+  // FIXME: strictly check output order once the bug mentioned above is fixed
+  // CHECK: {{(Hello, World!)?}}
 
   return 0;
 }

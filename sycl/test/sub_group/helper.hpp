@@ -12,14 +12,12 @@
 
 using namespace cl::sycl;
 
-template <typename T1, int N>
-struct utils {
+template <typename T1, int N> struct utils {
   static T1 add_vec(const vec<T1, N> &v);
   static bool cmp_vec(const vec<T1, N> &v, const vec<T1, N> &r);
   static std::string stringify_vec(const vec<T1, N> &v);
 };
-template <typename T2>
-struct utils<T2, 1> {
+template <typename T2> struct utils<T2, 1> {
   static T2 add_vec(const vec<T2, 1> &v) { return v.s0(); }
   static bool cmp_vec(const vec<T2, 1> &v, const vec<T2, 1> &r) {
     return v.s0() == r.s0();
@@ -28,8 +26,7 @@ struct utils<T2, 1> {
     return std::to_string((T2)v.s0());
   }
 };
-template <typename T2>
-struct utils<T2, 2> {
+template <typename T2> struct utils<T2, 2> {
   static T2 add_vec(const vec<T2, 2> &v) { return v.s0() + v.s1(); }
   static bool cmp_vec(const vec<T2, 2> &v, const vec<T2, 2> &r) {
     return v.s0() == r.s0() && v.s1() == r.s1();
@@ -39,8 +36,7 @@ struct utils<T2, 2> {
            std::to_string((T2)v.s1()) + " )";
   }
 };
-template <typename T2>
-struct utils<T2, 4> {
+template <typename T2> struct utils<T2, 4> {
   static T2 add_vec(const vec<T2, 4> &v) {
     return v.s0() + v.s1() + v.s2() + v.s3();
   }
@@ -54,8 +50,7 @@ struct utils<T2, 4> {
            std::to_string((T2)v.s3()) + " )";
   }
 };
-template <typename T2>
-struct utils<T2, 8> {
+template <typename T2> struct utils<T2, 8> {
   static T2 add_vec(const vec<T2, 8> &v) {
     return v.s0() + v.s1() + v.s2() + v.s3() + v.s4() + v.s5() + v.s6() +
            v.s7();
@@ -74,8 +69,7 @@ struct utils<T2, 8> {
   }
 };
 
-template <typename T2>
-struct utils<T2, 16> {
+template <typename T2> struct utils<T2, 16> {
   static T2 add_vec(const vec<T2, 16> &v) {
     return v.s0() + v.s1() + v.s2() + v.s3() + v.s4() + v.s5() + v.s6() +
            v.s7() + v.s8() + v.s9() + v.sA() + v.sB() + v.sC() + v.sD() +
@@ -102,8 +96,7 @@ struct utils<T2, 16> {
   }
 };
 
-template <typename T>
-void exit_if_not_equal(T val, T ref, const char *name) {
+template <typename T> void exit_if_not_equal(T val, T ref, const char *name) {
   if (std::is_floating_point<T>::value) {
     if (std::fabs(val - ref) > 0.01) {
       std::cout << "Unexpected result for " << name << ": " << (double)val
@@ -120,16 +113,17 @@ void exit_if_not_equal(T val, T ref, const char *name) {
 }
 
 template <typename T>
-void exit_if_not_equal(std::complex<T> val, std::complex<T> ref, const char *name) {
-  if (std::fabs(val.real() - ref.real()) > 0.01 || std::fabs(val.imag() - ref.imag()) > 0.01) {
+void exit_if_not_equal(std::complex<T> val, std::complex<T> ref,
+                       const char *name) {
+  if (std::fabs(val.real() - ref.real()) > 0.01 ||
+      std::fabs(val.imag() - ref.imag()) > 0.01) {
     std::cout << "Unexpected result for " << name << ": " << val
               << " expected value: " << ref << std::endl;
     exit(1);
   }
 }
 
-template <typename T>
-void exit_if_not_equal(T *val, T *ref, const char *name) {
+template <typename T> void exit_if_not_equal(T *val, T *ref, const char *name) {
   if ((val - ref) != 0) {
     std::cout << "Unexpected result for " << name << ": " << val
               << " expected value: " << ref << std::endl;
@@ -137,8 +131,7 @@ void exit_if_not_equal(T *val, T *ref, const char *name) {
   }
 }
 
-template <>
-void exit_if_not_equal(half val, half ref, const char *name) {
+template <> void exit_if_not_equal(half val, half ref, const char *name) {
   int16_t cmp_val = reinterpret_cast<int16_t &>(val);
   int16_t cmp_ref = reinterpret_cast<int16_t &>(ref);
   if (std::abs(cmp_val - cmp_ref) > 1) {

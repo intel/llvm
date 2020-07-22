@@ -12,8 +12,7 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi;
 
-template <typename T>
-void max_test(queue q, size_t N) {
+template <typename T> void max_test(queue q, size_t N) {
   T initial = std::numeric_limits<T>::lowest();
   T val = initial;
   std::vector<T> output(N);
@@ -24,10 +23,13 @@ void max_test(queue q, size_t N) {
 
     q.submit([&](handler &cgh) {
       auto val = val_buf.template get_access<access::mode::read_write>(cgh);
-      auto out = output_buf.template get_access<access::mode::discard_write>(cgh);
+      auto out =
+          output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed, ext::oneapi::memory_scope::device, access::address_space::global_space>(val[0]);
+        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed,
+                              ext::oneapi::memory_scope::device,
+                              access::address_space::global_space>(val[0]);
 
         // +1 accounts for lowest() returning 0 for unsigned types
         out[gid] = atm.fetch_max(T(gid) + 1);
@@ -67,7 +69,7 @@ int main() {
   max_test<unsigned long long>(q, N);
   max_test<float>(q, N);
   max_test<double>(q, N);
-  //max_test<char*>(q, N);
+  // max_test<char*>(q, N);
 
   std::cout << "Test passed." << std::endl;
 }

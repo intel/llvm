@@ -19,11 +19,9 @@
 #include <CL/sycl.hpp>
 #include <limits>
 #include <numeric>
-template <typename T>
-class sycl_subgr;
+template <typename T> class sycl_subgr;
 using namespace cl::sycl;
-template <typename T>
-void check(queue &Queue, size_t G = 240, size_t L = 60) {
+template <typename T> void check(queue &Queue, size_t G = 240, size_t L = 60) {
   try {
     nd_range<1> NdRange(G, L);
     std::vector<T> data(G);

@@ -18,8 +18,7 @@
 
 using namespace cl::sycl;
 
-template <typename T, int Dim, class BinaryOperation>
-class SomeClass;
+template <typename T, int Dim, class BinaryOperation> class SomeClass;
 
 template <typename T, int Dim, class BinaryOperation>
 void test(T Identity, size_t WGSize, size_t NWItems) {
@@ -33,9 +32,9 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
 
   (OutBuf.template get_access<access::mode::write>())[0] = Identity;
 
-  auto Out = accessor<T, Dim, access::mode::read_write,
-                      access::target::global_buffer,
-                      access::placeholder::true_t>(OutBuf);
+  auto Out =
+      accessor<T, Dim, access::mode::read_write, access::target::global_buffer,
+               access::placeholder::true_t>(OutBuf);
   // Compute.
   queue Q;
   Q.submit([&](handler &CGH) {
@@ -72,13 +71,16 @@ int main() {
   test<int, 1, ext::oneapi::bit_or<int>>(0, 4, 128);
 
   // fast reduce
-  test<float, 1, ext::oneapi::minimum<float>>(getMaximumFPValue<float>(), 5, 5 * 7);
-  test<float, 0, ext::oneapi::maximum<float>>(getMinimumFPValue<float>(), 4, 128);
+  test<float, 1, ext::oneapi::minimum<float>>(getMaximumFPValue<float>(), 5,
+                                              5 * 7);
+  test<float, 0, ext::oneapi::maximum<float>>(getMinimumFPValue<float>(), 4,
+                                              128);
 
   // generic algorithm
   test<int, 0, std::multiplies<int>>(1, 7, 7 * 5);
   test<int, 1, std::multiplies<int>>(1, 8, 16);
-  test<CustomVec<short>, 0, CustomVecPlus<short>>(CustomVec<short>(0), 8, 8 * 3);
+  test<CustomVec<short>, 0, CustomVecPlus<short>>(CustomVec<short>(0), 8,
+                                                  8 * 3);
 
   std::cout << "Test passed\n";
   return 0;

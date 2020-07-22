@@ -7,7 +7,8 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 // RUNx: env SYCL_DEVICE_TYPE=HOST %t.out
-// TODO: Enable the test for HOST when it supports ext::oneapi::reduce() and barrier()
+// TODO: Enable the test for HOST when it supports ext::oneapi::reduce() and
+// barrier()
 
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // with reductions initialized with USM var.
@@ -18,10 +19,8 @@
 
 using namespace cl::sycl;
 
-template <typename T, int Dim, class BinaryOperation>
-class SomeClass;
-template <typename T, int Dim, class BinaryOperation>
-class Copy1;
+template <typename T, int Dim, class BinaryOperation> class SomeClass;
+template <typename T, int Dim, class BinaryOperation> class Copy1;
 
 template <typename T, int Dim, class BinaryOperation>
 void test(T Identity, size_t WGSize, size_t NWItems, usm::alloc AllocType) {
@@ -113,14 +112,16 @@ int main() {
   testUSM<int, 1, ext::oneapi::bit_or<int>>(0, 4, 128);
 
   // fast reduce
-  testUSM<float, 1, ext::oneapi::minimum<float>>(getMaximumFPValue<float>(), 5, 5 * 7);
-  testUSM<float, 0, ext::oneapi::maximum<float>>(getMinimumFPValue<float>(), 4, 128);
+  testUSM<float, 1, ext::oneapi::minimum<float>>(getMaximumFPValue<float>(), 5,
+                                                 5 * 7);
+  testUSM<float, 0, ext::oneapi::maximum<float>>(getMinimumFPValue<float>(), 4,
+                                                 128);
 
   // generic algorithm
   testUSM<int, 0, std::multiplies<int>>(1, 7, 7 * 5);
   testUSM<int, 1, std::multiplies<int>>(1, 8, 16);
-  testUSM<CustomVec<short>, 0, CustomVecPlus<short>>(
-      CustomVec<short>(0), 8, 8 * 3);
+  testUSM<CustomVec<short>, 0, CustomVecPlus<short>>(CustomVec<short>(0), 8,
+                                                     8 * 3);
 
   std::cout << "Test passed\n";
   return 0;

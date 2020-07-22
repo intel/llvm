@@ -12,8 +12,7 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi;
 
-template <typename T>
-void add_fetch_test(queue q, size_t N) {
+template <typename T> void add_fetch_test(queue q, size_t N) {
   T sum = 0;
   std::vector<T> output(N);
   std::fill(output.begin(), output.end(), 0);
@@ -23,10 +22,13 @@ void add_fetch_test(queue q, size_t N) {
 
     q.submit([&](handler &cgh) {
       auto sum = sum_buf.template get_access<access::mode::read_write>(cgh);
-      auto out = output_buf.template get_access<access::mode::discard_write>(cgh);
+      auto out =
+          output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed, ext::oneapi::memory_scope::device, access::address_space::global_space>(sum[0]);
+        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed,
+                              ext::oneapi::memory_scope::device,
+                              access::address_space::global_space>(sum[0]);
         out[gid] = atm.fetch_add(T(1));
       });
     });
@@ -45,8 +47,7 @@ void add_fetch_test(queue q, size_t N) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <typename T>
-void add_plus_equal_test(queue q, size_t N) {
+template <typename T> void add_plus_equal_test(queue q, size_t N) {
   T sum = 0;
   std::vector<T> output(N);
   std::fill(output.begin(), output.end(), 0);
@@ -56,10 +57,13 @@ void add_plus_equal_test(queue q, size_t N) {
 
     q.submit([&](handler &cgh) {
       auto sum = sum_buf.template get_access<access::mode::read_write>(cgh);
-      auto out = output_buf.template get_access<access::mode::discard_write>(cgh);
+      auto out =
+          output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed, ext::oneapi::memory_scope::device, access::address_space::global_space>(sum[0]);
+        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed,
+                              ext::oneapi::memory_scope::device,
+                              access::address_space::global_space>(sum[0]);
         out[gid] = atm += T(1);
       });
     });
@@ -78,8 +82,7 @@ void add_plus_equal_test(queue q, size_t N) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <typename T>
-void add_pre_inc_test(queue q, size_t N) {
+template <typename T> void add_pre_inc_test(queue q, size_t N) {
   T sum = 0;
   std::vector<T> output(N);
   std::fill(output.begin(), output.end(), 0);
@@ -89,10 +92,13 @@ void add_pre_inc_test(queue q, size_t N) {
 
     q.submit([&](handler &cgh) {
       auto sum = sum_buf.template get_access<access::mode::read_write>(cgh);
-      auto out = output_buf.template get_access<access::mode::discard_write>(cgh);
+      auto out =
+          output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed, ext::oneapi::memory_scope::device, access::address_space::global_space>(sum[0]);
+        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed,
+                              ext::oneapi::memory_scope::device,
+                              access::address_space::global_space>(sum[0]);
         out[gid] = ++atm;
       });
     });
@@ -111,8 +117,7 @@ void add_pre_inc_test(queue q, size_t N) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <typename T>
-void add_post_inc_test(queue q, size_t N) {
+template <typename T> void add_post_inc_test(queue q, size_t N) {
   T sum = 0;
   std::vector<T> output(N);
   std::fill(output.begin(), output.end(), 0);
@@ -122,10 +127,13 @@ void add_post_inc_test(queue q, size_t N) {
 
     q.submit([&](handler &cgh) {
       auto sum = sum_buf.template get_access<access::mode::read_write>(cgh);
-      auto out = output_buf.template get_access<access::mode::discard_write>(cgh);
+      auto out =
+          output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed, ext::oneapi::memory_scope::device, access::address_space::global_space>(sum[0]);
+        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed,
+                              ext::oneapi::memory_scope::device,
+                              access::address_space::global_space>(sum[0]);
         out[gid] = atm++;
       });
     });
@@ -144,8 +152,7 @@ void add_post_inc_test(queue q, size_t N) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <typename T>
-void add_test(queue q, size_t N) {
+template <typename T> void add_test(queue q, size_t N) {
   add_fetch_test<T>(q, N);
   add_plus_equal_test<T>(q, N);
   add_pre_inc_test<T>(q, N);
@@ -153,13 +160,11 @@ void add_test(queue q, size_t N) {
 }
 
 // Floating-point types do not support pre- or post-increment
-template <>
-void add_test<float>(queue q, size_t N) {
+template <> void add_test<float>(queue q, size_t N) {
   add_fetch_test<float>(q, N);
   add_plus_equal_test<float>(q, N);
 }
-template <>
-void add_test<double>(queue q, size_t N) {
+template <> void add_test<double>(queue q, size_t N) {
   add_fetch_test<double>(q, N);
   add_plus_equal_test<double>(q, N);
 }
@@ -183,7 +188,7 @@ int main() {
   add_test<unsigned long long>(q, N);
   add_test<float>(q, N);
   add_test<double>(q, N);
-  //add_test<char*>(q, N);
+  // add_test<char*>(q, N);
 
   std::cout << "Test passed." << std::endl;
 }

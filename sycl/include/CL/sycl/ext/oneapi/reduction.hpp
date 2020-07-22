@@ -9,8 +9,8 @@
 #pragma once
 
 #include <CL/sycl/accessor.hpp>
-#include <CL/sycl/handler.hpp>
 #include <CL/sycl/ext/oneapi/group_algorithm.hpp>
+#include <CL/sycl/handler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

@@ -16,8 +16,7 @@
 
 using namespace cl::sycl;
 
-template <typename T, int Dim, class BinaryOperation>
-class SomeClass;
+template <typename T, int Dim, class BinaryOperation> class SomeClass;
 
 template <typename T, int Dim, class BinaryOperation>
 void test(T Identity, size_t WGSize, size_t NWItems) {
@@ -81,16 +80,21 @@ int main() {
   test<int, 0, ext::oneapi::bit_or<int>>(0, 8, 256);
   test<int, 0, ext::oneapi::bit_xor<int>>(0, 8, 256);
   test<int, 0, ext::oneapi::bit_and<int>>(~0, 8, 256);
-  test<int, 0, ext::oneapi::minimum<int>>((std::numeric_limits<int>::max)(), 8, 256);
-  test<int, 0, ext::oneapi::maximum<int>>((std::numeric_limits<int>::min)(), 8, 256);
+  test<int, 0, ext::oneapi::minimum<int>>((std::numeric_limits<int>::max)(), 8,
+                                          256);
+  test<int, 0, ext::oneapi::maximum<int>>((std::numeric_limits<int>::min)(), 8,
+                                          256);
 
   // Check with various types.
   test<float, 0, std::multiplies<float>>(1, 8, 256);
-  test<float, 0, ext::oneapi::minimum<float>>(getMaximumFPValue<float>(), 8, 256);
-  test<float, 0, ext::oneapi::maximum<float>>(getMinimumFPValue<float>(), 8, 256);
+  test<float, 0, ext::oneapi::minimum<float>>(getMaximumFPValue<float>(), 8,
+                                              256);
+  test<float, 0, ext::oneapi::maximum<float>>(getMinimumFPValue<float>(), 8,
+                                              256);
 
   // Check with CUSTOM type.
-  test<CustomVec<long long>, 0, CustomVecPlus<long long>>(CustomVec<long long>(0), 8, 256);
+  test<CustomVec<long long>, 0, CustomVecPlus<long long>>(
+      CustomVec<long long>(0), 8, 256);
 
   std::cout << "Test passed\n";
   return 0;

@@ -346,7 +346,7 @@ private:
   // Recursively calls itself until arguments pack is fully processed.
   // The version for regular(standard layout) argument.
   template <typename T, typename... Ts>
-  void setArgsHelper(int ArgIndex, T &&Arg, Ts &&...Args) {
+  void setArgsHelper(int ArgIndex, T &&Arg, Ts &&... Args) {
     set_arg(ArgIndex, std::move(Arg));
     setArgsHelper(++ArgIndex, std::move(Args)...);
   }
@@ -813,7 +813,7 @@ public:
   /// Registers pack of arguments(Args) with indexes starting from 0.
   ///
   /// \param Args are argument values to be set.
-  template <typename... Ts> void set_args(Ts &&...Args) {
+  template <typename... Ts> void set_args(Ts &&... Args) {
     setArgsHelper(0, std::move(Args)...);
   }
 
