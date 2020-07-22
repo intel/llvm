@@ -21,7 +21,8 @@ int main() {
   std::cout << q1.get_device().get_info<info::device::name>() << std::endl;
   if (!q1.get_device().is_host()) {
     assert(q1.get_device().get_platform().get_info<info::platform::name>().find(
-             "Intel") != std::string::npos && "Intel platform not found!");
+               "Intel") != std::string::npos &&
+           "Intel platform not found!");
   }
 
   queue q2(string_selector("type=cpu"));
@@ -46,9 +47,10 @@ int main() {
   queue q5(string_selector("platform=OpenCL;type=gpu"));
   std::cout << q5.get_device().get_info<info::device::name>() << std::endl;
   if (!q5.get_device().is_host()) {
-        assert(q5.get_device().get_platform().get_info<info::platform::name>().find(
-             "OpenCL") != std::string::npos && "OpenCL platform not found!");
-        assert(q5.get_device().is_gpu() && "Device is not GPU!");
+    assert(q5.get_device().get_platform().get_info<info::platform::name>().find(
+               "OpenCL") != std::string::npos &&
+           "OpenCL platform not found!");
+    assert(q5.get_device().is_gpu() && "Device is not GPU!");
   }
 
   return 0;
