@@ -78,13 +78,24 @@ int main() {
   }
 
   // Test user-defined type
-  // Use complex as a proxy for this
+  // - Use complex as a proxy for this
+  // - Test float and double to test 64-bit and 128-bit types
   {
     std::array<std::complex<float>, N> input;
     std::array<std::complex<float>, 3> output;
     for (int i = 0; i < N; ++i) {
       input[i] =
           std::complex<float>(0, 1) + (float)i * std::complex<float>(2, 2);
+    }
+    std::fill(output.begin(), output.end(), std::complex<float>(0, 0));
+    test(q, input, output);
+  }
+  {
+    std::array<std::complex<double>, N> input;
+    std::array<std::complex<double>, 3> output;
+    for (int i = 0; i < N; ++i) {
+      input[i] =
+          std::complex<double>(0, 1) + (double)i * std::complex<double>(2, 2);
     }
     std::fill(output.begin(), output.end(), std::complex<float>(0, 0));
     test(q, input, output);

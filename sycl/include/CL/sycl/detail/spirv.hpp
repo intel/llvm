@@ -139,7 +139,7 @@ EnableIfGenericBroadcast<T, IdT> GroupBroadcast(T x, IdT local_id) {
     BroadcastResult = GroupBroadcast<Group>(BroadcastX, local_id);
     detail::memcpy(ResultBytes + Offset, &BroadcastResult, Size);
   };
-  GenericBroadcast<T>(BroadcastBytes);
+  GenericShuffle<T>(BroadcastBytes);
   return Result;
 }
 
@@ -192,7 +192,7 @@ EnableIfGenericBroadcast<T> GroupBroadcast(T x, id<Dimensions> local_id) {
     BroadcastResult = GroupBroadcast<Group>(BroadcastX, local_id);
     detail::memcpy(ResultBytes + Offset, &BroadcastResult, Size);
   };
-  GenericBroadcast<T>(BroadcastBytes);
+  GenericShuffle<T>(BroadcastBytes);
   return Result;
 }
 
