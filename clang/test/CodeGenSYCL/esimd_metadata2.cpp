@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -disable-llvm-passes -triple spir64-unknown-unknown-sycldevice -fsycl -fsycl-is-device -fsycl-explicit-simd -S -emit-llvm %s -o - | FileCheck %s --check-prefixes CHECK,CHECK-ESIMD
+// RUN: %clang_cc1 -O0 -disable-llvm-passes -triple spir64-unknown-unknown-sycldevice -fsycl -fsycl-is-device -fsycl-explicit-simd -S -emit-llvm %s -o - | FileCheck %s --check-prefixes CHECK,CHECK-ESIMD
 
 // In ESIMD mode:
 // 1. Attribute !intel_reqd_sub_group_size !1 is added
