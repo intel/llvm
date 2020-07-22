@@ -386,7 +386,11 @@ private:
                        static_cast<int>(AccessTarget), ArgIndex);
   }
 
-  template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
+  template <typename T>
+  typename std::enable_if<std::is_trivially_copyable<T>::value &&
+                              std::is_standard_layout<T>::value,
+                          void>::type
+  setArgHelper(int ArgIndex, T &&Arg) {
     void *StoredArg = (void *)storePlainArg(Arg);
 
     if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
