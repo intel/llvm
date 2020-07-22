@@ -4,7 +4,7 @@
 
 This section describes macros that are predefined in SYCL library.
 
-## __SYCL_COMPILER_VERSION
+### __SYCL_COMPILER_VERSION
 
 This macro contains the build date of SYCL library and is used as a versioning
 base. It takes the form YYYYMMDD, where YYYY is the year, MM is the month, and
