@@ -38,10 +38,8 @@ config.test_exec_root = os.path.join(config.sycl_obj_root, 'test')
 llvm_config.with_system_environment(['PATH', 'OCL_ICD_FILENAMES',
     'CL_CONFIG_DEVICES', 'SYCL_DEVICE_ALLOWLIST', 'SYCL_CONFIG_FILE_NAME'])
 
-config.substitutions.append( ('%clang_cc1', ' ' +  config.dpcpp_compiler + ' -cc1 ') )
-config.substitutions.append( ('%clangxx', ' ' + config.dpcpp_compiler) )
-config.substitutions.append( ('%clang_cl', ' ' + config.dpcpp_compiler) )
-config.substitutions.append( ('%clang', ' ' + config.dpcpp_compiler) )
+config.substitutions.append( ('%clangxx', ' '+ config.dpcpp_compiler + ' ' + config.cxx_flags ) )
+config.substitutions.append( ('%clang', ' ' + config.dpcpp_compiler + ' ' + config.c_flags ) )
 config.substitutions.append( ('%threads_lib', config.sycl_threads_lib) )
 
 llvm_config.with_environment('PATH', config.lit_tools_dir, append_path=True)
