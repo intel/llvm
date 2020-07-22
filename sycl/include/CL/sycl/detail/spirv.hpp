@@ -33,6 +33,32 @@ template <> struct group_scope<::cl::sycl::intel::sub_group> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
 };
 
+// Generic shuffles and broadcasts may require multiple calls to SPIR-V
+// intrinsics, and should use the fewest broadcasts possible
+// - Loop over 64-bit chunks until remaining bytes < 64-bit
+// - At most one 32-bit, 16-bit and 8-bit chunk left over
+template <typename T, typename ShuffleFunctor>
+void GenericShuffle(const ShuffleFunctor &ShuffleBytes) {
+  if (sizeof(T) >= sizeof(uint64_t)) {
+#pragma unroll
+    for (size_t Offset = 0; Offset < sizeof(T); Offset += sizeof(uint64_t)) {
+      ShuffleBytes(Offset, sizeof(uint64_t));
+    }
+  }
+  if (sizeof(T) % sizeof(uint64_t) >= sizeof(uint32_t)) {
+    size_t Offset = sizeof(T) / sizeof(uint64_t) * sizeof(uint64_t);
+    ShuffleBytes(Offset, sizeof(uint32_t));
+  }
+  if (sizeof(T) % sizeof(uint32_t) >= sizeof(uint16_t)) {
+    size_t Offset = sizeof(T) / sizeof(uint32_t) * sizeof(uint32_t);
+    ShuffleBytes(Offset, sizeof(uint16_t));
+  }
+  if (sizeof(T) % sizeof(uint16_t) >= sizeof(uint8_t)) {
+    size_t Offset = sizeof(T) / sizeof(uint16_t) * sizeof(uint16_t);
+    ShuffleBytes(Offset, sizeof(uint8_t));
+  }
+}
+
 template <typename Group> bool GroupAll(bool pred) {
   return __spirv_GroupAll(group_scope<Group>::value, pred);
 }
@@ -41,47 +67,133 @@ template <typename Group> bool GroupAny(bool pred) {
   return __spirv_GroupAny(group_scope<Group>::value, pred);
 }
 
+// Native broadcasts map directly to a SPIR-V GroupBroadcast intrinsic
+template <typename T, typename IdT = size_t>
+using EnableIfNativeBroadcast = detail::enable_if_t<
+    detail::is_arithmetic<T>::value && std::is_integral<IdT>::value, T>;
+
+// Bitcast broadcasts can be implemented using a single SPIR-V GroupBroadcast
+// intrinsic, but require type-punning via an appropriate integer type
+template <typename T, typename IdT = size_t>
+using EnableIfBitcastBroadcast =
+    detail::enable_if_t<!detail::is_arithmetic<T>::value &&
+                            (std::is_trivially_copyable<T>::value &&
+                             (sizeof(T) == 1 || sizeof(T) == 2 ||
+                              sizeof(T) == 4 || sizeof(T) == 8)) &&
+                            std::is_integral<IdT>::value,
+                        T>;
+
+template <typename T>
+using ConvertToNativeBroadcastType_t = select_cl_scalar_integral_unsigned_t<T>;
+
+// Generic broadcasts may require multiple calls to SPIR-V GroupBroadcast
+// intrinsics, and should use the fewest broadcasts possible
+// - Loop over 64-bit chunks until remaining bytes < 64-bit
+// - At most one 32-bit, 16-bit and 8-bit chunk left over
+template <typename T, typename IdT = size_t>
+using EnableIfGenericBroadcast =
+    detail::enable_if_t<!detail::is_arithmetic<T>::value &&
+                            !(std::is_trivially_copyable<T>::value &&
+                              (sizeof(T) == 1 || sizeof(T) == 2 ||
+                               sizeof(T) == 4 || sizeof(T) == 8)) &&
+                            std::is_integral<IdT>::value,
+                        T>;
+
 // Broadcast with scalar local index
 // Work-group supports any integral type
 // Sub-group currently supports only uint32_t
+template <typename Group> struct GroupId { using type = size_t; };
+template <> struct GroupId<::cl::sycl::intel::sub_group> {
+  using type = uint32_t;
+};
 template <typename Group, typename T, typename IdT>
-detail::enable_if_t<is_group<Group>::value && std::is_integral<IdT>::value, T>
-GroupBroadcast(T x, IdT local_id) {
+EnableIfNativeBroadcast<T, IdT> GroupBroadcast(T x, IdT local_id) {
+  using GroupIdT = typename GroupId<Group>::type;
+  GroupIdT GroupLocalId = static_cast<GroupIdT>(local_id);
   using OCLT = detail::ConvertToOpenCLType_t<T>;
-  using OCLIdT = detail::ConvertToOpenCLType_t<IdT>;
-  OCLT ocl_x = detail::convertDataToType<T, OCLT>(x);
-  OCLIdT ocl_id = detail::convertDataToType<IdT, OCLIdT>(local_id);
-  return __spirv_GroupBroadcast(group_scope<Group>::value, ocl_x, ocl_id);
+  using OCLIdT = detail::ConvertToOpenCLType_t<GroupIdT>;
+  OCLT OCLX = detail::convertDataToType<T, OCLT>(x);
+  OCLIdT OCLId = detail::convertDataToType<GroupIdT, OCLIdT>(GroupLocalId);
+  return __spirv_GroupBroadcast(group_scope<Group>::value, OCLX, OCLId);
 }
 template <typename Group, typename T, typename IdT>
-detail::enable_if_t<is_sub_group<Group>::value && std::is_integral<IdT>::value,
-                    T>
-GroupBroadcast(T x, IdT local_id) {
-  using SGIdT = uint32_t;
-  SGIdT sg_local_id = static_cast<SGIdT>(local_id);
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
-  using OCLIdT = detail::ConvertToOpenCLType_t<SGIdT>;
-  OCLT ocl_x = detail::convertDataToType<T, OCLT>(x);
-  OCLIdT ocl_id = detail::convertDataToType<SGIdT, OCLIdT>(sg_local_id);
-  return __spirv_GroupBroadcast(group_scope<Group>::value, ocl_x, ocl_id);
+EnableIfBitcastBroadcast<T, IdT> GroupBroadcast(T x, IdT local_id) {
+  using GroupIdT = typename GroupId<Group>::type;
+  GroupIdT GroupLocalId = static_cast<GroupIdT>(local_id);
+  using BroadcastT = ConvertToNativeBroadcastType_t<T>;
+  using OCLIdT = detail::ConvertToOpenCLType_t<GroupIdT>;
+  auto BroadcastX = detail::bit_cast<BroadcastT>(x);
+  OCLIdT OCLId = detail::convertDataToType<GroupIdT, OCLIdT>(GroupLocalId);
+  BroadcastT Result =
+      __spirv_GroupBroadcast(group_scope<Group>::value, BroadcastX, OCLId);
+  return detail::bit_cast<T>(Result);
+}
+template <typename Group, typename T, typename IdT>
+EnableIfGenericBroadcast<T, IdT> GroupBroadcast(T x, IdT local_id) {
+  T Result;
+  char *XBytes = reinterpret_cast<char *>(&x);
+  char *ResultBytes = reinterpret_cast<char *>(&Result);
+  auto BroadcastBytes = [=](size_t Offset, size_t Size) {
+    uint64_t BroadcastX, BroadcastResult;
+    detail::memcpy(&BroadcastX, XBytes + Offset, Size);
+    BroadcastResult = GroupBroadcast<Group>(BroadcastX, local_id);
+    detail::memcpy(ResultBytes + Offset, &BroadcastResult, Size);
+  };
+  GenericBroadcast<T>(BroadcastBytes);
+  return Result;
 }
 
 // Broadcast with vector local index
 template <typename Group, typename T, int Dimensions>
-T GroupBroadcast(T x, id<Dimensions> local_id) {
+EnableIfNativeBroadcast<T> GroupBroadcast(T x, id<Dimensions> local_id) {
   if (Dimensions == 1) {
     return GroupBroadcast<Group>(x, local_id[0]);
   }
   using IdT = vec<size_t, Dimensions>;
   using OCLT = detail::ConvertToOpenCLType_t<T>;
   using OCLIdT = detail::ConvertToOpenCLType_t<IdT>;
-  IdT vec_id;
+  IdT VecId;
   for (int i = 0; i < Dimensions; ++i) {
-    vec_id[i] = local_id[Dimensions - i - 1];
+    VecId[i] = local_id[Dimensions - i - 1];
   }
-  OCLT ocl_x = detail::convertDataToType<T, OCLT>(x);
-  OCLIdT ocl_id = detail::convertDataToType<IdT, OCLIdT>(vec_id);
-  return __spirv_GroupBroadcast(group_scope<Group>::value, ocl_x, ocl_id);
+  OCLT OCLX = detail::convertDataToType<T, OCLT>(x);
+  OCLIdT OCLId = detail::convertDataToType<IdT, OCLIdT>(VecId);
+  return __spirv_GroupBroadcast(group_scope<Group>::value, OCLX, OCLId);
+}
+template <typename Group, typename T, int Dimensions>
+EnableIfBitcastBroadcast<T> GroupBroadcast(T x, id<Dimensions> local_id) {
+  if (Dimensions == 1) {
+    return GroupBroadcast<Group>(x, local_id[0]);
+  }
+  using IdT = vec<size_t, Dimensions>;
+  using BroadcastT = ConvertToNativeBroadcastType_t<T>;
+  using OCLIdT = detail::ConvertToOpenCLType_t<IdT>;
+  IdT VecId;
+  for (int i = 0; i < Dimensions; ++i) {
+    VecId[i] = local_id[Dimensions - i - 1];
+  }
+  auto BroadcastX = detail::bit_cast<BroadcastT>(x);
+  OCLIdT OCLId = detail::convertDataToType<IdT, OCLIdT>(VecId);
+  BroadcastT Result =
+      __spirv_GroupBroadcast(group_scope<Group>::value, BroadcastX, OCLId);
+  return detail::bit_cast<T>(Result);
+}
+template <typename Group, typename T, int Dimensions>
+EnableIfGenericBroadcast<T> GroupBroadcast(T x, id<Dimensions> local_id) {
+  if (Dimensions == 1) {
+    return GroupBroadcast<Group>(x, local_id[0]);
+  }
+  T Result;
+  char *XBytes = reinterpret_cast<char *>(&x);
+  char *ResultBytes = reinterpret_cast<char *>(&Result);
+  auto BroadcastBytes = [=](size_t Offset, size_t Size) {
+    uint64_t BroadcastX, BroadcastResult;
+    detail::memcpy(&BroadcastX, XBytes + Offset, Size);
+    BroadcastResult = GroupBroadcast<Group>(BroadcastX, local_id);
+    detail::memcpy(ResultBytes + Offset, &BroadcastResult, Size);
+  };
+  GenericBroadcast<T>(BroadcastBytes);
+  return Result;
 }
 
 // Single happens-before means semantics should always apply to all spaces
@@ -399,28 +511,6 @@ using EnableIfGenericShuffle =
                               (sizeof(T) == 1 || sizeof(T) == 2 ||
                                sizeof(T) == 4 || sizeof(T) == 8)),
                         T>;
-
-template <typename T, typename ShuffleFunctor>
-void GenericShuffle(const ShuffleFunctor &ShuffleBytes) {
-  if (sizeof(T) >= sizeof(uint64_t)) {
-#pragma unroll
-    for (size_t Offset = 0; Offset < sizeof(T); Offset += sizeof(uint64_t)) {
-      ShuffleBytes(Offset, sizeof(uint64_t));
-    }
-  }
-  if (sizeof(T) % sizeof(uint64_t) >= sizeof(uint32_t)) {
-    size_t Offset = sizeof(T) / sizeof(uint64_t) * sizeof(uint64_t);
-    ShuffleBytes(Offset, sizeof(uint32_t));
-  }
-  if (sizeof(T) % sizeof(uint32_t) >= sizeof(uint16_t)) {
-    size_t Offset = sizeof(T) / sizeof(uint32_t) * sizeof(uint32_t);
-    ShuffleBytes(Offset, sizeof(uint16_t));
-  }
-  if (sizeof(T) % sizeof(uint16_t) >= sizeof(uint8_t)) {
-    size_t Offset = sizeof(T) / sizeof(uint16_t) * sizeof(uint16_t);
-    ShuffleBytes(Offset, sizeof(uint8_t));
-  }
-}
 
 template <typename T>
 EnableIfGenericShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
