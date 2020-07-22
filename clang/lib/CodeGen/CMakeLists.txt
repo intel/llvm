@@ -31,6 +31,13 @@ if (MSVC)
   set_source_files_properties(CodeGenModule.cpp PROPERTIES COMPILE_FLAGS /bigobj)
 endif()
 
+get_property(LLVMGenXIntrinsics_SOURCE_DIR GLOBAL PROPERTY LLVMGenXIntrinsics_SOURCE_PROP)
+get_property(LLVMGenXIntrinsics_BINARY_DIR GLOBAL PROPERTY LLVMGenXIntrinsics_BINARY_PROP)
+
+include_directories(
+  ${LLVMGenXIntrinsics_SOURCE_DIR}/GenXIntrinsics/include
+  ${LLVMGenXIntrinsics_BINARY_DIR}/GenXIntrinsics/include)
+
 add_clang_library(clangCodeGen
   BackendUtil.cpp
   CGAtomic.cpp
@@ -91,8 +98,14 @@ add_clang_library(clangCodeGen
   TargetInfo.cpp
   VarBypassDetector.cpp
 
+  ADDITIONAL_HEADER_DIRS
+  ${LLVMGenXIntrinsics_SOURCE_DIR}/GenXIntrinsics/include
+  ${LLVMGenXIntrinsics_BINARY_DIR}/GenXIntrinsics/include
+
   DEPENDS
+  ${codegen_deps}
   intrinsics_gen
+  LLVMGenXIntrinsics
 
   LINK_LIBS
   clangAnalysis
@@ -102,4 +115,5 @@ add_clang_library(clangCodeGen
   clangFrontend
   clangLex
   clangSerialization
+  LLVMGenXIntrinsics
   )
