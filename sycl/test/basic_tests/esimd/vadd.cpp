@@ -16,7 +16,9 @@ class ESIMDSelector : public device_selector {
         return device.is_gpu() ? 1000 : -1;
       if (!strcmp(dev_type, "HOST"))
         return device.is_host() ? 1000 : -1;
-      std::cerr << "Supported 'SYCL_DEVICE_TYPE' env var values are 'GPU' and 'HOST', '" << dev_type << "' is not.\n";
+      std::cerr << "Supported 'SYCL_DEVICE_TYPE' env var values are 'GPU' and "
+                   "'HOST', '"
+                << dev_type << "' is not.\n";
       return -1;
     }
     // If "SYCL_DEVICE_TYPE" not defined, only allow gpu device

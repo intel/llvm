@@ -17,9 +17,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo();
 
 class EsimdFunctor {
 public:
-  void operator()() __attribute__((sycl_explicit_simd)) {
-    foo();
-  }
+  void operator()() __attribute__((sycl_explicit_simd)) { foo(); }
 };
 
 template <typename name, typename Func>
@@ -45,21 +43,26 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
   simd<ushort, VL> pred;
   v_addr += offsets;
 
-  __esimd_flat_atomic0<EsimdAtomicOpType::ATOMIC_INC, uint32_t, VL>(v_addr.data(), pred.data());
+  __esimd_flat_atomic0<EsimdAtomicOpType::ATOMIC_INC, uint32_t, VL>(
+      v_addr.data(), pred.data());
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.atomic.inc.v32i32.v32i1.v32i64(<32 x i1> %{{[0-9a-zA-Z_.]+}}, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> undef)
 
-  __esimd_flat_atomic1<EsimdAtomicOpType::ATOMIC_ADD, uint32_t, VL>(v_addr.data(), v1, pred.data());
+  __esimd_flat_atomic1<EsimdAtomicOpType::ATOMIC_ADD, uint32_t, VL>(
+      v_addr.data(), v1, pred.data());
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.atomic.add.v32i32.v32i1.v32i64(<32 x i1> %{{[0-9a-zA-Z_.]+}}, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}}, <32 x i32> undef)
-  __esimd_flat_atomic2<EsimdAtomicOpType::ATOMIC_CMPXCHG, uint32_t, VL>(v_addr.data(), v1, v1, pred.data());
+  __esimd_flat_atomic2<EsimdAtomicOpType::ATOMIC_CMPXCHG, uint32_t, VL>(
+      v_addr.data(), v1, v1, pred.data());
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.atomic.cmpxchg.v32i32.v32i1.v32i64(<32 x i1> %{{[0-9a-zA-Z_.]+}}, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}}, <32 x i32> undef)
 
   uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
-  simd<uint32_t, VL> v00 = __esimd_flat_block_read_unaligned<uint32_t, VL>(addr);
+  simd<uint32_t, VL> v00 =
+      __esimd_flat_block_read_unaligned<uint32_t, VL>(addr);
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.block.ld.unaligned.v32i32(i64 %{{[0-9a-zA-Z_.]+}})
   __esimd_flat_block_write<uint32_t, VL>(addr, v00.data());
   // CHECK: call void @llvm.genx.svm.block.st.v32i32(i64 %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}})
 
-  simd<uint32_t, VL> v01 = __esimd_flat_read<uint32_t, VL>(v_addr.data(), 0, pred.data());
+  simd<uint32_t, VL> v01 =
+      __esimd_flat_read<uint32_t, VL>(v_addr.data(), 0, pred.data());
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.gather.v32i32.v32i1.v32i64(<32 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> undef)
 
   __esimd_flat_write<uint32_t, VL>(v_addr.data(), v01.data(), 0, pred.data());
@@ -90,13 +93,9 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
                      cl::sycl::access::target::image, PH::false_t>
       pB;
 
-  auto d = __esimd_wrregion<
-      float,
-      16 /*ret size*/,
-      8 /*write size*/,
-      0 /*vstride*/,
-      8 /*row width*/,
-      1 /*hstride*/>(c.data() /*dst*/, b.data() /*src*/, 0 /*offset*/);
+  auto d = __esimd_wrregion<float, 16 /*ret size*/, 8 /*write size*/,
+                            0 /*vstride*/, 8 /*row width*/, 1 /*hstride*/>(
+      c.data() /*dst*/, b.data() /*src*/, 0 /*offset*/);
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <16 x float> @llvm.genx.wrregionf.v16f32.v8f32.i16.v8i1(<16 x float> %{{[0-9a-zA-Z_.]+}}, <8 x float> %{{[0-9a-zA-Z_.]+}}, i32 0, i32 8, i32 1, i16 0, i32 0, <8 x i1> <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>)
 
   simd<int, 32> va;

@@ -1,9 +1,9 @@
 // RUN: %clangxx -fsycl -fsycl-explicit-simd -c -fsycl-device-only -Xclang -emit-llvm %s -o - | \
 // RUN:  FileCheck %s
 
-// This test checks that globals with register attribute are allowed in ESIMD mode,
-// can be accessed in functions and correct LLVM IR is generated (including
-// translation of the register attribute)
+// This test checks that globals with register attribute are allowed in ESIMD
+// mode, can be accessed in functions and correct LLVM IR is generated
+// (including translation of the register attribute)
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/intel/esimd.hpp>
