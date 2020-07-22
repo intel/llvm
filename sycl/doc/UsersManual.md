@@ -217,9 +217,3 @@ $ clang++ -fsycl sycl-main.cpp -foffload-static-lib=libsyclapp.a
 
 Use of `-foffload-static-lib` is required or the library will be treated as
 a normal archive.
-
-## Predefined SYCL macros
-
-| Macro | Values | Description |
-| ----- | ------ | ----------- |
-| __SYCL_COMPILER_VERSION | Takes the form YYYYMMDD, where YYYY is the year, MM is the month, and DD is the day.  | The build date of SYCL library is used as versioning base. |
