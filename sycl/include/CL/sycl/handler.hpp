@@ -386,10 +386,16 @@ private:
                        static_cast<int>(AccessTarget), ArgIndex);
   }
 
+  template <typename T> struct ShouldEnableSetArgHelper {
+    static constexpr bool value = std::is_trivially_copyable<T>::value
+#if CL_SYCL_LANGUAGE_VERSION <= 121
+                                  && std::is_standard_layout<T>::value
+#endif
+        ;
+  };
+
   template <typename T>
-  typename std::enable_if<std::is_trivially_copyable<T>::value &&
-                              std::is_standard_layout<T>::value,
-                          void>::type
+  typename std::enable_if<ShouldEnableSetArgHelper<T>::value, void>::type
   setArgHelper(int ArgIndex, T &&Arg) {
     void *StoredArg = (void *)storePlainArg(Arg);
 
