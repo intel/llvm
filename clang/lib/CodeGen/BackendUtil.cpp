@@ -581,6 +581,11 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
   if (CodeGenOpts.DisableLLVMPasses)
     return;
 
+  // Customize the head of the module passes list for the ESIMD extension.
+  if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD) {
+    MPM.add(createSYCLLowerESIMDPass());
+  }
+
   // Figure out TargetLibraryInfo.  This needs to be added to MPM and FPM
   // manually (and not via PMBuilder), since some passes (eg. InstrProfiling)
   // are inserted before PMBuilder ones - they'd get the default-constructed
@@ -786,6 +791,25 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
 
   PMBuilder.populateFunctionPassManager(FPM);
   PMBuilder.populateModulePassManager(MPM);
+
+  // Customize the tail of the module passes list for the ESIMD extension.
+  if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD &&
+    CodeGenOpts.OptimizationLevel != 0) {
+    MPM.add(createESIMDLowerVecArgPass());
+    MPM.add(createESIMDLowerLoadStorePass());
+    MPM.add(createSROAPass());
+    MPM.add(createEarlyCSEPass(true));
+    MPM.add(createInstructionCombiningPass());
+    MPM.add(createDeadCodeEliminationPass());
+    MPM.add(createFunctionInliningPass(
+      CodeGenOpts.OptimizationLevel, CodeGenOpts.OptimizeSize,
+      (!CodeGenOpts.SampleProfileFile.empty() &&
+        CodeGenOpts.PrepareForThinLTO)));
+    MPM.add(createSROAPass());
+    MPM.add(createEarlyCSEPass(true));
+    MPM.add(createInstructionCombiningPass());
+    MPM.add(createDeadCodeEliminationPass());
+  }
 }
 
 static void setCommandLineOpts(const CodeGenOptions &CodeGenOpts) {
@@ -880,29 +904,7 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
   PerFunctionPasses.add(
       createTargetTransformInfoWrapperPass(getTargetIRAnalysis()));
 
-  if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD) {
-    PerModulePasses.add(createSYCLLowerESIMDPass());
-  }
-
   CreatePasses(PerModulePasses, PerFunctionPasses);
-
-  if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD &&
-      CodeGenOpts.OptimizationLevel != 0) {
-    PerModulePasses.add(createESIMDLowerVecArgPass());
-    PerModulePasses.add(createESIMDLowerLoadStorePass());
-    PerModulePasses.add(createSROAPass());
-    PerModulePasses.add(createEarlyCSEPass(true));
-    PerModulePasses.add(createInstructionCombiningPass());
-    PerModulePasses.add(createDeadCodeEliminationPass());
-    PerModulePasses.add(createFunctionInliningPass(
-        CodeGenOpts.OptimizationLevel, CodeGenOpts.OptimizeSize,
-        (!CodeGenOpts.SampleProfileFile.empty() &&
-         CodeGenOpts.PrepareForThinLTO)));
-    PerModulePasses.add(createSROAPass());
-    PerModulePasses.add(createEarlyCSEPass(true));
-    PerModulePasses.add(createInstructionCombiningPass());
-    PerModulePasses.add(createDeadCodeEliminationPass());
-  }
 
   legacy::PassManager CodeGenPasses;
   CodeGenPasses.add(
