@@ -264,11 +264,30 @@ Value *SPIRVToLLVM::mapFunction(SPIRVFunction *BF, Function *F) {
 
 // Variable like GlobalInvolcationId[x] -> get_global_id(x).
 // Variable like WorkDim -> get_work_dim().
+// Replace the following pattern:
+// %a = addrspacecast i32 addrspace(1)* @__spirv_BuiltInSubgroupMaxSize to
+// i32 addrspace(4)*
+// %b = load i32, i32 addrspace(4)* %a, align 4
+// %c = load i32, i32 addrspace(4)* %a, align 4
+// With:
+// %b = call spir_func i32 @_Z22get_max_sub_group_sizev()
+// %c = call spir_func i32 @_Z22get_max_sub_group_sizev()
+
+// And replace the following pattern:
+// %a = addrspacecast <3 x i64> addrspace(1)* @__spirv_BuiltInWorkgroupId to
+// <3 x i64> addrspace(4)*
+// %b = load <3 x i64>, <3 x i64> addrspace(4)* %a, align 32
+// %c = extractelement <3 x i64> %b, i32 idx
+// %d = extractelement <3 x i64> %b, i32 idx
+// With:
+// %c = call spir_func i64 @_Z12get_group_idj(idx)
+// %d = call spir_func i64 @_Z12get_group_idj(idx)
 bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
                                               SPIRVBuiltinVariableKind Kind) {
   std::string FuncName = SPIRSPIRVBuiltinVariableMap::rmap(Kind);
-  std::string MangledName;
   Type *ReturnTy = GV->getType()->getPointerElementType();
+  // Some SPIR-V builtin variables are translated to a function with an index
+  // argument.
   bool HasIndexArg =
       ReturnTy->isVectorTy() &&
       !(BuiltInSubgroupEqMask <= Kind && Kind <= BuiltInSubgroupLtMask);
@@ -277,6 +296,7 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
   std::vector<Type *> ArgTy;
   if (HasIndexArg)
     ArgTy.push_back(Type::getInt32Ty(*Context));
+  std::string MangledName;
   mangleOpenClBuiltin(FuncName, ArgTy, MangledName);
   Function *Func = M->getFunction(MangledName);
   if (!Func) {
@@ -286,48 +306,70 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
     Func->addFnAttr(Attribute::NoUnwind);
     Func->addFnAttr(Attribute::ReadNone);
   }
-  std::vector<Instruction *> Deletes;
-  std::vector<Instruction *> Uses;
-  for (auto UI = GV->user_begin(), UE = GV->user_end(); UI != UE; ++UI) {
-    LoadInst *LD = nullptr;
-    AddrSpaceCastInst *ASCast = dyn_cast<AddrSpaceCastInst>(*UI);
-    if (ASCast) {
-      LD = cast<LoadInst>(*ASCast->user_begin());
-    } else {
-      LD = cast<LoadInst>(*UI);
-    }
-    if (!HasIndexArg) {
-      Uses.push_back(LD);
-      Deletes.push_back(LD);
-      if (ASCast)
-        Deletes.push_back(ASCast);
-      continue;
-    }
-    for (auto LDUI = LD->user_begin(), LDUE = LD->user_end(); LDUI != LDUE;
-         ++LDUI) {
-      assert(isa<ExtractElementInst>(*LDUI) && "Unsupported use");
-      auto EEI = dyn_cast<ExtractElementInst>(*LDUI);
-      Uses.push_back(EEI);
-      Deletes.push_back(EEI);
-    }
-    Deletes.push_back(LD);
-    if (ASCast)
-      Deletes.push_back(ASCast);
-  }
-  for (auto &I : Uses) {
-    std::vector<Value *> Arg;
-    if (auto EEI = dyn_cast<ExtractElementInst>(I))
-      Arg.push_back(EEI->getIndexOperand());
+
+  // Collect instructions in these containers to remove them later.
+  std::vector<Instruction *> Extracts;
+  std::vector<Instruction *> Loads;
+  std::vector<Instruction *> Casts;
+
+  auto Replace = [&](std::vector<Value *> Arg, Instruction *I) {
     auto Call = CallInst::Create(Func, Arg, "", I);
     Call->takeName(I);
     setAttrByCalledFunc(Call);
     SPIRVDBG(dbgs() << "[transOCLBuiltinFromVariable] " << *I << " -> " << *Call
                     << '\n';)
     I->replaceAllUsesWith(Call);
+  };
+
+  // If HasIndexArg is true, we are going over users of the Load instruction,
+  // which are expected to be ExtractElement instructions. The result of the
+  // ExtractElement instructions is considered as a usage of the GV and should
+  // be replaced with Func.
+  // If HasIndexArg is false, the result of the Load instruction is the value
+  // which should be replaced with the Func.
+  auto FindAndReplace = [&](LoadInst *LD) {
+    Loads.push_back(LD);
+    if (HasIndexArg) {
+      for (auto *LoadUser : LD->users()) {
+        if (auto *Extract = dyn_cast<ExtractElementInst>(LoadUser)) {
+          Extracts.push_back(Extract);
+          Replace({Extract->getIndexOperand()}, Extract);
+        }
+      }
+    } else {
+      Replace({}, LD);
+    }
+  };
+
+  // Go over the GV users, find Load and ExtractElement instructions and
+  // replace them with the corresponding function call.
+  for (auto *UI : GV->users()) {
+    // There might or might not be an addrspacecast instruction.
+    if (auto *ASCast = dyn_cast<AddrSpaceCastInst>(UI)) {
+      Casts.push_back(ASCast);
+      for (auto *CastUser : ASCast->users()) {
+        if (auto *LD = dyn_cast<LoadInst>(CastUser)) {
+          FindAndReplace(LD);
+        }
+      }
+    } else if (auto *LD = dyn_cast<LoadInst>(UI)) {
+      FindAndReplace(LD);
+    } else {
+      llvm_unreachable("Unexpected pattern!");
+    }
   }
-  for (auto &I : Deletes) {
-    I->eraseFromParent();
-  }
+
+  auto Erase = [](std::vector<Instruction *> &ToErase) {
+    for (Instruction *I : ToErase) {
+      assert(I->hasNUses(0));
+      I->eraseFromParent();
+    }
+  };
+  // Order of erasing is important.
+  Erase(Extracts);
+  Erase(Loads);
+  Erase(Casts);
+
   return true;
 }
 
