@@ -5335,13 +5335,18 @@ static SDValue transformCallee(const SDValue &Callee, SelectionDAG &DAG,
   // On AIX, direct function calls reference the symbol for the function's
   // entry point, which is named by prepending a "." before the function's
   // C-linkage name.
+  const auto getFunctionEntryPointSymbol = [&](StringRef SymName) {
+    auto &Context = DAG.getMachineFunction().getMMI().getContext();
+    return cast<MCSymbolXCOFF>(
+        Context.getOrCreateSymbol(Twine(".") + Twine(SymName)));
+  };
+
   const auto getAIXFuncEntryPointSymbolSDNode =
       [&](StringRef FuncName, bool IsDeclaration,
           const XCOFF::StorageClass &SC) {
-        auto &Context = DAG.getMachineFunction().getMMI().getContext();
+        MCSymbolXCOFF *S = getFunctionEntryPointSymbol(FuncName);
 
-        MCSymbolXCOFF *S = cast<MCSymbolXCOFF>(
-            Context.getOrCreateSymbol(Twine(".") + Twine(FuncName)));
+        auto &Context = DAG.getMachineFunction().getMMI().getContext();
 
         if (IsDeclaration && !S->hasRepresentedCsectSet()) {
           // On AIX, an undefined symbol needs to be associated with a
@@ -5376,22 +5381,21 @@ static SDValue transformCallee(const SDValue &Callee, SelectionDAG &DAG,
 
   if (ExternalSymbolSDNode *S = dyn_cast<ExternalSymbolSDNode>(Callee)) {
     const char *SymName = S->getSymbol();
-    if (!Subtarget.isAIXABI())
-      return DAG.getTargetExternalSymbol(SymName, Callee.getValueType(),
-                                         UsePlt ? PPCII::MO_PLT : 0);
-
-    // If there exists a user-declared function whose name is the same as the
-    // ExternalSymbol's, then we pick up the user-declared version.
-    const Module *Mod = DAG.getMachineFunction().getFunction().getParent();
-    if (const Function *F =
-            dyn_cast_or_null<Function>(Mod->getNamedValue(SymName))) {
-      const XCOFF::StorageClass SC =
-          TargetLoweringObjectFileXCOFF::getStorageClassForGlobal(F);
-      return getAIXFuncEntryPointSymbolSDNode(F->getName(), F->isDeclaration(),
-                                              SC);
+    if (Subtarget.isAIXABI()) {
+      // If there exists a user-declared function whose name is the same as the
+      // ExternalSymbol's, then we pick up the user-declared version.
+      const Module *Mod = DAG.getMachineFunction().getFunction().getParent();
+      if (const Function *F =
+              dyn_cast_or_null<Function>(Mod->getNamedValue(SymName))) {
+        const XCOFF::StorageClass SC =
+            TargetLoweringObjectFileXCOFF::getStorageClassForGlobal(F);
+        return getAIXFuncEntryPointSymbolSDNode(F->getName(),
+                                                F->isDeclaration(), SC);
+      }
+      SymName = getFunctionEntryPointSymbol(SymName)->getName().data();
     }
-
-    return getAIXFuncEntryPointSymbolSDNode(SymName, true, XCOFF::C_EXT);
+    return DAG.getTargetExternalSymbol(SymName, Callee.getValueType(),
+                                       UsePlt ? PPCII::MO_PLT : 0);
   }
 
   // No transformation needed.
@@ -16377,31 +16381,56 @@ bool PPCTargetLowering::isFMAFasterThanFMulAndFAdd(const Function &F,
   }
 }
 
-// Currently this is a copy from AArch64TargetLowering::isProfitableToHoist.
-// FIXME: add more patterns which are profitable to hoist.
+// FIXME: add more patterns which are not profitable to hoist.
 bool PPCTargetLowering::isProfitableToHoist(Instruction *I) const {
-  if (I->getOpcode() != Instruction::FMul)
-    return true;
-
   if (!I->hasOneUse())
     return true;
 
   Instruction *User = I->user_back();
   assert(User && "A single use instruction with no uses.");
 
-  if (User->getOpcode() != Instruction::FSub &&
-      User->getOpcode() != Instruction::FAdd)
+  switch (I->getOpcode()) {
+  case Instruction::FMul: {
+    // Don't break FMA, PowerPC prefers FMA.
+    if (User->getOpcode() != Instruction::FSub &&
+        User->getOpcode() != Instruction::FAdd)
+      return true;
+
+    const TargetOptions &Options = getTargetMachine().Options;
+    const Function *F = I->getFunction();
+    const DataLayout &DL = F->getParent()->getDataLayout();
+    Type *Ty = User->getOperand(0)->getType();
+
+    return !(
+        isFMAFasterThanFMulAndFAdd(*F, Ty) &&
+        isOperationLegalOrCustom(ISD::FMA, getValueType(DL, Ty)) &&
+        (Options.AllowFPOpFusion == FPOpFusion::Fast || Options.UnsafeFPMath));
+  }
+  case Instruction::Load: {
+    // Don't break "store (load float*)" pattern, this pattern will be combined
+    // to "store (load int32)" in later InstCombine pass. See function
+    // combineLoadToOperationType. On PowerPC, loading a float point takes more
+    // cycles than loading a 32 bit integer.
+    LoadInst *LI = cast<LoadInst>(I);
+    // For the loads that combineLoadToOperationType does nothing, like
+    // ordered load, it should be profitable to hoist them.
+    // For swifterror load, it can only be used for pointer to pointer type, so
+    // later type check should get rid of this case.
+    if (!LI->isUnordered())
+      return true;
+
+    if (User->getOpcode() != Instruction::Store)
+      return true;
+
+    if (I->getType()->getTypeID() != Type::FloatTyID)
+      return true;
+
+    return false;
+  }
+  default:
     return true;
-
-  const TargetOptions &Options = getTargetMachine().Options;
-  const Function *F = I->getFunction();
-  const DataLayout &DL = F->getParent()->getDataLayout();
-  Type *Ty = User->getOperand(0)->getType();
-
-  return !(
-      isFMAFasterThanFMulAndFAdd(*F, Ty) &&
-      isOperationLegalOrCustom(ISD::FMA, getValueType(DL, Ty)) &&
-      (Options.AllowFPOpFusion == FPOpFusion::Fast || Options.UnsafeFPMath));
+  }
+  return true;
 }
 
 const MCPhysReg *

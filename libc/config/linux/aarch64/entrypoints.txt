@@ -11,6 +11,7 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.string.strlen
     libc.src.string.memchr
     libc.src.string.strchr
+    libc.src.string.strstr
 )
 
 set(TARGET_LIBM_ENTRYPOINTS
@@ -30,6 +31,9 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.floor
     libc.src.math.floorf
     libc.src.math.floorl
+    libc.src.math.fmin
+    libc.src.math.fminf
+    libc.src.math.fminl
     libc.src.math.frexp
     libc.src.math.frexpf
     libc.src.math.frexpl

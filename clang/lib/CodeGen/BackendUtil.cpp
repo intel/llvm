@@ -1161,7 +1161,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
   PTO.Coroutines = LangOpts.Coroutines;
 
   PassInstrumentationCallbacks PIC;
-  StandardInstrumentations SI;
+  StandardInstrumentations SI(CodeGenOpts.DebugPassManager);
   SI.registerCallbacks(PIC);
   PassBuilder PB(TM.get(), PTO, PGOOpt, &PIC);
 

@@ -12048,7 +12048,7 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
     // Try to correct any TypoExprs in the initialization arguments.
     for (size_t Idx = 0; Idx < Args.size(); ++Idx) {
       ExprResult Res = CorrectDelayedTyposInExpr(
-          Args[Idx], VDecl, /*RecoverUncorrectedTypos=*/false,
+          Args[Idx], VDecl, /*RecoverUncorrectedTypos=*/true,
           [this, Entity, Kind](Expr *E) {
             InitializationSequence Init(*this, Entity, Kind, MultiExprArg(E));
             return Init.Failed() ? ExprError() : E;
@@ -13167,20 +13167,20 @@ void Sema::FinalizeDeclaration(Decl *ThisDecl) {
     if (!MagicValueExpr) {
       continue;
     }
-    llvm::APSInt MagicValueInt;
-    if (!MagicValueExpr->isIntegerConstantExpr(MagicValueInt, Context)) {
+    Optional<llvm::APSInt> MagicValueInt;
+    if (!(MagicValueInt = MagicValueExpr->getIntegerConstantExpr(Context))) {
       Diag(I->getRange().getBegin(),
            diag::err_type_tag_for_datatype_not_ice)
         << LangOpts.CPlusPlus << MagicValueExpr->getSourceRange();
       continue;
     }
-    if (MagicValueInt.getActiveBits() > 64) {
+    if (MagicValueInt->getActiveBits() > 64) {
       Diag(I->getRange().getBegin(),
            diag::err_type_tag_for_datatype_too_large)
         << LangOpts.CPlusPlus << MagicValueExpr->getSourceRange();
       continue;
     }
-    uint64_t MagicValue = MagicValueInt.getZExtValue();
+    uint64_t MagicValue = MagicValueInt->getZExtValue();
     RegisterTypeTagForDatatype(I->getArgumentKind(),
                                MagicValue,
                                I->getMatchingCType(),
