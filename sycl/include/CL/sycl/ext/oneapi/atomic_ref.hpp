@@ -13,6 +13,7 @@
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/helpers.hpp>
+#include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/ext/oneapi/atomic_enums.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
