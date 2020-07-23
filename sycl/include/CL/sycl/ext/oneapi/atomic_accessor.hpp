@@ -9,8 +9,8 @@
 #pragma once
 
 #include <CL/sycl/access/access.hpp>
-#include <CL/sycl/intel/atomic_enums.hpp>
-#include <CL/sycl/intel/atomic_ref.hpp>
+#include <CL/sycl/ext/oneapi/atomic_enums.hpp>
+#include <CL/sycl/ext/oneapi/atomic_ref.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
