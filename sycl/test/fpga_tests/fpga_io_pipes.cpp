@@ -113,7 +113,7 @@ int test_io_bl_pipe(cl::sycl::queue Queue) {
 }
 
 int main() {
-  cl::sycl::queue Queue{cl::sycl::intel::fpga_emulator_selector{}};
+  cl::sycl::queue Queue{cl::sycl::ext::intel::fpga_emulator_selector{}};
 
   if (!Queue.get_device()
            .get_info<cl::sycl::info::device::kernel_kernel_pipe_support>()) {
