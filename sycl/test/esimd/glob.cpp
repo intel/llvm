@@ -16,11 +16,11 @@ constexpr unsigned VL = 16;
 
 ESIMD_PRIVATE ESIMD_REGISTER(17) simd<int, VL> vc;
 // CHECK-DAG: @vc = {{.+}} <16 x i32> zeroinitializer, align 64 #0
-// CHECK-DAG: attributes #0 = { "genx_byte_offset"="17" "genx_volatile" }
+// CHECK-DAG: attributes #0 = { {{.*}}"VCByteOffset"="17" "VCGlobalVariable" "VCVolatile"{{.*}} }
 
 ESIMD_PRIVATE ESIMD_REGISTER(17 + VL) simd<int, VL> vc1;
 // CHECK-DAG: @vc1 = {{.+}} <16 x i32> zeroinitializer, align 64 #1
-// CHECK-DAG: attributes #1 = { "genx_byte_offset"="33" "genx_volatile" }
+// CHECK-DAG: attributes #1 = { {{.*}}"VCByteOffset"="33" "VCGlobalVariable" "VCVolatile"{{.*}} }
 
 SYCL_EXTERNAL ESIMD_NOINLINE void init_vc(int x) {
   vc1 = vc + 1;
