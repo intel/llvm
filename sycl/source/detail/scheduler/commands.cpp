@@ -14,7 +14,6 @@
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/detail/stream_impl.hpp>
 #include <CL/sycl/sampler.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
@@ -25,6 +24,7 @@
 #include <detail/sampler_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/stream_impl.hpp>
 
 #include <cassert>
 #include <string>
