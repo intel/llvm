@@ -15,6 +15,7 @@
 #include <detail/force_device.hpp>
 
 #include <algorithm>
+#include <cctype>
 // 4.6.1 Device selection class
 
 __SYCL_INLINE_NAMESPACE(cl) {
