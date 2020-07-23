@@ -110,8 +110,8 @@ static void handleVisitedNodes(std::vector<Command *> &Visited) {
     if (Cmd->MMarks.MToBeDeleted) {
       Cmd->getEvent()->setCommand(nullptr);
       delete Cmd;
-    }
-    Cmd->MMarks.MVisited = false;
+    } else
+      Cmd->MMarks.MVisited = false;
   }
 }
 
