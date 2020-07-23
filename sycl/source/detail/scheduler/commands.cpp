@@ -201,15 +201,19 @@ public:
 
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
 
-    // we're ready to call the user-defined lambda now
-    if (HostTask.MHostTask->isInteropTask()) {
-      interop_handle IH{MReqToMem, HostTask.MQueue,
-                        getSyclObjImpl(HostTask.MQueue->get_device()),
-                        HostTask.MQueue->getContextImplPtr()};
+    try {
+      // we're ready to call the user-defined lambda now
+      if (HostTask.MHostTask->isInteropTask()) {
+        interop_handle IH{MReqToMem, HostTask.MQueue,
+                          getSyclObjImpl(HostTask.MQueue->get_device()),
+                          HostTask.MQueue->getContextImplPtr()};
 
-      HostTask.MHostTask->call(IH);
-    } else
-      HostTask.MHostTask->call();
+        HostTask.MHostTask->call(IH);
+      } else
+        HostTask.MHostTask->call();
+    } catch (...) {
+      HostTask.MQueue->reportAsyncException(std::current_exception());
+    }
 
     HostTask.MHostTask.reset();
 
