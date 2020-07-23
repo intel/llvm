@@ -81,7 +81,7 @@ public:
   static bool isSyclHalfType(const QualType &Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
-  /// property_list class.
+  /// buffer_location class.
   static bool isSyclBufferLocation(const QualType &Ty);
 
   /// Checks whether given clang type is a standard SYCL API class with given
@@ -1335,8 +1335,16 @@ public:
     // Don't do -1 here because we count on this to be the first parameter added
     // (if any).
     size_t ParamIndex = Params.size();
-    for (const ParmVarDecl *Param : InitMethod->parameters())
-      addParam(BS, Param->getType().getCanonicalType(), 42);
+    auto ParamIt = InitMethod->parameters().begin();
+    if (*ParamIt) {
+      // Add meaningful argument (not '-1') to buffer_location attribute only
+      // for an accessor pointer
+      size_t BufferLocAttrArg = handleBufferLocationProperty(FieldTy);
+      addParam(BS, (*ParamIt)->getType().getCanonicalType(), BufferLocAttrArg);
+      ++ParamIt;
+      for (; ParamIt != InitMethod->parameters().end(); ++ParamIt)
+        addParam(BS, (*ParamIt)->getType().getCanonicalType(), -1);
+    }
     LastParamIndex = ParamIndex;
     return true;
   }
