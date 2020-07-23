@@ -794,7 +794,7 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
 
   // Customize the tail of the module passes list for the ESIMD extension.
   if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD &&
-    CodeGenOpts.OptimizationLevel != 0) {
+      CodeGenOpts.OptimizationLevel != 0) {
     MPM.add(createESIMDLowerVecArgPass());
     MPM.add(createESIMDLowerLoadStorePass());
     MPM.add(createSROAPass());
@@ -802,9 +802,9 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
     MPM.add(createInstructionCombiningPass());
     MPM.add(createDeadCodeEliminationPass());
     MPM.add(createFunctionInliningPass(
-      CodeGenOpts.OptimizationLevel, CodeGenOpts.OptimizeSize,
-      (!CodeGenOpts.SampleProfileFile.empty() &&
-        CodeGenOpts.PrepareForThinLTO)));
+        CodeGenOpts.OptimizationLevel, CodeGenOpts.OptimizeSize,
+        (!CodeGenOpts.SampleProfileFile.empty() &&
+         CodeGenOpts.PrepareForThinLTO)));
     MPM.add(createSROAPass());
     MPM.add(createEarlyCSEPass(true));
     MPM.add(createInstructionCombiningPass());
