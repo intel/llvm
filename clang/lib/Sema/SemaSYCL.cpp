@@ -350,8 +350,7 @@ public:
       // all functions used by kernel have already been parsed and have
       // definitions.
       if (RecursiveSet.count(Callee) && !ConstexprDepth) {
-        SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
-            << Sema::KernelCallRecursiveFunction;
+        SemaRef.Diag(e->getExprLoc(), diag::warn_sycl_restrict_recursion);
         SemaRef.Diag(Callee->getSourceRange().getBegin(),
                      diag::note_sycl_recursive_function_declared_here)
             << Sema::KernelCallRecursiveFunction;
