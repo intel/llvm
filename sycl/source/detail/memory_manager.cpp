@@ -293,6 +293,22 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
   }
 }
 
+template <typename T> static void reverseRangeId(T &R, unsigned int dim) {
+  if (dim == 1) // For dim=1, the ranges/ids passed down here seem to have
+                // already been reversed.
+    return;
+  if (dim == 2) {
+    int tmp = R[0];
+    R[0] = R[1];
+    R[1] = tmp;
+  }
+  if (dim == 3) {
+    int tmp = R[0];
+    R[0] = R[2];
+    R[2] = tmp;
+  }
+}
+
 void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
              unsigned int DimSrc, sycl::range<3> SrcSize,
              sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
@@ -308,23 +324,66 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
   SrcSize[0] *= SrcElemSize;
   const detail::plugin &Plugin = SrcQueue->getPlugin();
   if (SYCLMemObj->getType() == detail::SYCLMemObjI::MemObjType::BUFFER) {
-    DstOffset[0] *= DstElemSize;
-    SrcOffset[0] *= SrcElemSize;
-    SrcAccessRange[0] *= SrcElemSize;
-    DstAccessRange[0] *= DstElemSize;
-    DstSize[0] *= DstElemSize;
+    // old
+    // DstOffset[0] *= DstElemSize;
+    // SrcOffset[0] *= SrcElemSize;
+    // SrcAccessRange[0] *= SrcElemSize;
+    // DstAccessRange[0] *= DstElemSize;
+    // DstSize[0] *= DstElemSize;
 
     if (1 == DimDst && 1 == DimSrc) {
+      // leaving unchanged
+      DstOffset[0] *= DstElemSize;
+      SrcOffset[0] *= SrcElemSize;
+      SrcAccessRange[0] *= SrcElemSize;
+      DstAccessRange[0] *= DstElemSize;
+      DstSize[0] *= DstElemSize;
+
       Plugin.call<PiApiKind::piEnqueueMemBufferRead>(
           Queue, SrcMem,
           /*blocking_read=*/CL_FALSE, SrcOffset[0], SrcAccessRange[0],
           DstMem + DstOffset[0], DepEvents.size(), &DepEvents[0], &OutEvent);
     } else {
-      size_t BufferRowPitch = (1 == DimSrc) ? 0 : SrcSize[0];
-      size_t BufferSlicePitch = (3 == DimSrc) ? SrcSize[0] * SrcSize[1] : 0;
 
-      size_t HostRowPitch = (1 == DimDst) ? 0 : DstSize[0];
-      size_t HostSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
+      // ranges and ids are <3>{z, y, x}   <2>{y,x}   <1>{x} but pi terms are
+      // reversed (x-bytes, y, z) or (x-bytes, y, 0/1) or (x-bytes, 0/1, 0/1)
+
+      // piEnqueMemBufferReadRead(Q, SrcMem, Block?, SrcBuff_Origin,
+      // DstHost_Origin, Region, BufferRowPitch, BufferSlicePitch,
+      // DstHostRowPitch, DstHostSlicePitch )
+      // where Region is [ Width_in_bytes, height_scalar, depth_scalar]
+      // Origin is offset [ x-offset-in-bytes, y-offset scalar, z-offset scalar]
+      // such that offset will be calculated as: origin[z-offset] *
+      // buffer_slice_pitch + origin[y-offset] * buffer_row_pitch +
+      // origin[x-offset-in-bytes].
+      // buffer_row_pitch is the length of each row in bytes
+      // buffer_slice_pitch is the length of each 2D slice in bytes
+      reverseRangeId(SrcSize, DimSrc);
+      reverseRangeId(DstSize, DimDst);
+      size_t BufferRowPitch = (DimSrc > 1) ? SrcSize[0] * SrcElemSize : 0;
+      size_t BufferSlicePitch = (DimSrc > 2) ? SrcSize[1] * BufferRowPitch : 0;
+      size_t HostRowPitch = (DimDst > 1) ? DstSize[0] * DstElemSize : 0;
+      size_t HostSlicePitch = (DimDst > 2) ? DstSize[1] * HostRowPitch : 0;
+
+      // convert Src and Dest Offset range (z,y,x) into origin (x-bytes, y, z)
+      reverseRangeId(SrcOffset, DimSrc);
+      SrcOffset[0] *= SrcElemSize;
+      reverseRangeId(DstOffset, DimDst);
+      DstOffset[0] *= DstElemSize;
+      // sourceAccessRange becomes region
+      reverseRangeId(SrcAccessRange, DimSrc);
+      SrcAccessRange[0] *= SrcElemSize;
+
+      if (DimDst == 1) {
+        DstMem += DstOffset[0];
+        DstOffset[0] = 0;
+      }
+
+      // old
+      // size_t BufferRowPitch = (1 == DimSrc) ? 0 : SrcSize[0];
+      // size_t BufferSlicePitch = (3 == DimSrc) ? SrcSize[0] * SrcSize[1] : 0;
+      // size_t HostRowPitch = (1 == DimDst) ? 0 : DstSize[0];
+      // size_t HostSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
       Plugin.call<PiApiKind::piEnqueueMemBufferReadRect>(
           Queue, SrcMem,
           /*blocking_read=*/CL_FALSE, &SrcOffset[0], &DstOffset[0],

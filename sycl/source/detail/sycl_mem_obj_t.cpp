@@ -52,7 +52,9 @@ void SYCLMemObjT::releaseMem(ContextImplPtr Context, void *MemAllocation) {
 
 void SYCLMemObjT::updateHostMemory(void *const Ptr) {
   const id<3> Offset{0, 0, 0};
-  const range<3> AccessRange{MSizeInBytes, 1, 1};
+  const range<3> AccessRange{
+      MSizeInBytes, 1, 1}; // <-- a proper range<3> is {z,y,x}.  This is more
+                           // like an OpenCL region [x-in-bytes, y, z]
   const range<3> MemoryRange{MSizeInBytes, 1, 1};
   const access::mode AccessMode = access::mode::read;
   SYCLMemObjI *SYCLMemObject = this;
