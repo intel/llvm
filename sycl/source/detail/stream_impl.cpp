@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/stream_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/stream_impl.hpp>
 
 #include <cstdio>
 
