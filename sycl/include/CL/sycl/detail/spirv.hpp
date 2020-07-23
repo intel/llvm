@@ -68,20 +68,23 @@ template <typename Group> bool GroupAny(bool pred) {
 }
 
 // Native broadcasts map directly to a SPIR-V GroupBroadcast intrinsic
+template <typename T>
+using is_native_broadcast = bool_constant<detail::is_arithmetic<T>::value>;
+
 template <typename T, typename IdT = size_t>
 using EnableIfNativeBroadcast = detail::enable_if_t<
-    detail::is_arithmetic<T>::value && std::is_integral<IdT>::value, T>;
+    is_native_broadcast<T>::value && std::is_integral<IdT>::value, T>;
 
 // Bitcast broadcasts can be implemented using a single SPIR-V GroupBroadcast
 // intrinsic, but require type-punning via an appropriate integer type
+template <typename T>
+using is_bitcast_broadcast = bool_constant<
+    !is_native_broadcast<T>::value && std::is_trivially_copyable<T>::value &&
+    (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8)>;
+
 template <typename T, typename IdT = size_t>
-using EnableIfBitcastBroadcast =
-    detail::enable_if_t<!detail::is_arithmetic<T>::value &&
-                            (std::is_trivially_copyable<T>::value &&
-                             (sizeof(T) == 1 || sizeof(T) == 2 ||
-                              sizeof(T) == 4 || sizeof(T) == 8)) &&
-                            std::is_integral<IdT>::value,
-                        T>;
+using EnableIfBitcastBroadcast = detail::enable_if_t<
+    is_bitcast_broadcast<T>::value && std::is_integral<IdT>::value, T>;
 
 template <typename T>
 using ConvertToNativeBroadcastType_t = select_cl_scalar_integral_unsigned_t<T>;
@@ -90,14 +93,15 @@ using ConvertToNativeBroadcastType_t = select_cl_scalar_integral_unsigned_t<T>;
 // intrinsics, and should use the fewest broadcasts possible
 // - Loop over 64-bit chunks until remaining bytes < 64-bit
 // - At most one 32-bit, 16-bit and 8-bit chunk left over
+template <typename T>
+using is_generic_broadcast =
+    bool_constant<!is_native_broadcast<T>::value &&
+                  !is_bitcast_broadcast<T>::value &&
+                  std::is_trivially_copyable<T>::value>;
+
 template <typename T, typename IdT = size_t>
-using EnableIfGenericBroadcast =
-    detail::enable_if_t<!detail::is_arithmetic<T>::value &&
-                            !(std::is_trivially_copyable<T>::value &&
-                              (sizeof(T) == 1 || sizeof(T) == 2 ||
-                               sizeof(T) == 4 || sizeof(T) == 8)) &&
-                            std::is_integral<IdT>::value,
-                        T>;
+using EnableIfGenericBroadcast = detail::enable_if_t<
+    is_generic_broadcast<T>::value && std::is_integral<IdT>::value, T>;
 
 // Broadcast with scalar local index
 // Work-group supports any integral type
