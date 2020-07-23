@@ -46,6 +46,8 @@ public:
     std::atomic<T *> Ptr;
     std::atomic<int> State;
     BuildError Error;
+
+    std::condition_variable MBuildCV;
     std::mutex MBuildResultMutex;
 
     BuildResult(T* P, int S) : Ptr{P}, State{S}, Error{"", 0} {}
@@ -78,18 +80,17 @@ public:
   }
 
   template <class Predicate>
-  void waitUntilBuilt(std::unique_lock<std::mutex> &Lock,
+  void waitUntilBuilt(std::condition_variable &CV,
+                      std::unique_lock<std::mutex> &Lock,
                       Predicate Pred) const {
-    MBuildCV.wait(Lock, Pred);
+    CV.wait(Lock, Pred);
   }
 
-  void notifyAllBuild() const { MBuildCV.notify_all(); }
+  void notifyAllBuild(std::condition_variable &CV) const { CV.notify_all(); }
 
 private:
   std::mutex MProgramCacheMutex;
   std::mutex MKernelsPerProgramCacheMutex;
-
-  mutable std::condition_variable MBuildCV;
 
   ProgramCacheT MCachedPrograms;
   KernelCacheT MKernelsPerProgramCache;
