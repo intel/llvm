@@ -1,12 +1,9 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// UNSUPPORTED: cuda || level0
+//
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-// TODO: re-enable after CI drivers are updated to newer which support spec
-// constants:
-// XFAIL: linux && opencl
-// UNSUPPORTED: cuda || level0
 //
 //==----------- spec_const_hw.cpp ------------------------------------------==//
 //

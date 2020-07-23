@@ -260,6 +260,7 @@ protected:
       AccessMode == access::mode::read_write;
 
   using RefType = detail::const_if_const_AS<AS, DataT> &;
+  using ConstRefType = const DataT &;
   using PtrType = detail::const_if_const_AS<AS, DataT> *;
 
   using AccType =
@@ -299,7 +300,7 @@ protected:
 
     template <int CurDims = SubDims,
               typename = detail::enable_if_t<CurDims == 1 && IsAccessReadOnly>>
-    DataT operator[](size_t Index) const {
+    ConstRefType operator[](size_t Index) const {
       MIDs[Dims - SubDims] = Index;
       return MAccessor[MIDs];
     }
@@ -767,6 +768,7 @@ protected:
   using ConcreteASPtrType = typename detail::PtrValueType<DataT, AS>::type *;
 
   using RefType = detail::const_if_const_AS<AS, DataT> &;
+  using ConstRefType = const DataT &;
   using PtrType = detail::const_if_const_AS<AS, DataT> *;
 
   template <int Dims = Dimensions> size_t getLinearIndex(id<Dims> Id) const {
@@ -1199,9 +1201,9 @@ public:
     return *(getQualifiedPtr() + LinearIndex);
   }
 
-  template <int Dims = Dimensions,
-            typename = detail::enable_if_t<(Dims > 0) && IsAccessReadOnly>>
-  DataT operator[](id<Dimensions> Index) const {
+  template <int Dims = Dimensions>
+  typename detail::enable_if_t<(Dims > 0) && IsAccessReadOnly, ConstRefType>
+  operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return getQualifiedPtr()[LinearIndex];
   }
@@ -1357,7 +1359,7 @@ class accessor<DataT, Dimensions, AccessMode, access::target::local,
 #endif
     public detail::accessor_common<DataT, Dimensions, AccessMode,
                                    access::target::local, IsPlaceholder> {
-
+protected:
   constexpr static int AdjustedDim = Dimensions == 0 ? 1 : Dimensions;
 
   using AccessorCommonT =
@@ -1393,7 +1395,7 @@ public:
   accessor()
       : impl(detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
 
-private:
+protected:
   ConcreteASPtrType getQualifiedPtr() const { return MData; }
 
   ConcreteASPtrType MData;

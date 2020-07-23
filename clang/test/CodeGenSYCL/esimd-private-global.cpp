@@ -11,4 +11,4 @@ SYCL_EXTERNAL void init_vc(int x) {
   vc = x;
   // CHECK: store i32 %0, i32* @vc
 }
-// CHECK: attributes #0 = { "genx_byte_offset"="17" "genx_volatile" }
+// CHECK: attributes #0 = {{.*"VCByteOffset"="17".*"VCVolatile"}}

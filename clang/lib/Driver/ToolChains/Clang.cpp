@@ -7658,6 +7658,8 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   if (getToolChain().getTriple().isSYCLDeviceEnvironment()) {
     TranslatorArgs.push_back("-spirv-max-version=1.1");
     std::string ExtArg("-spirv-ext=+all");
+    if (C.getArgs().hasArg(options::OPT_fsycl_esimd))
+      TranslatorArgs.push_back("-spirv-allow-unknown-intrinsics");
     // Disable SPV_INTEL_usm_storage_classes by default since it adds new
     // storage classes that represent global_device and global_host address
     // spaces, which are not supported for all targets. With the extension

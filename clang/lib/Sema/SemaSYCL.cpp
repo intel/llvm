@@ -729,7 +729,7 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
       .Default(InvokeUnknown);
 }
 
-static CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
+static const CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
   return (*Caller->param_begin())->getType()->getAsCXXRecordDecl();
 }
 
@@ -878,12 +878,12 @@ public:
   }
 
   template <typename ParentTy, typename... Handlers>
-  void VisitRecord(CXXRecordDecl *Owner, ParentTy &Parent,
-                   CXXRecordDecl *Wrapper, Handlers &... handlers);
+  void VisitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
+                   const CXXRecordDecl *Wrapper, Handlers &... handlers);
 
   template <typename... Handlers>
-  void VisitRecordHelper(CXXRecordDecl *Owner,
-                         clang::CXXRecordDecl::base_class_range Range,
+  void VisitRecordHelper(const CXXRecordDecl *Owner,
+                         clang::CXXRecordDecl::base_class_const_range Range,
                          Handlers &... handlers) {
     for (const auto &Base : Range) {
       (void)std::initializer_list<int>{
@@ -906,15 +906,15 @@ public:
   }
 
   template <typename... Handlers>
-  void VisitRecordHelper(CXXRecordDecl *Owner,
-                         clang::RecordDecl::field_range Range,
+  void VisitRecordHelper(const CXXRecordDecl *Owner,
+                         RecordDecl::field_range Range,
                          Handlers &... handlers) {
     VisitRecordFields(Owner, handlers...);
   }
 
   // FIXME: Can this be refactored/handled some other way?
   template <typename ParentTy, typename... Handlers>
-  void VisitStreamRecord(CXXRecordDecl *Owner, ParentTy &Parent,
+  void VisitStreamRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
                          CXXRecordDecl *Wrapper, Handlers &... handlers) {
     (void)std::initializer_list<int>{
         (handlers.enterStruct(Owner, Parent), 0)...};
@@ -933,14 +933,15 @@ public:
   }
 
   template <typename... Handlers>
-  void VisitRecordBases(CXXRecordDecl *KernelFunctor, Handlers &... handlers) {
+  void VisitRecordBases(const CXXRecordDecl *KernelFunctor,
+                        Handlers &... handlers) {
     VisitRecordHelper(KernelFunctor, KernelFunctor->bases(), handlers...);
   }
 
   // A visitor function that dispatches to functions as defined in
   // SyclKernelFieldHandler for the purposes of kernel generation.
   template <typename... Handlers>
-  void VisitRecordFields(CXXRecordDecl *Owner, Handlers &... handlers) {
+  void VisitRecordFields(const CXXRecordDecl *Owner, Handlers &... handlers) {
 
     for (const auto Field : Owner->fields()) {
       (void)std::initializer_list<int>{
@@ -987,8 +988,8 @@ public:
 // type (which doesn't exist in cases where it is a FieldDecl in the
 // 'root'), and Wrapper is the current struct being unwrapped.
 template <typename ParentTy, typename... Handlers>
-void KernelObjVisitor::VisitRecord(CXXRecordDecl *Owner, ParentTy &Parent,
-                                   CXXRecordDecl *Wrapper,
+void KernelObjVisitor::VisitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
+                                   const CXXRecordDecl *Wrapper,
                                    Handlers &... handlers) {
   (void)std::initializer_list<int>{(handlers.enterStruct(Owner, Parent), 0)...};
   VisitRecordHelper(Wrapper, Wrapper->bases(), handlers...);
@@ -1357,7 +1358,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   llvm::SmallVector<Expr *, 16> InitExprs;
   VarDecl *KernelObjClone;
   InitializedEntity VarEntity;
-  CXXRecordDecl *KernelObj;
+  const CXXRecordDecl *KernelObj;
   llvm::SmallVector<Expr *, 16> MemberExprBases;
   uint64_t ArrayIndex;
   FunctionDecl *KernelCallerFunc;
@@ -1524,7 +1525,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   // FIXME Avoid creation of kernel obj clone.
   // See https://github.com/intel/llvm/issues/1544 for details.
   static VarDecl *createKernelObjClone(ASTContext &Ctx, DeclContext *DC,
-                                       CXXRecordDecl *KernelObj) {
+                                       const CXXRecordDecl *KernelObj) {
     TypeSourceInfo *TSInfo =
         KernelObj->isLambda() ? KernelObj->getLambdaTypeInfo() : nullptr;
     VarDecl *VD = VarDecl::Create(
@@ -1572,7 +1573,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
 public:
   SyclKernelBodyCreator(Sema &S, SyclKernelDeclCreator &DC,
-                        CXXRecordDecl *KernelObj,
+                        const CXXRecordDecl *KernelObj,
                         FunctionDecl *KernelCallerFunc)
       : SyclKernelFieldHandler(S), DeclCreator(DC),
         KernelObjClone(createKernelObjClone(S.getASTContext(),
@@ -1934,7 +1935,7 @@ public:
 void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
                                  MangleContext &MC) {
   // The first argument to the KernelCallerFunc is the lambda object.
-  CXXRecordDecl *KernelObj = getKernelObjectType(KernelCallerFunc);
+  const CXXRecordDecl *KernelObj = getKernelObjectType(KernelCallerFunc);
   assert(KernelObj && "invalid kernel caller");
 
   // Calculate both names, since Integration headers need both.
@@ -1943,6 +1944,11 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       constructKernelName(*this, KernelCallerFunc, MC);
   StringRef KernelName(getLangOpts().SYCLUnnamedLambda ? StableName
                                                        : CalculatedName);
+  if (KernelObj->isLambda()) {
+    for (const LambdaCapture &LC : KernelObj->captures())
+      if (LC.capturesThis() && LC.isImplicit())
+        Diag(LC.getLocation(), diag::err_implicit_this_capture);
+  }
   SyclKernelFieldChecker checker(*this);
   SyclKernelDeclCreator kernel_decl(
       *this, checker, KernelName, KernelObj->getLocation(),
@@ -1963,6 +1969,27 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   ConstructingOpenCLKernel = false;
 }
 
+// This function marks all the callees of explicit SIMD kernel
+// with !sycl_explicit_simd. We want to have different semantics
+// for functions that are called from SYCL and E-SIMD contexts.
+// Later, functions marked with !sycl_explicit_simd will be cloned
+// to maintain two different semantics.
+void Sema::MarkSyclSimd() {
+  for (Decl *D : syclDeviceDecls())
+    if (auto SYCLKernel = dyn_cast<FunctionDecl>(D))
+      if (SYCLKernel->hasAttr<SYCLSimdAttr>()) {
+        MarkDeviceFunction Marker(*this);
+        Marker.SYCLCG.addToCallGraph(getASTContext().getTranslationUnitDecl());
+        llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;
+        Marker.CollectKernelSet(SYCLKernel, SYCLKernel, VisitedSet);
+        for (const auto &elt : Marker.KernelSet) {
+          if (FunctionDecl *Def = elt->getDefinition())
+            if (!Def->hasAttr<SYCLSimdAttr>())
+              Def->addAttr(SYCLSimdAttr::CreateImplicit(getASTContext()));
+        }
+      }
+}
+
 void Sema::MarkDevice(void) {
   // Create the call graph so we can detect recursion and check the validity
   // of new operator overrides. Add the kernel function itself in case
@@ -1973,7 +2000,8 @@ void Sema::MarkDevice(void) {
   // Iterate through SYCL_EXTERNAL functions and add them to the device decls.
   for (const auto &entry : *Marker.SYCLCG.getRoot()) {
     if (auto *FD = dyn_cast<FunctionDecl>(entry.Callee->getDecl())) {
-      if (FD->hasAttr<SYCLDeviceAttr>() && !FD->hasAttr<SYCLKernelAttr>())
+      if (FD->hasAttr<SYCLDeviceAttr>() && !FD->hasAttr<SYCLKernelAttr>() &&
+          FD->hasBody())
         addSyclDeviceDecl(FD);
     }
   }
@@ -2038,7 +2066,7 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelMaxWorkGroupSize:
         case attr::Kind::SYCLIntelNoGlobalWorkOffset:
         case attr::Kind::SYCLSimd: {
-          if ((A->getKind() == attr::Kind::SYCLSimd) &&
+          if ((A->getKind() == attr::Kind::SYCLSimd) && KernelBody &&
               !KernelBody->getAttr<SYCLSimdAttr>()) {
             // Usual kernel can't call ESIMD functions.
             Diag(KernelBody->getLocation(),
