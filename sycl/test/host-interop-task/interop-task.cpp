@@ -219,6 +219,8 @@ void test5() {
   }
 }
 
+// The test checks that an exception which is thrown from host_task body
+// is reported as asynchronous.
 void test6() {
   queue Queue([](sycl::exception_list ExceptionList) {
     if (ExceptionList.size() != 1) {
