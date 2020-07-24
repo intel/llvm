@@ -16,14 +16,14 @@ class store_kernel;
 
 template <typename T>
 void store_test(queue q, size_t N) {
-  T initial = std::numeric_limits<T>::max();
+  T initial = T(N);
   T store = initial;
   {
     buffer<T> store_buf(&store, 1);
     q.submit([&](handler &cgh) {
       auto st = store_buf.template get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<store_kernel<T>>(range<1>(N), [=](item<1> it) {
-        int gid = it.get_id(0);
+        size_t gid = it.get_id(0);
         auto atm = atomic_ref<T, intel::memory_order::relaxed, intel::memory_scope::device, access::address_space::global_space>(st[0]);
         atm.store(T(gid));
       });
@@ -45,8 +45,6 @@ int main() {
   }
 
   constexpr int N = 32;
-
-  // TODO: Enable missing tests when supported
   store_test<int>(q, N);
   store_test<unsigned int>(q, N);
   store_test<long>(q, N);
@@ -55,7 +53,7 @@ int main() {
   store_test<unsigned long long>(q, N);
   store_test<float>(q, N);
   store_test<double>(q, N);
-  //store_test<char*>(q, N);
+  store_test<char *>(q, N);
 
   std::cout << "Test passed." << std::endl;
 }
