@@ -32,8 +32,8 @@ template <typename T> void accessor_test(queue q, size_t N) {
           "atomic_accessor type incorrectly deduced");
 #endif
       auto sum =
-          atomic_accessor<T, 1, ext::oneapi::memory_order::relaxed, ext::oneapi::memory_scope::device>(
-              sum_buf, cgh);
+          atomic_accessor<T, 1, ext::oneapi::memory_order::relaxed,
+                          ext::oneapi::memory_scope::device>(sum_buf, cgh);
       auto out =
           output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {

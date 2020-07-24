@@ -2812,10 +2812,11 @@ bool Util::isSyclHalfType(const QualType &Ty) {
 
 bool Util::isSyclSpecConstantType(const QualType &Ty) {
   const StringRef &Name = "spec_constant";
-  std::array<DeclContextDesc, 4> Scopes = {
+  std::array<DeclContextDesc, 5> Scopes = {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "experimental"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "ext"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "oneapi"},
       Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
   return matchQualifiedTypeName(Ty, Scopes);
 }
