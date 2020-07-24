@@ -5,7 +5,7 @@
 #ifndef TRIGGER_ERROR
 [[intelfpga::no_global_work_offset]] void not_direct_one() {} // expected-no-diagnostics
 
-[[cl::intel_reqd_sub_group_size(1)]] void func_one() {
+[[intel::reqd_sub_group_size(1)]] void func_one() {
   not_direct_one();
 }
 
