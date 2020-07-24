@@ -9,7 +9,8 @@ int main() {
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::property::buffer_location<3>> accessorA;
+                     cl::sycl::property::buffer_location<3>>
+      accessorA;
   cl::sycl::kernel_single_task<class kernel_function>(
       [=]() {
         accessorA.use();

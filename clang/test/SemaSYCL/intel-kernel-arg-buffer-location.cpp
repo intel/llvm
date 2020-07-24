@@ -8,7 +8,8 @@
 #ifdef CHECKDIAG
 struct FuncObj {
   [[intelfpga::kernel_arg_buffer_location]] // expected-warning{{'kernel_arg_buffer_location' attribute cannot be used explicitly}}
-  void operator()() {}
+  void
+  operator()() {}
 };
 
 template <typename name, typename Func>

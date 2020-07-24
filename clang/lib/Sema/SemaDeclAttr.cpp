@@ -3084,8 +3084,7 @@ static void handleMaxGlobalWorkDimAttr(Sema &S, Decl *D,
 
 // Handles kernel_arg_buffer_location attr.
 static void handleBufferLocationAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
-  S.Diag(Attr.getLoc(), diag::warn_sycl_implicit_attr_usage)
-    << Attr;
+  S.Diag(Attr.getLoc(), diag::warn_sycl_implicit_attr_usage) << Attr;
 }
 
 static void handleVecTypeHint(Sema &S, Decl *D, const ParsedAttr &AL) {

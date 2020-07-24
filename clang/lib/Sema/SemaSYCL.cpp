@@ -1224,14 +1224,13 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     // is going to be for other compile time known accessor properties, hence
     // it's not clear, how handle them in SemaSYCL. But in general property_list
     // is a parameter pack and shall be handled appropriately.
-    const auto Prop =
-        cast<TemplateArgument>(AccTy->getTemplateArgs()[5]);
+    const auto Prop = cast<TemplateArgument>(AccTy->getTemplateArgs()[5]);
     QualType PropTy = Prop.getAsType();
     if (!Util::isSyclBufferLocation(PropTy))
       return -1;
 
-    const auto *PropDecl = cast<ClassTemplateSpecializationDecl>(
-        PropTy->getAsRecordDecl());
+    const auto *PropDecl =
+        cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
     return static_cast<int>(
         PropDecl->getTemplateArgs()[0].getAsIntegral().getExtValue());
   }

@@ -75,7 +75,7 @@ enum prop_type {
 // TODO: this doesn't belong to property namespace, instead it shall be in its
 // own namespace. Change it, when the actual implementation in SYCL headers is
 // ready
-template<int>
+template <int>
 class buffer_location {};
 
 struct property_base {
@@ -83,7 +83,7 @@ struct property_base {
 };
 } // namespace property
 
-template<typename... properties>
+template <typename... properties>
 class property_list {
 public:
   property_list(properties... props) {}
