@@ -77,6 +77,16 @@ getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
 
 __SYCL_EXPORT void waitEvents(std::vector<cl::sycl::event> DepEvents);
 
+template <typename T> T *declptr() { return static_cast<T *>(nullptr); }
+
+template <typename T> T store(const T *obj, bool write) {
+  static thread_local auto stored = *obj;
+  if (write) {
+    stored = *obj;
+  }
+  return stored;
+}
+
 class Builder {
 public:
   Builder() = delete;
@@ -196,9 +206,8 @@ public:
   }
 
   template <int Dims>
-  static auto getNDItem()
-      -> decltype(getElement(static_cast<nd_item<Dims> *>(nullptr))) {
-    return getElement(static_cast<nd_item<Dims> *>(nullptr));
+  static auto getNDItem() -> decltype(getElement(declptr<nd_item<Dims>>())) {
+    return getElement(declptr<nd_item<Dims>>());
   }
 
 #endif // __SYCL_DEVICE_ONLY__

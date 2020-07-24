@@ -121,5 +121,19 @@ private:
   detail::ItemBase<dimensions, with_offset> MImpl;
 };
 
+namespace detail {
+template <int Dims> item<Dims> store_item(const item<Dims> *i, bool write) {
+  return store(i, write);
+}
+} // namespace detail
+
+template <int Dims> item<Dims> this_item() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return detail::Builder::getElement(detail::declptr<item<Dims>>());
+#else
+  return detail::store_item<Dims>(nullptr, false);
+#endif
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

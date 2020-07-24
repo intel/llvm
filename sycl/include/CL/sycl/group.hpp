@@ -376,5 +376,19 @@ protected:
   }
 };
 
+namespace detail {
+template <int Dims> group<Dims> store_group(const group<Dims> *g, bool write) {
+  return store(g, write);
+}
+} // namespace detail
+
+template <int Dims> group<Dims> this_group() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return detail::Builder::getElement(detail::declptr<group<Dims>>());
+#else
+  return detail::store_group<Dims>(nullptr, false);
+#endif
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
