@@ -1796,9 +1796,13 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
                         void (*PFnNotify)(pi_program Program, void *UserData),
                         void *UserData, pi_program *RetProgram) {
   // TODO: L0 does not [yet] support linking so dummy implementation here.
-  assert(NumInputPrograms == 1 && InputPrograms);
+  if (NumInputPrograms > 1)
+    die("piProgramLink: multiple program linking is not supported yet in "
+        "Level0");
+  assert(NumInputPrograms > 0 && InputPrograms);
   assert(RetProgram);
   *RetProgram = InputPrograms[0];
+  piProgramRetain(*RetProgram);
   return PI_SUCCESS;
 }
 
