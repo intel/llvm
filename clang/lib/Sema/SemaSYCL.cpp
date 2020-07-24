@@ -728,13 +728,16 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
       .Default(InvokeUnknown);
 }
 
-static const CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
+static const CXXRecordDecl *getKernelObjectType(Sema &SemaRef,
+                                                FunctionDecl *Caller) {
   QualType KernelParamTy = (*Caller->param_begin())->getType();
   // In SYCL 2020 kernels are now passed by reference.
   if (KernelParamTy->isReferenceType())
     return KernelParamTy->getPointeeCXXRecordDecl();
 
-  return KernelParamTy->getAsCXXRecordDecl(); // SYCL 1.2
+  // SYCL 1.2
+  SemaRef.Diag(Caller->getLocation(), diag::warn_sycl_old_version);
+  return KernelParamTy->getAsCXXRecordDecl();
 }
 
 /// Creates a kernel parameter descriptor
@@ -1939,7 +1942,7 @@ public:
 void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
                                  MangleContext &MC) {
   // The first argument to the KernelCallerFunc is the lambda object.
-  const CXXRecordDecl *KernelObj = getKernelObjectType(KernelCallerFunc);
+  const CXXRecordDecl *KernelObj = getKernelObjectType(*this, KernelCallerFunc);
   assert(KernelObj && "invalid kernel caller");
 
   // Calculate both names, since Integration headers need both.

@@ -10969,6 +10969,9 @@ def warn_boolean_attribute_argument_is_not_valid: Warning<
 def err_sycl_attibute_cannot_be_applied_here
     : Error<"%0 attribute cannot be applied to a "
             "static function or function in an anonymous namespace">;
+def warn_sycl_old_version 
+    : Warning<"Older version of SYCL headers encountered.">,
+      InGroup<SyclStrict>;
 def warn_sycl_attibute_function_raw_ptr
     : Warning<"SYCL 1.2.1 specification does not allow %0 attribute applied "
               "to a function with a raw pointer "

@@ -2,6 +2,7 @@
 
 // SYCL 1.2 - kernel functions passed directly. (Also no const requirement, though mutable lambdas never supported)
 template <typename name, typename Func>
+// expected-warning@+1 {{Older version of SYCL headers encountered.}}
 __attribute__((sycl_kernel)) void sycl_12_single_task(Func kernelFunc) {
   kernelFunc();
 }
@@ -26,6 +27,5 @@ int main() {
     do_nothing(11);
   });
 
-  // expected-no-diagnostics
   return 0;
 }
