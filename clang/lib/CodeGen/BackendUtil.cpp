@@ -27,6 +27,7 @@
 #include "llvm/CodeGen/RegAllocRegistry.h"
 #include "llvm/CodeGen/SchedulerRegistry.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -889,6 +890,9 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
   // Clean-up SYCL device code if LLVM passes are disabled
   if (LangOpts.SYCLIsDevice && CodeGenOpts.DisableLLVMPasses)
     PerModulePasses.add(createDeadCodeEliminationPass());
+
+  if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD)
+    PerModulePasses.add(createGenXSPIRVWriterAdaptorPass());
 
   switch (Action) {
   case Backend_EmitNothing:

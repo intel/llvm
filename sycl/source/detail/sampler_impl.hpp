@@ -24,11 +24,6 @@ enum class coordinate_normalization_mode : unsigned int;
 namespace detail {
 class __SYCL_EXPORT sampler_impl {
 public:
-#ifdef __SYCL_DEVICE_ONLY__
-  __ocl_sampler_t m_Sampler;
-  sampler_impl(__ocl_sampler_t Sampler) : m_Sampler(Sampler) {}
-  sampler_impl() = default;
-#else
   std::unordered_map<context, RT::PiSampler> m_contextToSampler;
 
 private:
@@ -49,13 +44,8 @@ public:
   coordinate_normalization_mode get_coordinate_normalization_mode() const;
 
   RT::PiSampler getOrCreateSampler(const context &Context);
-#endif
 
-#ifdef __SYCL_DEVICE_ONLY__
-  ~sampler_impl() = default;
-#else
   ~sampler_impl();
-#endif
 };
 
 } // namespace detail

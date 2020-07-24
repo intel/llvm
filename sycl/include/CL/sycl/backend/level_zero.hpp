@@ -37,6 +37,13 @@ struct interop<backend::level_zero, accessor<DataT, Dimensions, AccessMode,
   using type = char *;
 };
 
+template <typename DataT, int Dimensions, access::mode AccessMode>
+struct interop<backend::level_zero, accessor<DataT, Dimensions, AccessMode,
+                                         access::target::constant_buffer,
+                                         access::placeholder::false_t>> {
+  using type = char *;
+};
+
 namespace level_zero {
 
 // Implementation of various "make" functions resides in libsycl.so

@@ -593,6 +593,10 @@
 // CHECK-LINK-SYCL-DEBUG: "{{.*}}link{{(.exe)?}}"
 // CHECK-LINK-SYCL-DEBUG: "-defaultlib:sycld.lib"
 
+/// Check "-spirv-allow-unknown-intrinsics" option is emitted for llvm-spirv tool for esimd mode
+// RUN: %clangxx %s -fsycl -fsycl-explicit-simd -### 2>&1 | FileCheck %s --check-prefix=CHK-FSYCL-ESIMD
+// CHK-FSYCL-ESIMD: llvm-spirv{{.*}}-spirv-allow-unknown-intrinsics
+
 /// ###########################################################################
 
 /// Check -Xsycl-target-backend triggers error when multiple triples are used.

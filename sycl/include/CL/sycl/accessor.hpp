@@ -1359,7 +1359,7 @@ class accessor<DataT, Dimensions, AccessMode, access::target::local,
 #endif
     public detail::accessor_common<DataT, Dimensions, AccessMode,
                                    access::target::local, IsPlaceholder> {
-
+protected:
   constexpr static int AdjustedDim = Dimensions == 0 ? 1 : Dimensions;
 
   using AccessorCommonT =
@@ -1395,7 +1395,7 @@ public:
   accessor()
       : impl(detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
 
-private:
+protected:
   ConcreteASPtrType getQualifiedPtr() const { return MData; }
 
   ConcreteASPtrType MData;

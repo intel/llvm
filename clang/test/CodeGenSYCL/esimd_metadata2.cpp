@@ -35,5 +35,5 @@ void bar() {
 }
 
 // CHECK: !spirv.Source = !{[[LANG:![0-9]+]]}
-// CHECK: [[LANG]] = !{i32 6, i32 100000}
+// CHECK: [[LANG]] = !{i32 0, i32 {{[0-9]+}}}
 // CHECK-ESIMD: ![[SGSIZE1]] = !{i32 1}
