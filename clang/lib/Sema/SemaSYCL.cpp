@@ -2087,9 +2087,8 @@ bool Sema::isArrayZeroInitialized(VarDecl *VD, bool CheckValueDependent) {
     Value = VD->evaluateValue();
   // zero-initialized arrays do not have any initialized elements.
   if (Value && Value->isArray() && Value->hasArrayFiller() &&
-      Value->getArrayInitializedElts() == 0) {
+      Value->getArrayInitializedElts() == 0)
     return true;
-  }
   return false;
 }
 
