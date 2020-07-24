@@ -219,8 +219,15 @@ public:
   bool MIsBlockable = false;
   /// Counts the number of memory objects this command is a leaf for.
   unsigned MLeafCounter = 0;
-  /// Used for marking the node as visited during graph traversal.
-  bool MVisited = false;
+
+  struct Marks {
+    /// Used for marking the node as visited during graph traversal.
+    bool MVisited = false;
+    /// Used for marking the node for deletion during cleanup.
+    bool MToBeDeleted = false;
+  };
+  /// Used for marking the node during graph traversal.
+  Marks MMarks;
 
   enum class BlockReason : int { HostAccessor = 0, HostTask };
 
