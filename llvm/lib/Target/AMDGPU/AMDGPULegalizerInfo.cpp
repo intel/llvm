@@ -422,23 +422,69 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     .legalIf(isPointer(0));
 
   if (ST.hasVOP3PInsts()) {
+    assert(ST.hasIntClamp() && "all targets with VOP3P should support clamp");
     getActionDefinitionsBuilder({G_ADD, G_SUB, G_MUL})
       .legalFor({S32, S16, V2S16})
       .clampScalar(0, S16, S32)
       .clampMaxNumElements(0, S16, 2)
       .scalarize(0)
       .widenScalarToNextPow2(0, 32);
+
+    getActionDefinitionsBuilder({G_UADDSAT, G_USUBSAT, G_SADDSAT, G_SSUBSAT})
+      .lowerFor({S32, S16, V2S16}) // FIXME: legal and merge with add/sub/mul
+      .minScalar(0, S16)
+      .clampMaxNumElements(0, S16, 2)
+      .scalarize(0)
+      .widenScalarToNextPow2(0, 32)
+      .lower();
   } else if (ST.has16BitInsts()) {
     getActionDefinitionsBuilder({G_ADD, G_SUB, G_MUL})
       .legalFor({S32, S16})
       .clampScalar(0, S16, S32)
       .scalarize(0)
-      .widenScalarToNextPow2(0, 32);
+      .widenScalarToNextPow2(0, 32); // FIXME: min should be 16
+
+    assert(ST.hasIntClamp() && "all targets with 16-bit should support clamp");
+
+    // Technically the saturating operations require clamp bit support, but this
+    // was introduced at the same time as 16-bit operations.
+    getActionDefinitionsBuilder({G_UADDSAT, G_USUBSAT})
+      .lowerFor({S32, S16}) // FIXME: legal with clamp modifier
+      .minScalar(0, S16)
+      .scalarize(0)
+      .widenScalarToNextPow2(0, 16)
+      .lower();
+
+    // We're just lowering this, but it helps get a better result to try to
+    // coerce to the desired type first.
+    getActionDefinitionsBuilder({G_SADDSAT, G_SSUBSAT})
+      .minScalar(0, S16)
+      .scalarize(0)
+      .lower();
   } else {
     getActionDefinitionsBuilder({G_ADD, G_SUB, G_MUL})
       .legalFor({S32})
       .clampScalar(0, S32, S32)
       .scalarize(0);
+
+    if (ST.hasIntClamp()) {
+      getActionDefinitionsBuilder({G_UADDSAT, G_USUBSAT})
+        .lowerFor({S32}) // FIXME: legal with clamp modifier.
+        .scalarize(0)
+        .minScalarOrElt(0, S32)
+        .lower();
+    } else {
+      // Clamp bit support was added in VI, along with 16-bit operations.
+      getActionDefinitionsBuilder({G_UADDSAT, G_USUBSAT})
+        .minScalar(0, S32)
+        .scalarize(0)
+        .lower();
+    }
+
+    getActionDefinitionsBuilder({G_SADDSAT, G_SSUBSAT})
+      .minScalar(0, S32)
+      .scalarize(0)
+      .lower();
   }
 
   getActionDefinitionsBuilder({G_SDIV, G_UDIV, G_SREM, G_UREM})
@@ -692,10 +738,8 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     .scalarize(0);
 
   getActionDefinitionsBuilder(G_PTRMASK)
-    .legalIf(typeInSet(1, {S64, S32}))
-    .minScalar(1, S32)
-    .maxScalarIf(sizeIs(0, 32), 1, S32)
-    .maxScalarIf(sizeIs(0, 64), 1, S64)
+    .legalIf(all(sameSize(0, 1), typeInSet(1, {S64, S32})))
+    .scalarSameSizeAs(1, 0)
     .scalarize(0);
 
   auto &CmpBuilder =
@@ -1431,12 +1475,6 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     // shifts. This avoid a lot of intermediate truncate and extend operations.
     SextInReg.lowerFor({{S32}, {S64}});
   }
-
-  // FIXME: Placeholder rule. Really depends on whether the clamp modifier is
-  // available, and is selectively legal for s16, s32, v2s16.
-  getActionDefinitionsBuilder({G_SADDSAT, G_SSUBSAT, G_UADDSAT, G_USUBSAT})
-    .scalarize(0)
-    .clampScalar(0, S16, S32);
 
   SextInReg
     .scalarize(0)
