@@ -15,7 +15,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
-namespace oneapi {
+namespace intel {
 
 template <class name, class dataT, int32_t min_capacity = 0> class pipe {
 public:
@@ -199,7 +199,7 @@ private:
 #endif // __SYCL_DEVICE_ONLY__
 };
 
-} // namespace oneapi
+} // namespace intel
 } // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -13,6 +13,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
 namespace intel {
 
 template <template <int32_t> class Type, class T>
@@ -29,5 +30,6 @@ struct GetValue<Type, T1, T...> {
                        GetValue<Type, T...>>::type::value;
 };
 } // namespace intel
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
