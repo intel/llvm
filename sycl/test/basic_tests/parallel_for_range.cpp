@@ -38,38 +38,44 @@ int main() {
 
   // reqd_work_group_size is OpenCL specific.
   if (OCLBackend) {
-    if (OCLVersion[0] == '1' || (OCLVersion[0] == '2' && OCLVersion[2] == '0')) {
-    // parallel_for, (16, 16, 16) global, (8, 8, 8) local, reqd_wg_size(4, 4, 4)
-    // -> fail
-    try {
-      Q.submit([&](handler &CGH) {
-        CGH.parallel_for<class ReqdWGSizeNegativeA>(
-            nd_range<3>(range<3>(16, 16, 16), range<3>(8, 8, 8)),
-            [=](nd_item<3>) { reqd_wg_size_helper(); });
-      });
-      Q.wait_and_throw();
-      std::cerr << "Test case ReqdWGSizeNegativeA failed: no exception has been "
-                   "thrown\n";
-      return 1; // We shouldn't be here, exception is expected
-    } catch (nd_range_error &E) {
-      if (string_class(E.what()).find(
-              "Specified local size doesn't match the required work-group size "
-              "specified in the program source") == string_class::npos) {
+    if (OCLVersion[0] == '1' ||
+        (OCLVersion[0] == '2' && OCLVersion[2] == '0')) {
+      // parallel_for, (16, 16, 16) global, (8, 8, 8) local, reqd_wg_size(4, 4,
+      // 4)
+      // -> fail
+      try {
+        Q.submit([&](handler &CGH) {
+          CGH.parallel_for<class ReqdWGSizeNegativeA>(
+              nd_range<3>(range<3>(16, 16, 16), range<3>(8, 8, 8)),
+              [=](nd_item<3>) { reqd_wg_size_helper(); });
+        });
+        Q.wait_and_throw();
+        std::cerr
+            << "Test case ReqdWGSizeNegativeA failed: no exception has been "
+               "thrown\n";
+        return 1; // We shouldn't be here, exception is expected
+      } catch (nd_range_error &E) {
+        if (string_class(E.what()).find("Specified local size doesn't match "
+                                        "the required work-group size "
+                                        "specified in the program source") ==
+            string_class::npos) {
+          std::cerr
+              << "Test case ReqdWGSizeNegativeA failed: unexpected exception: "
+              << E.what() << std::endl;
+          return 1;
+        }
+      } catch (runtime_error &E) {
         std::cerr
             << "Test case ReqdWGSizeNegativeA failed: unexpected exception: "
             << E.what() << std::endl;
         return 1;
+      } catch (...) {
+        std::cerr
+            << "Test case ReqdWGSizeNegativeA failed: something unexpected "
+               "has been caught"
+            << std::endl;
+        return 1;
       }
-    } catch (runtime_error &E) {
-      std::cerr << "Test case ReqdWGSizeNegativeA failed: unexpected exception: "
-                << E.what() << std::endl;
-      return 1;
-    } catch (...) {
-      std::cerr << "Test case ReqdWGSizeNegativeA failed: something unexpected "
-                   "has been caught"
-                << std::endl;
-      return 1;
-    }
 
       // parallel_for, (16, 16, 16) global, null local, reqd_wg_size(4, 4, 4) //
       // -> fail
@@ -84,9 +90,10 @@ int main() {
                "thrown\n";
         return 1; // We shouldn't be here, exception is expected
       } catch (nd_range_error &E) {
-        if (string_class(E.what()).find(
-                "OpenCL 1.x and 2.0 requires to pass local size argument even if "
-                "required work-group size was specified in the program source") ==
+        if (string_class(E.what()).find("OpenCL 1.x and 2.0 requires to pass "
+                                        "local size argument even if "
+                                        "required work-group size was "
+                                        "specified in the program source") ==
             string_class::npos) {
           std::cerr
               << "Test case ReqdWGSizeNegativeB failed: unexpected exception: "
@@ -99,9 +106,10 @@ int main() {
             << E.what() << std::endl;
         return 1;
       } catch (...) {
-        std::cerr << "Test case ReqdWGSizeNegativeB failed: something unexpected "
-                     "has been caught"
-                  << std::endl;
+        std::cerr
+            << "Test case ReqdWGSizeNegativeB failed: something unexpected "
+               "has been caught"
+            << std::endl;
         return 1;
       }
     }
@@ -118,12 +126,14 @@ int main() {
       });
       Q.wait_and_throw();
     } catch (nd_range_error &E) {
-      std::cerr << "Test case ReqdWGSizePositiveA failed: unexpected exception: "
-                << E.what() << std::endl;
+      std::cerr
+          << "Test case ReqdWGSizePositiveA failed: unexpected exception: "
+          << E.what() << std::endl;
       return 1;
     } catch (runtime_error &E) {
-      std::cerr << "Test case ReqdWGSizePositiveA failed: unexpected exception: "
-                << E.what() << std::endl;
+      std::cerr
+          << "Test case ReqdWGSizePositiveA failed: unexpected exception: "
+          << E.what() << std::endl;
       return 1;
     } catch (...) {
       std::cerr << "Test case ReqdWGSizePositiveA failed: something unexpected "
@@ -233,8 +243,12 @@ int main() {
         return 1; // We shouldn't be here, exception is expected
       }
     } catch (nd_range_error &E) {
-      if ((string_class(E.what()).find("Local workgroup size cannot be greater than global range in any dimension") == string_class::npos) &&
-          (string_class(E.what()).find("Non-uniform work-groups are not supported by the target device") == string_class::npos)) {
+      if ((string_class(E.what()).find("Local workgroup size cannot be greater "
+                                       "than global range in any dimension") ==
+           string_class::npos) &&
+          (string_class(E.what()).find("Non-uniform work-groups are not "
+                                       "supported by the target device") ==
+           string_class::npos)) {
         std::cerr
             << "Test case OpenCL1XNegativeA2 failed: unexpected exception: "
             << E.what() << std::endl;
@@ -271,8 +285,12 @@ int main() {
         return 1; // We shouldn't be here, exception is expected
       }
     } catch (nd_range_error &E) {
-      if ((string_class(E.what()).find("Local workgroup size cannot be greater than global range in any dimension") == string_class::npos) &&
-          (string_class(E.what()).find("Non-uniform work-groups are not supported by the target device") == string_class::npos)) {
+      if ((string_class(E.what()).find("Local workgroup size cannot be greater "
+                                       "than global range in any dimension") ==
+           string_class::npos) &&
+          (string_class(E.what()).find("Non-uniform work-groups are not "
+                                       "supported by the target device") ==
+           string_class::npos)) {
         std::cerr
             << "Test case OpenCL1XNegativeB2 failed: unexpected exception: "
             << E.what() << std::endl;
@@ -308,9 +326,11 @@ int main() {
       return 1; // We shouldn't be here, exception is expected
     } catch (nd_range_error &E) {
       if ((string_class(E.what()).find(
-              "Total number of work-items in a work-group cannot exceed " +
-              std::to_string(MaxDeviceWGSize)) == string_class::npos) &&
-          (string_class(E.what()).find("Non-uniform work-groups are not supported by the target device") == string_class::npos)) {
+               "Total number of work-items in a work-group cannot exceed " +
+               std::to_string(MaxDeviceWGSize)) == string_class::npos) &&
+          (string_class(E.what()).find("Non-uniform work-groups are not "
+                                       "supported by the target device") ==
+           string_class::npos)) {
         std::cerr
             << "Test case OpenCL1XNegativeC failed: unexpected exception: "
             << E.what() << std::endl;
@@ -488,9 +508,11 @@ int main() {
       } catch (nd_range_error &E) {
         if (string_class(E.what()).find(
                 "Local workgroup size greater than global range size. "
-                "Non-uniform work-groups are not allowed by default. Underlying "
+                "Non-uniform work-groups are not allowed by default. "
+                "Underlying "
                 "OpenCL 2.x implementation supports this feature and to enable "
-                "it, build device program with -cl-std=CL2.0") == string_class::npos) {
+                "it, build device program with -cl-std=CL2.0") ==
+            string_class::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeB2 failed: unexpected exception: "
               << E.what() << std::endl;
@@ -502,9 +524,10 @@ int main() {
             << E.what() << std::endl;
         return 1;
       } catch (...) {
-        std::cerr << "Test case OpenCL2XNegativeB2 failed: something unexpected "
-                     "has been caught"
-                  << std::endl;
+        std::cerr
+            << "Test case OpenCL2XNegativeB2 failed: something unexpected "
+               "has been caught"
+            << std::endl;
         return 1;
       }
 
@@ -545,9 +568,10 @@ int main() {
             << E.what() << std::endl;
         return 1;
       } catch (...) {
-        std::cerr << "Test case OpenCL2XNegativeC2 failed: something unexpected "
-                     "has been caught"
-                  << std::endl;
+        std::cerr
+            << "Test case OpenCL2XNegativeC2 failed: something unexpected "
+               "has been caught"
+            << std::endl;
         return 1;
       }
     }
@@ -645,9 +669,12 @@ int main() {
       } catch (nd_range_error &E) {
         if (string_class(E.what()).find(
                 "Global_work_size not evenly divisible by local_work_size. "
-                "Non-uniform work-groups are not allowed by when -cl-uniform-work-group-size flag is used. Underlying "
-                "OpenCL 2.x implementation supports this feature, but it is being "
-                "disabled by -cl-uniform-work-group-size build flag") == string_class::npos) {
+                "Non-uniform work-groups are not allowed by when "
+                "-cl-uniform-work-group-size flag is used. Underlying "
+                "OpenCL 2.x implementation supports this feature, but it is "
+                "being "
+                "disabled by -cl-uniform-work-group-size build flag") ==
+            string_class::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeD failed: unexpected exception: "
               << E.what() << std::endl;
@@ -692,9 +719,12 @@ int main() {
       } catch (nd_range_error &E) {
         if (string_class(E.what()).find(
                 "Global_work_size not evenly divisible by local_work_size. "
-                "Non-uniform work-groups are not allowed by when -cl-uniform-work-group-size flag is used. Underlying "
-                "OpenCL 2.x implementation supports this feature, but it is being "
-                "disabled by -cl-uniform-work-group-size build flag") == string_class::npos) {
+                "Non-uniform work-groups are not allowed by when "
+                "-cl-uniform-work-group-size flag is used. Underlying "
+                "OpenCL 2.x implementation supports this feature, but it is "
+                "being "
+                "disabled by -cl-uniform-work-group-size build flag") ==
+            string_class::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeE failed: unexpected exception: "
               << E.what() << std::endl;
@@ -713,10 +743,10 @@ int main() {
       }
     }
 
-    // Local Size larger than Global, -cl-std=CL2.0 -cl-uniform-work-group-size flag used
-    // CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified as larger
-    // than the global size, then a different error string is used.
-    // This is a sub-case of the more general 'non-uniform work group'
+    // Local Size larger than Global, -cl-std=CL2.0 -cl-uniform-work-group-size
+    // flag used CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified as
+    // larger than the global size, then a different error string is used. This
+    // is a sub-case of the more general 'non-uniform work group'
     {
       program P(Q.get_context());
       P.build_with_kernel_type<class OpenCL2XNegativeD2>(
@@ -742,9 +772,12 @@ int main() {
       } catch (nd_range_error &E) {
         if (string_class(E.what()).find(
                 "Local workgroup size greater than global range size. "
-                "Non-uniform work-groups are not allowed by when -cl-uniform-work-group-size flag is used. Underlying "
-                "OpenCL 2.x implementation supports this feature, but it is being "
-                "disabled by -cl-uniform-work-group-size build flag") == string_class::npos) {
+                "Non-uniform work-groups are not allowed by when "
+                "-cl-uniform-work-group-size flag is used. Underlying "
+                "OpenCL 2.x implementation supports this feature, but it is "
+                "being "
+                "disabled by -cl-uniform-work-group-size build flag") ==
+            string_class::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeD2 failed: unexpected exception: "
               << E.what() << std::endl;
@@ -756,9 +789,10 @@ int main() {
             << E.what() << std::endl;
         return 1;
       } catch (...) {
-        std::cerr << "Test case OpenCL2XNegativeD2 failed: something unexpected "
-                     "has been caught"
-                  << std::endl;
+        std::cerr
+            << "Test case OpenCL2XNegativeD2 failed: something unexpected "
+               "has been caught"
+            << std::endl;
         return 1;
       }
     }
@@ -789,9 +823,12 @@ int main() {
       } catch (nd_range_error &E) {
         if (string_class(E.what()).find(
                 "Local workgroup size greater than global range size. "
-                "Non-uniform work-groups are not allowed by when -cl-uniform-work-group-size flag is used. Underlying "
-                "OpenCL 2.x implementation supports this feature, but it is being "
-                "disabled by -cl-uniform-work-group-size build flag") == string_class::npos) {
+                "Non-uniform work-groups are not allowed by when "
+                "-cl-uniform-work-group-size flag is used. Underlying "
+                "OpenCL 2.x implementation supports this feature, but it is "
+                "being "
+                "disabled by -cl-uniform-work-group-size build flag") ==
+            string_class::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeE2 failed: unexpected exception: "
               << E.what() << std::endl;
@@ -803,9 +840,10 @@ int main() {
             << E.what() << std::endl;
         return 1;
       } catch (...) {
-        std::cerr << "Test case OpenCL2XNegativeE2 failed: something unexpected "
-                     "has been caught"
-                  << std::endl;
+        std::cerr
+            << "Test case OpenCL2XNegativeE2 failed: something unexpected "
+               "has been caught"
+            << std::endl;
         return 1;
       }
     }
