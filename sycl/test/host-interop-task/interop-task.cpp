@@ -2,8 +2,9 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-// USUPPORTED: level0, cuda
+// UNSUPPORTED: level0, cuda
 // REQUIRES: opencl
+// REQUIRES: TEMPORARY_DISABLED
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/backend/opencl.hpp>
