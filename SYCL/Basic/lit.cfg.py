@@ -55,7 +55,7 @@ elif platform.system() == "Windows":
     llvm_config.with_system_environment('LIB')
     llvm_config.with_environment('LIB', config.sycl_libs_dir, append_path=True)
     llvm_config.with_environment('PATH', config.sycl_libs_dir, append_path=True)
-    llvm_config.with_environment('LIB', os.path.join(dpcpp_root_dir, 'lib'), append_path=True)
+    llvm_config.with_environment('LIB', os.path.join(config.dpcpp_root_dir, 'lib'), append_path=True)
 
 elif platform.system() == "Darwin":
     # FIXME: surely there is a more elegant way to instantiate the Xcode directories.

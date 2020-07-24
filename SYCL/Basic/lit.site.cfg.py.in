@@ -5,15 +5,15 @@ import platform
 
 
 config.dpcpp_compiler = lit_config.params.get("dpcpp_compiler", "@CMAKE_CXX_COMPILER@")
-dpcpp_root_dir= os.path.dirname(os.path.dirname(config.dpcpp_compiler))
+config.dpcpp_root_dir= os.path.dirname(os.path.dirname(config.dpcpp_compiler))
 
-config.llvm_tools_dir = os.path.join(dpcpp_root_dir, 'bin')
+config.llvm_tools_dir = os.path.join(config.dpcpp_root_dir, 'bin')
 config.lit_tools_dir = os.path.dirname("@TEST_SUITE_LIT@")
 config.dump_ir_supported = lit_config.params.get("dump_ir", ("@DUMP_IR_SUPPORTED@" if "@DUMP_IR_SUPPORTED@" else False))
 config.sycl_tools_dir = config.llvm_tools_dir
-config.sycl_include = os.path.join(dpcpp_root_dir, 'include', 'sycl')
+config.sycl_include = os.path.join(config.dpcpp_root_dir, 'include', 'sycl')
 config.sycl_obj_root = "@CMAKE_CURRENT_BINARY_DIR@"
-config.sycl_libs_dir =  os.path.join(dpcpp_root_dir, ('bin' if platform.system() == "Windows" else 'lib'))
+config.sycl_libs_dir =  os.path.join(config.dpcpp_root_dir, ('bin' if platform.system() == "Windows" else 'lib'))
 config.target_triple = "x86_64-unknown-unknown-gnu"
 config.host_triple = "x86_64-unknown-unknown-gnu" 
 config.opencl_libs_dir = config.sycl_libs_dir
