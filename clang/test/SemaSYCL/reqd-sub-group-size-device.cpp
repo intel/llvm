@@ -21,7 +21,7 @@ public:
 
 class Functor4 {
 public:
-  [[intel::reqd_sub_group_size(12)]] void operator()() {}
+  [[intel::reqd_sub_group_size(12)]] void operator()() const {}
 };
 
 class Functor {
