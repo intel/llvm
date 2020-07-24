@@ -1510,7 +1510,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     // [kernel_obj or wrapper object].accessor.__init(_ValueType*,
     // range<int>, range<int>, id<int>)
     CXXMemberCallExpr *Call = CXXMemberCallExpr::Create(
-        SemaRef.Context, MethodME, ParamStmts, ResultTy, VK, SourceLocation());
+        SemaRef.Context, MethodME, ParamStmts, ResultTy, VK, SourceLocation(),
+        FPOptionsOverride());
     if (MethodName == FinalizeMethodName)
       FinalizeStmts.push_back(Call);
     else
