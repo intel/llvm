@@ -404,7 +404,19 @@ _pi_device::getAvailableCommandList(pi_queue Queue,
   if (Queue->Context->Device->ZeCommandListCache.size() > 0) {
     Queue->Context->Device->ZeCommandListCacheMutex.lock();
     *ZeCommandList = Queue->Context->Device->ZeCommandListCache.front();
+    Queue->ZeCommandListFenceMapMutex.lock();
     *ZeFence = Queue->ZeCommandListFenceMap[*ZeCommandList];
+    if (*ZeFence == nullptr) {
+      // If there is a command list available on this device, but no fence yet
+      // associated, then we must create a fence/list reference for this Queue.
+      // Can happen if two Queues reuse a device which did not have the
+      // resources freed.
+      ZE_CALL(zeFenceCreate(Queue->ZeCommandQueue, &ZeFenceDesc, ZeFence));
+      Queue->ZeCommandListFenceMap.insert(
+          std::pair<ze_command_list_handle_t, ze_fence_handle_t>(*ZeCommandList,
+                                                                 *ZeFence));
+    }
+    Queue->ZeCommandListFenceMapMutex.unlock();
     Queue->Context->Device->ZeCommandListCache.pop_front();
     Queue->Context->Device->ZeCommandListCacheMutex.unlock();
     return PI_SUCCESS;
@@ -417,18 +429,15 @@ _pi_device::getAvailableCommandList(pi_queue Queue,
   // reuse. If a command list is found to have been signalled, then the
   // command list & fence are reset and we return.
   Queue->ZeCommandListFenceMapMutex.lock();
-  std::map<ze_command_list_handle_t, ze_fence_handle_t>::iterator it =
-      Queue->ZeCommandListFenceMap.begin();
-  while (it != Queue->ZeCommandListFenceMap.end()) {
-    ze_result_t ZeResult = ZE_CALL_NOCHECK(zeFenceQueryStatus(it->second));
+  for (const auto &MapEntry : Queue->ZeCommandListFenceMap) {
+    ze_result_t ZeResult = ZE_CALL_NOCHECK(zeFenceQueryStatus(MapEntry.second));
     if (ZeResult == ZE_RESULT_SUCCESS) {
-      Queue->resetCommandListFenceEntry(it->first, false);
-      *ZeCommandList = it->first;
-      *ZeFence = it->second;
+      Queue->resetCommandListFenceEntry(MapEntry.first, false);
+      *ZeCommandList = MapEntry.first;
+      *ZeFence = MapEntry.second;
       Queue->ZeCommandListFenceMapMutex.unlock();
       return PI_SUCCESS;
     }
-    it++;
   }
   Queue->ZeCommandListFenceMapMutex.unlock();
 
@@ -517,8 +526,15 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
 
   static const char *CommandListCacheSize =
       std::getenv("SYCL_PI_LEVEL0_MAX_COMMAND_LIST_CACHE");
-  static const pi_uint32 CommandListCacheSizeValue =
-      CommandListCacheSize ? std::atoi(CommandListCacheSize) : 20000;
+  static pi_uint32 CommandListCacheSizeValue;
+  try {
+    CommandListCacheSizeValue =
+        CommandListCacheSize ? std::atoi(CommandListCacheSize) : 20000;
+  } catch (std::exception const &) {
+    zePrint("SYCL_PI_LEVEL0_MAX_COMMAND_LIST_CACHE: invalid value provided, "
+            "default set.\n");
+    CommandListCacheSizeValue = 20000;
+  }
 
   // This is a good time to initialize L0.
   // TODO: We can still safely recover if something goes wrong during the init.
@@ -727,13 +743,9 @@ pi_result piDeviceRelease(pi_device Device) {
     ZE_CALL(zeCommandListDestroy(Device->ZeCommandListInit));
     // Destroy all the command lists associated with this device.
     Device->ZeCommandListCacheMutex.lock();
-    std::list<ze_command_list_handle_t>::iterator it =
-        Device->ZeCommandListCache.begin();
-    while (it != Device->ZeCommandListCache.end()) {
-      ZE_CALL(zeCommandListDestroy(*it));
-      it++;
+    for (ze_command_list_handle_t &ZeCommandList : Device->ZeCommandListCache) {
+      zeCommandListDestroy(ZeCommandList);
     }
-    Device->ZeCommandListCache.clear();
     Device->ZeCommandListCacheMutex.unlock();
     delete Device;
   }
@@ -1444,11 +1456,8 @@ pi_result piQueueRelease(pi_queue Queue) {
   if (--(Queue->RefCount) == 0) {
     // Destroy all the fences created associated with this queue.
     Queue->ZeCommandListFenceMapMutex.lock();
-    std::map<ze_command_list_handle_t, ze_fence_handle_t>::iterator it =
-        Queue->ZeCommandListFenceMap.begin();
-    while (it != Queue->ZeCommandListFenceMap.end()) {
-      ZE_CALL(zeFenceDestroy(it->second));
-      it++;
+    for (const auto &MapEntry : Queue->ZeCommandListFenceMap) {
+      ZE_CALL(zeFenceDestroy(MapEntry.second));
     }
     Queue->ZeCommandListFenceMap.clear();
     Queue->ZeCommandListFenceMapMutex.unlock();
@@ -2415,7 +2424,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     if (EventList[I]->ZeCommandList) {
       // Event has been signaled: If the fence for the associated command list
       // is signalled, then reset the fence and command list and add them to the
-      // available list for ruse in PI calls.
+      // available list for reuse in PI calls.
       EventList[I]->Queue->ZeCommandListFenceMapMutex.lock();
       ze_result_t ZeResult = ZE_CALL_NOCHECK(zeFenceQueryStatus(
           EventList[I]
