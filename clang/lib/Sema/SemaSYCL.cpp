@@ -729,12 +729,12 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
 }
 
 static const CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
-  auto KernelParamTy = (*Caller->param_begin())->getType();
+  QualType KernelParamTy = (*Caller->param_begin())->getType();
   // In SYCL 2020 kernels are now passed by reference.
   if (KernelParamTy->isReferenceType())
     return KernelParamTy->getPointeeCXXRecordDecl();
-  else
-    return KernelParamTy->getAsCXXRecordDecl(); // SYCL 1.2
+
+  return KernelParamTy->getAsCXXRecordDecl(); // SYCL 1.2
 }
 
 /// Creates a kernel parameter descriptor
