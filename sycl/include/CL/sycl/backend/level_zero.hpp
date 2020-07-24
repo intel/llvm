@@ -39,8 +39,8 @@ struct interop<backend::level_zero, accessor<DataT, Dimensions, AccessMode,
 
 template <typename DataT, int Dimensions, access::mode AccessMode>
 struct interop<backend::level_zero, accessor<DataT, Dimensions, AccessMode,
-                                         access::target::constant_buffer,
-                                         access::placeholder::false_t>> {
+                                             access::target::constant_buffer,
+                                             access::placeholder::false_t>> {
   using type = char *;
 };
 
