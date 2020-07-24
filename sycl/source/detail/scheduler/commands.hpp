@@ -229,7 +229,6 @@ public:
   /// Used for marking the node during graph traversal.
   Marks MMarks;
 
-
   enum class BlockReason : int { HostAccessor = 0, HostTask };
 
   // Only have reasonable value while MIsBlockable is true
