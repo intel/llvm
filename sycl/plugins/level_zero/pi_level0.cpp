@@ -139,6 +139,10 @@ private:
   size_t *param_value_size_ret;
 };
 
+// save discovered pi_devices & pi_platforms for quick return
+static std::vector<pi_device> piDevicesCache;
+static std::vector<pi_platform> piPlatformsCache;
+
 } // anonymous namespace
 
 // TODO:: In the following 4 methods we may want to distinguish read access vs.
@@ -448,8 +452,6 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return PI_INVALID_VALUE;
   }
 
-  static std::vector<pi_platform> piPlatformsCache;
-
   // This is a good time to initialize L0.
   // TODO: We can still safely recover if something goes wrong during the init.
   // Implement handling segfault using sigaction.
@@ -472,15 +474,6 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   // L0 does not have concept of Platforms, but L0 driver is the
   // closest match.
   if (Platforms && NumEntries > 0) {
-    if (piPlatformsCache.size() > 0) {
-      // return the saved pi_platform from the cache
-      Platforms[0] = piPlatformsCache[0];
-      if (NumPlatforms) {
-        *NumPlatforms = 1;
-      }
-      return PI_SUCCESS;
-    }
-
     uint32_t ZeDriverCount = 0;
     ZE_CALL(zeDriverGet(&ZeDriverCount, nullptr));
     if (ZeDriverCount == 0) {
@@ -493,8 +486,17 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     assert(ZeDriverCount == 1);
     ZE_CALL(zeDriverGet(&ZeDriverCount, &ZeDriver));
 
+    for (uint32_t i = 0; i < piPlatformsCache.size(); i++) {
+      if (piPlatformsCache[i]->ZeDriver == ZeDriver) {
+        Platforms[0] = piPlatformsCache[i];
+        if (NumPlatforms)
+          *NumPlatforms = 1;
+
+        return PI_SUCCESS;
+      }
+    }
+
     try {
-      // TODO: figure out how/when to release this memory
       *Platforms = new _pi_platform(ZeDriver);
 
       // Cache driver properties
@@ -518,6 +520,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
       Platforms[0]->ZeDriverApiVersion =
           std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + std::string(".") +
           std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
+
       // save a copy in the cache for future uses
       piPlatformsCache.push_back(Platforms[0]);
     } catch (const std::bad_alloc &) {
@@ -604,13 +607,24 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   return PI_SUCCESS;
 }
 
+pi_result piPlatformRelease(pi_platform Platform) {
+  assert(Platform);
+
+  // invalidate piDeviceCache entry
+  for (uint32_t i = 0; i < piPlatformsCache.size(); i++) {
+    if (Platform == piPlatformsCache[i]) {
+      piPlatformsCache.erase(piPlatformsCache.begin() + i);
+      break;
+    }
+  }
+
+  return PI_SUCCESS;
+}
+
 pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
                        pi_uint32 NumEntries, pi_device *Devices,
                        pi_uint32 *NumDevices) {
-
   assert(Platform);
-  // save discovered pi_devices for quick return
-  static std::vector<pi_device> piDevicesCache;
 
   ze_driver_handle_t ZeDriver = Platform->ZeDriver;
 
@@ -691,12 +705,18 @@ pi_result piDeviceRetain(pi_device Device) {
 
 pi_result piDeviceRelease(pi_device Device) {
   assert(Device);
-
   // TODO: OpenCL says root-device ref-count remains unchanged (1),
   // but when would we free the device's data?
   if (--(Device->RefCount) == 0) {
     // Destroy the command list used for initializations
     ZE_CALL(zeCommandListDestroy(Device->ZeCommandListInit));
+    // invalidate piDeviceCache entry
+    for (uint32_t i = 0; i < piDevicesCache.size(); i++) {
+      if (Device == piDevicesCache[i]) {
+        piDevicesCache.erase(piDevicesCache.begin() + i);
+        break;
+      }
+    }
     delete Device;
   }
 
