@@ -386,19 +386,7 @@ private:
                        static_cast<int>(AccessTarget), ArgIndex);
   }
 
-  template <typename T> struct ShouldEnableSetArgHelper {
-    static constexpr bool value = std::is_trivially_copyable<T>::value
-#ifdef CL_SYCL_LANGUAGE_VERSION
-#if CL_SYCL_LANGUAGE_VERSION <= 121
-                                  && std::is_standard_layout<T>::value
-#endif
-#endif
-        ;
-  };
-
-  template <typename T>
-  typename std::enable_if<ShouldEnableSetArgHelper<T>::value, void>::type
-  setArgHelper(int ArgIndex, T &&Arg) {
+  template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
     void *StoredArg = (void *)storePlainArg(Arg);
 
     if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
@@ -808,13 +796,39 @@ public:
     }
   }
 
+  template <typename T>
+  using remove_cv_ref_t =
+      typename std::remove_cv<detail::remove_reference_t<T>>::type;
+
+  template <typename T> struct ShouldEnableSetArg {
+    static constexpr bool value =
+        std::is_trivially_copyable<T>::value
+#if CL_SYCL_LANGUAGE_VERSION && CL_SYCL_LANGUAGE_VERSION <= 121
+            && std::is_standard_layout<T>::value
+#endif
+        || std::is_same<sampler, remove_cv_ref_t<T>>::value // Sampler
+        || (!std::is_same<cl_mem, remove_cv_ref_t<T>>::value &&
+            std::is_pointer<remove_cv_ref_t<T>>::value)     // USM
+        || std::is_same<cl_mem, remove_cv_ref_t<T>>::value; // Interop
+  };
+
   /// Sets argument for OpenCL interoperability kernels.
   ///
   /// Registers Arg passed as argument # ArgIndex.
   ///
   /// \param ArgIndex is a positional number of argument to be set.
   /// \param Arg is an argument value to be set.
-  template <typename T> void set_arg(int ArgIndex, T &&Arg) {
+  template <typename T>
+  typename std::enable_if<ShouldEnableSetArg<T>::value, void>::type
+  set_arg(int ArgIndex, T &&Arg) {
+    setArgHelper(ArgIndex, std::move(Arg));
+  }
+
+  template <typename DataT, int Dims, access::mode AccessMode,
+            access::target AccessTarget, access::placeholder IsPlaceholder>
+  void
+  set_arg(int ArgIndex,
+          accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder> Arg) {
     setArgHelper(ArgIndex, std::move(Arg));
   }
 
