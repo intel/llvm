@@ -56,16 +56,16 @@ public:
   /// object.
   /// \param Val is a value to initialize the newly constructed object.
   template <
-      usm::alloc AllocT = AllocKind,
+      typename... ArgsT, usm::alloc AllocT = AllocKind,
       typename std::enable_if<AllocT != usm::alloc::device, int>::type = 0>
-  void construct(pointer Ptr, const_reference Val) {
-    new (Ptr) value_type(Val);
+  void construct(pointer Ptr, ArgsT &&...Args) {
+    new (Ptr) value_type(std::forward<ArgsT>(Args)...);
   }
 
   template <
-      usm::alloc AllocT = AllocKind,
+      typename... ArgsT, usm::alloc AllocT = AllocKind,
       typename std::enable_if<AllocT == usm::alloc::device, int>::type = 0>
-  void construct(pointer, const_reference) {
+  void construct(pointer, ArgsT &&...) {
     throw feature_not_supported(
         "Device pointers do not support construct on host",
         PI_INVALID_OPERATION);
@@ -87,7 +87,9 @@ public:
       usm::alloc AllocT = AllocKind,
       typename std::enable_if<AllocT == usm::alloc::device, int>::type = 0>
   void destroy(pointer) {
-    // This method must be a NOP for device pointers.
+    throw feature_not_supported(
+        "Device pointers do not support construct on host",
+        PI_INVALID_OPERATION);
   }
 
   /// Note:: AllocKind == alloc::device is not allowed.

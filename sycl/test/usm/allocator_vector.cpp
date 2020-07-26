@@ -18,6 +18,7 @@
 
 #include <CL/sycl.hpp>
 
+#include <memory>
 #include <vector>
 
 using namespace cl::sycl;
@@ -91,15 +92,14 @@ int main() {
   if (dev.get_info<info::device::usm_device_allocations>()) {
     usm_allocator<int, usm::alloc::device> alloc(ctxt, dev);
 
-    std::vector<int, decltype(alloc)> vec(alloc);
-    vec.resize(N);
+    auto AllocDeleter = [&](int *ptr) { alloc.deallocate(ptr, N); };
+    std::unique_ptr<int, decltype(AllocDeleter)> mem(alloc.allocate(N),
+                                                     AllocDeleter);
 
-    int *res = &vec[0];
-    int *vals = &vec[0];
+    int *vals = mem.get();
 
     auto e0 = q.submit([=](handler &h) {
       h.single_task<class baz_init>([=]() {
-        res[0] = 0;
         for (int i = 0; i < N; i++) {
           vals[i] = i;
         }
@@ -110,7 +110,7 @@ int main() {
       h.depends_on(e0);
       h.single_task<class baz>([=]() {
         for (int i = 1; i < N; i++) {
-          res[0] += vals[i];
+          vals[0] += vals[i];
         }
       });
     });
@@ -119,7 +119,7 @@ int main() {
 
     int answer = (N * (N - 1)) / 2;
     int result;
-    q.memcpy(&result, res, sizeof(int));
+    q.memcpy(&result, vals, sizeof(int));
     q.wait();
 
     if (result != answer)
