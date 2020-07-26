@@ -58,7 +58,7 @@ public:
   template <
       typename... ArgsT, usm::alloc AllocT = AllocKind,
       typename std::enable_if<AllocT != usm::alloc::device, int>::type = 0>
-  void construct(pointer Ptr, ArgsT &&...Args) {
+  void construct(pointer Ptr, ArgsT &&... Args) {
     new (Ptr) value_type(std::forward<ArgsT>(Args)...);
   }
 
