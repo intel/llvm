@@ -8,7 +8,6 @@
 #include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/detail/buffer_impl.hpp>
 #include <CL/sycl/detail/image_impl.hpp>
-#include <CL/sycl/detail/stream_impl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_event.hpp>
 #include <CL/sycl/device_selector.hpp>
@@ -73,7 +72,6 @@ int main() {
   check_size<range<1>, 8>();
   check_size<sampler, 16>();
   check_size<stream, 144>();
-  check_size<detail::stream_impl, 120>();
   check_size<queue, 16>();
 
   return 0;
