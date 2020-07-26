@@ -794,8 +794,8 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
   // We do not link with other device libraries, because it may fail
   // due to unrecognized SPIRV format of those libraries.
-  if (std::string(LinkOpts).find(std::string("-cmc")) != std::string::npos ||
-      std::string(LinkOpts).find(std::string("-vc-codegen")) !=
+  if (std::string(CompileOpts).find(std::string("-cmc")) != std::string::npos ||
+      std::string(CompileOpts).find(std::string("-vc-codegen")) !=
           std::string::npos)
     LinkDeviceLibs = false;
 
