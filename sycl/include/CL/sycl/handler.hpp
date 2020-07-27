@@ -800,16 +800,19 @@ public:
   using remove_cv_ref_t =
       typename std::remove_cv<detail::remove_reference_t<T>>::type;
 
+  template <typename U, typename T>
+  using is_same_type = std::is_same<remove_cv_ref_t<U>, remove_cv_ref_t<T>>;
+
   template <typename T> struct ShouldEnableSetArg {
     static constexpr bool value =
         std::is_trivially_copyable<T>::value
 #if CL_SYCL_LANGUAGE_VERSION && CL_SYCL_LANGUAGE_VERSION <= 121
             && std::is_standard_layout<T>::value
 #endif
-        || std::is_same<sampler, remove_cv_ref_t<T>>::value // Sampler
-        || (!std::is_same<cl_mem, remove_cv_ref_t<T>>::value &&
-            std::is_pointer<remove_cv_ref_t<T>>::value)     // USM
-        || std::is_same<cl_mem, remove_cv_ref_t<T>>::value; // Interop
+        || is_same_type<sampler, T>::value // Sampler
+        || (!is_same_type<cl_mem, T>::value &&
+            std::is_pointer<remove_cv_ref_t<T>>::value) // USM
+        || is_same_type<cl_mem, T>::value;              // Interop
   };
 
   /// Sets argument for OpenCL interoperability kernels.
