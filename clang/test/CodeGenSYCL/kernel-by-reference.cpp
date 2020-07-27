@@ -1,9 +1,14 @@
-// RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -verify -fsyntax-only %s
+// RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -verify -fsyntax-only -sycl-std=2017 -DNODIAG %s
+// RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -verify -fsyntax-only -sycl-std=2020 -DSYCL2020 %s
+// RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -verify -fsyntax-only -Wno-sycl-strict -DNODIAG %s
+// RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -verify -fsyntax-only -sycl-std=2020 -Wno-sycl-strict -DNODIAG %s
 
-// SYCL 1.2 - kernel functions passed directly. (Also no const requirement, though mutable lambdas never supported)
+// SYCL 1.2/2017 - kernel functions passed directly. (Also no const requirement, though mutable lambdas never supported)
 template <typename name, typename Func>
-// expected-warning@+1 {{Older version of SYCL headers encountered.}}
-__attribute__((sycl_kernel)) void sycl_12_single_task(Func kernelFunc) {
+#if defined(SYCL2020)
+// expected-warning@+2 {{Pass-by-value of kernel functions is deprecated in SYCL 2020.}}
+#endif
+__attribute__((sycl_kernel)) void sycl_2017_single_task(Func kernelFunc) {
   kernelFunc();
 }
 
@@ -19,7 +24,7 @@ int do_nothing(int i) {
 
 // ensure both compile.
 int main() {
-  sycl_12_single_task<class sycl12>([]() {
+  sycl_2017_single_task<class sycl12>([]() {
     do_nothing(10);
   });
 
@@ -29,3 +34,6 @@ int main() {
 
   return 0;
 }
+#if defined(NODIAG)
+// expected-no-diagnostics
+#endif

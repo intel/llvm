@@ -736,7 +736,10 @@ static const CXXRecordDecl *getKernelObjectType(Sema &SemaRef,
     return KernelParamTy->getPointeeCXXRecordDecl();
 
   // SYCL 1.2
-  SemaRef.Diag(Caller->getLocation(), diag::warn_sycl_old_version);
+  if (SemaRef.LangOpts.SYCLVersion > 2017)
+    SemaRef.Diag(Caller->getLocation(),
+                 diag::warn_sycl_pass_by_value_deprecated);
+
   return KernelParamTy->getAsCXXRecordDecl();
 }
 
