@@ -31,7 +31,7 @@ void compare_exchange_test(queue q, size_t N) {
                                                                         it) {
         size_t gid = it.get_id(0);
         auto atm = atomic_ref<T, intel::memory_order::relaxed, intel::memory_scope::device, access::address_space::global_space>(exc[0]);
-        T result = initial;
+        T result = T(N); // Avoid copying pointer
         bool success = atm.compare_exchange_strong(result, (T)gid);
         if (success) {
           out[gid] = result;
