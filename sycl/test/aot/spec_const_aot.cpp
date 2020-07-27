@@ -35,7 +35,7 @@ int main(int argc, char **argv) {
   std::cout << "Running on " << q.get_device().get_info<info::device::name>() << "\n";
   cl::sycl::program prog(q.get_context());
 
-  cl::sycl::experimental::spec_constant<int32_t, MyInt32Const> i32 =
+  cl::sycl::ext::intel::spec_constant<int32_t, MyInt32Const> i32 =
       prog.set_spec_constant<MyInt32Const>(10);
 
   prog.build_with_kernel_type<Kernel>();
