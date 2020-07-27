@@ -198,7 +198,6 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
 
   // only the building thread will run this
   try {
-    std::lock_guard<std::mutex> Lock(BuildResult->MBuildResultMutex);
     RetT *Desired = Build();
 
 #ifndef NDEBUG
