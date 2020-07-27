@@ -2359,29 +2359,28 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
                                   size_t *ParamValueSizeRet) {
 
   assert(Event);
-  uint64_t ZeTimerResolution =
-      Event->Queue->Context->Device->ZeDeviceProperties.timerResolution;
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+
   switch (ParamName) {
   case PI_PROFILING_INFO_COMMAND_START: {
-    uint64_t ContextStart;
-    ZE_CALL(zeEventGetTimestamp(
-        Event->ZeEvent, ZE_EVENT_TIMESTAMP_CONTEXT_START, &ContextStart));
-    ContextStart *= ZeTimerResolution;
-    return ReturnValue(uint64_t{ContextStart});
+    ze_kernel_timestamp_result_t* tsResult = nullptr;
+    ZE_CALL(zeCommandListAppendQueryKernelTimestamps(
+       Event->ZeCommandList, 1, &(Event->ZeEvent), tsResult, nullptr, nullptr, 1, &(Event->ZeEvent)));
+    return ReturnValue(*tsResult);
   }
   case PI_PROFILING_INFO_COMMAND_END: {
-    uint64_t ContextEnd;
-    ZE_CALL(zeEventGetTimestamp(Event->ZeEvent, ZE_EVENT_TIMESTAMP_CONTEXT_END,
-                                &ContextEnd));
-    ContextEnd *= ZeTimerResolution;
-    return ReturnValue(uint64_t{ContextEnd});
+    ze_kernel_timestamp_result_t* tsResult = nullptr;
+    ZE_CALL(zeCommandListAppendQueryKernelTimestamps(
+        Event->ZeCommandList, 1, &(Event->ZeEvent), tsResult, nullptr, nullptr, 1, &(Event->ZeEvent)));
+    return ReturnValue(*tsResult);
   }
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
-    // TODO: Support these when Level Zero supported is added.
-    return ReturnValue(uint64_t{0});
+    uint64_t* tsResult;
+    ZE_CALL(zeCommandListAppendWriteGlobalTimestamp(
+        Event->ZeCommandList, tsResult, nullptr, 1, &(Event->ZeEvent)));
+    return ReturnValue(*tsResult);
   default:
     zePrint("piEventGetProfilingInfo: not supported ParamName\n");
     return PI_INVALID_VALUE;
