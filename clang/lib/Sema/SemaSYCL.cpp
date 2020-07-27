@@ -2037,6 +2037,8 @@ void Sema::MarkDevice(void) {
               Diag(Existing->getLocation(), diag::note_conflicting_attribute);
               Diag(Attr->getLocation(), diag::note_conflicting_attribute);
               SYCLKernel->setInvalidDecl();
+            } else {
+              SYCLKernel->addAttr(A);
             }
           } else {
             SYCLKernel->addAttr(A);
@@ -2054,6 +2056,8 @@ void Sema::MarkDevice(void) {
               Diag(Existing->getLocation(), diag::note_conflicting_attribute);
               Diag(Attr->getLocation(), diag::note_conflicting_attribute);
               SYCLKernel->setInvalidDecl();
+            } else {
+              SYCLKernel->addAttr(A);
             }
           } else {
             SYCLKernel->addAttr(A);
