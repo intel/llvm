@@ -11,6 +11,7 @@
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/plugin.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
 #include <detail/plugin.hpp>
