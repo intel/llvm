@@ -314,11 +314,7 @@ static void reportConflictingAttrs(Sema &S, FunctionDecl *F, const Attr *A1,
 
 /// Returns the signed constant integer value represented by given expression
 static int64_t getIntExprValue(const Expr *E, ASTContext &Ctx) {
-  llvm::APSInt Val(32);
-  bool IsValid = E->isIntegerConstantExpr(Val, Ctx);
-  assert(IsValid && "expression must be constant integer");
-  (void)IsValid;
-  return Val.getSExtValue();
+  return E->getIntegerConstantExpr(Ctx)->getSExtValue();
 }
 
 class MarkDeviceFunction : public RecursiveASTVisitor<MarkDeviceFunction> {
@@ -1514,7 +1510,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     // [kernel_obj or wrapper object].accessor.__init(_ValueType*,
     // range<int>, range<int>, id<int>)
     CXXMemberCallExpr *Call = CXXMemberCallExpr::Create(
-        SemaRef.Context, MethodME, ParamStmts, ResultTy, VK, SourceLocation());
+        SemaRef.Context, MethodME, ParamStmts, ResultTy, VK, SourceLocation(),
+        FPOptionsOverride());
     if (MethodName == FinalizeMethodName)
       FinalizeStmts.push_back(Call);
     else
