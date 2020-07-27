@@ -91,8 +91,7 @@ public:
   }
 
   template <typename T, class Predicate>
-  void waitUntilBuilt(BuildResult<T> &BR,
-                      Predicate Pred) const {
+  void waitUntilBuilt(BuildResult<T> &BR, Predicate Pred) const {
     std::unique_lock<std::mutex> Lock(BR.MBuildResultMutex);
 
     BR.MBuildCV.wait(Lock, Pred);
