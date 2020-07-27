@@ -745,14 +745,14 @@ detail::zippy<detail::zip_first, T, U, Args...> zip_first(T &&t, U &&u,
 
 namespace detail {
 template <typename Iter>
-static Iter next_or_end(const Iter &I, const Iter &End) {
+Iter next_or_end(const Iter &I, const Iter &End) {
   if (I == End)
     return End;
   return std::next(I);
 }
 
 template <typename Iter>
-static auto deref_or_none(const Iter &I, const Iter &End) -> llvm::Optional<
+auto deref_or_none(const Iter &I, const Iter &End) -> llvm::Optional<
     std::remove_const_t<std::remove_reference_t<decltype(*I)>>> {
   if (I == End)
     return None;
@@ -1121,6 +1121,14 @@ public:
     assert(index < size() && "invalid index for value range");
     return DerivedT::dereference_iterator(base, index);
   }
+  ReferenceT front() const {
+    assert(!empty() && "expected non-empty range");
+    return (*this)[0];
+  }
+  ReferenceT back() const {
+    assert(!empty() && "expected non-empty range");
+    return (*this)[size() - 1];
+  }
 
   /// Compare this range with another.
   template <typename OtherT> bool operator==(const OtherT &other) const {
@@ -1472,9 +1480,9 @@ auto size(R &&Range,
 
 /// Provide wrappers to std::for_each which take ranges instead of having to
 /// pass begin/end explicitly.
-template <typename R, typename UnaryPredicate>
-UnaryPredicate for_each(R &&Range, UnaryPredicate P) {
-  return std::for_each(adl_begin(Range), adl_end(Range), P);
+template <typename R, typename UnaryFunction>
+UnaryFunction for_each(R &&Range, UnaryFunction F) {
+  return std::for_each(adl_begin(Range), adl_end(Range), F);
 }
 
 /// Provide wrappers to std::all_of which take ranges instead of having to pass
@@ -1569,9 +1577,9 @@ auto count_if(R &&Range, UnaryPredicate P) {
 
 /// Wrapper function around std::transform to apply a function to a range and
 /// store the result elsewhere.
-template <typename R, typename OutputIt, typename UnaryPredicate>
-OutputIt transform(R &&Range, OutputIt d_first, UnaryPredicate P) {
-  return std::transform(adl_begin(Range), adl_end(Range), d_first, P);
+template <typename R, typename OutputIt, typename UnaryFunction>
+OutputIt transform(R &&Range, OutputIt d_first, UnaryFunction F) {
+  return std::transform(adl_begin(Range), adl_end(Range), d_first, F);
 }
 
 /// Provide wrappers to std::partition which take ranges instead of having to

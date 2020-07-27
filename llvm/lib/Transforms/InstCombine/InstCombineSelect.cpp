@@ -1930,7 +1930,7 @@ Instruction *InstCombiner::foldSelectExtConst(SelectInst &Sel) {
   Type *SelType = Sel.getType();
   Constant *TruncC = ConstantExpr::getTrunc(C, SmallType);
   Constant *ExtC = ConstantExpr::getCast(ExtOpcode, TruncC, SelType);
-  if (ExtC == C) {
+  if (ExtC == C && ExtInst->hasOneUse()) {
     Value *TruncCVal = cast<Value>(TruncC);
     if (ExtInst == Sel.getFalseValue())
       std::swap(X, TruncCVal);
@@ -2443,11 +2443,11 @@ Instruction *InstCombiner::foldVectorSelect(SelectInst &Sel) {
   return nullptr;
 }
 
-static Instruction *foldSelectToPhi(SelectInst &Sel, const DominatorTree &DT,
-                                    InstCombiner::BuilderTy &Builder) {
+static Instruction *foldSelectToPhiImpl(SelectInst &Sel, BasicBlock *BB,
+                                        const DominatorTree &DT,
+                                        InstCombiner::BuilderTy &Builder) {
   // Find the block's immediate dominator that ends with a conditional branch
   // that matches select's condition (maybe inverted).
-  BasicBlock *BB = Sel.getParent();
   auto *IDomNode = DT[BB]->getIDom();
   if (!IDomNode)
     return nullptr;
@@ -2467,6 +2467,10 @@ static Instruction *foldSelectToPhi(SelectInst &Sel, const DominatorTree &DT,
     IfTrue = Sel.getFalseValue();
     IfFalse = Sel.getTrueValue();
   } else
+    return nullptr;
+
+  // Make sure the branches are actually different.
+  if (TrueSucc == FalseSucc)
     return nullptr;
 
   // We want to replace select %cond, %a, %b with a phi that takes value %a
@@ -2498,6 +2502,21 @@ static Instruction *foldSelectToPhi(SelectInst &Sel, const DominatorTree &DT,
     PN->addIncoming(Inputs[Pred], Pred);
   PN->takeName(&Sel);
   return PN;
+}
+
+static Instruction *foldSelectToPhi(SelectInst &Sel, const DominatorTree &DT,
+                                    InstCombiner::BuilderTy &Builder) {
+  // Try to replace this select with Phi in one of these blocks.
+  SmallSetVector<BasicBlock *, 4> CandidateBlocks;
+  CandidateBlocks.insert(Sel.getParent());
+  for (Value *V : Sel.operands())
+    if (auto *I = dyn_cast<Instruction>(V))
+      CandidateBlocks.insert(I->getParent());
+
+  for (BasicBlock *BB : CandidateBlocks)
+    if (auto *PN = foldSelectToPhiImpl(Sel, BB, DT, Builder))
+      return PN;
+  return nullptr;
 }
 
 Instruction *InstCombiner::visitSelectInst(SelectInst &SI) {
@@ -2532,21 +2551,7 @@ Instruction *InstCombiner::visitSelectInst(SelectInst &SI) {
   if (Instruction *I = canonicalizeScalarSelectOfVecs(SI, *this))
     return I;
 
-  // Canonicalize a one-use integer compare with a non-canonical predicate by
-  // inverting the predicate and swapping the select operands. This matches a
-  // compare canonicalization for conditional branches.
-  // TODO: Should we do the same for FP compares?
   CmpInst::Predicate Pred;
-  if (match(CondVal, m_OneUse(m_ICmp(Pred, m_Value(), m_Value()))) &&
-      !isCanonicalPredicate(Pred)) {
-    // Swap true/false values and condition.
-    CmpInst *Cond = cast<CmpInst>(CondVal);
-    Cond->setPredicate(CmpInst::getInversePredicate(Pred));
-    SI.swapValues();
-    SI.swapProfMetadata();
-    Worklist.push(Cond);
-    return &SI;
-  }
 
   if (SelType->isIntOrIntVectorTy(1) &&
       TrueVal->getType() == CondVal->getType()) {

@@ -27,7 +27,6 @@
 #include "flang/Common/unsigned-const-division.h"
 #include "flang/Decimal/binary-floating-point.h"
 #include "flang/Decimal/decimal.h"
-#include "llvm/Support/raw_ostream.h"
 #include <cinttypes>
 #include <limits>
 #include <type_traits>
@@ -112,7 +111,7 @@ public:
   void Minimize(
       BigRadixFloatingPointNumber &&less, BigRadixFloatingPointNumber &&more);
 
-  llvm::raw_ostream &Dump(llvm::raw_ostream &) const;
+  template <typename STREAM> STREAM &Dump(STREAM &) const;
 
 private:
   BigRadixFloatingPointNumber(const BigRadixFloatingPointNumber &that)
@@ -223,15 +222,46 @@ private:
     return remainder;
   }
 
-  int DivideByPowerOfTwo(int twoPow) { // twoPow <= LOG10RADIX
-    int remainder{0};
+  void DivideByPowerOfTwo(int twoPow) { // twoPow <= log10Radix
+    Digit remainder{0};
+    auto mask{(Digit{1} << twoPow) - 1};
+    auto coeff{radix >> twoPow};
     for (int j{digits_ - 1}; j >= 0; --j) {
-      Digit q{digit_[j] >> twoPow};
-      int nrem = digit_[j] - (q << twoPow);
-      digit_[j] = q + (radix >> twoPow) * remainder;
+      auto nrem{digit_[j] & mask};
+      digit_[j] = (digit_[j] >> twoPow) + coeff * remainder;
       remainder = nrem;
     }
-    return remainder;
+  }
+
+  // Returns true on overflow
+  bool DivideByPowerOfTwoInPlace(int twoPow) {
+    if (digits_ > 0) {
+      while (twoPow > 0) {
+        int chunk{twoPow > log10Radix ? log10Radix : twoPow};
+        if ((digit_[0] & ((Digit{1} << chunk) - 1)) == 0) {
+          DivideByPowerOfTwo(chunk);
+          twoPow -= chunk;
+          continue;
+        }
+        twoPow -= chunk;
+        if (digit_[digits_ - 1] >> chunk != 0) {
+          if (digits_ == digitLimit_) {
+            return true; // overflow
+          }
+          digit_[digits_++] = 0;
+        }
+        auto remainder{digit_[digits_ - 1]};
+        exponent_ -= log10Radix;
+        auto coeff{radix >> chunk}; // precise; radix is (5*2)**log10Radix
+        auto mask{(Digit{1} << chunk) - 1};
+        for (int j{digits_ - 1}; j >= 1; --j) {
+          digit_[j] = (digit_[j - 1] >> chunk) + coeff * remainder;
+          remainder = digit_[j - 1] & mask;
+        }
+        digit_[0] = coeff * remainder;
+      }
+    }
+    return false; // no overflow
   }
 
   int AddCarry(int position = 0, int carry = 1) {

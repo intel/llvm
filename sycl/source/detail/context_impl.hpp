@@ -153,7 +153,6 @@ private:
   vector_class<device> MDevices;
   RT::PiContext MContext;
   PlatformImplPtr MPlatform;
-  bool MPluginInterop;
   bool MHostContext;
   bool MUseCUDAPrimaryContext;
   std::map<DeviceLibExt, RT::PiProgram> MCachedLibPrograms;

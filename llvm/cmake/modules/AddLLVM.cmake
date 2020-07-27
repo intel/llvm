@@ -891,7 +891,7 @@ endmacro(add_llvm_executable name)
 #   only an object library is built, and no module is built. This is specific to the Polly use case.
 #
 #   The SUBPROJECT argument contains the LLVM project the plugin belongs
-#   to. If set, the plugin will link statically by default it if the 
+#   to. If set, the plugin will link statically by default it if the
 #   project was enabled.
 function(add_llvm_pass_plugin name)
   cmake_parse_arguments(ARG
@@ -924,6 +924,12 @@ function(add_llvm_pass_plugin name)
     set_property(TARGET ${name} APPEND PROPERTY COMPILE_DEFINITIONS LLVM_LINK_INTO_TOOLS)
     if (TARGET intrinsics_gen)
       add_dependencies(obj.${name} intrinsics_gen)
+    endif()
+    if (TARGET omp_gen)
+      add_dependencies(obj.${name} omp_gen)
+    endif()
+    if (TARGET acc_gen)
+      add_dependencies(obj.${name} acc_gen)
     endif()
     set_property(GLOBAL APPEND PROPERTY LLVM_STATIC_EXTENSIONS ${name})
   elseif(NOT ARG_NO_MODULE)

@@ -127,9 +127,9 @@ const char *RealOutputEditingBase::FormatExponent(
 bool RealOutputEditingBase::EmitPrefix(
     const DataEdit &edit, std::size_t length, std::size_t width) {
   if (edit.IsListDirected()) {
-    int prefixLength{edit.descriptor == DataEdit::ListDirectedRealPart
-            ? 2
-            : edit.descriptor == DataEdit::ListDirectedImaginaryPart ? 0 : 1};
+    int prefixLength{edit.descriptor == DataEdit::ListDirectedRealPart ? 2
+            : edit.descriptor == DataEdit::ListDirectedImaginaryPart   ? 0
+                                                                       : 1};
     int suffixLength{edit.descriptor == DataEdit::ListDirectedRealPart ||
                 edit.descriptor == DataEdit::ListDirectedImaginaryPart
             ? 1
@@ -424,7 +424,8 @@ bool EditLogicalOutput(IoStatementState &io, const DataEdit &edit, bool truth) {
   switch (edit.descriptor) {
   case 'L':
   case 'G':
-    return io.Emit(truth ? "T" : "F", 1);
+    return io.EmitRepeated(' ', std::max(0, edit.width.value_or(1) - 1)) &&
+        io.Emit(truth ? "T" : "F", 1);
   default:
     io.GetIoErrorHandler().SignalError(IostatErrorInFormat,
         "Data edit descriptor '%c' may not be used with a LOGICAL data item",

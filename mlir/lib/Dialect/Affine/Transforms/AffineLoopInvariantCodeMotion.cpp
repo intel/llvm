@@ -37,8 +37,8 @@ using namespace mlir;
 namespace {
 
 /// Loop invariant code motion (LICM) pass.
-/// TODO(asabne) : The pass is missing zero-trip tests.
-/// TODO(asabne) : Check for the presence of side effects before hoisting.
+/// TODO: The pass is missing zero-trip tests.
+/// TODO: Check for the presence of side effects before hoisting.
 /// TODO: This code should be removed once the new LICM pass can handle its
 ///       uses.
 struct LoopInvariantCodeMotion
@@ -62,7 +62,7 @@ areAllOpsInTheBlockListInvariant(Region &blockList, Value indVar,
                                  SmallPtrSetImpl<Operation *> &opsToHoist);
 
 static bool isMemRefDereferencingOp(Operation &op) {
-  // TODO(asabne): Support DMA Ops.
+  // TODO: Support DMA Ops.
   return isa<AffineLoadOp, AffineStoreOp>(op);
 }
 
@@ -81,7 +81,7 @@ bool isOpLoopInvariant(Operation &op, Value indVar,
     // 'affine.if'.
     return false;
   } else if (isa<AffineDmaStartOp, AffineDmaWaitOp>(op)) {
-    // TODO(asabne): Support DMA ops.
+    // TODO: Support DMA ops.
     return false;
   } else if (!isa<ConstantOp>(op)) {
     if (isMemRefDereferencingOp(op)) {
@@ -114,7 +114,7 @@ bool isOpLoopInvariant(Operation &op, Value indVar,
     // Insert this op in the defined ops list.
     definedOps.insert(&op);
 
-    if (op.getNumOperands() == 0 && !isa<AffineTerminatorOp>(op)) {
+    if (op.getNumOperands() == 0 && !isa<AffineYieldOp>(op)) {
       LLVM_DEBUG(llvm::dbgs() << "\nNon-constant op with 0 operands\n");
       return false;
     }
@@ -199,7 +199,7 @@ void LoopInvariantCodeMotion::runOnAffineForOp(AffineForOp forOp) {
   for (auto &op : *loopBody) {
     // We don't hoist for loops.
     if (!isa<AffineForOp>(op)) {
-      if (!isa<AffineTerminatorOp>(op)) {
+      if (!isa<AffineYieldOp>(op)) {
         if (isOpLoopInvariant(op, indVar, definedOps, opsToHoist)) {
           opsToMove.push_back(&op);
         }

@@ -1071,7 +1071,7 @@ public:
 
   void dump(const char *s) const;
   void dump() const;
-  void dump(llvm::raw_ostream &OS) const;
+  void dump(llvm::raw_ostream &OS, const ASTContext &Context) const;
 
   void Profile(llvm::FoldingSetNodeID &ID) const {
     ID.AddPointer(getAsOpaquePtr());
@@ -1938,6 +1938,11 @@ public:
   bool isSizelessType() const;
   bool isSizelessBuiltinType() const;
 
+  /// Determines if this is a sizeless type supported by the
+  /// 'arm_sve_vector_bits' type attribute, which can be applied to a single
+  /// SVE vector or predicate, excluding tuple types such as svint32x4_t.
+  bool isVLSTBuiltinType() const;
+
   /// Types are partitioned into 3 broad categories (C99 6.2.5p1):
   /// object types, function types, and incomplete types.
 
@@ -2490,7 +2495,7 @@ public:
 
   CanQualType getCanonicalTypeUnqualified() const; // in CanonicalType.h
   void dump() const;
-  void dump(llvm::raw_ostream &OS) const;
+  void dump(llvm::raw_ostream &OS, const ASTContext &Context) const;
 };
 
 /// This will check for a TypedefType by removing any existing sugar

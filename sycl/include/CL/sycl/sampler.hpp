@@ -12,7 +12,6 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/sampler_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -39,6 +38,23 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder>
 class image_accessor;
 }
+
+namespace detail {
+#ifdef __SYCL_DEVICE_ONLY__
+class __SYCL_EXPORT sampler_impl {
+public:
+  sampler_impl() = default;
+
+  sampler_impl(__ocl_sampler_t Sampler) : m_Sampler(Sampler) {}
+
+  ~sampler_impl() = default;
+
+  __ocl_sampler_t m_Sampler;
+};
+#else
+class sampler_impl;
+#endif
+} // namespace detail
 
 /// Encapsulates a configuration for sampling an image accessor.
 ///

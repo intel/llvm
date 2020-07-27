@@ -10,6 +10,7 @@
 #define FORTRAN_SEMANTICS_MOD_FILE_H_
 
 #include "flang/Semantics/attr.h"
+#include "llvm/Support/raw_ostream.h"
 #include <string>
 
 namespace Fortran::parser {
@@ -31,7 +32,7 @@ class SemanticsContext;
 
 class ModFileWriter {
 public:
-  ModFileWriter(SemanticsContext &context) : context_{context} {}
+  explicit ModFileWriter(SemanticsContext &context) : context_{context} {}
   bool WriteAll();
 
 private:

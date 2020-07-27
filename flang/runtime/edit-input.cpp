@@ -13,18 +13,28 @@
 
 namespace Fortran::runtime::io {
 
+static std::optional<char32_t> PrepareInput(
+    IoStatementState &io, const DataEdit &edit, std::optional<int> &remaining) {
+  remaining.reset();
+  if (edit.descriptor == DataEdit::ListDirected) {
+    io.GetNextNonBlank();
+  } else {
+    if (edit.width.value_or(0) > 0) {
+      remaining = *edit.width;
+    }
+    io.SkipSpaces(remaining);
+  }
+  return io.NextInField(remaining);
+}
+
 static bool EditBOZInput(IoStatementState &io, const DataEdit &edit, void *n,
     int base, int totalBitSize) {
   std::optional<int> remaining;
-  if (edit.width) {
-    remaining = std::max(0, *edit.width);
-  }
-  io.SkipSpaces(remaining);
-  std::optional<char32_t> next{io.NextInField(remaining)};
+  std::optional<char32_t> next{PrepareInput(io, edit, remaining)};
   common::UnsignedInt128 value{0};
   for (; next; next = io.NextInField(remaining)) {
     char32_t ch{*next};
-    if (ch == ' ') {
+    if (ch == ' ' || ch == '\t') {
       continue;
     }
     int digit{0};
@@ -54,14 +64,7 @@ static bool EditBOZInput(IoStatementState &io, const DataEdit &edit, void *n,
 // Returns false if there's a '-' sign
 static bool ScanNumericPrefix(IoStatementState &io, const DataEdit &edit,
     std::optional<char32_t> &next, std::optional<int> &remaining) {
-  if (edit.descriptor != DataEdit::ListDirected && edit.width) {
-    remaining = std::max(0, *edit.width);
-  } else {
-    // list-directed, namelist, or (nonstandard) 0-width input editing
-    remaining.reset();
-  }
-  io.SkipSpaces(remaining);
-  next = io.NextInField(remaining);
+  next = PrepareInput(io, edit, remaining);
   bool negative{false};
   if (next) {
     negative = *next == '-';
@@ -98,7 +101,7 @@ bool EditIntegerInput(
   common::UnsignedInt128 value;
   for (; next; next = io.NextInField(remaining)) {
     char32_t ch{*next};
-    if (ch == ' ') {
+    if (ch == ' ' || ch == '\t') {
       if (edit.modes.editingFlags & blankZero) {
         ch = '0'; // BZ mode - treat blank as if it were zero
       } else {
@@ -167,7 +170,7 @@ static int ScanRealInput(char *buffer, int bufferSize, IoStatementState &io,
   } else if (*next == decimal || (*next >= '0' && *next <= '9')) {
     for (; next; next = io.NextInField(remaining)) {
       char32_t ch{*next};
-      if (ch == ' ') {
+      if (ch == ' ' || ch == '\t') {
         if (edit.modes.editingFlags & blankZero) {
           ch = '0'; // BZ mode - treat blank as if it were zero
         } else {
@@ -226,7 +229,7 @@ static int ScanRealInput(char *buffer, int bufferSize, IoStatementState &io,
     return 0;
   }
   if (remaining) {
-    while (next && *next == ' ') {
+    while (next && (*next == ' ' || *next == '\t')) {
       next = io.NextInField(remaining);
     }
     if (next) {
@@ -310,11 +313,7 @@ bool EditLogicalInput(IoStatementState &io, const DataEdit &edit, bool &x) {
     return false;
   }
   std::optional<int> remaining;
-  if (edit.width) {
-    remaining = std::max(0, *edit.width);
-  }
-  io.SkipSpaces(remaining);
-  std::optional<char32_t> next{io.NextInField(remaining)};
+  std::optional<char32_t> next{PrepareInput(io, edit, remaining)};
   if (next && *next == '.') { // skip optional period
     next = io.NextInField(remaining);
   }
@@ -338,6 +337,9 @@ bool EditLogicalInput(IoStatementState &io, const DataEdit &edit, bool &x) {
   }
   if (remaining) { // ignore the rest of the field
     io.HandleRelativePosition(*remaining);
+  } else if (edit.descriptor == DataEdit::ListDirected) {
+    while (io.NextInField(remaining)) { // discard rest of field
+    }
   }
   return true;
 }
@@ -384,6 +386,7 @@ static bool EditListDirectedDefaultCharacterInput(
        next = io.NextInField(remaining)) {
     switch (*next) {
     case ' ':
+    case '\t':
     case ',':
     case ';':
     case '/':

@@ -444,6 +444,7 @@ static bool isKnownZFlag(StringRef s) {
          s == "rela" || s == "relro" || s == "retpolineplt" ||
          s == "rodynamic" || s == "shstk" || s == "text" || s == "undefs" ||
          s == "wxneeded" || s.startswith("common-page-size=") ||
+         s.startswith("dead-reloc-in-nonalloc=") ||
          s.startswith("max-page-size=") || s.startswith("stack-size=") ||
          s.startswith("start-stop-visibility=");
 }
@@ -1068,6 +1069,27 @@ static void readConfigs(opt::InputArgList &args) {
   config->zStartStopVisibility = getZStartStopVisibility(args);
   config->zText = getZFlag(args, "text", "notext", true);
   config->zWxneeded = hasZOption(args, "wxneeded");
+
+  for (opt::Arg *arg : args.filtered(OPT_z)) {
+    std::pair<StringRef, StringRef> option =
+        StringRef(arg->getValue()).split('=');
+    if (option.first != "dead-reloc-in-nonalloc")
+      continue;
+    constexpr StringRef errPrefix = "-z dead-reloc-in-nonalloc=: ";
+    std::pair<StringRef, StringRef> kv = option.second.split('=');
+    if (kv.first.empty() || kv.second.empty()) {
+      error(errPrefix + "expected <section_glob>=<value>");
+      continue;
+    }
+    uint64_t v;
+    if (!to_integer(kv.second, v))
+      error(errPrefix + "expected a non-negative integer, but got '" +
+            kv.second + "'");
+    else if (Expected<GlobPattern> pat = GlobPattern::create(kv.first))
+      config->deadRelocInNonAlloc.emplace_back(std::move(*pat), v);
+    else
+      error(errPrefix + toString(pat.takeError()));
+  }
 
   // Parse LTO options.
   if (auto *arg = args.getLastArg(OPT_plugin_opt_mcpu_eq))
@@ -1922,9 +1944,9 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
     handleUndefinedGlob(pat);
 
   // Mark -init and -fini symbols so that the LTO doesn't eliminate them.
-  if (Symbol *sym = symtab->find(config->init))
+  if (Symbol *sym = dyn_cast_or_null<Defined>(symtab->find(config->init)))
     sym->isUsedInRegularObj = true;
-  if (Symbol *sym = symtab->find(config->fini))
+  if (Symbol *sym = dyn_cast_or_null<Defined>(symtab->find(config->fini)))
     sym->isUsedInRegularObj = true;
 
   // If any of our inputs are bitcode files, the LTO code generator may create

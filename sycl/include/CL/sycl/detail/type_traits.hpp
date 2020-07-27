@@ -17,6 +17,10 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+template <int Dimensions> class group;
+namespace intel {
+struct sub_group;
+} // namespace intel
 namespace detail {
 namespace half_impl {
 class half;
@@ -301,6 +305,20 @@ using const_if_const_AS =
 template <access::address_space AS, class DataT>
 using const_if_const_AS = DataT;
 #endif
+
+template <typename T> struct is_group : std::false_type {};
+
+template <int Dimensions>
+struct is_group<group<Dimensions>> : std::true_type {};
+
+template <typename T> struct is_sub_group : std::false_type {};
+
+template <> struct is_sub_group<intel::sub_group> : std::true_type {};
+
+template <typename T>
+struct is_generic_group
+    : std::integral_constant<bool,
+                             is_group<T>::value || is_sub_group<T>::value> {};
 
 } // namespace detail
 } // namespace sycl

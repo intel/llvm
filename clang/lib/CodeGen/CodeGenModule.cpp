@@ -225,14 +225,6 @@ void CodeGenModule::createOpenMPRuntime() {
       OpenMPRuntime.reset(new CGOpenMPRuntime(*this));
     break;
   }
-
-  // The OpenMP-IR-Builder should eventually replace the above runtime codegens
-  // but we are not there yet so they both reside in CGModule for now and the
-  // OpenMP-IR-Builder is opt-in only.
-  if (LangOpts.OpenMPIRBuilder) {
-    OMPBuilder.reset(new llvm::OpenMPIRBuilder(TheModule));
-    OMPBuilder->initialize();
-  }
 }
 
 void CodeGenModule::createCUDARuntime() {
@@ -649,12 +641,12 @@ void CodeGenModule::Release() {
     SPIRVerMD->addOperand(llvm::MDNode::get(Ctx, SPIRVerElts));
     // We are trying to look like OpenCL C++ for SPIR-V translator.
     // 4 - OpenCL_CPP, 100000 - OpenCL C++ version 1.0
-    // 6 - ESIMD, if any kernel or function is an explicit SIMD one
+    // 0 - ESIMD, if any kernel or function is an explicit SIMD one
     int Lang = llvm::any_of(TheModule,
                             [](const auto &F) {
                               return F.getMetadata("sycl_explicit_simd");
                             })
-                   ? 6
+                   ? 0
                    : 4;
 
     llvm::Metadata *SPIRVSourceElts[] = {
@@ -1260,6 +1252,9 @@ void CodeGenModule::AddGlobalCtor(llvm::Function *Ctor, int Priority,
 /// when the module is unloaded.
 void CodeGenModule::AddGlobalDtor(llvm::Function *Dtor, int Priority) {
   if (CodeGenOpts.RegisterGlobalDtorsWithAtExit) {
+    if (getCXXABI().useSinitAndSterm())
+      llvm::report_fatal_error(
+          "register global dtors with atexit() is not supported yet");
     DtorsUsingAtExit[Priority].push_back(Dtor);
     return;
   }

@@ -7,7 +7,6 @@ set(LIBCXXABI_SOURCES
   cxa_exception_storage.cpp
   cxa_guard.cpp
   cxa_handlers.cpp
-  cxa_unexpected.cpp
   cxa_vector.cpp
   cxa_virtual.cpp
   # C++ STL files
@@ -21,7 +20,9 @@ set(LIBCXXABI_SOURCES
 )
 
 if (LIBCXXABI_ENABLE_NEW_DELETE_DEFINITIONS)
-  list(APPEND LIBCXXABI_SOURCES stdlib_new_delete.cpp)
+  list(APPEND LIBCXXABI_SOURCES
+    stdlib_new_delete.cpp
+  )
 endif()
 
 if (LIBCXXABI_ENABLE_EXCEPTIONS)

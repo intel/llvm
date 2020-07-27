@@ -16,8 +16,18 @@ namespace clang {
 struct ExprDependenceScope {
   enum ExprDependence : uint8_t {
     UnexpandedPack = 1,
+    // This expr depends in any way on
+    //   - a template parameter, it implies that the resolution of this expr may
+    //     cause instantiation to fail
+    //   - or an error (often in a non-template context)
+    //
+    // Note that C++ standard doesn't define the instantiation-dependent term,
+    // we follow the formal definition coming from the Itanium C++ ABI, and
+    // extend it to errors.
     Instantiation = 2,
+    // The type of this expr depends on a template parameter, or an error.
     Type = 4,
+    // The value of this expr depends on a template parameter, or an error.
     Value = 8,
 
     // clang extension: this expr contains or references an error, and is
@@ -42,10 +52,14 @@ struct TypeDependenceScope {
     /// Whether this type contains an unexpanded parameter pack
     /// (for C++11 variadic templates)
     UnexpandedPack = 1,
-    /// Whether this type somehow involves a template parameter, even
-    /// if the resolution of the type does not depend on a template parameter.
+    /// Whether this type somehow involves
+    ///   - a template parameter, even if the resolution of the type does not
+    ///     depend on a template parameter.
+    ///   - or an error.
     Instantiation = 2,
-    /// Whether this type is a dependent type (C++ [temp.dep.type]).
+    /// Whether this type
+    ///   - is a dependent type (C++ [temp.dep.type])
+    ///   - or it somehow involves an error, e.g. decltype(recovery-expr)
     Dependent = 4,
     /// Whether this type is a variably-modified type (C99 6.7.5).
     VariablyModified = 8,
@@ -64,41 +78,26 @@ struct TypeDependenceScope {
 };
 using TypeDependence = TypeDependenceScope::TypeDependence;
 
-struct TemplateArgumentDependenceScope {
-  enum TemplateArgumentDependence : uint8_t {
-    UnexpandedPack = 1,
-    Instantiation = 2,
-    Dependent = 4,
-
-    Error = 8,
-
-    DependentInstantiation = Dependent | Instantiation,
-    None = 0,
-    All = 15,
-    LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/Error)
-  };
-};
-using TemplateArgumentDependence =
-    TemplateArgumentDependenceScope ::TemplateArgumentDependence;
-
 #define LLVM_COMMON_DEPENDENCE(NAME)                                           \
   struct NAME##Scope {                                                         \
     enum NAME : uint8_t {                                                      \
       UnexpandedPack = 1,                                                      \
       Instantiation = 2,                                                       \
       Dependent = 4,                                                           \
+      Error = 8,                                                               \
                                                                                \
       None = 0,                                                                \
       DependentInstantiation = Dependent | Instantiation,                      \
-      All = 7,                                                                 \
+      All = 15,                                                                \
                                                                                \
-      LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/Dependent)                    \
+      LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/Error)                        \
     };                                                                         \
   };                                                                           \
   using NAME = NAME##Scope::NAME;
 
 LLVM_COMMON_DEPENDENCE(NestedNameSpecifierDependence)
 LLVM_COMMON_DEPENDENCE(TemplateNameDependence)
+LLVM_COMMON_DEPENDENCE(TemplateArgumentDependence)
 #undef LLVM_COMMON_DEPENDENCE
 
 // A combined space of all dependence concepts for all node types.
@@ -110,16 +109,17 @@ public:
 
     // Contains a template parameter pack that wasn't expanded.
     UnexpandedPack = 1,
-    // Uses a template parameter, even if it doesn't affect the result.
-    // Validity depends on the template parameter.
+    // Depends on a template parameter or an error in some way.
+    // Validity depends on how the template is instantiated or the error is
+    // resolved.
     Instantiation = 2,
-    // Expression type depends on template context.
+    // Expression type depends on template context, or an error.
     // Value and Instantiation should also be set.
     Type = 4,
-    // Expression value depends on template context.
+    // Expression value depends on template context, or an error.
     // Instantiation should also be set.
     Value = 8,
-    // Depends on template context.
+    // Depends on template context, or an error.
     // The type/value distinction is only meaningful for expressions.
     Dependent = Type | Value,
     // Includes an error, and depends on how it is resolved.
@@ -149,7 +149,8 @@ public:
   Dependence(NestedNameSpecifierDependence D) :
     V ( translate(D, NNSDependence::UnexpandedPack, UnexpandedPack) |
             translate(D, NNSDependence::Instantiation, Instantiation) |
-            translate(D, NNSDependence::Dependent, Dependent)){}
+            translate(D, NNSDependence::Dependent, Dependent) |
+            translate(D, NNSDependence::Error, Error)) {}
 
   Dependence(TemplateArgumentDependence D)
       : V(translate(D, TADependence::UnexpandedPack, UnexpandedPack) |
@@ -160,7 +161,8 @@ public:
   Dependence(TemplateNameDependence D)
       : V(translate(D, TNDependence::UnexpandedPack, UnexpandedPack) |
              translate(D, TNDependence::Instantiation, Instantiation) |
-             translate(D, TNDependence::Dependent, Dependent)) {}
+             translate(D, TNDependence::Dependent, Dependent) |
+             translate(D, TNDependence::Error, Error)) {}
 
   TypeDependence type() const {
     return translate(V, UnexpandedPack, TypeDependence::UnexpandedPack) |
@@ -181,7 +183,8 @@ public:
   NestedNameSpecifierDependence nestedNameSpecifier() const {
     return translate(V, UnexpandedPack, NNSDependence::UnexpandedPack) |
            translate(V, Instantiation, NNSDependence::Instantiation) |
-           translate(V, Dependent, NNSDependence::Dependent);
+           translate(V, Dependent, NNSDependence::Dependent) |
+           translate(V, Error, NNSDependence::Error);
   }
 
   TemplateArgumentDependence templateArgument() const {
@@ -194,7 +197,8 @@ public:
   TemplateNameDependence templateName() const {
     return translate(V, UnexpandedPack, TNDependence::UnexpandedPack) |
            translate(V, Instantiation, TNDependence::Instantiation) |
-           translate(V, Dependent, TNDependence::Dependent);
+           translate(V, Dependent, TNDependence::Dependent) |
+           translate(V, Error, TNDependence::Error);
   }
 
 private:

@@ -72,8 +72,13 @@ public:
   bool hasSwiftErrorAttr() const;
 
   /// Return true if this argument has the byval, inalloca, or preallocated
-  /// attribute. These attributes represent arguments being passed by value.
-  bool hasPassPointeeByValueAttr() const;
+  /// attribute. These attributes represent arguments being passed by value,
+  /// with an associated copy between the caller and callee
+  bool hasPassPointeeByValueCopyAttr() const;
+
+  /// If this argument satisfies has hasPassPointeeByValueAttr, return the
+  /// in-memory ABI size copied to the stack for the call. Otherwise, return 0.
+  uint64_t getPassPointeeByValueCopySize(const DataLayout &DL) const;
 
   /// If this is a byval or inalloca argument, return its alignment.
   /// FIXME: Remove this function once transition to Align is over.

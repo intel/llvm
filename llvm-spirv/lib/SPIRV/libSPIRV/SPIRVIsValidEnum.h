@@ -426,9 +426,12 @@ inline bool isValid(spv::Decoration V) {
   case DecorationReferencedIndirectlyINTEL:
   case DecorationVectorComputeFunctionINTEL:
   case DecorationStackCallINTEL:
+  case DecorationFuncParamKindINTEL:
+  case DecorationFuncParamDescINTEL:
   case DecorationVectorComputeVariableINTEL:
   case DecorationGlobalVariableOffsetINTEL:
   case DecorationFuncParamIOKind:
+  case DecorationSIMTCallINTEL:
     return true;
   default:
     return false;

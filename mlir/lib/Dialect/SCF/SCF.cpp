@@ -137,7 +137,8 @@ static LogicalResult verify(ForOp op) {
 
     i++;
   }
-  return success();
+
+  return RegionBranchOpInterface::verifyTypes(op);
 }
 
 static void print(OpAsmPrinter &p, ForOp op) {
@@ -410,20 +411,10 @@ void IfOp::build(OpBuilder &builder, OperationState &result, Value cond,
 }
 
 static LogicalResult verify(IfOp op) {
-  // Verify that the entry of each child region does not have arguments.
-  for (auto &region : op.getOperation()->getRegions()) {
-    if (region.empty())
-      continue;
-
-    for (auto &b : region)
-      if (b.getNumArguments() != 0)
-        return op.emitOpError(
-            "requires that child entry blocks have no arguments");
-  }
   if (op.getNumResults() != 0 && op.elseRegion().empty())
     return op.emitOpError("must have an else block if defining values");
 
-  return success();
+  return RegionBranchOpInterface::verifyTypes(op);
 }
 
 static ParseResult parseIfOp(OpAsmParser &parser, OperationState &result) {
@@ -601,6 +592,12 @@ static LogicalResult verify(ParallelOp op) {
     if (!arg.getType().isIndex())
       return op.emitOpError(
           "expects arguments for the induction variable to be of index type");
+
+  // Check that the yield has no results
+  Operation *yield = body->getTerminator();
+  if (yield->getNumOperands() != 0)
+    return yield->emitOpError() << "not allowed to have operands inside '"
+                                << ParallelOp::getOperationName() << "'";
 
   // Check that the number of results is the same as the number of ReduceOps.
   SmallVector<ReduceOp, 4> reductions(body->getOps<ReduceOp>());
@@ -879,31 +876,6 @@ static LogicalResult verify(ReduceReturnOp op) {
 //===----------------------------------------------------------------------===//
 // YieldOp
 //===----------------------------------------------------------------------===//
-static LogicalResult verify(YieldOp op) {
-  auto parentOp = op.getParentOp();
-  auto results = parentOp->getResults();
-  auto operands = op.getOperands();
-
-  if (isa<IfOp, ForOp>(parentOp)) {
-    if (parentOp->getNumResults() != op.getNumOperands())
-      return op.emitOpError() << "parent of yield must have same number of "
-                                 "results as the yield operands";
-    for (auto e : llvm::zip(results, operands)) {
-      if (std::get<0>(e).getType() != std::get<1>(e).getType())
-        return op.emitOpError()
-               << "types mismatch between yield op and its parent";
-    }
-  } else if (isa<ParallelOp>(parentOp)) {
-    if (op.getNumOperands() != 0)
-      return op.emitOpError()
-             << "yield inside scf.parallel is not allowed to have operands";
-  } else {
-    return op.emitOpError()
-           << "yield only terminates If, For or Parallel regions";
-  }
-
-  return success();
-}
 
 static ParseResult parseYieldOp(OpAsmParser &parser, OperationState &result) {
   SmallVector<OpAsmParser::OperandType, 4> operands;

@@ -1852,6 +1852,8 @@ class LambdaExpr final : public Expr,
   Stmt **getStoredStmts() { return getTrailingObjects<Stmt *>(); }
   Stmt *const *getStoredStmts() const { return getTrailingObjects<Stmt *>(); }
 
+  void initBodyIfNeeded() const;
+
 public:
   friend class ASTStmtReader;
   friend class ASTStmtWriter;
@@ -1929,6 +1931,7 @@ public:
 
   /// Const iterator that walks over the capture initialization
   /// arguments.
+  /// FIXME: This interface is prone to being used incorrectly.
   using const_capture_init_iterator = Expr *const *;
 
   /// Retrieve the initialization expressions for this lambda's captures.
@@ -2000,17 +2003,12 @@ public:
   /// a \p CompoundStmt, but can also be \p CoroutineBodyStmt wrapping
   /// a \p CompoundStmt. Note that unlike functions, lambda-expressions
   /// cannot have a function-try-block.
-  Stmt *getBody() const { return getStoredStmts()[capture_size()]; }
+  Stmt *getBody() const;
 
   /// Retrieve the \p CompoundStmt representing the body of the lambda.
   /// This is a convenience function for callers who do not need
   /// to handle node(s) which may wrap a \p CompoundStmt.
-  const CompoundStmt *getCompoundStmtBody() const {
-    Stmt *Body = getBody();
-    if (const auto *CoroBody = dyn_cast<CoroutineBodyStmt>(Body))
-      return cast<CompoundStmt>(CoroBody->getBody());
-    return cast<CompoundStmt>(Body);
-  }
+  const CompoundStmt *getCompoundStmtBody() const;
   CompoundStmt *getCompoundStmtBody() {
     const auto *ConstThis = this;
     return const_cast<CompoundStmt *>(ConstThis->getCompoundStmtBody());
@@ -2039,15 +2037,9 @@ public:
 
   SourceLocation getEndLoc() const LLVM_READONLY { return ClosingBrace; }
 
-  child_range children() {
-    // Includes initialization exprs plus body stmt
-    return child_range(getStoredStmts(), getStoredStmts() + capture_size() + 1);
-  }
-
-  const_child_range children() const {
-    return const_child_range(getStoredStmts(),
-                             getStoredStmts() + capture_size() + 1);
-  }
+  /// Includes the captures and the body of the lambda.
+  child_range children();
+  const_child_range children() const;
 };
 
 /// An expression "T()" which creates a value-initialized rvalue of type

@@ -51,6 +51,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Value.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
@@ -73,6 +74,7 @@
 #include <utility>
 
 using namespace llvm;
+using namespace PatternMatch;
 
 #define DEBUG_TYPE "dse"
 
@@ -210,18 +212,16 @@ static bool hasAnalyzableMemoryWrite(Instruction *I,
     }
   }
   if (auto *CB = dyn_cast<CallBase>(I)) {
-    if (Function *F = CB->getCalledFunction()) {
-      LibFunc LF;
-      if (TLI.getLibFunc(*F, LF) && TLI.has(LF)) {
-        switch (LF) {
-        case LibFunc_strcpy:
-        case LibFunc_strncpy:
-        case LibFunc_strcat:
-        case LibFunc_strncat:
-          return true;
-        default:
-          return false;
-        }
+    LibFunc LF;
+    if (TLI.getLibFunc(*CB, LF) && TLI.has(LF)) {
+      switch (LF) {
+      case LibFunc_strcpy:
+      case LibFunc_strncpy:
+      case LibFunc_strcat:
+      case LibFunc_strncat:
+        return true;
+      default:
+        return false;
       }
     }
   }
@@ -848,7 +848,7 @@ static bool handleEndBlock(BasicBlock &BB, AliasAnalysis *AA,
   // Treat byval or inalloca arguments the same, stores to them are dead at the
   // end of the function.
   for (Argument &AI : BB.getParent()->args())
-    if (AI.hasPassPointeeByValueAttr())
+    if (AI.hasPassPointeeByValueCopyAttr())
       DeadStackObjects.insert(&AI);
 
   const DataLayout &DL = BB.getModule()->getDataLayout();
@@ -1535,7 +1535,7 @@ struct DSEState {
 
         auto *MD = dyn_cast_or_null<MemoryDef>(MA);
         if (MD && State.MemDefs.size() < MemorySSADefsPerBlockLimit &&
-            State.getLocForWriteEx(&I))
+            (State.getLocForWriteEx(&I) || State.isMemTerminatorInst(&I)))
           State.MemDefs.push_back(MD);
 
         // Track whether alloca and alloca-like objects are visible in the
@@ -1563,7 +1563,7 @@ struct DSEState {
     // Treat byval or inalloca arguments the same as Allocas, stores to them are
     // dead at the end of the function.
     for (Argument &AI : F.args())
-      if (AI.hasPassPointeeByValueAttr()) {
+      if (AI.hasPassPointeeByValueCopyAttr()) {
         // For byval, the caller doesn't know the address of the allocation.
         if (AI.hasByValAttr())
           State.InvisibleToCallerBeforeRet.insert(&AI);
@@ -1581,16 +1581,23 @@ struct DSEState {
       return {MemoryLocation::getForDest(MTI)};
 
     if (auto *CB = dyn_cast<CallBase>(I)) {
-      if (Function *F = CB->getCalledFunction()) {
-        StringRef FnName = F->getName();
-        if (TLI.has(LibFunc_strcpy) && FnName == TLI.getName(LibFunc_strcpy))
+      LibFunc LF;
+      if (TLI.getLibFunc(*CB, LF) && TLI.has(LF)) {
+        switch (LF) {
+        case LibFunc_strcpy:
+        case LibFunc_strncpy:
+        case LibFunc_strcat:
+        case LibFunc_strncat:
           return {MemoryLocation(CB->getArgOperand(0))};
-        if (TLI.has(LibFunc_strncpy) && FnName == TLI.getName(LibFunc_strncpy))
-          return {MemoryLocation(CB->getArgOperand(0))};
-        if (TLI.has(LibFunc_strcat) && FnName == TLI.getName(LibFunc_strcat))
-          return {MemoryLocation(CB->getArgOperand(0))};
-        if (TLI.has(LibFunc_strncat) && FnName == TLI.getName(LibFunc_strncat))
-          return {MemoryLocation(CB->getArgOperand(0))};
+        default:
+          break;
+        }
+      }
+      switch (CB->getIntrinsicID()) {
+      case Intrinsic::init_trampoline:
+        return {MemoryLocation(CB->getArgOperand(0))};
+      default:
+        break;
       }
       return None;
     }
@@ -1666,6 +1673,51 @@ struct DSEState {
         PushMemUses(UseDef);
     }
     return true;
+  }
+
+  /// If \p I is a memory  terminator like llvm.lifetime.end or free, return a
+  /// pair with the MemoryLocation terminated by \p I and a boolean flag
+  /// indicating whether \p I is a free-like call.
+  Optional<std::pair<MemoryLocation, bool>>
+  getLocForTerminator(Instruction *I) const {
+    uint64_t Len;
+    Value *Ptr;
+    if (match(I, m_Intrinsic<Intrinsic::lifetime_end>(m_ConstantInt(Len),
+                                                      m_Value(Ptr))))
+      return {std::make_pair(MemoryLocation(Ptr, Len), false)};
+
+    if (auto *CB = dyn_cast<CallBase>(I)) {
+      if (isFreeCall(I, &TLI))
+        return {std::make_pair(MemoryLocation(CB->getArgOperand(0)), true)};
+    }
+
+    return None;
+  }
+
+  /// Returns true if \p I is a memory terminator instruction like
+  /// llvm.lifetime.end or free.
+  bool isMemTerminatorInst(Instruction *I) const {
+    IntrinsicInst *II = dyn_cast<IntrinsicInst>(I);
+    return (II && II->getIntrinsicID() == Intrinsic::lifetime_end) ||
+           isFreeCall(I, &TLI);
+  }
+
+  /// Returns true if \p MaybeTerm is a memory terminator for the same
+  /// underlying object as \p DefLoc.
+  bool isMemTerminator(MemoryLocation DefLoc, Instruction *MaybeTerm) const {
+    Optional<std::pair<MemoryLocation, bool>> MaybeTermLoc =
+        getLocForTerminator(MaybeTerm);
+
+    if (!MaybeTermLoc)
+      return false;
+
+    // If the terminator is a free-like call, all accesses to the underlying
+    // object can be considered terminated.
+    if (MaybeTermLoc->second) {
+      DataLayout DL = MaybeTerm->getParent()->getModule()->getDataLayout();
+      DefLoc = MemoryLocation(GetUnderlyingObject(DefLoc.Ptr, DL));
+    }
+    return AA.isMustAlias(MaybeTermLoc->first, DefLoc);
   }
 
   // Returns true if \p Use may read from \p DefLoc.
@@ -1773,6 +1825,11 @@ struct DSEState {
         continue;
       }
 
+      // A memory terminator kills all preceeding MemoryDefs and all succeeding
+      // MemoryAccesses. We do not have to check it's users.
+      if (isMemTerminator(DefLoc, UseInst))
+        continue;
+
       // Uses which may read the original MemoryDef mean we cannot eliminate the
       // original MD. Stop walk.
       if (isReadClobber(DefLoc, UseInst)) {
@@ -1854,7 +1911,7 @@ struct DSEState {
         if (CommonPred)
           WorkList.insert(CommonPred);
         else
-          for (BasicBlock *R : PDT.getRoots())
+          for (BasicBlock *R : PDT.roots())
             WorkList.insert(R);
 
         NumCFGTries++;
@@ -2060,6 +2117,12 @@ bool eliminateDeadStoresMemorySSA(Function &F, AliasAnalysis &AA,
     Instruction *SI = KillingDef->getMemoryInst();
 
     auto MaybeSILoc = State.getLocForWriteEx(SI);
+    if (State.isMemTerminatorInst(SI))
+      MaybeSILoc = State.getLocForTerminator(SI).map(
+          [](const std::pair<MemoryLocation, bool> &P) { return P.first; });
+    else
+      MaybeSILoc = State.getLocForWriteEx(SI);
+
     if (!MaybeSILoc) {
       LLVM_DEBUG(dbgs() << "Failed to find analyzable write location for "
                         << *SI << "\n");
@@ -2166,43 +2229,55 @@ bool eliminateDeadStoresMemorySSA(Function &F, AliasAnalysis &AA,
         continue;
 
       MemoryLocation NILoc = *State.getLocForWriteEx(NI);
-      // Check if NI overwrites SI.
-      int64_t InstWriteOffset, DepWriteOffset;
-      auto Iter = State.IOLs.insert(
-          std::make_pair<BasicBlock *, InstOverlapIntervalsTy>(
-              NI->getParent(), InstOverlapIntervalsTy()));
-      auto &IOL = Iter.first->second;
-      OverwriteResult OR = isOverwrite(SILoc, NILoc, DL, TLI, DepWriteOffset,
-                                       InstWriteOffset, NI, IOL, AA, &F);
 
-      if (EnablePartialStoreMerging && OR == OW_PartialEarlierWithFullLater) {
-        auto *Earlier = dyn_cast<StoreInst>(NI);
-        auto *Later = dyn_cast<StoreInst>(SI);
-        if (Constant *Merged = tryToMergePartialOverlappingStores(
-                Earlier, Later, InstWriteOffset, DepWriteOffset, DL, &AA,
-                &DT)) {
-
-          // Update stored value of earlier store to merged constant.
-          Earlier->setOperand(0, Merged);
-          ++NumModifiedStores;
-          MadeChange = true;
-
-          // Remove later store and remove any outstanding overlap intervals for
-          // the updated store.
-          State.deleteDeadInstruction(Later);
-          auto I = State.IOLs.find(Earlier->getParent());
-          if (I != State.IOLs.end())
-            I->second.erase(Earlier);
-          break;
-        }
-      }
-
-      if (OR == OW_Complete) {
+      if (State.isMemTerminatorInst(SI)) {
+        const Value *NIUnd = GetUnderlyingObject(NILoc.Ptr, DL);
+        if (!SILocUnd || SILocUnd != NIUnd)
+          continue;
         LLVM_DEBUG(dbgs() << "DSE: Remove Dead Store:\n  DEAD: " << *NI
                           << "\n  KILLER: " << *SI << '\n');
         State.deleteDeadInstruction(NI);
         ++NumFastStores;
         MadeChange = true;
+      } else {
+        // Check if NI overwrites SI.
+        int64_t InstWriteOffset, DepWriteOffset;
+        auto Iter = State.IOLs.insert(
+            std::make_pair<BasicBlock *, InstOverlapIntervalsTy>(
+                NI->getParent(), InstOverlapIntervalsTy()));
+        auto &IOL = Iter.first->second;
+        OverwriteResult OR = isOverwrite(SILoc, NILoc, DL, TLI, DepWriteOffset,
+                                         InstWriteOffset, NI, IOL, AA, &F);
+
+        if (EnablePartialStoreMerging && OR == OW_PartialEarlierWithFullLater) {
+          auto *Earlier = dyn_cast<StoreInst>(NI);
+          auto *Later = dyn_cast<StoreInst>(SI);
+          if (Constant *Merged = tryToMergePartialOverlappingStores(
+                  Earlier, Later, InstWriteOffset, DepWriteOffset, DL, &AA,
+                  &DT)) {
+
+            // Update stored value of earlier store to merged constant.
+            Earlier->setOperand(0, Merged);
+            ++NumModifiedStores;
+            MadeChange = true;
+
+            // Remove later store and remove any outstanding overlap intervals
+            // for the updated store.
+            State.deleteDeadInstruction(Later);
+            auto I = State.IOLs.find(Earlier->getParent());
+            if (I != State.IOLs.end())
+              I->second.erase(Earlier);
+            break;
+          }
+        }
+
+        if (OR == OW_Complete) {
+          LLVM_DEBUG(dbgs() << "DSE: Remove Dead Store:\n  DEAD: " << *NI
+                            << "\n  KILLER: " << *SI << '\n');
+          State.deleteDeadInstruction(NI);
+          ++NumFastStores;
+          MadeChange = true;
+        }
       }
     }
   }

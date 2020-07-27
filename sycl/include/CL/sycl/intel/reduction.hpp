@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/accessor.hpp>
+#include <CL/sycl/handler.hpp>
 #include <CL/sycl/intel/group_algorithm.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -16,6 +17,11 @@ namespace sycl {
 namespace intel {
 
 namespace detail {
+
+__SYCL_EXPORT size_t reduGetMaxWGSize(shared_ptr_class<queue_impl> Queue,
+                                      size_t LocalMemBytesPerWorkItem);
+__SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
+                                       size_t &NWorkGroups);
 
 using cl::sycl::detail::bool_constant;
 using cl::sycl::detail::enable_if_t;
@@ -867,19 +873,19 @@ reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 /// of work-groups. At the end of each work-groups the partial sum is written
 /// to a global buffer.
 ///
-/// Briefly: aux kernel, intel:reduce(), reproducible results,FP + ADD/MIN/MAX
-template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          bool UniformWG, typename InputT, typename OutputT>
+/// Briefly: aux kernel, intel:reduce(), reproducible results, FP + ADD/MIN/MAX
+template <typename KernelName, typename KernelType, bool UniformWG,
+          class Reduction, typename InputT, typename OutputT>
 enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
-reduAuxCGFuncImpl(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
-                  Reduction &, InputT In, OutputT Out) {
-  size_t NWorkGroups = Range.get_group_range().size();
-  bool IsUpdateOfUserVar =
-      Reduction::accessor_mode == access::mode::read_write && NWorkGroups == 1;
-
+reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
+                  size_t WGSize, Reduction &, InputT In, OutputT Out) {
   using Name = typename get_reduction_aux_kernel_name_t<
       KernelName, KernelType, Reduction::is_usm, UniformWG, OutputT>::name;
-  CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+
+  bool IsUpdateOfUserVar =
+      Reduction::accessor_mode == access::mode::read_write && NWorkGroups == 1;
+  nd_range<1> Range{range<1>(NWorkItems), range<1>(WGSize)};
+  CGH.parallel_for<Name>(Range, [=](nd_item<1> NDIt) {
     typename Reduction::binary_operation BOp;
     size_t WGID = NDIt.get_group_linear_id();
     size_t GID = NDIt.get_global_linear_id();
@@ -903,14 +909,11 @@ reduAuxCGFuncImpl(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
 /// to a global buffer.
 ///
 /// Briefly: aux kernel, tree-reduction, CUSTOM types/ops.
-template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          bool UniformPow2WG, typename InputT, typename OutputT>
+template <typename KernelName, typename KernelType, bool UniformPow2WG,
+          class Reduction, typename InputT, typename OutputT>
 enable_if_t<!Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
-reduAuxCGFuncImpl(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
-                  Reduction &Redu, InputT In, OutputT Out) {
-  size_t WGSize = Range.get_local_range().size();
-  size_t NWorkGroups = Range.get_group_range().size();
-
+reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
+                  size_t WGSize, Reduction &Redu, InputT In, OutputT Out) {
   bool IsUpdateOfUserVar =
       Reduction::accessor_mode == access::mode::read_write && NWorkGroups == 1;
 
@@ -924,7 +927,8 @@ reduAuxCGFuncImpl(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
   auto ReduIdentity = Redu.getIdentity();
   using Name = typename get_reduction_aux_kernel_name_t<
       KernelName, KernelType, Reduction::is_usm, UniformPow2WG, OutputT>::name;
-  CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+  nd_range<1> Range{range<1>(NWorkItems), range<1>(WGSize)};
+  CGH.parallel_for<Name>(Range, [=](nd_item<1> NDIt) {
     size_t WGSize = NDIt.get_local_range().size();
     size_t LID = NDIt.get_local_linear_id();
     size_t GID = NDIt.get_global_linear_id();
@@ -962,12 +966,22 @@ reduAuxCGFuncImpl(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
   });
 }
 
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<!Reduction::has_fast_atomics>
-reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
+/// Implements a command group function that enqueues a kernel that does one
+/// iteration of reduction of elements in each of work-groups.
+/// At the end of each work-group the partial sum is written to a global buffer.
+/// The function returns the number of the newly generated partial sums.
+template <typename KernelName, typename KernelType, class Reduction>
+enable_if_t<!Reduction::has_fast_atomics, size_t>
+reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
               Reduction &Redu) {
-  size_t WGSize = Range.get_local_range().size();
-  size_t NWorkGroups = Range.get_group_range().size();
+
+  size_t NWorkGroups;
+  size_t WGSize = reduComputeWGSize(NWorkItems, MaxWGSize, NWorkGroups);
+
+  // The last kernel DOES write to user's accessor passed to reduction.
+  // Associate it with handler manually.
+  if (NWorkGroups == 1 && !Reduction::is_usm)
+    Redu.associateWithHandler(CGH);
 
   // The last work-group may be not fully loaded with work, or the work group
   // size may be not power of two. Those two cases considered inefficient
@@ -981,20 +995,21 @@ reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
   auto In = Redu.getReadAccToPreviousPartialReds(CGH);
   if (Reduction::is_usm && NWorkGroups == 1) {
     if (HasUniformWG)
-      reduAuxCGFuncImpl<KernelName, KernelType, Dims, Reduction, true>(
-          CGH, Range, NWorkItems, Redu, In, Redu.getUSMPointer());
+      reduAuxCGFuncImpl<KernelName, KernelType, true>(
+          CGH, NWorkItems, NWorkGroups, WGSize, Redu, In, Redu.getUSMPointer());
     else
-      reduAuxCGFuncImpl<KernelName, KernelType, Dims, Reduction, false>(
-          CGH, Range, NWorkItems, Redu, In, Redu.getUSMPointer());
+      reduAuxCGFuncImpl<KernelName, KernelType, false>(
+          CGH, NWorkItems, NWorkGroups, WGSize, Redu, In, Redu.getUSMPointer());
   } else {
     auto Out = Redu.getWriteAccForPartialReds(NWorkGroups, CGH);
     if (HasUniformWG)
-      reduAuxCGFuncImpl<KernelName, KernelType, Dims, Reduction, true>(
-          CGH, Range, NWorkItems, Redu, In, Out);
+      reduAuxCGFuncImpl<KernelName, KernelType, true>(
+          CGH, NWorkItems, NWorkGroups, WGSize, Redu, In, Out);
     else
-      reduAuxCGFuncImpl<KernelName, KernelType, Dims, Reduction, false>(
-          CGH, Range, NWorkItems, Redu, In, Out);
+      reduAuxCGFuncImpl<KernelName, KernelType, false>(
+          CGH, NWorkItems, NWorkGroups, WGSize, Redu, In, Out);
   }
+  return NWorkGroups;
 }
 
 } // namespace detail

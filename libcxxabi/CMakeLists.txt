@@ -137,6 +137,8 @@ option(LIBCXXABI_HERMETIC_STATIC_LIBRARY
 
 set(LIBCXXABI_TEST_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/test/lit.site.cfg.in" CACHE STRING
     "The Lit testing configuration to use when running the tests.")
+set(LIBCXXABI_TEST_PARAMS "" CACHE STRING
+    "A list of parameters to run the Lit test suite with.")
 
 #===============================================================================
 # Configure System
@@ -149,12 +151,8 @@ set(CMAKE_MODULE_PATH
   ${CMAKE_MODULE_PATH}
   )
 
-set(LIBCXXABI_COMPILER    ${CMAKE_CXX_COMPILER})
 set(LIBCXXABI_SOURCE_DIR  ${CMAKE_CURRENT_SOURCE_DIR})
 set(LIBCXXABI_BINARY_DIR  ${CMAKE_CURRENT_BINARY_DIR})
-
-string(REGEX MATCH "[0-9]+\\.[0-9]+(\\.[0-9]+)?" CLANG_VERSION
-       ${PACKAGE_VERSION})
 
 if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
   set(LIBCXXABI_LIBRARY_DIR ${LLVM_LIBRARY_OUTPUT_INTDIR}/${LLVM_DEFAULT_TARGET_TRIPLE}/c++)
@@ -307,7 +305,6 @@ if (LIBCXXABI_ENABLE_EXCEPTIONS)
   # Do we really need to be run through the C compiler ?
   add_c_compile_flags_if_supported(-funwind-tables)
 else()
-  add_definitions(-D_LIBCXXABI_NO_EXCEPTIONS)
   add_compile_flags_if_supported(-fno-exceptions)
   add_compile_flags_if_supported(-EHs-)
   add_compile_flags_if_supported(-EHa-)

@@ -1425,19 +1425,6 @@ Instruction *InstCombiner::visitStoreInst(StoreInst &SI) {
   if (isa<UndefValue>(Val))
     return eraseInstFromFunction(SI);
 
-  // If this store is the second-to-last instruction in the basic block
-  // (excluding debug info and bitcasts of pointers) and if the block ends with
-  // an unconditional branch, try to move the store to the successor block.
-  BBI = SI.getIterator();
-  do {
-    ++BBI;
-  } while (isa<DbgInfoIntrinsic>(BBI) ||
-           (isa<BitCastInst>(BBI) && BBI->getType()->isPointerTy()));
-
-  if (BranchInst *BI = dyn_cast<BranchInst>(BBI))
-    if (BI->isUnconditional())
-      mergeStoreIntoSuccessor(SI);
-
   return nullptr;
 }
 
@@ -1447,8 +1434,8 @@ Instruction *InstCombiner::visitStoreInst(StoreInst &SI) {
 ///   *P = v1; if () { *P = v2; }
 /// into a phi node with a store in the successor.
 bool InstCombiner::mergeStoreIntoSuccessor(StoreInst &SI) {
-  assert(SI.isUnordered() &&
-         "This code has not been audited for volatile or ordered store case.");
+  if (!SI.isUnordered())
+    return false; // This code has not been audited for volatile/ordered case.
 
   // Check if the successor block has exactly 2 incoming edges.
   BasicBlock *StoreBB = SI.getParent();

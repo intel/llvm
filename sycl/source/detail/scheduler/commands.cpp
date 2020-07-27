@@ -14,7 +14,6 @@
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/detail/stream_impl.hpp>
 #include <CL/sycl/sampler.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
@@ -22,8 +21,10 @@
 #include <detail/kernel_info.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/queue_impl.hpp>
+#include <detail/sampler_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/stream_impl.hpp>
 
 #include <cassert>
 #include <string>
@@ -200,15 +201,19 @@ public:
 
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
 
-    // we're ready to call the user-defined lambda now
-    if (HostTask.MHostTask->isInteropTask()) {
-      interop_handle IH{MReqToMem, HostTask.MQueue,
-                        getSyclObjImpl(HostTask.MQueue->get_device()),
-                        HostTask.MQueue->getContextImplPtr()};
+    try {
+      // we're ready to call the user-defined lambda now
+      if (HostTask.MHostTask->isInteropTask()) {
+        interop_handle IH{MReqToMem, HostTask.MQueue,
+                          getSyclObjImpl(HostTask.MQueue->get_device()),
+                          HostTask.MQueue->getContextImplPtr()};
 
-      HostTask.MHostTask->call(IH);
-    } else
-      HostTask.MHostTask->call();
+        HostTask.MHostTask->call(IH);
+      } else
+        HostTask.MHostTask->call();
+    } catch (...) {
+      HostTask.MQueue->reportAsyncException(std::current_exception());
+    }
 
     HostTask.MHostTask.reset();
 

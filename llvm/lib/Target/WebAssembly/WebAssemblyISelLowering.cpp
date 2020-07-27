@@ -156,11 +156,10 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
     // There is no i8x16.mul instruction
     setOperationAction(ISD::MUL, MVT::v16i8, Expand);
 
-    // There are no vector select instructions
-    for (auto Op : {ISD::VSELECT, ISD::SELECT_CC, ISD::SELECT})
-      for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32, MVT::v4f32, MVT::v2i64,
-                     MVT::v2f64})
-        setOperationAction(Op, T, Expand);
+    // There is no vector conditional select instruction
+    for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32, MVT::v4f32, MVT::v2i64,
+                   MVT::v2f64})
+      setOperationAction(ISD::SELECT_CC, T, Expand);
 
     // Expand integer operations supported for scalars but not SIMD
     for (auto Op : {ISD::CTLZ, ISD::CTTZ, ISD::CTPOP, ISD::SDIV, ISD::UDIV,
@@ -441,6 +440,19 @@ static MachineBasicBlock *LowerCallResults(MachineInstr &CallResults,
   MachineFunction &MF = *BB->getParent();
   const MCInstrDesc &MCID = TII.get(CallOp);
   MachineInstrBuilder MIB(MF, MF.CreateMachineInstr(MCID, DL));
+
+  // See if we must truncate the function pointer.
+  // CALL_INDIRECT takes an i32, but in wasm64 we represent function pointers
+  // as 64-bit for uniformity with other pointer types.
+  if (IsIndirect && MF.getSubtarget<WebAssemblySubtarget>().hasAddr64()) {
+    Register Reg32 =
+        MF.getRegInfo().createVirtualRegister(&WebAssembly::I32RegClass);
+    auto &FnPtr = CallParams.getOperand(0);
+    BuildMI(*BB, CallResults.getIterator(), DL,
+            TII.get(WebAssembly::I32_WRAP_I64), Reg32)
+        .addReg(FnPtr.getReg());
+    FnPtr.setReg(Reg32);
+  }
 
   // Move the function pointer to the end of the arguments for indirect calls
   if (IsIndirect) {
@@ -1285,8 +1297,10 @@ SDValue WebAssemblyTargetLowering::LowerBR_JT(SDValue Op,
   for (auto MBB : MBBs)
     Ops.push_back(DAG.getBasicBlock(MBB));
 
-  // Do not add the default case for now. It will be added in
-  // WebAssemblyFixBrTableDefaults.
+  // Add the first MBB as a dummy default target for now. This will be replaced
+  // with the proper default target (and the preceding range check eliminated)
+  // if possible by WebAssemblyFixBrTableDefaults.
+  Ops.push_back(DAG.getBasicBlock(*MBBs.begin()));
   return DAG.getNode(WebAssemblyISD::BR_TABLE, DL, MVT::Other, Ops);
 }
 
@@ -1675,19 +1689,13 @@ SDValue WebAssemblyTargetLowering::LowerShift(SDValue Op,
   // Only manually lower vector shifts
   assert(Op.getSimpleValueType().isVector());
 
-  // Unroll non-splat vector shifts
-  BuildVectorSDNode *ShiftVec;
-  SDValue SplatVal;
-  if (!(ShiftVec = dyn_cast<BuildVectorSDNode>(Op.getOperand(1).getNode())) ||
-      !(SplatVal = ShiftVec->getSplatValue()))
+  auto ShiftVal = DAG.getSplatValue(Op.getOperand(1));
+  if (!ShiftVal)
     return unrollVectorShift(Op, DAG);
 
-  // All splats except i64x2 const splats are handled by patterns
-  auto *SplatConst = dyn_cast<ConstantSDNode>(SplatVal);
-  if (!SplatConst || Op.getSimpleValueType() != MVT::v2i64)
-    return Op;
+  // Use anyext because none of the high bits can affect the shift
+  ShiftVal = DAG.getAnyExtOrTrunc(ShiftVal, DL, MVT::i32);
 
-  // i64x2 const splats are custom lowered to avoid unnecessary wraps
   unsigned Opcode;
   switch (Op.getOpcode()) {
   case ISD::SHL:
@@ -1702,9 +1710,8 @@ SDValue WebAssemblyTargetLowering::LowerShift(SDValue Op,
   default:
     llvm_unreachable("unexpected opcode");
   }
-  APInt Shift = SplatConst->getAPIntValue().zextOrTrunc(32);
-  return DAG.getNode(Opcode, DL, Op.getValueType(), Op.getOperand(0),
-                     DAG.getConstant(Shift, DL, MVT::i32));
+
+  return DAG.getNode(Opcode, DL, Op.getValueType(), Op.getOperand(0), ShiftVal);
 }
 
 //===----------------------------------------------------------------------===//

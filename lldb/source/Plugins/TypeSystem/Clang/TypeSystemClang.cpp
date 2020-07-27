@@ -1729,10 +1729,8 @@ TypeSystemClang::GetNumBaseClasses(const CXXRecordDecl *cxx_record_decl,
           base_class_end = cxx_record_decl->bases_end();
            base_class != base_class_end; ++base_class) {
         // Skip empty base classes
-        if (omit_empty_base_classes) {
-          if (BaseSpecifierIsEmpty(base_class))
-            continue;
-        }
+        if (BaseSpecifierIsEmpty(base_class))
+          continue;
         ++num_bases;
       }
     } else
@@ -2501,6 +2499,7 @@ RemoveWrappingTypes(QualType type, ArrayRef<clang::Type::TypeClass> mask = {}) {
     case clang::Type::Decltype:
     case clang::Type::Elaborated:
     case clang::Type::Paren:
+    case clang::Type::TemplateSpecialization:
     case clang::Type::Typedef:
     case clang::Type::TypeOf:
     case clang::Type::TypeOfExpr:
@@ -8246,7 +8245,8 @@ void TypeSystemClang::DumpFromSymbolFile(Stream &s,
         continue;
       }
     }
-    GetCanonicalQualType(full_type.GetOpaqueQualType()).dump(s.AsRawOstream());
+    GetCanonicalQualType(full_type.GetOpaqueQualType())
+        .dump(s.AsRawOstream(), getASTContext());
   }
 }
 
@@ -8965,7 +8965,7 @@ void TypeSystemClang::DumpTypeDescription(lldb::opaque_compiler_type_t type,
         }
       } else {
         if (level == eDescriptionLevelVerbose)
-          qual_type->dump(llvm_ostrm);
+          qual_type->dump(llvm_ostrm, getASTContext());
         else {
           std::string clang_type_name(qual_type.getAsString());
           if (!clang_type_name.empty())

@@ -27,7 +27,8 @@ using namespace llvm::opt;
 static const SanitizerMask NeedsUbsanRt =
     SanitizerKind::Undefined | SanitizerKind::Integer |
     SanitizerKind::ImplicitConversion | SanitizerKind::Nullability |
-    SanitizerKind::CFI | SanitizerKind::FloatDivideByZero;
+    SanitizerKind::CFI | SanitizerKind::FloatDivideByZero |
+    SanitizerKind::ObjCCast;
 static const SanitizerMask NeedsUbsanCxxRt =
     SanitizerKind::Vptr | SanitizerKind::CFI;
 static const SanitizerMask NotAllowedWithTrap = SanitizerKind::Vptr;
@@ -48,11 +49,11 @@ static const SanitizerMask SupportsCoverage =
     SanitizerKind::DataFlow | SanitizerKind::Fuzzer |
     SanitizerKind::FuzzerNoLink | SanitizerKind::FloatDivideByZero |
     SanitizerKind::SafeStack | SanitizerKind::ShadowCallStack |
-    SanitizerKind::Thread;
+    SanitizerKind::Thread | SanitizerKind::ObjCCast;
 static const SanitizerMask RecoverableByDefault =
     SanitizerKind::Undefined | SanitizerKind::Integer |
     SanitizerKind::ImplicitConversion | SanitizerKind::Nullability |
-    SanitizerKind::FloatDivideByZero;
+    SanitizerKind::FloatDivideByZero | SanitizerKind::ObjCCast;
 static const SanitizerMask Unrecoverable =
     SanitizerKind::Unreachable | SanitizerKind::Return;
 static const SanitizerMask AlwaysRecoverable =
@@ -62,7 +63,8 @@ static const SanitizerMask TrappingSupported =
     (SanitizerKind::Undefined & ~SanitizerKind::Vptr) |
     SanitizerKind::UnsignedIntegerOverflow | SanitizerKind::ImplicitConversion |
     SanitizerKind::Nullability | SanitizerKind::LocalBounds |
-    SanitizerKind::CFI | SanitizerKind::FloatDivideByZero;
+    SanitizerKind::CFI | SanitizerKind::FloatDivideByZero |
+    SanitizerKind::ObjCCast;
 static const SanitizerMask TrappingDefault = SanitizerKind::CFI;
 static const SanitizerMask CFIClasses =
     SanitizerKind::CFIVCall | SanitizerKind::CFINVCall |
@@ -1068,7 +1070,7 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
     CmdArgs.push_back(Args.MakeArgString("hwasan-abi=" + HwasanAbi));
   }
 
-  if (Sanitizers.has(SanitizerKind::HWAddress)) {
+  if (Sanitizers.has(SanitizerKind::HWAddress) && TC.getTriple().isAArch64()) {
     CmdArgs.push_back("-target-feature");
     CmdArgs.push_back("+tagged-globals");
   }

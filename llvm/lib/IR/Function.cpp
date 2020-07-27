@@ -20,6 +20,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/AbstractCallSite.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
@@ -120,12 +121,33 @@ bool Argument::hasPreallocatedAttr() const {
   return hasAttribute(Attribute::Preallocated);
 }
 
-bool Argument::hasPassPointeeByValueAttr() const {
+bool Argument::hasPassPointeeByValueCopyAttr() const {
   if (!getType()->isPointerTy()) return false;
   AttributeList Attrs = getParent()->getAttributes();
   return Attrs.hasParamAttribute(getArgNo(), Attribute::ByVal) ||
          Attrs.hasParamAttribute(getArgNo(), Attribute::InAlloca) ||
          Attrs.hasParamAttribute(getArgNo(), Attribute::Preallocated);
+}
+
+uint64_t Argument::getPassPointeeByValueCopySize(const DataLayout &DL) const {
+  AttributeSet ParamAttrs
+    = getParent()->getAttributes().getParamAttributes(getArgNo());
+
+  // FIXME: All the type carrying attributes are mutually exclusive, so there
+  // should be a single query to get the stored type that handles any of them.
+  if (Type *ByValTy = ParamAttrs.getByValType())
+    return DL.getTypeAllocSize(ByValTy);
+  if (Type *PreAllocTy = ParamAttrs.getPreallocatedType())
+    return DL.getTypeAllocSize(PreAllocTy);
+
+  // FIXME: inalloca always depends on pointee element type. It's also possible
+  // for byval to miss it.
+  if (ParamAttrs.hasAttribute(Attribute::InAlloca) ||
+      ParamAttrs.hasAttribute(Attribute::ByVal) ||
+      ParamAttrs.hasAttribute(Attribute::Preallocated))
+    return DL.getTypeAllocSize(cast<PointerType>(getType())->getElementType());
+
+  return 0;
 }
 
 unsigned Argument::getParamAlignment() const {
@@ -1463,12 +1485,21 @@ Optional<Function *> Intrinsic::remangleIntrinsicFunction(Function *F) {
 }
 
 /// hasAddressTaken - returns true if there are any uses of this function
-/// other than direct calls or invokes to it.
-bool Function::hasAddressTaken(const User* *PutOffender) const {
+/// other than direct calls or invokes to it. Optionally ignores callback
+/// uses.
+bool Function::hasAddressTaken(const User **PutOffender,
+                               bool IgnoreCallbackUses) const {
   for (const Use &U : uses()) {
     const User *FU = U.getUser();
     if (isa<BlockAddress>(FU))
       continue;
+
+    if (IgnoreCallbackUses) {
+      AbstractCallSite ACS(&U);
+      if (ACS && ACS.isCallbackCall())
+        continue;
+    }
+
     const auto *Call = dyn_cast<CallBase>(FU);
     if (!Call) {
       if (PutOffender)

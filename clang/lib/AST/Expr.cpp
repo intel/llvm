@@ -3629,7 +3629,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case LambdaExprClass: {
     const LambdaExpr *LE = cast<LambdaExpr>(this);
     for (Expr *E : LE->capture_inits())
-      if (E->HasSideEffects(Ctx, IncludePossibleEffects))
+      if (E && E->HasSideEffects(Ctx, IncludePossibleEffects))
         return true;
     return false;
   }
@@ -4779,8 +4779,10 @@ QualType OMPArraySectionExpr::getBaseOriginalType(const Expr *Base) {
 
 RecoveryExpr::RecoveryExpr(ASTContext &Ctx, QualType T, SourceLocation BeginLoc,
                            SourceLocation EndLoc, ArrayRef<Expr *> SubExprs)
-    : Expr(RecoveryExprClass, T, VK_LValue, OK_Ordinary), BeginLoc(BeginLoc),
-      EndLoc(EndLoc), NumExprs(SubExprs.size()) {
+    : Expr(RecoveryExprClass, T.getNonReferenceType(),
+           T->isDependentType() ? VK_LValue : getValueKindForType(T),
+           OK_Ordinary),
+      BeginLoc(BeginLoc), EndLoc(EndLoc), NumExprs(SubExprs.size()) {
   assert(!T.isNull());
   assert(llvm::all_of(SubExprs, [](Expr* E) { return E != nullptr; }));
 

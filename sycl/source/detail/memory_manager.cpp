@@ -106,7 +106,8 @@ void *MemoryManager::wrapIntoImageBuffer(ContextImplPtr TargetContext,
 }
 
 void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
-                                        bool HostPtrReadOnly, size_t Size) {
+                                        bool HostPtrReadOnly, size_t Size,
+                                        const sycl::property_list &) {
   // Can return user pointer directly if it points to writable memory.
   if (UserPtr && HostPtrReadOnly == false)
     return UserPtr;
@@ -123,7 +124,7 @@ void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
 void *MemoryManager::allocateInteropMemObject(
     ContextImplPtr TargetContext, void *UserPtr,
     const EventImplPtr &InteropEvent, const ContextImplPtr &InteropContext,
-    RT::PiEvent &OutEventToWait) {
+    const sycl::property_list &, RT::PiEvent &OutEventToWait) {
   // If memory object is created with interop c'tor.
   // Return cl_mem as is if contexts match.
   if (TargetContext == InteropContext) {
@@ -144,7 +145,8 @@ void *MemoryManager::allocateInteropMemObject(
 void *MemoryManager::allocateImageObject(ContextImplPtr TargetContext,
                                          void *UserPtr, bool HostPtrReadOnly,
                                          const RT::PiMemImageDesc &Desc,
-                                         const RT::PiMemImageFormat &Format) {
+                                         const RT::PiMemImageFormat &Format,
+                                         const sycl::property_list &) {
   // Create read_write mem object by default to handle arbitrary uses.
   RT::PiMemFlags CreationFlags = PI_MEM_FLAGS_ACCESS_RW;
   if (UserPtr)
@@ -159,16 +161,20 @@ void *MemoryManager::allocateImageObject(ContextImplPtr TargetContext,
   return NewMem;
 }
 
-void *MemoryManager::allocateBufferObject(ContextImplPtr TargetContext,
-                                          void *UserPtr, bool HostPtrReadOnly,
-                                          const size_t Size) {
+void *
+MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
+                                    bool HostPtrReadOnly, const size_t Size,
+                                    const sycl::property_list &PropsList) {
   // Create read_write mem object by default to handle arbitrary uses.
   RT::PiMemFlags CreationFlags = PI_MEM_FLAGS_ACCESS_RW;
   if (UserPtr)
     CreationFlags |= HostPtrReadOnly ? PI_MEM_FLAGS_HOST_PTR_COPY
                                      : PI_MEM_FLAGS_HOST_PTR_USE;
+  else if (PropsList.has_property<
+               sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
+    CreationFlags |= PI_MEM_FLAGS_HOST_PTR_ALLOC;
 
-  RT::PiMem NewMem;
+  RT::PiMem NewMem = nullptr;
   const detail::plugin &Plugin = TargetContext->getPlugin();
   Plugin.call<PiApiKind::piMemBufferCreate>(
       TargetContext->getHandleRef(), CreationFlags, Size, UserPtr, &NewMem);
@@ -180,27 +186,32 @@ void *MemoryManager::allocateMemBuffer(ContextImplPtr TargetContext,
                                        bool HostPtrReadOnly, size_t Size,
                                        const EventImplPtr &InteropEvent,
                                        const ContextImplPtr &InteropContext,
+                                       const sycl::property_list &PropsList,
                                        RT::PiEvent &OutEventToWait) {
   if (TargetContext->is_host())
-    return allocateHostMemory(MemObj, UserPtr, HostPtrReadOnly, Size);
+    return allocateHostMemory(MemObj, UserPtr, HostPtrReadOnly, Size,
+                              PropsList);
   if (UserPtr && InteropContext)
     return allocateInteropMemObject(TargetContext, UserPtr, InteropEvent,
-                                    InteropContext, OutEventToWait);
-  return allocateBufferObject(TargetContext, UserPtr, HostPtrReadOnly, Size);
+                                    InteropContext, PropsList, OutEventToWait);
+  return allocateBufferObject(TargetContext, UserPtr, HostPtrReadOnly, Size,
+                              PropsList);
 }
 
 void *MemoryManager::allocateMemImage(
     ContextImplPtr TargetContext, SYCLMemObjI *MemObj, void *UserPtr,
     bool HostPtrReadOnly, size_t Size, const RT::PiMemImageDesc &Desc,
     const RT::PiMemImageFormat &Format, const EventImplPtr &InteropEvent,
-    const ContextImplPtr &InteropContext, RT::PiEvent &OutEventToWait) {
+    const ContextImplPtr &InteropContext, const sycl::property_list &PropsList,
+    RT::PiEvent &OutEventToWait) {
   if (TargetContext->is_host())
-    return allocateHostMemory(MemObj, UserPtr, HostPtrReadOnly, Size);
+    return allocateHostMemory(MemObj, UserPtr, HostPtrReadOnly, Size,
+                              PropsList);
   if (UserPtr && InteropContext)
     return allocateInteropMemObject(TargetContext, UserPtr, InteropEvent,
-                                    InteropContext, OutEventToWait);
+                                    InteropContext, PropsList, OutEventToWait);
   return allocateImageObject(TargetContext, UserPtr, HostPtrReadOnly, Desc,
-                             Format);
+                             Format, PropsList);
 }
 
 void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
@@ -353,10 +364,12 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
           DepEvents.size(), &DepEvents[0], &OutEvent);
     } else {
       size_t SrcRowPitch = (1 == DimSrc) ? 0 : SrcSize[0];
-      size_t SrcSlicePitch = (3 == DimSrc) ? SrcSize[0] * SrcSize[1] : 0;
+      size_t SrcSlicePitch =
+          (DimSrc > 1) ? SrcSize[0] * SrcSize[1] : SrcSize[0];
 
       size_t DstRowPitch = (1 == DimDst) ? 0 : DstSize[0];
-      size_t DstSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
+      size_t DstSlicePitch =
+          (DimDst > 1) ? DstSize[0] * DstSize[1] : DstSize[0];
 
       Plugin.call<PiApiKind::piEnqueueMemBufferCopyRect>(
           Queue, SrcMem, DstMem, &SrcOffset[0], &DstOffset[0],

@@ -1441,7 +1441,7 @@ bool Parser::parseOMPDeclareVariantMatchClause(SourceLocation Loc,
 /// Parsing of simple OpenMP clauses like 'default' or 'proc_bind'.
 ///
 ///    default-clause:
-///         'default' '(' 'none' | 'shared' ')
+///         'default' '(' 'none' | 'shared'  | 'firstprivate' ')
 ///
 ///    proc_bind-clause:
 ///         'proc_bind' '(' 'master' | 'close' | 'spread' ')
@@ -2009,6 +2009,8 @@ Parser::DeclGroupPtrTy Parser::ParseOpenMPDeclarativeDirectiveWithExtDecl(
     Diag(Tok, diag::err_omp_unexpected_directive)
         << 1 << getOpenMPDirectiveName(DKind);
     break;
+  default:
+    break;
   }
   while (Tok.isNot(tok::annot_pragma_openmp_end))
     ConsumeAnyToken();
@@ -2358,6 +2360,7 @@ Parser::ParseOpenMPDeclarativeOrExecutableDirective(ParsedStmtContext StmtCtx) {
     SkipUntil(tok::annot_pragma_openmp_end);
     break;
   case OMPD_unknown:
+  default:
     Diag(Tok, diag::err_omp_unknown_directive);
     SkipUntil(tok::annot_pragma_openmp_end);
     break;
@@ -2495,6 +2498,7 @@ OMPClause *Parser::ParseOpenMPUsesAllocatorClause(OpenMPDirectiveKind DKind) {
 ///
 OMPClause *Parser::ParseOpenMPClause(OpenMPDirectiveKind DKind,
                                      OpenMPClauseKind CKind, bool FirstClause) {
+  OMPClauseKind = CKind;
   OMPClause *Clause = nullptr;
   bool ErrorFound = false;
   bool WrongDirective = false;
@@ -2681,6 +2685,8 @@ OMPClause *Parser::ParseOpenMPClause(OpenMPDirectiveKind DKind,
           << getOpenMPClauseName(CKind) << getOpenMPDirectiveName(DKind);
     SkipUntil(tok::comma, tok::annot_pragma_openmp_end, StopBeforeMatch);
     break;
+  default:
+    break;
   }
   return ErrorFound ? nullptr : Clause;
 }
@@ -2766,7 +2772,7 @@ OMPClause *Parser::ParseOpenMPSingleExprClause(OpenMPClauseKind Kind,
 /// Parsing of simple OpenMP clauses like 'default' or 'proc_bind'.
 ///
 ///    default-clause:
-///         'default' '(' 'none' | 'shared' ')'
+///         'default' '(' 'none' | 'shared' | 'firstprivate' ')'
 ///
 ///    proc_bind-clause:
 ///         'proc_bind' '(' 'master' | 'close' | 'spread' ')'
@@ -2779,6 +2785,14 @@ OMPClause *Parser::ParseOpenMPSimpleClause(OpenMPClauseKind Kind,
   llvm::Optional<SimpleClauseData> Val = parseOpenMPSimpleClause(*this, Kind);
   if (!Val || ParseOnly)
     return nullptr;
+  if (getLangOpts().OpenMP < 51 && Kind == OMPC_default &&
+      static_cast<DefaultKind>(Val.getValue().Type) ==
+          OMP_DEFAULT_firstprivate) {
+    Diag(Val.getValue().LOpen, diag::err_omp_invalid_dsa)
+        << getOpenMPClauseName(OMPC_firstprivate)
+        << getOpenMPClauseName(OMPC_default) << "5.1";
+    return nullptr;
+  }
   return Actions.ActOnOpenMPSimpleClause(
       Kind, Val.getValue().Type, Val.getValue().TypeLoc, Val.getValue().LOpen,
       Val.getValue().Loc, Val.getValue().RLoc);

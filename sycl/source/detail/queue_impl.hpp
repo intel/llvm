@@ -50,16 +50,14 @@ public:
   /// \param Device is a SYCL device that is used to dispatch tasks submitted
   /// to the queue.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
-  /// \param Order specifies whether the queue being constructed as in-order
-  /// or out-of-order.
   /// \param PropList is a list of properties to use for queue construction.
-  queue_impl(DeviceImplPtr Device, async_handler AsyncHandler, QueueOrder Order,
+  queue_impl(DeviceImplPtr Device, async_handler AsyncHandler,
              const property_list &PropList)
       : queue_impl(Device,
                    detail::getSyclObjImpl(context(
                        createSyclObjFromImpl<device>(Device), {},
                        (DefaultContextType == cuda_context_type::primary))),
-                   AsyncHandler, Order, PropList){};
+                   AsyncHandler, PropList){};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.
@@ -69,12 +67,9 @@ public:
   /// \param Context is a SYCL context to associate with the queue being
   /// constructed.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
-  /// \param Order specifies whether the queue being constructed as in-order
-  /// or out-of-order.
   /// \param PropList is a list of properties to use for queue construction.
   queue_impl(DeviceImplPtr Device, ContextImplPtr Context,
-             async_handler AsyncHandler, QueueOrder Order,
-             const property_list &PropList)
+             async_handler AsyncHandler, const property_list &PropList)
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()),
         MOpenCLInterop(!MHostQueue) {
@@ -84,7 +79,11 @@ public:
           "as the context does not contain the given device.",
           PI_INVALID_DEVICE);
     if (!MHostQueue) {
-      MCommandQueue = createQueue(Order);
+      const QueueOrder qorder =
+          MPropList.has_property<property::queue::in_order>()
+              ? QueueOrder::Ordered
+              : QueueOrder::OOO;
+      MCommandQueue = createQueue(qorder);
     }
   }
 
@@ -115,7 +114,7 @@ public:
 
   ~queue_impl() {
     throw_asynchronous();
-    if (MOpenCLInterop) {
+    if (!MHostQueue) {
       getPlugin().call<PiApiKind::piQueueRelease>(MCommandQueue);
     }
   }
