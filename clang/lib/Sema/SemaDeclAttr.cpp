@@ -7243,7 +7243,7 @@ static void handleSYCLKernelImplAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   // Function must have at least one argument.
-  if (getFunctionOrMethodNumParams(D)  < 1) {
+  if (getFunctionOrMethodNumParams(D) < 1) {
     S.Diag(FT->getLocation(), diag::warn_sycl_attr_num_of_function_params)
         << "sycl_kernel_impl";
     return;
