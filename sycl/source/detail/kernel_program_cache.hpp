@@ -97,8 +97,9 @@ public:
     BR.MBuildCV.wait(Lock, Pred);
   }
 
-  template <typename T>
-  void notifyAllBuild(BuildResult<T> &BR) const { BR.MBuildCV.notify_all(); }
+  template <typename T> void notifyAllBuild(BuildResult<T> &BR) const {
+    BR.MBuildCV.notify_all();
+  }
 
 private:
   std::mutex MProgramCacheMutex;
