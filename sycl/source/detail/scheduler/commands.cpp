@@ -1650,6 +1650,7 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     CGExecKernel *ExecKernel, RT::PiKernel Kernel, NDRDescT &NDRDesc,
     std::vector<RT::PiEvent> &RawEvents, RT::PiEvent &Event) {
   const detail::plugin &Plugin = MQueue->getPlugin();
+  bool IndirectAccessesNeeded = false;
   for (ArgDesc &Arg : ExecKernel->MArgs) {
     switch (Arg.MType) {
     case kernel_param_kind_t::kind_accessor: {
@@ -1683,6 +1684,7 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     case kernel_param_kind_t::kind_pointer: {
       Plugin.call<PiApiKind::piextKernelSetArgPointer>(Kernel, Arg.MIndex,
                                                        Arg.MSize, Arg.MPtr);
+      IndirectAccessesNeeded = true;
       break;
     }
     }
@@ -1691,10 +1693,13 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
   adjustNDRangePerKernel(NDRDesc, Kernel,
                          *(detail::getSyclObjImpl(MQueue->get_device())));
 
-  // Some PI Plugins (like OpenCL) require this call to enable USM
-  // For others, PI will turn this into a NOP.
-  Plugin.call<PiApiKind::piKernelSetExecInfo>(Kernel, PI_USM_INDIRECT_ACCESS,
-                                              sizeof(pi_bool), &PI_TRUE);
+  // Some PI Plugins (like OpenCL and L0) require this call to enable USM
+  // For others, PI will turn this into a NOP. Set it only if pointers are
+  // captured to the kernel.
+  if (IndirectAccessesNeeded) {
+    Plugin.call<PiApiKind::piKernelSetExecInfo>(Kernel, PI_USM_INDIRECT_ACCESS,
+                                                sizeof(pi_bool), &PI_TRUE);
+  }
 
   // Remember this information before the range dimensions are reversed
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
