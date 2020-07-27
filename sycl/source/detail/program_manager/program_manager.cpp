@@ -125,8 +125,7 @@ RetT *waitUntilBuilt(KernelProgramCache &Cache,
                      KernelProgramCache::BuildResult<RetT> *BuildResult) {
   // any thread which will find nullptr in cache will wait until the pointer
   // is not null anymore
-  std::unique_lock<std::mutex> Lock(BuildResult->MBuildResultMutex);
-  Cache.waitUntilBuilt(BuildResult->MBuildCV, Lock, [BuildResult]() {
+  Cache.waitUntilBuilt(*BuildResult, [BuildResult]() {
     int State = BuildResult->State.load();
 
     return State == BS_Done || State == BS_Failed;
@@ -214,7 +213,7 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
 
     BuildResult->State.store(BS_Done);
 
-    KPCache.notifyAllBuild(BuildResult->MBuildCV);
+    KPCache.notifyAllBuild(*BuildResult);
 
     return BuildResult;
   } catch (const exception &Ex) {
@@ -223,13 +222,13 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
 
     BuildResult->State.store(BS_Failed);
 
-    KPCache.notifyAllBuild(BuildResult->MBuildCV);
+    KPCache.notifyAllBuild(*BuildResult);
 
     std::rethrow_exception(std::current_exception());
   } catch (...) {
     BuildResult->State.store(BS_Failed);
 
-    KPCache.notifyAllBuild(BuildResult->MBuildCV);
+    KPCache.notifyAllBuild(*BuildResult);
 
     std::rethrow_exception(std::current_exception());
   }

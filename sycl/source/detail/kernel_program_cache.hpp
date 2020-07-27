@@ -42,7 +42,7 @@ public:
   /// The pointer is not null if and only if the entity is usable.
   /// State of the entity is provided by the user of cache instance.
   /// Currently there is only a single user - ProgramManager class.
-  template<typename T> struct BuildResult {
+  template <typename T> struct BuildResult {
     std::atomic<T *> Ptr;
     std::atomic<int> State;
     BuildError Error;
@@ -90,14 +90,16 @@ public:
     return {MKernelsPerProgramCache, MKernelsPerProgramCacheMutex};
   }
 
-  template <class Predicate>
-  void waitUntilBuilt(std::condition_variable &CV,
-                      std::unique_lock<std::mutex> &Lock,
+  template <typename T, class Predicate>
+  void waitUntilBuilt(BuildResult<T> &BR,
                       Predicate Pred) const {
-    CV.wait(Lock, Pred);
+    std::unique_lock<std::mutex> Lock(BR.MBuildResultMutex);
+
+    BR.MBuildCV.wait(Lock, Pred);
   }
 
-  void notifyAllBuild(std::condition_variable &CV) const { CV.notify_all(); }
+  template <typename T>
+  void notifyAllBuild(BuildResult<T> &BR) const { BR.MBuildCV.notify_all(); }
 
 private:
   std::mutex MProgramCacheMutex;
