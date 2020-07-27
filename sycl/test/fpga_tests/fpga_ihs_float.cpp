@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: %clangxx -I %sycl_include -S -emit-llvm -fsycl-device-only %s -o - | FileCheck %s
+// RUN: %clangxx -I %sycl_include -S -emit-llvm -fsycl -fsycl-device-only %s -Xclang -fsycl-enable-optimizations -o - | FileCheck %s
 
 #include "CL/__spirv/spirv_ops.hpp"
 
