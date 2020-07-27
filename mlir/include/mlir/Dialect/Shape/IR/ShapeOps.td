@@ -96,18 +96,20 @@ def Shape_BroadcastOp : Shape_Op<"broadcast", [Commutative]> {
 }
 
 def Shape_ConstShapeOp : Shape_Op<"const_shape", [ConstantLike, NoSideEffect]> {
-  let summary = "Creates a constant of !shape.shape type";
+  let summary = "Creates a constant shape or extent tensor";
   let description = [{
-    Creates a !shape.shape with rank given by the length of `shape` and with
-    dimension sizes given by the values of `shape`.
+    Creates a constant shape or extent tensor. The individual extents are given
+    as the `shape` attribute. The number of these values equals the shape's
+    rank.
 
     ```mlir
-    %0 = shape.const_shape []
-    %1 = shape.const_shape [1, 2, 3]
+    %0 = shape.const_shape [] : !shape.shape
+    %1 = shape.const_shape [1, 2, 3] : !shape.shape
+    %2 = shape.const_shape [4, 5, 6] : tensor<?xindex>
     ```
   }];
   let arguments = (ins IndexElementsAttr:$shape);
-  let results = (outs Shape_ShapeType:$result);
+  let results = (outs Shape_ShapeOrExtentTensorType:$result);
 
   // TODO: Move this to main so that all shape ops implement these.
   let printer = [{ return ::print(p, *this); }];
@@ -199,12 +201,13 @@ def Shape_RankOp : Shape_Op<"rank", [NoSideEffect]> {
   }];
 
   let arguments = (ins Shape_ShapeOrExtentTensorType:$shape);
-  let results = (outs Shape_SizeType:$rank);
+  let results = (outs Shape_SizeOrIndexType:$rank);
 
-  let assemblyFormat = "$shape `:` type($shape) attr-dict";
+  let assemblyFormat = "$shape `:` type($shape) `->` type($rank) attr-dict";
 
   let hasFolder = 1;
   let hasCanonicalizer = 1;
+  let verifier = [{ return ::verify(*this); }];
 }
 
 def Shape_ToExtentTensorOp : Shape_Op<"to_extent_tensor", [NoSideEffect]> {
@@ -226,17 +229,16 @@ def Shape_ToExtentTensorOp : Shape_Op<"to_extent_tensor", [NoSideEffect]> {
 }
 
 def Shape_GetExtentOp : Shape_Op<"get_extent", [NoSideEffect]> {
-  let summary = "Gets the specified extent from a shape";
+  let summary = "Gets the specified extent from a shape or extent tensor";
   let description = [{
-    Gets the extent indexed by `dim` from `shape`.
-    If the shape is an error, it returns an error size.
+    Gets the extent indexed by `dim` from the `shape` operand. If the shape is
+    an error then it returns an error size.
   }];
-  let arguments = (ins
-    Shape_ShapeType:$shape,
-    Shape_SizeType:$dim
-  );
-  let results = (outs Shape_SizeType:$extent);
-  let assemblyFormat = "$shape `,` $dim attr-dict";
+  let arguments = (ins Shape_ShapeOrExtentTensorType:$shape,
+                       Shape_SizeOrIndexType:$dim);
+  let results = (outs Shape_SizeOrIndexType:$extent);
+  let assemblyFormat = "$shape `,` $dim `:` type($shape) `,` type($dim) `->` "
+                       "type($extent) attr-dict";
 
   let builders = [
     // Builder that allows passing a constant dimension as a simple integer.
@@ -250,6 +252,7 @@ def Shape_GetExtentOp : Shape_Op<"get_extent", [NoSideEffect]> {
   }];
 
   let hasFolder = 1;
+  let verifier = [{ return ::verify(*this); }];
 }
 
 def Shape_IndexToSizeOp : Shape_Op<"index_to_size", [NoSideEffect]> {
@@ -391,11 +394,17 @@ def Shape_ReduceOp : Shape_Op<"reduce",
 def Shape_ShapeOfOp : Shape_Op<"shape_of", [NoSideEffect]> {
   let summary = "Returns shape of a value or shaped type operand";
 
+  let description = [{
+    The operation takes a value or a shaped operand as an argument and it
+    returns a shape or extent tensor.
+  }];
+
   let arguments = (ins AnyTypeOf<[AnyShaped, Shape_ValueShapeType]>:$arg);
-  let results = (outs Shape_ShapeType:$result);
+  let results = (outs Shape_ShapeOrExtentTensorType:$result);
 
-  let assemblyFormat = "$arg `:` type($arg) attr-dict";
+  let assemblyFormat = "$arg `:` type($arg) `->` type($result) attr-dict";
 
+  let verifier = [{ return ::verify(*this); }];
   let hasFolder = 1;
 }
 
@@ -502,11 +511,14 @@ def Shape_ConcatOp : Shape_Op<"concat", []> {
 //===----------------------------------------------------------------------===//
 
 // TODO: Move the code below and witnesses to a different file.
-def Shape_AnyOp : Shape_Op<"any", [Commutative, NoSideEffect]> {
+def Shape_AnyOp : Shape_Op<"any", [Commutative,
+                                   NoSideEffect,
+                                   SameOperandsAndResultType]> {
   let summary = "Return any combination of the input shapes";
   let description = [{
-    This operation takes multiple input shapes and returns some combination of
-    their dimensions. This can be best seen with examples below.
+    This operation takes multiple input shapes or extent tensors and returns
+    some combination of their dimensions. This can be best seen with examples
+    below.
 
     The result is undefined, but still side-effect free, in cases where the
     inputs have differing ranks or differ in extents of shared dimensions.
@@ -518,11 +530,10 @@ def Shape_AnyOp : Shape_Op<"any", [Commutative, NoSideEffect]> {
     ```
   }];
 
-  let arguments = (ins Variadic<Shape_ShapeType>:$inputs);
-  let results = (outs Shape_ShapeType:$result);
+  let arguments = (ins Variadic<Shape_ShapeOrExtentTensorType>:$inputs);
+  let results = (outs Shape_ShapeOrExtentTensorType:$result);
 
-  let assemblyFormat = "$inputs attr-dict";
-
+  let assemblyFormat = "$inputs `:` type($result)  attr-dict";
   let hasFolder = 1;
 }
 
