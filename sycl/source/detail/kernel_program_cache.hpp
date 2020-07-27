@@ -47,7 +47,18 @@ public:
     std::atomic<int> State;
     BuildError Error;
 
+    /// Condition variable to signal that build result is ready.
+    /// A per-object (i.e. kernel or program) condition variable is employed
+    /// instead of global one in order to eliminate the following deadlock.
+    /// A thread T1 awaiting for build result BR1 to be ready may be awakened by
+    /// another thread (due to use of global condition variable), which made
+    /// build result BR2 ready. Meanwhile, a thread which made build result BR1
+    /// ready notifies everyone via a global condition variable and T1 will skip
+    /// this notification as it's not in condition_variable::wait()'s wait cycle
+    /// now. Now T1 goes to sleep again and will wait until either a spurious
+    /// wake-up or another thread will wake it up.
     std::condition_variable MBuildCV;
+    /// A mutex to be employed along with MBuildCV.
     std::mutex MBuildResultMutex;
 
     BuildResult(T* P, int S) : Ptr{P}, State{S}, Error{"", 0} {}
