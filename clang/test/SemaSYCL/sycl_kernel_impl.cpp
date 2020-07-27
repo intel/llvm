@@ -32,6 +32,6 @@ Kernel(Func f) {
 }
 
 void func() {
-  auto Lambda = [](int i, double d){ d += i; };
+  auto Lambda = [](int i, double d) { d += i; };
   Kernel<class Foo>(Lambda);
 }

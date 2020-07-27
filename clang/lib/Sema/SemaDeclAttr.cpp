@@ -7201,7 +7201,7 @@ static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     if (isa<NonTypeTemplateParmDecl>(TParam)) {
       S.Diag(FT->getLocation(),
              diag::warn_sycl_attr_invalid_template_param_type)
-           << "sycl_kernel";
+          << "sycl_kernel";
       return;
     }
   }
@@ -7209,7 +7209,7 @@ static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   // Function must have at least one argument.
   if (getFunctionOrMethodNumParams(D) != 1) {
     S.Diag(FT->getLocation(), diag::warn_sycl_attr_num_of_function_params)
-         << "sycl_kernel";
+        << "sycl_kernel";
     return;
   }
 
@@ -7217,7 +7217,7 @@ static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   QualType RetTy = getFunctionOrMethodResultType(D);
   if (!RetTy->isVoidType()) {
     S.Diag(FT->getLocation(), diag::warn_sycl_attr_return_type)
-         << "sycl_kernel";
+        << "sycl_kernel";
     return;
   }
 
@@ -7237,7 +7237,7 @@ static void handleSYCLKernelImplAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     if (isa<NonTypeTemplateParmDecl>(TParam)) {
       S.Diag(FT->getLocation(),
              diag::warn_sycl_attr_invalid_template_param_type)
-           << "sycl_kernel_impl";
+          << "sycl_kernel_impl";
       return;
     }
   }
@@ -7245,14 +7245,14 @@ static void handleSYCLKernelImplAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   // Function must have at least one argument.
   if (getFunctionOrMethodNumParams(D)  < 1) {
     S.Diag(FT->getLocation(), diag::warn_sycl_attr_num_of_function_params)
-         << "sycl_kernel_impl";
+        << "sycl_kernel_impl";
     return;
   }
 
   // Function must return void.
   if (!getFunctionOrMethodResultType(D)->isVoidType()) {
     S.Diag(FT->getLocation(), diag::warn_sycl_attr_return_type)
-         << "sycl_kernel_impl";
+        << "sycl_kernel_impl";
     return;
   }
 
