@@ -39,7 +39,7 @@ int main() {
     h.set_arg(3, TriviallyCopyable{});
     h.set_arg( // expected-error {{no matching member function for call to 'set_arg'}}
         5, NonTriviallyCopyable{});
-#ifdef CL_SYCL_LANGUAGE_VERSION &&CL_SYCL_LANGUAGE_VERSION <= 121
+#ifdef CL_SYCL_LANGUAGE_VERSION && CL_SYCL_LANGUAGE_VERSION <= 121
     h.set_arg( // expected-error {{no matching member function for call to 'set_arg'}}
         4, NonStdLayout{});
 #endif
