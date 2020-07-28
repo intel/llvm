@@ -5753,7 +5753,8 @@ InputInfo Driver::BuildJobsForActionNoCache(
   }
   // Check if we are in sub-work for preprocessing for host side. If so we will
   // add another job to print information to terminal later.
-  if (!AtTopLevel && A->getKind() == Action::PreprocessJobClass && !C.getJobs().empty())
+  if (!AtTopLevel && A->getKind() == Action::PreprocessJobClass &&
+      !C.getJobs().empty())
     JobForPreprocessToStdout = true;
 
   // Always use the first input as the base input.
@@ -5984,12 +5985,11 @@ InputInfo Driver::BuildJobsForActionNoCache(
       // Add another job to print information to terminal for host side.
       if (JobForPreprocessToStdout) {
         T->ConstructJob(
-          C, *JA, ResultForPreprocessToStdout, InputInfos,
-          C.getArgsForToolChain(TC, BoundArch, JA->getOffloadingDeviceKind()),
-          LinkingOutput);
+            C, *JA, ResultForPreprocessToStdout, InputInfos,
+            C.getArgsForToolChain(TC, BoundArch, JA->getOffloadingDeviceKind()),
+            LinkingOutput);
       }
-    }
-    else
+    } else
       T->ConstructJobMultipleOutputs(
           C, *JA, UnbundlingResults, InputInfos,
           C.getArgsForToolChain(TC, BoundArch, JA->getOffloadingDeviceKind()),
