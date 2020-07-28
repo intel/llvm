@@ -2227,17 +2227,16 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
         return transValue(BI, BB);
       } else {
         // Memory accesses to a standalone pointer variable
-        auto *LI = dyn_cast<LoadInst>(AnnotSubj);
-        auto *LoadResPtr = transValue(LI, BB);
+        auto *DecSubj = transValue(II->getArgOperand(0), BB);
         if (Decorations.MemoryAccessesVec.empty())
-          LoadResPtr->addDecorate(new SPIRVDecorateUserSemanticAttr(
-              LoadResPtr, AnnotationString.str()));
+          DecSubj->addDecorate(new SPIRVDecorateUserSemanticAttr(
+              DecSubj, AnnotationString.str()));
         else
-          // Apply the LSU parameter decoration to the pointer result of a load
+          // Apply the LSU parameter decoration to the pointer result of an
           // instruction. Note it's the address to the accessed memory that's
           // loaded from the original pointer variable, and not the value
           // accessed by the latter.
-          addIntelFPGADecorations(LoadResPtr, Decorations.MemoryAccessesVec);
+          addIntelFPGADecorations(DecSubj, Decorations.MemoryAccessesVec);
         II->replaceAllUsesWith(II->getOperand(0));
       }
     }

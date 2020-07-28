@@ -14,12 +14,14 @@
 ;   float *x;
 ;   int *y;
 ;   State *z;
+;   double *t;
 ;   x = __builtin_intel_fpga_mem(A, BURST_COAL | CACHE_SIZE_FLAG, 0);
 ;   y = __builtin_intel_fpga_mem(B, DONT_STATICALLY_COAL | PREFETCH, 0);
 ;   z = __builtin_intel_fpga_mem(C, CACHE_SIZE_FLAG, 127);
 ;   x = __builtin_intel_fpga_mem(&C->Field1, BURST_COAL | CACHE_SIZE_FLAG, 127);
 ;   y = __builtin_intel_fpga_mem(&C->Field2, 0, 127);
 ;   z = __builtin_intel_fpga_mem(C, BURST_COAL | CACHE_SIZE_FLAG | DONT_STATICALLY_COAL | PREFETCH, 127);
+;   t = __builtin_intel_fpga_mem((double *) A, BURST_COAL | CACHE_SIZE_FLAG, 0);
 ; }
 ;
 ; template <typename name, typename Func>
@@ -47,13 +49,13 @@
 ; CHECK-SPIRV: Capability FPGAMemoryAccessesINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_memory_accesses"
 ; CHECK-SPIRV: Decorate {{[0-9]+}} BurstCoalesceINTEL
+; CHECK-SPIRV: Decorate {{[0-9]+}} CacheSizeINTEL 0
 ; CHECK-SPIRV: Decorate {{[0-9]+}} CacheSizeINTEL 127
 ; CHECK-SPIRV: Decorate {{[0-9]+}} DontStaticallyCoalesceINTEL
 ; CHECK-SPIRV: Decorate {{[0-9]+}} PrefetchINTEL 0
 ; Check that the semantically meaningless decoration was
 ; translated as a mere annotation
 ; CHECK-SPIRV: Decorate {{[0-9]+}} UserSemantic "{params:0}{cache-size:127}"
-; CHECK-SPIRV: Decorate {{[0-9]+}} CacheSizeINTEL 0
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown-sycldevice"
@@ -77,6 +79,8 @@ target triple = "spir64-unknown-unknown-sycldevice"
 @.str.5 = private unnamed_addr constant [27 x i8] c"{params:0}{cache-size:127}\00", section "llvm.metadata"
 ; CHECK-LLVM: [[PARAM_15_CACHE_127:@[a-z0-9_.]+]] = {{.*}}{params:15}{cache-size:127}
 @.str.6 = private unnamed_addr constant [28 x i8] c"{params:15}{cache-size:127}\00", section "llvm.metadata"
+; TODO: Investigate why the same global annotation string shows up twice in backwards translation.
+; CHECK-LLVM: [[PARAM_3_CACHE_0_DOUBLE:@[a-z0-9_.]+]] = {{.*}}{params:3}{cache-size:0}
 
 ; Function Attrs: norecurse nounwind
 define spir_kernel void @_ZTSZ4mainE11fake_kernel() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
@@ -137,9 +141,11 @@ entry:
 ; CHECK-LLVM: %[[FLOAT_VAR:[[:alnum:].]+]] = alloca float addrspace(4)*, align 8
 ; CHECK-LLVM: %[[INT_VAR:[[:alnum:].]+]] = alloca i32 addrspace(4)*, align 8
 ; CHECK-LLVM: %[[STRUCT_VAR:[[:alnum:].]+]] = alloca %struct{{.*}}State addrspace(4)*, align 8
+; CHECK-LLVM: %[[DOUBLE_VAR:[[:alnum:].]+]] = alloca double addrspace(4)*, align 8
   %x = alloca float addrspace(4)*, align 8
   %y = alloca i32 addrspace(4)*, align 8
   %z = alloca %struct._ZTS5State.State addrspace(4)*, align 8
+  %t = alloca double addrspace(4)*, align 8
   store float addrspace(4)* %A, float addrspace(4)** %A.addr, align 8, !tbaa !5
   store i32 addrspace(4)* %B, i32 addrspace(4)** %B.addr, align 8, !tbaa !5
   store %struct._ZTS5State.State addrspace(4)* %C, %struct._ZTS5State.State addrspace(4)** %C.addr, align 8, !tbaa !5
@@ -190,12 +196,24 @@ entry:
   %13 = load %struct._ZTS5State.State addrspace(4)*, %struct._ZTS5State.State addrspace(4)** %C.addr, align 8, !tbaa !5
   %14 = call %struct._ZTS5State.State addrspace(4)* @llvm.ptr.annotation.p4s_struct._ZTS5State.States(%struct._ZTS5State.State addrspace(4)* %13, i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.6, i32 0, i32 0), i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str.1, i32 0, i32 0), i32 0) #6
   store %struct._ZTS5State.State addrspace(4)* %14, %struct._ZTS5State.State addrspace(4)** %z, align 8, !tbaa !5
-  %15 = bitcast %struct._ZTS5State.State addrspace(4)** %z to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %15) #5
-  %16 = bitcast i32 addrspace(4)** %y to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %16) #5
-  %17 = bitcast float addrspace(4)** %x to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %17) #5
+  %15 = bitcast double addrspace(4)** %t to i8*
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* %15) #5
+; CHECK-LLVM: %[[FLOAT_FUNC_PARAM_LOAD:[[:alnum:].]+]] = load float addrspace(4)*, float addrspace(4)** %[[FLOAT_FUNC_PARAM]]
+; CHECK-LLVM: %[[BITCAST_FLOAT_TO_DOUBLE:[[:alnum:].]+]] = bitcast float addrspace(4)* %[[FLOAT_FUNC_PARAM_LOAD]] to double addrspace(4)*
+; CHECK-LLVM: %[[INTRINSIC_CALL:[[:alnum:].]+]] = call double addrspace(4)* @llvm.ptr.annotation.p4f64(double addrspace(4)* %[[BITCAST_FLOAT_TO_DOUBLE]], i8* getelementptr inbounds ({{.*}} [[PARAM_3_CACHE_0_DOUBLE]]
+; CHECK-LLVM: store double addrspace(4)* %[[INTRINSIC_CALL]], double addrspace(4)** %[[DOUBLE_VAR]]
+  %16 = load float addrspace(4)*, float addrspace(4)** %A.addr, align 8, !tbaa !5
+  %17 = bitcast float addrspace(4)* %16 to double addrspace(4)*
+  %18 = call double addrspace(4)* @llvm.ptr.annotation.p4f64(double addrspace(4)* %17, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str.1, i32 0, i32 0), i32 0) #6
+  store double addrspace(4)* %18, double addrspace(4)** %t, align 8, !tbaa !5
+  %19 = bitcast double addrspace(4)** %t to i8*
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %19) #5
+  %20 = bitcast %struct._ZTS5State.State addrspace(4)** %z to i8*
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %20) #5
+  %21 = bitcast i32 addrspace(4)** %y to i8*
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %21) #5
+  %22 = bitcast float addrspace(4)** %x to i8*
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %22) #5
   ret void
 }
 
@@ -207,6 +225,9 @@ declare i32 addrspace(4)* @llvm.ptr.annotation.p4i32(i32 addrspace(4)*, i8*, i8*
 
 ; Function Attrs: nounwind willreturn
 declare %struct._ZTS5State.State addrspace(4)* @llvm.ptr.annotation.p4s_struct._ZTS5State.States(%struct._ZTS5State.State addrspace(4)*, i8*, i8*, i32) #4
+
+; Function Attrs: nounwind willreturn
+declare double addrspace(4)* @llvm.ptr.annotation.p4f64(double addrspace(4)*, i8*, i8*, i32) #4
 
 attributes #0 = { norecurse nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "sycl-module-id"="/tmp/lsu.cpp" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind willreturn }

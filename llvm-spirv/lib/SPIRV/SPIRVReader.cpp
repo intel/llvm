@@ -3194,12 +3194,10 @@ void generateIntelFPGAAnnotationForStructMember(
 }
 
 void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
-  if (!BV->isVariable() && BV->getOpCode() != OpLoad &&
-      BV->getOpCode() != OpInBoundsPtrAccessChain)
+  if (!BV->isVariable() && !BV->isInst())
     return;
 
-  if (isa<AllocaInst>(V) || isa<LoadInst>(V) || isa<GetElementPtrInst>(V)) {
-    auto *Inst = cast<Instruction>(V);
+  if (auto *Inst = dyn_cast<Instruction>(V)) {
     auto *AL = dyn_cast<AllocaInst>(Inst);
     Type *AllocatedTy = AL ? AL->getAllocatedType() : Inst->getType();
 
