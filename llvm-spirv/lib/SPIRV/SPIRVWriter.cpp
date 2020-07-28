@@ -48,6 +48,7 @@
 #include "SPIRVFunction.h"
 #include "SPIRVInstruction.h"
 #include "SPIRVInternal.h"
+#include "SPIRVLLVMUtil.h"
 #include "SPIRVMDWalker.h"
 #include "SPIRVModule.h"
 #include "SPIRVType.h"
@@ -2761,6 +2762,13 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     // llvm.trap intrinsic is not implemented. But for now don't crash. This
     // change is pending the trap/abort intrinsic implementation.
     return nullptr;
+  case Intrinsic::is_constant: {
+    auto *CO = dyn_cast<Constant>(II->getOperand(0));
+    if (CO && isManifestConstant(CO))
+      return transValue(ConstantInt::getTrue(II->getType()), BB, false);
+    else
+      return transValue(ConstantInt::getFalse(II->getType()), BB, false);
+  }
   default:
     if (BM->isSPIRVAllowUnknownIntrinsicsEnabled())
       return BM->addCallInst(
