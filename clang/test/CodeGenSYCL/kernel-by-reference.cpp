@@ -6,7 +6,7 @@
 // SYCL 1.2/2017 - kernel functions passed directly. (Also no const requirement, though mutable lambdas never supported)
 template <typename name, typename Func>
 #if defined(SYCL2020)
-// expected-warning@+2 {{Passing kernel functions by value is deprecated in SYCL 2020.}}
+// expected-warning@+2 {{Passing kernel functions by value is deprecated in SYCL 2020}}
 #endif
 __attribute__((sycl_kernel)) void sycl_2017_single_task(Func kernelFunc) {
   kernelFunc();
@@ -15,7 +15,7 @@ __attribute__((sycl_kernel)) void sycl_2017_single_task(Func kernelFunc) {
 // SYCL 2020 - kernel functions are passed by reference.
 template <typename name, typename Func>
 #if defined(SYCL2017)
-// expected-warning@+2 {{Passing of kernel functions by reference is a SYCL 2020 extension.}}
+// expected-warning@+2 {{Passing of kernel functions by reference is a SYCL 2020 extension}}
 #endif
 __attribute__((sycl_kernel)) void sycl_2020_single_task(const Func &kernelFunc) {
   kernelFunc();

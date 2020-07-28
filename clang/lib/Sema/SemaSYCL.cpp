@@ -748,6 +748,7 @@ static void checkKernelAndCaller(Sema &SemaRef, FunctionDecl *Caller,
   }
 
   // check that calling kernel conforms to spec
+  assert(Caller->param_size() >= 1 && "missing kernel function argument.");
   QualType KernelParamTy = (*Caller->param_begin())->getType();
   if (KernelParamTy->isReferenceType()) {
     // passing by reference, so emit warning if not using SYCL 2020
