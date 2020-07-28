@@ -582,9 +582,8 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
     return;
 
   // Customize the head of the module passes list for the ESIMD extension.
-  if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD) {
+  if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD)
     MPM.add(createSYCLLowerESIMDPass());
-  }
 
   // Figure out TargetLibraryInfo.  This needs to be added to MPM and FPM
   // manually (and not via PMBuilder), since some passes (eg. InstrProfiling)
