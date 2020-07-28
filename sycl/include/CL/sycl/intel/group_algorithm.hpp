@@ -890,6 +890,24 @@ template <typename Group> bool leader(Group g) {
 #endif
 }
 
+template <typename Group> void barrier(Group g) {
+  static_assert(sycl::detail::is_generic_group<Group>::value,
+                "Group algorithms only support the sycl::group and "
+                "intel::sub_group class.");
+#ifdef __SYCL_DEVICE_ONLY__
+  auto Scope = sycl::detail::spirv::group_scope<Group>::value;
+  __spirv_ControlBarrier(Scope, Scope,
+                         __spv::MemorySemanticsMask::AcquireRelease |
+                             __spv::MemorySemanticsMask::SubgroupMemory |
+                             __spv::MemorySemanticsMask::WorkgroupMemory |
+                             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
+#else
+  (void)g;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
 } // namespace intel
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
