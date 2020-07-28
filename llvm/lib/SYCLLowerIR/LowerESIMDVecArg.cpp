@@ -129,17 +129,15 @@ ModulePass *llvm::createESIMDLowerVecArgPass() {
 // Return ptr to first-class vector type if Value is a simd*, else return
 // nullptr.
 Type *ESIMDLowerVecArgPass::getSimdArgPtrTyOrNull(Value *arg) {
-  if (auto ArgType = dyn_cast<PointerType>(arg->getType())) {
-    auto ContainedType = ArgType->getElementType();
-    if (ContainedType->isStructTy()) {
-      if (ContainedType->getStructNumElements() == 1 &&
-          ContainedType->getStructElementType(0)->isVectorTy()) {
-        return PointerType::get(ContainedType->getStructElementType(0),
-                                ArgType->getPointerAddressSpace());
-      }
-    }
-  }
-  return nullptr;
+  auto ArgType = dyn_cast<PointerType>(arg->getType());
+  if (!ArgType || !ArgType->getElementType()->isStructTy())
+    return nullptr;
+  auto ContainedType = ArgType->getElementType();
+  if ((ContainedType->getStructNumElements() != 1) ||
+      !ContainedType->getStructElementType(0)->isVectorTy())
+    return nullptr;
+  return PointerType::get(ContainedType->getStructElementType(0),
+                          ArgType->getPointerAddressSpace());
 }
 
 // F may have multiple arguments of type simd*. This
@@ -197,33 +195,27 @@ Function *ESIMDLowerVecArgPass::rewriteFunc(Function &F) {
   for (auto &use : F.uses()) {
     // Use must be a call site
     SmallVector<Value *, 10> Params;
-    auto User = use.getUser();
-    if (isa<CallInst>(User)) {
-      auto Call = cast<CallInst>(User);
-      // Variadic functions not supported
-      assert(!Call->getFunction()->isVarArg() &&
-             "Variadic functions not supported");
-      for (unsigned int I = 0,
-                        NumOpnds = cast<CallInst>(Call)->getNumArgOperands();
-           I != NumOpnds; I++) {
-        auto SrcOpnd = Call->getOperand(I);
-        auto NewTy = getSimdArgPtrTyOrNull(SrcOpnd);
-        if (NewTy) {
-          auto BitCast = new BitCastInst(SrcOpnd, NewTy, "", Call);
-          Params.push_back(BitCast);
-        } else {
-          if (SrcOpnd != &F)
-            Params.push_back(SrcOpnd);
-          else
-            Params.push_back(NF);
-        }
+    auto Call = cast<CallInst>(use.getUser());
+    // Variadic functions not supported
+    assert(!Call->getFunction()->isVarArg() &&
+           "Variadic functions not supported");
+    for (unsigned int I = 0; I < Call->getNumArgOperands(); I++) {
+      auto SrcOpnd = Call->getOperand(I);
+      auto NewTy = getSimdArgPtrTyOrNull(SrcOpnd);
+      if (NewTy) {
+        auto BitCast = new BitCastInst(SrcOpnd, NewTy, "", Call);
+        Params.push_back(BitCast);
+      } else {
+        if (SrcOpnd != &F)
+          Params.push_back(SrcOpnd);
+        else
+          Params.push_back(NF);
       }
-
-      // create new call instruction
-      auto NewCallInst = CallInst::Create(NFTy, NF, Params, "");
-      NewCallInst->setCallingConv(F.getCallingConv());
-      OldNewInst.push_back(std::make_pair(Call, NewCallInst));
     }
+    // create new call instruction
+    auto NewCallInst = CallInst::Create(NFTy, NF, Params, "");
+    NewCallInst->setCallingConv(F.getCallingConv());
+    OldNewInst.push_back(std::make_pair(Call, NewCallInst));
   }
 
   for (auto InstPair : OldNewInst) {
