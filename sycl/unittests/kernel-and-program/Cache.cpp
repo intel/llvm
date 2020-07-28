@@ -86,8 +86,8 @@ static pi_result redefinedKernelGetInfo(pi_kernel kernel,
                                         void *param_value,
                                         size_t *param_value_size_ret) {
   if (param_name == PI_KERNEL_INFO_CONTEXT) {
-     auto ctx = reinterpret_cast<detail::pi::PiContext*>(param_value);
-     *ctx = globalCtx->context;
+    auto ctx = reinterpret_cast<detail::pi::PiContext *>(param_value);
+    *ctx = globalCtx->context;
   }
 
   return PI_SUCCESS;
