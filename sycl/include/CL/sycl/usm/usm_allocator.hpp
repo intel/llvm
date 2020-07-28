@@ -96,9 +96,7 @@ public:
   }
 
 private:
-  constexpr size_t getAlignment() const {
-    return Alignment;
-  }
+  constexpr size_t getAlignment() const { return Alignment; }
 
   template <class U, usm::alloc AllocKindU, size_t AlignmentU>
   friend class usm_allocator;
