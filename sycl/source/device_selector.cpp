@@ -107,16 +107,20 @@ device device_selector::select_device(info::device_type deviceType, backend be) 
   }
 
   if (res != nullptr) {
+    string_class PlatformVersion = res->get_info<info::device::platform>()
+      .get_info<info::platform::version>();
+    string_class DeviceName = res->get_info<info::device::name>();
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC)) {
-      string_class PlatformVersion = res->get_info<info::device::platform>()
-                                         .get_info<info::platform::version>();
-      string_class DeviceName = res->get_info<info::device::name>();
       std::cout << "SYCL_PI_TRACE[all]: "
                 << "Selected device ->" << std::endl
                 << "SYCL_PI_TRACE[all]: "
                 << "  platform: " << PlatformVersion << std::endl
                 << "SYCL_PI_TRACE[all]: "
                 << "  device: " << DeviceName << std::endl;
+    }
+    if (deviceType != info::device_type::all) {
+      std::cout << "WARNING: the requested device and/or backend is not found.\n";
+      std::cout << PlatformVersion << " is chosen based on a heuristic.\n";
     }
     return *res;
   }
