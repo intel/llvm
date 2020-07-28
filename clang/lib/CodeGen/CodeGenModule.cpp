@@ -3889,13 +3889,13 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
   }
 
   if (LangOpts.SYCLIsDevice) {
+    if (!D)
+      return LangAS::opencl_global;
     auto *Scope = D->getAttr<SYCLScopeAttr>();
-
     if (Scope && Scope->isWorkGroup())
       return LangAS::opencl_local;
-    if (!D || D->getType().getAddressSpace() == LangAS::Default) {
+    if (D->getType().getAddressSpace() == LangAS::Default)
       return LangAS::opencl_global;
-    }
   }
 
   if (LangOpts.CUDA && LangOpts.CUDAIsDevice) {
