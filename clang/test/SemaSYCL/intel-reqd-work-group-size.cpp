@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-sycl-2017-conform -fsyntax-only -verify -DTRIGGER_ERROR %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-sycl-2017-conform -ast-dump %s | FileCheck %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-host -Wno-sycl-2017-conform -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-sycl-2017-compat -fsyntax-only -verify -DTRIGGER_ERROR %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-host -Wno-sycl-2017-compat -fsyntax-only -verify %s
 
 #ifndef __SYCL_DEVICE_ONLY__
 // expected-no-diagnostics

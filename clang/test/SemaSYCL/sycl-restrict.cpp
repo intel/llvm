@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -triple spir64 -Wno-return-type -verify -Wno-sycl-2017-conform -fsyntax-only -std=c++17 %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -triple spir64 -fno-sycl-allow-func-ptr -Wno-return-type -verify -Wno-sycl-2017-conform -fsyntax-only -std=c++17 %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -triple spir64 -DALLOW_FP=1 -fsycl-allow-func-ptr -Wno-return-type -verify -Wno-sycl-2017-conform -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -triple spir64 -Wno-return-type -verify -Wno-sycl-2017-compat -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -triple spir64 -fno-sycl-allow-func-ptr -Wno-return-type -verify -Wno-sycl-2017-compat -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -triple spir64 -DALLOW_FP=1 -fsycl-allow-func-ptr -Wno-return-type -verify -Wno-sycl-2017-compat -fsyntax-only -std=c++17 %s
 
 namespace std {
 class type_info;

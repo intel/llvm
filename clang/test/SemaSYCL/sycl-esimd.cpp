@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-explicit-simd -fsyntax-only -Wno-sycl-2017-conform -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-explicit-simd -fsyntax-only -Wno-sycl-2017-compat -verify %s
 
 // ----------- Negative tests
 

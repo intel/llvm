@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -Wno-return-type -Wno-sycl-2017-conform -verify -fsyntax-only -std=c++20 -Werror=vla %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -Wno-return-type -Wno-sycl-2017-compat -verify -fsyntax-only -std=c++20 -Werror=vla %s
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-sycl-2017-conform -verify -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-sycl-2017-compat -verify -fsyntax-only %s
 
 void defined() {
 }

@@ -734,14 +734,21 @@ static const CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
   if (KernelParamTy->isReferenceType())
     return KernelParamTy->getPointeeCXXRecordDecl();
 
-  // SYCL 1.2
+  // SYCL 1.2.1
   return KernelParamTy->getAsCXXRecordDecl();
 }
 
-static void diagKernelCallerSpecConformance(Sema &SemaRef,
-                                            FunctionDecl *Caller) {
-  QualType KernelParamTy = (*Caller->param_begin())->getType();
+static void checkKernelAndCaller(Sema &SemaRef, FunctionDecl *Caller,
+                                 const CXXRecordDecl *KernelObj) {
+  // check captures
+  if (KernelObj->isLambda()) {
+    for (const LambdaCapture &LC : KernelObj->captures())
+      if (LC.capturesThis() && LC.isImplicit())
+        SemaRef.Diag(LC.getLocation(), diag::err_implicit_this_capture);
+  }
 
+  // check that calling kernel conforms to spec
+  QualType KernelParamTy = (*Caller->param_begin())->getType();
   if (KernelParamTy->isReferenceType()) {
     // passing by reference, so emit warning if not using SYCL 2020
     if (SemaRef.LangOpts.SYCLVersion < 2020)
@@ -1966,12 +1973,8 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       constructKernelName(*this, KernelCallerFunc, MC);
   StringRef KernelName(getLangOpts().SYCLUnnamedLambda ? StableName
                                                        : CalculatedName);
-  if (KernelObj->isLambda()) {
-    for (const LambdaCapture &LC : KernelObj->captures())
-      if (LC.capturesThis() && LC.isImplicit())
-        Diag(LC.getLocation(), diag::err_implicit_this_capture);
-  }
-  diagKernelCallerSpecConformance(*this, KernelCallerFunc);
+
+  checkKernelAndCaller(*this, KernelCallerFunc, KernelObj);
   SyclKernelFieldChecker checker(*this);
   SyclKernelDeclCreator kernel_decl(
       *this, checker, KernelName, KernelObj->getLocation(),
