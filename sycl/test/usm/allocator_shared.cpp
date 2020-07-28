@@ -47,7 +47,8 @@ int main() {
     assert((*ptr2 == 42) && "Shared construct passed.");
   }
 
-  // Device allocations are not supported due to how allocated_shared is written.
+  // Device allocations are not supported due to how allocated_shared is
+  // written.
 
   return 0;
 }
