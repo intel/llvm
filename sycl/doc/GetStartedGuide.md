@@ -27,7 +27,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
 * `ninja` -
 [Download](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages)
 * C++ compiler
-  * Linux: `GCC` version 5.1.0 or later (including libstdc++) -
+  * Linux: `GCC` version 7.1.0 or later (including libstdc++) -
     [Download](https://gcc.gnu.org/install/)
   * Windows: `Visual Studio` version 15.7 preview 4 or later -
     [Download](https://visualstudio.microsoft.com/downloads/)

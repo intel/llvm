@@ -93,16 +93,26 @@ Scheduler::GraphBuilder::GraphBuilder() {
 }
 
 static bool markNodeAsVisited(Command *Cmd, std::vector<Command *> &Visited) {
-  if (Cmd->MVisited)
+  if (Cmd->MMarks.MVisited)
     return false;
-  Cmd->MVisited = true;
+  Cmd->MMarks.MVisited = true;
   Visited.push_back(Cmd);
   return true;
 }
 
 static void unmarkVisitedNodes(std::vector<Command *> &Visited) {
   for (Command *Cmd : Visited)
-    Cmd->MVisited = false;
+    Cmd->MMarks.MVisited = false;
+}
+
+static void handleVisitedNodes(std::vector<Command *> &Visited) {
+  for (Command *Cmd : Visited) {
+    if (Cmd->MMarks.MToBeDeleted) {
+      Cmd->getEvent()->setCommand(nullptr);
+      delete Cmd;
+    } else
+      Cmd->MMarks.MVisited = false;
+  }
 }
 
 static void printDotRecursive(std::fstream &Stream,
@@ -825,7 +835,6 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
 
   std::queue<Command *> ToVisit;
   std::vector<Command *> Visited;
-  std::vector<Command *> CmdsToDelete;
   // First, mark all allocas for deletion and their direct users for traversal
   // Dependencies of the users will be cleaned up during the traversal
   for (Command *AllocaCmd : AllocaCommands) {
@@ -839,7 +848,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
       else
         markNodeAsVisited(UserCmd, Visited);
 
-    CmdsToDelete.push_back(AllocaCmd);
+    AllocaCmd->MMarks.MToBeDeleted = true;
     // These commands will be deleted later, clear users now to avoid
     // updating them during edge removal
     AllocaCmd->MUsers.clear();
@@ -851,7 +860,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     AllocaCommandBase *LinkedCmd = AllocaCmd->MLinkedAllocaCmd;
 
     if (LinkedCmd) {
-      assert(LinkedCmd->MVisited);
+      assert(LinkedCmd->MMarks.MVisited);
 
       for (DepDesc &Dep : AllocaCmd->MDeps)
         if (Dep.MDepCommand)
@@ -896,17 +905,12 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     // If all dependencies have been removed this way, mark the command for
     // deletion
     if (Cmd->MDeps.empty()) {
-      CmdsToDelete.push_back(Cmd);
+      Cmd->MMarks.MToBeDeleted = true;
       Cmd->MUsers.clear();
     }
   }
 
-  unmarkVisitedNodes(Visited);
-
-  for (Command *Cmd : CmdsToDelete) {
-    Cmd->getEvent()->setCommand(nullptr);
-    delete Cmd;
-  }
+  handleVisitedNodes(Visited);
 }
 
 void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
@@ -948,12 +952,10 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
       Command *DepCmd = Dep.MDepCommand;
       DepCmd->MUsers.erase(Cmd);
     }
-    Cmd->getEvent()->setCommand(nullptr);
 
-    Visited.pop_back();
-    delete Cmd;
+    Cmd->MMarks.MToBeDeleted = true;
   }
-  unmarkVisitedNodes(Visited);
+  handleVisitedNodes(Visited);
 }
 
 void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {

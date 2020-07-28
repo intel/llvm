@@ -42,6 +42,8 @@ const char *SYCL::Linker::constructLLVMSpirvCommand(Compilation &C,
   } else {
     CmdArgs.push_back("-spirv-max-version=1.1");
     CmdArgs.push_back("-spirv-ext=+all");
+    if (C.getArgs().hasArg(options::OPT_fsycl_esimd))
+      CmdArgs.push_back("-spirv-allow-unknown-intrinsics");
     CmdArgs.push_back("-o");
     CmdArgs.push_back(Output.getFilename());
   }

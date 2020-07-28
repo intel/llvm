@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/sampler_impl.hpp>
 #include <detail/context_impl.hpp>
+#include <detail/sampler_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

@@ -8,8 +8,6 @@
 #include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/detail/buffer_impl.hpp>
 #include <CL/sycl/detail/image_impl.hpp>
-#include <CL/sycl/detail/sampler_impl.hpp>
-#include <CL/sycl/detail/stream_impl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_event.hpp>
 #include <CL/sycl/device_selector.hpp>
@@ -69,19 +67,11 @@ int main() {
 #ifdef __SYCL_DEVICE_ONLY__
   check_size<private_memory<int, 1>, 4>();
   check_size<detail::sampler_impl, 8>();
-#else
-  check_size<private_memory<int, 1>, 8>();
-#ifdef _MSC_VER
-  check_size<detail::sampler_impl, 80>();
-#else
-  check_size<detail::sampler_impl, 72>();
-#endif
 #endif
   check_size<program, 16>();
   check_size<range<1>, 8>();
   check_size<sampler, 16>();
   check_size<stream, 144>();
-  check_size<detail::stream_impl, 120>();
   check_size<queue, 16>();
 
   return 0;
