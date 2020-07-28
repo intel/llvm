@@ -1,5 +1,5 @@
 // UNSUPPORTED: cuda
-// OpenCL C 2.x alike work-group functions not yet supported by CUDA.
+// Reductions use work-group builtins (e.g. intel::reduce()) not yet supported by CUDA.
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUNx: env SYCL_DEVICE_TYPE=HOST %t.out
