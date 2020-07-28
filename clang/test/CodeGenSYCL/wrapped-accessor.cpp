@@ -24,8 +24,6 @@
 // CHECK-NEXT:    //PARAM_USED_TABLE_END 
 // CHECK-NEXT:    } 
 
-
-
 // CHECK: static constexpr
 // CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {
 // CHECK-NEXT: //--- _ZTSZ4mainE14wrapped_access

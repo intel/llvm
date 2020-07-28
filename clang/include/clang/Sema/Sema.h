@@ -358,10 +358,8 @@ private:
     int Info = 0;
     // Offset of the captured parameter value in the lambda or function object.
     unsigned Offset = 0;
-
     // bool to mark kernel parameters that are used
-    bool KernelParamUsed;
-
+    bool KernelParamUsed;    
     KernelParamDesc() = default;
   };
 

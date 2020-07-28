@@ -5,8 +5,6 @@
 // INT-HEADER:{ kernel_param_kind_t::kind_pointer, 8, 0, kernel_param_used[0] },
 // INT-HEADER:{ kernel_param_kind_t::kind_pointer, 8, 8, kernel_param_used[1] },
 
-
-
 //==--usm-int-header.cpp - USM kernel param aspace and int header test -----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
