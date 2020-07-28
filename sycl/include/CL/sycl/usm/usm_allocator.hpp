@@ -26,7 +26,7 @@ __SYCL_EXPORT void *aligned_alloc(size_t alignment, size_t size,
                                   usm::alloc kind);
 __SYCL_EXPORT void free(void *ptr, const context &ctxt);
 
-template <typename T, usm::alloc AllocKind, size_t Alignment = 0>
+template <typename T, usm::alloc AllocKind, size_t Alignment = alignof(T)>
 class usm_allocator {
 public:
   using value_type = T;
