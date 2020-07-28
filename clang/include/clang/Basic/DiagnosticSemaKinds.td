@@ -10909,14 +10909,14 @@ def err_bit_cast_type_size_mismatch : Error<
 def warn_sycl_kernel_num_of_template_params : Warning<
   "'sycl_kernel' attribute only applies to a function template with at least"
   " two template parameters">, InGroup<IgnoredAttributes>;
-def warn_sycl_attr_invalid_template_param_type : Warning<
-  "template parameter of a function template with the '%0' attribute"
+def warn_sycl_kernel_invalid_template_param_type : Warning<
+  "template parameter of a function template with the 'sycl_kernel' attribute"
   " cannot be a non-type template parameter">, InGroup<IgnoredAttributes>;
-def warn_sycl_attr_num_of_function_params : Warning<
-  "function template with '%0' attribute must have a single parameter">,
-  InGroup<IgnoredAttributes>;
-def warn_sycl_attr_return_type : Warning<
-  "function template with '%0' attribute must have a 'void' return type">,
+def warn_sycl_kernel_num_of_function_params : Warning<
+  "function template with 'sycl_kernel' attribute must have at least one"
+  " parameter">, InGroup<IgnoredAttributes>;
+def warn_sycl_kernel_return_type : Warning<
+  "function template with 'sycl_kernel' attribute must have a 'void' return type">,
   InGroup<IgnoredAttributes>;
 
 def err_ext_int_bad_size : Error<"%select{signed|unsigned}0 _ExtInt must "

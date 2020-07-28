@@ -889,8 +889,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   if (D && D->hasAttr<CFICanonicalJumpTableAttr>())
     Fn->addFnAttr("cfi-canonical-jump-table");
 
-  if (getLangOpts().SYCLIsHost && D && D->hasAttr<SYCLKernelImplAttr>()) {
-    Fn->addFnAttr("sycl_kernel_implementation");
+  if (getLangOpts().SYCLIsHost && D && D->hasAttr<SYCLKernelAttr>()) {
+    Fn->addFnAttr("sycl_kernel");
     // Sycl kernel functions are not subject to inlining
     Fn->addFnAttr(llvm::Attribute::NoInline);
   }

@@ -330,15 +330,6 @@ The SYCL kernel in the previous code sample meets these expectations.
   }];
 }
 
-def SYCLKernelImplDocs : Documentation {
-  let Category = DocCatFunction;
-  let Content = [{
-    The ``__attribute__((sycl_kernel_impl))`` attribute is used by the host
-    compiler front end to mark implementation routines of the SYCL kernel.
-    These functions may get compiled with different optimizations.
-  }];
-}
-
 def SYCLSimdDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{

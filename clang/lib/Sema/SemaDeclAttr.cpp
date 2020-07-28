@@ -7188,75 +7188,38 @@ static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   const FunctionTemplateDecl *FT = FD->getDescribedFunctionTemplate();
   assert(FT && "Function template is expected");
 
-  // Function template must have at least two template parameters.
+  // Function template must have at least two template parameters to be
+  // able to generate OpenCL SYCL kernels.
   const TemplateParameterList *TL = FT->getTemplateParameters();
-  if (TL->size() < 2) {
+  if (S.LangOpts.SYCLIsDevice && TL->size() < 2) {
     S.Diag(FT->getLocation(), diag::warn_sycl_kernel_num_of_template_params);
     return;
   }
 
-  // Template parameters must be typenames.
-  for (unsigned I = 0; I < 2; ++I) {
+  // The first two template parameters must be typenames.
+  for (unsigned I = 0; I < 2 && I < TL->size(); ++I) {
     const NamedDecl *TParam = TL->getParam(I);
     if (isa<NonTypeTemplateParmDecl>(TParam)) {
       S.Diag(FT->getLocation(),
-             diag::warn_sycl_attr_invalid_template_param_type)
-          << "sycl_kernel";
+             diag::warn_sycl_kernel_invalid_template_param_type);
       return;
     }
   }
 
-  // Function must have at least one argument.
-  if (getFunctionOrMethodNumParams(D) != 1) {
-    S.Diag(FT->getLocation(), diag::warn_sycl_attr_num_of_function_params)
-        << "sycl_kernel";
+  // Function must have at least one parameter.
+  if (getFunctionOrMethodNumParams(D) < 1) {
+    S.Diag(FT->getLocation(), diag::warn_sycl_kernel_num_of_function_params);
     return;
   }
 
   // Function must return void.
   QualType RetTy = getFunctionOrMethodResultType(D);
   if (!RetTy->isVoidType()) {
-    S.Diag(FT->getLocation(), diag::warn_sycl_attr_return_type)
-        << "sycl_kernel";
+    S.Diag(FT->getLocation(), diag::warn_sycl_kernel_return_type);
     return;
   }
 
   handleSimpleAttribute<SYCLKernelAttr>(S, D, AL);
-}
-
-static void handleSYCLKernelImplAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  // The 'sycl_kernel_impl' attribute applies only to function templates.
-  const auto *FD = cast<FunctionDecl>(D);
-  const FunctionTemplateDecl *FT = FD->getDescribedFunctionTemplate();
-  assert(FT && "Function template is expected");
-
-  // Template parameters must be typenames.
-  const TemplateParameterList *TL = FT->getTemplateParameters();
-  for (unsigned I = 0; I < TL->size(); ++I) {
-    const NamedDecl *TParam = TL->getParam(I);
-    if (isa<NonTypeTemplateParmDecl>(TParam)) {
-      S.Diag(FT->getLocation(),
-             diag::warn_sycl_attr_invalid_template_param_type)
-          << "sycl_kernel_impl";
-      return;
-    }
-  }
-
-  // Function must have at least one argument.
-  if (getFunctionOrMethodNumParams(D) < 1) {
-    S.Diag(FT->getLocation(), diag::warn_sycl_attr_num_of_function_params)
-        << "sycl_kernel_impl";
-    return;
-  }
-
-  // Function must return void.
-  if (!getFunctionOrMethodResultType(D)->isVoidType()) {
-    S.Diag(FT->getLocation(), diag::warn_sycl_attr_return_type)
-        << "sycl_kernel_impl";
-    return;
-  }
-
-  handleSimpleAttribute<SYCLKernelImplAttr>(S, D, AL);
 }
 
 static void handleDestroyAttr(Sema &S, Decl *D, const ParsedAttr &A) {
@@ -7636,9 +7599,6 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SYCLKernel:
     handleSYCLKernelAttr(S, D, AL);
-    break;
-  case ParsedAttr::AT_SYCLKernelImpl:
-    handleSYCLKernelImplAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLSimd:
     handleSimpleAttribute<SYCLSimdAttr>(S, D, AL);
