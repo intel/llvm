@@ -214,9 +214,27 @@ bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
   // search is done for libpi_opencl.so/pi_opencl.dll file in LD_LIBRARY_PATH
   // env only.
   //
-  PluginNames.emplace_back(OPENCL_PLUGIN_NAME, backend::opencl);
-  PluginNames.emplace_back(LEVEL0_PLUGIN_NAME, backend::level0);
-  PluginNames.emplace_back(CUDA_PLUGIN_NAME, backend::cuda);
+  // SYCL_FORCE_PI can be set with any combination of {opencl, level0, cuda}
+  // If this env var is set, only those listed PIs will be loaded.
+  // This means SYCL RT won't be able to use non-listed PIs even if SYCL_BE is set.
+  // For example, SYCL_FORCE_PI=opencl,level0 will allow L0 GPU and OCL CPU to be loaded.
+  // Note that SYCL_BE=PI_LEVEL0 prevents from other OCL CPU devices to be discovered.
+  
+  const char *envVal = std::getenv("SYCL_FORCE_PI");
+  std::string forcedPIs;
+  if (envVal) {
+    forcedPIs = envVal;
+    std::transform(forcedPIs.begin(), forcedPIs.end(), forcedPIs.begin(), ::tolower);
+  }
+  if (!envVal || forcedPIs.find("opencl") != std::string::npos) {
+    PluginNames.emplace_back(OPENCL_PLUGIN_NAME, backend::opencl);
+  }
+  if (!envVal || forcedPIs.find("level0") != std::string::npos) {
+    PluginNames.emplace_back(LEVEL0_PLUGIN_NAME, backend::level0);
+  }
+  if (!envVal || forcedPIs.find("cuda") != std::string::npos) {
+    PluginNames.emplace_back(CUDA_PLUGIN_NAME, backend::cuda);
+  }
   return true;
 }
 
