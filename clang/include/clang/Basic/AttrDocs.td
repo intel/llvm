@@ -1998,14 +1998,14 @@ def SYCLIntelBufferLocationAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "kernel_args_buffer_location";
   let Content = [{
-The attribute ``intelfpga::kernel_arg_buffer_location`` is being implicitly
-applied to an OpenCL kernel generated from SYCL kernel object. It is not allowed
-to use the attribute explicitly in SYCL code.
+The attribute is being implicitly applied to an OpenCL kernel parameters
+generated from SYCL kernel object. It accepts a non-negative compiletime known
+integer. It is not allowed to use the attribute explicitly in SYCL code.
 
 When the attribute is applied, clang generates metadata attached to OpenCL
 kernel. Number of values stored in the metadata is the same as number of kernel
-parameters. Order of metadata values is following the order of pointer
-kernel parameters. Metadata values are of an integer type and is being set
+parameters. Order of metadata values is following the order of kernel
+parameters. Metadata values are of an integer type and is being set
 accordingly values passed through accessor property ``buffer_location``. This
 values are mapped in hardware backend to the actual locations of buffers
 (DDR, QDR etc). Default value passed in the metadata is '-1'.

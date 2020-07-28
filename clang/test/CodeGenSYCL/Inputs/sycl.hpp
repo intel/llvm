@@ -86,7 +86,8 @@ struct property_base {
 template <typename... properties>
 class property_list {
 public:
-  property_list(properties... props) {}
+  template<typename... propertiesTN>
+  property_list(propertiesTN... props) {};
 
   template <typename propertyT>
   bool has_property() const { return true; }

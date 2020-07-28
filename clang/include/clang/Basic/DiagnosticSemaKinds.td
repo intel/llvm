@@ -10969,6 +10969,12 @@ def warn_boolean_attribute_argument_is_not_valid: Warning<
 def err_sycl_attibute_cannot_be_applied_here
     : Error<"%0 attribute cannot be applied to a "
             "static function or function in an anonymous namespace">;
+def err_sycl_compiletime_property_duplication : Error<
+  "Can't apply %0 property twice to the same accessor">;
+def err_sycl_invalid_property_template_param : Error<
+  "%0 template parameter must be a "
+  "%select{parameter pack|type|compiletime known non-negative integer|"
+  "property_list}1">;
 def warn_sycl_attibute_function_raw_ptr
     : Warning<"SYCL 1.2.1 specification does not allow %0 attribute applied "
               "to a function with a raw pointer "
@@ -10982,8 +10988,6 @@ def warn_sycl_implicit_decl
 def warn_sycl_restrict_recursion
     : Warning<"SYCL kernel cannot call a recursive function">,
       InGroup<SyclStrict>, DefaultError;
-def warn_sycl_implicit_attr_usage : Warning <
-  "%0 attribute cannot be used explicitly">, InGroup<IgnoredAttributes>;
 def err_ivdep_duplicate_arg : Error<
   "duplicate argument to 'ivdep'. attribute requires one or both of a safelen "
   "and array">;

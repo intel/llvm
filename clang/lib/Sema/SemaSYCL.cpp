@@ -81,8 +81,12 @@ public:
   static bool isSyclHalfType(const QualType &Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
+  /// property_list class.
+  static bool isPropertyListType(const QualType &Ty);
+
+  /// Checks whether given clang type is a full specialization of the SYCL
   /// buffer_location class.
-  static bool isSyclBufferLocation(const QualType &Ty);
+  static bool isSyclBufferLocationType(const QualType &Ty);
 
   /// Checks whether given clang type is a standard SYCL API class with given
   /// name.
@@ -1175,12 +1179,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   // Holds the last handled field's first parameter. This doesn't store an
   // iterator as push_back invalidates iterators.
   size_t LastParamIndex = 0;
-  // This vector stores information about buffer location. If no buffer_location
-  // property of an accessor is set - the appropriate value stored in the
-  // vector = -1.
-  std::vector<size_t> BufferLocationMD;
 
-  void addParam(const FieldDecl *FD, QualType FieldTy, size_t LocationID = -1) {
+  void addParam(const FieldDecl *FD, QualType FieldTy, int LocationID = -1) {
     const ConstantArrayType *CAT =
         SemaRef.getASTContext().getAsConstantArrayType(FieldTy);
     if (CAT)
@@ -1190,16 +1190,17 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   }
 
   void addParam(const CXXBaseSpecifier &BS, QualType FieldTy,
-                size_t LocationID = -1) {
+                int LocationID = -1) {
     ParamDesc newParamDesc =
         makeParamDesc(SemaRef.getASTContext(), BS, FieldTy);
     addParam(newParamDesc, FieldTy, LocationID);
   }
 
-  void addParam(ParamDesc newParamDesc, QualType FieldTy, size_t LocationID) {
+  void addParam(ParamDesc newParamDesc, QualType FieldTy, int LocationID) {
     // Create a new ParmVarDecl based on the new info.
+    ASTContext &Ctx = SemaRef.getASTContext();
     auto *NewParam = ParmVarDecl::Create(
-        SemaRef.getASTContext(), KernelDecl, SourceLocation(), SourceLocation(),
+        Ctx, KernelDecl, SourceLocation(), SourceLocation(),
         std::get<1>(newParamDesc), std::get<0>(newParamDesc),
         std::get<2>(newParamDesc), SC_None, /*DefArg*/ nullptr);
     NewParam->setScopeInfo(0, Params.size());
@@ -1207,32 +1208,72 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
 
     LastParamIndex = Params.size();
     Params.push_back(NewParam);
-    BufferLocationMD.push_back(LocationID);
+    if (LocationID != -1)
+      NewParam->addAttr(
+          SYCLIntelBufferLocationAttr::CreateImplicit(Ctx, LocationID));
   }
 
   // Obtain an integer value stored in a template parameter of buffer_location
   // property to pass it to buffer_location kernel attribute
-  size_t handleBufferLocationProperty(QualType FieldTy) {
+  int handleBufferLocationProperty(QualType FieldTy, SourceLocation Loc) {
     const auto *AccTy =
         cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
-
-    // TODO: when SYCL headers' part is ready - replace this 'if' with an assert
+    // TODO: when SYCL headers' part is ready - replace this 'if' with an error
     if (AccTy->getTemplateArgs().size() < 6)
       return -1;
-
-    // TODO: at this point of time it's unclear, what representation in LLVM IR
-    // is going to be for other compile time known accessor properties, hence
-    // it's not clear, how handle them in SemaSYCL. But in general property_list
-    // is a parameter pack and shall be handled appropriately.
-    const auto Prop = cast<TemplateArgument>(AccTy->getTemplateArgs()[5]);
-    QualType PropTy = Prop.getAsType();
-    if (!Util::isSyclBufferLocation(PropTy))
+    const auto PropList = cast<TemplateArgument>(AccTy->getTemplateArgs()[5]);
+    if (PropList.getKind() != TemplateArgument::ArgKind::Type) {
+      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_template_param)
+        << "accessor's 5th" << /*type*/ 1;
       return -1;
+    }
+    QualType PropListTy = PropList.getAsType();
+    if (!Util::isPropertyListType(PropListTy)) {
+      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_template_param)
+        << "accessor's 5th" << /*property_list*/ 3;
+      return -1;
+    }
 
-    const auto *PropDecl =
-        cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
-    return static_cast<int>(
-        PropDecl->getTemplateArgs()[0].getAsIntegral().getExtValue());
+    int LocationID = -1;
+    const auto *PropListDecl =
+        cast<ClassTemplateSpecializationDecl>(PropListTy->getAsRecordDecl());
+    const auto TemplArg = PropListDecl->getTemplateArgs()[0];
+    if (TemplArg.getKind() != TemplateArgument::ArgKind::Pack) {
+      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_template_param)
+        << "property_list" << /*parameter pack*/ 0;
+      return -1;
+    }
+    // Move through TemplateArgs list of a property list and search for
+    // buffer_location property. If found - return the stored integer value in
+    // its template parameter, if not - return -1.
+    for (TemplateArgument::pack_iterator Prop = TemplArg.pack_begin();
+         Prop != TemplArg.pack_end(); ++Prop) {
+      QualType PropTy = Prop->getAsType();
+      if (Util::isSyclBufferLocationType(PropTy)) {
+        // If we have more than 1 buffer_location properties on a single
+        // accessor - emit an error
+        if (LocationID != -1) {
+          SemaRef.Diag(Loc, diag::err_sycl_compiletime_property_duplication)
+            << "buffer_location";
+          return -1;
+        }
+        const auto *PropDecl =
+            cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
+        const auto BufferLoc = PropDecl->getTemplateArgs()[0];
+        if (BufferLoc.getKind() != TemplateArgument::ArgKind::Integral) {
+          SemaRef.Diag(Loc, diag::err_sycl_invalid_property_template_param)
+            << "buffer_location" << /*non-negative integer*/ 2;
+          return -1;
+        }
+        LocationID = static_cast<int>(BufferLoc.getAsIntegral().getExtValue());
+        if (LocationID < 0) {
+          SemaRef.Diag(Loc, diag::err_sycl_invalid_property_template_param)
+            << "buffer_location" << /*non-negative integer*/ 2;
+          return -1;
+        }
+      }
+    }
+    return LocationID;
   }
 
   // All special SYCL objects must have __init method. We extract types for
@@ -1254,7 +1295,9 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
       // Add meaningful argument (not '-1') to buffer_location attribute only
       // for an accessor pointer
       size_t BufferLocAttrArg =
-          isAccessorType ? handleBufferLocationProperty(FieldTy) : -1;
+          isAccessorType
+              ? handleBufferLocationProperty(FieldTy, FD->getLocation())
+              : -1;
       addParam(FD, (*ParamIt)->getType().getCanonicalType(), BufferLocAttrArg);
       ++ParamIt;
       for (; ParamIt != InitMethod->parameters().end(); ++ParamIt)
@@ -1315,11 +1358,6 @@ public:
     KernelDecl->setType(FuncType);
     KernelDecl->setParams(Params);
 
-    // Add SYCLIntelBufferLocationAttr to the kernel declaration
-    auto *BufferLocAttr = SYCLIntelBufferLocationAttr::CreateImplicit(Ctx);
-    BufferLocAttr->setActualArgs(BufferLocationMD);
-    KernelDecl->addAttr(BufferLocAttr);
-
     if (ArgChecker.isValid())
       SemaRef.addSyclDeviceDecl(KernelDecl);
   }
@@ -1338,7 +1376,8 @@ public:
     if (*ParamIt) {
       // Add meaningful argument (not '-1') to buffer_location attribute only
       // for an accessor pointer
-      size_t BufferLocAttrArg = handleBufferLocationProperty(FieldTy);
+      size_t BufferLocAttrArg =
+          handleBufferLocationProperty(FieldTy, BS.getBeginLoc());
       addParam(BS, (*ParamIt)->getType().getCanonicalType(), BufferLocAttrArg);
       ++ParamIt;
       for (; ParamIt != InitMethod->parameters().end(); ++ParamIt)
@@ -2878,7 +2917,11 @@ bool Util::isSyclSpecConstantType(const QualType &Ty) {
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
-bool Util::isSyclBufferLocation(const QualType &Ty) {
+bool Util::isPropertyListType(const QualType &Ty) {
+  return isSyclType(Ty, "property_list", true /*Tmpl*/);
+}
+
+bool Util::isSyclBufferLocationType(const QualType &Ty) {
   const StringRef &Name = "buffer_location";
   std::array<DeclContextDesc, 4> Scopes = {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
