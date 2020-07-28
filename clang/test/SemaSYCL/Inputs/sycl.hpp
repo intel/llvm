@@ -38,8 +38,8 @@ enum class address_space : int {
 } // namespace access
 
 namespace property {
-  template <int>
-  class buffer_location {};
+template <int>
+class buffer_location {};
 } // namespace property
 
 template <typename... properties>

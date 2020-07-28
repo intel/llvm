@@ -16,14 +16,14 @@ int main() {
                      cl::sycl::access::placeholder::false_t,
                      cl::sycl::property_list<
                          cl::sycl::property::buffer_location<2>>>
-// CHECK: SYCLIntelBufferLocationAttr {{.*}} Implicit 2
+      // CHECK: SYCLIntelBufferLocationAttr {{.*}} Implicit 2
       accessorA;
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
                      cl::sycl::property_list<another_property,
-                         cl::sycl::property::buffer_location<3>>>
-// CHECK: SYCLIntelBufferLocationAttr {{.*}} Implicit 3
+                                             cl::sycl::property::buffer_location<3>>>
+      // CHECK: SYCLIntelBufferLocationAttr {{.*}} Implicit 3
       accessorB;
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,

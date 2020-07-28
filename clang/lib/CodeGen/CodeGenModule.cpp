@@ -1414,7 +1414,7 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
   SmallVector<llvm::Metadata *, 8> argNames;
 
   // MDNode for the intel_buffer_location attribute.
-  SmallVector<llvm::Metadata*, 8> argSYCLBufferLocationAttr;
+  SmallVector<llvm::Metadata *, 8> argSYCLBufferLocationAttr;
 
   if (FD && CGF)
     for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i) {
@@ -1543,9 +1543,9 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
       auto *SYCLBufferLocationAttr =
           parm->getAttr<SYCLIntelBufferLocationAttr>();
       argSYCLBufferLocationAttr.push_back(
-              (SYCLBufferLocationAttr)
+          (SYCLBufferLocationAttr)
               ? llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(
-                  SYCLBufferLocationAttr->getLocationID()))
+                    SYCLBufferLocationAttr->getLocationID()))
               : llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(-1)));
     }
 
