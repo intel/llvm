@@ -1,6 +1,5 @@
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env SYCL_BE=PI_LEVEL0 %t.out
-// RUN: env SYCL_BE=PI_OPENCL %t.out
+// RUN: env SYCL_BE=%sycl_be %t.out
 // RUN: %t.out
 //
 //
