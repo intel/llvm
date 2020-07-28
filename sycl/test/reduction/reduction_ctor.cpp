@@ -81,7 +81,7 @@ void testUnknown(T Identity, BinaryOperation BOp, T A, T B) {
 
 template <typename T, class BinaryOperation>
 void testBoth(T Identity, BinaryOperation BOp, T A, T B) {
-  testKnown<T, 0 >(Identity, BOp, A, B);
+  testKnown<T, 0>(Identity, BOp, A, B);
   testKnown<T, 1>(Identity, BOp, A, B);
   testUnknown<T, 0, Unknown<T, 0, BinaryOperation>>(Identity, BOp, A, B);
   testUnknown<T, 1, Unknown<T, 1, BinaryOperation>>(Identity, BOp, A, B);
@@ -101,12 +101,17 @@ int main() {
   testBoth<float>(getMaximumFPValue<float>(), intel::minimum<float>(), 7, 3);
   testBoth<float>(getMinimumFPValue<float>(), intel::maximum<float>(), 7, 3);
 
-  testUnknown<CustomVec<float>, 0, Unknown<CustomVec<float>, 0, CustomVecPlus<float>>>(
-      CustomVec<float>(0), CustomVecPlus<float>(), CustomVec<float>(1), CustomVec<float>(7));
-  testUnknown<CustomVec<float>, 1, Unknown<CustomVec<float>, 1, CustomVecPlus<float>>>(
-      CustomVec<float>(0), CustomVecPlus<float>(), CustomVec<float>(1), CustomVec<float>(7));
+  testUnknown<CustomVec<float>, 0,
+              Unknown<CustomVec<float>, 0, CustomVecPlus<float>>>(
+      CustomVec<float>(0), CustomVecPlus<float>(), CustomVec<float>(1),
+      CustomVec<float>(7));
+  testUnknown<CustomVec<float>, 1,
+              Unknown<CustomVec<float>, 1, CustomVecPlus<float>>>(
+      CustomVec<float>(0), CustomVecPlus<float>(), CustomVec<float>(1),
+      CustomVec<float>(7));
 
-  testUnknown<int, 0, class BitOrName>(0, [](auto a, auto b) { return a | b; }, 1, 8);
+  testUnknown<int, 0, class BitOrName>(
+      0, [](auto a, auto b) { return a | b; }, 1, 8);
 
   std::cout << "Test passed\n";
   return 0;
