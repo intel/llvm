@@ -71,6 +71,8 @@ This extension adds sub-group support to all of the functions from +SYCL_INTEL_g
 - +exclusive_scan+
 - +inclusive_scan+
 - +barrier+
+- +copy_n+
+- +async_copy_n+
 
 It additionally introduces a number of functions that are currently specific to sub-groups:
 
@@ -167,6 +169,7 @@ None.
 |Rev|Date|Author|Changes
 |1|2020-03-16|John Pennycook|*Initial public working draft*
 |2|2020-07-28|John Pennycook|*Add group barrier*
+|3|2020-08-04|John Pennycook|*Add copy_n and async_copy_n*
 |========================================
 
 //************************************************************************

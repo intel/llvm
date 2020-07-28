@@ -70,6 +70,8 @@ The extension introduces the following functions:
 - +exclusive_scan+
 - +inclusive_scan+
 - +barrier+
+- +copy_n+
+- +async_copy_n+
 
 The definitions and behavior of the following functions are based on equivalents in the SYCL 2020 provisional specification:
 - +barrier+
@@ -258,6 +260,19 @@ The return types of the collective functions in {cpp}17 are not deduced from the
 |Perform an inclusive scan over the values in the range [_first_, _last_) using the operator _binary_op_, which must be one of the group algorithms library function objects.  The value written to +result + i+ is the inclusive scan of the first +i+ values in the range and an initial value specified by _init_. Returns a pointer to the end of the output range. _first_, _last_, _result_, _binary_op_ and _init_ must be the same for all work-items in the group. _binary_op(init, *first)_ must return a value of type _T_.
 |===
 
+==== Data Movement
+
+|===
+|Function|Description
+
+|+template <typename Group, typename InPtr, typename Size, typename OutPtr> void copy_n(Group g, InPtr first, Size n, OutputPtr result);+
+|Synchronously copies _n_ elements from the source pointer _first_ to the destination pointer _result_.  Returns _result + n_.  _first_, _n_ and _result_ must be the same for all work-items in the group.
+
+|+template <typename Group, typename InPtr, typename Size, typename OutPtr> device_event async_copy_n(Group g, InPtr first, Size n, OutputPtr result);+
+|Asynchronously copies _n_ elements from the source pointer _first_ to the destination pointer _result_.  Returns a +device_event+ which can be used to wait on completion of the copy.  _first_, _n_ and _result_ must be the same for all work-items in the group.
+
+|===
+
 ==== Synchronization
 
 The behavior of memory fences in this section is aligned with the single happens-before relationship defined by the +SYCL_INTEL_extended_atomics+ extension.
@@ -270,6 +285,9 @@ The behavior of memory fences in this section is aligned with the single happens
 
 |+template <typename Group> void barrier(Group g, memory_scope scope);+
 |Synchronize all work-items in the group, and ensure that all memory accesses to any address space prior to the barrier are visible to all work-items specified by _scope_ after the barrier.  The scope of the group memory fences implied by this barrier is controlled by _scope_ and must be broader than the narrowest scope including all work-items in the group.  If the specified _scope_ is narrower than the narrowest scope including all work-items in the group, the _scope_ argument is ignored.
+
+|+template <typename Group, typename... Events> void wait_for(Group g, Events... events);+
+|Waits for the asynchronous operations associated with each +device_event+ to complete.  Every argument in the _Events_ parameter pack must be of type +device_event+, and _events_ must be the same for all work-items in the group.
 
 |===
 
@@ -292,6 +310,7 @@ None.
 |Rev|Date|Author|Changes
 |1|2020-01-30|John Pennycook|*Initial public working draft*
 |2|2020-07-28|John Pennycook|*Add group barrier*
+|3|2020-08-04|John Pennycook|*Add copy_n and async_copy_n*
 |========================================
 
 //************************************************************************
