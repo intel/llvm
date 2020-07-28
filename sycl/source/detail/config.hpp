@@ -15,7 +15,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdlib>
-#include <cstring>
+#include <string>
 #include <utility>
 
 __SYCL_INLINE_NAMESPACE(cl) {
