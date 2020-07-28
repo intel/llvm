@@ -18,10 +18,20 @@
 // CHECK-NEXT: };
 
 // CHECK: static constexpr
+// CHECK-NEXT: const bool kernel_param_used[] = {
+// CHECK-NEXT:  //PARAM_USED_TABLE_BEGIN
+// CHECK-NEXT:  //kernel_name_1
+// CHECK-NEXT:  true, true, true
+// CHECK-NEXT:  //kernel_name_2
+// CHECK-NEXT:  true, true, true
+// CHECK-NEXT:  //PARAM_USED_TABLE_END
+// CHECK-NEXT:  }
+
+// CHECK: static constexpr
 // CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {
 // CHECK-NEXT: //--- _ZTSZ4mainE8kernel_C
-// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 12 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 0, kernel_param_used[0] },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 12, kernel_param_used[1] },
 // CHECK-EMPTY:
 // CHECK-NEXT: };
 

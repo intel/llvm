@@ -24,39 +24,50 @@
 // CHECK-NEXT:   "_ZTSZ4mainE16accessor_in_base"
 // CHECK-NEXT: };
 //
+// CHECK:  static constexpr
+// CHECK-NEXT:  const bool kernel_param_used[] = {
+// CHECK-NEXT:  //PARAM_USED_TABLE_BEGIN 
+// CHECK-NEXT:  //kernel_name_1 
+// CHECK-NEXT:  true, true, true 
+// CHECK-NEXT:  //kernel_name_2 
+// CHECK-NEXT:  true, true, true 
+// CHECK-NEXT:  //PARAM_USED_TABLE_END 
+// CHECK-NEXT:  } 
+
+
 // CHECK: static constexpr
 // CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {
 // CHECK-NEXT:   //--- _ZTSZ4mainE12first_kernel
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 1, 4 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 8 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 12 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 6112, 24 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_sampler, 8, 40 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0, kernel_param_used[0] },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 1, 4, kernel_param_used[1] },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 8, kernel_param_used[2] },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 12, kernel_param_used[3] },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 6112, 24, kernel_param_used[4] },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_sampler, 8, 40, kernel_param_used[5] },
 // CHECK-EMPTY:
 // CHECK-NEXT:   //--- _ZTSN16second_namespace13second_kernelIcEE
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 6112, 4 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_sampler, 8, 16 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0, kernel_param_used[0] },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 6112, 4, kernel_param_used[1] },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_sampler, 8, 16, kernel_param_used[2] },
 // CHECK-EMPTY:
 // CHECK-NEXT:   //--- _ZTS12third_kernelILi1Ei5pointIZ4mainE1XEE
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 6112, 4 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_sampler, 8, 16 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0, kernel_param_used[0] },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 6112, 4, kernel_param_used[1] },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_sampler, 8, 16, kernel_param_used[2] },
 // CHECK-EMPTY:
 // CHECK-NEXT:   //--- _ZTS13fourth_kernelIJN15template_arg_ns14namespaced_argILi1EEEEE
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 6112, 4 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0, kernel_param_used[0] },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 6112, 4, kernel_param_used[1] },
 // CHECK-EMPTY:
 // CHECK-NEXT:  //--- _ZTSZ4mainE16accessor_in_base
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 4 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 8 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 20 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 24 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 36 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 40 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 52 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0, kernel_param_used[0] },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 4, kernel_param_used[1] },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 8, kernel_param_used[2] },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 20, kernel_param_used[3] },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 24, kernel_param_used[4] },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 36, kernel_param_used[5] },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 40, kernel_param_used[6] },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 52, kernel_param_used[7] },
 // CHECK-EMPTY:
 // CHECK-NEXT: };
 //

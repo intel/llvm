@@ -3,13 +3,13 @@
 
 // CHECK:     const kernel_param_desc_t kernel_signatures[] = {
 // CHECK-NEXT:  //--- _ZTSZZ5test0vENK3$_0clERN2cl4sycl7handlerEE8MyKernel
-// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 12 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 16 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 20 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 24 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 28 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 32 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 0, kernel_param_used[0] },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 12, kernel_param_used[1] },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 16, kernel_param_used[2] },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 20, kernel_param_used[3] },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 24, kernel_param_used[4] },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 28, kernel_param_used[5] },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 32, kernel_param_used[6] },
 // CHECK-EMPTY:
 // CHECK-NEXT:};
 

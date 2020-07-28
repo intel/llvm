@@ -17,13 +17,23 @@
 // CHECK-NEXT: };
 
 // CHECK: static constexpr
+// CHECK-NEXT: const bool kernel_param_used[] = {
+// CHECK-NEXT:  //PARAM_USED_TABLE_BEGIN
+// CHECK-NEXT:  //kernel_name_1
+// CHECK-NEXT:  true, true, true
+// CHECK-NEXT:  //kernel_name_2
+// CHECK-NEXT:  true, true, true
+// CHECK-NEXT:  //PARAM_USED_TABLE_END
+// CHECK-NEXT:  }
+
+// CHECK: static constexpr
 // CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {
 // CHECK-NEXT: //--- _ZTSZ4mainE8kernel_B
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 4 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 8 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 12 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 16 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0, kernel_param_used[0] },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 4, kernel_param_used[1] },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 8, kernel_param_used[2] },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 12, kernel_param_used[3] },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 16, kernel_param_used[4] },
 // CHECK-EMPTY:
 // CHECK-NEXT: };
 

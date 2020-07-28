@@ -359,6 +359,9 @@ private:
     // Offset of the captured parameter value in the lambda or function object.
     unsigned Offset = 0;
 
+    // bool to mark kernel parameters that are used
+    bool KernelParamUsed;
+
     KernelParamDesc() = default;
   };
 

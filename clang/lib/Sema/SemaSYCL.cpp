@@ -2653,6 +2653,25 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   }
   O << "};\n\n";
 
+  O << "// array representing kernel parameters used in all kernels defined in "
+       "the\n";
+  O << "// corresponding source\n";
+  O << "static constexpr\n";
+  O << "const bool kernel_param_used[] = {\n";
+  O << "  //PARAM_USED_TABLE_BEGIN "
+    << "\n";
+  O << "  //kernel_name_1 "
+    << "\n";
+  O << "  true, true, true "
+    << "\n";
+  O << "  //kernel_name_2 "
+    << "\n";
+  O << "  true, true, true "
+    << "\n";
+  O << "  //PARAM_USED_TABLE_END "
+    << "\n";
+  O << "  } \n\n";
+
   O << "// array representing signatures of all kernels defined in the\n";
   O << "// corresponding source\n";
   O << "static constexpr\n";
@@ -2662,10 +2681,13 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     auto &K = KernelDescs[I];
     O << "  //--- " << K.Name << "\n";
 
-    for (const auto &P : K.Params) {
+    for (unsigned I = 0; I < K.Params.size(); I++) {
+      auto &P = K.Params[I];
       std::string TyStr = paramKind2Str(P.Kind);
       O << "  { kernel_param_kind_t::" << TyStr << ", ";
-      O << P.Info << ", " << P.Offset << " },\n";
+      O << P.Info << ", " << P.Offset << ", "
+        << "kernel_param_used[" << I << "]"
+        << " },\n";
     }
     O << "\n";
   }
