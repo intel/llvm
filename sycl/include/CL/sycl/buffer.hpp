@@ -7,15 +7,17 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
 #include <CL/sycl/detail/buffer_impl.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/stl_type_traits.hpp>
 #include <CL/sycl/exception.hpp>
+#include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
-
-// TODO: 4.3.4 Properties
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+
 class handler;
 class queue;
 template <int dimensions> class range;

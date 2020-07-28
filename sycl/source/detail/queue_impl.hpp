@@ -14,6 +14,8 @@
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/handler.hpp>
+#include <CL/sycl/properties/context_properties.hpp>
+#include <CL/sycl/properties/queue_properties.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/context_impl.hpp>
@@ -55,8 +57,11 @@ public:
              const property_list &PropList)
       : queue_impl(Device,
                    detail::getSyclObjImpl(context(
-                       createSyclObjFromImpl<device>(Device), {},
-                       (DefaultContextType == cuda_context_type::primary))),
+                       createSyclObjFromImpl<device>(Device),
+                       (DefaultContextType == cuda_context_type::primary)
+                           ? property_list{property::context::cuda::
+                                               use_primary_context()}
+                           : property_list{})),
                    AsyncHandler, PropList){};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided

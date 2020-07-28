@@ -6,15 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/sycl/property_list.hpp>
 #include <CL/sycl/sampler.hpp>
 #include <detail/sampler_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 sampler::sampler(coordinate_normalization_mode normalizationMode,
-                 addressing_mode addressingMode, filtering_mode filteringMode)
+                 addressing_mode addressingMode, filtering_mode filteringMode,
+                 const property_list &propList)
     : impl(std::make_shared<detail::sampler_impl>(
-          normalizationMode, addressingMode, filteringMode)) {}
+          normalizationMode, addressingMode, filteringMode, propList)) {}
 
 sampler::sampler(cl_sampler clSampler, const context &syclContext)
     : impl(std::make_shared<detail::sampler_impl>(clSampler, syclContext)) {}

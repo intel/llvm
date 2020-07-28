@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/sycl/property_list.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/sampler_impl.hpp>
 
@@ -15,9 +16,10 @@ namespace detail {
 
 sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
                            addressing_mode addressingMode,
-                           filtering_mode filteringMode)
+                           filtering_mode filteringMode,
+                           const property_list &propList)
     : m_CoordNormMode(normalizationMode), m_AddrMode(addressingMode),
-      m_FiltMode(filteringMode) {}
+      m_FiltMode(filteringMode), m_PropList(propList) {}
 
 sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
 

@@ -11,6 +11,7 @@
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/property_list.hpp>
 
 #include <unordered_map>
 
@@ -24,16 +25,9 @@ enum class coordinate_normalization_mode : unsigned int;
 namespace detail {
 class __SYCL_EXPORT sampler_impl {
 public:
-  std::unordered_map<context, RT::PiSampler> m_contextToSampler;
-
-private:
-  coordinate_normalization_mode m_CoordNormMode;
-  addressing_mode m_AddrMode;
-  filtering_mode m_FiltMode;
-
-public:
   sampler_impl(coordinate_normalization_mode normalizationMode,
-               addressing_mode addressingMode, filtering_mode filteringMode);
+               addressing_mode addressingMode, filtering_mode filteringMode,
+               const property_list &propList);
 
   sampler_impl(cl_sampler clSampler, const context &syclContext);
 
@@ -46,6 +40,15 @@ public:
   RT::PiSampler getOrCreateSampler(const context &Context);
 
   ~sampler_impl();
+
+public:
+  std::unordered_map<context, RT::PiSampler> m_contextToSampler;
+
+private:
+  coordinate_normalization_mode m_CoordNormMode;
+  addressing_mode m_AddrMode;
+  filtering_mode m_FiltMode;
+  property_list m_PropList;
 };
 
 } // namespace detail

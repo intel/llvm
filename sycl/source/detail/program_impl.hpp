@@ -12,6 +12,7 @@
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/program.hpp>
+#include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
@@ -44,7 +45,7 @@ public:
   /// with the context.
   ///
   /// \param Context is a pointer to SYCL context impl.
-  explicit program_impl(ContextImplPtr Context);
+  explicit program_impl(ContextImplPtr Context, const property_list &PropList);
 
   /// Constructs an instance of SYCL program for the provided DeviceList.
   ///
@@ -54,7 +55,8 @@ public:
   ///
   /// \param Context is a pointer to SYCL context impl.
   /// \param DeviceList is a list of SYCL devices.
-  program_impl(ContextImplPtr Context, vector_class<device> DeviceList);
+  program_impl(ContextImplPtr Context, vector_class<device> DeviceList,
+               const property_list &PropList);
 
   /// Constructs an instance of SYCL program by linking together each SYCL
   /// program instance in ProgramList.
@@ -71,7 +73,7 @@ public:
   /// \param ProgramList is a list of program_impl instances.
   /// \param LinkOptions is a string containing valid OpenCL link options.
   program_impl(vector_class<shared_ptr_class<program_impl>> ProgramList,
-               string_class LinkOptions = "");
+               string_class LinkOptions, const property_list &PropList);
 
   /// Constructs a program instance from an interop raw BE program handle.
   /// TODO: BE generalization will change that to something better.
@@ -411,6 +413,7 @@ private:
   ContextImplPtr MContext;
   bool MLinkable = false;
   vector_class<device> MDevices;
+  property_list MPropList;
   string_class MCompileOptions;
   string_class MLinkOptions;
   string_class MBuildOptions;

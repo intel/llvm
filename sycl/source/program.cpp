@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/program.hpp>
+#include <CL/sycl/property_list.hpp>
 #include <detail/program_impl.hpp>
 
 #include <vector>
@@ -14,19 +15,29 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-program::program(const context &context)
+program::program(const context &context, const property_list &PropList)
     : impl(std::make_shared<detail::program_impl>(
-          detail::getSyclObjImpl(context))) {}
-program::program(const context &context, vector_class<device> deviceList)
+               detail::getSyclObjImpl(context),
+           PropList)) {}
+
+program::program(const context &context, vector_class<device> deviceList,
+                 const property_list &PropList)
     : impl(std::make_shared<detail::program_impl>(
-          detail::getSyclObjImpl(context), deviceList)) {}
-program::program(vector_class<program> programList, string_class linkOptions) {
+          detail::getSyclObjImpl(context), deviceList, PropList)) {}
+
+program::program(vector_class<program> programList,
+                 const property_list &PropList)
+    : program(std::move(programList), /*linkOptions=*/"", PropList) {}
+
+program::program(vector_class<program> programList, string_class linkOptions,
+                 const property_list &PropList) {
   std::vector<std::shared_ptr<detail::program_impl>> impls;
   for (auto &x : programList) {
     impls.push_back(detail::getSyclObjImpl(x));
   }
-  impl = std::make_shared<detail::program_impl>(impls, linkOptions);
+  impl = std::make_shared<detail::program_impl>(impls, linkOptions, PropList);
 }
+
 program::program(const context &context, cl_program clProgram)
     : impl(std::make_shared<detail::program_impl>(
           detail::getSyclObjImpl(context),

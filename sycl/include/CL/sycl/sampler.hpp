@@ -12,6 +12,7 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/property_list.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -64,7 +65,8 @@ class sampler_impl;
 class __SYCL_EXPORT sampler {
 public:
   sampler(coordinate_normalization_mode normalizationMode,
-          addressing_mode addressingMode, filtering_mode filteringMode);
+          addressing_mode addressingMode, filtering_mode filteringMode,
+          const property_list &propList = {});
 
   sampler(cl_sampler clSampler, const context &syclContext);
 
