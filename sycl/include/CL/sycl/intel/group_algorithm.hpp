@@ -131,6 +131,38 @@ Function for_each(Group g, Ptr first, Ptr last, Function f) {
 #endif
 }
 
+template <typename T>
+auto ConvertToOpenCLPtr(T *ptr)
+    -> detail::ConvertToOpenCLType_t<decltype(ptr)> {
+  return detail::ConvertToOpenCLType_t<decltype(ptr)>(ptr);
+}
+
+template <typename T, access::address_space Space>
+auto ConvertToOpenCLPtr(multi_ptr<T, Space> ptr)
+    -> detail::ConvertToOpenCLType_t<decltype(ptr)> {
+  return detail::ConvertToOpenCLType_t<decltype(ptr)>(ptr.get());
+}
+
+template <typename Group> inline void waitForHelper(Group) {}
+
+template <typename Group> inline void waitForHelper(Group, device_event Event) {
+  Event.wait();
+}
+
+template <typename Group, typename T, typename... Ts>
+inline void waitForHelper(Group g, T E, Ts... Es) {
+  waitForHelper(g, E);
+  waitForHelper(g, Es...);
+}
+
+// Cannot cast parameter pack to void, but need to discard
+inline void voidHelper() {}
+inline void voidHelper(device_event) {}
+template <typename T, typename... Ts> inline void voidHelper(T E, Ts... Es) {
+  voidHelper(E);
+  voidHelper(Es...);
+}
+
 } // namespace detail
 
 namespace intel {
@@ -937,6 +969,65 @@ template <typename Group> void barrier(Group g) {
   barrier(g, MemoryScope);
 #else
   (void)g;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
+template <typename Group, typename InPtr, typename Size, typename OutPtr>
+EnableIfIsPointer<InPtr, OutPtr> copy_n(Group g, InPtr first, Size n,
+                                        OutPtr result) {
+  static_assert(sycl::detail::is_generic_group<Group>::value,
+                "Group algorithms only support the sycl::group and "
+                "intel::sub_group class.");
+#ifdef __SYCL_DEVICE_ONLY__
+  barrier(g);
+  ptrdiff_t offset = sycl::detail::get_local_linear_id(g);
+  ptrdiff_t stride = sycl::detail::get_local_linear_range(g);
+  for (ptrdiff_t i = offset; i < n; i += stride) {
+    *(result + i) = *(first + i);
+  }
+  barrier(g);
+  return result + n;
+#else
+  (void)g;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
+template <typename Group, typename InPtr, typename Size, typename OutPtr>
+EnableIfIsPointer<InPtr, device_event> async_copy_n(Group g, InPtr first,
+                                                    Size n, OutPtr result) {
+  static_assert(sycl::detail::is_generic_group<Group>::value,
+                "Group algorithms only support the sycl::group and "
+                "intel::sub_group class.");
+#ifdef __SYCL_DEVICE_ONLY__
+  auto Scope = sycl::detail::spirv::group_scope<Group>::value;
+  auto Dest = detail::ConvertToOpenCLPtr(result);
+  auto Src = detail::ConvertToOpenCLPtr(first);
+  // FIXME: Technically type of n should depend on addressing model
+  __ocl_event_t e = __spirv_GroupAsyncCopy(Scope, Dest, Src, size_t(n), 1, 0);
+  return device_event(&e);
+#else
+  (void)g;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
+template <typename Group, typename... EventTs>
+void wait_for(Group g, EventTs... events) {
+  static_assert(sycl::detail::is_generic_group<Group>::value,
+                "Group algorithms only support the sycl::group and "
+                "intel::sub_group class.");
+#ifdef __SYCL_DEVICE_ONLY__
+  // TODO: Wait on a list of events instead
+  //       Not possible today because device_event stores a pointer
+  sycl::detail::waitForHelper(g, events...);
+#else
+  (void)g;
+  sycl::detail::voidHelper(events...);
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
