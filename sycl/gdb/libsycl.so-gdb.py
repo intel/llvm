@@ -2,8 +2,13 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import gdb
 import gdb.xmethod
+import gdb.printing
+import itertools
 import re
+
+### XMethod implementations ###
 
 """
 Generalized base class for buffer index calculation
@@ -134,3 +139,86 @@ class AccessorOpIndexMatcher(gdb.xmethod.XMethodMatcher):
 
 
 gdb.xmethod.register_xmethod_matcher(None, AccessorOpIndexMatcher(), replace=True)
+
+### Pretty-printer implementations ###
+
+"""
+Print an object deriving from cl::sycl::detail::array
+"""
+class SyclArrayPrinter:
+    class ElementIterator:
+        def __init__(self, data, size):
+            self.data = data
+            self.size = size
+            self.count = 0
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            if self.count == self.size:
+                raise StopIteration
+            count = self.count
+            self.count = self.count + 1
+            try:
+                elt = self.data[count]
+            except:
+                elt = "<error reading variable>"
+            return ('[%d]' % count, elt)
+
+    def __init__(self, value):
+        if value.type.code == gdb.TYPE_CODE_REF:
+            if hasattr(gdb.Value,"referenced_value"):
+                value = value.referenced_value()
+
+        self.value = value
+        self.type = value.type.unqualified().strip_typedefs()
+        self.dimensions = self.type.template_argument(0)
+
+    def children(self):
+        try:
+            return self.ElementIterator(self.value['common_array'], self.dimensions)
+        except:
+            # There is no way to return an error from this method. Return an
+            # empty iterable to make GDB happy and rely on to_string method
+            # to take care of formatting.
+            return [ ]
+
+    def to_string(self):
+        try:
+            # Check if accessing array value will succeed and resort to
+            # error message otherwise. Individual array element access failures
+            # will be caught by iterator itself.
+            _ = self.value['common_array']
+            return self.type.tag
+        except:
+            return "<error reading variable>"
+
+    def display_hint(self):
+        return 'array'
+
+"""
+Print a cl::sycl::buffer
+"""
+class SyclBufferPrinter:
+    def __init__(self, value):
+        self.value = value
+        self.type = value.type.unqualified().strip_typedefs()
+        self.elt_type = value.type.template_argument(0)
+        self.dimensions = value.type.template_argument(1)
+        self.typeregex = re.compile('^([a-zA-Z0-9_:]+)(<.*>)?$')
+
+    def to_string(self):
+        match = self.typeregex.match(self.type.tag)
+        if not match:
+            return "<error parsing type>"
+        return ('%s<%s, %s> = {impl=%s}'
+                % (match.group(1), self.elt_type, self.dimensions,
+                   self.value['impl'].address))
+
+sycl_printer = gdb.printing.RegexpCollectionPrettyPrinter("SYCL")
+sycl_printer.add_printer("cl::sycl::id",     '^cl::sycl::id<.*$',     SyclArrayPrinter)
+sycl_printer.add_printer("cl::sycl::range",  '^cl::sycl::range<.*$',  SyclArrayPrinter)
+sycl_printer.add_printer("cl::sycl::buffer", '^cl::sycl::buffer<.*$', SyclBufferPrinter)
+gdb.printing.register_pretty_printer(None, sycl_printer, True)
+
