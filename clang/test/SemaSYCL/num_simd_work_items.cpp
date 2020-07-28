@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 %s -fsycl -fsycl-is-device -triple spir64 -fsyntax-only -DTRIGGER_ERROR -verify
-// RUN: %clang_cc1 %s -fsycl -fsycl-is-device -triple spir64 -fsyntax-only -ast-dump | FileCheck %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-host -fsyntax-only -verify %s
+// RUN: %clang_cc1 %s -fsycl -fsycl-is-device -triple spir64 -fsyntax-only -Wno-sycl-2017-conform -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 %s -fsycl -fsycl-is-device -triple spir64 -fsyntax-only -Wno-sycl-2017-conform -ast-dump | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-host -fsyntax-only -Wno-sycl-2017-conform -verify %s
 
 #ifndef __SYCL_DEVICE_ONLY__
 struct FuncObj {

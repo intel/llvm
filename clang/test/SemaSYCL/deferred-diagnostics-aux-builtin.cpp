@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -fsycl -fsycl-is-device -aux-triple x86_64-unknown-linux-gnu -verify -fsyntax-only  %s
+// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -fsycl -fsycl-is-device -aux-triple x86_64-unknown-linux-gnu -Wno-sycl-2017-conform -verify -fsyntax-only  %s
 
 inline namespace cl {
 namespace sycl {

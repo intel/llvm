@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -verify -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -verify -Wno-sycl-2017-conform -fsyntax-only %s
 
 struct Base {};
 struct S {

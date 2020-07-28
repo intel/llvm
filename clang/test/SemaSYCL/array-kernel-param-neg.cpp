@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -verify -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -Wno-sycl-2017-conform -verify -fsyntax-only %s
 
 // This test checks if compiler reports compilation error on an attempt to pass
 // an array of non-trivially copyable structs as SYCL kernel parameter or

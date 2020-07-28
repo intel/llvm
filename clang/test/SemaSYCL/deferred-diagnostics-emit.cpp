@@ -1,4 +1,4 @@
-// RUN: %clang_cc1  -fsycl -triple spir64 -fsycl-is-device -verify -fsyntax-only  %s
+// RUN: %clang_cc1  -fsycl -triple spir64 -fsycl-is-device -Wno-sycl-2017-conform -verify -fsyntax-only  %s
 //
 // Ensure that the SYCL diagnostics that are typically deferred are correctly emitted.
 
