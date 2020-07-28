@@ -42,6 +42,13 @@ int main() {
                      cl::sycl::access::placeholder::false_t,
                      another_property_list<another_property>>
       accessorE;
+  cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
+                     cl::sycl::access::target::global_buffer,
+                     cl::sycl::access::placeholder::false_t,
+                     cl::sycl::property_list<
+                       cl::sycl::property::buffer_location<1>,
+                       cl::sycl::property::buffer_location<2>>>
+      accessorF;
 #endif
   cl::sycl::kernel_single_task<class kernel_function>(
       [=]() {
@@ -55,6 +62,8 @@ int main() {
         accessorD.use();
         //expected-error@+1{{accessor's 5th template parameter must be a property_list}}
         accessorE.use();
+        //expected-error@+1{{Can't apply buffer_location property twice to the same accessor}}
+        accessorF.use();
 #endif
       });
   return 0;
