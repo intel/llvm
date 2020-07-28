@@ -10971,7 +10971,10 @@ def err_sycl_attibute_cannot_be_applied_here
             "static function or function in an anonymous namespace">;
 def warn_sycl_pass_by_value_deprecated 
     : Warning<"Pass-by-value of kernel functions is deprecated in SYCL 2020.">,
-      InGroup<SyclStrict>;
+      InGroup<Sycl2020Conform>;
+def warn_sycl_pass_by_reference_future 
+    : Warning<"Pass-by-reference of kernel functions requires SYCL 2020, and does not conform to SYCL 1.2.1">,
+      InGroup<Sycl2017Conform>;
 def warn_sycl_attibute_function_raw_ptr
     : Warning<"SYCL 1.2.1 specification does not allow %0 attribute applied "
               "to a function with a raw pointer "

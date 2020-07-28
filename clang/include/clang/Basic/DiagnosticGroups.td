@@ -1127,7 +1127,9 @@ def OpenMP : DiagGroup<"openmp", [
   ]>;
 
 // SYCL warnings
-def SyclStrict : DiagGroup<"sycl-strict">;
+def Sycl2017Conform : DiagGroup<"sycl-2017-conform">;
+def Sycl2020Conform : DiagGroup<"sycl-2020-conform">;
+def SyclStrict : DiagGroup<"sycl-strict", [ Sycl2017Conform, Sycl2020Conform]>;
 def SyclTarget : DiagGroup<"sycl-target">;
 
 // Backend warnings.

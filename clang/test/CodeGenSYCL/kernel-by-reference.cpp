@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -verify -fsyntax-only -sycl-std=2017 -DNODIAG %s
+// RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -verify -fsyntax-only -sycl-std=2017 -DSYCL2017 %s
 // RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -verify -fsyntax-only -sycl-std=2020 -DSYCL2020 %s
 // RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -verify -fsyntax-only -Wno-sycl-strict -DNODIAG %s
 // RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -verify -fsyntax-only -sycl-std=2020 -Wno-sycl-strict -DNODIAG %s
@@ -14,6 +14,9 @@ __attribute__((sycl_kernel)) void sycl_2017_single_task(Func kernelFunc) {
 
 // SYCL 2020 - kernel functions are passed by reference.
 template <typename name, typename Func>
+#if defined(SYCL2017)
+// expected-warning@+2 {{Pass-by-reference of kernel functions requires SYCL 2020, and does not conform to SYCL 1.2.1}}
+#endif
 __attribute__((sycl_kernel)) void sycl_2020_single_task(const Func &kernelFunc) {
   kernelFunc();
 }

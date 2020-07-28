@@ -728,19 +728,31 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
       .Default(InvokeUnknown);
 }
 
-static const CXXRecordDecl *getKernelObjectType(Sema &SemaRef,
-                                                FunctionDecl *Caller) {
+static const CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
   QualType KernelParamTy = (*Caller->param_begin())->getType();
   // In SYCL 2020 kernels are now passed by reference.
   if (KernelParamTy->isReferenceType())
     return KernelParamTy->getPointeeCXXRecordDecl();
 
   // SYCL 1.2
-  if (SemaRef.LangOpts.SYCLVersion > 2017)
-    SemaRef.Diag(Caller->getLocation(),
-                 diag::warn_sycl_pass_by_value_deprecated);
-
   return KernelParamTy->getAsCXXRecordDecl();
+}
+
+static void diagKernelCallerSpecConformance(Sema &SemaRef,
+                                            FunctionDecl *Caller) {
+  QualType KernelParamTy = (*Caller->param_begin())->getType();
+
+  if (KernelParamTy->isReferenceType()) {
+    // passing by reference, so emit warning if not using SYCL 2020
+    if (SemaRef.LangOpts.SYCLVersion < 2020)
+      SemaRef.Diag(Caller->getLocation(),
+                   diag::warn_sycl_pass_by_reference_future);
+  } else {
+    // passing by value.  emit warning if using SYCL 2020 or greater
+    if (SemaRef.LangOpts.SYCLVersion > 2017)
+      SemaRef.Diag(Caller->getLocation(),
+                   diag::warn_sycl_pass_by_value_deprecated);
+  }
 }
 
 /// Creates a kernel parameter descriptor
@@ -1945,7 +1957,7 @@ public:
 void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
                                  MangleContext &MC) {
   // The first argument to the KernelCallerFunc is the lambda object.
-  const CXXRecordDecl *KernelObj = getKernelObjectType(*this, KernelCallerFunc);
+  const CXXRecordDecl *KernelObj = getKernelObjectType(KernelCallerFunc);
   assert(KernelObj && "invalid kernel caller");
 
   // Calculate both names, since Integration headers need both.
@@ -1959,6 +1971,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       if (LC.capturesThis() && LC.isImplicit())
         Diag(LC.getLocation(), diag::err_implicit_this_capture);
   }
+  diagKernelCallerSpecConformance(*this, KernelCallerFunc);
   SyclKernelFieldChecker checker(*this);
   SyclKernelDeclCreator kernel_decl(
       *this, checker, KernelName, KernelObj->getLocation(),
