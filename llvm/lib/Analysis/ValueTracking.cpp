@@ -172,8 +172,8 @@ static bool getShuffleDemandedElts(const ShuffleVectorInst *Shuf,
     return false;
 
   int NumElts =
-      cast<VectorType>(Shuf->getOperand(0)->getType())->getNumElements();
-  int NumMaskElts = Shuf->getType()->getNumElements();
+      cast<FixedVectorType>(Shuf->getOperand(0)->getType())->getNumElements();
+  int NumMaskElts = cast<FixedVectorType>(Shuf->getType())->getNumElements();
   DemandedLHS = DemandedRHS = APInt::getNullValue(NumElts);
   if (DemandedElts.isNullValue())
     return true;
@@ -3489,9 +3489,10 @@ bool llvm::isKnownNeverInfinity(const Value *V, const TargetLibraryInfo *TLI,
   }
 
   // try to handle fixed width vector constants
-  if (isa<FixedVectorType>(V->getType()) && isa<Constant>(V)) {
+  auto *VFVTy = dyn_cast<FixedVectorType>(V->getType());
+  if (VFVTy && isa<Constant>(V)) {
     // For vectors, verify that each element is not infinity.
-    unsigned NumElts = cast<VectorType>(V->getType())->getNumElements();
+    unsigned NumElts = VFVTy->getNumElements();
     for (unsigned i = 0; i != NumElts; ++i) {
       Constant *Elt = cast<Constant>(V)->getAggregateElement(i);
       if (!Elt)
@@ -3593,9 +3594,10 @@ bool llvm::isKnownNeverNaN(const Value *V, const TargetLibraryInfo *TLI,
   }
 
   // Try to handle fixed width vector constants
-  if (isa<FixedVectorType>(V->getType()) && isa<Constant>(V)) {
+  auto *VFVTy = dyn_cast<FixedVectorType>(V->getType());
+  if (VFVTy && isa<Constant>(V)) {
     // For vectors, verify that each element is not NaN.
-    unsigned NumElts = cast<VectorType>(V->getType())->getNumElements();
+    unsigned NumElts = VFVTy->getNumElements();
     for (unsigned i = 0; i != NumElts; ++i) {
       Constant *Elt = cast<Constant>(V)->getAggregateElement(i);
       if (!Elt)
@@ -4779,23 +4781,13 @@ bool llvm::isGuaranteedNotToBeUndefOrPoison(const Value *V,
   if (Depth >= MaxDepth)
     return false;
 
-  // If the value is a freeze instruction, then it can never
-  // be undef or poison.
-  if (isa<FreezeInst>(V))
-    return true;
-  // TODO: Some instructions are guaranteed to return neither undef
-  // nor poison if their arguments are not poison/undef.
-
-  if (auto *A = dyn_cast<Argument>(V)) {
-    // NoUndef does not guarantee that paddings are not undef.
+  if (const auto *A = dyn_cast<Argument>(V)) {
     if (A->hasAttribute(Attribute::NoUndef))
       return true;
   }
 
   if (auto *C = dyn_cast<Constant>(V)) {
-    // TODO: We can analyze ConstExpr by opcode to determine if there is any
-    //       possibility of poison.
-    if (isa<UndefValue>(C) || isa<ConstantExpr>(C))
+    if (isa<UndefValue>(C))
       return false;
 
     if (isa<ConstantInt>(C) || isa<GlobalVariable>(C) || isa<ConstantFP>(V) ||
@@ -4804,9 +4796,6 @@ bool llvm::isGuaranteedNotToBeUndefOrPoison(const Value *V,
 
     if (C->getType()->isVectorTy())
       return !C->containsUndefElement() && !C->containsConstantExpression();
-
-    // TODO: Recursively analyze aggregates or other constants.
-    return false;
   }
 
   // Strip cast operations from a pointer value.
@@ -4826,31 +4815,22 @@ bool llvm::isGuaranteedNotToBeUndefOrPoison(const Value *V,
     return isGuaranteedNotToBeUndefOrPoison(V, CtxI, DT, Depth + 1);
   };
 
-  if (auto *I = dyn_cast<Instruction>(V)) {
-    switch (I->getOpcode()) {
-    case Instruction::GetElementPtr: {
-      auto *GEPI = dyn_cast<GetElementPtrInst>(I);
-      if (!GEPI->isInBounds() && llvm::all_of(GEPI->operands(), OpCheck))
+  if (auto *Opr = dyn_cast<Operator>(V)) {
+    // If the value is a freeze instruction, then it can never
+    // be undef or poison.
+    if (isa<FreezeInst>(V))
+      return true;
+
+    if (const auto *CB = dyn_cast<CallBase>(V)) {
+      if (CB->hasRetAttr(Attribute::NoUndef))
         return true;
-      break;
-    }
-    case Instruction::FCmp: {
-      auto *FI = dyn_cast<FCmpInst>(I);
-      if (FI->getFastMathFlags().none() &&
-          llvm::all_of(FI->operands(), OpCheck))
-        return true;
-      break;
-    }
-    case Instruction::BitCast:
-    case Instruction::PHI:
-    case Instruction::ICmp:
-      if (llvm::all_of(I->operands(), OpCheck))
-        return true;
-      break;
-    default:
-      break;
     }
 
+    if (!canCreateUndefOrPoison(Opr) && all_of(Opr->operands(), OpCheck))
+      return true;
+  }
+
+  if (auto *I = dyn_cast<Instruction>(V)) {
     if (programUndefinedIfPoison(I) && I->getType()->isIntegerTy(1))
       // Note: once we have an agreement that poison is a value-wise concept,
       // we can remove the isIntegerTy(1) constraint.
