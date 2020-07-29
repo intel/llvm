@@ -11,6 +11,7 @@
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/plugin.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
 #include <detail/plugin.hpp>
@@ -112,8 +113,8 @@ device device_selector::select_device(info::device_type deviceType,
   if (res != nullptr) {
     string_class PlatformName = res->get_info<info::device::platform>()
                                     .get_info<info::platform::name>();
+    string_class DeviceName = res->get_info<info::device::name>();
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC)) {
-      string_class DeviceName = res->get_info<info::device::name>();
       std::cout << "SYCL_PI_TRACE[all]: "
                 << "Selected device ->" << std::endl
                 << "SYCL_PI_TRACE[all]: "
