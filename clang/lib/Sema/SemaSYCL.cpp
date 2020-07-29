@@ -826,6 +826,8 @@ public:
       VisitArrayElements(ArrayField, ElementTy, handlers...);
     else if (ElementTy->isScalarType())
       KF_FOR_EACH(handleScalarType, ArrayField, ElementTy);
+    else if (ElementTy->isUnionType())
+      KF_FOR_EACH(handleUnionType, ArrayField, ElementTy);
   }
 
   template <typename... Handlers>
@@ -941,9 +943,11 @@ public:
       else if (FieldTy->isArrayType()) {
         if (KF_FOR_EACH(handleArrayType, Field, FieldTy))
           VisitArrayElements(Field, FieldTy, handlers...);
-      } else if (FieldTy->isScalarType() || FieldTy->isVectorType())
+      } else if (FieldTy->isScalarType() || FieldTy->isVectorType()) {
         KF_FOR_EACH(handleScalarType, Field, FieldTy);
-      else
+      } else if (FieldTy->isUnionType()) {
+        KF_FOR_EACH(handleUnionType, Field, FieldTy);
+      } else
         KF_FOR_EACH(handleOtherType, Field, FieldTy);
       (void)std::initializer_list<int>{
           (handlers.leaveField(Owner, Field), 0)...};
@@ -1001,6 +1005,7 @@ public:
   virtual bool handlePointerType(FieldDecl *, QualType) { return true; }
   virtual bool handleArrayType(FieldDecl *, QualType) { return true; }
   virtual bool handleScalarType(FieldDecl *, QualType) { return true; }
+  virtual bool handleUnionType(FieldDecl *, QualType) { return true; }
   // Most handlers shouldn't be handling this, just the field checker.
   virtual bool handleOtherType(FieldDecl *, QualType) { return true; }
 
@@ -1297,6 +1302,11 @@ public:
   }
 
   bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
+    addParam(FD, FieldTy);
+    return true;
+  }
+
+  bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
     addParam(FD, FieldTy);
     return true;
   }
@@ -1606,6 +1616,14 @@ public:
   }
 
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
+    if (dyn_cast<ArraySubscriptExpr>(MemberExprBases.back()))
+      createExprForScalarElement(FD);
+    else
+      createExprForStructOrScalar(FD);
+    return true;
+  }
+
+  bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
     if (dyn_cast<ArraySubscriptExpr>(MemberExprBases.back()))
       createExprForScalarElement(FD);
     else
