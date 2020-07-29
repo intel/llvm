@@ -399,7 +399,7 @@ bool program_impl::has_cl_kernel(const string_class &KernelName) const {
 }
 
 RT::PiKernel program_impl::get_pi_kernel(const string_class &KernelName) const {
-  RT::PiKernel Kernel;
+  RT::PiKernel Kernel = nullptr;
 
   if (is_cacheable()) {
     std::tie(Kernel, std::ignore) =
