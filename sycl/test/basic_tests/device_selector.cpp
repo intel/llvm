@@ -30,9 +30,11 @@ public:
 int main() {
   default_selector ds;
   device d = ds.select_device(info::device_type::gpu, backend::level0);
-  std::cout << "Level-zero GPU Device is found: " << std::boolalpha << d.is_gpu() << std::endl;
+  std::cout << "Level-zero GPU Device is found: " << std::boolalpha
+            << d.is_gpu() << std::endl;
   d = ds.select_device(info::device_type::gpu, backend::opencl);
-  std::cout << "OpenCL GPU Device is found: " << std::boolalpha << d.is_gpu() << std::endl;
+  std::cout << "OpenCL GPU Device is found: " << std::boolalpha << d.is_gpu()
+            << std::endl;
   d = ds.select_device(info::device_type::cpu);
   std::cout << "CPU device is found: " << d.is_cpu() << std::endl;
   d = ds.select_device(info::device_type::host);
