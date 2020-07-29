@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fno-sycl-std-optimizations -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out | FileCheck %s
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_ON_LINUX_PLACEHOLDER %t.out %GPU_CHECK_ON_LINUX_PLACEHOLDER

@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fno-sycl-std-optimizations %s -o %t.out
 // RUNx: %ACC_RUN_PLACEHOLDER %t.out
 //==----------------- fpga_lsu.cpp - SYCL FPGA LSU test --------------------==//
 //
