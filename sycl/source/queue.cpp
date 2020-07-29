@@ -34,10 +34,8 @@ queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
       AsyncHandler, PropList);
 }
 
-queue::queue(const context &SyclContext,
-             const device &SyclDevice,
-             const async_handler &AsyncHandler,
-             const property_list &PropList) {
+queue::queue(const context &SyclContext, const device &SyclDevice,
+             const async_handler &AsyncHandler, const property_list &PropList) {
   impl = std::make_shared<detail::queue_impl>(
       detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
       AsyncHandler, PropList);
