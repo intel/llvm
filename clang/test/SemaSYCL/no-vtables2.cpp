@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-return-type -verify -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-return-type -verify -Wno-sycl-2017-compat -fsyntax-only %s
 
 struct Base {
   virtual void f() const {}
@@ -28,9 +28,8 @@ Inherit usage() {
   usage_child();
 }
 
-
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 }
 int main() {
