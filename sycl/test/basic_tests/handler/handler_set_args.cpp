@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
@@ -12,69 +12,57 @@
 #include <CL/sycl.hpp>
 #include <cassert>
 
-struct use_offset {
-  static const int no = 0;
-  static const int yes = 1;
+constexpr bool UseOffset = true;
+constexpr bool NoOffset = false;
+const cl::sycl::range<1> Range = 1;
+
+using AccessorT = cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
+                                     cl::sycl::access::target::global_buffer>;
+
+struct SingleTaskFunctor {
+  SingleTaskFunctor(AccessorT acc) : MAcc(acc) {}
+
+  void operator()() { MAcc[0] = 10; }
+
+  AccessorT MAcc;
 };
 
-using accessor_t =
-    cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
-                       cl::sycl::access::target::global_buffer>;
+template <bool useOffset> struct ParallelForRangeIdFunctor {
+  ParallelForRangeIdFunctor(AccessorT acc) : MAcc(acc) {}
 
-struct single_task_functor {
-  single_task_functor(accessor_t acc) : acc(acc) {}
+  void operator()(cl::sycl::id<1> id) { MAcc[0] = 10; }
 
-  void operator()() { acc[0] = 10; }
-
-  accessor_t acc;
+  AccessorT MAcc;
 };
 
-struct single_task_new_functor {
-  single_task_new_functor(accessor_t acc) : acc(acc) {}
+template <bool useOffset> struct ParallelForRangeItemFunctor {
+  ParallelForRangeItemFunctor(AccessorT acc) : MAcc(acc) {}
 
-  void operator()() { acc[0] = 10; }
+  void operator()(cl::sycl::item<1> item) { MAcc[0] = 10; }
 
-  accessor_t acc;
+  AccessorT MAcc;
 };
 
-template <int useOffset> struct parallel_for_range_id_functor {
-  parallel_for_range_id_functor(accessor_t acc) : acc(acc) {}
+struct ParallelForNdRangeFunctor {
+  ParallelForNdRangeFunctor(AccessorT acc) : MAcc(acc) {}
 
-  void operator()(cl::sycl::id<1> id) { acc[0] = 10; }
+  void operator()(cl::sycl::nd_item<1> ndItem) { MAcc[0] = 10; }
 
-  accessor_t acc;
-};
-
-template <int useOffset> struct parallel_for_range_item_functor {
-  parallel_for_range_item_functor(accessor_t acc) : acc(acc) {}
-
-  void operator()(cl::sycl::item<1> item) { acc[0] = 10; }
-
-  accessor_t acc;
-};
-
-struct parallel_for_nd_range_functor {
-  parallel_for_nd_range_functor(accessor_t acc) : acc(acc) {}
-
-  void operator()(cl::sycl::nd_item<1> ndItem) { acc[0] = 10; }
-
-  accessor_t acc;
+  AccessorT MAcc;
 };
 
 template <class kernel_name>
-cl::sycl::kernel get_prebuilt_kernel(cl::sycl::queue &queue) {
+cl::sycl::kernel getPrebuiltKernel(cl::sycl::queue &queue) {
   cl::sycl::program program(queue.get_context());
   program.build_with_kernel_type<kernel_name>();
   return program.get_kernel<kernel_name>();
 }
 
-const cl::sycl::range<1> range = 1;
-
 template <class kernel_wrapper>
-void check_api_call(cl::sycl::queue &queue, kernel_wrapper &&kernelWrapper) {
+void checkApiCall(cl::sycl::queue &queue, kernel_wrapper &&kernelWrapper) {
   int result = 0;
   {
-    auto buf = cl::sycl::buffer<int, 1>(&result, range);
+    auto buf = cl::sycl::buffer<int, 1>(&result, Range);
     queue.submit([&](cl::sycl::handler &cgh) {
       auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
       kernelWrapper(cgh, acc);
@@ -84,42 +72,39 @@ void check_api_call(cl::sycl::queue &queue, kernel_wrapper &&kernelWrapper) {
 }
 
 int main() {
-  cl::sycl::queue queue;
-  const cl::sycl::id<1> offset(0);
+  cl::sycl::queue Queue;
+  const cl::sycl::id<1> Offset(0);
+  const cl::sycl::nd_range<1> NdRange(Range, Range);
 
-  const cl::sycl::nd_range<1> ndRange(range, range);
-
-  check_api_call(queue, [&](cl::sycl::handler &cgh, accessor_t acc) {
-    cgh.single_task(single_task_functor(acc));
+  checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
+    cgh.single_task(SingleTaskFunctor(acc));
   });
 
-  check_api_call(queue, [&](cl::sycl::handler &cgh, accessor_t acc) {
-    cgh.parallel_for(range, parallel_for_range_id_functor<use_offset::no>(acc));
+  checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
+    cgh.parallel_for(Range, ParallelForRangeIdFunctor<NoOffset>(acc));
   });
 
-  check_api_call(queue, [&](cl::sycl::handler &cgh, accessor_t acc) {
-    cgh.parallel_for(range, offset,
-                     parallel_for_range_id_functor<use_offset::yes>(acc));
+  checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
+    cgh.parallel_for(Range, Offset, ParallelForRangeIdFunctor<UseOffset>(acc));
   });
 
-  check_api_call(queue, [&](cl::sycl::handler &cgh, accessor_t acc) {
-    cgh.parallel_for(range,
-                     parallel_for_range_item_functor<use_offset::no>(acc));
+  checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
+    cgh.parallel_for(Range, ParallelForRangeItemFunctor<NoOffset>(acc));
   });
 
-  check_api_call(queue, [&](cl::sycl::handler &cgh, accessor_t acc) {
-    cgh.parallel_for(range, offset,
-                     parallel_for_range_item_functor<use_offset::yes>(acc));
+  checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
+    cgh.parallel_for(Range, Offset,
+                     ParallelForRangeItemFunctor<UseOffset>(acc));
   });
 
-  check_api_call(queue, [&](cl::sycl::handler &cgh, accessor_t acc) {
-    cgh.parallel_for(ndRange, parallel_for_nd_range_functor(acc));
+  checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
+    cgh.parallel_for(NdRange, ParallelForNdRangeFunctor(acc));
   });
 
   {
-    auto preBuiltKernel = get_prebuilt_kernel<single_task_functor>(queue);
+    auto preBuiltKernel = getPrebuiltKernel<SingleTaskFunctor>(Queue);
 
-    check_api_call(queue, [&](cl::sycl::handler &cgh, accessor_t acc) {
+    checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
       cgh.set_args(acc);
       cgh.single_task(preBuiltKernel);
     });
@@ -127,126 +112,116 @@ int main() {
 
   {
     auto preBuiltKernel =
-        get_prebuilt_kernel<parallel_for_range_id_functor<use_offset::no>>(
-            queue);
+        getPrebuiltKernel<ParallelForRangeIdFunctor<NoOffset>>(Queue);
 
-    check_api_call(queue, [&](cl::sycl::handler &cgh, accessor_t acc) {
+    checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
       cgh.set_args(acc);
-      cgh.parallel_for(range, preBuiltKernel);
+      cgh.parallel_for(Range, preBuiltKernel);
     });
   }
 
   {
     auto preBuiltKernel =
-        get_prebuilt_kernel<parallel_for_range_id_functor<use_offset::yes>>(
-            queue);
+        getPrebuiltKernel<ParallelForRangeIdFunctor<UseOffset>>(Queue);
 
-    check_api_call(queue, [&](cl::sycl::handler &cgh, accessor_t acc) {
+    checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
       cgh.set_args(acc);
-      cgh.parallel_for(range, offset, preBuiltKernel);
+      cgh.parallel_for(Range, Offset, preBuiltKernel);
     });
   }
 
   {
     auto preBuiltKernel =
-        get_prebuilt_kernel<parallel_for_range_item_functor<use_offset::no>>(
-            queue);
+        getPrebuiltKernel<ParallelForRangeItemFunctor<NoOffset>>(Queue);
 
-    check_api_call(queue, [&](cl::sycl::handler &cgh, accessor_t acc) {
+    checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
       cgh.set_args(acc);
-      cgh.parallel_for(range, preBuiltKernel);
+      cgh.parallel_for(Range, preBuiltKernel);
     });
   }
 
   {
     auto preBuiltKernel =
-        get_prebuilt_kernel<parallel_for_range_item_functor<use_offset::yes>>(
-            queue);
+        getPrebuiltKernel<ParallelForRangeItemFunctor<UseOffset>>(Queue);
 
-    check_api_call(queue, [&](cl::sycl::handler &cgh, accessor_t acc) {
+    checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
       cgh.set_args(acc);
-      cgh.parallel_for(range, offset, preBuiltKernel);
+      cgh.parallel_for(Range, Offset, preBuiltKernel);
+    });
+  }
+
+  {
+    auto preBuiltKernel = getPrebuiltKernel<ParallelForNdRangeFunctor>(Queue);
+
+    checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
+      cgh.set_args(acc);
+      cgh.parallel_for(NdRange, preBuiltKernel);
+    });
+  }
+
+  {
+    auto preBuiltKernel = getPrebuiltKernel<SingleTaskFunctor>(Queue);
+
+    checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
+      cgh.set_args(acc);
+      cgh.single_task<class OtherKernelName1>(preBuiltKernel,
+                                              [=]() { acc[0] = 10; });
     });
   }
 
   {
     auto preBuiltKernel =
-        get_prebuilt_kernel<parallel_for_nd_range_functor>(queue);
+        getPrebuiltKernel<ParallelForRangeIdFunctor<NoOffset>>(Queue);
 
-    check_api_call(queue, [&](cl::sycl::handler &cgh, accessor_t acc) {
+    checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
       cgh.set_args(acc);
-      cgh.parallel_for(ndRange, preBuiltKernel);
-    });
-  }
-
-  {
-    auto preBuiltKernel = get_prebuilt_kernel<single_task_functor>(queue);
-
-    check_api_call(queue, [&](cl::sycl::handler &cgh, accessor_t acc) {
-      cgh.set_args(acc);
-      cgh.single_task<class other_kernel_name1>(preBuiltKernel,
-                                                [=]() { acc[0] = 10; });
+      cgh.parallel_for<class OtherKernelName2>(
+          preBuiltKernel, Range, [=](cl::sycl::id<1> id) { acc[0] = 10; });
     });
   }
 
   {
     auto preBuiltKernel =
-        get_prebuilt_kernel<parallel_for_range_id_functor<use_offset::no>>(
-            queue);
+        getPrebuiltKernel<ParallelForRangeIdFunctor<UseOffset>>(Queue);
 
-    check_api_call(queue, [&](cl::sycl::handler &cgh, accessor_t acc) {
+    checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
       cgh.set_args(acc);
-      cgh.parallel_for<class other_kernel_name2>(
-          preBuiltKernel, range, [=](cl::sycl::id<1> id) { acc[0] = 10; });
-    });
-  }
-
-  {
-    auto preBuiltKernel =
-        get_prebuilt_kernel<parallel_for_range_id_functor<use_offset::yes>>(
-            queue);
-
-    check_api_call(queue, [&](cl::sycl::handler &cgh, accessor_t acc) {
-      cgh.set_args(acc);
-      cgh.parallel_for<class other_kernel_name3>(
-          preBuiltKernel, range, offset,
+      cgh.parallel_for<class OtherKernelName3>(
+          preBuiltKernel, Range, Offset,
           [=](cl::sycl::id<1> id) { acc[0] = 10; });
     });
   }
 
   {
     auto preBuiltKernel =
-        get_prebuilt_kernel<parallel_for_range_item_functor<use_offset::no>>(
-            queue);
+        getPrebuiltKernel<ParallelForRangeItemFunctor<NoOffset>>(Queue);
 
-    check_api_call(queue, [&](cl::sycl::handler &cgh, accessor_t acc) {
+    checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
       cgh.set_args(acc);
-      cgh.parallel_for<class other_kernel_name4>(
-          preBuiltKernel, range, [=](cl::sycl::item<1> item) { acc[0] = 10; });
+      cgh.parallel_for<class OtherKernelName4>(
+          preBuiltKernel, Range, [=](cl::sycl::item<1> item) { acc[0] = 10; });
     });
   }
 
   {
     auto preBuiltKernel =
-        get_prebuilt_kernel<parallel_for_range_item_functor<use_offset::yes>>(
-            queue);
+        getPrebuiltKernel<ParallelForRangeItemFunctor<UseOffset>>(Queue);
 
-    check_api_call(queue, [&](cl::sycl::handler &cgh, accessor_t acc) {
+    checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
       cgh.set_args(acc);
-      cgh.parallel_for<class other_kernel_name5>(
-          preBuiltKernel, range, offset,
+      cgh.parallel_for<class OtherKernelName5>(
+          preBuiltKernel, Range, Offset,
           [=](cl::sycl::item<1> item) { acc[0] = 10; });
     });
   }
 
   {
-    auto preBuiltKernel =
-        get_prebuilt_kernel<parallel_for_nd_range_functor>(queue);
+    auto preBuiltKernel = getPrebuiltKernel<ParallelForNdRangeFunctor>(Queue);
 
-    check_api_call(queue, [&](cl::sycl::handler &cgh, accessor_t acc) {
+    checkApiCall(Queue, [&](cl::sycl::handler &cgh, AccessorT acc) {
       cgh.set_args(acc);
-      cgh.parallel_for<class other_kernel_name6>(
-          preBuiltKernel, ndRange,
+      cgh.parallel_for<class OtherKernelName6>(
+          preBuiltKernel, NdRange,
           [=](cl::sycl::nd_item<1> ndItem) { acc[0] = 10; });
     });
   }
