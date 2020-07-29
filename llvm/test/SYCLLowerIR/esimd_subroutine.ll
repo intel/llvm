@@ -49,7 +49,7 @@ entry:
 }
 
 ; Function Attrs: norecurse nounwind
-; CHECK: define linkonce_odr spir_func void @_ZN4simdIiLi16EEC1ERS0_(<16 x i32> addrspace(4)* [[OLDARG0:%[a-zA-Z0-9_]*]], <16 x i32> addrspace(4)* [[OLDARG1:%[a-zA-Z0-9_]*]]) unnamed_addr {{.+}}
+; CHECK: define linkonce_odr spir_func void @_ZN4simdIiLi16EEC1ERS0_(<16 x i32> addrspace(4)* [[OLDARG0:%[a-zA-Z0-9_]*]], <16 x i32> addrspace(4)*{{.*}} [[OLDARG1:%[a-zA-Z0-9_]*]]) unnamed_addr {{.+}}
 define linkonce_odr spir_func void @_ZN4simdIiLi16EEC1ERS0_(%class._ZTS4simdIiLi16EE.simd addrspace(4)* %this, %class._ZTS4simdIiLi16EE.simd addrspace(4)* align 64 dereferenceable(64) %other) unnamed_addr #0 comdat align 2 {
 entry:
 ; CHECK: [[NEWARG1:%[a-zA-Z0-9_]*]] = bitcast <16 x i32> addrspace(4)* [[OLDARG1]] to {{.+}}

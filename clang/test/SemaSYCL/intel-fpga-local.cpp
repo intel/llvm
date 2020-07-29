@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-return-type -fcxx-exceptions -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-return-type -fcxx-exceptions -fsyntax-only -ast-dump -Wno-sycl-2017-compat -verify -pedantic %s | FileCheck %s
 
 //CHECK: FunctionDecl{{.*}}check_ast
 void check_ast()
@@ -781,7 +781,7 @@ struct templ_st {
 };
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 }
 

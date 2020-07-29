@@ -816,10 +816,14 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
           Args.getLastArg(OPT_emit_llvm_uselists, OPT_no_emit_llvm_uselists))
     Opts.EmitLLVMUseLists = A->getOption().getID() == OPT_emit_llvm_uselists;
 
+  // ESIMD GPU Back-end requires optimized IR
+  bool IsSyclESIMD = Args.hasFlag(options::OPT_fsycl_esimd,
+                                  options::OPT_fno_sycl_esimd, false);
+
   Opts.DisableLLVMPasses =
       Args.hasArg(OPT_disable_llvm_passes) ||
       (Args.hasArg(OPT_fsycl_is_device) && Triple.isSPIR() &&
-       !Args.hasArg(OPT_fsycl_enable_optimizations));
+       !Args.hasArg(OPT_fsycl_enable_optimizations) && !IsSyclESIMD);
   Opts.DisableLifetimeMarkers = Args.hasArg(OPT_disable_lifetimemarkers);
 
   const llvm::Triple::ArchType DebugEntryValueArchs[] = {
@@ -2583,6 +2587,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
     if (const Arg *A = Args.getLastArg(OPT_sycl_std_EQ)) {
       Opts.SYCLVersion = llvm::StringSwitch<unsigned>(A->getValue())
                              .Cases("2017", "1.2.1", "121", "sycl-1.2.1", 2017)
+                             .Case("2020", 2020)
                              .Default(0U);
 
       if (Opts.SYCLVersion == 0U) {
