@@ -2660,14 +2660,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "const bool kernel_param_used[] = {\n";
   O << "  //PARAM_USED_TABLE_BEGIN "
     << "\n";
-  O << "  //kernel_name_1 "
-    << "\n";
-  O << "  true, true, true "
-    << "\n";
-  O << "  //kernel_name_2 "
-    << "\n";
-  O << "  true, true, true "
-    << "\n";
+  for (unsigned I = 0; I < KernelDescs.size(); I++) {
+    auto &K = KernelDescs[I];
+    O << "  //--- " << K.Name << "\n";
+    // bool value for each param
+  }
   O << "  //PARAM_USED_TABLE_END "
     << "\n";
   O << "  } \n\n";
