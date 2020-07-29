@@ -190,7 +190,7 @@ run the following commands
     tar -zxvf oclcpu_rt_<cpu_version>.tar.gz
     ```
 
-2) Create ICD file pointing to the new runtime
+2) Create ICD file pointing to the new runtime (requires root access)
 
     ```bash
     # OpenCL FPGA emulation RT
@@ -233,7 +233,7 @@ folder:
       /opt/intel/oclcpuexp_<cpu_version>/x64
     ```
 
-5) Configure library paths
+5) Configure library paths (requires root access)
 
     ```bash
     echo /opt/intel/oclfpgaemu_<fpga_version>/x64 >
