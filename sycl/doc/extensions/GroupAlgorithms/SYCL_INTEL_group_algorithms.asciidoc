@@ -51,7 +51,7 @@ John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com)
 
 == Dependencies
 
-This extension is written against the SYCL 1.2.1 specification, Revision v1.2.1-6, the SYCL 2020 provisional specification and the following extensions:
+This extension is written against the SYCL 1.2.1 specification, Revision v1.2.1-6 and the following extensions:
 
 - +SYCL_INTEL_extended_atomics+
 
@@ -69,6 +69,9 @@ The extension introduces the following functions:
 - +reduce+
 - +exclusive_scan+
 - +inclusive_scan+
+- +barrier+
+
+The definitions and behavior of the following functions are based on equivalents in the SYCL 2020 provisional specification:
 - +barrier+
 
 === Alignment with OpenCL vs C++
