@@ -40,43 +40,43 @@ enum class no_type_set {
 template <no_namespace_int EnumType>
 class dummy_functor_1 {
 public:
-  void operator()() const {}
+  void operator()() {}
 };
 
 template <no_namespace_short EnumType>
 class dummy_functor_2 {
 public:
-  void operator()() const {}
+  void operator()() {}
 };
 
 template <internal::namespace_short EnumType>
 class dummy_functor_3 {
 public:
-  void operator()() const {}
+  void operator()() {}
 };
 
 template <enum_in_anonNS EnumType>
 class dummy_functor_4 {
 public:
-  void operator()() const {}
+  void operator()() {}
 };
 
 template <no_type_set EnumType>
 class dummy_functor_5 {
 public:
-  void operator()() const {}
+  void operator()() {}
 };
 
 template <unscoped_enum EnumType>
 class dummy_functor_6 {
 public:
-  void operator()() const {}
+  void operator()() {}
 };
 
 template <typename EnumType>
 class dummy_functor_7 {
 public:
-  void operator()() const {}
+  void operator()() {}
 };
 
 namespace type_argument_template_enum {
@@ -105,7 +105,7 @@ class Baz;
 template <typename EnumTypeOut, template <EnumValueIn EnumValue, typename EnumTypeIn> class T>
 class dummy_functor_8 {
 public:
-  void operator()() const {}
+  void operator()() {}
 };
 
 int main() {

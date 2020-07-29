@@ -2,11 +2,11 @@
 
 class Foo {
 public:
-  [[intelfpga::num_simd_work_items(1)]] void operator()() const {}
+  [[intelfpga::num_simd_work_items(1)]] void operator()() {}
 };
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
   kernelFunc();
 }
 
