@@ -111,5 +111,4 @@ piextUSMSharedAlloc
 =======
 piextPlatformGetNativeHandle
 piextPlatformCreateWithNativeHandle
-piPlatformRelease
 >>>>>>> [SYCL] Implement Device and Platform cache in L0:sycl/test/abi/pi_level0_symbol_check.dump

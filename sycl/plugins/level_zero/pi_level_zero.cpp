@@ -503,6 +503,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     }
 
     try {
+      // TODO: figure out how/when to release this memory
       *Platforms = new _pi_platform(ZeDriver);
 
       // Cache driver properties
@@ -613,25 +614,11 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   return PI_SUCCESS;
 }
 
-pi_result piPlatformRelease(pi_platform Platform) {
-  assert(Platform);
-
-  // invalidate piDeviceCache entry
-  for (uint32_t i = 0; i < piPlatformsCache.size(); i++) {
-    if (Platform == piPlatformsCache[i]) {
-      piPlatformsCache.erase(piPlatformsCache.begin() + i);
-      break;
-    }
-  }
-
-  return PI_SUCCESS;
-}
-
 pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
                        pi_uint32 NumEntries, pi_device *Devices,
                        pi_uint32 *NumDevices) {
-  assert(Platform);
 
+  assert(Platform);
   ze_driver_handle_t ZeDriver = Platform->ZeDriver;
 
   // Get number of devices supporting Level Zero
@@ -711,6 +698,7 @@ pi_result piDeviceRetain(pi_device Device) {
 
 pi_result piDeviceRelease(pi_device Device) {
   assert(Device);
+
   // TODO: OpenCL says root-device ref-count remains unchanged (1),
   // but when would we free the device's data?
   if (--(Device->RefCount) == 0) {

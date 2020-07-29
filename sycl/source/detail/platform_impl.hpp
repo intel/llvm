@@ -42,7 +42,7 @@ public:
                          std::shared_ptr<plugin> APlugin)
       : MPlatform(APlatform), MPlugin(APlugin) {}
 
-  ~platform_impl();
+  ~platform_impl() = default;
 
   /// Checks if this platform supports extension.
   ///
