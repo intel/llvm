@@ -808,8 +808,6 @@ __SYCL_EXPORT pi_result piPlatformGetInfo(pi_platform platform,
                                           void *param_value,
                                           size_t *param_value_size_ret);
 
-__SYCL_EXPORT pi_result piPlatformRelease(pi_platform platform); // only for L0
-
 /// Gets the native handle of a PI platform object.
 ///
 /// \param platform is the PI platform to get the native handle of.

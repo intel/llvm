@@ -287,12 +287,6 @@ pi_native_handle platform_impl::getNative() const {
   return Handle;
 }
 
-platform_impl::~platform_impl() {
-  if (!MHostPlatform && MPlugin->getBackend() == backend::level0) {
-    MPlugin->call<PiApiKind::piPlatformRelease>(MPlatform);
-  }
-}
-
 template <info::platform param>
 typename info::param_traits<info::platform, param>::return_type
 platform_impl::get_info() const {

@@ -102,4 +102,3 @@ piEnqueueMemBufferWriteRect
 piextUSMHostAlloc
 piextPlatformGetNativeHandle
 piextPlatformCreateWithNativeHandle
-piPlatformRelease

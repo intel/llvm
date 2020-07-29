@@ -19,7 +19,6 @@ _PI_API(piPlatformsGet)
 _PI_API(piPlatformGetInfo)
 _PI_API(piextPlatformGetNativeHandle)
 _PI_API(piextPlatformCreateWithNativeHandle)
-_PI_API(piPlatformRelease) // only used for L0 now
 // Device
 _PI_API(piDevicesGet)
 _PI_API(piDeviceGetInfo)
