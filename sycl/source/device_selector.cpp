@@ -201,9 +201,9 @@ enum TokenType { TokPlatform, TokDeviceType, TokUnknown };
 TokenType parse_kind(std::string token) {
   TokenType Result = TokUnknown;
 
-  if (token.find("platform") != std::string::npos)
+  if (token == "platform")
     Result = TokPlatform;
-  if (token.find("type") != std::string::npos)
+  if (token == "type")
     Result = TokDeviceType;
 
   return Result;
@@ -238,9 +238,14 @@ string_selector::string_selector(std::string filter) {
     if (Tok.find("=") == std::string::npos)
       continue;
 
-    detail::TokenType TTy = detail::parse_kind(Tok);
-    std::string SubTok = detail::strip_kind(Tok);
-    std::vector<std::string> SubTokens = detail::tokenize(SubTok, ",");
+    std::vector<std::string> Req = detail::tokenize(Tok, "=");
+    if (Req.size() != 2) {
+      throw runtime_error("Invalid string_selector input! Please specify the "
+                          "desired platform or device type after '='.",
+                          PI_INVALID_VALUE);
+    }
+    detail::TokenType TTy = detail::parse_kind(Req[0]);
+    std::vector<std::string> SubTokens = detail::tokenize(Req[1], ",");
 
     if (TTy == detail::TokPlatform) {
       mPlatforms.insert(mPlatforms.end(), SubTokens.begin(), SubTokens.end());

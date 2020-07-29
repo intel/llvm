@@ -117,5 +117,11 @@ int main() {
     std::cout << "TEST PASS: " << e.what() << std::endl;
   }
 
+  try {
+    queue q13(string_selector("plat_type=Foo"));
+  } catch (runtime_error e) {
+    std::cout << "TEST PASS: " << e.what() << std::endl;
+  }
+
   return 0;
 }
