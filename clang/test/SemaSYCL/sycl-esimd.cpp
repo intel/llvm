@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-explicit-simd -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-explicit-simd -fsyntax-only -Wno-sycl-2017-compat -verify %s
 
 // ----------- Negative tests
 
@@ -12,7 +12,7 @@ bar() {}
 // -- ESIMD kernel can't call functions with required subgroup size != 1
 
 template <typename ID, typename F>
-void kernel0(F f) __attribute__((sycl_kernel)) {
+void kernel0(const F &f) __attribute__((sycl_kernel)) {
   f();
 }
 
@@ -27,7 +27,7 @@ void test0() {
 
 // -- Usual kernel can't call ESIMD function
 template <typename ID, typename F>
-void kernel1(F f) __attribute__((sycl_kernel)) {
+void kernel1(const F &f) __attribute__((sycl_kernel)) {
   f();
 }
 
@@ -43,7 +43,7 @@ void test1() {
 
 // -- Kernel-function call, both have the attribute, lambda kernel.
 template <typename ID, typename F>
-void kernel2(F f) __attribute__((sycl_kernel)) {
+void kernel2(const F &f) __attribute__((sycl_kernel)) {
   f();
 }
 
@@ -64,12 +64,12 @@ class A {
 // --  Functor object kernel.
 
 template <typename F, typename ID = F>
-void kernel3(F f) __attribute__((sycl_kernel)) {
+void kernel3(const F &f) __attribute__((sycl_kernel)) {
   f();
 }
 
 struct Kernel3 {
-  void operator()() __attribute__((sycl_explicit_simd)) {}
+  void operator()() const __attribute__((sycl_explicit_simd)) {}
 };
 
 void bar3() {
