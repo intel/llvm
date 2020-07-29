@@ -1743,11 +1743,13 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     StoreInst *SI = nullptr;
     auto *Src = transValue(BS->getSrc(), F, BB);
     auto *Dst = transValue(BS->getDst(), F, BB);
-    // An intrinsic call may have been generated for the source variable.
+    // A pointer annotation may have been generated for the source variable.
     if (Use *SingleUse = Src->getSingleUndroppableUse()) {
       if (auto *II = dyn_cast<IntrinsicInst>(SingleUse->getUser())) {
-        // Overwrite the future store operand with the intrinsic call result.
-        Src = II;
+        if (II->getIntrinsicID() == Intrinsic::ptr_annotation &&
+            II->getType() == Src->getType())
+          // Overwrite the future store operand with the intrinsic call result.
+          Src = II;
       }
     }
     bool isVolatile = BS->SPIRVMemoryAccess::isVolatile();
