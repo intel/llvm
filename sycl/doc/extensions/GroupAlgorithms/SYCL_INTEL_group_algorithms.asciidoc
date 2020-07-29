@@ -51,7 +51,9 @@ John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com)
 
 == Dependencies
 
-This extension is written against the SYCL 1.2.1 specification, Revision v1.2.1-6 and the SYCL 2020 provisional specification.
+This extension is written against the SYCL 1.2.1 specification, Revision v1.2.1-6, the SYCL 2020 provisional specification and the following extensions:
+
+- +SYCL_INTEL_extended_atomics+
 
 == Overview
 
@@ -259,7 +261,10 @@ The return types of the collective functions in {cpp}17 are not deduced from the
 |Function|Description
 
 |+template <typename Group> void barrier(Group g);+
-|Synchronize all work-items in the group, and ensure that all memory accesses prior to the barrier are visible to all work-items in the group after the barrier.
+|Synchronize all work-items in the group, and ensure that all memory accesses prior to the barrier are visible to all work-items in the group after the barrier.  The scope of the group memory fences implied by this barrier is the narrowest scope including all work-items in the group.
+
+|+template <typename Group> void barrier(Group g, memory_scope scope);+
+|Synchronize all work-items in the group, and ensure that all memory accesses prior to the barrier are visible to all work-items in the group after the barrier.  The scope of the group memory fences implied by this barrier is specified by _scope_.
 
 |===
 
