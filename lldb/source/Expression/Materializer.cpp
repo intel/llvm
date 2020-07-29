@@ -514,7 +514,7 @@ public:
           return;
         }
 
-        if (data.GetByteSize() < m_variable_sp->GetType()->GetByteSize()) {
+        if (data.GetByteSize() < m_variable_sp->GetType()->GetByteSize(scope)) {
           if (data.GetByteSize() == 0 &&
               !m_variable_sp->LocationExpression().IsValid()) {
             err.SetErrorStringWithFormat("the variable '%s' has no location, "
@@ -525,7 +525,7 @@ public:
                 "size of variable %s (%" PRIu64
                 ") is larger than the ValueObject's size (%" PRIu64 ")",
                 m_variable_sp->GetName().AsCString(),
-                m_variable_sp->GetType()->GetByteSize().getValueOr(0),
+                m_variable_sp->GetType()->GetByteSize(scope).getValueOr(0),
                 data.GetByteSize());
           }
           return;
@@ -797,7 +797,7 @@ public:
 
       llvm::Optional<size_t> opt_bit_align = m_type.GetTypeBitAlign(exe_scope);
       if (!opt_bit_align) {
-        err.SetErrorStringWithFormat("can't get the type alignment");
+        err.SetErrorString("can't get the type alignment");
         return;
       }
 

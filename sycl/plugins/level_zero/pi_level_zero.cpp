@@ -2262,6 +2262,8 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   ze_event_handle_t *ZeEventWaitList =
       _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
+  if (!ZeEventWaitList)
+    return PI_OUT_OF_HOST_MEMORY;
 
   // Add the command to the command list
   ZE_CALL(zeCommandListAppendLaunchKernel(
@@ -2712,6 +2714,8 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
 
   ze_event_handle_t *ZeEventWaitList =
       _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
+  if (!ZeEventWaitList)
+    return PI_OUT_OF_HOST_MEMORY;
 
   ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, NumEventsInWaitList,
                                           ZeEventWaitList));
@@ -2770,6 +2774,8 @@ static pi_result enqueueMemCopyRectHelper(
 
   ze_event_handle_t *ZeEventWaitList =
       _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
+  if (!ZeEventWaitList)
+    return PI_OUT_OF_HOST_MEMORY;
 
   ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, NumEventsInWaitList,
                                           ZeEventWaitList));
@@ -2930,6 +2936,8 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
 
   ze_event_handle_t *ZeEventWaitList =
       _pi_event::createZeEventList(NumEventsInWaitList, EventWaitList);
+  if (!ZeEventWaitList)
+    return PI_OUT_OF_HOST_MEMORY;
 
   ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, NumEventsInWaitList,
                                           ZeEventWaitList));

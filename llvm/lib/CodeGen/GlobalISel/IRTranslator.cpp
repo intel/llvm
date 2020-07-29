@@ -1264,6 +1264,8 @@ unsigned IRTranslator::getSimpleIntrinsicOpcode(Intrinsic::ID ID) {
       return TargetOpcode::G_FNEARBYINT;
     case Intrinsic::pow:
       return TargetOpcode::G_FPOW;
+    case Intrinsic::powi:
+      return TargetOpcode::G_FPOWI;
     case Intrinsic::rint:
       return TargetOpcode::G_FRINT;
     case Intrinsic::round:
@@ -1484,6 +1486,14 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
     return translateBinaryOp(TargetOpcode::G_USUBSAT, CI, MIRBuilder);
   case Intrinsic::ssub_sat:
     return translateBinaryOp(TargetOpcode::G_SSUBSAT, CI, MIRBuilder);
+  case Intrinsic::umin:
+    return translateBinaryOp(TargetOpcode::G_UMIN, CI, MIRBuilder);
+  case Intrinsic::umax:
+    return translateBinaryOp(TargetOpcode::G_UMAX, CI, MIRBuilder);
+  case Intrinsic::smin:
+    return translateBinaryOp(TargetOpcode::G_SMIN, CI, MIRBuilder);
+  case Intrinsic::smax:
+    return translateBinaryOp(TargetOpcode::G_SMAX, CI, MIRBuilder);
   case Intrinsic::fmuladd: {
     const TargetMachine &TM = MF->getTarget();
     const TargetLowering &TLI = *MF->getSubtarget().getTargetLowering();

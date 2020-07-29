@@ -1,8 +1,7 @@
 // RUN: %clang_cc1 %s -fsyntax-only -fsycl -fsycl-is-device -triple spir64 -DCHECKDIAG -verify
 // RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl -fsycl-is-device -triple spir64 | FileCheck %s
 
-[[intel::kernel_args_restrict]] // expected-warning{{'kernel_args_restrict' attribute ignored}}
-void func_ignore() {}
+[[intel::kernel_args_restrict]] void func_do_not_ignore() {}
 
 struct FuncObj {
   [[intel::kernel_args_restrict]]
@@ -29,7 +28,7 @@ int main() {
       []() [[intel::kernel_args_restrict]] {});
 
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
-  // CHECK-NOT:   SYCLIntelKernelArgsRestrictAttr
+  // CHECK:       SYCLIntelKernelArgsRestrictAttr
   kernel<class test_kernel3>(
-      []() {func_ignore();});
+      []() { func_do_not_ignore(); });
 }

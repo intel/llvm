@@ -4761,12 +4761,13 @@ ExprResult Sema::CreateBuiltinMatrixSubscriptExpr(Expr *Base, Expr *RowIdx,
       return nullptr;
     }
 
-    llvm::APSInt Idx;
-    if (IndexExpr->isIntegerConstantExpr(Idx, Context) &&
-        (Idx < 0 || Idx >= Dim)) {
-      Diag(IndexExpr->getBeginLoc(), diag::err_matrix_index_outside_range)
-          << IsColumnIdx << Dim;
-      return nullptr;
+    if (Optional<llvm::APSInt> Idx =
+            IndexExpr->getIntegerConstantExpr(Context)) {
+      if ((*Idx < 0 || *Idx >= Dim)) {
+        Diag(IndexExpr->getBeginLoc(), diag::err_matrix_index_outside_range)
+            << IsColumnIdx << Dim;
+        return nullptr;
+      }
     }
 
     ExprResult ConvExpr =
@@ -5182,12 +5183,11 @@ ExprResult Sema::ActOnOMPIteratorExpr(Scope *S, SourceLocation IteratorKwLoc,
         IsCorrect = false;
         continue;
       }
-      llvm::APSInt Result;
-      bool IsConstant = Step->isIntegerConstantExpr(Result, Context);
+      Optional<llvm::APSInt> Result = Step->getIntegerConstantExpr(Context);
       // OpenMP 5.0, 2.1.6 Iterators, Restrictions
       // If the step expression of a range-specification equals zero, the
       // behavior is unspecified.
-      if (IsConstant && Result.isNullValue()) {
+      if (Result && Result->isNullValue()) {
         Diag(Step->getExprLoc(), diag::err_omp_iterator_step_constant_zero)
             << Step << Step->getSourceRange();
         IsCorrect = false;
@@ -6347,7 +6347,7 @@ ExprResult Sema::BuildCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
       }
 
       return CallExpr::Create(Context, Fn, /*Args=*/{}, Context.VoidTy,
-                              VK_RValue, RParenLoc);
+                              VK_RValue, RParenLoc, CurFPFeatureOverrides());
     }
     if (Fn->getType() == Context.PseudoObjectTy) {
       ExprResult result = CheckPlaceholderExpr(Fn);
@@ -6361,7 +6361,7 @@ ExprResult Sema::BuildCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
       if (ExecConfig) {
         return CUDAKernelCallExpr::Create(
             Context, Fn, cast<CallExpr>(ExecConfig), ArgExprs,
-            Context.DependentTy, VK_RValue, RParenLoc);
+            Context.DependentTy, VK_RValue, RParenLoc, CurFPFeatureOverrides());
       } else {
 
         tryImplicitlyCaptureThisIfImplicitMemberFunctionAccessWithDependentArgs(
@@ -6369,7 +6369,7 @@ ExprResult Sema::BuildCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
             Fn->getBeginLoc());
 
         return CallExpr::Create(Context, Fn, ArgExprs, Context.DependentTy,
-                                VK_RValue, RParenLoc);
+                                VK_RValue, RParenLoc, CurFPFeatureOverrides());
       }
     }
 
@@ -6398,7 +6398,7 @@ ExprResult Sema::BuildCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
     if (!find.HasFormOfMemberPointer) {
       if (Expr::hasAnyTypeDependentArguments(ArgExprs))
         return CallExpr::Create(Context, Fn, ArgExprs, Context.DependentTy,
-                                VK_RValue, RParenLoc);
+                                VK_RValue, RParenLoc, CurFPFeatureOverrides());
       OverloadExpr *ovl = find.Expression;
       if (UnresolvedLookupExpr *ULE = dyn_cast<UnresolvedLookupExpr>(ovl))
         return BuildOverloadedCallExpr(
@@ -6589,12 +6589,13 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
   if (Config) {
     assert(UsesADL == ADLCallKind::NotADL &&
            "CUDAKernelCallExpr should not use ADL");
-    TheCall =
-        CUDAKernelCallExpr::Create(Context, Fn, cast<CallExpr>(Config), Args,
-                                   ResultTy, VK_RValue, RParenLoc, NumParams);
+    TheCall = CUDAKernelCallExpr::Create(Context, Fn, cast<CallExpr>(Config),
+                                         Args, ResultTy, VK_RValue, RParenLoc,
+                                         CurFPFeatureOverrides(), NumParams);
   } else {
-    TheCall = CallExpr::Create(Context, Fn, Args, ResultTy, VK_RValue,
-                               RParenLoc, NumParams, UsesADL);
+    TheCall =
+        CallExpr::Create(Context, Fn, Args, ResultTy, VK_RValue, RParenLoc,
+                         CurFPFeatureOverrides(), NumParams, UsesADL);
   }
 
   if (!getLangOpts().CPlusPlus) {
@@ -6621,10 +6622,11 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
       if (Config)
         TheCall = CUDAKernelCallExpr::Create(
             Context, Fn, cast<CallExpr>(Config), Args, ResultTy, VK_RValue,
-            RParenLoc, NumParams);
+            RParenLoc, CurFPFeatureOverrides(), NumParams);
       else
-        TheCall = CallExpr::Create(Context, Fn, Args, ResultTy, VK_RValue,
-                                   RParenLoc, NumParams, UsesADL);
+        TheCall =
+            CallExpr::Create(Context, Fn, Args, ResultTy, VK_RValue, RParenLoc,
+                             CurFPFeatureOverrides(), NumParams, UsesADL);
     }
     // We can now handle the nulled arguments for the default arguments.
     TheCall->setNumArgsUnsafe(std::max<unsigned>(Args.size(), NumParams));
@@ -8131,6 +8133,15 @@ QualType Sema::CheckConditionalOperands(ExprResult &Cond, ExprResult &LHS,
   // If both operands have arithmetic type, do the usual arithmetic conversions
   // to find a common type: C99 6.5.15p3,5.
   if (LHSTy->isArithmeticType() && RHSTy->isArithmeticType()) {
+    // Disallow invalid arithmetic conversions, such as those between ExtInts of
+    // different sizes, or between ExtInts and other types.
+    if (ResTy.isNull() && (LHSTy->isExtIntType() || RHSTy->isExtIntType())) {
+      Diag(QuestionLoc, diag::err_typecheck_cond_incompatible_operands)
+          << LHSTy << RHSTy << LHS.get()->getSourceRange()
+          << RHS.get()->getSourceRange();
+      return QualType();
+    }
+
     LHS = ImpCastExprToType(LHS.get(), ResTy, PrepareScalarCast(LHS, ResTy));
     RHS = ImpCastExprToType(RHS.get(), ResTy, PrepareScalarCast(RHS, ResTy));
 
@@ -18485,9 +18496,12 @@ Sema::ConditionResult Sema::ActOnCondition(Scope *S, SourceLocation Loc,
     Cond = CheckSwitchCondition(Loc, SubExpr);
     break;
   }
-  if (Cond.isInvalid())
-    return ConditionError();
-
+  if (Cond.isInvalid()) {
+    Cond = CreateRecoveryExpr(SubExpr->getBeginLoc(), SubExpr->getEndLoc(),
+                              {SubExpr});
+    if (!Cond.get())
+      return ConditionError();
+  }
   // FIXME: FullExprArg doesn't have an invalid bit, so check nullness instead.
   FullExprArg FullExpr = MakeFullExpr(Cond.get(), Loc);
   if (!FullExpr.get())
@@ -19101,7 +19115,8 @@ ExprResult Sema::CheckPlaceholderExpr(Expr *E) {
                               CK_BuiltinFnToFnPtr)
                 .get();
         return CallExpr::Create(Context, E, /*Args=*/{}, Context.IntTy,
-                                VK_RValue, SourceLocation());
+                                VK_RValue, SourceLocation(),
+                                FPOptionsOverride());
       }
     }
 
