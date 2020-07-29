@@ -925,14 +925,14 @@ static const LangASMap *getAddressSpaceMap(const TargetInfo &T,
         2,  // opencl_constant
         0,  // opencl_private
         4,  // opencl_generic
-        11, // opencl_global_device
-        12, // opencl_global_host
-        5,  // cuda_device
-        6,  // cuda_constant
-        7,  // cuda_shared
-        8,  // ptr32_sptr
-        9,  // ptr32_uptr
-        10  // ptr64
+        5,  // opencl_global_device
+        6,  // opencl_global_host
+        7,  // cuda_device
+        8,  // cuda_constant
+        9,  // cuda_shared
+        10, // ptr32_sptr
+        11, // ptr32_uptr
+        12  // ptr64
     };
     return &FakeAddrSpaceMap;
   } else {
