@@ -204,6 +204,7 @@ namespace {
       (void)llvm::createSYCLLowerWGScopePass();
       (void)llvm::createSYCLLowerESIMDPass();
       (void)llvm::createESIMDLowerLoadStorePass();
+      (void)llvm::createESIMDLowerVecArgPass();
       std::string buf;
       llvm::raw_string_ostream os(buf);
       (void) llvm::createPrintModulePass(os);
