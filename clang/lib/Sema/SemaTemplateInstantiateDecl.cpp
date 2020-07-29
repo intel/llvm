@@ -6149,14 +6149,11 @@ NamedDecl *Sema::FindInstantiatedDecl(SourceLocation Loc, NamedDecl *D,
 }
 
 static void processSYCLKernel(Sema &S, FunctionDecl *FD, MangleContext &MC) {
-  // Because all SYCL kernel functions are template functions - they
-  // have deferred instantination. We need bodies of these functions
-  // so we are checking for SYCL kernel attribute after instantiation.
   if (S.LangOpts.SYCLIsDevice) {
     S.ConstructOpenCLKernel(FD, MC);
   } else if (S.LangOpts.SYCLIsHost) {
-    auto CRD = (*FD->param_begin())->getType()->getAsCXXRecordDecl();
-    for (auto Method : CRD->methods())
+    CXXRecordDecl *CRD = (*FD->param_begin())->getType()->getAsCXXRecordDecl();
+    for (auto *Method : CRD->methods())
       if (Method->getOverloadedOperator() == OO_Call &&
           !Method->hasAttr<AlwaysInlineAttr>())
         Method->addAttr(AlwaysInlineAttr::CreateImplicit(S.getASTContext()));
