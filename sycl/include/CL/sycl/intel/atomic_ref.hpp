@@ -604,10 +604,10 @@ public:
     return fetch_sub(difference_type(1)) - difference_type(1);
   }
 
-  bool compare_exchange_strong(T *&expected, T *desired, memory_order success,
-                               memory_order failure,
-                               memory_scope scope = default_scope) const
-      noexcept {
+  bool
+  compare_exchange_strong(T *&expected, T *desired, memory_order success,
+                          memory_order failure,
+                          memory_scope scope = default_scope) const noexcept {
     return base_type::compare_exchange_strong(
         reinterpret_cast<uintptr_t &>(expected),
         reinterpret_cast<uintptr_t>(desired), success, failure, scope);
@@ -620,10 +620,10 @@ public:
     return compare_exchange_strong(expected, desired, order, order, scope);
   }
 
-  bool compare_exchange_weak(T *&expected, T *desired, memory_order success,
-                             memory_order failure,
-                             memory_scope scope = default_scope) const
-      noexcept {
+  bool
+  compare_exchange_weak(T *&expected, T *desired, memory_order success,
+                        memory_order failure,
+                        memory_scope scope = default_scope) const noexcept {
     return base_type::compare_exchange_weak(
         reinterpret_cast<uintptr_t &>(expected),
         reinterpret_cast<uintptr_t>(desired), success, failure, scope);
