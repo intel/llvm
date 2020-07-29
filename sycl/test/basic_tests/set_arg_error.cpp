@@ -33,15 +33,23 @@ int main() {
     cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                        cl::sycl::access::target::local>
         local_acc({size}, h);
+    TriviallyCopyable tc{1, 2};
+    NonTriviallyCopyable ntc;
     h.set_arg(0, local_acc);
     h.set_arg(1, global_acc);
     h.set_arg(2, samp);
-    h.set_arg(3, TriviallyCopyable{});
+    h.set_arg(3, tc);
+    h.set_arg(4, TriviallyCopyable{});
+    h.set_arg( // expected-error {{no matching member function for call to 'set_arg'}}
+        5, ntc);
     h.set_arg( // expected-error {{no matching member function for call to 'set_arg'}}
         4, NonTriviallyCopyable{});
 #if CL_SYCL_LANGUAGE_VERSION && CL_SYCL_LANGUAGE_VERSION <= 121
+    NonStdLayout nstd;
     h.set_arg( // expected-error {{no matching member function for call to 'set_arg'}}
-        5, NonStdLayout{});
+        6, nstd);
+    h.set_arg( // expected-error {{no matching member function for call to 'set_arg'}}
+        7, NonStdLayout{});
 #endif
   });
 }
