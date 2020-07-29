@@ -805,9 +805,9 @@ public:
 
   template <typename T> struct ShouldEnableSetArg {
     static constexpr bool value =
-        std::is_trivially_copyable<remove_cv_ref_t<T>>::value
+        std::is_trivially_copyable<detail::remove_reference_t<T>>::value
 #if CL_SYCL_LANGUAGE_VERSION && CL_SYCL_LANGUAGE_VERSION <= 121
-            && std::is_standard_layout<remove_cv_ref_t<T>>::value
+            && std::is_standard_layout<detail::remove_reference_t<T>>::value
 #endif
         || is_same_type<sampler, T>::value // Sampler
         || (!is_same_type<cl_mem, T>::value &&
