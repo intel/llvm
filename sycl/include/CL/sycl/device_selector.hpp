@@ -35,9 +35,10 @@ public:
   virtual ~device_selector() = default;
 
   // deviceType is an optional parameter to set the desired device
-  // info::device_type::all means a heuristic is used to select a device with highest score
+  // info::device_type::all means a heuristic is used to select a device with
+  // highest score
   device select_device(info::device_type deviceType = info::device_type::all,
-		       backend BE = backend::level0) const;
+                       backend BE = backend::level0) const;
 
   virtual int operator()(const device &device) const = 0;
 };

@@ -11,9 +11,9 @@
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/stl.hpp>
-#include <detail/plugin.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
+#include <detail/plugin.hpp>
 // 4.6.1 Device selection class
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -33,8 +33,10 @@ static bool isDeviceOfPreferredSyclBe(const device &Device) {
 // if no such device is found, heuristic is used to select a device.
 // 'deviceType' is the desired device type
 //   info::device_type::all means it relies on the heuristic to select a device
-// 'be' is a specific desired GPU backend choice when multiple backends are found.
-device device_selector::select_device(info::device_type deviceType, backend be) const {
+// 'be' is a specific desired GPU backend choice when multiple backends are
+// found.
+device device_selector::select_device(info::device_type deviceType,
+                                      backend be) const {
   // return if a requested deviceType is found
   if (deviceType != info::device_type::all) {
     if (deviceType == info::device_type::host) {
@@ -42,33 +44,34 @@ device device_selector::select_device(info::device_type deviceType, backend be) 
       devices.resize(1);
       return devices[0];
     }
-    
+
     const vector_class<detail::plugin> &plugins = RT::initialize();
     for (unsigned int i = 0; i < plugins.size(); i++) {
       pi_uint32 numPlatforms = 0;
-      plugins[i].call<detail::PiApiKind::piPlatformsGet>(0, nullptr, &numPlatforms);
+      plugins[i].call<detail::PiApiKind::piPlatformsGet>(0, nullptr,
+                                                         &numPlatforms);
       if (numPlatforms) {
-	vector_class<RT::PiPlatform> piPlatforms(numPlatforms);
-	plugins[i].call<detail::PiApiKind::piPlatformsGet>(numPlatforms,
-						   piPlatforms.data(), nullptr);
-	for (const auto &piPlatform : piPlatforms) {
-	  platform pltf = detail::createSyclObjFromImpl<platform>(
-		std::make_shared<detail::platform_impl>(piPlatform, plugins[i]));
-	  if (!pltf.is_host()) {
-	    vector_class<device> devices = pltf.get_devices(deviceType);
-	    for (uint32_t i=0; i<devices.size(); i++) {
-	      if (deviceType != info::device_type::gpu) {
-		return devices[i];
-	      } else if (devices[i].is_gpu() && be == pltf.get_backend()) {
-		return devices[i];
-	      }
-	    }
-	  }
-	}
+        vector_class<RT::PiPlatform> piPlatforms(numPlatforms);
+        plugins[i].call<detail::PiApiKind::piPlatformsGet>(
+            numPlatforms, piPlatforms.data(), nullptr);
+        for (const auto &piPlatform : piPlatforms) {
+          platform pltf = detail::createSyclObjFromImpl<platform>(
+              std::make_shared<detail::platform_impl>(piPlatform, plugins[i]));
+          if (!pltf.is_host()) {
+            vector_class<device> devices = pltf.get_devices(deviceType);
+            for (uint32_t i = 0; i < devices.size(); i++) {
+              if (deviceType != info::device_type::gpu) {
+                return devices[i];
+              } else if (devices[i].is_gpu() && be == pltf.get_backend()) {
+                return devices[i];
+              }
+            }
+          }
+        }
       }
     }
   }
-  
+
   // return a device that has the highest score according to heuristic
   vector_class<device> devices = device::get_devices(deviceType);
   int score = REJECT_DEVICE_SCORE;
@@ -108,7 +111,7 @@ device device_selector::select_device(info::device_type deviceType, backend be) 
 
   if (res != nullptr) {
     string_class PlatformName = res->get_info<info::device::platform>()
-      .get_info<info::platform::name>();
+                                    .get_info<info::platform::name>();
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC)) {
       string_class DeviceName = res->get_info<info::device::name>();
       std::cout << "SYCL_PI_TRACE[all]: "
@@ -119,7 +122,8 @@ device device_selector::select_device(info::device_type deviceType, backend be) 
                 << "  device: " << DeviceName << std::endl;
     }
     if (deviceType != info::device_type::all) {
-      std::cout << "WARNING: the requested device and/or backend is not found.\n";
+      std::cout
+          << "WARNING: the requested device and/or backend is not found.\n";
       std::cout << PlatformName << " is chosen based on a heuristic.\n";
     }
     return *res;

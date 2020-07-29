@@ -31,11 +31,13 @@ int main() {
   default_selector ds;
   if (!pis || forcedPIs.find("level0") != std::string::npos) {
     device d = ds.select_device(info::device_type::gpu, backend::level0);
-    std::cout << "Level-zero GPU Device is found: " << std::boolalpha << d.is_gpu() << std::endl;
+    std::cout << "Level-zero GPU Device is found: " << std::boolalpha
+              << d.is_gpu() << std::endl;
   }
   if (!pis || forcedPIs.find("opencl") != std::string::npos) {
     device d = ds.select_device(info::device_type::gpu, backend::opencl);
-    std::cout << "OpenCL GPU Device is found: " << std::boolalpha << d.is_gpu() << std::endl;
+    std::cout << "OpenCL GPU Device is found: " << std::boolalpha << d.is_gpu()
+              << std::endl;
   }
   if (!pis || forcedPIs.find("opencl") != std::string::npos) {
     device d = ds.select_device(info::device_type::cpu);
@@ -51,14 +53,17 @@ int main() {
     std::cout << "ACC device is found: " << d.is_accelerator() << std::endl;
   }
   // If SYCL_FORCE_BE is not set and SYCL_BE is set to PI_LEVEL0,
-  // CPU device should not be found by get_devices() but found by select_device().
+  // CPU device should not be found by get_devices() but found by
+  // select_device().
   if (!pis && forcedBE == "PI_LEVEL0") {
-      auto devices = device::get_devices(info::device_type::cpu);
-      assert(devices.size() == 0 && "Error: CPU device is found when SYCL_BE=PI_LEVEL0");
-      device d = ds.select_device(info::device_type::cpu);
-      assert(d.is_cpu() && "Error: CPU device is not found by select_device.");
-  }  
-  // CPU device should not be loaded if SYCL_FORCE_BE does not include 'opencl' string.
+    auto devices = device::get_devices(info::device_type::cpu);
+    assert(devices.size() == 0 &&
+           "Error: CPU device is found when SYCL_BE=PI_LEVEL0");
+    device d = ds.select_device(info::device_type::cpu);
+    assert(d.is_cpu() && "Error: CPU device is not found by select_device.");
+  }
+  // CPU device should not be loaded if SYCL_FORCE_BE does not include 'opencl'
+  // string.
   if (pis && forcedPIs.find("opencl") == std::string::npos) {
     try {
       device d = ds.select_device(info::device_type::cpu);
@@ -69,7 +74,7 @@ int main() {
     std::cout << "Error: CPU device is found" << std::endl;
     return -1;
   }
-    device d = ds.select_device(info::device_type::gpu, backend::opencl);
-  
+  device d = ds.select_device(info::device_type::gpu, backend::opencl);
+
   return 0;
 }
