@@ -943,7 +943,8 @@ public:
       else if (FieldTy->isArrayType()) {
         if (KF_FOR_EACH(handleArrayType, Field, FieldTy))
           VisitArrayElements(Field, FieldTy, handlers...);
-      } else if (FieldTy->isScalarType() || FieldTy->isVectorType()) {
+      } else if (FieldTy->isScalarType() || FieldTy->isVectorType()
+                 || FieldTy->isUnionType()) {
         KF_FOR_EACH(handleScalarType, Field, FieldTy);
       } else if (FieldTy->isUnionType()) {
         KF_FOR_EACH(handleUnionType, Field, FieldTy);
@@ -1836,6 +1837,11 @@ public:
   }
 
   bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
+    addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
+    return true;
+  }
+
+  bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
     addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
     return true;
   }
