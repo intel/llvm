@@ -265,6 +265,7 @@ static void guardBlockWithIsLeaderCheck(BasicBlock *IfBB, BasicBlock *TrueBB,
   auto *Ty = LinearLocalID->getType();
   Value *Zero = Constant::getNullValue(Ty);
   IRBuilder<> Builder(IfBB->getContext());
+  spirv::genWGBarrier(*(IfBB->getTerminator()), TT);
   Builder.SetInsertPoint(IfBB->getTerminator());
   Value *Cmp = Builder.CreateICmpEQ(LinearLocalID, Zero, "cmpz");
   Builder.SetCurrentDebugLocation(DbgLoc);
