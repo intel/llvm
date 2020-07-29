@@ -423,6 +423,10 @@ inline bool isValid(spv::Decoration V) {
   case DecorationDoublepumpINTEL:
   case DecorationBankBitsINTEL:
   case DecorationForcePow2DepthINTEL:
+  case DecorationBurstCoalesceINTEL:
+  case DecorationCacheSizeINTEL:
+  case DecorationDontStaticallyCoalesceINTEL:
+  case DecorationPrefetchINTEL:
   case DecorationReferencedIndirectlyINTEL:
   case DecorationVectorComputeFunctionINTEL:
   case DecorationStackCallINTEL:
@@ -606,6 +610,7 @@ inline bool isValid(spv::Capability V) {
   case CapabilityVectorComputeINTEL:
   case CapabilityVectorAnyINTEL:
   case CapabilityFPGAMemoryAttributesINTEL:
+  case CapabilityFPGAMemoryAccessesINTEL:
   case CapabilityArbitraryPrecisionIntegersINTEL:
   case CapabilityFPGALoopControlsINTEL:
   case CapabilityBlockingPipesINTEL:

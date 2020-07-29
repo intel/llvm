@@ -255,6 +255,13 @@ const OCLMemOrderKind OCLLegacyAtomicMemOrder = OCLMO_seq_cst;
 /// OCL 1.x atomic memory scope when translated to 2.0 atomics.
 const OCLScopeKind OCLLegacyAtomicMemScope = OCLMS_device;
 
+enum IntelFPGAMemoryAccessesVal {
+  BurstCoalesce = 0x1,
+  CacheSizeFlag = 0x2,
+  DontStaticallyCoalesce = 0x4,
+  PrefetchFlag = 0x8
+};
+
 namespace kOCLVer {
 const unsigned CL12 = 102000;
 const unsigned CL20 = 200000;

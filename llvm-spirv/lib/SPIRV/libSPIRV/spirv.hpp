@@ -504,6 +504,11 @@ enum Decoration {
   DecorationMergeINTEL = 5834,
   DecorationBankBitsINTEL = 5835,
   DecorationForcePow2DepthINTEL = 5836,
+  DecorationBurstCoalesceINTEL = 5899,
+  DecorationCacheSizeINTEL = 5900,
+  DecorationDontStaticallyCoalesceINTEL = 5901,
+  DecorationPrefetchINTEL = 5902,
+  DecorationBufferLocationINTEL = 5921,
   DecorationIOPipeStorageINTEL = 5944,
   DecorationMax = 0x7fffffff,
 };
@@ -958,7 +963,9 @@ enum Capability {
   CapabilityFPGARegINTEL = 5948,
   CapabilityKernelAttributesINTEL = 5892,
   CapabilityFPGAKernelAttributesINTEL = 5897,
+  CapabilityFPGABufferLocationINTEL = 5920,
   CapabilityUSMStorageClassesINTEL = 5935,
+  CapabilityFPGAMemoryAccessesINTEL = 5898,
   CapabilityIOPipeINTEL = 5943,
   CapabilityMax = 0x7fffffff,
 };
