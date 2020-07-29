@@ -22,7 +22,7 @@ bool DWARFYAML::Data::isEmpty() const {
          !GNUPubTypes && CompileUnits.empty() && DebugLines.empty();
 }
 
-SetVector<StringRef> DWARFYAML::Data::getUsedSectionNames() const {
+SetVector<StringRef> DWARFYAML::Data::getNonEmptySectionNames() const {
   SetVector<StringRef> SecNames;
   if (!DebugStrings.empty())
     SecNames.insert("debug_str");
@@ -142,13 +142,13 @@ void MappingTraits<DWARFYAML::PubSection>::mapping(
 }
 
 void MappingTraits<DWARFYAML::Unit>::mapping(IO &IO, DWARFYAML::Unit &Unit) {
-  IO.mapOptional("Format", Unit.Format, dwarf::DWARF32);
+  IO.mapOptional("Format", Unit.FormParams.Format, dwarf::DWARF32);
   IO.mapOptional("Length", Unit.Length);
-  IO.mapRequired("Version", Unit.Version);
-  if (Unit.Version >= 5)
+  IO.mapRequired("Version", Unit.FormParams.Version);
+  if (Unit.FormParams.Version >= 5)
     IO.mapRequired("UnitType", Unit.Type);
   IO.mapRequired("AbbrOffset", Unit.AbbrOffset);
-  IO.mapRequired("AddrSize", Unit.AddrSize);
+  IO.mapRequired("AddrSize", Unit.FormParams.AddrSize);
   IO.mapOptional("Entries", Unit.Entries);
 }
 
@@ -246,6 +246,15 @@ template <typename EntryType>
 void MappingTraits<DWARFYAML::ListEntries<EntryType>>::mapping(
     IO &IO, DWARFYAML::ListEntries<EntryType> &ListEntries) {
   IO.mapOptional("Entries", ListEntries.Entries);
+  IO.mapOptional("Content", ListEntries.Content);
+}
+
+template <typename EntryType>
+StringRef MappingTraits<DWARFYAML::ListEntries<EntryType>>::validate(
+    IO &IO, DWARFYAML::ListEntries<EntryType> &ListEntries) {
+  if (ListEntries.Entries && ListEntries.Content)
+    return "Entries and Content can't be used together";
+  return StringRef();
 }
 
 template <typename EntryType>
