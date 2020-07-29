@@ -31,11 +31,11 @@ template <unsigned int N, unsigned int K> struct NextPowerOf2<N, K, false> {
   }
 };
 
-template <unsigned int N> unsigned int getNextPowerOf2() {
+template <unsigned int N> constexpr unsigned int getNextPowerOf2() {
   return NextPowerOf2<N, 1, (1 >= N)>::get();
 }
 
-template <> unsigned int getNextPowerOf2<0>() { return 0; }
+template <> constexpr unsigned int getNextPowerOf2<0>() { return 0; }
 
 /// Compute binary logarithm of a constexpr with guaranteed compile-time
 /// evaluation.

@@ -31,10 +31,10 @@
 #include "llvm/Analysis/DemandedBits.h"
 #include "llvm/Analysis/DependenceAnalysis.h"
 #include "llvm/Analysis/DominanceFrontier.h"
+#include "llvm/Analysis/FunctionPropertiesAnalysis.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/IVUsers.h"
 #include "llvm/Analysis/InlineAdvisor.h"
-#include "llvm/Analysis/InlineFeaturesAnalysis.h"
 #include "llvm/Analysis/InlineSizeEstimatorAnalysis.h"
 #include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/Analysis/LazyValueInfo.h"
@@ -274,6 +274,8 @@ extern cl::opt<bool> FlattenedProfileUsed;
 
 extern cl::opt<AttributorRunOption> AttributorRun;
 extern cl::opt<bool> EnableKnowledgeRetention;
+
+extern cl::opt<bool> EnableMatrix;
 
 const PassBuilder::OptimizationLevel PassBuilder::OptimizationLevel::O0 = {
     /*SpeedLevel*/ 0,
@@ -1093,6 +1095,11 @@ ModulePassManager PassBuilder::buildModuleOptimizationPipeline(
   OptimizePM.addPass(Float2IntPass());
   OptimizePM.addPass(LowerConstantIntrinsicsPass());
 
+  if (EnableMatrix) {
+    OptimizePM.addPass(LowerMatrixIntrinsicsPass());
+    OptimizePM.addPass(EarlyCSEPass());
+  }
+
   // FIXME: We need to run some loop optimizations to re-rotate loops after
   // simplify-cfg and others undo their rotation.
 
@@ -1763,6 +1770,8 @@ Expected<SimplifyCFGOptions> parseSimplifyCFGOptions(StringRef Params) {
       Result.convertSwitchToLookupTable(Enable);
     } else if (ParamName == "keep-loops") {
       Result.needCanonicalLoops(Enable);
+    } else if (ParamName == "hoist-common-insts") {
+      Result.hoistCommonInsts(Enable);
     } else if (ParamName == "sink-common-insts") {
       Result.sinkCommonInsts(Enable);
     } else if (Enable && ParamName.consume_front("bonus-inst-threshold=")) {

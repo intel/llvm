@@ -2,8 +2,9 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-// USUPPORTED: level0, cuda
+// UNSUPPORTED: level0, cuda
 // REQUIRES: opencl
+// REQUIRES: TEMPORARY_DISABLED
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/backend/opencl.hpp>
@@ -219,11 +220,41 @@ void test5() {
   }
 }
 
+// The test checks that an exception which is thrown from host_task body
+// is reported as asynchronous.
+void test6() {
+  queue Queue([](sycl::exception_list ExceptionList) {
+    if (ExceptionList.size() != 1) {
+      std::cerr << "Should be one exception in exception list" << std::endl;
+      std::abort();
+    }
+    std::rethrow_exception(*ExceptionList.begin());
+  });
+
+  try {
+    size_t size = 1;
+    buffer<int, 1> Buf{size};
+    Queue.submit([&](sycl::handler &CGH) {
+      auto acc = Buf.get_access<mode::write, target::host_buffer>(CGH);
+      CGH.codeplay_host_task(
+          [=](interop_handle IH) { (void)IH.get_native_mem(acc); });
+    });
+    Queue.wait_and_throw();
+    assert(!"Expected exception was not caught");
+  } catch (sycl::exception &ExpectedException) {
+    assert(std::string(ExpectedException.what())
+                   .find("memory object out of accessor for specified target "
+                         "is not allowed") != std::string::npos &&
+           "Unexpected error was caught!");
+  }
+}
+
 int main() {
   test1();
   test2();
   test3();
   test4();
   test5();
+  test6();
   return 0;
 }

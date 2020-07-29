@@ -2853,7 +2853,8 @@ def err_attribute_bad_sve_vector_size : Error<
   "invalid SVE vector size '%0', must match value set by "
   "'-msve-vector-bits' ('%1')">;
 def err_attribute_arm_feature_sve_bits_unsupported : Error<
-  "%0 is not supported when '-msve-vector-bits=<bits>' is not specified">;
+  "%0 is only supported when '-msve-vector-bits=<bits>' is specified with a "
+  "value of 128, 256, 512, 1024 or 2048.">;
 def err_attribute_requires_positive_integer : Error<
   "%0 attribute requires a %select{positive|non-negative}1 "
   "integral compile time constant expression">;
@@ -8190,6 +8191,10 @@ def warn_cast_pointer_from_sel : Warning<
 def warn_function_def_in_objc_container : Warning<
   "function definition inside an Objective-C container is deprecated">,
   InGroup<FunctionDefInObjCContainer>;
+def err_typecheck_call_requires_real_fp : Error<
+  "argument type %0 is not a real floating point type">;
+def err_typecheck_call_different_arg_types : Error<
+  "arguments are of different types%diff{ ($ vs $)|}0,1">;
 
 def warn_cast_calling_conv : Warning<
   "cast between incompatible calling conventions '%0' and '%1'; "
@@ -10969,6 +10974,12 @@ def warn_boolean_attribute_argument_is_not_valid: Warning<
 def err_sycl_attibute_cannot_be_applied_here
     : Error<"%0 attribute cannot be applied to a "
             "static function or function in an anonymous namespace">;
+def warn_sycl_pass_by_value_deprecated 
+    : Warning<"Passing kernel functions by value is deprecated in SYCL 2020">,
+      InGroup<Sycl2020Compat>;
+def warn_sycl_pass_by_reference_future 
+    : Warning<"Passing of kernel functions by reference is a SYCL 2020 extension">,
+      InGroup<Sycl2017Compat>;
 def warn_sycl_attibute_function_raw_ptr
     : Warning<"SYCL 1.2.1 specification does not allow %0 attribute applied "
               "to a function with a raw pointer "
@@ -10979,6 +10990,9 @@ def warn_sycl_implicit_decl
               "declaration for a kernel type name; your program may not "
               "be portable">,
       InGroup<SyclStrict>, DefaultIgnore;
+def warn_sycl_restrict_recursion
+    : Warning<"SYCL kernel cannot call a recursive function">,
+      InGroup<SyclStrict>, DefaultError;
 def err_ivdep_duplicate_arg : Error<
   "duplicate argument to 'ivdep'. attribute requires one or both of a safelen "
   "and array">;
