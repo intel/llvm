@@ -913,6 +913,7 @@ template <typename Group> void barrier(Group, memory_scope scope) {
                              __spv::MemorySemanticsMask::WorkgroupMemory |
                              __spv::MemorySemanticsMask::CrossWorkgroupMemory);
 #else
+  (void)scope;
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
