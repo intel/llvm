@@ -303,7 +303,7 @@ TEST(KernelAndProgramCache, ProgramBuildNegativeLinkOpts) {
   EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for programs";
 }
 
-TEST(KernelAndProgramCache, KernelCachePositive) {
+TEST(KernelAndProgramCache, KernelPositive) {
   platform Plt{default_selector()};
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     std::clog << "This test is only supported on OpenCL devices\n";
@@ -332,7 +332,7 @@ TEST(KernelAndProgramCache, KernelCachePositive) {
   EXPECT_EQ(Cache.size(), 1) << "Expect non-empty cache for kernels";
 }
 
-TEST(KernelAndProgramCache, KernelCacheNegativeBuildOpts) {
+TEST(KernelAndProgramCache, KernelNegativeBuildOpts) {
   platform Plt{default_selector()};
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     std::clog << "This test is only supported on OpenCL devices\n";
@@ -360,7 +360,8 @@ TEST(KernelAndProgramCache, KernelCacheNegativeBuildOpts) {
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
   EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for kernels";
 }
-TEST(KernelAndProgramCache, KernelCacheNegativeCompileOpts) {
+
+TEST(KernelAndProgramCache, KernelNegativeCompileOpts) {
   platform Plt{default_selector()};
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     std::clog << "This test is only supported on OpenCL devices\n";
@@ -390,7 +391,7 @@ TEST(KernelAndProgramCache, KernelCacheNegativeCompileOpts) {
   EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for kernels";
 }
 
-TEST(KernelAndProgramCache, KernelCacheNegativeLinkOpts) {
+TEST(KernelAndProgramCache, KernelNegativeLinkOpts) {
   platform Plt{default_selector()};
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     std::clog << "This test is only supported on OpenCL devices\n";
@@ -420,7 +421,7 @@ TEST(KernelAndProgramCache, KernelCacheNegativeLinkOpts) {
   EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for kernels";
 }
 
-TEST(KernelAndProgramCache, KernelCacheNegativeLinkedProgs) {
+TEST(KernelAndProgramCache, KernelNegativeLinkedProgs) {
   platform Plt{default_selector()};
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     std::clog << "This test is only supported on OpenCL devices\n";
@@ -453,7 +454,7 @@ TEST(KernelAndProgramCache, KernelCacheNegativeLinkedProgs) {
   EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for kernels";
 }
 
-TEST(KernelAndProgramCache, KernelCacheNegativeSource) {
+TEST(KernelAndProgramCache, KernelNegativeSource) {
   platform Plt{default_selector()};
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     std::clog << "This test is only supported on OpenCL devices\n";
