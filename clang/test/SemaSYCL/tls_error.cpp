@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64 -verify -Wno-sycl-2017-compat -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64 -verify -fsyntax-only %s
 
 extern __thread void* __once_callable;  // expected-no-error
 extern __thread void (*__once_call)();  // expected-no-error
@@ -14,7 +14,7 @@ void usage() {
 }
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   //expected-note@+1{{called by}}
   kernelFunc();
 }

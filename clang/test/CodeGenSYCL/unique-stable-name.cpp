@@ -33,7 +33,7 @@ void lambda_in_dependent_function() {
   {DEF_IN_MACRO();}{DEF_IN_MACRO();}
 
 template <typename KernelName, typename KernelType>
-[[clang::sycl_kernel]] void kernel_single_task(const KernelType &kernelFunc) {
+[[clang::sycl_kernel]] void kernel_single_task(KernelType kernelFunc) {
   kernelFunc();
 }
 

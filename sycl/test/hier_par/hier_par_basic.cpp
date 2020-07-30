@@ -55,7 +55,7 @@ struct PFWIFunctor {
       : wg_chunk(wg_chunk), wg_size(wg_size), wg_offset(wg_offset),
         range_length(range_length), v(v), dev_ptr(dev_ptr) {}
 
-  void operator()(h_item<1> i) const {
+  void operator()(h_item<1> i) {
     // number of buf elements per work item:
     size_t wi_chunk = (wg_chunk + wg_size - 1) / wg_size;
     auto id = i.get_physical_local_id().get(0);
@@ -82,7 +82,7 @@ struct PFWGFunctor {
       : wg_chunk(wg_chunk), range_length(range_length), dev_ptr(dev_ptr),
         addend(addend), n_iter(n_iter) {}
 
-  void operator()(group<1> g) const {
+  void operator()(group<1> g) {
     int v = addend; // to check constant initializer works too
     size_t wg_offset = wg_chunk * g.get_id(0);
     size_t wg_size = g.get_local_range(0);
@@ -95,13 +95,13 @@ struct PFWGFunctor {
   }
   // Dummy operator '()' to make sure compiler can handle multiple '()'
   // operators/ and pick the right one for PFWG kernel code generation.
-  void operator()(int ind, int val) const { dev_ptr[ind] += val; }
+  void operator()(int ind, int val) { dev_ptr[ind] += val; }
 
   const size_t wg_chunk;
   const size_t range_length;
   const int n_iter;
   const int addend;
-  mutable AccTy dev_ptr;
+  AccTy dev_ptr;
 };
 
 int main() {
