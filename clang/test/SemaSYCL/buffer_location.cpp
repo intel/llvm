@@ -9,8 +9,29 @@ template <typename... properties>
 class another_property_list {
 };
 
+struct Base {
+  int A, B;
+  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read,
+                     cl::sycl::access::target::global_buffer,
+                     cl::sycl::access::placeholder::false_t,
+                     cl::sycl::property_list<
+                         cl::sycl::property::buffer_location<1>>> AccField;
+};
+
+struct Captured : Base,
+                  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read,
+                                     cl::sycl::access::target::global_buffer,
+                                     cl::sycl::access::placeholder::false_t,
+                                     cl::sycl::property_list<
+                                         cl::sycl::property::buffer_location<1>>
+                                    > {
+  int C;
+};
+
 int main() {
 #ifndef TRIGGER_ERROR
+  // CHECK: SYCLIntelBufferLocationAttr {{.*}} Implicit 1
+  Captured Obj;
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
@@ -54,11 +75,12 @@ int main() {
       [=]() {
 #ifndef TRIGGER_ERROR
         // expected-no-diagnostics
+        Obj.use();
         accessorA.use();
         accessorB.use();
         accessorC.use();
 #else
-        //expected-error@+1{{buffer_location template parameter must be a compiletime known non-negative integer}}
+        //expected-error@+1{{buffer_location template parameter must be a non-negative integer}}
         accessorD.use();
         //expected-error@+1{{accessor's 5th template parameter must be a property_list}}
         accessorE.use();
