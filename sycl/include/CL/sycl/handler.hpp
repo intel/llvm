@@ -713,6 +713,7 @@ private:
     MNDRDesc.set(std::move(NumWorkItems));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
+    MKernelName = getKernelName();
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -792,9 +793,9 @@ public:
 
   template <typename T> struct ShouldEnableSetArg {
     static constexpr bool value =
-        std::is_trivially_copyable<T>::value
+        std::is_trivially_copyable<detail::remove_reference_t<T>>::value
 #if CL_SYCL_LANGUAGE_VERSION && CL_SYCL_LANGUAGE_VERSION <= 121
-            && std::is_standard_layout<T>::value
+            && std::is_standard_layout<detail::remove_reference_t<T>>::value
 #endif
         || is_same_type<sampler, T>::value // Sampler
         || (!is_same_type<cl_mem, T>::value &&
@@ -1201,6 +1202,7 @@ public:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
+    MKernelName = getKernelName();
   }
 
   void parallel_for(range<1> NumWorkItems, kernel Kernel) {
@@ -1234,6 +1236,7 @@ public:
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
+    MKernelName = getKernelName();
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
@@ -1254,6 +1257,7 @@ public:
     MNDRDesc.set(std::move(NDRange));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
+    MKernelName = getKernelName();
   }
 
   /// Defines and invokes a SYCL kernel function.
@@ -1276,9 +1280,10 @@ public:
     MNDRDesc.set(range<1>{1});
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>())
+    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
-    else
+      MKernelName = getKernelName();
+    } else
       StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(std::move(KernelFunc));
 #endif
   }
@@ -1316,9 +1321,10 @@ public:
     MNDRDesc.set(std::move(NumWorkItems));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>())
+    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
-    else
+      MKernelName = getKernelName();
+    } else
       StoreLambda<NameT, KernelType, Dims, LambdaArgType>(
           std::move(KernelFunc));
 #endif
@@ -1352,9 +1358,10 @@ public:
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>())
+    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
-    else
+      MKernelName = getKernelName();
+    } else
       StoreLambda<NameT, KernelType, Dims, LambdaArgType>(
           std::move(KernelFunc));
 #endif
@@ -1389,9 +1396,10 @@ public:
     MNDRDesc.set(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>())
+    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
-    else
+      MKernelName = getKernelName();
+    } else
       StoreLambda<NameT, KernelType, Dims, LambdaArgType>(
           std::move(KernelFunc));
 #endif
@@ -1782,7 +1790,7 @@ private:
   unique_ptr_class<detail::HostKernelBase> MHostKernel;
   /// Storage for lambda/function when using HostTask
   unique_ptr_class<detail::HostTask> MHostTask;
-  detail::OSModuleHandle MOSModuleHandle;
+  detail::OSModuleHandle MOSModuleHandle = detail::OSUtil::ExeModuleHandle;
   // Storage for a lambda or function when using InteropTasks
   unique_ptr_class<detail::InteropTask> MInteropTask;
   /// The list of events that order this operation.

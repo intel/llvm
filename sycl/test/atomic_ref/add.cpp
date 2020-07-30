@@ -12,11 +12,11 @@
 using namespace sycl;
 using namespace sycl::intel;
 
-template <typename T>
+template <typename T, typename Difference = T>
 void add_fetch_test(queue q, size_t N) {
   T sum = 0;
   std::vector<T> output(N);
-  std::fill(output.begin(), output.end(), 0);
+  std::fill(output.begin(), output.end(), T(0));
   {
     buffer<T> sum_buf(&sum, 1);
     buffer<T> output_buf(output.data(), output.size());
@@ -27,29 +27,29 @@ void add_fetch_test(queue q, size_t N) {
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
         auto atm = atomic_ref<T, intel::memory_order::relaxed, intel::memory_scope::device, access::address_space::global_space>(sum[0]);
-        out[gid] = atm.fetch_add(T(1));
+        out[gid] = atm.fetch_add(Difference(1));
       });
     });
   }
 
   // All work-items increment by 1, so final value should be equal to N
-  assert(sum == N);
+  assert(sum == T(N));
 
   // Fetch returns original value: will be in [0, N-1]
   auto min_e = std::min_element(output.begin(), output.end());
   auto max_e = std::max_element(output.begin(), output.end());
-  assert(*min_e == 0 && *max_e == N - 1);
+  assert(*min_e == T(0) && *max_e == T(N - 1));
 
   // Intermediate values should be unique
   std::sort(output.begin(), output.end());
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <typename T>
+template <typename T, typename Difference = T>
 void add_plus_equal_test(queue q, size_t N) {
   T sum = 0;
   std::vector<T> output(N);
-  std::fill(output.begin(), output.end(), 0);
+  std::fill(output.begin(), output.end(), T(0));
   {
     buffer<T> sum_buf(&sum, 1);
     buffer<T> output_buf(output.data(), output.size());
@@ -60,29 +60,29 @@ void add_plus_equal_test(queue q, size_t N) {
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
         auto atm = atomic_ref<T, intel::memory_order::relaxed, intel::memory_scope::device, access::address_space::global_space>(sum[0]);
-        out[gid] = atm += T(1);
+        out[gid] = atm += Difference(1);
       });
     });
   }
 
   // All work-items increment by 1, so final value should be equal to N
-  assert(sum == N);
+  assert(sum == T(N));
 
   // += returns updated value: will be in [1, N]
   auto min_e = std::min_element(output.begin(), output.end());
   auto max_e = std::max_element(output.begin(), output.end());
-  assert(*min_e == 1 && *max_e == N);
+  assert(*min_e == T(1) && *max_e == T(N));
 
   // Intermediate values should be unique
   std::sort(output.begin(), output.end());
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <typename T>
+template <typename T, typename Difference = T>
 void add_pre_inc_test(queue q, size_t N) {
   T sum = 0;
   std::vector<T> output(N);
-  std::fill(output.begin(), output.end(), 0);
+  std::fill(output.begin(), output.end(), T(0));
   {
     buffer<T> sum_buf(&sum, 1);
     buffer<T> output_buf(output.data(), output.size());
@@ -99,23 +99,23 @@ void add_pre_inc_test(queue q, size_t N) {
   }
 
   // All work-items increment by 1, so final value should be equal to N
-  assert(sum == N);
+  assert(sum == T(N));
 
   // Pre-increment returns updated value: will be in [1, N]
   auto min_e = std::min_element(output.begin(), output.end());
   auto max_e = std::max_element(output.begin(), output.end());
-  assert(*min_e == 1 && *max_e == N);
+  assert(*min_e == T(1) && *max_e == T(N));
 
   // Intermediate values should be unique
   std::sort(output.begin(), output.end());
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <typename T>
+template <typename T, typename Difference = T>
 void add_post_inc_test(queue q, size_t N) {
   T sum = 0;
   std::vector<T> output(N);
-  std::fill(output.begin(), output.end(), 0);
+  std::fill(output.begin(), output.end(), T(0));
   {
     buffer<T> sum_buf(&sum, 1);
     buffer<T> output_buf(output.data(), output.size());
@@ -132,24 +132,24 @@ void add_post_inc_test(queue q, size_t N) {
   }
 
   // All work-items increment by 1, so final value should be equal to N
-  assert(sum == N);
+  assert(sum == T(N));
 
   // Post-increment returns original value: will be in [0, N-1]
   auto min_e = std::min_element(output.begin(), output.end());
   auto max_e = std::max_element(output.begin(), output.end());
-  assert(*min_e == 0 && *max_e == N - 1);
+  assert(*min_e == T(0) && *max_e == T(N - 1));
 
   // Intermediate values should be unique
   std::sort(output.begin(), output.end());
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <typename T>
+template <typename T, typename Difference = T>
 void add_test(queue q, size_t N) {
-  add_fetch_test<T>(q, N);
-  add_plus_equal_test<T>(q, N);
-  add_pre_inc_test<T>(q, N);
-  add_post_inc_test<T>(q, N);
+  add_fetch_test<T, Difference>(q, N);
+  add_plus_equal_test<T, Difference>(q, N);
+  add_pre_inc_test<T, Difference>(q, N);
+  add_post_inc_test<T, Difference>(q, N);
 }
 
 // Floating-point types do not support pre- or post-increment
@@ -173,8 +173,6 @@ int main() {
   }
 
   constexpr int N = 32;
-
-  // TODO: Enable missing tests when supported
   add_test<int>(q, N);
   add_test<unsigned int>(q, N);
   add_test<long>(q, N);
@@ -183,7 +181,7 @@ int main() {
   add_test<unsigned long long>(q, N);
   add_test<float>(q, N);
   add_test<double>(q, N);
-  //add_test<char*>(q, N);
+  add_test<char *, ptrdiff_t>(q, N);
 
   std::cout << "Test passed." << std::endl;
 }
