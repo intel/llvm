@@ -60,7 +60,7 @@ int main() {
   if (!pis && forcedBE == "PI_LEVEL0") {
     auto devices = device::get_devices(info::device_type::cpu);
     assert(devices.size() == 0 &&
-           "Error: CPU device is found when SYCL_BE=PI_LEVEL0");
+           "Error: CPU device is found when SYCL_FORCED_PI=PI_LEVEL0");
     device d = ds.select_device(info::device_type::cpu);
     assert(d.is_cpu() && "Error: CPU device is not found by select_device.");
   }
