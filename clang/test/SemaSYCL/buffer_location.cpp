@@ -15,7 +15,8 @@ struct Base {
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
                      cl::sycl::property_list<
-                         cl::sycl::property::buffer_location<1>>> AccField;
+                         cl::sycl::property::buffer_location<1>>>
+      AccField;
 };
 
 struct Captured : Base,
@@ -23,8 +24,7 @@ struct Captured : Base,
                                      cl::sycl::access::target::global_buffer,
                                      cl::sycl::access::placeholder::false_t,
                                      cl::sycl::property_list<
-                                         cl::sycl::property::buffer_location<1>>
-                                    > {
+                                         cl::sycl::property::buffer_location<1>>> {
   int C;
 };
 
@@ -67,8 +67,8 @@ int main() {
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
                      cl::sycl::property_list<
-                       cl::sycl::property::buffer_location<1>,
-                       cl::sycl::property::buffer_location<2>>>
+                         cl::sycl::property::buffer_location<1>,
+                         cl::sycl::property::buffer_location<2>>>
       accessorF;
 #endif
   cl::sycl::kernel_single_task<class kernel_function>(

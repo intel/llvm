@@ -8,10 +8,11 @@
 struct Base {
   int A, B;
   cl::sycl::accessor<char, 1, cl::sycl::access::mode::read,
-    cl::sycl::access::target::global_buffer,
-    cl::sycl::access::placeholder::false_t,
-    cl::sycl::property_list<
-        cl::sycl::property::buffer_location<2>>> AccField;
+                     cl::sycl::access::target::global_buffer,
+                     cl::sycl::access::placeholder::false_t,
+                     cl::sycl::property_list<
+                         cl::sycl::property::buffer_location<2>>>
+      AccField;
 };
 
 struct Captured : Base,
@@ -19,8 +20,7 @@ struct Captured : Base,
                                      cl::sycl::access::target::global_buffer,
                                      cl::sycl::access::placeholder::false_t,
                                      cl::sycl::property_list<
-                                         cl::sycl::property::buffer_location<2>>
-                                     > {
+                                         cl::sycl::property::buffer_location<2>>> {
   int C;
 };
 
