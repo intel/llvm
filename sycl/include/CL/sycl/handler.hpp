@@ -249,7 +249,7 @@ private:
                             typename std::remove_reference<T>::type>::type>
   F *storePlainArg(T &&Arg) {
     MArgsStorage.emplace_back(sizeof(T));
-    F *Storage = reinterpret_cast<F *>(MArgsStorage.back().data());
+    auto Storage = reinterpret_cast<F *>(MArgsStorage.back().data());
     *Storage = Arg;
     return Storage;
   }
@@ -308,7 +308,7 @@ private:
   ///
   /// \param Stream is a pointer to SYCL stream.
   void addStream(const shared_ptr_class<detail::stream_impl> &Stream) {
-    MStreamStorage.push_back(Stream);
+    MSharedPtrStorage.push_back(Stream);
   }
 
   /// Saves buffers created by handling reduction feature in handler.
@@ -317,8 +317,8 @@ private:
   /// The 'MSharedPtrStorage' suits that need.
   ///
   /// @param ReduObj is a pointer to object that must be stored.
-  void addReduction(shared_ptr_class<const void> ReduObj) {
-    MSharedPtrStorage.push_back(std::move(ReduObj));
+  void addReduction(const shared_ptr_class<const void> &ReduObj) {
+    MSharedPtrStorage.push_back(ReduObj);
   }
 
   ~handler() = default;
@@ -374,7 +374,7 @@ private:
   }
 
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
-    void *StoredArg = static_cast<void *>(storePlainArg(Arg));
+    auto StoredArg = static_cast<void *>(storePlainArg(Arg));
 
     if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
       MArgs.emplace_back(detail::kernel_param_kind_t::kind_pointer, StoredArg,
@@ -386,7 +386,7 @@ private:
   }
 
   void setArgHelper(int ArgIndex, sampler &&Arg) {
-    void *StoredArg = static_cast<void *>(storePlainArg(Arg));
+    auto StoredArg = static_cast<void *>(storePlainArg(Arg));
     MArgs.emplace_back(detail::kernel_param_kind_t::kind_sampler, StoredArg,
                        sizeof(sampler), ArgIndex);
   }
@@ -1692,7 +1692,7 @@ public:
       MAccStorage.push_back(std::move(AccImpl));
 
       MPattern.resize(sizeof(T));
-      T *PatternPtr = reinterpret_cast<T *>(MPattern.data());
+      auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
       *PatternPtr = Pattern;
     } else {
 
@@ -1754,7 +1754,6 @@ private:
   vector_class<vector_class<char>> MArgsStorage;
   vector_class<detail::AccessorImplPtr> MAccStorage;
   vector_class<detail::LocalAccessorImplPtr> MLocalAccStorage;
-  vector_class<shared_ptr_class<detail::stream_impl>> MStreamStorage;
   vector_class<shared_ptr_class<const void>> MSharedPtrStorage;
   /// The list of arguments for the kernel.
   vector_class<detail::ArgDesc> MArgs;

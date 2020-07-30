@@ -455,7 +455,7 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req) {
 Command *Scheduler::GraphBuilder::addCGUpdateHost(
     std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr HostQueue) {
 
-  CGUpdateHost *UpdateHost = static_cast<CGUpdateHost *>(CommandGroup.get());
+  auto UpdateHost = static_cast<CGUpdateHost *>(CommandGroup.get());
   Requirement *Req = UpdateHost->getReqToUpdate();
 
   MemObjRecord *Record = getOrInsertMemObjRecord(HostQueue, Req);
