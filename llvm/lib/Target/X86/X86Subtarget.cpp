@@ -228,9 +228,8 @@ bool X86Subtarget::isLegalToCallImmediateAddr() const {
 }
 
 void X86Subtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
-  std::string CPUName = std::string(CPU);
-  if (CPUName.empty())
-    CPUName = "generic";
+  if (CPU.empty())
+    CPU = "generic";
 
   std::string FullFS = std::string(FS);
   if (In64BitMode) {
@@ -240,26 +239,10 @@ void X86Subtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
       FullFS = "+sse2," + FullFS;
     else
       FullFS = "+sse2";
-
-    // If no CPU was specified, enable 64bit feature to satisy later check.
-    if (CPUName == "generic") {
-      if (!FullFS.empty())
-        FullFS = "+64bit," + FullFS;
-      else
-        FullFS = "+64bit";
-    }
-  }
-
-  // LAHF/SAHF are always supported in non-64-bit mode.
-  if (!In64BitMode) {
-    if (!FullFS.empty())
-      FullFS = "+sahf," + FullFS;
-    else
-      FullFS = "+sahf";
   }
 
   // Parse features string and set the CPU.
-  ParseSubtargetFeatures(CPUName, FullFS);
+  ParseSubtargetFeatures(CPU, FullFS);
 
   // All CPUs that implement SSE4.2 or SSE4A support unaligned accesses of
   // 16-bytes and under that are reasonably fast. These features were

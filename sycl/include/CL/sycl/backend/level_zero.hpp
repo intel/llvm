@@ -14,37 +14,37 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-template <> struct interop<backend::level0, platform> {
+template <> struct interop<backend::level_zero, platform> {
   using type = ze_driver_handle_t;
 };
 
-template <> struct interop<backend::level0, device> {
+template <> struct interop<backend::level_zero, device> {
   using type = ze_device_handle_t;
 };
 
-template <> struct interop<backend::level0, queue> {
+template <> struct interop<backend::level_zero, queue> {
   using type = ze_command_queue_handle_t;
 };
 
-template <> struct interop<backend::level0, program> {
+template <> struct interop<backend::level_zero, program> {
   using type = ze_module_handle_t;
 };
 
 template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::level0, accessor<DataT, Dimensions, AccessMode,
-                                         access::target::global_buffer,
-                                         access::placeholder::false_t>> {
+struct interop<backend::level_zero, accessor<DataT, Dimensions, AccessMode,
+                                             access::target::global_buffer,
+                                             access::placeholder::false_t>> {
   using type = char *;
 };
 
 template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::level0, accessor<DataT, Dimensions, AccessMode,
-                                         access::target::constant_buffer,
-                                         access::placeholder::false_t>> {
+struct interop<backend::level_zero, accessor<DataT, Dimensions, AccessMode,
+                                             access::target::constant_buffer,
+                                             access::placeholder::false_t>> {
   using type = char *;
 };
 
-namespace level0 {
+namespace level_zero {
 
 // Implementation of various "make" functions resides in libsycl.so
 platform make_platform(pi_native_handle NativeHandle);
@@ -55,7 +55,7 @@ queue make_queue(const context &Context, pi_native_handle InteropHandle);
 // Construction of SYCL platform.
 template <typename T, typename std::enable_if<
                           std::is_same<T, platform>::value>::type * = nullptr>
-T make(typename interop<backend::level0, T>::type Interop) {
+T make(typename interop<backend::level_zero, T>::type Interop) {
   return make_platform(reinterpret_cast<pi_native_handle>(Interop));
 }
 
@@ -63,7 +63,7 @@ T make(typename interop<backend::level0, T>::type Interop) {
 template <typename T, typename std::enable_if<
                           std::is_same<T, device>::value>::type * = nullptr>
 T make(const platform &Platform,
-       typename interop<backend::level0, T>::type Interop) {
+       typename interop<backend::level_zero, T>::type Interop) {
   return make_device(Platform, reinterpret_cast<pi_native_handle>(Interop));
 }
 
@@ -71,7 +71,7 @@ T make(const platform &Platform,
 template <typename T, typename std::enable_if<
                           std::is_same<T, program>::value>::type * = nullptr>
 T make(const context &Context,
-       typename interop<backend::level0, T>::type Interop) {
+       typename interop<backend::level_zero, T>::type Interop) {
   return make_program(Context, reinterpret_cast<pi_native_handle>(Interop));
 }
 
@@ -79,10 +79,10 @@ T make(const context &Context,
 template <typename T, typename std::enable_if<
                           std::is_same<T, queue>::value>::type * = nullptr>
 T make(const context &Context,
-       typename interop<backend::level0, T>::type Interop) {
+       typename interop<backend::level_zero, T>::type Interop) {
   return make_queue(Context, reinterpret_cast<pi_native_handle>(Interop));
 }
 
-} // namespace level0
+} // namespace level_zero
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -32,7 +32,7 @@ static const std::string help =
     "   Help\n"
     "   Example: ./get_device_count_by_type cpu opencl\n"
     "   Supported device types: cpu/gpu/accelerator/default/all\n"
-    "   Supported backends: PI_CUDA/PI_OPENCL/PI_LEVEL0 \n"
+    "   Supported backends: PI_CUDA/PI_OPENCL/PI_LEVEL_ZERO \n"
     "   Output format: <number_of_devices>:<additional_Information>";
 
 // Return the string with all characters translated to lower case.
@@ -259,7 +259,7 @@ int main(int argc, char *argv[]) {
 
   if (backend == "opencl" || backend == "pi_opencl") {
     querySuccess = queryOpenCL(deviceType, deviceCount, msg);
-  } else if (backend == "level0" || backend == "pi_level0") {
+  } else if (backend == "level_zero" || backend == "pi_level_zero") {
     querySuccess = queryLevelZero(deviceType, deviceCount, msg);
   } else if (backend == "cuda" || backend == "pi_cuda") {
     querySuccess = queryCUDA(deviceType, deviceCount, msg);
