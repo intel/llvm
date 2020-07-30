@@ -26,7 +26,7 @@ using MyAccessorA = cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_writ
                                        cl::sycl::access::target::global_buffer>;
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
   kernelFunc();
 }
 

@@ -1,16 +1,15 @@
-// RUN: %clang_cc1 %s -fsyntax-only -fsycl -fsycl-is-device -Wno-sycl-2017-compat -triple spir64 -DTRIGGER_ERROR -verify
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl -fsycl-is-device -Wno-sycl-2017-compat -triple spir64 | FileCheck %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-host -Wno-sycl-2017-compat -fsyntax-only -verify %s
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl -fsycl-is-device -triple spir64 -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl -fsycl-is-device -triple spir64 | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-host -fsyntax-only -verify %s
 
 #ifndef __SYCL_DEVICE_ONLY__
 struct FuncObj {
   [[intelfpga::max_global_work_dim(1)]] // expected-no-diagnostics
-  void
-  operator()() const {}
+  void operator()() {}
 };
 
 template <typename name, typename Func>
-void kernel(const Func &kernelFunc) {
+void kernel(Func kernelFunc) {
   kernelFunc();
 }
 
@@ -24,21 +23,22 @@ void foo() {
 [[intelfpga::max_global_work_dim(2)]] void func_do_not_ignore() {}
 
 struct FuncObj {
-  [[intelfpga::max_global_work_dim(1)]] void operator()() const {}
+  [[intelfpga::max_global_work_dim(1)]]
+  void operator()() {}
 };
 
 struct TRIFuncObjGood1 {
   [[intelfpga::max_global_work_dim(0)]]
   [[intelfpga::max_work_group_size(1, 1, 1)]]
-  [[cl::reqd_work_group_size(1, 1, 1)]] void
-  operator()() const {}
+  [[cl::reqd_work_group_size(1, 1, 1)]]
+  void operator()() {}
 };
 
 struct TRIFuncObjGood2 {
   [[intelfpga::max_global_work_dim(3)]]
   [[intelfpga::max_work_group_size(8, 1, 1)]]
-  [[cl::reqd_work_group_size(4, 1, 1)]] void
-  operator()() const {}
+  [[cl::reqd_work_group_size(4, 1, 1)]]
+  void operator()() {}
 };
 
 #ifdef TRIGGER_ERROR
@@ -46,13 +46,12 @@ struct TRIFuncObjBad {
   [[intelfpga::max_global_work_dim(0)]]
   [[intelfpga::max_work_group_size(8, 8, 8)]] // expected-error{{'max_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
   [[cl::reqd_work_group_size(4, 4, 4)]] // expected-error{{'reqd_work_group_size' X-, Y- and Z- sizes must be 1 when 'max_global_work_dim' attribute is used with value 0}}
-  void
-  operator()() const {}
+  void operator()() {}
 };
 #endif // TRIGGER_ERROR
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
   kernelFunc();
 }
 

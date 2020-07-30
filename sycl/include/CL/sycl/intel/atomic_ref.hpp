@@ -135,8 +135,6 @@ class atomic_ref_base {
   static_assert(!(std::is_same<T, short>::value ||
                   std::is_same<T, unsigned short>::value),
                 "intel::atomic_ref does not support short type");
-  static_assert(!std::is_pointer<T>::value,
-                "intel::atomic_ref does not yet support pointer types");
   static_assert(detail::IsValidAtomicAddressSpace<AddressSpace>::value,
                 "Invalid atomic address_space.  Valid address spaces are: "
                 "global_space, local_space, global_device_space");
@@ -508,12 +506,138 @@ private:
 };
 
 // Partial specialization for pointer types
+// Arithmetic is emulated because target's representation of T* is unknown
+// TODO: Find a way to use intptr_t or uintptr_t atomics instead
 template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
           access::address_space AddressSpace>
-class atomic_ref_impl<T *, DefaultOrder, DefaultScope, AddressSpace,
-                      typename detail::enable_if_t<std::is_pointer<T>::value>>
-    : public atomic_ref_base<T *, DefaultOrder, DefaultScope, AddressSpace> {
-  // TODO: Implement partial specialization for pointer types
+class atomic_ref_impl<T *, DefaultOrder, DefaultScope, AddressSpace>
+    : public atomic_ref_base<uintptr_t, DefaultOrder, DefaultScope,
+                             AddressSpace> {
+
+private:
+  using base_type =
+      atomic_ref_base<uintptr_t, DefaultOrder, DefaultScope, AddressSpace>;
+
+public:
+  using value_type = T *;
+  using difference_type = ptrdiff_t;
+  static constexpr size_t required_alignment = sizeof(T *);
+  static constexpr bool is_always_lock_free =
+      detail::IsValidAtomicType<T>::value;
+  static constexpr memory_order default_read_order =
+      detail::memory_order_traits<DefaultOrder>::read_order;
+  static constexpr memory_order default_write_order =
+      detail::memory_order_traits<DefaultOrder>::write_order;
+  static constexpr memory_order default_read_modify_write_order = DefaultOrder;
+  static constexpr memory_scope default_scope = DefaultScope;
+
+  using base_type::is_lock_free;
+
+  atomic_ref_impl(T *&ref) : base_type(reinterpret_cast<uintptr_t &>(ref)) {}
+
+  void store(T *operand, memory_order order = default_write_order,
+             memory_scope scope = default_scope) const noexcept {
+    base_type::store(reinterpret_cast<uintptr_t>(operand), order, scope);
+  }
+
+  T *operator=(T *desired) const noexcept {
+    store(desired);
+    return desired;
+  }
+
+  T *load(memory_order order = default_read_order,
+          memory_scope scope = default_scope) const noexcept {
+    return reinterpret_cast<T *>(base_type::load(order, scope));
+  }
+
+  operator T *() const noexcept { return load(); }
+
+  T *exchange(T *operand, memory_order order = default_read_modify_write_order,
+              memory_scope scope = default_scope) const noexcept {
+    return reinterpret_cast<T *>(base_type::exchange(
+        reinterpret_cast<uintptr_t>(operand), order, scope));
+  }
+
+  T *fetch_add(difference_type operand,
+               memory_order order = default_read_modify_write_order,
+               memory_scope scope = default_scope) const noexcept {
+    // TODO: Find a way to avoid compare_exchange here
+    auto load_order = detail::getLoadOrder(order);
+    T *expected = load(load_order, scope);
+    T *desired;
+    do {
+      desired = expected + operand;
+    } while (!compare_exchange_weak(expected, desired, order, scope));
+    return expected;
+  }
+
+  T *operator+=(difference_type operand) const noexcept {
+    return fetch_add(operand) + operand;
+  }
+
+  T *operator++(int) const noexcept { return fetch_add(difference_type(1)); }
+
+  T *operator++() const noexcept {
+    return fetch_add(difference_type(1)) + difference_type(1);
+  }
+
+  T *fetch_sub(difference_type operand,
+               memory_order order = default_read_modify_write_order,
+               memory_scope scope = default_scope) const noexcept {
+    // TODO: Find a way to avoid compare_exchange here
+    auto load_order = detail::getLoadOrder(order);
+    T *expected = load(load_order, scope);
+    T *desired;
+    do {
+      desired = expected - operand;
+    } while (!compare_exchange_weak(expected, desired, order, scope));
+    return expected;
+  }
+
+  T *operator-=(difference_type operand) const noexcept {
+    return fetch_sub(operand) - operand;
+  }
+
+  T *operator--(int) const noexcept { return fetch_sub(difference_type(1)); }
+
+  T *operator--() const noexcept {
+    return fetch_sub(difference_type(1)) - difference_type(1);
+  }
+
+  bool
+  compare_exchange_strong(T *&expected, T *desired, memory_order success,
+                          memory_order failure,
+                          memory_scope scope = default_scope) const noexcept {
+    return base_type::compare_exchange_strong(
+        reinterpret_cast<uintptr_t &>(expected),
+        reinterpret_cast<uintptr_t>(desired), success, failure, scope);
+  }
+
+  bool
+  compare_exchange_strong(T *&expected, T *desired,
+                          memory_order order = default_read_modify_write_order,
+                          memory_scope scope = default_scope) const noexcept {
+    return compare_exchange_strong(expected, desired, order, order, scope);
+  }
+
+  bool
+  compare_exchange_weak(T *&expected, T *desired, memory_order success,
+                        memory_order failure,
+                        memory_scope scope = default_scope) const noexcept {
+    return base_type::compare_exchange_weak(
+        reinterpret_cast<uintptr_t &>(expected),
+        reinterpret_cast<uintptr_t>(desired), success, failure, scope);
+  }
+
+  bool
+  compare_exchange_weak(T *&expected, T *desired,
+                        memory_order order = default_read_modify_write_order,
+                        memory_scope scope = default_scope) const noexcept {
+    return compare_exchange_weak(expected, desired, order, order, scope);
+  }
+
+private:
+  using base_type::ptr;
 };
 
 } // namespace detail

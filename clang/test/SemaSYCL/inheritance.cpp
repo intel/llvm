@@ -24,7 +24,7 @@ public:
 struct derived : base, second_base {
   int a;
 
-  void operator()() const {
+  void operator()() {
   }
 };
 

@@ -11,6 +11,7 @@
 define internal spir_func void @wibble(%struct.baz* byval(%struct.baz) %arg1) !work_group_scope !0 {
 ; CHECK-LABEL: @wibble(
 ; CHECK-NEXT:    [[TMP1:%.*]] = load i64, i64 addrspace(1)* @__spirv_BuiltInLocalInvocationIndex
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272)
 ; CHECK-NEXT:    [[CMPZ:%.*]] = icmp eq i64 [[TMP1]], 0
 ; CHECK-NEXT:    br i1 [[CMPZ]], label [[LEADER:%.*]], label [[MERGE:%.*]]
 ; CHECK:       leader:
