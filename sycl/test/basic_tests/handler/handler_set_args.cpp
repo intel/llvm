@@ -22,7 +22,7 @@ using AccessorT = cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
 struct SingleTaskFunctor {
   SingleTaskFunctor(AccessorT acc) : MAcc(acc) {}
 
-  void operator()() { MAcc[0] = 10; }
+  void operator()() const { MAcc[0] = 10; }
 
   AccessorT MAcc;
 };
@@ -30,7 +30,7 @@ struct SingleTaskFunctor {
 template <bool useOffset> struct ParallelForRangeIdFunctor {
   ParallelForRangeIdFunctor(AccessorT acc) : MAcc(acc) {}
 
-  void operator()(cl::sycl::id<1> id) { MAcc[0] = 10; }
+  void operator()(cl::sycl::id<1> id) const { MAcc[0] = 10; }
 
   AccessorT MAcc;
 };
@@ -38,7 +38,7 @@ template <bool useOffset> struct ParallelForRangeIdFunctor {
 template <bool useOffset> struct ParallelForRangeItemFunctor {
   ParallelForRangeItemFunctor(AccessorT acc) : MAcc(acc) {}
 
-  void operator()(cl::sycl::item<1> item) { MAcc[0] = 10; }
+  void operator()(cl::sycl::item<1> item) const { MAcc[0] = 10; }
 
   AccessorT MAcc;
 };
@@ -46,7 +46,7 @@ template <bool useOffset> struct ParallelForRangeItemFunctor {
 struct ParallelForNdRangeFunctor {
   ParallelForNdRangeFunctor(AccessorT acc) : MAcc(acc) {}
 
-  void operator()(cl::sycl::nd_item<1> ndItem) { MAcc[0] = 10; }
+  void operator()(cl::sycl::nd_item<1> ndItem) const { MAcc[0] = 10; }
 
   AccessorT MAcc;
 };

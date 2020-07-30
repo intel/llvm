@@ -734,16 +734,14 @@ private:
   // NOTE: the name of this function - "kernel_single_task" - is used by the
   // Front End to determine kernel invocation kind.
   template <typename KernelName, typename KernelType>
-  __attribute__((sycl_kernel)) void
-  kernel_single_task(const KernelType &KernelFunc) {
+  __attribute__((sycl_kernel)) void kernel_single_task(KernelType KernelFunc) {
     KernelFunc();
   }
 
   // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
   // Front End to determine kernel invocation kind.
   template <typename KernelName, typename ElementType, typename KernelType>
-  __attribute__((sycl_kernel)) void
-  kernel_parallel_for(const KernelType &KernelFunc) {
+  __attribute__((sycl_kernel)) void kernel_parallel_for(KernelType KernelFunc) {
     KernelFunc(
         detail::Builder::getElement(static_cast<ElementType *>(nullptr)));
   }
@@ -752,7 +750,7 @@ private:
   // used by the Front End to determine kernel invocation kind.
   template <typename KernelName, typename ElementType, typename KernelType>
   __attribute__((sycl_kernel)) void
-  kernel_parallel_for_work_group(const KernelType &KernelFunc) {
+  kernel_parallel_for_work_group(KernelType KernelFunc) {
     KernelFunc(
         detail::Builder::getElement(static_cast<ElementType *>(nullptr)));
   }
@@ -855,7 +853,7 @@ public:
   ///
   /// \param KernelFunc is a SYCL kernel function.
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void single_task(const KernelType &KernelFunc) {
+  void single_task(KernelType KernelFunc) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -872,17 +870,17 @@ public:
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void parallel_for(range<1> NumWorkItems, const KernelType &KernelFunc) {
+  void parallel_for(range<1> NumWorkItems, KernelType KernelFunc) {
     parallel_for_lambda_impl<KernelName>(NumWorkItems, std::move(KernelFunc));
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void parallel_for(range<2> NumWorkItems, const KernelType &KernelFunc) {
+  void parallel_for(range<2> NumWorkItems, KernelType KernelFunc) {
     parallel_for_lambda_impl<KernelName>(NumWorkItems, std::move(KernelFunc));
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void parallel_for(range<3> NumWorkItems, const KernelType &KernelFunc) {
+  void parallel_for(range<3> NumWorkItems, KernelType KernelFunc) {
     parallel_for_lambda_impl<KernelName>(NumWorkItems, std::move(KernelFunc));
   }
 
@@ -945,7 +943,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                    const KernelType &KernelFunc) {
+                    KernelType KernelFunc) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -977,8 +975,7 @@ public:
   /// \param KernelFunc is a SYCL kernel function.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  void parallel_for(nd_range<Dims> ExecutionRange,
-                    const KernelType &KernelFunc) {
+  void parallel_for(nd_range<Dims> ExecutionRange, KernelType KernelFunc) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1005,8 +1002,7 @@ public:
             int Dims, typename Reduction>
   detail::enable_if_t<Reduction::accessor_mode == access::mode::read_write &&
                       Reduction::has_fast_atomics && !Reduction::is_usm>
-  parallel_for(nd_range<Dims> Range, Reduction Redu,
-               const KernelType &KernelFunc) {
+  parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
                                           Redu.getUserAccessor());
   }
@@ -1019,8 +1015,7 @@ public:
             int Dims, typename Reduction>
   detail::enable_if_t<Reduction::accessor_mode == access::mode::read_write &&
                       Reduction::has_fast_atomics && Reduction::is_usm>
-  parallel_for(nd_range<Dims> Range, Reduction Redu,
-               const KernelType &KernelFunc) {
+  parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
                                           Redu.getUSMPointer());
   }
@@ -1039,8 +1034,7 @@ public:
             int Dims, typename Reduction>
   detail::enable_if_t<Reduction::accessor_mode == access::mode::discard_write &&
                       Reduction::has_fast_atomics>
-  parallel_for(nd_range<Dims> Range, Reduction Redu,
-               const KernelType &KernelFunc) {
+  parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
     shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     auto RWAcc = Redu.getReadWriteScalarAcc(*this);
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
@@ -1076,8 +1070,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims, typename Reduction>
   detail::enable_if_t<!Reduction::has_fast_atomics>
-  parallel_for(nd_range<Dims> Range, Reduction Redu,
-               const KernelType &KernelFunc) {
+  parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
     // This parallel_for() is lowered to the following sequence:
     // 1) Call a kernel that a) call user's lambda function and b) performs
     //    one iteration of reduction, storing the partial reductions/sums
@@ -1152,7 +1145,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for_work_group(range<Dims> NumWorkGroups,
-                               const KernelType &KernelFunc) {
+                               KernelType KernelFunc) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1185,7 +1178,7 @@ public:
             int Dims>
   void parallel_for_work_group(range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize,
-                               const KernelType &KernelFunc) {
+                               KernelType KernelFunc) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1287,7 +1280,7 @@ public:
   /// \param KernelFunc is a lambda that is used if device, queue is bound to,
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void single_task(kernel Kernel, const KernelType &KernelFunc) {
+  void single_task(kernel Kernel, KernelType KernelFunc) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1327,7 +1320,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
-                    const KernelType &KernelFunc) {
+                    KernelType KernelFunc) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1362,7 +1355,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
-                    id<Dims> WorkItemOffset, const KernelType &KernelFunc) {
+                    id<Dims> WorkItemOffset, KernelType KernelFunc) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1399,7 +1392,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(kernel Kernel, nd_range<Dims> NDRange,
-                    const KernelType &KernelFunc) {
+                    KernelType KernelFunc) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1441,7 +1434,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for_work_group(kernel Kernel, range<Dims> NumWorkGroups,
-                               const KernelType &KernelFunc) {
+                               KernelType KernelFunc) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1479,7 +1472,7 @@ public:
             int Dims>
   void parallel_for_work_group(kernel Kernel, range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize,
-                               const KernelType &KernelFunc) {
+                               KernelType KernelFunc) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;

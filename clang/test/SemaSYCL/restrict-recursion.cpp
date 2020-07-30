@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -Wno-return-type -verify -Wno-sycl-2017-compat -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -Wno-return-type -verify -fsyntax-only -std=c++17 %s
 
 // This recursive function is not called from sycl kernel,
 // so it should not be diagnosed.
@@ -57,7 +57,7 @@ bool isa_B(void) {
 }
 
 template <typename N, typename L>
-__attribute__((sycl_kernel)) void kernel(const L &l) {
+__attribute__((sycl_kernel)) void kernel(L l) {
   l();
 }
 
@@ -85,13 +85,13 @@ int addInt(int n, int m) {
 }
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
 }
 
 template <typename name, typename Func>
-// expected-note@+1 2{{function implemented using recursion declared here}}
-__attribute__((sycl_kernel)) void kernel_single_task2(const Func &kernelFunc) {
+  // expected-note@+1 2{{function implemented using recursion declared here}}
+__attribute__((sycl_kernel)) void kernel_single_task2(Func kernelFunc) {
   kernelFunc();
   // expected-error@+1 2{{SYCL kernel cannot call a recursive function}}
   kernel_single_task2<name, Func>(kernelFunc);

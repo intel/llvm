@@ -110,10 +110,12 @@ void test() {
   // CHECK: call spir_func void @{{.*}}bar{{.*}}(%struct.{{.*}}.HasX addrspace(4)* align 4 dereferenceable(4) %[[SECOND]])
 }
 
+
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
 }
+
 
 int main() {
   kernel_single_task<class fake_kernel>([]() { test(); });

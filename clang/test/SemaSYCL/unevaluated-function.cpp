@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -verify -Wno-sycl-2017-compat -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -verify -fsyntax-only %s
 
 // Check that a function used in an unevaluated context is not subject
 // to delayed device diagnostics.
@@ -24,7 +24,7 @@ bool foo3() {
 }
 
 template <typename Name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   // expected-note@+1 1{{called by}}
   kernelFunc();
 }

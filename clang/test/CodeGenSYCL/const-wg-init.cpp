@@ -4,7 +4,7 @@
 
 template <typename KernelName, typename KernelType>
 __attribute__((sycl_kernel)) void
-kernel_parallel_for_work_group(const KernelType &KernelFunc) {
+kernel_parallel_for_work_group(KernelType KernelFunc) {
   cl::sycl::group<1> G;
   KernelFunc(G);
 }
