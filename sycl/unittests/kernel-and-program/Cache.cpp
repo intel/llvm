@@ -95,9 +95,8 @@ static pi_result redefinedKernelGetInfo(pi_kernel kernel,
 
 TEST(KernelAndProgramCache, ProgramSourceNegativeBuild) {
   platform Plt{default_selector()};
-  if (Plt.is_host() ||
-      Plt.get_info<info::platform::name>().find("CUDA") != std::string::npos) {
-    std::clog << "This test is not supported on host and CUDA devices\n";
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
 
@@ -122,9 +121,8 @@ TEST(KernelAndProgramCache, ProgramSourceNegativeBuild) {
 
 TEST(KernelAndProgramCache, ProgramSourceNegativeBuildWithOpts) {
   platform Plt{default_selector()};
-  if (Plt.is_host() ||
-      Plt.get_info<info::platform::name>().find("CUDA") != std::string::npos) {
-    std::clog << "This test is not supported on host and CUDA devices\n";
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
 
@@ -149,9 +147,8 @@ TEST(KernelAndProgramCache, ProgramSourceNegativeBuildWithOpts) {
 
 TEST(KernelAndProgramCache, ProgramSourceNegativeCompileAndLink) {
   platform Plt{default_selector()};
-  if (Plt.is_host() ||
-      Plt.get_info<info::platform::name>().find("CUDA") != std::string::npos) {
-    std::clog << "This test is not supported on host and CUDA devices\n";
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
 
@@ -178,9 +175,8 @@ TEST(KernelAndProgramCache, ProgramSourceNegativeCompileAndLink) {
 
 TEST(KernelAndProgramCache, ProgramSourceNegativeCompileAndLinkWithOpts) {
   platform Plt{default_selector()};
-  if (Plt.is_host() ||
-      Plt.get_info<info::platform::name>().find("CUDA") != std::string::npos) {
-    std::clog << "This test is not supported on host and CUDA devices\n";
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
 
@@ -207,9 +203,8 @@ TEST(KernelAndProgramCache, ProgramSourceNegativeCompileAndLinkWithOpts) {
 
 TEST(KernelAndProgramCache, ProgramBuildPositive) {
   platform Plt{default_selector()};
-  if (Plt.is_host() ||
-      Plt.get_info<info::platform::name>().find("CUDA") != std::string::npos) {
-    std::clog << "This test is not supported on host and CUDA devices\n";
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
 
@@ -233,9 +228,8 @@ TEST(KernelAndProgramCache, ProgramBuildPositive) {
 
 TEST(KernelAndProgramCache, ProgramBuildNegativeBuildOpts) {
   platform Plt{default_selector()};
-  if (Plt.is_host() ||
-      Plt.get_info<info::platform::name>().find("CUDA") != std::string::npos) {
-    std::clog << "This test is not supported on host and CUDA devices\n";
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
 
@@ -259,9 +253,8 @@ TEST(KernelAndProgramCache, ProgramBuildNegativeBuildOpts) {
 
 TEST(KernelAndProgramCache, ProgramBuildNegativeCompileOpts) {
   platform Plt{default_selector()};
-  if (Plt.is_host() ||
-      Plt.get_info<info::platform::name>().find("CUDA") != std::string::npos) {
-    std::clog << "This test is not supported on host and CUDA devices\n";
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
 
@@ -286,9 +279,8 @@ TEST(KernelAndProgramCache, ProgramBuildNegativeCompileOpts) {
 
 TEST(KernelAndProgramCache, ProgramBuildNegativeLinkOpts) {
   platform Plt{default_selector()};
-  if (Plt.is_host() ||
-      Plt.get_info<info::platform::name>().find("CUDA") != std::string::npos) {
-    std::clog << "This test is not supported on host and CUDA devices\n";
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
 
@@ -313,9 +305,8 @@ TEST(KernelAndProgramCache, ProgramBuildNegativeLinkOpts) {
 
 TEST(KernelAndProgramCache, KernelCachePositive) {
   platform Plt{default_selector()};
-  if (Plt.is_host() ||
-      Plt.get_info<info::platform::name>().find("CUDA") != std::string::npos) {
-    std::clog << "This test is not supported on host and CUDA devices\n";
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
 
@@ -343,9 +334,8 @@ TEST(KernelAndProgramCache, KernelCachePositive) {
 
 TEST(KernelAndProgramCache, KernelCacheNegativeBuildOpts) {
   platform Plt{default_selector()};
-  if (Plt.is_host() ||
-      Plt.get_info<info::platform::name>().find("CUDA") != std::string::npos) {
-    std::clog << "This test is not supported on host and CUDA devices\n";
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
 
@@ -372,9 +362,8 @@ TEST(KernelAndProgramCache, KernelCacheNegativeBuildOpts) {
 }
 TEST(KernelAndProgramCache, KernelCacheNegativeCompileOpts) {
   platform Plt{default_selector()};
-  if (Plt.is_host() ||
-      Plt.get_info<info::platform::name>().find("CUDA") != std::string::npos) {
-    std::clog << "This test is not supported on host and CUDA devices\n";
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
 
@@ -403,9 +392,8 @@ TEST(KernelAndProgramCache, KernelCacheNegativeCompileOpts) {
 
 TEST(KernelAndProgramCache, KernelCacheNegativeLinkOpts) {
   platform Plt{default_selector()};
-  if (Plt.is_host() ||
-      Plt.get_info<info::platform::name>().find("CUDA") != std::string::npos) {
-    std::clog << "This test is not supported on host and CUDA devices\n";
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
 
@@ -434,9 +422,8 @@ TEST(KernelAndProgramCache, KernelCacheNegativeLinkOpts) {
 
 TEST(KernelAndProgramCache, KernelCacheNegativeLinkedProgs) {
   platform Plt{default_selector()};
-  if (Plt.is_host() ||
-      Plt.get_info<info::platform::name>().find("CUDA") != std::string::npos) {
-    std::clog << "This test is not supported on host and CUDA devices\n";
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
 
@@ -468,9 +455,8 @@ TEST(KernelAndProgramCache, KernelCacheNegativeLinkedProgs) {
 
 TEST(KernelAndProgramCache, KernelCacheNegativeSource) {
   platform Plt{default_selector()};
-  if (Plt.is_host() ||
-      Plt.get_info<info::platform::name>().find("CUDA") != std::string::npos) {
-    std::clog << "This test is not supported on host and CUDA devices\n";
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
 
