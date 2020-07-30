@@ -269,7 +269,7 @@ The behavior of memory fences in this section is aligned with the single happens
 |Synchronize all work-items in the group, and ensure that all memory accesses to any address space prior to the barrier are visible to all work-items in the group after the barrier.  The scope of the group memory fences implied by this barrier is the narrowest scope including all work-items in the group.
 
 |+template <typename Group> void barrier(Group g, memory_scope scope);+
-|Synchronize all work-items in the group, and ensure that all memory accesses to any address space prior to the barrier are visible to all work-items specified by _scope_ after the barrier.  The scope of the group memory fences implied by this barrier is controlled by _scope_ and must be broader than the narrowest scope including all work-items in the group.
+|Synchronize all work-items in the group, and ensure that all memory accesses to any address space prior to the barrier are visible to all work-items specified by _scope_ after the barrier.  The scope of the group memory fences implied by this barrier is controlled by _scope_ and must be broader than the narrowest scope including all work-items in the group.  If the specified _scope_ is narrower than the narrowest scope including all work-items in the group, the _scope_ argument is ignored.
 
 |===
 
