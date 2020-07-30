@@ -14,11 +14,18 @@ add_clang_library(clangTidyFuchsiaModule
   VirtualInheritanceCheck.cpp
 
   LINK_LIBS
+  clangTidy
+  clangTidyGoogleModule
+  clangTidyUtils
+
+  DEPENDS
+  omp_gen
+  )
+
+clang_target_link_libraries(clangTidyFuchsiaModule
+  PRIVATE
   clangAST
   clangASTMatchers
   clangBasic
   clangLex
-  clangTidy
-  clangTidyGoogleModule
-  clangTidyUtils
   )

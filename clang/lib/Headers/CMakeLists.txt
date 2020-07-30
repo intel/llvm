@@ -2,6 +2,7 @@ set(files
   adxintrin.h
   altivec.h
   ammintrin.h
+  amxintrin.h
   arm_acle.h
   arm_cmse.h
   armintr.h
@@ -45,6 +46,9 @@ set(files
   __clang_cuda_libdevice_declares.h
   __clang_cuda_math_forward_declares.h
   __clang_cuda_runtime_wrapper.h
+  __clang_hip_libdevice_declares.h
+  __clang_hip_math.h
+  __clang_hip_runtime_wrapper.h
   cetintrin.h
   cet.h
   cldemoteintrin.h
@@ -147,6 +151,8 @@ set(ppc_wrapper_files
 set(openmp_wrapper_files
   openmp_wrappers/math.h
   openmp_wrappers/cmath
+  openmp_wrappers/complex.h
+  openmp_wrappers/complex
   openmp_wrappers/__clang_openmp_device_functions.h
   openmp_wrappers/new
 )
@@ -190,6 +196,8 @@ clang_generate_header(-gen-arm-neon arm_neon.td arm_neon.h)
 clang_generate_header(-gen-arm-fp16 arm_fp16.td arm_fp16.h)
 # Generate arm_sve.h
 clang_generate_header(-gen-arm-sve-header arm_sve.td arm_sve.h)
+# Generate arm_bf16.h
+clang_generate_header(-gen-arm-bf16 arm_bf16.td arm_bf16.h)
 # Generate arm_mve.h
 clang_generate_header(-gen-arm-mve-header arm_mve.td arm_mve.h)
 # Generate arm_cde.h

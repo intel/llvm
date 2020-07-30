@@ -21,10 +21,6 @@ add_clang_library(clangTidyCERTModule
   VariadicFunctionDefCheck.cpp
 
   LINK_LIBS
-  clangAST
-  clangASTMatchers
-  clangBasic
-  clangLex
   clangTidy
   clangTidyBugproneModule
   clangTidyGoogleModule
@@ -32,4 +28,15 @@ add_clang_library(clangTidyCERTModule
   clangTidyPerformanceModule
   clangTidyReadabilityModule
   clangTidyUtils
+
+  DEPENDS
+  omp_gen
+  )
+
+clang_target_link_libraries(clangTidyCERTModule
+  PRIVATE
+  clangAST
+  clangASTMatchers
+  clangBasic
+  clangLex
   )

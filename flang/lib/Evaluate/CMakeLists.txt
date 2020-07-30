@@ -1,3 +1,13 @@
+if (LIBPGMATH_DIR)
+  # If pgmath library is found, it can be used for constant folding.
+  find_library(LIBPGMATH pgmath PATHS ${LIBPGMATH_DIR})
+  if(LIBPGMATH)
+    add_compile_definitions(LINK_WITH_LIBPGMATH)
+    message(STATUS "Found libpgmath: ${LIBPGMATH}")
+  else()
+    message(STATUS "Libpgmath not found in: ${LIBPGMATH_DIR}")
+  endif()
+endif()
 
 add_flang_library(FortranEvaluate
   call.cpp
@@ -10,11 +20,13 @@ add_flang_library(FortranEvaluate
   fold.cpp
   fold-character.cpp
   fold-complex.cpp
+  fold-designator.cpp
   fold-integer.cpp
   fold-logical.cpp
   fold-real.cpp
   formatting.cpp
   host.cpp
+  initial-image.cpp
   integer.cpp
   intrinsics.cpp
   intrinsics-library.cpp
@@ -29,18 +41,10 @@ add_flang_library(FortranEvaluate
   LINK_LIBS
   FortranCommon
   FortranDecimal
-  FortranSemantics
   FortranParser
+  ${LIBPGMATH}
+
+  DEPENDS
+  omp_gen
 )
 
-if (LIBPGMATH_DIR)
-  # If pgmath library is found, it can be used for constant folding.
-  find_library(LIBPGMATH pgmath PATHS ${LIBPGMATH_DIR})
-  if(LIBPGMATH)
-    add_compile_definitions(LINK_WITH_LIBPGMATH)
-    target_link_libraries(FortranEvaluate ${LIBPGMATH})
-    message(STATUS "Found libpgmath: ${LIBPGMATH}")
-  else()
-    message(STATUS "Libpgmath not found in: ${LIBPGMATH_DIR}")
-  endif()
-endif()

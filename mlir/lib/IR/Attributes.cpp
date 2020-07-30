@@ -47,7 +47,9 @@ Type Attribute::getType() const { return impl->getType(); }
 MLIRContext *Attribute::getContext() const { return getType().getContext(); }
 
 /// Get the dialect this attribute is registered to.
-Dialect &Attribute::getDialect() const { return impl->getDialect(); }
+Dialect &Attribute::getDialect() const {
+  return impl->getAbstractAttribute().getDialect();
+}
 
 //===----------------------------------------------------------------------===//
 // AffineMapAttr
@@ -73,12 +75,6 @@ Attribute ArrayAttr::operator[](unsigned idx) const {
   assert(idx < size() && "index out of bounds");
   return getValue()[idx];
 }
-
-//===----------------------------------------------------------------------===//
-// BoolAttr
-//===----------------------------------------------------------------------===//
-
-bool BoolAttr::getValue() const { return getImpl()->value; }
 
 //===----------------------------------------------------------------------===//
 // DictionaryAttr
@@ -308,6 +304,8 @@ ArrayRef<FlatSymbolRefAttr> SymbolRefAttr::getNestedReferences() const {
 //===----------------------------------------------------------------------===//
 
 IntegerAttr IntegerAttr::get(Type type, const APInt &value) {
+  if (type.isSignlessInteger(1))
+    return BoolAttr::get(value.getBoolValue(), type.getContext());
   return Base::get(type.getContext(), StandardAttributes::Integer, type, value);
 }
 
@@ -341,7 +339,7 @@ uint64_t IntegerAttr::getUInt() const {
 }
 
 static LogicalResult verifyIntegerTypeInvariants(Location loc, Type type) {
-  if (type.isa<IntegerType>() || type.isa<IndexType>())
+  if (type.isa<IntegerType, IndexType>())
     return success();
   return emitError(loc, "expected integer or index type");
 }
@@ -361,6 +359,19 @@ LogicalResult IntegerAttr::verifyConstructionInvariants(Location loc, Type type,
              << integerType.getWidth() << ") doesn't match value bit width ("
              << value.getBitWidth() << ")";
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// BoolAttr
+
+bool BoolAttr::getValue() const {
+  auto *storage = reinterpret_cast<IntegerAttributeStorage *>(impl);
+  return storage->getValue().getBoolValue();
+}
+
+bool BoolAttr::classof(Attribute attr) {
+  IntegerAttr intAttr = attr.dyn_cast<IntegerAttr>();
+  return intAttr && intAttr.getType().isSignlessInteger(1);
 }
 
 //===----------------------------------------------------------------------===//
@@ -618,12 +629,8 @@ DenseElementsAttr::AttributeElementIterator::AttributeElementIterator(
 Attribute DenseElementsAttr::AttributeElementIterator::operator*() const {
   auto owner = getFromOpaquePointer(base).cast<DenseElementsAttr>();
   Type eltTy = owner.getType().getElementType();
-  if (auto intEltTy = eltTy.dyn_cast<IntegerType>()) {
-    if (intEltTy.getWidth() == 1)
-      return BoolAttr::get((*IntElementIterator(owner, index)).isOneValue(),
-                           owner.getContext());
+  if (auto intEltTy = eltTy.dyn_cast<IntegerType>())
     return IntegerAttr::get(eltTy, *IntElementIterator(owner, index));
-  }
   if (eltTy.isa<IndexType>())
     return IntegerAttr::get(eltTy, *IntElementIterator(owner, index));
   if (auto floatEltTy = eltTy.dyn_cast<FloatType>()) {
@@ -750,9 +757,7 @@ DenseElementsAttr DenseElementsAttr::get(ShapedType type,
       break;
     case StandardTypes::Integer:
     case StandardTypes::Index:
-      intVal = values[i].isa<BoolAttr>()
-                   ? APInt(1, values[i].cast<BoolAttr>().getValue() ? 1 : 0)
-                   : values[i].cast<IntegerAttr>().getValue();
+      intVal = values[i].cast<IntegerAttr>().getValue();
       break;
     default:
       llvm_unreachable("unexpected element type");
@@ -1087,7 +1092,7 @@ DenseElementsAttr DenseIntOrFPElementsAttr::getRaw(ShapedType type,
 DenseElementsAttr DenseIntOrFPElementsAttr::getRaw(ShapedType type,
                                                    ArrayRef<char> data,
                                                    bool isSplat) {
-  assert((type.isa<RankedTensorType>() || type.isa<VectorType>()) &&
+  assert((type.isa<RankedTensorType, VectorType>()) &&
          "type must be ranked tensor or vector");
   assert(type.hasStaticShape() && "type must have static shape");
   return Base::get(type.getContext(), StandardAttributes::DenseIntOrFPElements,
@@ -1244,7 +1249,7 @@ SparseElementsAttr SparseElementsAttr::get(ShapedType type,
                                            DenseElementsAttr values) {
   assert(indices.getType().getElementType().isInteger(64) &&
          "expected sparse indices to be 64-bit integer values");
-  assert((type.isa<RankedTensorType>() || type.isa<VectorType>()) &&
+  assert((type.isa<RankedTensorType, VectorType>()) &&
          "type must be ranked tensor or vector");
   assert(type.hasStaticShape() && "type must have static shape");
   return Base::get(type.getContext(), StandardAttributes::SparseElements, type,
@@ -1321,9 +1326,7 @@ Attribute SparseElementsAttr::getZeroAttr() const {
     return FloatAttr::get(eltType, 0);
 
   // Otherwise, this is an integer.
-  auto intEltTy = eltType.cast<IntegerType>();
-  if (intEltTy.getWidth() == 1)
-    return BoolAttr::get(false, eltType.getContext());
+  // TODO: Handle StringAttr here.
   return IntegerAttr::get(eltType, 0);
 }
 

@@ -38,9 +38,10 @@ class SemanticsContext;
 // the indices for an array element, and the lower bound for a substring.
 struct EquivalenceObject {
   EquivalenceObject(Symbol &symbol, std::vector<ConstantSubscript> subscripts,
-      std::optional<ConstantSubscript> substringStart)
-      : symbol{symbol}, subscripts{subscripts}, substringStart{substringStart} {
-  }
+      std::optional<ConstantSubscript> substringStart, parser::CharBlock source)
+      : symbol{symbol}, subscripts{subscripts},
+        substringStart{substringStart}, source{source} {}
+
   bool operator==(const EquivalenceObject &) const;
   bool operator<(const EquivalenceObject &) const;
   std::string AsFortran() const;
@@ -48,6 +49,7 @@ struct EquivalenceObject {
   Symbol &symbol;
   std::vector<ConstantSubscript> subscripts; // for array elem
   std::optional<ConstantSubscript> substringStart;
+  parser::CharBlock source;
 };
 using EquivalenceSet = std::vector<EquivalenceObject>;
 
@@ -207,6 +209,9 @@ public:
   DerivedTypeSpec *derivedTypeSpec() { return derivedTypeSpec_; }
   void set_derivedTypeSpec(DerivedTypeSpec &spec) { derivedTypeSpec_ = &spec; }
 
+  bool hasSAVE() const { return hasSAVE_; }
+  void set_hasSAVE(bool yes = true) { hasSAVE_ = yes; }
+
   // The range of the source of this and nested scopes.
   const parser::CharBlock &sourceRange() const { return sourceRange_; }
   void AddSourceRange(const parser::CharBlock &);
@@ -243,6 +248,7 @@ private:
   std::optional<ImportKind> importKind_;
   std::set<SourceName> importNames_;
   DerivedTypeSpec *derivedTypeSpec_{nullptr}; // dTS->scope() == this
+  bool hasSAVE_{false}; // scope has a bare SAVE statement
   // When additional data members are added to Scope, remember to
   // copy them, if appropriate, in InstantiateDerivedType().
 
@@ -259,8 +265,9 @@ private:
 // Inline so that it can be called from Evaluate without a link-time dependency.
 
 inline const Symbol *Scope::GetSymbol() const {
-  return symbol_ ? symbol_
-                 : derivedTypeSpec_ ? &derivedTypeSpec_->typeSymbol() : nullptr;
+  return symbol_         ? symbol_
+      : derivedTypeSpec_ ? &derivedTypeSpec_->typeSymbol()
+                         : nullptr;
 }
 
 } // namespace Fortran::semantics

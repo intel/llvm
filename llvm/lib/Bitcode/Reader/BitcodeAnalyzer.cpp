@@ -130,7 +130,7 @@ static Optional<const char *> GetCodeName(unsigned CodeID, unsigned BlockID,
       STRINGIFY_CODE(MODULE_CODE, DATALAYOUT)
       STRINGIFY_CODE(MODULE_CODE, ASM)
       STRINGIFY_CODE(MODULE_CODE, SECTIONNAME)
-      STRINGIFY_CODE(MODULE_CODE, DEPLIB) // FIXME: Remove in 4.0
+      STRINGIFY_CODE(MODULE_CODE, DEPLIB) // Deprecated, present in old bitcode
       STRINGIFY_CODE(MODULE_CODE, GLOBALVAR)
       STRINGIFY_CODE(MODULE_CODE, FUNCTION)
       STRINGIFY_CODE(MODULE_CODE, ALIAS)
@@ -306,6 +306,7 @@ static Optional<const char *> GetCodeName(unsigned CodeID, unsigned BlockID,
       STRINGIFY_CODE(FS, TYPE_ID)
       STRINGIFY_CODE(FS, TYPE_ID_METADATA)
       STRINGIFY_CODE(FS, BLOCK_COUNT)
+      STRINGIFY_CODE(FS, PARAM_ACCESS)
     }
   case bitc::METADATA_ATTACHMENT_ID:
     switch (CodeID) {

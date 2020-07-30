@@ -39,7 +39,7 @@ namespace lldb_private {
 /// Debugger maintains a list of BroadcastEventSpec's and when it is made
 class BroadcastEventSpec {
 public:
-  BroadcastEventSpec(ConstString broadcaster_class, uint32_t event_bits)
+  BroadcastEventSpec(const ConstString &broadcaster_class, uint32_t event_bits)
       : m_broadcaster_class(broadcaster_class), m_event_bits(event_bits) {}
 
   ~BroadcastEventSpec() = default;
@@ -117,7 +117,7 @@ private:
 
   class BroadcasterClassMatches {
   public:
-    BroadcasterClassMatches(ConstString broadcaster_class)
+    BroadcasterClassMatches(const ConstString &broadcaster_class)
         : m_broadcaster_class(broadcaster_class) {}
 
     ~BroadcasterClassMatches() = default;
@@ -514,7 +514,8 @@ protected:
     std::vector<uint32_t> m_hijacking_masks;
 
   private:
-    DISALLOW_COPY_AND_ASSIGN(BroadcasterImpl);
+    BroadcasterImpl(const BroadcasterImpl &) = delete;
+    const BroadcasterImpl &operator=(const BroadcasterImpl &) = delete;
   };
 
   typedef std::shared_ptr<BroadcasterImpl> BroadcasterImplSP;
@@ -533,7 +534,8 @@ private:
   /// The name of this broadcaster object.
   const ConstString m_broadcaster_name;
 
-  DISALLOW_COPY_AND_ASSIGN(Broadcaster);
+  Broadcaster(const Broadcaster &) = delete;
+  const Broadcaster &operator=(const Broadcaster &) = delete;
 };
 
 } // namespace lldb_private

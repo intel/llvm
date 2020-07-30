@@ -170,8 +170,8 @@ public:
          const property_list &propList = {})
       : Range(range<1>(container.size())) {
     impl = std::make_shared<detail::buffer_impl>(
-        container.data(), container.data() + container.size(),
-        get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
+        container.data(), get_count() * sizeof(T),
+        detail::getNextPowerOfTwo(sizeof(T)), propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
   }
@@ -276,6 +276,28 @@ public:
                     access::placeholder::false_t>(*this, accessRange,
                                                   accessOffset);
   }
+
+#if __cplusplus > 201402L
+
+  template <typename... Ts> auto get_access(Ts... args) {
+    return accessor{*this, args...};
+  }
+
+  template <typename... Ts>
+  auto get_access(handler &commandGroupHandler, Ts... args) {
+    return accessor{*this, commandGroupHandler, args...};
+  }
+
+  template <typename... Ts> auto get_host_access(Ts... args) {
+    return host_accessor{*this, args...};
+  }
+
+  template <typename... Ts>
+  auto get_host_access(handler &commandGroupHandler, Ts... args) {
+    return host_accessor{*this, commandGroupHandler, args...};
+  }
+
+#endif
 
   template <typename Destination = std::nullptr_t>
   void set_final_data(Destination finalData = nullptr) {

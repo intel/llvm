@@ -160,6 +160,27 @@ private:
     return false;
   }
 
+  bool parseUntouchableParens() {
+    while (CurrentToken) {
+      CurrentToken->Finalized = true;
+      switch (CurrentToken->Tok.getKind()) {
+      case tok::l_paren:
+        next();
+        if (!parseUntouchableParens())
+          return false;
+        continue;
+      case tok::r_paren:
+        next();
+        return true;
+      default:
+        // no-op
+        break;
+      }
+      next();
+    }
+    return false;
+  }
+
   bool parseParens(bool LookForDecls = false) {
     if (!CurrentToken)
       return false;
@@ -170,6 +191,11 @@ private:
     // FIXME: This is a bit of a hack. Do better.
     Contexts.back().ColonIsForRangeExpr =
         Contexts.size() == 2 && Contexts[0].ColonIsForRangeExpr;
+
+    if (Left->Previous && Left->Previous->is(TT_UntouchableMacroFunc)) {
+      Left->Finalized = true;
+      return parseUntouchableParens();
+    }
 
     bool StartsObjCMethodExpr = false;
     if (FormatToken *MaybeSel = Left->Previous) {
@@ -978,16 +1004,18 @@ private:
         if (CurrentToken->isOneOf(tok::star, tok::amp))
           CurrentToken->setType(TT_PointerOrReference);
         consumeToken();
+        if (CurrentToken && CurrentToken->is(tok::comma) &&
+            CurrentToken->Previous->isNot(tok::kw_operator))
+          break;
         if (CurrentToken && CurrentToken->Previous->isOneOf(
                                 TT_BinaryOperator, TT_UnaryOperator, tok::comma,
                                 tok::star, tok::arrow, tok::amp, tok::ampamp))
           CurrentToken->Previous->setType(TT_OverloadedOperator);
       }
-      if (CurrentToken) {
+      if (CurrentToken && CurrentToken->is(tok::l_paren))
         CurrentToken->setType(TT_OverloadedOperatorLParen);
-        if (CurrentToken->Previous->is(TT_BinaryOperator))
-          CurrentToken->Previous->setType(TT_OverloadedOperator);
-      }
+      if (CurrentToken && CurrentToken->Previous->is(TT_BinaryOperator))
+        CurrentToken->Previous->setType(TT_OverloadedOperator);
       break;
     case tok::question:
       if (Tok->is(TT_CSharpNullConditionalLSquare)) {
@@ -1309,7 +1337,7 @@ private:
             TT_TypenameMacro, TT_FunctionLBrace, TT_ImplicitStringLiteral,
             TT_InlineASMBrace, TT_JsFatArrow, TT_LambdaArrow, TT_NamespaceMacro,
             TT_OverloadedOperator, TT_RegexLiteral, TT_TemplateString,
-            TT_ObjCStringLiteral))
+            TT_ObjCStringLiteral, TT_UntouchableMacroFunc))
       CurrentToken->setType(TT_Unknown);
     CurrentToken->Role.reset();
     CurrentToken->MatchingParen = nullptr;
@@ -2816,6 +2844,11 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
             Left.Previous &&
             !Left.Previous->isOneOf(tok::l_paren, tok::coloncolon,
                                     tok::l_square));
+  // Ensure right pointer alignement with ellipsis e.g. int *...P
+  if (Left.is(tok::ellipsis) && Left.Previous &&
+      Left.Previous->isOneOf(tok::star, tok::amp, tok::ampamp))
+    return Style.PointerAlignment != FormatStyle::PAS_Right;
+
   if (Right.is(tok::star) && Left.is(tok::l_paren))
     return false;
   if (Left.is(tok::star) && Right.isOneOf(tok::star, tok::amp, tok::ampamp))
@@ -3078,7 +3111,8 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
 
     // space between keywords and paren e.g. "using ("
     if (Right.is(tok::l_paren))
-      if (Left.isOneOf(tok::kw_using, Keywords.kw_async, Keywords.kw_when))
+      if (Left.isOneOf(tok::kw_using, Keywords.kw_async, Keywords.kw_when,
+                       Keywords.kw_lock))
         return Style.SpaceBeforeParens == FormatStyle::SBPO_ControlStatements ||
                spaceRequiredBeforeParens(Right);
   } else if (Style.Language == FormatStyle::LK_JavaScript) {
@@ -3217,6 +3251,9 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
   if (Right.is(TT_RangeBasedForLoopColon) &&
       !Style.SpaceBeforeRangeBasedForLoopColon)
     return false;
+  if (Left.is(TT_BitFieldColon))
+    return Style.BitFieldColonSpacing == FormatStyle::BFCS_Both ||
+           Style.BitFieldColonSpacing == FormatStyle::BFCS_After;
   if (Right.is(tok::colon)) {
     if (Line.First->isOneOf(tok::kw_case, tok::kw_default) ||
         !Right.getNextNonComment() || Right.getNextNonComment()->is(tok::semi))
@@ -3233,6 +3270,9 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
       return false;
     if (Right.is(TT_CSharpNamedArgumentColon))
       return false;
+    if (Right.is(TT_BitFieldColon))
+      return Style.BitFieldColonSpacing == FormatStyle::BFCS_Both ||
+             Style.BitFieldColonSpacing == FormatStyle::BFCS_Before;
     return true;
   }
   if (Left.is(TT_UnaryOperator)) {
@@ -3967,7 +4007,7 @@ void TokenAnnotator::printDebugInfo(const AnnotatedLine &Line) {
                  << " C=" << Tok->CanBreakBefore
                  << " T=" << getTokenTypeName(Tok->getType())
                  << " S=" << Tok->SpacesRequiredBefore
-                 << " B=" << Tok->BlockParameterCount
+                 << " F=" << Tok->Finalized << " B=" << Tok->BlockParameterCount
                  << " BK=" << Tok->BlockKind << " P=" << Tok->SplitPenalty
                  << " Name=" << Tok->Tok.getName() << " L=" << Tok->TotalLength
                  << " PPK=" << Tok->PackingKind << " FakeLParens=";

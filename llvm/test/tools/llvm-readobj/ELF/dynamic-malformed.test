@@ -8,7 +8,7 @@
 # RUN:   | FileCheck %s -DFILE=%t.bad-size --implicit-check-not=warning: --check-prefix WARN-GNU
 
 # WARN: warning: '[[FILE]]': invalid PT_DYNAMIC size (0x4){{$}}
-# WARN: warning: '[[FILE]]': section with index 1 has invalid size (0x4){{$}}
+# WARN: warning: '[[FILE]]': SHT_DYNAMIC section with index 1 has invalid size (0x4){{$}}
 # WARN: warning: '[[FILE]]': no valid dynamic table was found
 # WARN-EMPTY:
 # WARN: File:
@@ -17,7 +17,7 @@
 # WARN: ]
 
 # WARN-GNU: warning: '[[FILE]]': invalid PT_DYNAMIC size (0x4){{$}}
-# WARN-GNU: warning: '[[FILE]]': section with index 1 has invalid size (0x4){{$}}
+# WARN-GNU: warning: '[[FILE]]': SHT_DYNAMIC section with index 1 has invalid size (0x4){{$}}
 # WARN-GNU: warning: '[[FILE]]': no valid dynamic table was found
 # WARN-GNU-NEXT: ELF Header:
 # WARN-GNU:      Symbol table '.symtab' contains 1 entries:
@@ -400,7 +400,8 @@ ProgramHeaders:
 # RUN: llvm-readobj --dynamic-table %t9.2 2>&1 | FileCheck %s -DFILE=%t9.2 --check-prefix=PAST-THE-EOF
 # RUN: llvm-readelf --dynamic-table %t9.2 2>&1 | FileCheck %s -DFILE=%t9.2 --check-prefix=PAST-THE-EOF
 
-# PAST-THE-EOF:      warning: '[[FILE]]': string table at offset 0xb0 with size 0x211 goes past the end of the file (0x2c0)
+# PAST-THE-EOF:      warning: '[[FILE]]': the dynamic string table at 0xb0 goes past the end of the file (0x2c0) with DT_STRSZ = 0x211
+# PAST-THE-EOF:      warning: '[[FILE]]': string table was not found
 # PAST-THE-EOF:      {{[(]?}}NEEDED{{[)]?}}    Shared library: [<?>]
 # PAST-THE-EOF-NEXT: {{[(]?}}FILTER{{[)]?}}    Filter library: [<?>]
 # PAST-THE-EOF-NEXT: {{[(]?}}AUXILIARY{{[)]?}} Auxiliary library: [<?>]

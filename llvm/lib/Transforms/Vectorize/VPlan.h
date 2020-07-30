@@ -270,10 +270,20 @@ struct VPTransformState {
     return Callback.getOrCreateVectorValues(VPValue2Value[Def], Part);
   }
 
-  /// Get the generated Value for a given VPValue and given Part and Lane. Note
-  /// that as per-lane Defs are still created by ILV and managed in its ValueMap
-  /// this method currently just delegates the call to ILV.
+  /// Get the generated Value for a given VPValue and given Part and Lane.
   Value *get(VPValue *Def, const VPIteration &Instance) {
+    // If the Def is managed directly by VPTransformState, extract the lane from
+    // the relevant part. Note that currently only VPInstructions and external
+    // defs are managed by VPTransformState. Other Defs are still created by ILV
+    // and managed in its ValueMap. For those this method currently just
+    // delegates the call to ILV below.
+    if (Data.PerPartOutput.count(Def)) {
+      auto *VecPart = Data.PerPartOutput[Def][Instance.Part];
+      // TODO: Cache created scalar values.
+      return Builder.CreateExtractElement(VecPart,
+                                          Builder.getInt32(Instance.Lane));
+    }
+
     return Callback.getOrCreateScalarValue(VPValue2Value[Def], Instance);
   }
 
@@ -675,6 +685,7 @@ public:
     ICmpULE,
     SLPLoad,
     SLPStore,
+    ActiveLaneMask,
   };
 
 private:
@@ -854,12 +865,18 @@ public:
 /// A recipe for handling GEP instructions.
 class VPWidenGEPRecipe : public VPRecipeBase {
   GetElementPtrInst *GEP;
+
+  /// Hold VPValues for the base and indices of the GEP.
+  VPUser User;
+
   bool IsPtrLoopInvariant;
   SmallBitVector IsIndexLoopInvariant;
 
 public:
-  VPWidenGEPRecipe(GetElementPtrInst *GEP, Loop *OrigLoop)
-      : VPRecipeBase(VPWidenGEPSC), GEP(GEP),
+  template <typename IterT>
+  VPWidenGEPRecipe(GetElementPtrInst *GEP, iterator_range<IterT> Operands,
+                   Loop *OrigLoop)
+      : VPRecipeBase(VPWidenGEPSC), GEP(GEP), User(Operands),
         IsIndexLoopInvariant(GEP->getNumIndices(), false) {
     IsPtrLoopInvariant = OrigLoop->isLoopInvariant(GEP->getPointerOperand());
     for (auto Index : enumerate(GEP->indices()))

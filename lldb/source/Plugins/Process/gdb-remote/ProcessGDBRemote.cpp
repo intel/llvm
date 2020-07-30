@@ -17,6 +17,9 @@
 #include <unistd.h>
 #endif
 #include <sys/stat.h>
+#if defined(__APPLE__)
+#include <sys/sysctl.h>
+#endif
 #include <sys/types.h>
 #include <time.h>
 
@@ -184,21 +187,6 @@ static const ProcessKDPPropertiesSP &GetGlobalPluginProperties() {
 #else
 #define LOW_PORT (1024u)
 #define HIGH_PORT (49151u)
-#endif
-
-#if defined(__APPLE__) &&                                                      \
-    (defined(__arm__) || defined(__arm64__) || defined(__aarch64__))
-static bool rand_initialized = false;
-
-static inline uint16_t get_random_port() {
-  if (!rand_initialized) {
-    time_t seed = time(NULL);
-
-    rand_initialized = true;
-    srand(seed);
-  }
-  return (rand() % (HIGH_PORT - LOW_PORT)) + LOW_PORT;
-}
 #endif
 
 ConstString ProcessGDBRemote::GetPluginNameStatic() {
@@ -641,8 +629,7 @@ Status ProcessGDBRemote::WillAttachToProcessWithName(const char *process_name,
   return WillLaunchOrAttach();
 }
 
-Status ProcessGDBRemote::DoConnectRemote(Stream *strm,
-                                         llvm::StringRef remote_url) {
+Status ProcessGDBRemote::DoConnectRemote(llvm::StringRef remote_url) {
   Log *log(ProcessGDBRemoteLog::GetLogIfAllCategoriesSet(GDBR_LOG_PROCESS));
   Status error(WillLaunchOrAttach());
 
@@ -830,22 +817,23 @@ Status ProcessGDBRemote::DoLaunch(lldb_private::Module *exe_module,
         // since 'O' packets can really slow down debugging if the inferior
         // does a lot of output.
         if ((!stdin_file_spec || !stdout_file_spec || !stderr_file_spec) &&
-            pty.OpenFirstAvailableMaster(O_RDWR | O_NOCTTY, nullptr, 0)) {
-          FileSpec slave_name{pty.GetSlaveName(nullptr, 0)};
+            pty.OpenFirstAvailablePrimary(O_RDWR | O_NOCTTY, nullptr, 0)) {
+          FileSpec secondary_name{pty.GetSecondaryName(nullptr, 0)};
 
           if (!stdin_file_spec)
-            stdin_file_spec = slave_name;
+            stdin_file_spec = secondary_name;
 
           if (!stdout_file_spec)
-            stdout_file_spec = slave_name;
+            stdout_file_spec = secondary_name;
 
           if (!stderr_file_spec)
-            stderr_file_spec = slave_name;
+            stderr_file_spec = secondary_name;
         }
         LLDB_LOGF(
             log,
             "ProcessGDBRemote::%s adjusted STDIO paths for local platform "
-            "(IsHost() is true) using slave: stdin=%s, stdout=%s, stderr=%s",
+            "(IsHost() is true) using secondary: stdin=%s, stdout=%s, "
+            "stderr=%s",
             __FUNCTION__,
             stdin_file_spec ? stdin_file_spec.GetCString() : "<null>",
             stdout_file_spec ? stdout_file_spec.GetCString() : "<null>",
@@ -930,8 +918,8 @@ Status ProcessGDBRemote::DoLaunch(lldb_private::Module *exe_module,
         SetPrivateState(SetThreadStopInfo(response));
 
         if (!disable_stdio) {
-          if (pty.GetMasterFileDescriptor() != PseudoTerminal::invalid_fd)
-            SetSTDIOFileDescriptor(pty.ReleaseMasterFileDescriptor());
+          if (pty.GetPrimaryFileDescriptor() != PseudoTerminal::invalid_fd)
+            SetSTDIOFileDescriptor(pty.ReleasePrimaryFileDescriptor());
         }
       }
     } else {
@@ -3430,6 +3418,23 @@ Status ProcessGDBRemote::LaunchAndConnectToDebugserver(
     debugserver_launch_info.SetMonitorProcessCallback(
         std::bind(MonitorDebugserverProcess, this_wp, _1, _2, _3, _4), false);
     debugserver_launch_info.SetUserID(process_info.GetUserID());
+
+#if defined(__APPLE__)
+    // On macOS 11, we need to support x86_64 applications translated to
+    // arm64. We check whether a binary is translated and spawn the correct
+    // debugserver accordingly.
+    int mib[] = { CTL_KERN, KERN_PROC, KERN_PROC_PID,
+                  static_cast<int>(process_info.GetProcessID()) };
+    struct kinfo_proc processInfo;
+    size_t bufsize = sizeof(processInfo);
+    if (sysctl(mib, (unsigned)(sizeof(mib)/sizeof(int)), &processInfo,
+               &bufsize, NULL, 0) == 0 && bufsize > 0) {
+      if (processInfo.kp_proc.p_flag & P_TRANSLATED) {
+        FileSpec rosetta_debugserver("/Library/Apple/usr/libexec/oah/debugserver");
+        debugserver_launch_info.SetExecutableFile(rosetta_debugserver, false);
+      }
+    }
+#endif
 
     int communication_fd = -1;
 #ifdef USE_SOCKETPAIR_FOR_LOCAL_CONNECTION

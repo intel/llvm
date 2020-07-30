@@ -13,7 +13,12 @@ add_clang_library(findAllSymbols
   STLPostfixHeaderMap.cpp
   SymbolInfo.cpp
 
-  LINK_LIBS
+  DEPENDS
+  omp_gen
+  )
+
+clang_target_link_libraries(findAllSymbols
+  PRIVATE
   clangAST
   clangASTMatchers
   clangBasic

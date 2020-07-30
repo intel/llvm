@@ -1,8 +1,7 @@
 ; RUN: llvm-as < %s | llvm-spirv -s | llvm-dis | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-LLVM: define dllexport void @vadd() {
-; CHECK-LLVM-NEXT: entry:
-; CHECK-LLVM-NEXT:   %Funcs = alloca <16 x i8>, align 16
+; CHECK-LLVM:   %Funcs = alloca <16 x i8>, align 16
 ; CHECK-LLVM-NEXT:   %0 = ptrtoint i32 (i32)* @_Z2f1u2CMvb32_j to i64
 ; CHECK-LLVM-NEXT:   %1 = bitcast i64 %0 to <8 x i8>
 ; CHECK-LLVM-NEXT:   %2 = extractelement <8 x i8> %1, i32 0
@@ -40,8 +39,12 @@
 ; CHECK-LLVM-NEXT:   %34 = insertelement <16 x i8> %33, i8 %18, i32 14
 ; CHECK-LLVM-NEXT:   %35 = insertelement <16 x i8> %34, i8 %19, i32 15
 ; CHECK-LLVM-NEXT:   store <16 x i8> %35, <16 x i8>* %Funcs, align 16
-; CHECK-LLVM-NEXT:   ret void
-; CHECK-LLVM-NEXT: }
+; CHECK-LLVM:        %Funcs1 = alloca <2 x i64>, align 16
+; CHECK-LLVM-NEXT:   %36 = ptrtoint i32 (i32)* @_Z2f1u2CMvb32_j to i64
+; CHECK-LLVM-NEXT:   %37 = ptrtoint i32 (i32)* @_Z2f2u2CMvb32_j to i64
+; CHECK-LLVM-NEXT:   %38 = insertelement <2 x i64> undef, i64 %36, i32 0
+; CHECK-LLVM-NEXT:   %39 = insertelement <2 x i64> %38, i64 %37, i32 1
+; CHECK-LLVM-NEXT:   store <2 x i64> %39, <2 x i64>* %Funcs1, align 16
 
 ; RUN: llvm-as < %s | llvm-spirv -spirv-text --spirv-ext=+SPV_INTEL_function_pointers | FileCheck %s --check-prefix=CHECK-SPIRV
 
@@ -115,5 +118,7 @@ define dllexport void @vadd() {
 entry:
   %Funcs = alloca <16 x i8>, align 16
   store <16 x i8> <i8 extractelement (<8 x i8> bitcast (i64 ptrtoint (i32 (i32)* @_Z2f1u2CMvb32_j to i64) to <8 x i8>), i32 0), i8 extractelement (<8 x i8> bitcast (i64 ptrtoint (i32 (i32)* @_Z2f1u2CMvb32_j to i64) to <8 x i8>), i32 1), i8 extractelement (<8 x i8> bitcast (i64 ptrtoint (i32 (i32)* @_Z2f1u2CMvb32_j to i64) to <8 x i8>), i32 2), i8 extractelement (<8 x i8> bitcast (i64 ptrtoint (i32 (i32)* @_Z2f1u2CMvb32_j to i64) to <8 x i8>), i32 3), i8 extractelement (<8 x i8> bitcast (i64 ptrtoint (i32 (i32)* @_Z2f1u2CMvb32_j to i64) to <8 x i8>), i32 4), i8 extractelement (<8 x i8> bitcast (i64 ptrtoint (i32 (i32)* @_Z2f1u2CMvb32_j to i64) to <8 x i8>), i32 5), i8 extractelement (<8 x i8> bitcast (i64 ptrtoint (i32 (i32)* @_Z2f1u2CMvb32_j to i64) to <8 x i8>), i32 6), i8 extractelement (<8 x i8> bitcast (i64 ptrtoint (i32 (i32)* @_Z2f1u2CMvb32_j to i64) to <8 x i8>), i32 7), i8 extractelement (<8 x i8> bitcast (i64 ptrtoint (i32 (i32)* @_Z2f2u2CMvb32_j to i64) to <8 x i8>), i32 0), i8 extractelement (<8 x i8> bitcast (i64 ptrtoint (i32 (i32)* @_Z2f2u2CMvb32_j to i64) to <8 x i8>), i32 1), i8 extractelement (<8 x i8> bitcast (i64 ptrtoint (i32 (i32)* @_Z2f2u2CMvb32_j to i64) to <8 x i8>), i32 2), i8 extractelement (<8 x i8> bitcast (i64 ptrtoint (i32 (i32)* @_Z2f2u2CMvb32_j to i64) to <8 x i8>), i32 3), i8 extractelement (<8 x i8> bitcast (i64 ptrtoint (i32 (i32)* @_Z2f2u2CMvb32_j to i64) to <8 x i8>), i32 4), i8 extractelement (<8 x i8> bitcast (i64 ptrtoint (i32 (i32)* @_Z2f2u2CMvb32_j to i64) to <8 x i8>), i32 5), i8 extractelement (<8 x i8> bitcast (i64 ptrtoint (i32 (i32)* @_Z2f2u2CMvb32_j to i64) to <8 x i8>), i32 6), i8 extractelement (<8 x i8> bitcast (i64 ptrtoint (i32 (i32)* @_Z2f2u2CMvb32_j to i64) to <8 x i8>), i32 7)>, <16 x i8>* %Funcs, align 16
+  %Funcs1 = alloca <2 x i64>, align 16
+  store <2 x i64> <i64 ptrtoint (i32 (i32)* @_Z2f1u2CMvb32_j to i64), i64 ptrtoint (i32 (i32)* @_Z2f2u2CMvb32_j to i64)>, <2 x i64>* %Funcs1, align 16
   ret void
 }

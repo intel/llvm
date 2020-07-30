@@ -126,8 +126,8 @@ GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
   }
 
   // Don't crash on invalid devices.
-  if (WavefrontSize == 0)
-    WavefrontSize = 64;
+  if (WavefrontSizeLog2 == 0)
+    WavefrontSizeLog2 = 5;
 
   HasFminFmaxLegacy = getGeneration() < AMDGPUSubtarget::VOLCANIC_ISLANDS;
 
@@ -153,6 +153,8 @@ AMDGPUSubtarget::AMDGPUSubtarget(const Triple &TT) :
   TargetTriple(TT),
   Has16BitInsts(false),
   HasMadMixInsts(false),
+  HasMadMacF32Insts(false),
+  HasDsSrc2Insts(false),
   HasSDWA(false),
   HasVOP3PInsts(false),
   HasMulI24(true),
@@ -163,7 +165,7 @@ AMDGPUSubtarget::AMDGPUSubtarget(const Triple &TT) :
   HasTrigReducedRange(false),
   MaxWavesPerEU(10),
   LocalMemorySize(0),
-  WavefrontSize(0)
+  WavefrontSizeLog2(0)
   { }
 
 GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
@@ -205,6 +207,7 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     GFX8Insts(false),
     GFX9Insts(false),
     GFX10Insts(false),
+    GFX10_3Insts(false),
     GFX7GFX8GFX9Insts(false),
     SGPRInitBug(false),
     HasSMemRealTime(false),
@@ -223,7 +226,9 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     HasDPP8(false),
     HasR128A16(false),
     HasGFX10A16(false),
+    HasG16(false),
     HasNSAEncoding(false),
+    GFX10_BEncoding(false),
     HasDLInsts(false),
     HasDot1Insts(false),
     HasDot2Insts(false),
@@ -238,6 +243,8 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     DoesNotSupportSRAMECC(false),
     HasNoSdstCMPX(false),
     HasVscnt(false),
+    HasGetWaveIdInst(false),
+    HasSMemTimeInst(false),
     HasRegisterBanking(false),
     HasVOP3Literal(false),
     HasNoDataDepHazard(false),
@@ -403,12 +410,9 @@ std::pair<unsigned, unsigned> AMDGPUSubtarget::getWavesPerEU(
   // minimum/maximum flat work group sizes.
   unsigned MinImpliedByFlatWorkGroupSize =
     getWavesPerEUForWorkGroup(FlatWorkGroupSizes.second);
-  bool RequestedFlatWorkGroupSize = false;
-
-  if (F.hasFnAttribute("amdgpu-flat-work-group-size")) {
-    Default.first = MinImpliedByFlatWorkGroupSize;
-    RequestedFlatWorkGroupSize = true;
-  }
+  Default.first = MinImpliedByFlatWorkGroupSize;
+  bool RequestedFlatWorkGroupSize =
+      F.hasFnAttribute("amdgpu-flat-work-group-size");
 
   // Requested minimum/maximum number of waves per execution unit.
   std::pair<unsigned, unsigned> Requested = AMDGPU::getIntegerPairAttribute(
@@ -420,9 +424,7 @@ std::pair<unsigned, unsigned> AMDGPUSubtarget::getWavesPerEU(
 
   // Make sure requested values do not violate subtarget's specifications.
   if (Requested.first < getMinWavesPerEU() ||
-      Requested.first > getMaxWavesPerEU())
-    return Default;
-  if (Requested.second > getMaxWavesPerEU())
+      Requested.second > getMaxWavesPerEU())
     return Default;
 
   // Make sure requested values are compatible with values implied by requested
@@ -506,12 +508,15 @@ uint64_t AMDGPUSubtarget::getExplicitKernArgSize(const Function &F,
   MaxAlign = Align(1);
 
   for (const Argument &Arg : F.args()) {
-    Type *ArgTy = Arg.getType();
+    const bool IsByRef = Arg.hasByRefAttr();
+    Type *ArgTy = IsByRef ? Arg.getParamByRefType() : Arg.getType();
+    MaybeAlign Alignment = IsByRef ? Arg.getParamAlign() : None;
+    if (!Alignment)
+      Alignment = DL.getABITypeAlign(ArgTy);
 
-    const Align Alignment(DL.getABITypeAlignment(ArgTy));
     uint64_t AllocSize = DL.getTypeAllocSize(ArgTy);
     ExplicitArgBytes = alignTo(ExplicitArgBytes, Alignment) + AllocSize;
-    MaxAlign = std::max(MaxAlign, Alignment);
+    MaxAlign = max(MaxAlign, Alignment);
   }
 
   return ExplicitArgBytes;
@@ -628,13 +633,12 @@ unsigned GCNSubtarget::getReservedNumSGPRs(const MachineFunction &MF) const {
   return 2; // VCC.
 }
 
-unsigned GCNSubtarget::computeOccupancy(const MachineFunction &MF,
-                                        unsigned LDSSize,
+unsigned GCNSubtarget::computeOccupancy(const Function &F, unsigned LDSSize,
                                         unsigned NumSGPRs,
                                         unsigned NumVGPRs) const {
   unsigned Occupancy =
     std::min(getMaxWavesPerEU(),
-             getOccupancyWithLocalMemSize(LDSSize, MF.getFunction()));
+             getOccupancyWithLocalMemSize(LDSSize, F));
   if (NumSGPRs)
     Occupancy = std::min(Occupancy, getOccupancyWithNumSGPRs(NumSGPRs));
   if (NumVGPRs)

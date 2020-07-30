@@ -15,8 +15,15 @@ function f2(x, y)
   !ERROR: SAVE attribute may not be applied to dummy argument 'x'
   complex, save :: x
   allocatable :: y
+  integer :: y
   !ERROR: SAVE attribute may not be applied to dummy argument 'y'
-  integer, save :: y
+  save :: y
+end
+
+! SAVE statement should not trigger the above errors
+function f2b(x, y)
+  real :: x, y
+  save
 end
 
 subroutine s3(x)
@@ -60,4 +67,15 @@ end
 subroutine s7
   !ERROR: 'x' appears as a COMMON block in a SAVE statement but not in a COMMON statement
   save /x/
+end
+
+subroutine s8a(n)
+  integer :: n
+  real :: x(n)  ! OK: save statement doesn't affect x
+  save
+end
+subroutine s8b(n)
+  integer :: n
+  !ERROR: SAVE attribute may not be applied to automatic data object 'x'
+  real, save :: x(n)
 end

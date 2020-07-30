@@ -8,6 +8,7 @@
 
 #include "llvm/CodeGen/ModuloSchedule.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/CodeGen/LiveIntervals.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineLoopUtils.h"
@@ -1710,16 +1711,17 @@ PeelingModuloScheduleExpander::getPhiCanonicalReg(MachineInstr *CanonicalPhi,
                                                   MachineInstr *Phi) {
   unsigned distance = PhiNodeLoopIteration[Phi];
   MachineInstr *CanonicalUse = CanonicalPhi;
+  Register CanonicalUseReg = CanonicalUse->getOperand(0).getReg();
   for (unsigned I = 0; I < distance; ++I) {
     assert(CanonicalUse->isPHI());
     assert(CanonicalUse->getNumOperands() == 5);
     unsigned LoopRegIdx = 3, InitRegIdx = 1;
     if (CanonicalUse->getOperand(2).getMBB() == CanonicalUse->getParent())
       std::swap(LoopRegIdx, InitRegIdx);
-    CanonicalUse =
-        MRI.getVRegDef(CanonicalUse->getOperand(LoopRegIdx).getReg());
+    CanonicalUseReg = CanonicalUse->getOperand(LoopRegIdx).getReg();
+    CanonicalUse = MRI.getVRegDef(CanonicalUseReg);
   }
-  return CanonicalUse->getOperand(0).getReg();
+  return CanonicalUseReg;
 }
 
 void PeelingModuloScheduleExpander::peelPrologAndEpilogs() {
@@ -1945,7 +1947,7 @@ void PeelingModuloScheduleExpander::fixupBranches() {
     SmallVector<MachineOperand, 4> Cond;
     TII->removeBranch(*Prolog);
     Optional<bool> StaticallyGreater =
-        Info->createTripCountGreaterCondition(TC, *Prolog, Cond);
+        LoopInfo->createTripCountGreaterCondition(TC, *Prolog, Cond);
     if (!StaticallyGreater.hasValue()) {
       LLVM_DEBUG(dbgs() << "Dynamic: TC > " << TC << "\n");
       // Dynamically branch based on Cond.
@@ -1973,10 +1975,10 @@ void PeelingModuloScheduleExpander::fixupBranches() {
   }
 
   if (!KernelDisposed) {
-    Info->adjustTripCount(-(Schedule.getNumStages() - 1));
-    Info->setPreheader(Prologs.back());
+    LoopInfo->adjustTripCount(-(Schedule.getNumStages() - 1));
+    LoopInfo->setPreheader(Prologs.back());
   } else {
-    Info->disposed();
+    LoopInfo->disposed();
   }
 }
 
@@ -1989,8 +1991,8 @@ void PeelingModuloScheduleExpander::expand() {
   BB = Schedule.getLoop()->getTopBlock();
   Preheader = Schedule.getLoop()->getLoopPreheader();
   LLVM_DEBUG(Schedule.dump());
-  Info = TII->analyzeLoopForPipelining(BB);
-  assert(Info);
+  LoopInfo = TII->analyzeLoopForPipelining(BB);
+  assert(LoopInfo);
 
   rewriteKernel();
   peelPrologAndEpilogs();

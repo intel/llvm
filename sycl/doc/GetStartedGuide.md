@@ -22,12 +22,12 @@ and a wide range of compute accelerators such as GPU and FPGA.
 ## Prerequisites
 
 * `git` - [Download](https://git-scm.com/downloads)
-* `cmake` version 3.2 or later - [Download](http://www.cmake.org/download/)
+* `cmake` version 3.14 or later - [Download](http://www.cmake.org/download/)
 * `python` - [Download](https://www.python.org/downloads/release/python-2716/)
 * `ninja` -
 [Download](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages)
 * C++ compiler
-  * Linux: `GCC` version 5.1.0 or later (including libstdc++) -
+  * Linux: `GCC` version 7.1.0 or later (including libstdc++) -
     [Download](https://gcc.gnu.org/install/)
   * Windows: `Visual Studio` version 15.7 preview 4 or later -
     [Download](https://visualstudio.microsoft.com/downloads/)
@@ -123,13 +123,14 @@ To enable support for CUDA devices, follow the instructions for the Linux
 DPC++ toolchain, but add the `--cuda` flag to `configure.py`
 
 Enabling this flag requires an installation of
-[CUDA 10.1](https://developer.nvidia.com/cuda-10.1-download-archive-update2) on
+[CUDA 10.2](https://developer.nvidia.com/cuda-10.2-download-archive) on
 the system, refer to
 [NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html).
 
 Currently, the only combination tested is Ubuntu 18.04 with CUDA 10.2 using
 a Titan RTX GPU (SM 71), but it should work on any GPU compatible with SM 50 or
-above.
+above. The default SM for the NVIDIA CUDA backend is 5.0. Users can specify
+lower values, but some features may not be supported.
 
 ### Deployment
 
@@ -513,11 +514,10 @@ class CUDASelector : public cl::sycl::device_selector {
   public:
     int operator()(const cl::sycl::device &Device) const override {
       using namespace cl::sycl::info;
+      const std::string DriverVersion = Device.get_info<device::driver_version>();
 
-      const std::string DeviceName = Device.get_info<device::name>();
-      const std::string DeviceVendor = Device.get_info<device::vendor>();
-
-      if (Device.is_gpu() && (DeviceName.find("NVIDIA") != std::string::npos)) {
+      if (Device.is_gpu() && (DriverVersion.find("CUDA") != std::string::npos)) {
+        std::cout << " CUDA device found " << std::endl;
         return 1;
       };
       return -1;

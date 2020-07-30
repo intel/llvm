@@ -117,6 +117,8 @@ class ReadNone<AttrIndex idx> : IntrinsicProperty {
 
 def IntrNoReturn : IntrinsicProperty;
 
+def IntrNoFree : IntrinsicProperty;
+
 def IntrWillReturn : IntrinsicProperty;
 
 // IntrCold - Calls to this intrinsic are cold.
@@ -456,6 +458,9 @@ def int_read_register  : Intrinsic<[llvm_anyint_ty], [llvm_metadata_ty],
                                    [IntrReadMem], "llvm.read_register">;
 def int_write_register : Intrinsic<[], [llvm_metadata_ty, llvm_anyint_ty],
                                    [], "llvm.write_register">;
+def int_read_volatile_register  : Intrinsic<[llvm_anyint_ty], [llvm_metadata_ty],
+                                            [IntrHasSideEffects],
+                                             "llvm.read_volatile_register">;
 
 // Gets the address of the local variable area. This is typically a copy of the
 // stack, frame, or base pointer depending on the type of prologue.
@@ -532,6 +537,7 @@ def int_instrprof_value_profile : Intrinsic<[],
 
 def int_call_preallocated_setup : Intrinsic<[llvm_token_ty], [llvm_i32_ty]>;
 def int_call_preallocated_arg : Intrinsic<[llvm_ptr_ty], [llvm_token_ty, llvm_i32_ty]>;
+def int_call_preallocated_teardown : Intrinsic<[], [llvm_token_ty]>;
 
 //===------------------- Standard C Library Intrinsics --------------------===//
 //
@@ -837,6 +843,10 @@ let IntrProperties = [IntrInaccessibleMemOnly, IntrWillReturn] in {
 def int_expect : Intrinsic<[llvm_anyint_ty],
   [LLVMMatchType<0>, LLVMMatchType<0>], [IntrNoMem, IntrWillReturn]>;
 
+def int_expect_with_probability : Intrinsic<[llvm_anyint_ty],
+  [LLVMMatchType<0>, LLVMMatchType<0>, llvm_double_ty],
+  [IntrNoMem, IntrWillReturn]>;
+
 //===-------------------- Bit Manipulation Intrinsics ---------------------===//
 //
 
@@ -1028,6 +1038,25 @@ def int_sdiv_fix_sat : Intrinsic<[llvm_anyint_ty],
 def int_udiv_fix_sat : Intrinsic<[llvm_anyint_ty],
                                  [LLVMMatchType<0>, LLVMMatchType<0>, llvm_i32_ty],
                                  [IntrNoMem, ImmArg<ArgIndex<2>>]>;
+
+//===------------------ Integer Min/Max/Abs Intrinsics --------------------===//
+//
+def int_abs : Intrinsic<
+    [llvm_anyint_ty], [LLVMMatchType<0>, llvm_i1_ty],
+    [IntrNoMem, IntrSpeculatable, IntrWillReturn, ImmArg<ArgIndex<1>>]>;
+
+def int_smax : Intrinsic<
+    [llvm_anyint_ty], [LLVMMatchType<0>, LLVMMatchType<0>],
+    [IntrNoMem, IntrSpeculatable, IntrWillReturn]>;
+def int_smin : Intrinsic<
+    [llvm_anyint_ty], [LLVMMatchType<0>, LLVMMatchType<0>],
+    [IntrNoMem, IntrSpeculatable, IntrWillReturn]>;
+def int_umax : Intrinsic<
+    [llvm_anyint_ty], [LLVMMatchType<0>, LLVMMatchType<0>],
+    [IntrNoMem, IntrSpeculatable, IntrWillReturn]>;
+def int_umin : Intrinsic<
+    [llvm_anyint_ty], [LLVMMatchType<0>, LLVMMatchType<0>],
+    [IntrNoMem, IntrSpeculatable, IntrWillReturn]>;
 
 //===------------------------- Memory Use Markers -------------------------===//
 //
@@ -1436,46 +1465,34 @@ let IntrProperties = [IntrNoMem, IntrWillReturn] in {
 
 //===----- Matrix intrinsics ---------------------------------------------===//
 
-def int_matrix_transpose : Intrinsic<[llvm_anyvector_ty],
-                                     [LLVMMatchType<0>,
-                                     llvm_i32_ty,
-                                     llvm_i32_ty],
-                                     [IntrNoMem, IntrSpeculatable,
-                                      IntrWillReturn, ImmArg<ArgIndex<1>>,
-                                      ImmArg<ArgIndex<2>>]>;
+def int_matrix_transpose
+  : Intrinsic<[llvm_anyvector_ty],
+              [LLVMMatchType<0>, llvm_i32_ty, llvm_i32_ty],
+              [ IntrNoSync, IntrWillReturn, IntrNoMem, IntrSpeculatable, ImmArg<ArgIndex<1>>,
+               ImmArg<ArgIndex<2>>]>;
 
-def int_matrix_multiply : Intrinsic<[llvm_anyvector_ty],
-                                    [llvm_anyvector_ty,
-                                     llvm_anyvector_ty,
-                                     llvm_i32_ty,
-                                     llvm_i32_ty,
-                                     llvm_i32_ty],
-                                    [IntrNoMem, IntrSpeculatable,
-                                     IntrWillReturn, ImmArg<ArgIndex<2>>,
-                                     ImmArg<ArgIndex<3>>,
-                                     ImmArg<ArgIndex<4>>]>;
+def int_matrix_multiply
+  : Intrinsic<[llvm_anyvector_ty],
+              [llvm_anyvector_ty, llvm_anyvector_ty, llvm_i32_ty, llvm_i32_ty,
+               llvm_i32_ty],
+              [IntrNoSync, IntrWillReturn, IntrNoMem, IntrSpeculatable, ImmArg<ArgIndex<2>>,
+               ImmArg<ArgIndex<3>>, ImmArg<ArgIndex<4>>]>;
 
-def int_matrix_columnwise_load : Intrinsic<[llvm_anyvector_ty],
-                                           [LLVMAnyPointerType<LLVMMatchType<0>>,
-                                            llvm_i32_ty,
-                                            llvm_i32_ty,
-                                            llvm_i32_ty],
-                                           [IntrArgMemOnly, IntrReadMem,
-                                            IntrWillReturn,
-                                            ImmArg<ArgIndex<2>>,
-                                            ImmArg<ArgIndex<3>>]>;
+def int_matrix_column_major_load
+  : Intrinsic<[llvm_anyvector_ty],
+              [LLVMPointerToElt<0>, llvm_i64_ty, llvm_i1_ty,
+               llvm_i32_ty, llvm_i32_ty],
+              [IntrNoSync, IntrWillReturn, IntrArgMemOnly, IntrReadMem,
+               NoCapture<ArgIndex<0>>, ImmArg<ArgIndex<2>>, ImmArg<ArgIndex<3>>,
+               ImmArg<ArgIndex<4>>]>;
 
-def int_matrix_columnwise_store : Intrinsic<[],
-                                            [llvm_anyvector_ty,
-                                             LLVMAnyPointerType<LLVMMatchType<0>>,
-                                             llvm_i32_ty,
-                                             llvm_i32_ty,
-                                             llvm_i32_ty],
-                                            [IntrArgMemOnly, IntrWillReturn,
-                                             IntrWriteMem,
-                                             WriteOnly<ArgIndex<1>>,
-                                             ImmArg<ArgIndex<3>>,
-                                             ImmArg<ArgIndex<4>>]>;
+def int_matrix_column_major_store
+  : Intrinsic<[],
+              [llvm_anyvector_ty, LLVMPointerToElt<0>,
+               llvm_i64_ty, llvm_i1_ty, llvm_i32_ty, llvm_i32_ty],
+              [IntrNoSync, IntrWillReturn, IntrArgMemOnly, IntrWriteMem,
+               WriteOnly<ArgIndex<1>>, NoCapture<ArgIndex<1>>,
+               ImmArg<ArgIndex<3>>, ImmArg<ArgIndex<4>>, ImmArg<ArgIndex<5>>]>;
 
 //===---------- Intrinsics to control hardware supported loops ----------===//
 

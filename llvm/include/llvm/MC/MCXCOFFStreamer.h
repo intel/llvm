@@ -29,6 +29,14 @@ public:
   void emitXCOFFLocalCommonSymbol(MCSymbol *LabelSym, uint64_t Size,
                                   MCSymbol *CsectSym,
                                   unsigned ByteAlign) override;
+  void emitXCOFFSymbolLinkageWithVisibility(MCSymbol *Symbol,
+                                            MCSymbolAttr Linkage,
+                                            MCSymbolAttr Visibility) override;
+  void emitXCOFFRenameDirective(const MCSymbol *Name,
+                                StringRef Rename) override {
+    report_fatal_error("emitXCOFFRenameDirective is not implemented yet on "
+                       "object generation path");
+  }
 };
 
 } // end namespace llvm

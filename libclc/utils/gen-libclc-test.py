@@ -12,15 +12,23 @@ import re
 from spirv_common import ignore_overload, emit_guards, close_guards, clang_format
 
 def ignore_function(fun):
-    whitelist = [
-        "ControlBarrier",
-        "GroupAsyncCopy",
-        "GroupWaitEvents",
-        "MemoryBarrier",
-        "prefetch"
+    blacklist = [
+        "GenericCastToPtrExplicit",
+        "GenericPtrMemSemantics",
+        "GroupAll",
+        "GroupAny",
+        "GroupBroadcast",
+        "GroupFAdd",
+        "GroupFMax",
+        "GroupFMin",
+        "GroupIAdd",
+        "GroupSMax",
+        "GroupSMin",
+        "GroupUMax",
+        "GroupUMin",
+        "printf"
     ]
-
-    return not any([fun.find(b) != -1 for b in whitelist])
+    return any([fun.find(b) != -1 for b in blacklist])
 
 def get_builtin_name(func):
     func = func.replace("__spirv_", "")

@@ -60,6 +60,10 @@ constexpr char ATTR_GENX_BYTE_OFFSET[] = "genx_byte_offset";
 
 bool CGSYCLRuntime::actOnFunctionStart(const FunctionDecl &FD,
                                        llvm::Function &F) {
+  // Populate "sycl_explicit_simd" attribute if any.
+  if (FD.hasAttr<SYCLSimdAttr>())
+    F.setMetadata("sycl_explicit_simd", llvm::MDNode::get(F.getContext(), {}));
+
   SYCLScopeAttr *Scope = FD.getAttr<SYCLScopeAttr>();
   if (!Scope)
     return false;

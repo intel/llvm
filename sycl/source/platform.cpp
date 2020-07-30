@@ -43,11 +43,15 @@ vector_class<platform> platform::get_platforms() {
   return detail::platform_impl::get_platforms();
 }
 
+backend platform::get_backend() const noexcept { return impl->get_backend(); }
+
 template <info::platform param>
 typename info::param_traits<info::platform, param>::return_type
 platform::get_info() const {
   return impl->get_info<param>();
 }
+
+pi_native_handle platform::getNative() const { return impl->getNative(); }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
   template __SYCL_EXPORT ret_type                                              \

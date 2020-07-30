@@ -295,7 +295,7 @@ public:
                                 bool WithGlobalNsPrefix = false) const;
 
   // FIXME: Remove string version.
-  std::string getQualifiedNameAsString() const;
+  std::string getQualifiedNameAsString(bool WithGlobalNsPrefix = false) const;
 
   /// Appends a human-readable name for this declaration into the given stream.
   ///
@@ -2440,6 +2440,14 @@ public:
   /// parameters have default arguments (in C++).
   unsigned getMinRequiredArguments() const;
 
+  /// Determine whether this function has a single parameter, or multiple
+  /// parameters where all but the first have default arguments.
+  ///
+  /// This notion is used in the definition of copy/move constructors and
+  /// initializer list constructors. Note that, unlike getMinRequiredArguments,
+  /// parameter packs are not treated specially here.
+  bool hasOneParamOrDefaultArgs() const;
+
   /// Find the source location information for how the type of this function
   /// was written. May be absent (for example if the function was declared via
   /// a typedef) and may contain a different type from that of the function
@@ -2611,7 +2619,13 @@ public:
   /// Retrieve the function declaration from which this function could
   /// be instantiated, if it is an instantiation (rather than a non-template
   /// or a specialization, for example).
-  FunctionDecl *getTemplateInstantiationPattern() const;
+  ///
+  /// If \p ForDefinition is \c false, explicit specializations will be treated
+  /// as if they were implicit instantiations. This will then find the pattern
+  /// corresponding to non-definition portions of the declaration, such as
+  /// default arguments and the exception specification.
+  FunctionDecl *
+  getTemplateInstantiationPattern(bool ForDefinition = true) const;
 
   /// Retrieve the primary template that this function template
   /// specialization either specializes or was instantiated from.
@@ -4553,7 +4567,7 @@ inline bool IsEnumDeclScoped(EnumDecl *ED) {
 /// The new name looks likes this:
 ///  <name> + OpenMPVariantManglingSeparatorStr + <mangled OpenMP context>
 static constexpr StringRef getOpenMPVariantManglingSeparatorStr() {
-  return ".ompvariant";
+  return "$ompvariant";
 }
 
 } // namespace clang

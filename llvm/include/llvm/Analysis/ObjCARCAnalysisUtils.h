@@ -27,7 +27,6 @@
 #include "llvm/Analysis/ObjCARCInstKind.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ValueHandle.h"
 
@@ -147,7 +146,7 @@ inline bool IsPotentialRetainableObjPtr(const Value *Op) {
     return false;
   // Special arguments can not be a valid retainable object pointer.
   if (const Argument *Arg = dyn_cast<Argument>(Op))
-    if (Arg->hasPassPointeeByValueAttr() || Arg->hasNestAttr() ||
+    if (Arg->hasPassPointeeByValueCopyAttr() || Arg->hasNestAttr() ||
         Arg->hasStructRetAttr())
       return false;
   // Only consider values with pointer types.

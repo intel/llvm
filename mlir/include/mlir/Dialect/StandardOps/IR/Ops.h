@@ -21,6 +21,7 @@
 #include "mlir/Interfaces/CallInterfaces.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/Interfaces/VectorInterfaces.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
 
 // Pull in all enum type definitions and utility function declarations.
@@ -128,9 +129,9 @@ public:
 //   dma_start %src[%i, %j], %dst[%k, %l], %num_elements, %tag[%idx], %stride,
 //             %num_elt_per_stride :
 //
-// TODO(mlir-team): add additional operands to allow source and destination
-// striding, and multiple stride levels.
-// TODO(andydavis) Consider replacing src/dst memref indices with view memrefs.
+// TODO: add additional operands to allow source and destination striding, and
+// multiple stride levels.
+// TODO: Consider replacing src/dst memref indices with view memrefs.
 class DmaStartOp
     : public Op<DmaStartOp, OpTrait::VariadicOperands, OpTrait::ZeroResult> {
 public:
@@ -339,6 +340,16 @@ raw_ostream &operator<<(raw_ostream &os, SubViewOp::Range &range);
 ///   consumer %0 ... : memref<?x16xf32, affine_map<(i, j)->(16 * i + j)>>
 /// ```
 bool canFoldIntoConsumerOp(MemRefCastOp castOp);
+
+/// Compute `lhs` `pred` `rhs`, where `pred` is one of the known integer
+/// comparison predicates.
+bool applyCmpPredicate(CmpIPredicate predicate, const APInt &lhs,
+                       const APInt &rhs);
+
+/// Compute `lhs` `pred` `rhs`, where `pred` is one of the known floating point
+/// comparison predicates.
+bool applyCmpPredicate(CmpFPredicate predicate, const APFloat &lhs,
+                       const APFloat &rhs);
 } // end namespace mlir
 
 #endif // MLIR_DIALECT_IR_STANDARDOPS_IR_OPS_H

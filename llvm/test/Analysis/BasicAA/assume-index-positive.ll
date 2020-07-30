@@ -1,4 +1,4 @@
-; RUN: opt -basicaa -aa-eval -print-all-alias-modref-info %s 2>&1 | FileCheck %s
+; RUN: opt -basic-aa -aa-eval -print-all-alias-modref-info %s 2>&1 | FileCheck %s
 
 ; %col.ptr.1 and %col.ptr.2 do not alias, if we know that %skip >= 0, because
 ; the distance between %col.ptr.1 and %col.ptr.2 is %skip + 6 and we load 6
@@ -101,88 +101,6 @@ define void @test4(double* %ptr, i32 %skip) {
   %gt = icmp sge i32 %skip, 0
   call void @llvm.assume(i1 %gt)
   %stride = add nsw nuw i32 %skip, 6
-  %col.ptr.1 = bitcast double* %ptr to <6 x double>*
-  %lv.1 = load <6 x double>, <6 x double>* %col.ptr.1, align 8
-  %col.ptr.2= getelementptr double, double* %ptr, i32 %stride
-  %col.ptr.2.cast = bitcast double* %col.ptr.2 to <6 x double>*
-  %lv.2 = load <6 x double>, <6 x double>* %col.ptr.2.cast, align 8
-  %res.1 = fadd <6 x double> %lv.1, %lv.1
-  %res.2 = fadd <6 x double> %lv.2, %lv.2
-  store <6 x double> %res.1, <6 x double>* %col.ptr.1, align 8
-  store <6 x double> %res.2, <6 x double>* %col.ptr.2.cast, align 8
-  ret void
-}
-
-
-define void @test5(double* %ptr, i32 %stride) {
-; CHECK-LABEL: Function: test5: 4 pointers, 1 call sites
-; CHECK-NEXT:  MustAlias:   <6 x double>* %col.ptr.1, double* %ptr
-; CHECK-NEXT:  NoAlias:    double* %col.ptr.2, double* %ptr
-; CHECK-NEXT:  MayAlias:   <6 x double>* %col.ptr.1, double* %col.ptr.2
-; CHECK-NEXT:  NoAlias:    <6 x double>* %col.ptr.2.cast, double* %ptr
-; CHECK-NEXT:  MayAlias:   <6 x double>* %col.ptr.1, <6 x double>* %col.ptr.2.cast
-; CHECK-NEXT:  MustAlias:  <6 x double>* %col.ptr.2.cast, double* %col.ptr.2
-; CHECK-NEXT:  NoModRef:  Ptr: double* %ptr <->  call void @llvm.assume(i1 %gt)
-; CHECK-NEXT:  NoModRef:  Ptr: <6 x double>* %col.ptr.1 <->  call void @llvm.assume(i1 %gt)
-; CHECK-NEXT:  NoModRef:  Ptr: double* %col.ptr.2   <->  call void @llvm.assume(i1 %gt)
-; CHECK-NEXT:  NoModRef:  Ptr: <6 x double>* %col.ptr.2.cast    <->  call void @llvm.assume(i1 %gt)
-;
-  %gt = icmp sge i32 %stride, 5
-  call void @llvm.assume(i1 %gt)
-  %col.ptr.1 = bitcast double* %ptr to <6 x double>*
-  %lv.1 = load <6 x double>, <6 x double>* %col.ptr.1, align 8
-  %col.ptr.2= getelementptr double, double* %ptr, i32 %stride
-  %col.ptr.2.cast = bitcast double* %col.ptr.2 to <6 x double>*
-  %lv.2 = load <6 x double>, <6 x double>* %col.ptr.2.cast, align 8
-  %res.1 = fadd <6 x double> %lv.1, %lv.1
-  %res.2 = fadd <6 x double> %lv.2, %lv.2
-  store <6 x double> %res.1, <6 x double>* %col.ptr.1, align 8
-  store <6 x double> %res.2, <6 x double>* %col.ptr.2.cast, align 8
-  ret void
-}
-
-define void @test6(double* %ptr, i32 %stride) {
-; CHECK-LABEL: Function: test6: 4 pointers, 1 call sites
-; CHECK-NEXT:  MustAlias:  <6 x double>* %col.ptr.1, double* %ptr
-; CHECK-NEXT:  NoAlias:    double* %col.ptr.2, double* %ptr
-; CHECK-NEXT:  NoAlias:    <6 x double>* %col.ptr.1, double* %col.ptr.2
-; CHECK-NEXT:  NoAlias:    <6 x double>* %col.ptr.2.cast, double* %ptr
-; CHECK-NEXT:  NoAlias:    <6 x double>* %col.ptr.1, <6 x double>* %col.ptr.2.cast
-; CHECK-NEXT:  MustAlias:  <6 x double>* %col.ptr.2.cast, double* %col.ptr.2
-; CHECK-NEXT:  NoModRef:  Ptr: double* %ptr <->  call void @llvm.assume(i1 %gt)
-; CHECK-NEXT:  NoModRef:  Ptr: <6 x double>* %col.ptr.1 <->  call void @llvm.assume(i1 %gt)
-; CHECK-NEXT:  NoModRef:  Ptr: double* %col.ptr.2   <->  call void @llvm.assume(i1 %gt)
-; CHECK-NEXT:  NoModRef:  Ptr: <6 x double>* %col.ptr.2.cast    <->  call void @llvm.assume(i1 %gt)
-;
-  %gt = icmp sge i32 %stride, 6
-  call void @llvm.assume(i1 %gt)
-  %col.ptr.1 = bitcast double* %ptr to <6 x double>*
-  %lv.1 = load <6 x double>, <6 x double>* %col.ptr.1, align 8
-  %col.ptr.2= getelementptr double, double* %ptr, i32 %stride
-  %col.ptr.2.cast = bitcast double* %col.ptr.2 to <6 x double>*
-  %lv.2 = load <6 x double>, <6 x double>* %col.ptr.2.cast, align 8
-  %res.1 = fadd <6 x double> %lv.1, %lv.1
-  %res.2 = fadd <6 x double> %lv.2, %lv.2
-  store <6 x double> %res.1, <6 x double>* %col.ptr.1, align 8
-  store <6 x double> %res.2, <6 x double>* %col.ptr.2.cast, align 8
-  ret void
-}
-
-define void @test7(double* %ptr, i32 %stride) {
-; CHECK-LABEL: Function: test7: 4 pointers, 1 call sites
-; CHECK-NEXT:  MustAlias:   <6 x double>* %col.ptr.1, double* %ptr
-; CHECK-NEXT:  MayAlias:    double* %col.ptr.2, double* %ptr
-; CHECK-NEXT:  MayAlias:    <6 x double>* %col.ptr.1, double* %col.ptr.2
-; CHECK-NEXT:  MayAlias:    <6 x double>* %col.ptr.2.cast, double* %ptr
-; CHECK-NEXT:  MayAlias:    <6 x double>* %col.ptr.1, <6 x double>* %col.ptr.2.cast
-; CHECK-NEXT:  MustAlias:   <6 x double>* %col.ptr.2.cast, double* %col.ptr.2
-; CHECK-NEXT:  NoModRef:  Ptr: double* %ptr <->  call void @llvm.assume(i1 %gt)
-; CHECK-NEXT:  NoModRef:  Ptr: <6 x double>* %col.ptr.1 <->  call void @llvm.assume(i1 %gt)
-; CHECK-NEXT:  NoModRef:  Ptr: double* %col.ptr.2   <->  call void @llvm.assume(i1 %gt)
-; CHECK-NEXT:  NoModRef:  Ptr: <6 x double>* %col.ptr.2.cast    <->  call void @llvm.assume(i1 %gt)
-;
-  %gt = icmp sge i32 %stride, 0
-  call void @llvm.assume(i1 %gt)
   %col.ptr.1 = bitcast double* %ptr to <6 x double>*
   %lv.1 = load <6 x double>, <6 x double>* %col.ptr.1, align 8
   %col.ptr.2= getelementptr double, double* %ptr, i32 %stride

@@ -957,6 +957,12 @@ public:
   /// from non-class types (in C++) or all types (in C).
   QualType getNonLValueExprType(const ASTContext &Context) const;
 
+  /// Remove an outer pack expansion type (if any) from this type. Used as part
+  /// of converting the type of a declaration to the type of an expression that
+  /// references that expression. It's meaningless for an expression to have a
+  /// pack expansion type.
+  QualType getNonPackExpansionType() const;
+
   /// Return the specified type with any "sugar" removed from
   /// the type.  This takes off typedefs, typeof's etc.  If the outer level of
   /// the type is already concrete, it returns it unmodified.  This is similar
@@ -1065,7 +1071,7 @@ public:
 
   void dump(const char *s) const;
   void dump() const;
-  void dump(llvm::raw_ostream &OS) const;
+  void dump(llvm::raw_ostream &OS, const ASTContext &Context) const;
 
   void Profile(llvm::FoldingSetNodeID &ID) const {
     ID.AddPointer(getAsOpaquePtr());
@@ -1932,6 +1938,14 @@ public:
   bool isSizelessType() const;
   bool isSizelessBuiltinType() const;
 
+  /// Determines if this is a vector-length-specific type (VLST), i.e. a
+  /// sizeless type with the 'arm_sve_vector_bits' attribute applied.
+  bool isVLST() const;
+  /// Determines if this is a sizeless type supported by the
+  /// 'arm_sve_vector_bits' type attribute, which can be applied to a single
+  /// SVE vector or predicate, excluding tuple types such as svint32x4_t.
+  bool isVLSTBuiltinType() const;
+
   /// Types are partitioned into 3 broad categories (C99 6.2.5p1):
   /// object types, function types, and incomplete types.
 
@@ -2021,6 +2035,7 @@ public:
   bool isFloatingType() const;     // C99 6.2.5p11 (real floating + complex)
   bool isHalfType() const;         // OpenCL 6.1.1.1, NEON (IEEE 754-2008 half)
   bool isFloat16Type() const;      // C11 extension ISO/IEC TS 18661
+  bool isBFloat16Type() const;
   bool isFloat128Type() const;
   bool isRealType() const;         // C99 6.2.5p17 (real floating + integer)
   bool isArithmeticType() const;   // C99 6.2.5p18 (integer + floating)
@@ -2128,8 +2143,14 @@ public:
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \
   bool is##Id##Type() const;
 #include "clang/Basic/OpenCLImageTypes.def"
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  bool isSampled##Id##Type() const;
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
+#include "clang/Basic/OpenCLImageTypes.def"
 
   bool isImageType() const;                     // Any OpenCL image type
+  bool isSampledImageType() const;              // Any SPIR-V Sampled image type
 
   bool isSamplerT() const;                      // OpenCL sampler_t
   bool isEventT() const;                        // OpenCL event_t
@@ -2477,7 +2498,7 @@ public:
 
   CanQualType getCanonicalTypeUnqualified() const; // in CanonicalType.h
   void dump() const;
-  void dump(llvm::raw_ostream &OS) const;
+  void dump(llvm::raw_ostream &OS, const ASTContext &Context) const;
 };
 
 /// This will check for a TypedefType by removing any existing sugar
@@ -2512,6 +2533,10 @@ public:
   enum Kind {
 // OpenCL image types
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) Id,
+#include "clang/Basic/OpenCLImageTypes.def"
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) Sampled##Id,
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
 #include "clang/Basic/OpenCLImageTypes.def"
 // OpenCL extension types
 #define EXT_OPAQUE_TYPE(ExtType, Id, Ext) Id,
@@ -3486,6 +3511,11 @@ public:
   static bool isDimensionValid(uint64_t NumElements) {
     return NumElements > 0 &&
            NumElements <= ConstantMatrixTypeBitfields::MaxElementsPerDimension;
+  }
+
+  /// Returns the maximum number of elements per dimension.
+  static unsigned getMaxElementsPerDimension() {
+    return ConstantMatrixTypeBitfields::MaxElementsPerDimension;
   }
 
   void Profile(llvm::FoldingSetNodeID &ID) {
@@ -6835,6 +6865,14 @@ inline bool Type::isDecltypeType() const {
   }
 #include "clang/Basic/OpenCLImageTypes.def"
 
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  inline bool Type::isSampled##Id##Type() const {                              \
+    return isSpecificBuiltinType(BuiltinType::Sampled##Id);                    \
+  }
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
+#include "clang/Basic/OpenCLImageTypes.def"
+
 inline bool Type::isSamplerT() const {
   return isSpecificBuiltinType(BuiltinType::OCLSampler);
 }
@@ -6857,7 +6895,17 @@ inline bool Type::isReserveIDT() const {
 
 inline bool Type::isImageType() const {
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) is##Id##Type() ||
+  return isSampledImageType() ||
+#include "clang/Basic/OpenCLImageTypes.def"
+         false; // end boolean or operation
+}
+
+inline bool Type::isSampledImageType() const {
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  isSampled##Id##Type() ||
   return
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
 #include "clang/Basic/OpenCLImageTypes.def"
       false; // end boolean or operation
 }
@@ -6942,6 +6990,10 @@ inline bool Type::isHalfType() const {
 
 inline bool Type::isFloat16Type() const {
   return isSpecificBuiltinType(BuiltinType::Float16);
+}
+
+inline bool Type::isBFloat16Type() const {
+  return isSpecificBuiltinType(BuiltinType::BFloat16);
 }
 
 inline bool Type::isFloat128Type() const {

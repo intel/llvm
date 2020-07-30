@@ -19,6 +19,7 @@
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/id.hpp>
+#include <CL/sycl/interop_handle.hpp>
 #include <CL/sycl/item.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/nd_item.hpp>
@@ -178,36 +179,27 @@ template <typename T, class BinaryOperation, int Dims, bool IsUSM,
 class reduction_impl;
 
 using cl::sycl::detail::enable_if_t;
+using cl::sycl::detail::queue_impl;
 
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<Reduction::has_fast_reduce && Reduction::has_fast_atomics>
+template <typename KernelName, typename KernelType, int Dims, class Reduction,
+          typename OutputT>
+enable_if_t<Reduction::has_fast_atomics>
 reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-           Reduction &Redu, typename Reduction::rw_accessor_type &Out);
+           Reduction &Redu, OutputT Out);
 
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<!Reduction::has_fast_reduce && Reduction::has_fast_atomics>
-reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-           Reduction &Redu, typename Reduction::rw_accessor_type &Out);
-
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
+enable_if_t<!Reduction::has_fast_atomics>
 reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
            Reduction &Redu);
 
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<!Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
-reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-           Reduction &Redu);
-
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
-reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
+template <typename KernelName, typename KernelType, class Reduction>
+enable_if_t<!Reduction::has_fast_atomics, size_t>
+reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
               Reduction &Redu);
 
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<!Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
-reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
-              Reduction &Redu);
+__SYCL_EXPORT size_t reduGetMaxWGSize(shared_ptr_class<queue_impl> Queue,
+                                      size_t LocalMemBytesPerWorkItem);
+
 } // namespace detail
 } // namespace intel
 
@@ -517,47 +509,55 @@ private:
 
   template <typename T, int Dim, access::mode Mode, access::target Target,
             access::placeholder IsPH>
-  detail::enable_if_t<Dim == 0 && Mode == access::mode::atomic, T>
-  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) const {
+  static detail::enable_if_t<Dim == 0 && Mode == access::mode::atomic, T>
+  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) {
+#ifdef __ENABLE_USM_ADDR_SPACE__
+    atomic<T, access::address_space::global_device_space> AtomicSrc = Src;
+#else
     atomic<T, access::address_space::global_space> AtomicSrc = Src;
+#endif // __ENABLE_USM_ADDR_SPACE__
     return AtomicSrc.load();
   }
 
   template <typename T, int Dim, access::mode Mode, access::target Target,
             access::placeholder IsPH>
-  detail::enable_if_t<(Dim > 0) && Mode == access::mode::atomic, T>
-  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) const {
+  static detail::enable_if_t<(Dim > 0) && Mode == access::mode::atomic, T>
+  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) {
     id<Dim> Id = getDelinearizedIndex(Src.get_range(), 0);
     return Src[Id].load();
   }
 
   template <typename T, int Dim, access::mode Mode, access::target Target,
             access::placeholder IsPH>
-  detail::enable_if_t<Mode != access::mode::atomic, T>
-  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) const {
+  static detail::enable_if_t<Mode != access::mode::atomic, T>
+  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) {
     return *(Src.get_pointer());
   }
 
   template <typename T, int Dim, access::mode Mode, access::target Target,
             access::placeholder IsPH>
-  detail::enable_if_t<Dim == 0 && Mode == access::mode::atomic, void>
-  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) const {
+  static detail::enable_if_t<Dim == 0 && Mode == access::mode::atomic, void>
+  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) {
+#ifdef __ENABLE_USM_ADDR_SPACE__
+    atomic<T, access::address_space::global_device_space> AtomicDst = Dst;
+#else
     atomic<T, access::address_space::global_space> AtomicDst = Dst;
+#endif // __ENABLE_USM_ADDR_SPACE__
     AtomicDst.store(V);
   }
 
   template <typename T, int Dim, access::mode Mode, access::target Target,
             access::placeholder IsPH>
-  detail::enable_if_t<(Dim > 0) && Mode == access::mode::atomic, void>
-  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) const {
+  static detail::enable_if_t<(Dim > 0) && Mode == access::mode::atomic, void>
+  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) {
     id<Dim> Id = getDelinearizedIndex(Dst.get_range(), 0);
     Dst[Id].store(V);
   }
 
   template <typename T, int Dim, access::mode Mode, access::target Target,
             access::placeholder IsPH>
-  detail::enable_if_t<Mode != access::mode::atomic, void>
-  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) const {
+  static detail::enable_if_t<Mode != access::mode::atomic, void>
+  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) {
     *(Dst.get_pointer()) = V;
   }
 
@@ -771,9 +771,8 @@ public:
   /// \param Acc is a SYCL accessor describing required memory region.
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget>
-  void
-  require(accessor<DataT, Dims, AccMode, AccTarget, access::placeholder::true_t>
-              Acc) {
+  void require(accessor<DataT, Dims, AccMode, AccTarget,
+                        access::placeholder::true_t> &Acc) {
 #ifndef __SYCL_DEVICE_ONLY__
     associateWithHandler(&Acc, AccTarget);
 #else
@@ -797,13 +796,42 @@ public:
     }
   }
 
+  template <typename T>
+  using remove_cv_ref_t =
+      typename std::remove_cv<detail::remove_reference_t<T>>::type;
+
+  template <typename U, typename T>
+  using is_same_type = std::is_same<remove_cv_ref_t<U>, remove_cv_ref_t<T>>;
+
+  template <typename T> struct ShouldEnableSetArg {
+    static constexpr bool value =
+        std::is_trivially_copyable<T>::value
+#if CL_SYCL_LANGUAGE_VERSION && CL_SYCL_LANGUAGE_VERSION <= 121
+            && std::is_standard_layout<T>::value
+#endif
+        || is_same_type<sampler, T>::value // Sampler
+        || (!is_same_type<cl_mem, T>::value &&
+            std::is_pointer<remove_cv_ref_t<T>>::value) // USM
+        || is_same_type<cl_mem, T>::value;              // Interop
+  };
+
   /// Sets argument for OpenCL interoperability kernels.
   ///
   /// Registers Arg passed as argument # ArgIndex.
   ///
   /// \param ArgIndex is a positional number of argument to be set.
   /// \param Arg is an argument value to be set.
-  template <typename T> void set_arg(int ArgIndex, T &&Arg) {
+  template <typename T>
+  typename std::enable_if<ShouldEnableSetArg<T>::value, void>::type
+  set_arg(int ArgIndex, T &&Arg) {
+    setArgHelper(ArgIndex, std::move(Arg));
+  }
+
+  template <typename DataT, int Dims, access::mode AccessMode,
+            access::target AccessTarget, access::placeholder IsPlaceholder>
+  void
+  set_arg(int ArgIndex,
+          accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder> Arg) {
     setArgHelper(ArgIndex, std::move(Arg));
   }
 
@@ -871,8 +899,22 @@ public:
   }
 
   template <typename FuncT>
-  typename std::enable_if<detail::check_fn_signature<
-      typename std::remove_reference<FuncT>::type, void()>::value>::type
+  detail::enable_if_t<detail::check_fn_signature<
+      detail::remove_reference_t<FuncT>, void()>::value>
+  codeplay_host_task(FuncT Func) {
+    throwIfActionIsCreated();
+
+    MNDRDesc.set(range<1>(1));
+    MArgs = std::move(MAssociatedAccesors);
+
+    MHostTask.reset(new detail::HostTask(std::move(Func)));
+
+    MCGType = detail::CG::CODEPLAY_HOST_TASK;
+  }
+
+  template <typename FuncT>
+  detail::enable_if_t<detail::check_fn_signature<
+      detail::remove_reference_t<FuncT>, void(interop_handle)>::value>
   codeplay_host_task(FuncT Func) {
     throwIfActionIsCreated();
 
@@ -958,24 +1000,23 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims, typename Reduction>
   detail::enable_if_t<Reduction::accessor_mode == access::mode::read_write &&
-                      Reduction::has_fast_atomics>
+                      Reduction::has_fast_atomics && !Reduction::is_usm>
   parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
-    if (Reduction::is_usm)
-      Redu.associateWithHandler(*this);
-    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
-    auto Acc = Redu.getUserAccessor();
-    intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu, Acc);
+    intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
+                                          Redu.getUserAccessor());
+  }
 
-    // Submit non-blocking copy from reduction accessor to user's reduction
-    // variable.
-    if (Reduction::is_usm) {
-      this->finalize();
-      handler CopyHandler(QueueCopy, MIsHost);
-      CopyHandler.saveCodeLoc(MCodeLoc);
-      Redu.associateWithHandler(CopyHandler);
-      CopyHandler.copy(Acc, Redu.getUSMPointer());
-      MLastEvent = CopyHandler.finalize();
-    }
+  /// Implements parallel_for() accepting nd_range and 1 reduction variable
+  /// having 'read_write' access mode.
+  /// This version uses fast sycl::atomic operations to update user's reduction
+  /// variable at the end of each work-group work.
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims, typename Reduction>
+  detail::enable_if_t<Reduction::accessor_mode == access::mode::read_write &&
+                      Reduction::has_fast_atomics && Reduction::is_usm>
+  parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
+    intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
+                                          Redu.getUSMPointer());
   }
 
   /// Implements parallel_for() accepting nd_range and 1 reduction variable
@@ -999,7 +1040,7 @@ public:
                                           RWAcc);
     this->finalize();
 
-    // Copy from RWAcc to some temp memory.
+    // Copy from RWAcc to user's reduction accessor.
     handler CopyHandler(QueueCopy, MIsHost);
     CopyHandler.saveCodeLoc(MCodeLoc);
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1029,8 +1070,6 @@ public:
             int Dims, typename Reduction>
   detail::enable_if_t<!Reduction::has_fast_atomics>
   parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
-    size_t NWorkGroups = Range.get_group_range().size();
-
     // This parallel_for() is lowered to the following sequence:
     // 1) Call a kernel that a) call user's lambda function and b) performs
     //    one iteration of reduction, storing the partial reductions/sums
@@ -1044,55 +1083,52 @@ public:
     // 2) Call an aux kernel (if necessary, i.e. if N2 > 1) as many times as
     //    necessary to reduce all partial sums into one final sum.
 
+    // Before running the kernels, check that device has enough local memory
+    // to hold local arrays that may be required for the reduction algorithm.
+    // TODO: If the work-group-size is limited by the local memory, then
+    // a special version of the main kernel may be created. The one that would
+    // not use local accessors, which means it would not do the reduction in
+    // the main kernel, but simply generate Range.get_global_range.size() number
+    // of partial sums, leaving the reduction work to the additional/aux
+    // kernels.
+    constexpr bool HFR = Reduction::has_fast_reduce;
+    size_t OneElemSize = HFR ? 0 : sizeof(typename Reduction::result_type);
+    // TODO: currently the maximal work group size is determined for the given
+    // queue/device, while it may be safer to use queries to the kernel compiled
+    // for the device.
+    size_t MaxWGSize = intel::detail::reduGetMaxWGSize(MQueue, OneElemSize);
+    if (Range.get_local_range().size() > MaxWGSize)
+      throw sycl::runtime_error("The implementation handling parallel_for with"
+                                " reduction requires smaller work group size.",
+                                PI_INVALID_WORK_GROUP_SIZE);
+
     // 1. Call the kernel that includes user's lambda function.
-    if (Reduction::is_usm && NWorkGroups == 1)
-      Redu.associateWithHandler(*this);
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
     shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     this->finalize();
 
-    // 2. Run the additional aux kernel as many times as needed to reduce
+    // 2. Run the additional kernel as many times as needed to reduce
     // all partial sums into one scalar.
 
-    // TODO: user's nd_range and the work-group size specified there must
-    // be honored only for the main kernel that calls user's lambda functions.
-    // There is no need in using the same work-group size in these additional
-    // kernels. Thus, the better strategy here is to make the work-group size
-    // as big as possible to converge/reduce the partial sums into the last
-    // sum faster.
-    size_t WGSize = Range.get_local_range().size();
-    size_t NWorkItems = NWorkGroups;
+    // TODO: Create a special slow/sequential version of the kernel that would
+    // handle the reduction instead of reporting an assert below.
+    if (MaxWGSize <= 1)
+      throw sycl::runtime_error("The implementation handling parallel_for with "
+                                "reduction requires the maximal work group "
+                                "size to be greater than 1 to converge. "
+                                "The maximal work group size depends on the "
+                                "device and the size of the objects passed to "
+                                "the reduction.",
+                                PI_INVALID_WORK_GROUP_SIZE);
+    size_t NWorkItems = Range.get_group_range().size();
     while (NWorkItems > 1) {
-      WGSize = std::min(WGSize, NWorkItems);
-      NWorkGroups = NWorkItems / WGSize;
-      // The last group may be not fully loaded. Still register it as a group.
-      if ((NWorkItems % WGSize) != 0)
-        ++NWorkGroups;
-      nd_range<1> Range(range<1>(WGSize * NWorkGroups), range<1>(WGSize));
-
       handler AuxHandler(QueueCopy, MIsHost);
       AuxHandler.saveCodeLoc(MCodeLoc);
 
-      // The last kernel DOES write to reduction's accessor.
-      // Associate it with handler manually.
-      if (NWorkGroups == 1)
-        Redu.associateWithHandler(AuxHandler);
-      intel::detail::reduAuxCGFunc<KernelName, KernelType>(AuxHandler, Range,
-                                                           NWorkItems, Redu);
+      NWorkItems = intel::detail::reduAuxCGFunc<KernelName, KernelType>(
+          AuxHandler, NWorkItems, MaxWGSize, Redu);
       MLastEvent = AuxHandler.finalize();
-
-      NWorkItems = NWorkGroups;
     } // end while (NWorkItems > 1)
-
-    // Submit non-blocking copy from reduction accessor to user's reduction
-    // variable.
-    if (Reduction::is_usm) {
-      handler CopyHandler(QueueCopy, MIsHost);
-      CopyHandler.saveCodeLoc(MCodeLoc);
-      Redu.associateWithHandler(CopyHandler);
-      CopyHandler.copy(Redu.getUserAccessor(), Redu.getUSMPointer());
-      MLastEvent = CopyHandler.finalize();
-    }
   }
 
   /// Hierarchical kernel invocation method of a kernel defined as a lambda
@@ -1683,6 +1719,29 @@ public:
     }
   }
 
+  /// Prevents any commands submitted afterward to this queue from executing
+  /// until all commands previously submitted to this queue have entered the
+  /// complete state.
+  void barrier() {
+    throwIfActionIsCreated();
+    MCGType = detail::CG::BARRIER;
+  }
+
+  /// Prevents any commands submitted afterward to this queue from executing
+  /// until all events in WaitList have entered the complete state. If WaitList
+  /// is empty, then the barrier has no effect.
+  ///
+  /// \param WaitList is a vector of valid SYCL events that need to complete
+  /// before barrier command can be executed.
+  void barrier(const vector_class<event> &WaitList) {
+    throwIfActionIsCreated();
+    MCGType = detail::CG::BARRIER_WAITLIST;
+    MEventsWaitWithBarrier.resize(WaitList.size());
+    std::transform(
+        WaitList.begin(), WaitList.end(), MEventsWaitWithBarrier.begin(),
+        [](const event &Event) { return detail::getSyclObjImpl(Event); });
+  }
+
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
   ///
@@ -1766,6 +1825,9 @@ private:
   std::unique_ptr<detail::InteropTask> MInteropTask;
   /// The list of events that order this operation.
   vector_class<detail::EventImplPtr> MEvents;
+  /// The list of valid SYCL events that need to complete
+  /// before barrier command can be executed
+  vector_class<detail::EventImplPtr> MEventsWaitWithBarrier;
 
   bool MIsHost = false;
 

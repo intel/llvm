@@ -48,6 +48,7 @@ write_lit_config("lit_site_cfg") {
     "CLANG_DEFAULT_CXX_STDLIB=",  # Empty string means "default value" here.
     "CLANG_DEFAULT_LINKER=",
     "CLANG_TOOLS_DIR=" + rebase_path("$root_out_dir/bin", dir),
+    "CLANG_VENDOR_UTI=org.llvm.clang",
 
     # This is only used if LLVM_USE_SANITIZER includes lsan and the host
     # OS is macOS. Since the GN build currently never uses LLVM_USE_SANITIZER,
@@ -85,6 +86,8 @@ write_lit_config("lit_site_cfg") {
 
   if (host_cpu == "x64") {
     extra_values += [ "HOST_ARCH=x86_64" ]
+  } else if (host_cpu == "arm64") {
+    extra_values += [ "HOST_ARCH=arm64" ]
   } else if (host_cpu == "ppc64") {
     extra_values += [ "HOST_ARCH=powerpc64le" ]
   } else {

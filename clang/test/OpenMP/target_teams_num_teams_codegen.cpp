@@ -153,7 +153,7 @@ int bar(int n){
 // CHECK:       [[ARG:%.+]] = load i[[SZ]], i[[SZ]]* [[CAPEC_ADDR]], align
 // CHECK:       [[TEAMS:%.+]] = load i32, i32* [[CAPE_ADDR]], align
 //
-// CHECK-DAG:   [[RET:%.+]] = call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 4, {{.*}}, i32 [[TEAMS]], i32 0)
+// CHECK-DAG:   [[RET:%.+]] = call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 4, {{.*}}, i8** null, i32 [[TEAMS]], i32 0)
 // CHECK:       [[ERROR:%.+]] = icmp ne i32 [[RET]], 0
 // CHECK:       br i1 [[ERROR]], label %[[FAIL:.+]], label %[[END:[^,]+]]
 //
@@ -164,7 +164,7 @@ int bar(int n){
 //
 //
 //
-// CHECK-DAG:   [[RET:%.+]] = call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 2, {{.+}}, i32 1024, i32 0)
+// CHECK-DAG:   [[RET:%.+]] = call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 2, {{.+}}, i8** null, i32 1024, i32 0)
 // CHECK:       [[ERROR:%.+]] = icmp ne i32 [[RET]], 0
 // CHECK:       br i1 [[ERROR]], label %[[FAIL:.+]], label %[[END:[^,]+]]
 //
@@ -192,7 +192,7 @@ int bar(int n){
 // CHECK:       [[ARG:%.+]] = load i[[SZ]], i[[SZ]]* [[CAPEC_ADDR]], align
 // CHECK:       [[TEAMS:%.+]] = load i32, i32* [[CAPE_ADDR]], align
 //
-// CHECK-DAG:   [[RET:%.+]] = call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 1, {{.*}}, i32 [[TEAMS]], i32 0)
+// CHECK-DAG:   [[RET:%.+]] = call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 1, {{.*}}, i8** null, i32 [[TEAMS]], i32 0)
 // CHECK:       [[ERROR:%.+]] = icmp ne i32 [[RET]], 0
 // CHECK:       br i1 [[ERROR]], label %[[FAIL:.+]], label %[[END:[^,]+]]
 //
@@ -213,7 +213,7 @@ int bar(int n){
 // CHECK:       [[ARG:%.+]] = load i[[SZ]], i[[SZ]]* [[CAPEC_ADDR]], align
 // CHECK:       [[TEAMS:%.+]] = load i32, i32* [[CAPE_ADDR]], align
 //
-// CHECK-DAG:   [[RET:%.+]] = call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 1, {{.*}}, i32 [[TEAMS]], i32 0)
+// CHECK-DAG:   [[RET:%.+]] = call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 1, {{.*}}, i8** null, i32 [[TEAMS]], i32 0)
 // CHECK:       [[ERROR:%.+]] = icmp ne i32 [[RET]], 0
 // CHECK:       br i1 [[ERROR]], label %[[FAIL:.+]], label %[[END:[^,]+]]
 //
@@ -231,7 +231,7 @@ int bar(int n){
 //
 // CHECK: define {{.*}}[[FTEMPLATE]]
 //
-// CHECK-DAG:   [[RET:%.+]] = call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 0, {{.*}}, i32 20, i32 0)
+// CHECK-DAG:   [[RET:%.+]] = call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 0, {{.*}}, i8** null, i32 20, i32 0)
 // CHECK-NEXT:  [[ERROR:%.+]] = icmp ne i32 [[RET]], 0
 // CHECK-NEXT:  br i1 [[ERROR]], label %[[FAIL:.+]], label %[[END:[^,]+]]
 //
@@ -253,7 +253,7 @@ int bar(int n){
 // CHECK:       [[T:%.+]] = load i16, i16* [[CAPE_ADDR]], align
 // CHECK:       [[TEAMS:%.+]] = sext i16 [[T]] to i32
 //
-// CHECK-DAG:   [[RET:%.+]] = call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 3, {{.*}}, i32 [[TEAMS]], i32 0)
+// CHECK-DAG:   [[RET:%.+]] = call i32 @__tgt_target_teams_mapper(i64 -1, i8* @{{[^,]+}}, i32 3, {{.*}}, i8** null, i32 [[TEAMS]], i32 0)
 // CHECK:       [[ERROR:%.+]] = icmp ne i32 [[RET]], 0
 // CHECK:       br i1 [[ERROR]], label %[[FAIL:.+]], label %[[END:[^,]+]]
 //
@@ -276,31 +276,23 @@ int bar(int n){
 // CHECK-64:    [[CONV:%.+]] = bitcast i[[SZ]]* [[CAPE_ADDR]] to i32*
 // CHECK-64:    [[NT:%.+]] = load i32, i32* [[CONV]], align
 // CHECK-32:    [[NT:%.+]] = load i32, i32* [[CAPE_ADDR]], align
-// CHECK:       call i32 @__kmpc_push_num_teams(%struct.ident_t* {{[^,]+}}, i32 {{[^,]+}}, i32 [[NT]], i32 0)
+// CHECK:       call void @__kmpc_push_num_teams(%struct.ident_t* {{[^,]+}}, i32 {{[^,]+}}, i32 [[NT]], i32 0)
 // CHECK:       call {{.*}}void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_teams(%struct.ident_t* [[DEF_LOC]], i32 2,
 //
 //
 
-
 // CHECK:       define internal void [[HVT2]]([[S1]]* {{%.+}})
-// CHECK:       call i32 @__kmpc_push_num_teams(%struct.ident_t* {{[^,]+}}, i32 {{[^,]+}}, i32 1024, i32 0)
+// CHECK:       call void @__kmpc_push_num_teams(%struct.ident_t* {{[^,]+}}, i32 {{[^,]+}}, i32 1024, i32 0)
 // CHECK:       call {{.*}}void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_teams(%struct.ident_t* [[DEF_LOC]], i32 1,
 //
 //
-
-
-
-
-
-
-
 
 // CHECK:       define internal void [[HVT3]](i[[SZ]] [[PARM:%.+]])
 // CHECK-DAG:   store i[[SZ]] [[PARM]], i[[SZ]]* [[CAPE_ADDR:%.+]], align
 // CHECK-64:    [[CONV:%.+]] = bitcast i[[SZ]]* [[CAPE_ADDR]] to i32*
 // CHECK-64:    [[NT:%.+]] = load i32, i32* [[CONV]], align
 // CHECK-32:    [[NT:%.+]] = load i32, i32* [[CAPE_ADDR]], align
-// CHECK:       call i32 @__kmpc_push_num_teams(%struct.ident_t* {{[^,]+}}, i32 {{[^,]+}}, i32 [[NT]], i32 0)
+// CHECK:       call void @__kmpc_push_num_teams(%struct.ident_t* {{[^,]+}}, i32 {{[^,]+}}, i32 [[NT]], i32 0)
 // CHECK:       call {{.*}}void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_teams(%struct.ident_t* [[DEF_LOC]], i32 0,
 //
 //
@@ -309,32 +301,25 @@ int bar(int n){
 // CHECK-64:    [[CONV:%.+]] = bitcast i[[SZ]]* [[CAPE_ADDR]] to i32*
 // CHECK-64:    [[NT:%.+]] = load i32, i32* [[CONV]], align
 // CHECK-32:    [[NT:%.+]] = load i32, i32* [[CAPE_ADDR]], align
-// CHECK:       call i32 @__kmpc_push_num_teams(%struct.ident_t* {{[^,]+}}, i32 {{[^,]+}}, i32 [[NT]], i32 0)
+// CHECK:       call void @__kmpc_push_num_teams(%struct.ident_t* {{[^,]+}}, i32 {{[^,]+}}, i32 [[NT]], i32 0)
 // CHECK:       call {{.*}}void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_teams(%struct.ident_t* [[DEF_LOC]], i32 0,
 //
 //
-
-
-
-
 
 // CHECK:       define internal void [[HVT5]](
-// CHECK:       call i32 @__kmpc_push_num_teams(%struct.ident_t* {{[^,]+}}, i32 {{[^,]+}}, i32 20, i32 0)
+// CHECK:       call void @__kmpc_push_num_teams(%struct.ident_t* {{[^,]+}}, i32 {{[^,]+}}, i32 20, i32 0)
 // CHECK:       call {{.*}}void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_teams(%struct.ident_t* [[DEF_LOC]], i32 0,
 //
 //
-
 
 // CHECK:       define internal void [[HVT6]](i[[SZ]] [[PARM1:%.+]], i[[SZ]] [[PARM2:%.+]], i[[SZ]] [[PARM3:%.+]])
 // CHECK-DAG:   store i[[SZ]] [[PARM3]], i[[SZ]]* [[CAPE_ADDR:%.+]], align
 // CHECK:       [[CONV:%.+]] = bitcast i[[SZ]]* [[CAPE_ADDR]] to i16*
 // CHECK:       [[T:%.+]] = load i16, i16* [[CONV]], align
 // CHECK:       [[NT:%.+]] = sext i16 [[T]] to i32
-// CHECK:       call i32 @__kmpc_push_num_teams(%struct.ident_t* {{[^,]+}}, i32 {{[^,]+}}, i32 [[NT]], i32 0)
+// CHECK:       call void @__kmpc_push_num_teams(%struct.ident_t* {{[^,]+}}, i32 {{[^,]+}}, i32 [[NT]], i32 0)
 // CHECK:       call {{.*}}void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_teams(%struct.ident_t* [[DEF_LOC]], i32 2,
 //
 //
-
-
 
 #endif

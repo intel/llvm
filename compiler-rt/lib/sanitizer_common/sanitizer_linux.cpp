@@ -861,9 +861,8 @@ uptr internal_sigprocmask(int how, __sanitizer_sigset_t *set,
 #else
   __sanitizer_kernel_sigset_t *k_set = (__sanitizer_kernel_sigset_t *)set;
   __sanitizer_kernel_sigset_t *k_oldset = (__sanitizer_kernel_sigset_t *)oldset;
-  return internal_syscall(SYSCALL(rt_sigprocmask), (uptr)how,
-                          (uptr)&k_set->sig[0], (uptr)&k_oldset->sig[0],
-                          sizeof(__sanitizer_kernel_sigset_t));
+  return internal_syscall(SYSCALL(rt_sigprocmask), (uptr)how, (uptr)k_set,
+                          (uptr)k_oldset, sizeof(__sanitizer_kernel_sigset_t));
 #endif
 }
 
@@ -2043,13 +2042,13 @@ static void GetPcSpBp(void *context, uptr *pc, uptr *sp, uptr *bp) {
 # ifndef REG_EBP
 #  define REG_EBP  6 // REG_FP
 # endif
-# ifndef REG_ESP
-#  define REG_ESP 17 // REG_SP
+# ifndef REG_UESP
+#  define REG_UESP 17 // REG_SP
 # endif
 # endif
   *pc = ucontext->uc_mcontext.gregs[REG_EIP];
   *bp = ucontext->uc_mcontext.gregs[REG_EBP];
-  *sp = ucontext->uc_mcontext.gregs[REG_ESP];
+  *sp = ucontext->uc_mcontext.gregs[REG_UESP];
 # endif
 #elif defined(__powerpc__) || defined(__powerpc64__)
   ucontext_t *ucontext = (ucontext_t*)context;
@@ -2211,7 +2210,7 @@ void CheckNoDeepBind(const char *filename, int flag) {
   if (flag & RTLD_DEEPBIND) {
     Report(
         "You are trying to dlopen a %s shared library with RTLD_DEEPBIND flag"
-        " which is incompatibe with sanitizer runtime "
+        " which is incompatible with sanitizer runtime "
         "(see https://github.com/google/sanitizers/issues/611 for details"
         "). If you want to run %s library under sanitizers please remove "
         "RTLD_DEEPBIND from dlopen flags.\n",

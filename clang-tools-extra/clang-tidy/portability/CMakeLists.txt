@@ -9,11 +9,18 @@ add_clang_library(clangTidyPortabilityModule
   SIMDIntrinsicsCheck.cpp
 
   LINK_LIBS
+  clangTidy
+  clangTidyUtils
+
+  DEPENDS
+  omp_gen
+  )
+
+clang_target_link_libraries(clangTidyPortabilityModule
+  PRIVATE
   clangAST
   clangASTMatchers
   clangBasic
   clangLex
-  clangTidy
-  clangTidyUtils
   clangTooling
   )

@@ -12,7 +12,6 @@ struct Data {
   uint max_local_range;
   uint group_id;
   uint group_range;
-  uint uniform_group_range;
 };
 __kernel void ocl_subgr(__global struct Data *a) {
   uint id = get_global_id(0);
@@ -21,5 +20,4 @@ __kernel void ocl_subgr(__global struct Data *a) {
   a[id].max_local_range = get_max_sub_group_size();
   a[id].group_id = get_sub_group_id();
   a[id].group_range = get_num_sub_groups();
-  a[id].uniform_group_range = get_num_sub_groups();
 }

@@ -80,10 +80,11 @@ constexpr auto skipBadLine{SkipPast<'\n'>{} >> construct<ErrorRecovery>()};
 constexpr auto executionPartErrorRecovery{stmtErrorRecoveryStart >>
     !"END"_tok >> !"CONTAINS"_tok >> !"ELSE"_tok >> !"CASE"_tok >>
     !"TYPE IS"_tok >> !"CLASS"_tok >> !"RANK"_tok >>
+    !("!$ACC "_sptok >> "END"_tok) >>
     !("!$OMP "_sptok >> ("END"_tok || "SECTION"_id)) >> skipBadLine};
 
 // END statement error recovery
-constexpr auto missingOptionalName{defaulted(cut >> maybe(name))};
+constexpr auto missingOptionalName{pure<std::optional<Name>>()};
 constexpr auto noNameEnd{"END" >> missingOptionalName};
 constexpr auto atEndOfStmt{space >>
     withMessage("expected end of statement"_err_en_US, lookAhead(";\n"_ch))};

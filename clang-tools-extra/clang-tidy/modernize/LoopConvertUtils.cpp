@@ -438,11 +438,12 @@ static bool arrayMatchesBoundExpr(ASTContext *Context,
       Context->getAsConstantArrayType(ArrayType);
   if (!ConstType)
     return false;
-  llvm::APSInt ConditionSize;
-  if (!ConditionExpr->isIntegerConstantExpr(ConditionSize, *Context))
+  Optional<llvm::APSInt> ConditionSize =
+      ConditionExpr->getIntegerConstantExpr(*Context);
+  if (!ConditionSize)
     return false;
   llvm::APSInt ArraySize(ConstType->getSize());
-  return llvm::APSInt::isSameValue(ConditionSize, ArraySize);
+  return llvm::APSInt::isSameValue(*ConditionSize, ArraySize);
 }
 
 ForLoopIndexUseVisitor::ForLoopIndexUseVisitor(ASTContext *Context,
@@ -500,7 +501,7 @@ void ForLoopIndexUseVisitor::addUsage(const Usage &U) {
 ///     int k = *i + 2;
 ///   }
 /// \endcode
-bool ForLoopIndexUseVisitor::TraverseUnaryDeref(UnaryOperator *Uop) {
+bool ForLoopIndexUseVisitor::TraverseUnaryOperator(UnaryOperator *Uop) {
   // If we dereference an iterator that's actually a pointer, count the
   // occurrence.
   if (isDereferenceOfUop(Uop, IndexVar)) {
@@ -712,7 +713,7 @@ bool ForLoopIndexUseVisitor::TraverseArraySubscriptExpr(ArraySubscriptExpr *E) {
 /// If we encounter a reference to IndexVar in an unpruned branch of the
 /// traversal, mark this loop as unconvertible.
 ///
-/// This implements the whitelist for convertible loops: any usages of IndexVar
+/// This determines the set of convertible loops: any usages of IndexVar
 /// not explicitly considered convertible by this traversal will be caught by
 /// this function.
 ///

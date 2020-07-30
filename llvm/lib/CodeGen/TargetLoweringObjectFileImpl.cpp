@@ -599,11 +599,11 @@ getELFSectionNameForGlobal(const GlobalObject *GO, SectionKind Kind,
     // We also need alignment here.
     // FIXME: this is getting the alignment of the character, not the
     // alignment of the global!
-    unsigned Align = GO->getParent()->getDataLayout().getPreferredAlignment(
+    Align Alignment = GO->getParent()->getDataLayout().getPreferredAlign(
         cast<GlobalVariable>(GO));
 
     std::string SizeSpec = ".rodata.str" + utostr(EntrySize) + ".";
-    Name = SizeSpec + utostr(Align);
+    Name = SizeSpec + utostr(Alignment.value());
   } else if (Kind.isMergeableConst()) {
     Name = ".rodata.cst";
     Name += utostr(EntrySize);
@@ -879,7 +879,7 @@ MCSection *TargetLoweringObjectFileELF::getSectionForMachineBasicBlock(
     Name += MBB.getParent()->getName();
   } else {
     Name += MBB.getParent()->getSection()->getName();
-    if (TM.getUniqueBBSectionNames()) {
+    if (TM.getUniqueBasicBlockSectionNames()) {
       Name += ".";
       Name += MBB.getSymbol()->getName();
     } else {
@@ -1145,16 +1145,16 @@ MCSection *TargetLoweringObjectFileMachO::SelectSectionForGlobal(
 
   // FIXME: Alignment check should be handled by section classifier.
   if (Kind.isMergeable1ByteCString() &&
-      GO->getParent()->getDataLayout().getPreferredAlignment(
-          cast<GlobalVariable>(GO)) < 32)
+      GO->getParent()->getDataLayout().getPreferredAlign(
+          cast<GlobalVariable>(GO)) < Align(32))
     return CStringSection;
 
   // Do not put 16-bit arrays in the UString section if they have an
   // externally visible label, this runs into issues with certain linker
   // versions.
   if (Kind.isMergeable2ByteCString() && !GO->hasExternalLinkage() &&
-      GO->getParent()->getDataLayout().getPreferredAlignment(
-          cast<GlobalVariable>(GO)) < 32)
+      GO->getParent()->getDataLayout().getPreferredAlign(
+          cast<GlobalVariable>(GO)) < Align(32))
     return UStringSection;
 
   // With MachO only variables whose corresponding symbol starts with 'l' or
@@ -1765,7 +1765,7 @@ static std::string scalarConstantToHexString(const Constant *C) {
   } else {
     unsigned NumElements;
     if (auto *VTy = dyn_cast<VectorType>(Ty))
-      NumElements = VTy->getNumElements();
+      NumElements = cast<FixedVectorType>(VTy)->getNumElements();
     else
       NumElements = Ty->getArrayNumElements();
     std::string HexString;
@@ -2043,13 +2043,13 @@ MCSection *TargetLoweringObjectFileXCOFF::SelectSectionForGlobal(
   }
 
   if (Kind.isMergeableCString()) {
-    unsigned Align = GO->getParent()->getDataLayout().getPreferredAlignment(
+    Align Alignment = GO->getParent()->getDataLayout().getPreferredAlign(
         cast<GlobalVariable>(GO));
 
     unsigned EntrySize = getEntrySizeForKind(Kind);
     std::string SizeSpec = ".rodata.str" + utostr(EntrySize) + ".";
     SmallString<128> Name;
-    Name = SizeSpec + utostr(Align);
+    Name = SizeSpec + utostr(Alignment.value());
 
     return getContext().getXCOFFSection(
         Name, XCOFF::XMC_RO, XCOFF::XTY_SD,
@@ -2125,9 +2125,11 @@ const MCExpr *TargetLoweringObjectFileXCOFF::lowerRelativeReference(
   report_fatal_error("XCOFF not yet implemented.");
 }
 
-XCOFF::StorageClass TargetLoweringObjectFileXCOFF::getStorageClassForGlobal(
-    const GlobalObject *GO) {
-  switch (GO->getLinkage()) {
+XCOFF::StorageClass
+TargetLoweringObjectFileXCOFF::getStorageClassForGlobal(const GlobalValue *GV) {
+  assert(!isa<GlobalIFunc>(GV) && "GlobalIFunc is not supported on AIX.");
+
+  switch (GV->getLinkage()) {
   case GlobalValue::InternalLinkage:
   case GlobalValue::PrivateLinkage:
     return XCOFF::C_HIDEXT;
@@ -2149,10 +2151,16 @@ XCOFF::StorageClass TargetLoweringObjectFileXCOFF::getStorageClassForGlobal(
 }
 
 MCSymbol *TargetLoweringObjectFileXCOFF::getFunctionEntryPointSymbol(
-    const Function *F, const TargetMachine &TM) const {
+    const GlobalValue *Func, const TargetMachine &TM) const {
+  assert(
+      (isa<Function>(Func) ||
+       (isa<GlobalAlias>(Func) &&
+        isa_and_nonnull<Function>(cast<GlobalAlias>(Func)->getBaseObject()))) &&
+      "Func must be a function or an alias which has a function as base "
+      "object.");
   SmallString<128> NameStr;
   NameStr.push_back('.');
-  getNameWithPrefix(NameStr, F, TM);
+  getNameWithPrefix(NameStr, Func, TM);
   return getContext().getOrCreateSymbol(NameStr);
 }
 
@@ -2168,6 +2176,6 @@ MCSection *TargetLoweringObjectFileXCOFF::getSectionForFunctionDescriptor(
 MCSection *TargetLoweringObjectFileXCOFF::getSectionForTOCEntry(
     const MCSymbol *Sym) const {
   return getContext().getXCOFFSection(
-      cast<MCSymbolXCOFF>(Sym)->getUnqualifiedName(), XCOFF::XMC_TC,
+      cast<MCSymbolXCOFF>(Sym)->getSymbolTableName(), XCOFF::XMC_TC,
       XCOFF::XTY_SD, XCOFF::C_HIDEXT, SectionKind::getData());
 }

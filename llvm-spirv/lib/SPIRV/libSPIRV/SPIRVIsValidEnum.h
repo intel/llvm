@@ -149,6 +149,11 @@ inline bool isValid(spv::ExecutionMode V) {
   case ExecutionModeSignedZeroInfNanPreserve:
   case ExecutionModeRoundingModeRTE:
   case ExecutionModeRoundingModeRTZ:
+  case ExecutionModeRoundingModeRTPINTEL:
+  case ExecutionModeRoundingModeRTNINTEL:
+  case ExecutionModeFloatingPointModeALTINTEL:
+  case ExecutionModeFloatingPointModeIEEEINTEL:
+  case ExecutionModeSharedLocalMemorySizeINTEL:
     return true;
   default:
     return false;
@@ -169,6 +174,8 @@ inline bool isValid(spv::StorageClass V) {
   case StorageClassPushConstant:
   case StorageClassAtomicCounter:
   case StorageClassImage:
+  case StorageClassDeviceOnlyINTEL:
+  case StorageClassHostOnlyINTEL:
     return true;
   default:
     return false;
@@ -416,7 +423,19 @@ inline bool isValid(spv::Decoration V) {
   case DecorationDoublepumpINTEL:
   case DecorationBankBitsINTEL:
   case DecorationForcePow2DepthINTEL:
+  case DecorationBurstCoalesceINTEL:
+  case DecorationCacheSizeINTEL:
+  case DecorationDontStaticallyCoalesceINTEL:
+  case DecorationPrefetchINTEL:
   case DecorationReferencedIndirectlyINTEL:
+  case DecorationVectorComputeFunctionINTEL:
+  case DecorationStackCallINTEL:
+  case DecorationFuncParamKindINTEL:
+  case DecorationFuncParamDescINTEL:
+  case DecorationVectorComputeVariableINTEL:
+  case DecorationGlobalVariableOffsetINTEL:
+  case DecorationFuncParamIOKind:
+  case DecorationSIMTCallINTEL:
     return true;
   default:
     return false;
@@ -586,7 +605,12 @@ inline bool isValid(spv::Capability V) {
   case CapabilitySignedZeroInfNanPreserve:
   case CapabilityRoundingModeRTE:
   case CapabilityRoundingModeRTZ:
+  case CapabilityRoundToInfinityINTEL:
+  case CapabilityFloatingPointModeINTEL:
+  case CapabilityVectorComputeINTEL:
+  case CapabilityVectorAnyINTEL:
   case CapabilityFPGAMemoryAttributesINTEL:
+  case CapabilityFPGAMemoryAccessesINTEL:
   case CapabilityArbitraryPrecisionIntegersINTEL:
   case CapabilityFPGALoopControlsINTEL:
   case CapabilityBlockingPipesINTEL:
@@ -714,6 +738,8 @@ inline bool isValid(spv::Op V) {
   case OpConvertUToPtr:
   case OpPtrCastToGeneric:
   case OpGenericCastToPtr:
+  case OpPtrCastToCrossWorkgroupINTEL:
+  case OpCrossWorkgroupCastToPtrINTEL:
   case OpGenericCastToPtrExplicit:
   case OpBitcast:
   case OpSNegate:
@@ -1087,13 +1113,13 @@ inline bool isValidLoopControlMask(SPIRVWord Mask) {
   ValidMask |= LoopControlPartialCountMask;
   ValidMask |= LoopControlDependencyInfiniteMask;
   ValidMask |= LoopControlDependencyLengthMask;
-  ValidMask |= LoopControlInitiationIntervalINTEL;
-  ValidMask |= LoopControlMaxConcurrencyINTEL;
-  ValidMask |= LoopControlDependencyArrayINTEL;
-  ValidMask |= LoopControlPipelineEnableINTEL;
-  ValidMask |= LoopControlLoopCoalesceINTEL;
-  ValidMask |= LoopControlMaxInterleavingINTEL;
-  ValidMask |= LoopControlSpeculatedIterationsINTEL;
+  ValidMask |= LoopControlInitiationIntervalINTELMask;
+  ValidMask |= LoopControlMaxConcurrencyINTELMask;
+  ValidMask |= LoopControlDependencyArrayINTELMask;
+  ValidMask |= LoopControlPipelineEnableINTELMask;
+  ValidMask |= LoopControlLoopCoalesceINTELMask;
+  ValidMask |= LoopControlMaxInterleavingINTELMask;
+  ValidMask |= LoopControlSpeculatedIterationsINTELMask;
 
   return (Mask & ~ValidMask) == 0;
 }

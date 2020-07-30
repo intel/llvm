@@ -26,18 +26,6 @@ __SIZE_TYPE__ memory_grow(__SIZE_TYPE__ delta) {
   // WEBASSEMBLY64: call i64 @llvm.wasm.memory.grow.i64(i32 0, i64 %{{.*}})
 }
 
-void memory_init(void *dest, int offset, int size) {
-  __builtin_wasm_memory_init(3, 0, dest, offset, size);
-  // WEBASSEMBLY32: call void @llvm.wasm.memory.init(i32 3, i32 0, i8* %{{.*}}, i32 %{{.*}}, i32 %{{.*}})
-  // WEBASSEMBLY64: call void @llvm.wasm.memory.init(i32 3, i32 0, i8* %{{.*}}, i32 %{{.*}}, i32 %{{.*}})
-}
-
-void data_drop() {
-  __builtin_wasm_data_drop(3);
-  // WEBASSEMBLY32: call void @llvm.wasm.data.drop(i32 3)
-  // WEBASSEMBLY64: call void @llvm.wasm.data.drop(i32 3)
-}
-
 __SIZE_TYPE__ tls_size() {
   return __builtin_wasm_tls_size();
   // WEBASSEMBLY32: call i32 @llvm.wasm.tls.size.i32()
@@ -619,6 +607,54 @@ f64x2 pmax_f64x2(f64x2 x, f64x2 y) {
   // WEBASSEMBLY: call <2 x double> @llvm.wasm.pmax.v2f64(
   // WEBASSEMBLY-SAME: <2 x double> %x, <2 x double> %y)
   // WEBASSEMBLY-NEXT: ret
+}
+
+f32x4 ceil_f32x4(f32x4 x) {
+  return __builtin_wasm_ceil_f32x4(x);
+  // WEBASSEMBLY: call <4 x float> @llvm.wasm.ceil.v4f32(<4 x float> %x)
+  // WEBASSEMBLY: ret
+}
+
+f32x4 floor_f32x4(f32x4 x) {
+  return __builtin_wasm_floor_f32x4(x);
+  // WEBASSEMBLY: call <4 x float> @llvm.wasm.floor.v4f32(<4 x float> %x)
+  // WEBASSEMBLY: ret
+}
+
+f32x4 trunc_f32x4(f32x4 x) {
+  return __builtin_wasm_trunc_f32x4(x);
+  // WEBASSEMBLY: call <4 x float> @llvm.wasm.trunc.v4f32(<4 x float> %x)
+  // WEBASSEMBLY: ret
+}
+
+f32x4 nearest_f32x4(f32x4 x) {
+  return __builtin_wasm_nearest_f32x4(x);
+  // WEBASSEMBLY: call <4 x float> @llvm.wasm.nearest.v4f32(<4 x float> %x)
+  // WEBASSEMBLY: ret
+}
+
+f64x2 ceil_f64x2(f64x2 x) {
+  return __builtin_wasm_ceil_f64x2(x);
+  // WEBASSEMBLY: call <2 x double> @llvm.wasm.ceil.v2f64(<2 x double> %x)
+  // WEBASSEMBLY: ret
+}
+
+f64x2 floor_f64x2(f64x2 x) {
+  return __builtin_wasm_floor_f64x2(x);
+  // WEBASSEMBLY: call <2 x double> @llvm.wasm.floor.v2f64(<2 x double> %x)
+  // WEBASSEMBLY: ret
+}
+
+f64x2 trunc_f64x2(f64x2 x) {
+  return __builtin_wasm_trunc_f64x2(x);
+  // WEBASSEMBLY: call <2 x double> @llvm.wasm.trunc.v2f64(<2 x double> %x)
+  // WEBASSEMBLY: ret
+}
+
+f64x2 nearest_f64x2(f64x2 x) {
+  return __builtin_wasm_nearest_f64x2(x);
+  // WEBASSEMBLY: call <2 x double> @llvm.wasm.nearest.v2f64(<2 x double> %x)
+  // WEBASSEMBLY: ret
 }
 
 f32x4 sqrt_f32x4(f32x4 x) {

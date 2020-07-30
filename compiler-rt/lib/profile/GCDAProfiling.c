@@ -349,7 +349,7 @@ static void unmap_file() {
  * started at a time.
  */
 COMPILER_RT_VISIBILITY
-void llvm_gcda_start_file(const char *orig_filename, const char version[4],
+void llvm_gcda_start_file(const char *orig_filename, uint32_t version,
                           uint32_t checksum) {
   const char *mode = "r+b";
   filename = mangle_filename(orig_filename);
@@ -406,20 +406,15 @@ void llvm_gcda_start_file(const char *orig_filename, const char version[4],
   }
 
   /* gcda file, version, stamp checksum. */
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-  gcov_version = version[3] >= 'A'
-                     ? (version[3] - 'A') * 100 + (version[2] - '0') * 10 +
-                           version[1] - '0'
-                     : (version[3] - '0') * 10 + version[1] - '0';
-#else
-  gcov_version = version[0] >= 'A'
-                     ? (version[0] - 'A') * 100 + (version[1] - '0') * 10 +
-                           version[2] - '0'
-                     : (version[0] - '0') * 10 + version[2] - '0';
-#endif
-
+  {
+    uint8_t c3 = version >> 24;
+    uint8_t c2 = (version >> 16) & 255;
+    uint8_t c1 = (version >> 8) & 255;
+    gcov_version = c3 >= 'A' ? (c3 - 'A') * 100 + (c2 - '0') * 10 + c1 - '0'
+                             : (c3 - '0') * 10 + c1 - '0';
+  }
   write_32bit_value(GCOV_DATA_MAGIC);
-  write_bytes(version, 4);
+  write_32bit_value(version);
   write_32bit_value(checksum);
 
 #ifdef DEBUG_GCDAPROFILING
@@ -550,10 +545,15 @@ void llvm_gcda_summary_info() {
     }
 
     val = read_32bit_value(); /* length */
-    read_32bit_value();
-    if (gcov_version < 90)
+    uint32_t prev_runs;
+    if (gcov_version < 90) {
       read_32bit_value();
-    uint32_t prev_runs = read_32bit_value();
+      read_32bit_value();
+      prev_runs = read_32bit_value();
+    } else {
+      prev_runs = read_32bit_value();
+      read_32bit_value();
+    }
     for (uint32_t i = gcov_version < 90 ? 3 : 2; i < val; ++i)
       read_32bit_value();
     /* Add previous run count to new counter, if not already counted before. */
@@ -628,28 +628,15 @@ void llvm_writeout_files(void) {
   }
 }
 
-COMPILER_RT_VISIBILITY
-void llvm_delete_writeout_function_list(void) {
+#ifndef _WIN32
+// __attribute__((destructor)) and destructors whose priorities are greater than
+// 100 run before this function and can thus be tracked. The priority is
+// compatible with GCC 7 onwards.
+__attribute__((destructor(100)))
+#endif
+static void llvm_writeout_and_clear(void) {
+  llvm_writeout_files();
   fn_list_remove(&writeout_fn_list);
-}
-
-COMPILER_RT_VISIBILITY
-void llvm_register_flush_function(fn_ptr fn) {
-  fn_list_insert(&flush_fn_list, fn);
-}
-
-void __gcov_flush() {
-  struct fn_node* curr = flush_fn_list.head;
-
-  while (curr) {
-    curr->fn();
-    curr = curr->next;
-  }
-}
-
-COMPILER_RT_VISIBILITY
-void llvm_delete_flush_function_list(void) {
-  fn_list_remove(&flush_fn_list);
 }
 
 COMPILER_RT_VISIBILITY
@@ -692,14 +679,11 @@ pid_t __gcov_fork() {
 #endif
 
 COMPILER_RT_VISIBILITY
-void llvm_gcov_init(fn_ptr wfn, fn_ptr ffn, fn_ptr rfn) {
+void llvm_gcov_init(fn_ptr wfn, fn_ptr rfn) {
   static int atexit_ran = 0;
 
   if (wfn)
     llvm_register_writeout_function(wfn);
-
-  if (ffn)
-    llvm_register_flush_function(ffn);
 
   if (rfn)
     llvm_register_reset_function(rfn);
@@ -709,10 +693,20 @@ void llvm_gcov_init(fn_ptr wfn, fn_ptr ffn, fn_ptr rfn) {
 
     /* Make sure we write out the data and delete the data structures. */
     atexit(llvm_delete_reset_function_list);
-    atexit(llvm_delete_flush_function_list);
-    atexit(llvm_delete_writeout_function_list);
-    atexit(llvm_writeout_files);
+#ifdef _WIN32
+    atexit(llvm_writeout_and_clear);
+#endif
   }
+}
+
+void __gcov_dump(void) {
+  for (struct fn_node *f = writeout_fn_list.head; f; f = f->next)
+    f->fn();
+}
+
+void __gcov_reset(void) {
+  for (struct fn_node *f = reset_fn_list.head; f; f = f->next)
+    f->fn();
 }
 
 #endif

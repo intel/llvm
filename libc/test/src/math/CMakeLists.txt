@@ -98,6 +98,19 @@ add_math_unittest(
 )
 
 add_math_unittest(
+  fabsl_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    fabsl_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.fabsl
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
   trunc_test
   NEED_MPFR
   SUITE
@@ -120,6 +133,19 @@ add_math_unittest(
   DEPENDS
     libc.include.math
     libc.src.math.truncf
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  truncl_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    truncl_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.truncl
     libc.utils.FPUtil.fputil
 )
 
@@ -150,6 +176,19 @@ add_math_unittest(
 )
 
 add_math_unittest(
+  ceill_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    ceill_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.ceill
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
   floor_test
   NEED_MPFR
   SUITE
@@ -172,6 +211,58 @@ add_math_unittest(
   DEPENDS
     libc.include.math
     libc.src.math.floorf
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  floorl_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    floorl_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.floorl
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  round_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    round_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.round
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  roundf_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    roundf_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.roundf
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  roundl_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    roundl_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.roundl
     libc.utils.FPUtil.fputil
 )
 
@@ -200,5 +291,221 @@ add_math_unittest(
     libc.include.errno
     libc.include.math
     libc.src.math.exp2f
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  copysign_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    copysign_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.copysign
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  copysignf_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    copysignf_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.copysignf
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  copysignl_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    copysignl_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.copysignl
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  frexp_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    frexp_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.frexp
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  frexpf_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    frexpf_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.frexpf
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  frexpl_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    frexpl_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.frexpl
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  logb_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    logb_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.logb
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  logbf_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    logbf_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.logbf
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  logbl_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    logbl_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.logbl
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  modf_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    modf_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.modf
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  modff_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    modff_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.modff
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  modfl_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    modfl_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.modfl
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  fminf_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    fminf_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.fminf
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  fmin_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    fmin_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.fmin
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  fminl_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    fminl_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.fminl
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  fmaxf_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    fmaxf_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.fmaxf
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  fmax_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    fmax_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.fmax
+    libc.utils.FPUtil.fputil
+)
+
+add_math_unittest(
+  fmaxl_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    fmaxl_test.cpp
+  DEPENDS
+    libc.include.math
+    libc.src.math.fmaxl
     libc.utils.FPUtil.fputil
 )

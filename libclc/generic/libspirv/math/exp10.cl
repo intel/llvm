@@ -11,6 +11,6 @@
 
 #define __CLC_FUNC __spirv_ocl_exp10
 #define __CLC_SW_FUNC __clc_exp10
-#define __CLC_BODY <../../lib/math/clc_sw_unary.inc>
+#define __CLC_BODY <clc_sw_unary.inc>
 #include <clc/math/gentype.inc>
 #undef __CLC_SW_FUNC

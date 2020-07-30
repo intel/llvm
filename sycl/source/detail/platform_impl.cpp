@@ -9,6 +9,7 @@
 #include <CL/sycl/device.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/force_device.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
 
@@ -49,7 +50,7 @@ static bool IsBannedPlatform(platform Platform) {
 
 vector_class<platform> platform_impl::get_platforms() {
   vector_class<platform> Platforms;
-  vector_class<plugin> Plugins = RT::initialize();
+  const vector_class<plugin> &Plugins = RT::initialize();
 
   info::device_type ForcedType = detail::get_forced_type();
   for (unsigned int i = 0; i < Plugins.size(); i++) {
@@ -126,6 +127,9 @@ static std::vector<DevDescT> getAllowListDesc() {
       valuePtr = &decDescs.back().devDriverVer;
       size = &decDescs.back().devDriverVerSize;
       str += sizeof(driverVerStr) - 1;
+    } else {
+      throw sycl::runtime_error("Unrecognized key in device allowlist",
+                                PI_INVALID_VALUE);
     }
 
     if (':' != *str)
@@ -274,6 +278,13 @@ bool platform_impl::has_extension(const string_class &ExtensionName) const {
       get_platform_info<string_class, info::platform::extensions>::get(
           MPlatform, getPlugin());
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
+}
+
+pi_native_handle platform_impl::getNative() const {
+  const auto &Plugin = getPlugin();
+  pi_native_handle Handle;
+  Plugin.call<PiApiKind::piextPlatformGetNativeHandle>(getHandleRef(), &Handle);
+  return Handle;
 }
 
 template <info::platform param>

@@ -95,9 +95,25 @@ bool checkResult(CUresult Err, const char *ErrMsg) {
   if (Err == CUDA_SUCCESS)
     return true;
 
-  DP(ErrMsg);
+  DP("%s", ErrMsg);
   CUDA_ERR_STRING(Err);
   return false;
+}
+
+int memcpyDtoD(const void *SrcPtr, void *DstPtr, int64_t Size,
+               CUstream Stream) {
+  CUresult Err =
+      cuMemcpyDtoDAsync((CUdeviceptr)DstPtr, (CUdeviceptr)SrcPtr, Size, Stream);
+
+  if (Err != CUDA_SUCCESS) {
+    DP("Error when copying data from device to device. Pointers: src "
+       "= " DPxMOD ", dst = " DPxMOD ", size = %" PRId64 "\n",
+       DPxPTR(SrcPtr), DPxPTR(DstPtr), Size);
+    CUDA_ERR_STRING(Err);
+    return OFFLOAD_FAIL;
+  }
+
+  return OFFLOAD_SUCCESS;
 }
 
 // Structure contains per-device data
@@ -369,9 +385,15 @@ public:
 
     for (DeviceDataTy &D : DeviceData) {
       // Destroy context
-      if (D.Context)
-        checkResult(cuCtxDestroy(D.Context),
-                    "Error returned from cuCtxDestroy\n");
+      if (D.Context) {
+        checkResult(cuCtxSetCurrent(D.Context),
+                    "Error returned from cuCtxSetCurrent\n");
+        CUdevice Device;
+        checkResult(cuCtxGetDevice(&Device),
+                    "Error returned from cuCtxGetDevice\n");
+        checkResult(cuDevicePrimaryCtxRelease(Device),
+                    "Error returned from cuDevicePrimaryCtxRelease\n");
+      }
     }
   }
 
@@ -392,10 +414,32 @@ public:
     if (!checkResult(Err, "Error returned from cuDeviceGet\n"))
       return OFFLOAD_FAIL;
 
-    // Create the context and save it to use whenever this device is selected.
-    Err = cuCtxCreate(&DeviceData[DeviceId].Context, CU_CTX_SCHED_BLOCKING_SYNC,
-                      Device);
-    if (!checkResult(Err, "Error returned from cuCtxCreate\n"))
+    // Query the current flags of the primary context and set its flags if
+    // it is inactive
+    unsigned int FormerPrimaryCtxFlags = 0;
+    int FormerPrimaryCtxIsActive = 0;
+    Err = cuDevicePrimaryCtxGetState(Device, &FormerPrimaryCtxFlags,
+                                     &FormerPrimaryCtxIsActive);
+    if (!checkResult(Err, "Error returned from cuDevicePrimaryCtxGetState\n"))
+      return OFFLOAD_FAIL;
+
+    if (FormerPrimaryCtxIsActive) {
+      DP("The primary context is active, no change to its flags\n");
+      if ((FormerPrimaryCtxFlags & CU_CTX_SCHED_MASK) !=
+          CU_CTX_SCHED_BLOCKING_SYNC)
+        DP("Warning the current flags are not CU_CTX_SCHED_BLOCKING_SYNC\n");
+    } else {
+      DP("The primary context is inactive, set its flags to "
+         "CU_CTX_SCHED_BLOCKING_SYNC\n");
+      Err = cuDevicePrimaryCtxSetFlags(Device, CU_CTX_SCHED_BLOCKING_SYNC);
+      if (!checkResult(Err, "Error returned from cuDevicePrimaryCtxSetFlags\n"))
+        return OFFLOAD_FAIL;
+    }
+
+    // Retain the per device primary context and save it to use whenever this
+    // device is selected.
+    Err = cuDevicePrimaryCtxRetain(&DeviceData[DeviceId].Context, Device);
+    if (!checkResult(Err, "Error returned from cuDevicePrimaryCtxRetain\n"))
       return OFFLOAD_FAIL;
 
     Err = cuCtxSetCurrent(DeviceData[DeviceId].Context);
@@ -736,6 +780,57 @@ public:
     return OFFLOAD_SUCCESS;
   }
 
+  int dataExchange(int SrcDevId, const void *SrcPtr, int DstDevId, void *DstPtr,
+                   int64_t Size, __tgt_async_info *AsyncInfoPtr) const {
+    assert(AsyncInfoPtr && "AsyncInfoPtr is nullptr");
+
+    CUresult Err = cuCtxSetCurrent(DeviceData[SrcDevId].Context);
+    if (!checkResult(Err, "Error returned from cuCtxSetCurrent\n"))
+      return OFFLOAD_FAIL;
+
+    CUstream Stream = getStream(SrcDevId, AsyncInfoPtr);
+
+    // If they are two devices, we try peer to peer copy first
+    if (SrcDevId != DstDevId) {
+      int CanAccessPeer = 0;
+      Err = cuDeviceCanAccessPeer(&CanAccessPeer, SrcDevId, DstDevId);
+      if (Err != CUDA_SUCCESS) {
+        DP("Error returned from cuDeviceCanAccessPeer. src = %" PRId32
+           ", dst = %" PRId32 "\n",
+           SrcDevId, DstDevId);
+        CUDA_ERR_STRING(Err);
+        return memcpyDtoD(SrcPtr, DstPtr, Size, Stream);
+      }
+
+      if (!CanAccessPeer) {
+        DP("P2P memcpy not supported so fall back to D2D memcpy");
+        return memcpyDtoD(SrcPtr, DstPtr, Size, Stream);
+      }
+
+      Err = cuCtxEnablePeerAccess(DeviceData[DstDevId].Context, 0);
+      if (Err != CUDA_SUCCESS) {
+        DP("Error returned from cuCtxEnablePeerAccess. src = %" PRId32
+           ", dst = %" PRId32 "\n",
+           SrcDevId, DstDevId);
+        CUDA_ERR_STRING(Err);
+        return memcpyDtoD(SrcPtr, DstPtr, Size, Stream);
+      }
+
+      Err = cuMemcpyPeerAsync((CUdeviceptr)DstPtr, DeviceData[DstDevId].Context,
+                              (CUdeviceptr)SrcPtr, DeviceData[SrcDevId].Context,
+                              Size, Stream);
+      if (Err == CUDA_SUCCESS)
+        return OFFLOAD_SUCCESS;
+
+      DP("Error returned from cuMemcpyPeerAsync. src_ptr = " DPxMOD
+         ", src_id =%" PRId32 ", dst_ptr = " DPxMOD ", dst_id =%" PRId32 "\n",
+         DPxPTR(SrcPtr), SrcDevId, DPxPTR(DstPtr), DstDevId);
+      CUDA_ERR_STRING(Err);
+    }
+
+    return memcpyDtoD(SrcPtr, DstPtr, Size, Stream);
+  }
+
   int dataDelete(const int DeviceId, void *TgtPtr) const {
     CUresult Err = cuCtxSetCurrent(DeviceData[DeviceId].Context);
     if (!checkResult(Err, "Error returned from cuCtxSetCurrent\n"))
@@ -824,7 +919,7 @@ public:
           // loop.
           CudaBlocksPerGrid = LoopTripCount;
         }
-        DP("Using %d teams due to loop trip count %" PRIu64
+        DP("Using %d teams due to loop trip count %" PRIu32
            " and number of threads per block %d\n",
            CudaBlocksPerGrid, LoopTripCount, CudaThreadsPerBlock);
       } else {
@@ -900,6 +995,14 @@ int64_t __tgt_rtl_init_requires(int64_t RequiresFlags) {
   return RequiresFlags;
 }
 
+int32_t __tgt_rtl_is_data_exchangable(int32_t src_dev_id, int dst_dev_id) {
+  if (DeviceRTL.isValidDeviceId(src_dev_id) &&
+      DeviceRTL.isValidDeviceId(dst_dev_id))
+    return 1;
+
+  return 0;
+}
+
 int32_t __tgt_rtl_init_device(int32_t device_id) {
   assert(DeviceRTL.isValidDeviceId(device_id) && "device_id is invalid");
 
@@ -963,6 +1066,33 @@ int32_t __tgt_rtl_data_retrieve_async(int32_t device_id, void *hst_ptr,
 
   return DeviceRTL.dataRetrieve(device_id, hst_ptr, tgt_ptr, size,
                                 async_info_ptr);
+}
+
+int32_t __tgt_rtl_data_exchange_async(int32_t src_dev_id, void *src_ptr,
+                                      int dst_dev_id, void *dst_ptr,
+                                      int64_t size,
+                                      __tgt_async_info *async_info_ptr) {
+  assert(DeviceRTL.isValidDeviceId(src_dev_id) && "src_dev_id is invalid");
+  assert(DeviceRTL.isValidDeviceId(dst_dev_id) && "dst_dev_id is invalid");
+  assert(async_info_ptr && "async_info_ptr is nullptr");
+
+  return DeviceRTL.dataExchange(src_dev_id, src_ptr, dst_dev_id, dst_ptr, size,
+                                async_info_ptr);
+}
+
+int32_t __tgt_rtl_data_exchange(int32_t src_dev_id, void *src_ptr,
+                                int32_t dst_dev_id, void *dst_ptr,
+                                int64_t size) {
+  assert(DeviceRTL.isValidDeviceId(src_dev_id) && "src_dev_id is invalid");
+  assert(DeviceRTL.isValidDeviceId(dst_dev_id) && "dst_dev_id is invalid");
+
+  __tgt_async_info async_info;
+  const int32_t rc = __tgt_rtl_data_exchange_async(
+      src_dev_id, src_ptr, dst_dev_id, dst_ptr, size, &async_info);
+  if (rc != OFFLOAD_SUCCESS)
+    return OFFLOAD_FAIL;
+
+  return __tgt_rtl_synchronize(src_dev_id, &async_info);
 }
 
 int32_t __tgt_rtl_data_delete(int32_t device_id, void *tgt_ptr) {

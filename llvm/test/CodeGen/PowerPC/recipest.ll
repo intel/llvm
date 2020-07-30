@@ -226,7 +226,7 @@ define float @food_fmf(float %a, double %b) nounwind {
 ; CHECK-P8-NEXT:    xsmaddadp 4, 2, 0
 ; CHECK-P8-NEXT:    xsmuldp 0, 0, 5
 ; CHECK-P8-NEXT:    xsmuldp 0, 0, 4
-; CHECK-P8-NEXT:    frsp 0, 0
+; CHECK-P8-NEXT:    xsrsp 0, 0
 ; CHECK-P8-NEXT:    xsmulsp 1, 1, 0
 ; CHECK-P8-NEXT:    blr
 ;
@@ -246,7 +246,7 @@ define float @food_fmf(float %a, double %b) nounwind {
 ; CHECK-P9-NEXT:    xsmaddadp 4, 2, 0
 ; CHECK-P9-NEXT:    xsmuldp 0, 0, 3
 ; CHECK-P9-NEXT:    xsmuldp 0, 0, 4
-; CHECK-P9-NEXT:    frsp 0, 0
+; CHECK-P9-NEXT:    xsrsp 0, 0
 ; CHECK-P9-NEXT:    xsmulsp 1, 1, 0
 ; CHECK-P9-NEXT:    blr
   %x = call reassoc arcp double @llvm.sqrt.f64(double %b)
@@ -266,14 +266,14 @@ define float @food_safe(float %a, double %b) nounwind {
 ; CHECK-P8-LABEL: food_safe:
 ; CHECK-P8:       # %bb.0:
 ; CHECK-P8-NEXT:    xssqrtdp 0, 2
-; CHECK-P8-NEXT:    frsp 0, 0
+; CHECK-P8-NEXT:    xsrsp 0, 0
 ; CHECK-P8-NEXT:    xsdivsp 1, 1, 0
 ; CHECK-P8-NEXT:    blr
 ;
 ; CHECK-P9-LABEL: food_safe:
 ; CHECK-P9:       # %bb.0:
 ; CHECK-P9-NEXT:    xssqrtdp 0, 2
-; CHECK-P9-NEXT:    frsp 0, 0
+; CHECK-P9-NEXT:    xsrsp 0, 0
 ; CHECK-P9-NEXT:    xsdivsp 1, 1, 0
 ; CHECK-P9-NEXT:    blr
   %x = call double @llvm.sqrt.f64(double %b)
@@ -429,9 +429,9 @@ define float @rsqrt_fmul_fmf(float %a, float %b, float %c) {
 ; CHECK-P9-NEXT:    xsmaddasp 4, 1, 0
 ; CHECK-P9-NEXT:    xsmulsp 1, 3, 4
 ; CHECK-P9-NEXT:    blr
-  %x = call reassoc arcp float @llvm.sqrt.f32(float %a)
-  %y = fmul reassoc float %x, %b
-  %z = fdiv reassoc arcp float %c, %y
+  %x = call reassoc arcp nsz float @llvm.sqrt.f32(float %a)
+  %y = fmul reassoc nsz float %x, %b
+  %z = fdiv reassoc arcp nsz ninf float %c, %y
   ret float %z
 }
 
@@ -602,7 +602,7 @@ define double @foo2_fmf(double %a, double %b) nounwind {
 ; CHECK-P9-NEXT:    xsmaddadp 0, 3, 1
 ; CHECK-P9-NEXT:    fmr 1, 0
 ; CHECK-P9-NEXT:    blr
-  %r = fdiv reassoc arcp nsz double %a, %b
+  %r = fdiv reassoc arcp nsz ninf double %a, %b
   ret double %r
 }
 
@@ -651,7 +651,7 @@ define float @goo2_fmf(float %a, float %b) nounwind {
 ; CHECK-P9-NEXT:    xsmaddasp 0, 3, 1
 ; CHECK-P9-NEXT:    fmr 1, 0
 ; CHECK-P9-NEXT:    blr
-  %r = fdiv reassoc arcp float %a, %b
+  %r = fdiv reassoc arcp nsz ninf float %a, %b
   ret float %r
 }
 
@@ -679,12 +679,9 @@ define <4 x float> @hoo2_fmf(<4 x float> %a, <4 x float> %b) nounwind {
 ; CHECK-P7:       # %bb.0:
 ; CHECK-P7-NEXT:    vspltisw 4, -1
 ; CHECK-P7-NEXT:    vrefp 5, 3
-; CHECK-P7-NEXT:    vspltisb 0, -1
-; CHECK-P7-NEXT:    vslw 0, 0, 0
 ; CHECK-P7-NEXT:    vslw 4, 4, 4
-; CHECK-P7-NEXT:    vsubfp 3, 0, 3
 ; CHECK-P7-NEXT:    vmaddfp 4, 2, 5, 4
-; CHECK-P7-NEXT:    vmaddfp 2, 3, 4, 2
+; CHECK-P7-NEXT:    vnmsubfp 2, 3, 4, 2
 ; CHECK-P7-NEXT:    vmaddfp 2, 5, 2, 4
 ; CHECK-P7-NEXT:    blr
 ;
@@ -705,7 +702,7 @@ define <4 x float> @hoo2_fmf(<4 x float> %a, <4 x float> %b) nounwind {
 ; CHECK-P9-NEXT:    xvmaddasp 0, 1, 34
 ; CHECK-P9-NEXT:    xxlor 34, 0, 0
 ; CHECK-P9-NEXT:    blr
-  %r = fdiv reassoc arcp <4 x float> %a, %b
+  %r = fdiv reassoc arcp nsz ninf <4 x float> %a, %b
   ret <4 x float> %r
 }
 
@@ -807,8 +804,8 @@ define double @foo3_fmf(double %a) nounwind {
 ; CHECK-P9-LABEL: foo3_fmf:
 ; CHECK-P9:       # %bb.0:
 ; CHECK-P9-NEXT:    addis 3, 2, .LCPI20_2@toc@ha
-; CHECK-P9-NEXT:    lfd 2, .LCPI20_2@toc@l(3)
 ; CHECK-P9-NEXT:    xsabsdp 0, 1
+; CHECK-P9-NEXT:    lfd 2, .LCPI20_2@toc@l(3)
 ; CHECK-P9-NEXT:    xscmpudp 0, 0, 2
 ; CHECK-P9-NEXT:    xxlxor 0, 0, 0
 ; CHECK-P9-NEXT:    blt 0, .LBB20_2
@@ -902,8 +899,8 @@ define float @goo3_fmf(float %a) nounwind {
 ; CHECK-P9-LABEL: goo3_fmf:
 ; CHECK-P9:       # %bb.0:
 ; CHECK-P9-NEXT:    addis 3, 2, .LCPI22_2@toc@ha
-; CHECK-P9-NEXT:    lfs 2, .LCPI22_2@toc@l(3)
 ; CHECK-P9-NEXT:    xsabsdp 0, 1
+; CHECK-P9-NEXT:    lfs 2, .LCPI22_2@toc@l(3)
 ; CHECK-P9-NEXT:    fcmpu 0, 0, 2
 ; CHECK-P9-NEXT:    xxlxor 0, 0, 0
 ; CHECK-P9-NEXT:    blt 0, .LBB22_2
@@ -1179,14 +1176,7 @@ define fp128 @hoo5_fmf(fp128 %a) #1 {
 ;
 ; CHECK-P9-LABEL: hoo5_fmf:
 ; CHECK-P9:       # %bb.0:
-; CHECK-P9-NEXT:    mflr 0
-; CHECK-P9-NEXT:    std 0, 16(1)
-; CHECK-P9-NEXT:    stdu 1, -32(1)
-; CHECK-P9-NEXT:    bl sqrtl
-; CHECK-P9-NEXT:    nop
-; CHECK-P9-NEXT:    addi 1, 1, 32
-; CHECK-P9-NEXT:    ld 0, 16(1)
-; CHECK-P9-NEXT:    mtlr 0
+; CHECK-P9-NEXT:    xssqrtqp 2, 2
 ; CHECK-P9-NEXT:    blr
   %r = call reassoc ninf afn fp128 @llvm.sqrt.f128(fp128 %a)
   ret fp128 %r
@@ -1219,14 +1209,7 @@ define fp128 @hoo5_safe(fp128 %a) #1 {
 ;
 ; CHECK-P9-LABEL: hoo5_safe:
 ; CHECK-P9:       # %bb.0:
-; CHECK-P9-NEXT:    mflr 0
-; CHECK-P9-NEXT:    std 0, 16(1)
-; CHECK-P9-NEXT:    stdu 1, -32(1)
-; CHECK-P9-NEXT:    bl sqrtl
-; CHECK-P9-NEXT:    nop
-; CHECK-P9-NEXT:    addi 1, 1, 32
-; CHECK-P9-NEXT:    ld 0, 16(1)
-; CHECK-P9-NEXT:    mtlr 0
+; CHECK-P9-NEXT:    xssqrtqp 2, 2
 ; CHECK-P9-NEXT:    blr
   %r = call fp128 @llvm.sqrt.f128(fp128 %a)
   ret fp128 %r

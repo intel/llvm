@@ -205,7 +205,7 @@ auto GetLowerBoundHelper::operator()(const Symbol &symbol0) -> Result {
       if (j++ == dimension_) {
         if (const auto &bound{shapeSpec.lbound().GetExplicit()}) {
           return Fold(context_, common::Clone(*bound));
-        } else if (semantics::IsDescriptor(symbol)) {
+        } else if (IsDescriptor(symbol)) {
           return ExtentExpr{DescriptorInquiry{NamedEntity{symbol0},
               DescriptorInquiry::Field::LowerBound, dimension_}};
         } else {
@@ -230,7 +230,7 @@ auto GetLowerBoundHelper::operator()(const Component &component) -> Result {
         if (j++ == dimension_) {
           if (const auto &bound{shapeSpec.lbound().GetExplicit()}) {
             return Fold(context_, common::Clone(*bound));
-          } else if (semantics::IsDescriptor(symbol)) {
+          } else if (IsDescriptor(symbol)) {
             return ExtentExpr{
                 DescriptorInquiry{NamedEntity{common::Clone(component)},
                     DescriptorInquiry::Field::LowerBound, dimension_}};
@@ -439,6 +439,7 @@ auto GetShapeHelper::operator()(const Symbol &symbol) const -> Result {
           [&](const semantics::HostAssocDetails &assoc) {
             return (*this)(assoc.symbol());
           },
+          [](const semantics::TypeParamDetails &) { return Scalar(); },
           [](const auto &) { return Result{}; },
       },
       symbol.details());
@@ -543,6 +544,23 @@ auto GetShapeHelper::operator()(const ProcedureRef &call) const -> Result {
     } else if (intrinsic->name == "cshift" || intrinsic->name == "eoshift") {
       if (!call.arguments().empty()) {
         return (*this)(call.arguments()[0]);
+      }
+    } else if (intrinsic->name == "matmul") {
+      if (call.arguments().size() == 2) {
+        if (auto ashape{(*this)(call.arguments()[0])}) {
+          if (auto bshape{(*this)(call.arguments()[1])}) {
+            if (ashape->size() == 1 && bshape->size() == 2) {
+              bshape->erase(bshape->begin());
+              return std::move(*bshape); // matmul(vector, matrix)
+            } else if (ashape->size() == 2 && bshape->size() == 1) {
+              ashape->pop_back();
+              return std::move(*ashape); // matmul(matrix, vector)
+            } else if (ashape->size() == 2 && bshape->size() == 2) {
+              (*ashape)[1] = std::move((*bshape)[1]);
+              return std::move(*ashape); // matmul(matrix, matrix)
+            }
+          }
+        }
       }
     } else if (intrinsic->name == "reshape") {
       if (call.arguments().size() >= 2 && call.arguments().at(1)) {
@@ -652,5 +670,23 @@ bool CheckConformance(parser::ContextualMessages &messages, const Shape &left,
     }
   }
   return true;
+}
+
+bool IncrementSubscripts(
+    ConstantSubscripts &indices, const ConstantSubscripts &extents) {
+  std::size_t rank(indices.size());
+  CHECK(rank <= extents.size());
+  for (std::size_t j{0}; j < rank; ++j) {
+    if (extents[j] < 1) {
+      return false;
+    }
+  }
+  for (std::size_t j{0}; j < rank; ++j) {
+    if (indices[j]++ < extents[j]) {
+      return true;
+    }
+    indices[j] = 1;
+  }
+  return false;
 }
 } // namespace Fortran::evaluate

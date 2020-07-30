@@ -92,9 +92,33 @@ Scheduler::GraphBuilder::GraphBuilder() {
   }
 }
 
+static bool markNodeAsVisited(Command *Cmd, std::vector<Command *> &Visited) {
+  assert(Cmd && "Cmd can't be nullptr");
+  if (Cmd->MMarks.MVisited)
+    return false;
+  Cmd->MMarks.MVisited = true;
+  Visited.push_back(Cmd);
+  return true;
+}
+
+static void unmarkVisitedNodes(std::vector<Command *> &Visited) {
+  for (Command *Cmd : Visited)
+    Cmd->MMarks.MVisited = false;
+}
+
+static void handleVisitedNodes(std::vector<Command *> &Visited) {
+  for (Command *Cmd : Visited) {
+    if (Cmd->MMarks.MToBeDeleted) {
+      Cmd->getEvent()->setCommand(nullptr);
+      delete Cmd;
+    } else
+      Cmd->MMarks.MVisited = false;
+  }
+}
+
 static void printDotRecursive(std::fstream &Stream,
-                              std::set<Command *> &Visited, Command *Cmd) {
-  if (!Visited.insert(Cmd).second)
+                              std::vector<Command *> &Visited, Command *Cmd) {
+  if (!markNodeAsVisited(Cmd, Visited))
     return;
   for (Command *User : Cmd->MUsers) {
     if (User)
@@ -114,13 +138,15 @@ void Scheduler::GraphBuilder::printGraphAsDot(const char *ModeName) {
   std::fstream Stream(FileName, std::ios::out);
   Stream << "strict digraph {" << std::endl;
 
-  std::set<Command *> Visited;
+  std::vector<Command *> Visited;
 
   for (SYCLMemObjI *MemObject : MMemObjs)
     for (Command *AllocaCmd : MemObject->MRecord->MAllocaCommands)
       printDotRecursive(Stream, Visited, AllocaCmd);
 
   Stream << "}" << std::endl;
+
+  unmarkVisitedNodes(Visited);
 }
 
 MemObjRecord *Scheduler::GraphBuilder::getMemObjRecord(SYCLMemObjI *MemObject) {
@@ -449,7 +475,7 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record,
                                         const Requirement *Req,
                                         const ContextImplPtr &Context) {
   std::set<Command *> RetDeps;
-  std::set<Command *> Visited;
+  std::vector<Command *> Visited;
   const bool ReadOnlyReq = Req->MAccessMode == access::mode::read;
 
   std::vector<Command *> ToAnalyze{Record->MWriteLeaves.begin(),
@@ -490,11 +516,12 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record,
         break;
       }
 
-      if (Visited.insert(Dep.MDepCommand).second)
+      if (markNodeAsVisited(Dep.MDepCommand, Visited))
         NewAnalyze.push_back(Dep.MDepCommand);
     }
     ToAnalyze.insert(ToAnalyze.end(), NewAnalyze.begin(), NewAnalyze.end());
   }
+  unmarkVisitedNodes(Visited);
   return RetDeps;
 }
 
@@ -559,7 +586,9 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
 
       const Requirement FullReq(/*Offset*/ {0, 0, 0}, Req->MMemoryRange,
                                 Req->MMemoryRange, access::mode::read_write,
-                                Req->MSYCLMemObj, Req->MDims, Req->MElemSize);
+                                Req->MSYCLMemObj, Req->MDims, Req->MElemSize,
+                                0 /*ReMOffsetInBytes*/, false /*MIsSubBuffer*/,
+                                Req->MIsESIMDAcc);
       // Can reuse user data for the first allocation
       const bool InitFromUserData = Record->MAllocaCommands.empty();
 
@@ -679,6 +708,16 @@ Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
   return EmptyCmd;
 }
 
+static bool isInteropHostTask(const std::unique_ptr<ExecCGCommand> &Cmd) {
+  if (Cmd->getCG().getType() != CG::CGTYPE::CODEPLAY_HOST_TASK)
+    return false;
+
+  const detail::CGHostTask &HT =
+      static_cast<detail::CGHostTask &>(Cmd->getCG());
+
+  return HT.MHostTask->isInteropTask();
+}
+
 Command *
 Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                QueueImplPtr Queue) {
@@ -695,13 +734,29 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     printGraphAsDot("before_addCG");
 
   for (Requirement *Req : Reqs) {
-    MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req);
-    markModifiedIfWrite(Record, Req);
+    MemObjRecord *Record = nullptr;
+    AllocaCommandBase *AllocaCmd = nullptr;
 
-    AllocaCommandBase *AllocaCmd = getOrCreateAllocaForReq(Record, Req, Queue);
+    bool isSameCtx = false;
+
+    {
+      const QueueImplPtr &QueueForAlloca =
+          isInteropHostTask(NewCmd)
+              ? static_cast<detail::CGHostTask &>(NewCmd->getCG()).MQueue
+              : Queue;
+
+      Record = getOrInsertMemObjRecord(QueueForAlloca, Req);
+      markModifiedIfWrite(Record, Req);
+
+      AllocaCmd = getOrCreateAllocaForReq(Record, Req, QueueForAlloca);
+
+      isSameCtx =
+          sameCtx(QueueForAlloca->getContextImplPtr(), Record->MCurContext);
+    }
+
     // If there is alloca command we need to check if the latest memory is in
     // required context.
-    if (sameCtx(Queue->getContextImplPtr(), Record->MCurContext)) {
+    if (isSameCtx) {
       // If the memory is already in the required host context, check if the
       // required access mode is valid, remap if not.
       if (Record->MCurContext->is_host() &&
@@ -710,10 +765,24 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     } else {
       // Cannot directly copy memory from OpenCL device to OpenCL device -
       // create two copies: device->host and host->device.
-      if (!Queue->is_host() && !Record->MCurContext->is_host())
+      bool NeedMemMoveToHost = false;
+      auto MemMoveTargetQueue = Queue;
+
+      if (isInteropHostTask(NewCmd)) {
+        const detail::CGHostTask &HT =
+            static_cast<detail::CGHostTask &>(NewCmd->getCG());
+
+        if (HT.MQueue->getContextImplPtr() != Record->MCurContext) {
+          NeedMemMoveToHost = true;
+          MemMoveTargetQueue = HT.MQueue;
+        }
+      } else if (!Queue->is_host() && !Record->MCurContext->is_host())
+        NeedMemMoveToHost = true;
+
+      if (NeedMemMoveToHost)
         insertMemoryMove(Record, Req,
                          Scheduler::getInstance().getDefaultHostQueue());
-      insertMemoryMove(Record, Req, Queue);
+      insertMemoryMove(Record, Req, MemMoveTargetQueue);
     }
     std::set<Command *> Deps =
         findDepsForReq(Record, Req, Queue->getContextImplPtr());
@@ -766,12 +835,11 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     return;
 
   std::queue<Command *> ToVisit;
-  std::set<Command *> Visited;
-  std::vector<Command *> CmdsToDelete;
+  std::vector<Command *> Visited;
   // First, mark all allocas for deletion and their direct users for traversal
   // Dependencies of the users will be cleaned up during the traversal
   for (Command *AllocaCmd : AllocaCommands) {
-    Visited.insert(AllocaCmd);
+    markNodeAsVisited(AllocaCmd, Visited);
 
     for (Command *UserCmd : AllocaCmd->MUsers)
       // Linked alloca cmd may be in users of this alloca. We're not going to
@@ -779,9 +847,9 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
       if (UserCmd->getType() != Command::CommandType::ALLOCA)
         ToVisit.push(UserCmd);
       else
-        Visited.insert(UserCmd);
+        markNodeAsVisited(UserCmd, Visited);
 
-    CmdsToDelete.push_back(AllocaCmd);
+    AllocaCmd->MMarks.MToBeDeleted = true;
     // These commands will be deleted later, clear users now to avoid
     // updating them during edge removal
     AllocaCmd->MUsers.clear();
@@ -793,7 +861,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     AllocaCommandBase *LinkedCmd = AllocaCmd->MLinkedAllocaCmd;
 
     if (LinkedCmd) {
-      assert(Visited.count(LinkedCmd));
+      assert(LinkedCmd->MMarks.MVisited);
 
       for (DepDesc &Dep : AllocaCmd->MDeps)
         if (Dep.MDepCommand)
@@ -806,7 +874,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     Command *Cmd = ToVisit.front();
     ToVisit.pop();
 
-    if (!Visited.insert(Cmd).second)
+    if (!markNodeAsVisited(Cmd, Visited))
       continue;
 
     for (Command *UserCmd : Cmd->MUsers)
@@ -838,27 +906,24 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     // If all dependencies have been removed this way, mark the command for
     // deletion
     if (Cmd->MDeps.empty()) {
-      CmdsToDelete.push_back(Cmd);
+      Cmd->MMarks.MToBeDeleted = true;
       Cmd->MUsers.clear();
     }
   }
 
-  for (Command *Cmd : CmdsToDelete) {
-    Cmd->getEvent()->setCommand(nullptr);
-    delete Cmd;
-  }
+  handleVisitedNodes(Visited);
 }
 
 void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
   std::queue<Command *> CmdsToVisit({FinishedCmd});
-  std::set<Command *> Visited;
+  std::vector<Command *> Visited;
 
   // Traverse the graph using BFS
   while (!CmdsToVisit.empty()) {
     Command *Cmd = CmdsToVisit.front();
     CmdsToVisit.pop();
 
-    if (!Visited.insert(Cmd).second)
+    if (!markNodeAsVisited(Cmd, Visited))
       continue;
 
     for (const DepDesc &Dep : Cmd->MDeps) {
@@ -888,10 +953,10 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
       Command *DepCmd = Dep.MDepCommand;
       DepCmd->MUsers.erase(Cmd);
     }
-    Cmd->getEvent()->setCommand(nullptr);
 
-    delete Cmd;
+    Cmd->MMarks.MToBeDeleted = true;
   }
+  handleVisitedNodes(Visited);
 }
 
 void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
@@ -927,10 +992,11 @@ void Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
   {
     std::unique_ptr<detail::HostTask> HT(new detail::HostTask);
     std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
-        std::move(HT), /* Args = */ {}, /* ArgsStorage = */ {},
-        /* AccStorage = */ {}, /* SharedPtrStorage = */ {},
-        /* Requirements = */ {}, /* DepEvents = */ {DepEvent},
-        CG::CODEPLAY_HOST_TASK, /* Payload */ {}));
+        std::move(HT), /* Queue = */ {}, /* Context = */ {}, /* Args = */ {},
+        /* ArgsStorage = */ {}, /* AccStorage = */ {},
+        /* SharedPtrStorage = */ {}, /* Requirements = */ {},
+        /* DepEvents = */ {DepEvent}, CG::CODEPLAY_HOST_TASK,
+        /* Payload */ {}));
     ConnectCmd = new ExecCGCommand(
         std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
   }

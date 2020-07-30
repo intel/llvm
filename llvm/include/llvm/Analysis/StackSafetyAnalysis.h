@@ -13,6 +13,7 @@
 #ifndef LLVM_ANALYSIS_STACKSAFETYANALYSIS_H
 #define LLVM_ANALYSIS_STACKSAFETYANALYSIS_H
 
+#include "llvm/IR/ModuleSummaryIndex.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 
@@ -42,6 +43,15 @@ public:
 
   // TODO: Add useful for client methods.
   void print(raw_ostream &O) const;
+
+  /// Parameters use for a FunctionSummary.
+  /// Function collects access information of all pointer parameters.
+  /// Information includes a range of direct access of parameters by the
+  /// functions and all call sites accepting the parameter.
+  /// StackSafety assumes that missing parameter information means possibility
+  /// of access to the parameter with any offset, so we can correctly link
+  /// code without StackSafety information, e.g. non-ThinLTO.
+  std::vector<FunctionSummary::ParamAccess> getParamAccesses() const;
 };
 
 class StackSafetyGlobalInfo {
@@ -51,18 +61,20 @@ public:
 private:
   Module *M = nullptr;
   std::function<const StackSafetyInfo &(Function &F)> GetSSI;
+  const ModuleSummaryIndex *Index = nullptr;
   mutable std::unique_ptr<InfoTy> Info;
   const InfoTy &getInfo() const;
 
 public:
   StackSafetyGlobalInfo();
   StackSafetyGlobalInfo(
-      Module *M, std::function<const StackSafetyInfo &(Function &F)> GetSSI);
+      Module *M, std::function<const StackSafetyInfo &(Function &F)> GetSSI,
+      const ModuleSummaryIndex *Index);
   StackSafetyGlobalInfo(StackSafetyGlobalInfo &&);
   StackSafetyGlobalInfo &operator=(StackSafetyGlobalInfo &&);
   ~StackSafetyGlobalInfo();
 
-  bool setMetadata(Module &M) const;
+  bool isSafe(const AllocaInst &AI) const;
   void print(raw_ostream &O) const;
   void dump() const;
 };
@@ -124,14 +136,6 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
-class StackSafetyGlobalAnnotatorPass
-    : public PassInfoMixin<StackSafetyGlobalAnnotatorPass> {
-
-public:
-  explicit StackSafetyGlobalAnnotatorPass() {}
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
-};
-
 /// This pass performs the global (interprocedural) stack safety analysis
 /// (legacy pass manager).
 class StackSafetyGlobalInfoWrapperPass : public ModulePass {
@@ -151,7 +155,9 @@ public:
   bool runOnModule(Module &M) override;
 };
 
-ModulePass *createStackSafetyGlobalInfoWrapperPass();
+bool needsParamAccessSummary(const Module &M);
+
+void generateParamAccessSummary(ModuleSummaryIndex &Index);
 
 } // end namespace llvm
 

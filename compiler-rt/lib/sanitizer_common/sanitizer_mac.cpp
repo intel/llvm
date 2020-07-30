@@ -27,7 +27,6 @@
 #include "sanitizer_flags.h"
 #include "sanitizer_internal_defs.h"
 #include "sanitizer_libc.h"
-#include "sanitizer_placement_new.h"
 #include "sanitizer_platform_limits_posix.h"
 #include "sanitizer_procmaps.h"
 #include "sanitizer_ptrauth.h"
@@ -388,7 +387,7 @@ void GetThreadStackTopAndBottom(bool at_initialization, uptr *stack_top,
   // pthread_get_stacksize_np() returns an incorrect stack size for the main
   // thread on Mavericks. See
   // https://github.com/google/sanitizers/issues/261
-  if ((GetMacosVersion() >= MACOS_VERSION_MAVERICKS) && at_initialization &&
+  if ((GetMacosAlignedVersion() >= MacosVersion(10, 9)) && at_initialization &&
       stacksize == (1 << 19))  {
     struct rlimit rl;
     CHECK_EQ(getrlimit(RLIMIT_STACK, &rl), 0);
@@ -607,53 +606,47 @@ HandleSignalMode GetHandleSignalMode(int signum) {
   return result;
 }
 
-MacosVersion cached_macos_version = MACOS_VERSION_UNINITIALIZED;
-
-MacosVersion GetMacosVersionInternal() {
-  int mib[2] = { CTL_KERN, KERN_OSRELEASE };
-  char version[100];
-  uptr len = 0, maxlen = sizeof(version) / sizeof(version[0]);
-  for (uptr i = 0; i < maxlen; i++) version[i] = '\0';
-  // Get the version length.
-  CHECK_NE(internal_sysctl(mib, 2, 0, &len, 0, 0), -1);
-  CHECK_LT(len, maxlen);
-  CHECK_NE(internal_sysctl(mib, 2, version, &len, 0, 0), -1);
-
-  // Expect <major>.<minor>(.<patch>)
-  CHECK_GE(len, 3);
-  const char *p = version;
-  int major = internal_simple_strtoll(p, &p, /*base=*/10);
-  if (*p != '.') return MACOS_VERSION_UNKNOWN;
-  p += 1;
-  int minor = internal_simple_strtoll(p, &p, /*base=*/10);
-  if (*p != '.') return MACOS_VERSION_UNKNOWN;
-
-  switch (major) {
-    case 11: return MACOS_VERSION_LION;
-    case 12: return MACOS_VERSION_MOUNTAIN_LION;
-    case 13: return MACOS_VERSION_MAVERICKS;
-    case 14: return MACOS_VERSION_YOSEMITE;
-    case 15: return MACOS_VERSION_EL_CAPITAN;
-    case 16: return MACOS_VERSION_SIERRA;
-    case 17: return MACOS_VERSION_HIGH_SIERRA;
-    case 18: return MACOS_VERSION_MOJAVE;
-    case 19: return MACOS_VERSION_CATALINA;
-    default:
-      if (major < 9) return MACOS_VERSION_UNKNOWN;
-      return MACOS_VERSION_UNKNOWN_NEWER;
+// This corresponds to Triple::getMacOSXVersion() in the Clang driver.
+static MacosVersion GetMacosAlignedVersionInternal() {
+  u16 kernel_major = GetDarwinKernelVersion().major;
+  // Darwin 0-3  -> unsupported
+  // Darwin 4-19 -> macOS 10.x
+  // Darwin 20+  -> macOS 11+
+  CHECK_GE(kernel_major, 4);
+  u16 major, minor;
+  if (kernel_major < 20) {
+    major = 10;
+    minor = kernel_major - 4;
+  } else {
+    major = 11 + kernel_major - 20;
+    minor = 0;
   }
+  return MacosVersion(major, minor);
 }
 
-MacosVersion GetMacosVersion() {
-  atomic_uint32_t *cache =
-      reinterpret_cast<atomic_uint32_t*>(&cached_macos_version);
-  MacosVersion result =
-      static_cast<MacosVersion>(atomic_load(cache, memory_order_acquire));
-  if (result == MACOS_VERSION_UNINITIALIZED) {
-    result = GetMacosVersionInternal();
-    atomic_store(cache, result, memory_order_release);
+static_assert(sizeof(MacosVersion) == sizeof(atomic_uint32_t::Type),
+              "MacosVersion cache size");
+static atomic_uint32_t cached_macos_version;
+
+MacosVersion GetMacosAlignedVersion() {
+  atomic_uint32_t::Type result =
+      atomic_load(&cached_macos_version, memory_order_acquire);
+  if (!result) {
+    MacosVersion version = GetMacosAlignedVersionInternal();
+    result = *reinterpret_cast<atomic_uint32_t::Type *>(&version);
+    atomic_store(&cached_macos_version, result, memory_order_release);
   }
-  return result;
+  return *reinterpret_cast<MacosVersion *>(&result);
+}
+
+void ParseVersion(const char *vers, u16 *major, u16 *minor) {
+  // Format: <major>.<minor>.<patch>\0
+  CHECK_GE(internal_strlen(vers), 5);
+  const char *p = vers;
+  *major = internal_simple_strtoll(p, &p, /*base=*/10);
+  CHECK_EQ(*p, '.');
+  p += 1;
+  *minor = internal_simple_strtoll(p, &p, /*base=*/10);
 }
 
 DarwinKernelVersion GetDarwinKernelVersion() {
@@ -662,13 +655,8 @@ DarwinKernelVersion GetDarwinKernelVersion() {
   int res = internal_sysctlbyname("kern.osrelease", buf, &len, nullptr, 0);
   CHECK_EQ(res, 0);
 
-  // Format: <major>.<minor>.<patch>\0
-  CHECK_GE(len, 6);
-  const char *p = buf;
-  u16 major = internal_simple_strtoll(p, &p, /*base=*/10);
-  CHECK_EQ(*p, '.');
-  p += 1;
-  u16 minor = internal_simple_strtoll(p, &p, /*base=*/10);
+  u16 major, minor;
+  ParseVersion(buf, &major, &minor);
 
   return DarwinKernelVersion(major, minor);
 }
@@ -719,7 +707,7 @@ void LogFullErrorReport(const char *buffer) {
 #if !SANITIZER_GO
   // Log with os_trace. This will make it into the crash log.
 #if SANITIZER_OS_TRACE
-  if (GetMacosVersion() >= MACOS_VERSION_YOSEMITE) {
+  if (GetMacosAlignedVersion() >= MacosVersion(10, 10)) {
     // os_trace requires the message (format parameter) to be a string literal.
     if (internal_strncmp(SanitizerToolName, "AddressSanitizer",
                          sizeof("AddressSanitizer") - 1) == 0)
@@ -866,9 +854,9 @@ bool DyldNeedsEnvVariable() {
   if (!&dyldVersionNumber) return true;
   // If running on OS X 10.11+ or iOS 9.0+, dyld will interpose even if
   // DYLD_INSERT_LIBRARIES is not set. However, checking OS version via
-  // GetMacosVersion() doesn't work for the simulator. Let's instead check
-  // `dyldVersionNumber`, which is exported by dyld, against a known version
-  // number from the first OS release where this appeared.
+  // GetMacosAlignedVersion() doesn't work for the simulator. Let's instead
+  // check `dyldVersionNumber`, which is exported by dyld, against a known
+  // version number from the first OS release where this appeared.
   return dyldVersionNumber < kMinDyldVersionWithAutoInterposition;
 }
 
@@ -1080,6 +1068,53 @@ uptr GetMaxUserVirtualAddress() {
 
 uptr GetMaxVirtualAddress() {
   return GetMaxUserVirtualAddress();
+}
+
+uptr MapDynamicShadow(uptr shadow_size_bytes, uptr shadow_scale,
+                      uptr min_shadow_base_alignment, uptr &high_mem_end) {
+  const uptr granularity = GetMmapGranularity();
+  const uptr alignment =
+      Max<uptr>(granularity << shadow_scale, 1ULL << min_shadow_base_alignment);
+  const uptr left_padding =
+      Max<uptr>(granularity, 1ULL << min_shadow_base_alignment);
+
+  uptr space_size = shadow_size_bytes + left_padding;
+
+  uptr largest_gap_found = 0;
+  uptr max_occupied_addr = 0;
+  VReport(2, "FindDynamicShadowStart, space_size = %p\n", space_size);
+  uptr shadow_start =
+      FindAvailableMemoryRange(space_size, alignment, granularity,
+                               &largest_gap_found, &max_occupied_addr);
+  // If the shadow doesn't fit, restrict the address space to make it fit.
+  if (shadow_start == 0) {
+    VReport(
+        2,
+        "Shadow doesn't fit, largest_gap_found = %p, max_occupied_addr = %p\n",
+        largest_gap_found, max_occupied_addr);
+    uptr new_max_vm = RoundDownTo(largest_gap_found << shadow_scale, alignment);
+    if (new_max_vm < max_occupied_addr) {
+      Report("Unable to find a memory range for dynamic shadow.\n");
+      Report(
+          "space_size = %p, largest_gap_found = %p, max_occupied_addr = %p, "
+          "new_max_vm = %p\n",
+          space_size, largest_gap_found, max_occupied_addr, new_max_vm);
+      CHECK(0 && "cannot place shadow");
+    }
+    RestrictMemoryToMaxAddress(new_max_vm);
+    high_mem_end = new_max_vm - 1;
+    space_size = (high_mem_end >> shadow_scale) + left_padding;
+    VReport(2, "FindDynamicShadowStart, space_size = %p\n", space_size);
+    shadow_start = FindAvailableMemoryRange(space_size, alignment, granularity,
+                                            nullptr, nullptr);
+    if (shadow_start == 0) {
+      Report("Unable to find a memory range after restricting VM.\n");
+      CHECK(0 && "cannot place shadow after restricting vm");
+    }
+  }
+  CHECK_NE((uptr)0, shadow_start);
+  CHECK(IsAligned(shadow_start, alignment));
+  return shadow_start;
 }
 
 uptr FindAvailableMemoryRange(uptr size, uptr alignment, uptr left_padding,

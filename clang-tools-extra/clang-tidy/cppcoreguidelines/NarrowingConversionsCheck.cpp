@@ -29,6 +29,13 @@ NarrowingConversionsCheck::NarrowingConversionsCheck(StringRef Name,
           Options.get("WarnOnFloatingPointNarrowingConversion", true)),
       PedanticMode(Options.get("PedanticMode", false)) {}
 
+void NarrowingConversionsCheck::storeOptions(
+    ClangTidyOptions::OptionMap &Opts) {
+  Options.store(Opts, "WarnOnFloatingPointNarrowingConversion",
+                WarnOnFloatingPointNarrowingConversion);
+  Options.store(Opts, "PedanticMode", PedanticMode);
+}
+
 void NarrowingConversionsCheck::registerMatchers(MatchFinder *Finder) {
   // ceil() and floor() are guaranteed to return integers, even though the type
   // is not integral.
@@ -72,9 +79,8 @@ static QualType getUnqualifiedType(const Expr &E) {
 }
 
 static APValue getConstantExprValue(const ASTContext &Ctx, const Expr &E) {
-  llvm::APSInt IntegerConstant;
-  if (E.isIntegerConstantExpr(IntegerConstant, Ctx))
-    return APValue(IntegerConstant);
+  if (auto IntegerConstant = E.getIntegerConstantExpr(Ctx))
+    return APValue(*IntegerConstant);
   APValue Constant;
   if (Ctx.getLangOpts().CPlusPlus && E.isCXX11ConstantExpr(Ctx, &Constant))
     return Constant;
@@ -442,7 +448,6 @@ void NarrowingConversionsCheck::check(const MatchFinder::MatchResult &Result) {
     return handleImplicitCast(*Result.Context, *Cast);
   llvm_unreachable("must be binary operator or cast expression");
 }
-
 } // namespace cppcoreguidelines
 } // namespace tidy
 } // namespace clang

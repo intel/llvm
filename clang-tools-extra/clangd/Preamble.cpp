@@ -11,7 +11,9 @@
 #include "Headers.h"
 #include "SourceCode.h"
 #include "support/Logger.h"
+#include "support/ThreadsafeFS.h"
 #include "support/Trace.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
@@ -28,6 +30,8 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
+#include "llvm/ADT/None.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
@@ -95,6 +99,19 @@ public:
   CommentHandler *getCommentHandler() override {
     IWYUHandler = collectIWYUHeaderMaps(&CanonIncludes);
     return IWYUHandler.get();
+  }
+
+  bool shouldSkipFunctionBody(Decl *D) override {
+    // Generally we skip function bodies in preambles for speed.
+    // We can make exceptions for functions that are cheap to parse and
+    // instantiate, widely used, and valuable (e.g. commonly produce errors).
+    if (const auto *FT = llvm::dyn_cast<clang::FunctionTemplateDecl>(D)) {
+      if (const auto *II = FT->getDeclName().getAsIdentifierInfo())
+        // std::make_unique is trivial, and we diagnose bad constructor calls.
+        if (II->isStr("make_unique") && FT->isInStdNamespace())
+          return false;
+    }
+    return true;
   }
 
 private:
@@ -202,20 +219,26 @@ private:
 struct ScannedPreamble {
   std::vector<Inclusion> Includes;
   std::vector<TextualPPDirective> TextualDirectives;
+  PreambleBounds Bounds = {0, false};
 };
 
 /// Scans the preprocessor directives in the preamble section of the file by
 /// running preprocessor over \p Contents. Returned includes do not contain
-/// resolved paths. \p VFS and \p Cmd is used to build the compiler invocation,
-/// which might stat/read files.
+/// resolved paths. \p Cmd is used to build the compiler invocation, which might
+/// stat/read files.
 llvm::Expected<ScannedPreamble>
-scanPreamble(llvm::StringRef Contents,
-             llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS,
-             const tooling::CompileCommand &Cmd) {
+scanPreamble(llvm::StringRef Contents, const tooling::CompileCommand &Cmd) {
+  class EmptyFS : public ThreadsafeFS {
+  private:
+    llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> viewImpl() const override {
+      return new llvm::vfs::InMemoryFileSystem;
+    }
+  };
+  EmptyFS FS;
   // Build and run Preprocessor over the preamble.
   ParseInputs PI;
   PI.Contents = Contents.str();
-  PI.FS = std::move(VFS);
+  PI.TFS = &FS;
   PI.CompileCommand = Cmd;
   IgnoringDiagConsumer IgnoreDiags;
   auto CI = buildCompilerInvocation(PI, IgnoreDiags);
@@ -235,7 +258,7 @@ scanPreamble(llvm::StringRef Contents,
       std::move(CI), nullptr, std::move(PreambleContents),
       // Provide an empty FS to prevent preprocessor from performing IO. This
       // also implies missing resolved paths for includes.
-      new llvm::vfs::InMemoryFileSystem, IgnoreDiags);
+      FS.view(llvm::None), IgnoreDiags);
   if (Clang->getFrontendOpts().Inputs.empty())
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "compiler instance had no inputs");
@@ -250,6 +273,7 @@ scanPreamble(llvm::StringRef Contents,
   IncludeStructure Includes;
   PP.addPPCallbacks(collectIncludeStructureCallback(SM, &Includes));
   ScannedPreamble SP;
+  SP.Bounds = Bounds;
   PP.addPPCallbacks(
       std::make_unique<DirectiveCollector>(PP, SP.TextualDirectives));
   if (llvm::Error Err = Action.Execute())
@@ -320,18 +344,13 @@ buildPreamble(PathRef FileName, CompilerInvocation CI,
   CI.getPreprocessorOpts().WriteCommentListToPCH = false;
 
   CppFilePreambleCallbacks SerializedDeclsCollector(FileName, PreambleCallback);
-  if (Inputs.FS->setCurrentWorkingDirectory(Inputs.CompileCommand.Directory)) {
-    log("Couldn't set working directory when building the preamble.");
-    // We proceed anyway, our lit-tests rely on results for non-existing working
-    // dirs.
-  }
-
+  auto VFS = Inputs.TFS->view(Inputs.CompileCommand.Directory);
   llvm::SmallString<32> AbsFileName(FileName);
-  Inputs.FS->makeAbsolute(AbsFileName);
+  VFS->makeAbsolute(AbsFileName);
   auto StatCache = std::make_unique<PreambleFileStatusCache>(AbsFileName);
   auto BuiltPreamble = PrecompiledPreamble::Build(
       CI, ContentsBuffer.get(), Bounds, *PreambleDiagsEngine,
-      StatCache->getProducingFS(Inputs.FS),
+      StatCache->getProducingFS(VFS),
       std::make_shared<PCHContainerOperations>(), StoreInMemory,
       SerializedDeclsCollector);
 
@@ -362,10 +381,11 @@ bool isPreambleCompatible(const PreambleData &Preamble,
       llvm::MemoryBuffer::getMemBuffer(Inputs.Contents, FileName);
   auto Bounds =
       ComputePreambleBounds(*CI.getLangOpts(), ContentsBuffer.get(), 0);
+  auto VFS = Inputs.TFS->view(Inputs.CompileCommand.Directory);
   return compileCommandsAreEqual(Inputs.CompileCommand,
                                  Preamble.CompileCommand) &&
          Preamble.Preamble.CanReuse(CI, ContentsBuffer.get(), Bounds,
-                                    Inputs.FS.get());
+                                    VFS.get());
 }
 
 void escapeBackslashAndQuotes(llvm::StringRef Text, llvm::raw_ostream &OS) {
@@ -398,16 +418,13 @@ PreamblePatch PreamblePatch::create(llvm::StringRef FileName,
   //   there's nothing to do but generate an empty patch.
   auto BaselineScan = scanPreamble(
       // Contents needs to be null-terminated.
-      Baseline.Preamble.getContents().str(),
-      Baseline.StatCache->getConsumingFS(Modified.FS), Modified.CompileCommand);
+      Baseline.Preamble.getContents().str(), Modified.CompileCommand);
   if (!BaselineScan) {
     elog("Failed to scan baseline of {0}: {1}", FileName,
          BaselineScan.takeError());
     return PreamblePatch::unmodified(Baseline);
   }
-  auto ModifiedScan = scanPreamble(
-      Modified.Contents, Baseline.StatCache->getConsumingFS(Modified.FS),
-      Modified.CompileCommand);
+  auto ModifiedScan = scanPreamble(Modified.Contents, Modified.CompileCommand);
   if (!ModifiedScan) {
     elog("Failed to scan modified contents of {0}: {1}", FileName,
          ModifiedScan.takeError());
@@ -426,6 +443,7 @@ PreamblePatch PreamblePatch::create(llvm::StringRef FileName,
   llvm::sys::path::append(PatchName, llvm::sys::path::parent_path(FileName),
                           PreamblePatchHeaderName);
   PP.PatchFileName = PatchName.str().str();
+  PP.ModifiedBounds = ModifiedScan->Bounds;
 
   llvm::raw_string_ostream Patch(PP.PatchContents);
   // Set default filename for subsequent #line directives
@@ -511,6 +529,7 @@ std::vector<Inclusion> PreamblePatch::preambleIncludes() const {
 PreamblePatch PreamblePatch::unmodified(const PreambleData &Preamble) {
   PreamblePatch PP;
   PP.PreambleIncludes = Preamble.Includes.MainFileIncludes;
+  PP.ModifiedBounds = Preamble.Preamble.getBounds();
   return PP;
 }
 

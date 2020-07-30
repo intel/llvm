@@ -77,22 +77,18 @@ the current CMake configuration. It does so by generating a ``lit.site.cfg``
 file in the build directory from the ``libcxx/test/lit.site.cfg.in`` template,
 and pointing ``llvm-lit`` (which is a wrapper around ``llvm/utils/lit/lit.py``)
 to that file. So when you're running ``<build>/bin/llvm-lit``, the generated
-``lit.site.cfg`` file is always loaded first, followed by the actual config in
-``libcxx/test/lit.cfg``. However, it is sometimes desirable to use a custom
-site configuration. To do that, you can use ``--param=libcxx_site_config`` or
-the ``LIBCXX_SITE_CONFIG`` environment variable to point to the right site
-configuration file. However, you must stop using ``llvm-lit``, or else the
-generated ``lit.site.cfg`` will still be preferred:
+``lit.site.cfg`` file is always loaded instead of ``libcxx/test/lit.cfg.py``.
+If you want to use a custom site configuration, simply point the CMake build
+to it using ``-DLIBCXX_TEST_CONFIG=<path-to-site-config>``, and that site
+configuration will be used instead. That file can use CMake variables inside
+itself to make configuration easier.
 
    .. code-block:: bash
 
-     $ LIBCXX_SITE_CONFIG=path/to/your/site/configuration llvm/utils/lit/lit.py -sv ...
+     $ cmake <options> -DLIBCXX_TEST_CONFIG=<path-to-site-config>
+     $ make -C <build> check-cxx-deps
+     $ <build>/bin/llvm-lit -sv libcxx/test # will use your custom config file
 
-     $ llvm/utils/lit/lit.py -sv ... --param=libcxx_site_config=path/to/your/site/configuration
-
-In both of these cases, your custom site configuration should set up the
-``config`` object in a way that is compatible with what libc++'s ``config.py``
-module expects.
 
 LIT Options
 ===========
@@ -113,24 +109,19 @@ default.
 
   Specify the compiler used to build the tests.
 
-.. option:: cxx_stdlib_under_test=<stdlib name>
+.. option:: stdlib=<stdlib name>
 
-  **Values**: libc++, libstdc++
+  **Values**: libc++, libstdc++, msvc
 
-  Specify the C++ standard library being tested. Unless otherwise specified
-  libc++ is used. This option is intended to allow running the libc++ test
-  suite against other standard library implementations.
+  Specify the C++ standard library being tested. The default is libc++ if this
+  option is not provided. This option is intended to allow running the libc++
+  test suite against other standard library implementations.
 
 .. option:: std=<standard version>
 
-  **Values**: c++98, c++03, c++11, c++14, c++17, c++2a
+  **Values**: c++03, c++11, c++14, c++17, c++2a
 
   Change the standard version used when building the tests.
-
-.. option:: libcxx_site_config=<path/to/lit.site.cfg>
-
-  Specify the site configuration to use when running the tests.  This option
-  overrides the environment variable LIBCXX_SITE_CONFIG.
 
 .. option:: cxx_headers=<path/to/headers>
 
@@ -160,22 +151,6 @@ default.
   still be used to specify the path of the library to link to and run against,
   respectively.
 
-.. option:: use_lit_shell=<bool>
-
-  Enable or disable the use of LIT's internal shell in ShTests. If the
-  environment variable LIT_USE_INTERNAL_SHELL is present then that is used as
-  the default value. Otherwise the default value is True on Windows and False
-  on every other platform.
-
-.. option:: compile_flags="<list-of-args>"
-
-  Specify additional compile flags as a space delimited string.
-  Note: This options should not be used to change the standard version used.
-
-.. option:: link_flags="<list-of-args>"
-
-  Specify additional link flags as a space delimited string.
-
 .. option:: debug_level=<level>
 
   **Values**: 0, 1
@@ -198,14 +173,6 @@ default.
 
   Path to the builtins library to use instead of libgcc.
 
-
-Environment Variables
----------------------
-
-.. envvar:: LIBCXX_SITE_CONFIG=<path/to/lit.site.cfg>
-
-  Specify the site configuration to use when running the tests.
-  Also see `libcxx_site_config`.
 
 Writing Tests
 -------------

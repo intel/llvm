@@ -30,7 +30,6 @@ using namespace mlir;
 
 namespace {
 
-
 struct GPUShuffleOpLowering : public ConvertToLLVMPattern {
   explicit GPUShuffleOpLowering(LLVMTypeConverter &lowering_)
       : ConvertToLLVMPattern(gpu::ShuffleOp::getOperationName(),
@@ -56,7 +55,7 @@ struct GPUShuffleOpLowering : public ConvertToLLVMPattern {
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
-    gpu::ShuffleOpOperandAdaptor adaptor(operands);
+    gpu::ShuffleOpAdaptor adaptor(operands);
 
     auto dialect = typeConverter.getDialect();
     auto valueTy = adaptor.value().getType().cast<LLVM::LLVMType>();
@@ -97,17 +96,27 @@ struct GPUShuffleOpLowering : public ConvertToLLVMPattern {
 ///
 /// This pass only handles device code and is not meant to be run on GPU host
 /// code.
-class LowerGpuOpsToNVVMOpsPass
+struct LowerGpuOpsToNVVMOpsPass
     : public ConvertGpuOpsToNVVMOpsBase<LowerGpuOpsToNVVMOpsPass> {
-public:
+  LowerGpuOpsToNVVMOpsPass() = default;
+  LowerGpuOpsToNVVMOpsPass(unsigned indexBitwidth) {
+    this->indexBitwidth = indexBitwidth;
+  }
+
   void runOnOperation() override {
     gpu::GPUModuleOp m = getOperation();
+
+    /// Customize the bitwidth used for the device side index computations.
+    LowerToLLVMOptions options = {/*useBarePtrCallConv =*/false,
+                                  /*emitCWrappers =*/true,
+                                  /*indexBitwidth =*/indexBitwidth,
+                                  /*useAlignedAlloc =*/false};
 
     /// MemRef conversion for GPU to NVVM lowering. The GPU dialect uses memory
     /// space 5 for private memory attributions, but NVVM represents private
     /// memory allocations as local `alloca`s in the default address space. This
     /// converter drops the private memory space to support the use case above.
-    LLVMTypeConverter converter(m.getContext());
+    LLVMTypeConverter converter(m.getContext(), options);
     converter.addConversion([&](MemRefType type) -> Optional<Type> {
       if (type.getMemorySpace() != gpu::GPUDialect::getPrivateAddressSpace())
         return llvm::None;
@@ -131,9 +140,9 @@ public:
                         LLVM::LogOp, LLVM::Log10Op, LLVM::Log2Op>();
     target.addIllegalOp<FuncOp>();
     target.addLegalDialect<NVVM::NVVMDialect>();
-    // TODO(csigg): Remove once we support replacing non-root ops.
+    // TODO: Remove once we support replacing non-root ops.
     target.addLegalOp<gpu::YieldOp, gpu::GPUModuleOp, gpu::ModuleEndOp>();
-    if (failed(applyPartialConversion(m, target, patterns, &converter)))
+    if (failed(applyPartialConversion(m, target, patterns)))
       signalPassFailure();
   }
 };
@@ -176,6 +185,6 @@ void mlir::populateGpuToNVVMConversionPatterns(
 }
 
 std::unique_ptr<OperationPass<gpu::GPUModuleOp>>
-mlir::createLowerGpuOpsToNVVMOpsPass() {
-  return std::make_unique<LowerGpuOpsToNVVMOpsPass>();
+mlir::createLowerGpuOpsToNVVMOpsPass(unsigned indexBitwidth) {
+  return std::make_unique<LowerGpuOpsToNVVMOpsPass>(indexBitwidth);
 }

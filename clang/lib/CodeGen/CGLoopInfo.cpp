@@ -992,47 +992,28 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
         !IntelFPGAMaxInterleaving && !IntelFPGASpeculatedIterations)
       continue;
 
-    if (IntelFPGAIVDep) {
-      const ValueDecl *Array = nullptr;
-      if (IntelFPGAIVDep->getArrayExpr())
-        Array =
-            cast<ValueDecl>(cast<DeclRefExpr>(IntelFPGAIVDep->getArrayExpr())
-                                ->getDecl()
-                                ->getCanonicalDecl());
+    if (IntelFPGAIVDep)
       addSYCLIVDepInfo(Header->getContext(), IntelFPGAIVDep->getSafelenValue(),
-                       Array);
-    }
+                       IntelFPGAIVDep->getArrayDecl());
 
-    if (IntelFPGAII) {
-      llvm::APSInt ArgVal(32);
-      bool IsValid =
-          IntelFPGAII->getIntervalExpr()->isIntegerConstantExpr(ArgVal, Ctx);
-      assert(IsValid && "Not an integer constant expression");
-      (void)IsValid;
-      setSYCLIInterval(ArgVal.getSExtValue());
-    }
+    if (IntelFPGAII)
+      setSYCLIInterval(IntelFPGAII->getIntervalExpr()
+                           ->getIntegerConstantExpr(Ctx)
+                           ->getSExtValue());
 
     if (IntelFPGAMaxConcurrency) {
-      llvm::APSInt ArgVal(32);
-      bool IsValid =
-          IntelFPGAMaxConcurrency->getNThreadsExpr()->isIntegerConstantExpr(
-              ArgVal, Ctx);
-      assert(IsValid && "Not an integer constant expression");
-      (void)IsValid;
       setSYCLMaxConcurrencyEnable();
-      setSYCLMaxConcurrencyNThreads(ArgVal.getSExtValue());
+      setSYCLMaxConcurrencyNThreads(IntelFPGAMaxConcurrency->getNThreadsExpr()
+                                        ->getIntegerConstantExpr(Ctx)
+                                        ->getSExtValue());
     }
 
     if (IntelFPGALoopCoalesce) {
-      llvm::APSInt ArgVal(32);
-      if (auto *LCE = IntelFPGALoopCoalesce->getNExpr()) {
-        bool IsValid = LCE->isIntegerConstantExpr(ArgVal, Ctx);
-        assert(IsValid && "Not an integer constant expression");
-        (void)IsValid;
-        setSYCLLoopCoalesceNLevels(ArgVal.getSExtValue());
-      } else {
+      if (auto *LCE = IntelFPGALoopCoalesce->getNExpr())
+        setSYCLLoopCoalesceNLevels(
+            LCE->getIntegerConstantExpr(Ctx)->getSExtValue());
+      else
         setSYCLLoopCoalesceEnable();
-      }
     }
 
     if (IntelFPGADisableLoopPipelining) {
@@ -1040,25 +1021,18 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
     }
 
     if (IntelFPGAMaxInterleaving) {
-      llvm::APSInt ArgVal(32);
-      bool IsValid =
-          IntelFPGAMaxInterleaving->getNExpr()->isIntegerConstantExpr(ArgVal,
-                                                                      Ctx);
-      assert(IsValid && "Not an integer constant expression");
-      (void)IsValid;
       setSYCLMaxInterleavingEnable();
-      setSYCLMaxInterleavingNInvocations(ArgVal.getSExtValue());
+      setSYCLMaxInterleavingNInvocations(IntelFPGAMaxInterleaving->getNExpr()
+                                             ->getIntegerConstantExpr(Ctx)
+                                             ->getSExtValue());
     }
 
     if (IntelFPGASpeculatedIterations) {
-      llvm::APSInt ArgVal(32);
-      bool IsValid =
-          IntelFPGASpeculatedIterations->getNExpr()->isIntegerConstantExpr(
-              ArgVal, Ctx);
-      assert(IsValid && "Not an integer constant expression");
-      (void)IsValid;
       setSYCLSpeculatedIterationsEnable();
-      setSYCLSpeculatedIterationsNIterations(ArgVal.getSExtValue());
+      setSYCLSpeculatedIterationsNIterations(
+          IntelFPGASpeculatedIterations->getNExpr()
+              ->getIntegerConstantExpr(Ctx)
+              ->getSExtValue());
     }
   }
 

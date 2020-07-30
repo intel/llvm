@@ -61,19 +61,35 @@ def Linalg_RangeOp :
   let assemblyFormat = "$min `:` $max `:` $step attr-dict `:` type(results)";
 }
 
-class Linalg_ReshapeLikeOp<string mnemonic> :
-    Linalg_Op<mnemonic, [NoSideEffect]> {
+class Linalg_ReshapeLikeOp<string mnemonic, list<OpTrait> traits = []> :
+    Linalg_Op<mnemonic, !listconcat(traits, [NoSideEffect])> {
   let builders = [
-    // Builder for a contracting reshape whose result type is computed from
+    // Builders for a contracting reshape whose result type is computed from
     // `src` and `reassociation`.
     OpBuilder<"OpBuilder &b, OperationState &result, Value src, "
-    "ArrayRef<ArrayRef<AffineExpr>> reassociation, "
-    "ArrayRef<NamedAttribute> attrs = {}">,
-    // Builder for a reshape whose result type is passed explicitly. This may be
-    // either a contracting or expanding reshape.
-    OpBuilder<"OpBuilder &b, OperationState &result, Type resultType, Value src,"
-    "ArrayRef<ArrayRef<AffineExpr>> reassociation, "
-    "ArrayRef<NamedAttribute> attrs = {}">];
+              "ArrayRef<ReassociationExprs> reassociation, "
+              "ArrayRef<NamedAttribute> attrs = {}">,
+    OpBuilder<"OpBuilder &b, OperationState &result, Value src, "
+              "ArrayRef<ReassociationIndices> reassociation, "
+              "ArrayRef<NamedAttribute> attrs = {}", [{
+      auto reassociationMaps =
+          convertReassociationIndicesToMaps(b, reassociation);
+      build(b, result, src, reassociationMaps, attrs);
+    }]>,
+
+    // Builders for a reshape whose result type is passed explicitly. This may
+    // be either a contracting or expanding reshape.
+    OpBuilder<"OpBuilder &b, OperationState &result, Type resultType, "
+              "Value src, ArrayRef<ReassociationExprs> reassociation, "
+              "ArrayRef<NamedAttribute> attrs = {}">,
+    OpBuilder<"OpBuilder &b, OperationState &result, Type resultType, "
+              "Value src, ArrayRef<ReassociationIndices> reassociation, "
+              "ArrayRef<NamedAttribute> attrs = {}", [{
+      auto reassociationMaps =
+          convertReassociationIndicesToMaps(b, reassociation);
+      build(b, result, src, reassociationMaps, attrs);
+    }]>
+  ];
 
   code commonExtraClassDeclaration = [{
     static StringRef getReassociationAttrName() { return "reassociation"; }
@@ -87,7 +103,8 @@ class Linalg_ReshapeLikeOp<string mnemonic> :
   }];
 }
 
-def Linalg_ReshapeOp : Linalg_ReshapeLikeOp<"reshape">,
+def Linalg_ReshapeOp : Linalg_ReshapeLikeOp<"reshape",
+    [DeclareOpInterfaceMethods<ViewLikeOpInterface>]>,
     Arguments<(ins AnyStridedMemRef:$src, AffineMapArrayAttr:$reassociation)>,
     Results<(outs AnyStridedMemRef:$result)> {
   let summary = "linalg.reshape produces a new view into the operand view";

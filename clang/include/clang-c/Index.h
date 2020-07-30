@@ -2167,7 +2167,7 @@ enum CXCursorKind {
    */
   CXCursor_ObjCSelfExpr = 147,
 
-  /** OpenMP 4.0 [2.4, Array Section].
+  /** OpenMP 5.0 [2.1.5, Array Section].
    */
   CXCursor_OMPArraySectionExpr = 148,
 
@@ -3253,8 +3253,9 @@ enum CXTypeKind {
   CXType_UShortAccum = 36,
   CXType_UAccum = 37,
   CXType_ULongAccum = 38,
+  CXType_BFloat16 = 39,
   CXType_FirstBuiltin = CXType_Void,
-  CXType_LastBuiltin = CXType_ULongAccum,
+  CXType_LastBuiltin = CXType_BFloat16,
 
   CXType_Complex = 100,
   CXType_Pointer = 101,
@@ -3347,7 +3348,21 @@ enum CXTypeKind {
   CXType_OCLIntelSubgroupAVCImeDualRefStreamin = 175,
 
   CXType_ExtVector = 176,
-  CXType_Atomic = 177
+  CXType_Atomic = 177,
+
+  /* SPIRV builtin types. */
+  CXType_SampledOCLImage1dRO = 178,
+  CXType_SampledOCLImage1dArrayRO = 179,
+  CXType_SampledOCLImage1dBufferRO = 180,
+  CXType_SampledOCLImage2dRO = 181,
+  CXType_SampledOCLImage2dArrayRO = 182,
+  CXType_SampledOCLImage2dDepthRO = 183,
+  CXType_SampledOCLImage2dArrayDepthRO = 184,
+  CXType_SampledOCLImage2dMSAARO = 185,
+  CXType_SampledOCLImage2dArrayMSAARO = 186,
+  CXType_SampledOCLImage2dMSAADepthRO = 187,
+  CXType_SampledOCLImage2dArrayMSAADepthRO = 188,
+  CXType_SampledOCLImage3dRO = 189
 };
 
 /**
@@ -5933,6 +5948,7 @@ typedef void *CXEvalResult;
  * If cursor is a statement declaration tries to evaluate the
  * statement and if its variable, tries to evaluate its initializer,
  * into its corresponding type.
+ * If it's an expression, tries to evaluate the expression.
  */
 CINDEX_LINKAGE CXEvalResult clang_Cursor_Evaluate(CXCursor C);
 

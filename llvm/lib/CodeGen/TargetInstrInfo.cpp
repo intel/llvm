@@ -597,6 +597,10 @@ MachineInstr *TargetInstrInfo::foldMemoryOperand(MachineInstr &MI,
                                 Flags, MemSize, MFI.getObjectAlign(FI));
     NewMI->addMemOperand(MF, MMO);
 
+    // The pass "x86 speculative load hardening" always attaches symbols to
+    // call instructions. We need copy it form old instruction.
+    NewMI->cloneInstrSymbols(MF, MI);
+
     return NewMI;
   }
 
@@ -993,6 +997,10 @@ bool TargetInstrInfo::isSchedulingBoundary(const MachineInstr &MI,
                                            const MachineFunction &MF) const {
   // Terminators and labels can't be scheduled around.
   if (MI.isTerminator() || MI.isPosition())
+    return true;
+
+  // INLINEASM_BR can jump to another block
+  if (MI.getOpcode() == TargetOpcode::INLINEASM_BR)
     return true;
 
   // Don't attempt to schedule around any instruction that defines

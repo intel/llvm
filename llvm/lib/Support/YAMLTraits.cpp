@@ -166,6 +166,8 @@ bool Input::preflightKey(const char *Key, bool Required, bool, bool &UseDefault,
   if (!MN) {
     if (Required || !isa<EmptyHNode>(CurrentNode))
       setError(CurrentNode, "not a mapping");
+    else
+      UseDefault = true;
     return false;
   }
   MN->ValidKeys.push_back(Key);
@@ -876,12 +878,12 @@ StringRef ScalarTraits<StringRef>::input(StringRef Scalar, void *,
 }
 
 void ScalarTraits<std::string>::output(const std::string &Val, void *,
-                                     raw_ostream &Out) {
+                                       raw_ostream &Out) {
   Out << Val;
 }
 
 StringRef ScalarTraits<std::string>::input(StringRef Scalar, void *,
-                                         std::string &Val) {
+                                           std::string &Val) {
   Val = Scalar.str();
   return StringRef();
 }

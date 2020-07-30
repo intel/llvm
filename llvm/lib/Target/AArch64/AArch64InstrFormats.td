@@ -1647,6 +1647,8 @@ class BaseAuthLoad<bit M, bit W, dag oops, dag iops, string asm,
   let Inst{10} = 1;
   let Inst{9-5} = Rn;
   let Inst{4-0} = Rt;
+
+  let DecoderMethod = "DecodeAuthLoadInstruction";
 }
 
 multiclass AuthLoad<bit M, string asm, Operand opr> {
@@ -7815,16 +7817,19 @@ let mayStore = 0, mayLoad = 0, hasSideEffects = 0 in {
 class BaseSIMDThreeSameVectorBFDot<bit Q, bit U, string asm, string kind1,
                                    string kind2, RegisterOperand RegType,
                                    ValueType AccumType, ValueType InputType>
-  : BaseSIMDThreeSameVectorTied<Q, U, 0b010, 0b11111, RegType, asm, kind1, []> {
+  : BaseSIMDThreeSameVectorTied<Q, U, 0b010, 0b11111, RegType, asm, kind1, [(set (AccumType RegType:$dst),
+                    (int_aarch64_neon_bfdot (AccumType RegType:$Rd),
+                                            (InputType RegType:$Rn),
+                                            (InputType RegType:$Rm)))]> {
   let AsmString = !strconcat(asm,
                              "{\t$Rd" # kind1 # ", $Rn" # kind2 #
                                ", $Rm" # kind2 # "}");
 }
 
 multiclass SIMDThreeSameVectorBFDot<bit U, string asm> {
-  def v4f16 : BaseSIMDThreeSameVectorBFDot<0, U, asm, ".2s", ".4h", V64,
+  def v4bf16 : BaseSIMDThreeSameVectorBFDot<0, U, asm, ".2s", ".4h", V64,
                                            v2f32, v8i8>;
-  def v8f16 : BaseSIMDThreeSameVectorBFDot<1, U, asm, ".4s", ".8h", V128,
+  def v8bf16 : BaseSIMDThreeSameVectorBFDot<1, U, asm, ".4s", ".8h", V128,
                                            v4f32, v16i8>;
 }
 
@@ -7837,7 +7842,13 @@ class BaseSIMDThreeSameVectorBF16DotI<bit Q, bit U, string asm,
   : BaseSIMDIndexedTied<Q, U, 0b0, 0b01, 0b1111,
                         RegType, RegType, V128, VectorIndexS,
                         asm, "", dst_kind, lhs_kind, rhs_kind,
-        []> {
+        [(set (AccumType RegType:$dst),
+              (AccumType (int_aarch64_neon_bfdot
+                                 (AccumType RegType:$Rd),
+                                 (InputType RegType:$Rn),
+                                 (InputType (bitconvert (AccumType
+                                    (AArch64duplane32 (v4f32 V128:$Rm),
+                                        VectorIndexH:$idx)))))))]> {
 
   bits<2> idx;
   let Inst{21}    = idx{0};  // L
@@ -7846,23 +7857,30 @@ class BaseSIMDThreeSameVectorBF16DotI<bit Q, bit U, string asm,
 
 multiclass SIMDThreeSameVectorBF16DotI<bit U, string asm> {
 
-  def v4f16  : BaseSIMDThreeSameVectorBF16DotI<0, U, asm, ".2s", ".4h",
+  def v4bf16  : BaseSIMDThreeSameVectorBF16DotI<0, U, asm, ".2s", ".4h",
                                                ".2h", V64, v2f32, v8i8>;
-  def v8f16 : BaseSIMDThreeSameVectorBF16DotI<1, U, asm, ".4s", ".8h",
+  def v8bf16 : BaseSIMDThreeSameVectorBF16DotI<1, U, asm, ".4s", ".8h",
                                               ".2h", V128, v4f32, v16i8>;
 }
 
-class SIMDBF16MLAL<bit Q, string asm>
+class SIMDBF16MLAL<bit Q, string asm, SDPatternOperator OpNode>
   : BaseSIMDThreeSameVectorTied<Q, 0b1, 0b110, 0b11111, V128, asm, ".4s",
-              []> { // TODO: Add intrinsics
+              [(set (v4f32 V128:$dst), (OpNode (v4f32 V128:$Rd),
+                                               (v16i8 V128:$Rn),
+                                               (v16i8 V128:$Rm)))]> {
   let AsmString = !strconcat(asm, "{\t$Rd.4s, $Rn.8h, $Rm.8h}");
 }
 
-class SIMDBF16MLALIndex<bit Q, string asm>
+class SIMDBF16MLALIndex<bit Q, string asm, SDPatternOperator OpNode>
   : I<(outs V128:$dst),
       (ins V128:$Rd, V128:$Rn, V128_lo:$Rm, VectorIndexH:$idx), asm,
       "{\t$Rd.4s, $Rn.8h, $Rm.h$idx}", "$Rd = $dst",
-          []>, // TODO: Add intrinsics
+          [(set (v4f32 V128:$dst),
+                (v4f32 (OpNode (v4f32 V128:$Rd),
+                               (v16i8 V128:$Rn),
+                               (v16i8 (bitconvert (v8bf16
+                                  (AArch64duplane16 (v8bf16 V128_lo:$Rm),
+                                      VectorIndexH:$idx)))))))]>,
     Sched<[WriteV]> {
   bits<5> Rd;
   bits<5> Rn;
@@ -7884,7 +7902,10 @@ class SIMDBF16MLALIndex<bit Q, string asm>
 class SIMDThreeSameVectorBF16MatrixMul<string asm>
   : BaseSIMDThreeSameVectorTied<1, 1, 0b010, 0b11101,
                                 V128, asm, ".4s",
-                          []> {
+                          [(set (v4f32 V128:$dst),
+                                (int_aarch64_neon_bfmmla (v4f32 V128:$Rd),
+                                                         (v16i8 V128:$Rn),
+                                                         (v16i8 V128:$Rm)))]> {
   let AsmString = !strconcat(asm, "{\t$Rd", ".4s", ", $Rn", ".8h",
                                     ", $Rm", ".8h", "}");
 }
@@ -7892,15 +7913,18 @@ class SIMDThreeSameVectorBF16MatrixMul<string asm>
 class SIMD_BFCVTN
   : BaseSIMDMixedTwoVector<0, 0, 0b10, 0b10110, V128, V128,
                            "bfcvtn", ".4h", ".4s",
-    []>;
+    [(set (v8bf16 V128:$Rd),
+          (int_aarch64_neon_bfcvtn (v4f32 V128:$Rn)))]>;
 
 class SIMD_BFCVTN2
   : BaseSIMDMixedTwoVectorTied<1, 0, 0b10, 0b10110, V128, V128,
                            "bfcvtn2", ".8h", ".4s",
-    []>;
+    [(set (v8bf16 V128:$dst),
+          (int_aarch64_neon_bfcvtn2 (v8bf16 V128:$Rd), (v4f32 V128:$Rn)))]>;
 
 class BF16ToSinglePrecision<string asm>
-  : I<(outs FPR16:$Rd), (ins FPR32:$Rn), asm, "\t$Rd, $Rn", "", []>,
+  : I<(outs FPR16:$Rd), (ins FPR32:$Rn), asm, "\t$Rd, $Rn", "",
+    [(set (bf16 FPR16:$Rd), (int_aarch64_neon_bfcvt (f32 FPR32:$Rn)))]>,
     Sched<[WriteFCvt]> {
   bits<5> Rd;
   bits<5> Rn;

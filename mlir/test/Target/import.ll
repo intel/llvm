@@ -64,14 +64,23 @@
 ; CHECK: llvm.mlir.global internal constant @nested_array_vector(dense<[{{\[}}[1, 2], [3, 4]]]> : vector<1x2x2xi32>) : !llvm<"[1 x [2 x <2 x i32>]]">
 @nested_array_vector = internal constant [1 x [2 x <2 x i32>]] [[2 x <2 x i32>] [<2 x i32> <i32 1, i32 2>, <2 x i32> <i32 3, i32 4>]]
 
+;
+; Linkage on functions.
+;
+
+; CHECK: llvm.func internal @func_internal
+define internal void @func_internal() {
+  ret void
+}
+
 ; CHECK: llvm.func @fe(!llvm.i32) -> !llvm.float
 declare float @fe(i32)
 
 ; FIXME: function attributes.
-; CHECK-LABEL: llvm.func @f1(%arg0: !llvm.i64) -> !llvm.i32 {
+; CHECK-LABEL: llvm.func internal @f1(%arg0: !llvm.i64) -> !llvm.i32 {
 ; CHECK-DAG: %[[c2:[0-9]+]] = llvm.mlir.constant(2 : i32) : !llvm.i32
 ; CHECK-DAG: %[[c42:[0-9]+]] = llvm.mlir.constant(42 : i32) : !llvm.i32
-; CHECK-DAG: %[[c1:[0-9]+]] = llvm.mlir.constant(1 : i1) : !llvm.i1
+; CHECK-DAG: %[[c1:[0-9]+]] = llvm.mlir.constant(true) : !llvm.i1
 ; CHECK-DAG: %[[c43:[0-9]+]] = llvm.mlir.constant(43 : i32) : !llvm.i32
 define internal dso_local i32 @f1(i64 %a) norecurse {
 entry:
@@ -234,7 +243,7 @@ define void @FPArithmetic(float %a, float %b, double %c, double %d) {
 ; CHECK-LABEL: @precaller
 define i32 @precaller() {
   %1 = alloca i32 ()*
-  ; CHECK: %[[func:.*]] = llvm.mlir.constant(@callee) : !llvm<"i32 ()*">
+  ; CHECK: %[[func:.*]] = llvm.mlir.addressof @callee : !llvm<"i32 ()*">
   ; CHECK: llvm.store %[[func]], %[[loc:.*]]
   store i32 ()* @callee, i32 ()** %1
   ; CHECK: %[[indir:.*]] = llvm.load %[[loc]]
@@ -252,7 +261,7 @@ define i32 @callee() {
 ; CHECK-LABEL: @postcaller
 define i32 @postcaller() {
   %1 = alloca i32 ()*
-  ; CHECK: %[[func:.*]] = llvm.mlir.constant(@callee) : !llvm<"i32 ()*">
+  ; CHECK: %[[func:.*]] = llvm.mlir.addressof @callee : !llvm<"i32 ()*">
   ; CHECK: llvm.store %[[func]], %[[loc:.*]]
   store i32 ()* @callee, i32 ()** %1
   ; CHECK: %[[indir:.*]] = llvm.load %[[loc]]

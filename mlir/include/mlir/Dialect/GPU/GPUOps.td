@@ -86,6 +86,55 @@ def GPU_ThreadIdOp : GPU_IndexOp<"thread_id"> {
   }];
 }
 
+def GPU_SubgroupIdOp : GPU_Op<"subgroup_id", [NoSideEffect]>,
+    Arguments<(ins)>, Results<(outs Index:$result)> {
+  let description = [{
+    Returns the subgroup id, i.e. the index of the current subgroup within the
+    workgroup.
+
+    Example:
+
+    ```mlir
+    %sgId = gpu.subgroup_id : index
+    ```
+  }];
+
+  let assemblyFormat = "attr-dict `:` type($result)";
+  let verifier = [{ return success(); }];
+}
+
+def GPU_NumSubgroupsOp : GPU_Op<"num_subgroups", [NoSideEffect]>,
+    Arguments<(ins)>, Results<(outs Index:$result)> {
+  let description = [{
+    Returns the number of subgroups within a workgroup.
+
+    Example:
+
+    ```mlir
+    %numSg = gpu.num_subgroups : index
+    ```
+  }];
+
+  let assemblyFormat = "attr-dict `:` type($result)";
+  let verifier = [{ return success(); }];
+}
+
+def GPU_SubgroupSizeOp : GPU_Op<"subgroup_size", [NoSideEffect]>,
+    Arguments<(ins)>, Results<(outs Index:$result)> {
+  let description = [{
+    Returns the number of threads within a subgroup.
+
+    Example:
+
+    ```mlir
+    %sgSz = gpu.subgroup_size : index
+    ```
+  }];
+
+  let assemblyFormat = "attr-dict `:` type($result)";
+  let verifier = [{ return success(); }];
+}
+
 def GPU_GPUFuncOp : GPU_Op<"func", [HasParent<"GPUModuleOp">,
                                     AutomaticAllocationScope, FunctionLike,
                                     IsolatedFromAbove, Symbol]> {
@@ -175,8 +224,7 @@ def GPU_GPUFuncOp : GPU_Op<"func", [HasParent<"GPUModuleOp">,
     ///  - the argument/result attributes may need an update: if the new type
     ///  has less parameters we drop the extra attributes, if there are more
     ///  parameters they won't have any attributes.
-    // TODO(b/146349912): consider removing this function thanks to rewrite
-    // patterns.
+    // TODO: consider removing this function thanks to rewrite patterns.
     void setType(FunctionType newType);
 
     /// Returns the number of buffers located in the workgroup memory.
@@ -189,7 +237,7 @@ def GPU_GPUFuncOp : GPU_Op<"func", [HasParent<"GPUModuleOp">,
     /// the workgroup memory
     ArrayRef<BlockArgument> getWorkgroupAttributions() {
       auto begin =
-          std::next(getBody().front().args_begin(), getType().getNumInputs());
+          std::next(getBody().args_begin(), getType().getNumInputs());
       auto end = std::next(begin, getNumWorkgroupAttributions());
       return {begin, end};
     }
@@ -200,7 +248,7 @@ def GPU_GPUFuncOp : GPU_Op<"func", [HasParent<"GPUModuleOp">,
 
     /// Returns the number of buffers located in the private memory.
     unsigned getNumPrivateAttributions() {
-      return getOperation()->getNumOperands() - getType().getNumInputs() -
+      return getBody().getNumArguments() - getType().getNumInputs() -
           getNumWorkgroupAttributions();
     }
  
@@ -210,9 +258,9 @@ def GPU_GPUFuncOp : GPU_Op<"func", [HasParent<"GPUModuleOp">,
       // Buffers on the private memory always come after buffers on the workgroup
       // memory.
       auto begin =
-          std::next(getBody().front().args_begin(),
+          std::next(getBody().args_begin(),
                     getType().getNumInputs() + getNumWorkgroupAttributions());
-      return {begin, getBody().front().args_end()};
+      return {begin, getBody().args_end()};
     }
 
     /// Adds a new block argument that corresponds to buffers located in

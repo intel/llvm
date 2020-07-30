@@ -158,6 +158,12 @@ EXECUTION OPTIONS
 SELECTION OPTIONS
 -----------------
 
+.. option:: --max-failures N
+
+ Stop execution after the given number ``N`` of failures.
+ An integer argument should be passed on the command line
+ prior to execution.
+
 .. option:: --max-tests=N
 
  Run at most ``N`` tests and then terminate.

@@ -10,12 +10,12 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common_info.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/detail/spec_constant_impl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/program.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <detail/spec_constant_impl.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -240,7 +240,7 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
-  // \return the Plugin associated withh the context of this program.
+  /// \return the Plugin associated with the context of this program.
   const plugin &getPlugin() const {
     assert(!is_host() && "Plugin is not available for Host.");
     return MContext->getPlugin();
@@ -318,6 +318,12 @@ public:
   /// Tells whether a specialization constant has been set for this program.
   bool hasSetSpecConstants() const { return !SpecConstRegistry.empty(); }
 
+  /// \return true if caching is allowed for this program.
+  bool is_cacheable() const { return MProgramAndKernelCachingAllowed; }
+
+  /// Returns the native plugin handle.
+  pi_native_handle getNative() const;
+
 private:
   // Deligating Constructor used in Implementation.
   program_impl(ContextImplPtr Context, pi_native_handle InteropProgram,
@@ -343,8 +349,12 @@ private:
   ///
   /// \param Module is an OS handle to user code module.
   /// \param KernelName is a name of kernel to be created.
-  void create_pi_program_with_kernel_name(OSModuleHandle Module,
-                                          const string_class &KernelName);
+  /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
+  ///        add a check that kernel is compiled, otherwise don't add the check.
+  void
+  create_pi_program_with_kernel_name(OSModuleHandle Module,
+                                     const string_class &KernelName,
+                                     bool JITCompilationIsRequired = false);
 
   /// Creates an OpenCL program from OpenCL C source code.
   ///
@@ -363,9 +373,6 @@ private:
 
   /// \return a vector of devices managed by the plugin.
   vector_class<RT::PiDevice> get_pi_devices() const;
-
-  /// \return true if caching is allowed for this program.
-  bool is_cacheable() const { return MProgramAndKernelCachingAllowed; }
 
   /// \param Options is a string containing OpenCL C build options.
   /// \return true if caching is allowed for this program and build options.

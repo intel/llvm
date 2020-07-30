@@ -9,8 +9,8 @@
 #pragma once
 
 #include <CL/sycl/detail/cg.hpp>
-#include <CL/sycl/detail/circular_buffer.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
+#include <detail/circular_buffer.hpp>
 #include <detail/scheduler/commands.hpp>
 
 #include <cstddef>

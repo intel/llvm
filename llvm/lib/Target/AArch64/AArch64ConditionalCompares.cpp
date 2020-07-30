@@ -710,7 +710,7 @@ void SSACCmpConv::convert(SmallVectorImpl<MachineBasicBlock *> &RemovedBlocks) {
         .add(CmpMI->getOperand(1)); // Branch target.
   }
   CmpMI->eraseFromParent();
-  Head->updateTerminator();
+  Head->updateTerminator(CmpBB->getNextNode());
 
   RemovedBlocks.push_back(CmpBB);
   CmpBB->eraseFromParent();
@@ -828,7 +828,7 @@ void AArch64ConditionalCompares::updateDomTree(
     assert(Node != HeadNode && "Cannot erase the head node");
     assert(Node->getIDom() == HeadNode && "CmpBB should be dominated by Head");
     while (Node->getNumChildren())
-      DomTree->changeImmediateDominator(Node->getChildren().back(), HeadNode);
+      DomTree->changeImmediateDominator(Node->back(), HeadNode);
     DomTree->eraseNode(RemovedMBB);
   }
 }

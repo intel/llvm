@@ -55,6 +55,9 @@ public:
     CortexA73,
     CortexA75,
     CortexA76,
+    CortexA77,
+    CortexA78,
+    CortexX1,
     ExynosM3,
     Falkor,
     Kryo,
@@ -104,6 +107,10 @@ protected:
   bool HasPAN_RWV = false;
   bool HasCCPP = false;
 
+  // SVE extensions
+  bool HasSVE = false;
+  bool UseExperimentalZeroingPseudos = false;
+
   // Armv8.2 Crypto extensions
   bool HasSM4 = false;
   bool HasSHA3 = false;
@@ -130,8 +137,6 @@ protected:
   bool HasRCPC_IMMO = false;
 
   bool HasLSLFast = false;
-  bool HasSVE = false;
-  bool HasSVE2 = false;
   bool HasRCPC = false;
   bool HasAggressiveFMA = false;
 
@@ -158,6 +163,7 @@ protected:
   bool HasEnhancedCounterVirtualization = false;
 
   // Arm SVE2 extensions
+  bool HasSVE2 = false;
   bool HasSVE2AES = false;
   bool HasSVE2SM4 = false;
   bool HasSVE2SHA3 = false;
@@ -210,6 +216,8 @@ protected:
   bool UseEL2ForTP = false;
   bool UseEL3ForTP = false;
   bool AllowTaggedGlobals = false;
+  bool HardenSlsRetBr = false;
+  bool HardenSlsBlr = false;
   uint8_t MaxInterleaveFactor = 2;
   uint8_t VectorInsertExtractBaseCost = 3;
   uint16_t CacheLineSize = 0;
@@ -363,6 +371,9 @@ public:
            hasFuseCCSelect() || hasFuseLiterals();
   }
 
+  bool hardenSlsRetBr() const { return HardenSlsRetBr; }
+  bool hardenSlsBlr() const { return HardenSlsBlr; }
+
   bool useEL1ForTP() const { return UseEL1ForTP; }
   bool useEL2ForTP() const { return UseEL2ForTP; }
   bool useEL3ForTP() const { return UseEL3ForTP; }
@@ -392,6 +403,10 @@ public:
   unsigned getMaximumJumpTableSize() const { return MaxJumpTableSize; }
 
   unsigned getWideningBaseCost() const { return WideningBaseCost; }
+
+  bool useExperimentalZeroingPseudos() const {
+    return UseExperimentalZeroingPseudos;
+  }
 
   /// CPU has TBI (top byte of addresses is ignored during HW address
   /// translation) and OS enables it.
@@ -529,6 +544,12 @@ public:
   }
 
   void mirFileLoaded(MachineFunction &MF) const override;
+
+  // Return the known range for the bit length of SVE data registers. A value
+  // of 0 means nothing is known about that particular limit beyong what's
+  // implied by the architecture.
+  unsigned getMaxSVEVectorSizeInBits() const;
+  unsigned getMinSVEVectorSizeInBits() const;
 };
 } // End llvm namespace
 

@@ -18,6 +18,7 @@
 #include <list>
 #include <map>
 #include <mutex>
+#include <set>
 #include <vector>
 
 // Forward declarations.
@@ -35,7 +36,8 @@ struct HostDataToTargetTy {
   uintptr_t TgtPtrBegin; // target info.
 
 private:
-  uint64_t RefCount;
+  /// use mutable to allow modification via std::set iterator which is const.
+  mutable uint64_t RefCount;
   static const uint64_t INFRefCount = ~(uint64_t)0;
 
 public:
@@ -48,14 +50,14 @@ public:
     return RefCount;
   }
 
-  uint64_t resetRefCount() {
+  uint64_t resetRefCount() const {
     if (RefCount != INFRefCount)
       RefCount = 1;
 
     return RefCount;
   }
 
-  uint64_t incRefCount() {
+  uint64_t incRefCount() const {
     if (RefCount != INFRefCount) {
       ++RefCount;
       assert(RefCount < INFRefCount && "refcount overflow");
@@ -64,7 +66,7 @@ public:
     return RefCount;
   }
 
-  uint64_t decRefCount() {
+  uint64_t decRefCount() const {
     if (RefCount != INFRefCount) {
       assert(RefCount > 0 && "refcount underflow");
       --RefCount;
@@ -78,7 +80,19 @@ public:
   }
 };
 
-typedef std::list<HostDataToTargetTy> HostDataToTargetListTy;
+typedef uintptr_t HstPtrBeginTy;
+inline bool operator<(const HostDataToTargetTy &lhs, const HstPtrBeginTy &rhs) {
+  return lhs.HstPtrBegin < rhs;
+}
+inline bool operator<(const HstPtrBeginTy &lhs, const HostDataToTargetTy &rhs) {
+  return lhs < rhs.HstPtrBegin;
+}
+inline bool operator<(const HostDataToTargetTy &lhs,
+                      const HostDataToTargetTy &rhs) {
+  return lhs.HstPtrBegin < rhs.HstPtrBegin;
+}
+
+typedef std::set<HostDataToTargetTy, std::less<>> HostDataToTargetListTy;
 
 struct LookupResult {
   struct {
@@ -157,11 +171,15 @@ struct DeviceTy {
     return *this;
   }
 
+  // Return true if data can be copied to DstDevice directly
+  bool isDataExchangable(const DeviceTy& DstDevice);
+
   uint64_t getMapEntryRefCnt(void *HstPtrBegin);
   LookupResult lookupMapping(void *HstPtrBegin, int64_t Size);
   void *getOrAllocTgtPtr(void *HstPtrBegin, void *HstPtrBase, int64_t Size,
-      bool &IsNew, bool &IsHostPtr, bool IsImplicit, bool UpdateRefCount = true,
-      bool HasCloseModifier = false);
+                         bool &IsNew, bool &IsHostPtr, bool IsImplicit,
+                         bool UpdateRefCount, bool HasCloseModifier,
+                         bool HasPresentModifier);
   void *getTgtPtrBegin(void *HstPtrBegin, int64_t Size);
   void *getTgtPtrBegin(void *HstPtrBegin, int64_t Size, bool &IsLast,
       bool UpdateRefCount, bool &IsHostPtr);
@@ -176,10 +194,15 @@ struct DeviceTy {
 
   // Data transfer. When AsyncInfoPtr is nullptr, the transfer will be
   // synchronous.
+  // Copy data from host to device
   int32_t data_submit(void *TgtPtrBegin, void *HstPtrBegin, int64_t Size,
                       __tgt_async_info *AsyncInfoPtr);
+  // Copy data from device back to host
   int32_t data_retrieve(void *HstPtrBegin, void *TgtPtrBegin, int64_t Size,
                         __tgt_async_info *AsyncInfoPtr);
+  // Copy data from current device to destination device directly
+  int32_t data_exchange(void *SrcPtr, DeviceTy DstDev, void *DstPtr,
+                        int64_t Size, __tgt_async_info *AsyncInfoPtr);
 
   int32_t run_region(void *TgtEntryPtr, void **TgtVarsPtr,
                      ptrdiff_t *TgtOffsets, int32_t TgtVarsSize,

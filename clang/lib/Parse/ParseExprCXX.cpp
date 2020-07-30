@@ -926,6 +926,15 @@ bool Parser::ParseLambdaIntroducer(LambdaIntroducer &Intro,
     } else if (Tok.is(tok::kw_this)) {
       Kind = LCK_This;
       Loc = ConsumeToken();
+    } else if (Tok.isOneOf(tok::amp, tok::equal) &&
+               NextToken().isOneOf(tok::comma, tok::r_square) &&
+               Intro.Default == LCD_None) {
+      // We have a lone "&" or "=" which is either a misplaced capture-default
+      // or the start of a capture (in the "&" case) with the rest of the
+      // capture missing. Both are an error but a misplaced capture-default
+      // is more likely if we don't already have a capture default.
+      return Invalid(
+          [&] { Diag(Tok.getLocation(), diag::err_capture_default_first); });
     } else {
       TryConsumeToken(tok::ellipsis, EllipsisLocs[0]);
 
@@ -1258,17 +1267,16 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
   };
 
   // FIXME: Consider allowing this as an extension for GCC compatibiblity.
-  const bool HasExplicitTemplateParams = Tok.is(tok::less);
-  ParseScope TemplateParamScope(this, Scope::TemplateParamScope,
-                                /*EnteredScope=*/HasExplicitTemplateParams);
-  if (HasExplicitTemplateParams) {
+  MultiParseScope TemplateParamScope(*this);
+  if (Tok.is(tok::less)) {
     Diag(Tok, getLangOpts().CPlusPlus20
                   ? diag::warn_cxx17_compat_lambda_template_parameter_list
                   : diag::ext_lambda_template_parameter_list);
 
     SmallVector<NamedDecl*, 4> TemplateParams;
     SourceLocation LAngleLoc, RAngleLoc;
-    if (ParseTemplateParameters(CurTemplateDepthTracker.getDepth(),
+    if (ParseTemplateParameters(TemplateParamScope,
+                                CurTemplateDepthTracker.getDepth(),
                                 TemplateParams, LAngleLoc, RAngleLoc)) {
       Actions.ActOnLambdaError(LambdaBeginLoc, getCurScope());
       return ExprError();
@@ -2200,6 +2208,9 @@ void Parser::ParseCXXSimpleTypeSpecifier(DeclSpec &DS) {
     break;
   case tok::kw___int128:
     DS.SetTypeSpecType(DeclSpec::TST_int128, Loc, PrevSpec, DiagID, Policy);
+    break;
+  case tok::kw___bf16:
+    DS.SetTypeSpecType(DeclSpec::TST_BFloat16, Loc, PrevSpec, DiagID, Policy);
     break;
   case tok::kw_half:
     DS.SetTypeSpecType(DeclSpec::TST_half, Loc, PrevSpec, DiagID, Policy);
@@ -3366,7 +3377,6 @@ ExprResult Parser::ParseRequiresExpression() {
       ParsedAttributes FirstArgAttrs(getAttrFactory());
       SourceLocation EllipsisLoc;
       llvm::SmallVector<DeclaratorChunk::ParamInfo, 2> LocalParameters;
-      DiagnosticErrorTrap Trap(Diags);
       ParseParameterDeclarationClause(DeclaratorContext::RequiresExprContext,
                                       FirstArgAttrs, LocalParameters,
                                       EllipsisLoc);
@@ -3374,8 +3384,6 @@ ExprResult Parser::ParseRequiresExpression() {
         Diag(EllipsisLoc, diag::err_requires_expr_parameter_list_ellipsis);
       for (auto &ParamInfo : LocalParameters)
         LocalParameterDecls.push_back(cast<ParmVarDecl>(ParamInfo.Param));
-      if (Trap.hasErrorOccurred())
-        SkipUntil(tok::r_paren, StopBeforeMatch);
     }
     Parens.consumeClose();
   }
@@ -3649,18 +3657,24 @@ case tok::kw_ ## Spelling: return BTT_ ## Name;
 }
 
 static ArrayTypeTrait ArrayTypeTraitFromTokKind(tok::TokenKind kind) {
-  switch(kind) {
-  default: llvm_unreachable("Not a known binary type trait");
-  case tok::kw___array_rank:                 return ATT_ArrayRank;
-  case tok::kw___array_extent:               return ATT_ArrayExtent;
+  switch (kind) {
+  default:
+    llvm_unreachable("Not a known array type trait");
+#define ARRAY_TYPE_TRAIT(Spelling, Name, Key)                                  \
+  case tok::kw_##Spelling:                                                     \
+    return ATT_##Name;
+#include "clang/Basic/TokenKinds.def"
   }
 }
 
 static ExpressionTrait ExpressionTraitFromTokKind(tok::TokenKind kind) {
-  switch(kind) {
-  default: llvm_unreachable("Not a known unary expression trait.");
-  case tok::kw___is_lvalue_expr:             return ET_IsLValueExpr;
-  case tok::kw___is_rvalue_expr:             return ET_IsRValueExpr;
+  switch (kind) {
+  default:
+    llvm_unreachable("Not a known unary expression trait.");
+#define EXPRESSION_TRAIT(Spelling, Name, Key)                                  \
+  case tok::kw_##Spelling:                                                     \
+    return ET_##Name;
+#include "clang/Basic/TokenKinds.def"
   }
 }
 

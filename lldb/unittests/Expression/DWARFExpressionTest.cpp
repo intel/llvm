@@ -61,35 +61,8 @@ public:
 
 /// Unfortunately Scalar's operator==() is really picky.
 static Scalar GetScalar(unsigned bits, uint64_t value, bool sign) {
-  Scalar scalar;
-  auto type = Scalar::GetBestTypeForBitSize(bits, sign);
-  switch (type) {
-  case Scalar::e_sint:
-    scalar = Scalar((int)value);
-    break;
-  case Scalar::e_slong:
-    scalar = Scalar((long)value);
-    break;
-  case Scalar::e_slonglong:
-    scalar = Scalar((long long)value);
-    break;
-  case Scalar::e_uint:
-    scalar = Scalar((unsigned int)value);
-    break;
-  case Scalar::e_ulong:
-    scalar = Scalar((unsigned long)value);
-    break;
-  case Scalar::e_ulonglong:
-    scalar = Scalar((unsigned long long)value);
-    break;
-  default:
-    llvm_unreachable("not implemented");
-  }
-  scalar.TruncOrExtendTo(type, bits);
-  if (sign)
-    scalar.MakeSigned();
-  else
-    scalar.MakeUnsigned();
+  Scalar scalar(value);
+  scalar.TruncOrExtendTo(bits, sign);
   return scalar;
 }
 
@@ -121,9 +94,7 @@ TEST(DWARFExpression, DW_OP_convert) {
       "      - Attribute:       DW_AT_byte_size\n"
       "        Form:            DW_FORM_data1\n"
       "debug_info:\n"
-      "  - Length:\n"
-      "      TotalLength:     0\n"
-      "    Version:         4\n"
+      "  - Version:         4\n"
       "    AbbrOffset:      0\n"
       "    AddrSize:        8\n"
       "    Entries:\n"
@@ -204,14 +175,14 @@ TEST(DWARFExpression, DW_OP_convert) {
       llvm::HasValue(GetScalar(64, 0xffffffffffeeddcc, is_signed)));
 
   // Truncate to 8 bits.
-  EXPECT_THAT_EXPECTED(t.Eval({DW_OP_const4s, 'A', 'B', 'C', 'D', 0xee, 0xff, //
-                               DW_OP_convert, offs_uchar}),
-                       llvm::HasValue(GetScalar(8, 'A', not_signed)));
+  EXPECT_THAT_EXPECTED(
+      t.Eval({DW_OP_const4s, 'A', 'B', 'C', 'D', DW_OP_convert, offs_uchar}),
+      llvm::HasValue(GetScalar(8, 'A', not_signed)));
 
   // Also truncate to 8 bits.
-  EXPECT_THAT_EXPECTED(t.Eval({DW_OP_const4s, 'A', 'B', 'C', 'D', 0xee, 0xff, //
-                               DW_OP_convert, offs_schar}),
-                       llvm::HasValue(GetScalar(8, 'A', is_signed)));
+  EXPECT_THAT_EXPECTED(
+      t.Eval({DW_OP_const4s, 'A', 'B', 'C', 'D', DW_OP_convert, offs_schar}),
+      llvm::HasValue(GetScalar(8, 'A', is_signed)));
 
   //
   // Errors.
@@ -247,4 +218,11 @@ TEST(DWARFExpression, DW_OP_piece) {
       // Note that the "00" should really be "undef", but we can't
       // represent that yet.
       llvm::HasValue(GetScalar(16, 0xff00, true)));
+}
+
+TEST(DWARFExpression, DW_OP_unknown) {
+  EXPECT_THAT_EXPECTED(
+      Evaluate({0xff}),
+      llvm::FailedWithMessage(
+          "Unhandled opcode DW_OP_unknown_ff in DWARFExpression"));
 }

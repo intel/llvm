@@ -333,7 +333,9 @@ enum Id { // HwRegCode, (6) [5:0]
   ID_FLAT_SCR_HI = 21,
   ID_XNACK_MASK = 22,
   ID_POPS_PACKER = 25,
-  ID_SYMBOLIC_LAST_ = 26,
+  ID_SHADER_CYCLES = 29,
+  ID_SYMBOLIC_FIRST_GFX1030_ = ID_SHADER_CYCLES,
+  ID_SYMBOLIC_LAST_ = 30,
   ID_SHIFT_ = 0,
   ID_WIDTH_ = 6,
   ID_MASK_ = (((1 << ID_WIDTH_) - 1) << ID_SHIFT_)
@@ -389,6 +391,48 @@ enum ModeRegisterMasks : uint32_t {
 };
 
 } // namespace Hwreg
+
+namespace MTBUFFormat {
+
+enum DataFormat {
+  DFMT_MAX = 15,
+
+  DFMT_UNDEF = -1,
+  DFMT_DEFAULT = 1,
+
+  DFMT_SHIFT = 0,
+  DFMT_MASK = DFMT_MAX
+};
+
+enum NumFormat {
+  NFMT_MAX = 7,
+
+  NFMT_UNDEF = -1,
+  NFMT_DEFAULT = 0,
+
+  NFMT_SHIFT = 4,
+  NFMT_MASK = NFMT_MAX
+};
+
+enum MergedFormat {
+  DFMT_NFMT_UNDEF = -1,
+  DFMT_NFMT_DEFAULT = ((DFMT_DEFAULT & DFMT_MASK) << DFMT_SHIFT) |
+                      ((NFMT_DEFAULT & NFMT_MASK) << NFMT_SHIFT),
+
+
+  DFMT_NFMT_MASK = (DFMT_MASK << DFMT_SHIFT) | (NFMT_MASK << NFMT_SHIFT),
+
+  DFMT_NFMT_MAX = DFMT_NFMT_MASK
+};
+
+enum UnifiedFormat {
+  UFMT_MAX = 127,
+
+  UFMT_UNDEF = -1,
+  UFMT_DEFAULT = 1
+};
+
+} // namespace MTBUFFormat
 
 namespace Swizzle { // Encoding of swizzle macro used in ds_swizzle_b32.
 

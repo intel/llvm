@@ -137,7 +137,10 @@ template <class To, class From> To cast(From value);
 extern std::shared_ptr<plugin> GlobalPlugin;
 
 // Performs PI one-time initialization.
-vector_class<plugin> initialize();
+const vector_class<plugin> &initialize();
+
+// Get the plugin serving given backend.
+template <backend BE> const plugin &getPlugin();
 
 // Utility Functions to get Function Name for a PI Api.
 template <PiApiKind PiApiOffset> struct PiFuncInfo {};
@@ -247,6 +250,7 @@ public:
     ConstIterator begin() const { return ConstIterator(Begin); }
     ConstIterator end() const { return ConstIterator(End); }
     friend class DeviceBinaryImage;
+    bool isAvailable() const { return !(Begin == nullptr); }
 
   private:
     PropertyRange() : Begin(nullptr), End(nullptr) {}
@@ -295,6 +299,7 @@ public:
   /// name of the property is the specializaion constant symbolic ID and the
   /// value is 32-bit unsigned integer ID.
   const PropertyRange &getSpecConstants() const { return SpecConstIDMap; }
+  const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
   virtual ~DeviceBinaryImage() {}
 
 protected:
@@ -304,6 +309,7 @@ protected:
   pi_device_binary Bin;
   pi::PiDeviceBinaryType Format = PI_DEVICE_BINARY_TYPE_NONE;
   DeviceBinaryImage::PropertyRange SpecConstIDMap;
+  DeviceBinaryImage::PropertyRange DeviceLibReqMask;
 };
 
 /// Tries to determine the device binary image foramat. Returns
@@ -331,14 +337,15 @@ template <class To, class From> inline To cast(From value) {
 
 // These conversions should use PI interop API.
 template <> inline pi::PiProgram cast(cl_program) {
-  RT::assertion(false, "pi::cast -> use piextProgramFromNative");
+  RT::assertion(false, "pi::cast -> use piextCreateProgramWithNativeHandle");
   return {};
 }
 
 template <> inline pi::PiDevice cast(cl_device_id) {
-  RT::assertion(false, "pi::cast -> use piextDeviceFromNative");
+  RT::assertion(false, "pi::cast -> use piextCreateDeviceWithNativeHandle");
   return {};
 }
+
 } // namespace pi
 } // namespace detail
 

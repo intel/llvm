@@ -1,5 +1,5 @@
-// RUN: %clang %s -fsyntax-only -fsycl-device-only -DTRIGGER_ERROR -Xclang -verify
-// RUN: %clang %s -fsyntax-only -Xclang -ast-dump -fsycl-device-only | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl -fsycl-is-device -triple spir64 -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl -fsycl-is-device -triple spir64 | FileCheck %s
 // RUN: %clang_cc1 -fsycl -fsycl-is-host -fsyntax-only -verify %s
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -20,8 +20,7 @@ void foo() {
 
 #else // __SYCL_DEVICE_ONLY__
 
-[[intelfpga::max_global_work_dim(2)]] // expected-warning{{'max_global_work_dim' attribute ignored}}
-void func_ignore() {}
+[[intelfpga::max_global_work_dim(2)]] void func_do_not_ignore() {}
 
 struct FuncObj {
   [[intelfpga::max_global_work_dim(1)]]
@@ -57,31 +56,31 @@ __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
 }
 
 int main() {
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel1
+  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
   // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}} 1
   kernel<class test_kernel1>(
       FuncObj());
 
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel2
+  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
   // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}} 2
   kernel<class test_kernel2>(
       []() [[intelfpga::max_global_work_dim(2)]] {});
 
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel3
-  // CHECK-NOT:   SYCLIntelMaxGlobalWorkDimAttr {{.*}}
+  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
+  // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
   kernel<class test_kernel3>(
-      []() {func_ignore();});
+      []() { func_do_not_ignore(); });
 
   kernel<class test_kernel4>(
       TRIFuncObjGood1());
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel4
+  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel4
   // CHECK:       ReqdWorkGroupSizeAttr {{.*}} 1 1 1
   // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}} 1 1 1
   // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}} 0
 
   kernel<class test_kernel5>(
       TRIFuncObjGood2());
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel5
+  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5
   // CHECK:       ReqdWorkGroupSizeAttr {{.*}} 1 1 4
   // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}} 1 1 8
   // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}} 3

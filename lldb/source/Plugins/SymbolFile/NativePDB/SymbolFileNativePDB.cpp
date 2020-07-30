@@ -129,14 +129,15 @@ loadMatchingPDBFile(std::string exe_path, llvm::BumpPtrAllocator &allocator) {
 
   // If it doesn't have a debug directory, fail.
   llvm::StringRef pdb_file;
-  auto ec = obj->getDebugPDBInfo(pdb_info, pdb_file);
-  if (ec)
+  if (llvm::Error e = obj->getDebugPDBInfo(pdb_info, pdb_file)) {
+    consumeError(std::move(e));
     return nullptr;
+  }
 
   // if the file doesn't exist, is not a pdb, or doesn't have a matching guid,
   // fail.
   llvm::file_magic magic;
-  ec = llvm::identify_magic(pdb_file, magic);
+  auto ec = llvm::identify_magic(pdb_file, magic);
   if (ec || magic != llvm::file_magic::pdb)
     return nullptr;
   std::unique_ptr<PDBFile> pdb = loadPDBFile(std::string(pdb_file), allocator);
@@ -459,7 +460,7 @@ lldb::TypeSP SymbolFileNativePDB::CreateModifierType(PdbTypeSymId type_id,
   lldb::TypeSP modified_type = GetOrCreateType(mr.ModifiedType);
 
   return std::make_shared<Type>(toOpaqueUid(type_id), this, ConstString(name),
-                                modified_type->GetByteSize(), nullptr,
+                                modified_type->GetByteSize(nullptr), nullptr,
                                 LLDB_INVALID_UID, Type::eEncodingIsUID, decl,
                                 ct, Type::ResolveState::Full);
 }
@@ -583,7 +584,7 @@ lldb::TypeSP SymbolFileNativePDB::CreateTagType(PdbTypeSymId type_id,
 
   return std::make_shared<lldb_private::Type>(
       toOpaqueUid(type_id), this, ConstString(uname),
-      underlying_type->GetByteSize(), nullptr, LLDB_INVALID_UID,
+      underlying_type->GetByteSize(nullptr), nullptr, LLDB_INVALID_UID,
       lldb_private::Type::eEncodingIsUID, decl, ct,
       lldb_private::Type::ResolveState::Forward);
 }
@@ -1375,9 +1376,10 @@ TypeSP SymbolFileNativePDB::CreateTypedef(PdbGlobalSymId id) {
 
   Declaration decl;
   return std::make_shared<lldb_private::Type>(
-      toOpaqueUid(id), this, ConstString(udt.Name), target_type->GetByteSize(),
-      nullptr, target_type->GetID(), lldb_private::Type::eEncodingIsTypedefUID,
-      decl, target_type->GetForwardCompilerType(),
+      toOpaqueUid(id), this, ConstString(udt.Name),
+      target_type->GetByteSize(nullptr), nullptr, target_type->GetID(),
+      lldb_private::Type::eEncodingIsTypedefUID, decl,
+      target_type->GetForwardCompilerType(),
       lldb_private::Type::ResolveState::Forward);
 }
 

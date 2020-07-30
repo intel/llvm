@@ -1,10 +1,16 @@
-if(CMAKE_COMPILER_IS_GNUCXX OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang"))
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fexceptions")
-endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
+# RuntimeTesting needs exceptions enabled
+set(LLVM_REQUIRES_EH ON)
+set(LLVM_REQUIRES_RTTI ON)
 add_library(RuntimeTesting
   testing.cpp
+)
+llvm_update_compile_flags(RuntimeTesting)
+
+target_link_libraries(RuntimeTesting
+  FortranRuntime
+  LLVMSupport
 )
 
 add_executable(format-test
@@ -39,6 +45,18 @@ target_link_libraries(external-hello-world
   FortranRuntime
   LLVMSupport
 )
+
+add_executable(external-io
+  external-io.cpp
+)
+
+target_link_libraries(external-io
+  RuntimeTesting
+  FortranRuntime
+  LLVMSupport
+)
+
+add_test(NAME ExternalIO COMMAND external-io)
 
 add_executable(list-input-test
   list-input.cpp

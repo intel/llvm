@@ -204,6 +204,71 @@ TEST(Support, Path) {
   }
 }
 
+TEST(Support, PathRoot) {
+  ASSERT_EQ(path::root_name("//net/hello", path::Style::posix).str(), "//net");
+  ASSERT_EQ(path::root_name("c:/hello", path::Style::posix).str(), "");
+  ASSERT_EQ(path::root_name("c:/hello", path::Style::windows).str(), "c:");
+  ASSERT_EQ(path::root_name("/hello", path::Style::posix).str(), "");
+
+  ASSERT_EQ(path::root_directory("/goo/hello", path::Style::posix).str(), "/");
+  ASSERT_EQ(path::root_directory("c:/hello", path::Style::windows).str(), "/");
+  ASSERT_EQ(path::root_directory("d/file.txt", path::Style::posix).str(), "");
+  ASSERT_EQ(path::root_directory("d/file.txt", path::Style::windows).str(), "");
+
+  SmallVector<StringRef, 40> paths;
+  paths.push_back("");
+  paths.push_back(".");
+  paths.push_back("..");
+  paths.push_back("foo");
+  paths.push_back("/");
+  paths.push_back("/foo");
+  paths.push_back("foo/");
+  paths.push_back("/foo/");
+  paths.push_back("foo/bar");
+  paths.push_back("/foo/bar");
+  paths.push_back("//net");
+  paths.push_back("//net/");
+  paths.push_back("//net/foo");
+  paths.push_back("///foo///");
+  paths.push_back("///foo///bar");
+  paths.push_back("/.");
+  paths.push_back("./");
+  paths.push_back("/..");
+  paths.push_back("../");
+  paths.push_back("foo/.");
+  paths.push_back("foo/..");
+  paths.push_back("foo/./");
+  paths.push_back("foo/./bar");
+  paths.push_back("foo/..");
+  paths.push_back("foo/../");
+  paths.push_back("foo/../bar");
+  paths.push_back("c:");
+  paths.push_back("c:/");
+  paths.push_back("c:foo");
+  paths.push_back("c:/foo");
+  paths.push_back("c:foo/");
+  paths.push_back("c:/foo/");
+  paths.push_back("c:/foo/bar");
+  paths.push_back("prn:");
+  paths.push_back("c:\\");
+  paths.push_back("c:foo");
+  paths.push_back("c:\\foo");
+  paths.push_back("c:foo\\");
+  paths.push_back("c:\\foo\\");
+  paths.push_back("c:\\foo/");
+  paths.push_back("c:/foo\\bar");
+
+  for (StringRef p : paths) {
+    ASSERT_EQ(
+      path::root_name(p, path::Style::posix).str() + path::root_directory(p, path::Style::posix).str(),
+      path::root_path(p, path::Style::posix).str());
+
+    ASSERT_EQ(
+      path::root_name(p, path::Style::windows).str() + path::root_directory(p, path::Style::windows).str(),
+      path::root_path(p, path::Style::windows).str());
+  }
+}
+
 TEST(Support, FilenameParent) {
   EXPECT_EQ("/", path::filename("/"));
   EXPECT_EQ("", path::parent_path("/"));
@@ -359,7 +424,8 @@ TEST(Support, HomeDirectory) {
   }
 }
 
-#ifdef LLVM_ON_UNIX
+// Apple has their own solution for this.
+#if defined(LLVM_ON_UNIX) && !defined(__APPLE__)
 TEST(Support, HomeDirectoryWithNoEnv) {
   WithEnv Env("HOME", nullptr);
 
@@ -371,6 +437,26 @@ TEST(Support, HomeDirectoryWithNoEnv) {
   SmallString<128> HomeDir;
   EXPECT_TRUE(path::home_directory(HomeDir));
   EXPECT_EQ(PwDir, HomeDir);
+}
+
+TEST(Support, ConfigDirectoryWithEnv) {
+  WithEnv Env("XDG_CONFIG_HOME", "/xdg/config");
+
+  SmallString<128> ConfigDir;
+  EXPECT_TRUE(path::user_config_directory(ConfigDir));
+  EXPECT_EQ("/xdg/config", ConfigDir);
+}
+
+TEST(Support, ConfigDirectoryNoEnv) {
+  WithEnv Env("XDG_CONFIG_HOME", nullptr);
+
+  SmallString<128> Fallback;
+  ASSERT_TRUE(path::home_directory(Fallback));
+  path::append(Fallback, ".config");
+
+  SmallString<128> CacheDir;
+  EXPECT_TRUE(path::user_config_directory(CacheDir));
+  EXPECT_EQ(Fallback, CacheDir);
 }
 
 TEST(Support, CacheDirectoryWithEnv) {
@@ -394,7 +480,29 @@ TEST(Support, CacheDirectoryNoEnv) {
 }
 #endif
 
+#ifdef __APPLE__
+TEST(Support, ConfigDirectory) {
+  SmallString<128> Fallback;
+  ASSERT_TRUE(path::home_directory(Fallback));
+  path::append(Fallback, "Library/Preferences");
+
+  SmallString<128> ConfigDir;
+  EXPECT_TRUE(path::user_config_directory(ConfigDir));
+  EXPECT_EQ(Fallback, ConfigDir);
+}
+#endif
+
 #ifdef _WIN32
+TEST(Support, ConfigDirectory) {
+  std::string Expected = getEnvWin(L"LOCALAPPDATA");
+  // Do not try to test it if we don't know what to expect.
+  if (!Expected.empty()) {
+    SmallString<128> CacheDir;
+    EXPECT_TRUE(path::user_config_directory(CacheDir));
+    EXPECT_EQ(Expected, CacheDir);
+  }
+}
+
 TEST(Support, CacheDirectory) {
   std::string Expected = getEnvWin(L"LOCALAPPDATA");
   // Do not try to test it if we don't know what to expect.
@@ -1038,6 +1146,39 @@ TEST_F(FileSystemTest, BrokenSymlinkDirectoryIteration) {
   VisitedBrokenSymlinks.clear();
 
   ASSERT_NO_ERROR(fs::remove_directories(Twine(TestDirectory) + "/symlink"));
+}
+#endif
+
+#ifdef _WIN32
+TEST_F(FileSystemTest, UTF8ToUTF16DirectoryIteration) {
+  // The Windows filesystem support uses UTF-16 and converts paths from the
+  // input UTF-8. The UTF-16 equivalent of the input path can be shorter in
+  // length.
+
+  // This test relies on TestDirectory not being so long such that MAX_PATH
+  // would be exceeded (see widenPath). If that were the case, the UTF-16
+  // path is likely to be longer than the input.
+  const char *Pi = "\xcf\x80"; // UTF-8 lower case pi.
+  std::string RootDir = (TestDirectory + "/" + Pi).str();
+
+  // Create test directories.
+  ASSERT_NO_ERROR(fs::create_directories(Twine(RootDir) + "/a"));
+  ASSERT_NO_ERROR(fs::create_directories(Twine(RootDir) + "/b"));
+
+  std::error_code EC;
+  unsigned Count = 0;
+  for (fs::directory_iterator I(Twine(RootDir), EC), E; I != E;
+       I.increment(EC)) {
+    ASSERT_NO_ERROR(EC);
+    StringRef DirName = path::filename(I->path());
+    EXPECT_TRUE(DirName == "a" || DirName == "b");
+    ++Count;
+  }
+  EXPECT_EQ(Count, 2U);
+
+  ASSERT_NO_ERROR(fs::remove(Twine(RootDir) + "/a"));
+  ASSERT_NO_ERROR(fs::remove(Twine(RootDir) + "/b"));
+  ASSERT_NO_ERROR(fs::remove(Twine(RootDir)));
 }
 #endif
 

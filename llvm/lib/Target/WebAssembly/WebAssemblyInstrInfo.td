@@ -166,6 +166,9 @@ def function32_op : Operand<i32>;
 let OperandType = "OPERAND_OFFSET32" in
 def offset32_op : Operand<i32>;
 
+let OperandType = "OPERAND_OFFSET64" in
+def offset64_op : Operand<i64>;
+
 let OperandType = "OPERAND_P2ALIGN" in {
 def P2Align : Operand<i32> {
   let PrintMethod = "printWebAssemblyP2AlignOperand";
@@ -195,6 +198,19 @@ def getStackOpcode : InstrMapping {
   let FilterClass = "StackRel";
   let RowFields = ["BaseName"];
   let ColFields = ["StackBased"];
+  let KeyCol = ["false"];
+  let ValueCols = [["true"]];
+}
+
+//===----------------------------------------------------------------------===//
+// WebAssembly 32 to 64-bit instruction mapping
+//===----------------------------------------------------------------------===//
+
+class Wasm64Rel;
+def getWasm64Opcode : InstrMapping {
+  let FilterClass = "Wasm64Rel";
+  let RowFields = ["Wasm32Name"];
+  let ColFields = ["IsWasm64"];
   let KeyCol = ["false"];
   let ValueCols = [["true"]];
 }
@@ -312,19 +328,25 @@ defm CONST_F64 : I<(outs F64:$res), (ins f64imm_op:$imm),
 } // isMoveImm = 1, isAsCheapAsAMove = 1, isReMaterializable = 1
 
 def : Pat<(i32 (WebAssemblywrapper tglobaladdr:$addr)),
-          (CONST_I32 tglobaladdr:$addr)>, Requires<[IsNotPIC]>;
+          (CONST_I32 tglobaladdr:$addr)>, Requires<[IsNotPIC, HasAddr32]>;
+def : Pat<(i64 (WebAssemblywrapper tglobaladdr:$addr)),
+          (CONST_I64 tglobaladdr:$addr)>, Requires<[IsNotPIC, HasAddr64]>;
 
 def : Pat<(i32 (WebAssemblywrapper tglobaladdr:$addr)),
-          (GLOBAL_GET_I32 tglobaladdr:$addr)>, Requires<[IsPIC]>;
+          (GLOBAL_GET_I32 tglobaladdr:$addr)>, Requires<[IsPIC, HasAddr32]>;
 
 def : Pat<(i32 (WebAssemblywrapperPIC tglobaladdr:$addr)),
-          (CONST_I32 tglobaladdr:$addr)>, Requires<[IsPIC]>;
+          (CONST_I32 tglobaladdr:$addr)>, Requires<[IsPIC, HasAddr32]>;
+def : Pat<(i64 (WebAssemblywrapperPIC tglobaladdr:$addr)),
+          (CONST_I64 tglobaladdr:$addr)>, Requires<[IsPIC, HasAddr64]>;
 
 def : Pat<(i32 (WebAssemblywrapper texternalsym:$addr)),
-          (GLOBAL_GET_I32 texternalsym:$addr)>, Requires<[IsPIC]>;
+          (GLOBAL_GET_I32 texternalsym:$addr)>, Requires<[IsPIC, HasAddr32]>;
 
 def : Pat<(i32 (WebAssemblywrapper texternalsym:$addr)),
-          (CONST_I32 texternalsym:$addr)>, Requires<[IsNotPIC]>;
+          (CONST_I32 texternalsym:$addr)>, Requires<[IsNotPIC, HasAddr32]>;
+def : Pat<(i64 (WebAssemblywrapper texternalsym:$addr)),
+          (CONST_I64 texternalsym:$addr)>, Requires<[IsNotPIC, HasAddr64]>;
 
 def : Pat<(i32 (WebAssemblywrapper mcsym:$sym)), (CONST_I32 mcsym:$sym)>;
 def : Pat<(i64 (WebAssemblywrapper mcsym:$sym)), (CONST_I64 mcsym:$sym)>;

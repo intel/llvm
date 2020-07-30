@@ -20,6 +20,7 @@
 #include "clang/AST/Attr.h"
 #include "clang/AST/RecordLayout.h"
 #include "clang/Basic/CodeGenOptions.h"
+#include "clang/Basic/DiagnosticFrontend.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "clang/CodeGen/SwiftCallingConv.h"
 #include "llvm/ADT/SmallBitVector.h"
@@ -498,11 +499,15 @@ static bool isEmptyField(ASTContext &Context, const FieldDecl *FD,
 
   // Constant arrays of empty records count as empty, strip them off.
   // Constant arrays of zero length always count as empty.
+  bool WasArray = false;
   if (AllowArrays)
     while (const ConstantArrayType *AT = Context.getAsConstantArrayType(FT)) {
       if (AT->getSize() == 0)
         return true;
       FT = AT->getElementType();
+      // The [[no_unique_address]] special case below does not apply to
+      // arrays of C++ empty records, so we need to remember this fact.
+      WasArray = true;
     }
 
   const RecordType *RT = FT->getAs<RecordType>();
@@ -513,7 +518,14 @@ static bool isEmptyField(ASTContext &Context, const FieldDecl *FD,
   //
   // FIXME: We should use a predicate for whether this behavior is true in the
   // current ABI.
-  if (isa<CXXRecordDecl>(RT->getDecl()))
+  //
+  // The exception to the above rule are fields marked with the
+  // [[no_unique_address]] attribute (since C++20).  Those do count as empty
+  // according to the Itanium ABI.  The exception applies only to records,
+  // not arrays of records, so we must also check whether we stripped off an
+  // array type above.
+  if (isa<CXXRecordDecl>(RT->getDecl()) &&
+      (WasArray || !FD->hasAttr<NoUniqueAddressAttr>()))
     return false;
 
   return isEmptyRecord(Context, FT, AllowArrays);
@@ -2466,7 +2478,109 @@ public:
       }
     }
   }
+
+  void checkFunctionCallABI(CodeGenModule &CGM, SourceLocation CallLoc,
+                            const FunctionDecl *Caller,
+                            const FunctionDecl *Callee,
+                            const CallArgList &Args) const override;
 };
+
+static void initFeatureMaps(const ASTContext &Ctx,
+                            llvm::StringMap<bool> &CallerMap,
+                            const FunctionDecl *Caller,
+                            llvm::StringMap<bool> &CalleeMap,
+                            const FunctionDecl *Callee) {
+  if (CalleeMap.empty() && CallerMap.empty()) {
+    // The caller is potentially nullptr in the case where the call isn't in a
+    // function.  In this case, the getFunctionFeatureMap ensures we just get
+    // the TU level setting (since it cannot be modified by 'target'..
+    Ctx.getFunctionFeatureMap(CallerMap, Caller);
+    Ctx.getFunctionFeatureMap(CalleeMap, Callee);
+  }
+}
+
+static bool checkAVXParamFeature(DiagnosticsEngine &Diag,
+                                 SourceLocation CallLoc,
+                                 const llvm::StringMap<bool> &CallerMap,
+                                 const llvm::StringMap<bool> &CalleeMap,
+                                 QualType Ty, StringRef Feature,
+                                 bool IsArgument) {
+  bool CallerHasFeat = CallerMap.lookup(Feature);
+  bool CalleeHasFeat = CalleeMap.lookup(Feature);
+  if (!CallerHasFeat && !CalleeHasFeat)
+    return Diag.Report(CallLoc, diag::warn_avx_calling_convention)
+           << IsArgument << Ty << Feature;
+
+  // Mixing calling conventions here is very clearly an error.
+  if (!CallerHasFeat || !CalleeHasFeat)
+    return Diag.Report(CallLoc, diag::err_avx_calling_convention)
+           << IsArgument << Ty << Feature;
+
+  // Else, both caller and callee have the required feature, so there is no need
+  // to diagnose.
+  return false;
+}
+
+static bool checkAVXParam(DiagnosticsEngine &Diag, ASTContext &Ctx,
+                          SourceLocation CallLoc,
+                          const llvm::StringMap<bool> &CallerMap,
+                          const llvm::StringMap<bool> &CalleeMap, QualType Ty,
+                          bool IsArgument) {
+  uint64_t Size = Ctx.getTypeSize(Ty);
+  if (Size > 256)
+    return checkAVXParamFeature(Diag, CallLoc, CallerMap, CalleeMap, Ty,
+                                "avx512f", IsArgument);
+
+  if (Size > 128)
+    return checkAVXParamFeature(Diag, CallLoc, CallerMap, CalleeMap, Ty, "avx",
+                                IsArgument);
+
+  return false;
+}
+
+void X86_64TargetCodeGenInfo::checkFunctionCallABI(
+    CodeGenModule &CGM, SourceLocation CallLoc, const FunctionDecl *Caller,
+    const FunctionDecl *Callee, const CallArgList &Args) const {
+  llvm::StringMap<bool> CallerMap;
+  llvm::StringMap<bool> CalleeMap;
+  unsigned ArgIndex = 0;
+
+  // We need to loop through the actual call arguments rather than the the
+  // function's parameters, in case this variadic.
+  for (const CallArg &Arg : Args) {
+    // The "avx" feature changes how vectors >128 in size are passed. "avx512f"
+    // additionally changes how vectors >256 in size are passed. Like GCC, we
+    // warn when a function is called with an argument where this will change.
+    // Unlike GCC, we also error when it is an obvious ABI mismatch, that is,
+    // the caller and callee features are mismatched.
+    // Unfortunately, we cannot do this diagnostic in SEMA, since the callee can
+    // change its ABI with attribute-target after this call.
+    if (Arg.getType()->isVectorType() &&
+        CGM.getContext().getTypeSize(Arg.getType()) > 128) {
+      initFeatureMaps(CGM.getContext(), CallerMap, Caller, CalleeMap, Callee);
+      QualType Ty = Arg.getType();
+      // The CallArg seems to have desugared the type already, so for clearer
+      // diagnostics, replace it with the type in the FunctionDecl if possible.
+      if (ArgIndex < Callee->getNumParams())
+        Ty = Callee->getParamDecl(ArgIndex)->getType();
+
+      if (checkAVXParam(CGM.getDiags(), CGM.getContext(), CallLoc, CallerMap,
+                        CalleeMap, Ty, /*IsArgument*/ true))
+        return;
+    }
+    ++ArgIndex;
+  }
+
+  // Check return always, as we don't have a good way of knowing in codegen
+  // whether this value is used, tail-called, etc.
+  if (Callee->getReturnType()->isVectorType() &&
+      CGM.getContext().getTypeSize(Callee->getReturnType()) > 128) {
+    initFeatureMaps(CGM.getContext(), CallerMap, Caller, CalleeMap, Callee);
+    checkAVXParam(CGM.getDiags(), CGM.getContext(), CallLoc, CallerMap,
+                  CalleeMap, Callee->getReturnType(),
+                  /*IsArgument*/ false);
+  }
+}
 
 static std::string qualifyWindowsLibrary(llvm::StringRef Lib) {
   // If the argument does not end in .lib, automatically add the suffix.
@@ -5375,6 +5489,10 @@ private:
 
   bool isLegalVectorTypeForSwift(CharUnits totalSize, llvm::Type *eltTy,
                                  unsigned elts) const override;
+
+  bool allowBFloatArgsAndRet() const override {
+    return getTarget().hasBFloat16Type();
+  }
 };
 
 class AArch64TargetCodeGenInfo : public TargetCodeGenInfo {
@@ -5980,11 +6098,14 @@ public:
 
 private:
   ABIKind Kind;
+  bool IsFloatABISoftFP;
 
 public:
   ARMABIInfo(CodeGenTypes &CGT, ABIKind _Kind)
       : SwiftABIInfo(CGT), Kind(_Kind) {
     setCCs();
+    IsFloatABISoftFP = CGT.getCodeGenOpts().FloatABI == "softfp" ||
+        CGT.getCodeGenOpts().FloatABI == ""; // default
   }
 
   bool isEABI() const {
@@ -6014,6 +6135,10 @@ public:
   }
 
   ABIKind getABIKind() const { return Kind; }
+
+  bool allowBFloatArgsAndRet() const override {
+    return !IsFloatABISoftFP && getTarget().hasBFloat16Type();
+  }
 
 private:
   ABIArgInfo classifyReturnType(QualType RetTy, bool isVariadic,
@@ -6254,17 +6379,6 @@ ABIArgInfo ARMABIInfo::classifyArgumentType(QualType Ty, bool isVariadic,
   if (isIllegalVectorType(Ty))
     return coerceIllegalVector(Ty);
 
-  // _Float16 and __fp16 get passed as if it were an int or float, but with
-  // the top 16 bits unspecified. This is not done for OpenCL as it handles the
-  // half type natively, and does not need to interwork with AAPCS code.
-  if ((Ty->isFloat16Type() || Ty->isHalfType()) &&
-      !getContext().getLangOpts().NativeHalfArgsAndReturns) {
-    llvm::Type *ResType = IsAAPCS_VFP ?
-      llvm::Type::getFloatTy(getVMContext()) :
-      llvm::Type::getInt32Ty(getVMContext());
-    return ABIArgInfo::getDirect(ResType);
-  }
-
   if (!isAggregateTypeForABI(Ty)) {
     // Treat an enum type as its underlying type.
     if (const EnumType *EnumTy = Ty->getAs<EnumType>()) {
@@ -6458,22 +6572,14 @@ ABIArgInfo ARMABIInfo::classifyReturnType(QualType RetTy, bool isVariadic,
     // Large vector types should be returned via memory.
     if (getContext().getTypeSize(RetTy) > 128)
       return getNaturalAlignIndirect(RetTy);
-    // FP16 vectors should be converted to integer vectors
-    if (!getTarget().hasLegalHalfType() &&
+    // TODO: FP16/BF16 vectors should be converted to integer vectors
+    // This check is similar  to isIllegalVectorType - refactor?
+    if ((!getTarget().hasLegalHalfType() &&
         (VT->getElementType()->isFloat16Type() ||
-         VT->getElementType()->isHalfType()))
+         VT->getElementType()->isHalfType())) ||
+        (IsFloatABISoftFP &&
+         VT->getElementType()->isBFloat16Type()))
       return coerceIllegalVector(RetTy);
-  }
-
-  // _Float16 and __fp16 get returned as if it were an int or float, but with
-  // the top 16 bits unspecified. This is not done for OpenCL as it handles the
-  // half type natively, and does not need to interwork with AAPCS code.
-  if ((RetTy->isFloat16Type() || RetTy->isHalfType()) &&
-      !getContext().getLangOpts().NativeHalfArgsAndReturns) {
-    llvm::Type *ResType = IsAAPCS_VFP ?
-      llvm::Type::getFloatTy(getVMContext()) :
-      llvm::Type::getInt32Ty(getVMContext());
-    return ABIArgInfo::getDirect(ResType);
   }
 
   if (!isAggregateTypeForABI(RetTy)) {
@@ -6562,12 +6668,17 @@ ABIArgInfo ARMABIInfo::classifyReturnType(QualType RetTy, bool isVariadic,
 /// isIllegalVector - check whether Ty is an illegal vector type.
 bool ARMABIInfo::isIllegalVectorType(QualType Ty) const {
   if (const VectorType *VT = Ty->getAs<VectorType> ()) {
-    // On targets that don't support FP16, FP16 is expanded into float, and we
-    // don't want the ABI to depend on whether or not FP16 is supported in
-    // hardware. Thus return false to coerce FP16 vectors into integer vectors.
-    if (!getTarget().hasLegalHalfType() &&
+    // On targets that don't support half, fp16 or bfloat, they are expanded
+    // into float, and we don't want the ABI to depend on whether or not they
+    // are supported in hardware. Thus return false to coerce vectors of these
+    // types into integer vectors.
+    // We do not depend on hasLegalHalfType for bfloat as it is a
+    // separate IR type.
+    if ((!getTarget().hasLegalHalfType() &&
         (VT->getElementType()->isFloat16Type() ||
-         VT->getElementType()->isHalfType()))
+         VT->getElementType()->isHalfType())) ||
+        (IsFloatABISoftFP &&
+         VT->getElementType()->isBFloat16Type()))
       return true;
     if (isAndroid()) {
       // Android shipped using Clang 3.1, which supported a slightly different
@@ -6619,6 +6730,7 @@ bool ARMABIInfo::containsAnyFP16Vectors(QualType Ty) const {
   } else {
     if (const VectorType *VT = Ty->getAs<VectorType>())
       return (VT->getElementType()->isFloat16Type() ||
+              VT->getElementType()->isBFloat16Type() ||
               VT->getElementType()->isHalfType());
     return false;
   }
@@ -7107,7 +7219,9 @@ bool SystemZABIInfo::isFPArgumentType(QualType Ty) const {
 }
 
 QualType SystemZABIInfo::GetSingleElementType(QualType Ty) const {
-  if (const RecordType *RT = Ty->getAsStructureType()) {
+  const RecordType *RT = Ty->getAs<RecordType>();
+
+  if (RT && RT->isStructureOrClassType()) {
     const RecordDecl *RD = RT->getDecl();
     QualType Found;
 
@@ -7132,6 +7246,10 @@ QualType SystemZABIInfo::GetSingleElementType(QualType Ty) const {
       // do count.  So do anonymous bitfields that aren't zero-sized.
       if (getContext().getLangOpts().CPlusPlus &&
           FD->isZeroLengthBitField(getContext()))
+        continue;
+      // Like isSingleElementStruct(), ignore C++20 empty data members.
+      if (FD->hasAttr<NoUniqueAddressAttr>() &&
+          isEmptyRecord(getContext(), FD->getType(), true))
         continue;
 
       // Unlike isSingleElementStruct(), arrays do not count.
@@ -7372,10 +7490,49 @@ ABIArgInfo SystemZABIInfo::classifyArgumentType(QualType Ty) const {
 
 namespace {
 
+class MSP430ABIInfo : public DefaultABIInfo {
+  static ABIArgInfo complexArgInfo() {
+    ABIArgInfo Info = ABIArgInfo::getDirect();
+    Info.setCanBeFlattened(false);
+    return Info;
+  }
+
+public:
+  MSP430ABIInfo(CodeGenTypes &CGT) : DefaultABIInfo(CGT) {}
+
+  ABIArgInfo classifyReturnType(QualType RetTy) const {
+    if (RetTy->isAnyComplexType())
+      return complexArgInfo();
+
+    return DefaultABIInfo::classifyReturnType(RetTy);
+  }
+
+  ABIArgInfo classifyArgumentType(QualType RetTy) const {
+    if (RetTy->isAnyComplexType())
+      return complexArgInfo();
+
+    return DefaultABIInfo::classifyArgumentType(RetTy);
+  }
+
+  // Just copy the original implementations because
+  // DefaultABIInfo::classify{Return,Argument}Type() are not virtual
+  void computeInfo(CGFunctionInfo &FI) const override {
+    if (!getCXXABI().classifyReturnType(FI))
+      FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
+    for (auto &I : FI.arguments())
+      I.info = classifyArgumentType(I.type);
+  }
+
+  Address EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
+                    QualType Ty) const override {
+    return EmitVAArgInstr(CGF, VAListAddr, Ty, classifyArgumentType(Ty));
+  }
+};
+
 class MSP430TargetCodeGenInfo : public TargetCodeGenInfo {
 public:
   MSP430TargetCodeGenInfo(CodeGenTypes &CGT)
-      : TargetCodeGenInfo(std::make_unique<DefaultABIInfo>(CGT)) {}
+      : TargetCodeGenInfo(std::make_unique<MSP430ABIInfo>(CGT)) {}
   void setTargetAttributes(const Decl *D, llvm::GlobalValue *GV,
                            CodeGen::CodeGenModule &M) const override;
 };
@@ -8815,9 +8972,13 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
       assert(Max == 0 && "Max must be zero");
   } else if (IsOpenCLKernel || IsHIPKernel) {
     // By default, restrict the maximum size to a value specified by
-    // --gpu-max-threads-per-block=n or its default value.
+    // --gpu-max-threads-per-block=n or its default value for HIP.
+    const unsigned OpenCLDefaultMaxWorkGroupSize = 256;
+    const unsigned DefaultMaxWorkGroupSize =
+        IsOpenCLKernel ? OpenCLDefaultMaxWorkGroupSize
+                       : M.getLangOpts().GPUMaxThreadsPerBlock;
     std::string AttrVal =
-        std::string("1,") + llvm::utostr(M.getLangOpts().GPUMaxThreadsPerBlock);
+        std::string("1,") + llvm::utostr(DefaultMaxWorkGroupSize);
     F->addFnAttr("amdgpu-flat-work-group-size", AttrVal);
   }
 
@@ -9533,11 +9694,15 @@ public:
 
 class XCoreTargetCodeGenInfo : public TargetCodeGenInfo {
   mutable TypeStringCache TSC;
+  void emitTargetMD(const Decl *D, llvm::GlobalValue *GV,
+                    const CodeGen::CodeGenModule &M) const;
+
 public:
   XCoreTargetCodeGenInfo(CodeGenTypes &CGT)
       : TargetCodeGenInfo(std::make_unique<XCoreABIInfo>(CGT)) {}
-  void emitTargetMD(const Decl *D, llvm::GlobalValue *GV,
-                    CodeGen::CodeGenModule &M) const override;
+  void emitTargetMetadata(CodeGen::CodeGenModule &CGM,
+                          const llvm::MapVector<GlobalDecl, StringRef>
+                              &MangledDeclNames) const override;
 };
 
 } // End anonymous namespace.
@@ -9698,11 +9863,13 @@ StringRef TypeStringCache::lookupStr(const IdentifierInfo *ID) {
 /// The output is tested by test/CodeGen/xcore-stringtype.c.
 ///
 static bool getTypeString(SmallStringEnc &Enc, const Decl *D,
-                          CodeGen::CodeGenModule &CGM, TypeStringCache &TSC);
+                          const CodeGen::CodeGenModule &CGM,
+                          TypeStringCache &TSC);
 
 /// XCore uses emitTargetMD to emit TypeString metadata for global symbols.
-void XCoreTargetCodeGenInfo::emitTargetMD(const Decl *D, llvm::GlobalValue *GV,
-                                          CodeGen::CodeGenModule &CGM) const {
+void XCoreTargetCodeGenInfo::emitTargetMD(
+    const Decl *D, llvm::GlobalValue *GV,
+    const CodeGen::CodeGenModule &CGM) const {
   SmallStringEnc Enc;
   if (getTypeString(Enc, D, CGM, TSC)) {
     llvm::LLVMContext &Ctx = CGM.getModule().getContext();
@@ -9714,6 +9881,21 @@ void XCoreTargetCodeGenInfo::emitTargetMD(const Decl *D, llvm::GlobalValue *GV,
   }
 }
 
+void XCoreTargetCodeGenInfo::emitTargetMetadata(
+    CodeGen::CodeGenModule &CGM,
+    const llvm::MapVector<GlobalDecl, StringRef> &MangledDeclNames) const {
+  // Warning, new MangledDeclNames may be appended within this loop.
+  // We rely on MapVector insertions adding new elements to the end
+  // of the container.
+  for (unsigned I = 0; I != MangledDeclNames.size(); ++I) {
+    auto Val = *(MangledDeclNames.begin() + I);
+    llvm::GlobalValue *GV = CGM.GetGlobalValue(Val.second);
+    if (GV) {
+      const Decl *D = Val.first.getDecl()->getMostRecentDecl();
+      emitTargetMD(D, GV, CGM);
+    }
+  }
+}
 //===----------------------------------------------------------------------===//
 // SPIR ABI Implementation
 //===----------------------------------------------------------------------===//
@@ -10047,7 +10229,8 @@ static bool appendType(SmallStringEnc &Enc, QualType QType,
 }
 
 static bool getTypeString(SmallStringEnc &Enc, const Decl *D,
-                          CodeGen::CodeGenModule &CGM, TypeStringCache &TSC) {
+                          const CodeGen::CodeGenModule &CGM,
+                          TypeStringCache &TSC) {
   if (!D)
     return false;
 
@@ -10547,6 +10730,56 @@ public:
 } // namespace
 
 //===----------------------------------------------------------------------===//
+// VE ABI Implementation.
+//
+namespace {
+class VEABIInfo : public DefaultABIInfo {
+public:
+  VEABIInfo(CodeGenTypes &CGT) : DefaultABIInfo(CGT) {}
+
+private:
+  ABIArgInfo classifyReturnType(QualType RetTy) const;
+  ABIArgInfo classifyArgumentType(QualType RetTy) const;
+  void computeInfo(CGFunctionInfo &FI) const override;
+};
+} // end anonymous namespace
+
+ABIArgInfo VEABIInfo::classifyReturnType(QualType Ty) const {
+  if (Ty->isAnyComplexType()) {
+    return ABIArgInfo::getDirect();
+  }
+  return DefaultABIInfo::classifyReturnType(Ty);
+}
+
+ABIArgInfo VEABIInfo::classifyArgumentType(QualType Ty) const {
+  if (Ty->isAnyComplexType()) {
+    return ABIArgInfo::getDirect();
+  }
+  return DefaultABIInfo::classifyArgumentType(Ty);
+}
+
+void VEABIInfo::computeInfo(CGFunctionInfo &FI) const {
+
+  FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
+  for (auto &Arg : FI.arguments())
+    Arg.info = classifyArgumentType(Arg.type);
+}
+
+namespace {
+class VETargetCodeGenInfo : public TargetCodeGenInfo {
+public:
+  VETargetCodeGenInfo(CodeGenTypes &CGT)
+      : TargetCodeGenInfo(std::make_unique<VEABIInfo>(CGT)) {}
+  // VE ABI requires the arguments of variadic and prototype-less functions
+  // are passed in both registers and memory.
+  bool isNoProtoCallVariadic(const CallArgList &args,
+                             const FunctionNoProtoType *fnType) const override {
+    return true;
+  }
+};
+} // end anonymous namespace
+
+//===----------------------------------------------------------------------===//
 // Driver code
 //===----------------------------------------------------------------------===//
 
@@ -10748,6 +10981,8 @@ const TargetCodeGenInfo &CodeGenModule::getTargetCodeGenInfo() {
   case llvm::Triple::spir:
   case llvm::Triple::spir64:
     return SetCGInfo(new SPIRTargetCodeGenInfo(Types));
+  case llvm::Triple::ve:
+    return SetCGInfo(new VETargetCodeGenInfo(Types));
   }
 }
 

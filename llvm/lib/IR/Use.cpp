@@ -17,24 +17,17 @@ void Use::swap(Use &RHS) {
   if (Val == RHS.Val)
     return;
 
-  if (Val)
-    removeFromList();
+  std::swap(Val, RHS.Val);
+  std::swap(Next, RHS.Next);
+  std::swap(Prev, RHS.Prev);
 
-  Value *OldVal = Val;
-  if (RHS.Val) {
-    RHS.removeFromList();
-    Val = RHS.Val;
-    Val->addUse(*this);
-  } else {
-    Val = nullptr;
-  }
+  *Prev = this;
+  if (Next)
+    Next->Prev = &Next;
 
-  if (OldVal) {
-    RHS.Val = OldVal;
-    RHS.Val->addUse(RHS);
-  } else {
-    RHS.Val = nullptr;
-  }
+  *RHS.Prev = &RHS;
+  if (RHS.Next)
+    RHS.Next->Prev = &RHS.Next;
 }
 
 unsigned Use::getOperandNo() const {
@@ -48,4 +41,4 @@ void Use::zap(Use *Start, const Use *Stop, bool del) {
     ::operator delete(Start);
 }
 
-} // End llvm namespace
+} // namespace llvm

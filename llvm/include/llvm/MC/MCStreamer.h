@@ -565,6 +565,25 @@ public:
                                           MCSymbol *CsectSym,
                                           unsigned ByteAlignment);
 
+  /// Emit a symbol's linkage and visibilty with a linkage directive for XCOFF.
+  ///
+  /// \param Symbol - The symbol to emit.
+  /// \param Linkage - The linkage of the symbol to emit.
+  /// \param Visibility - The visibility of the symbol to emit or MCSA_Invalid
+  /// if the symbol does not have an explicit visibility.
+  virtual void emitXCOFFSymbolLinkageWithVisibility(MCSymbol *Symbol,
+                                                    MCSymbolAttr Linkage,
+                                                    MCSymbolAttr Visibility);
+
+  /// Emit a XCOFF .rename directive which creates a synonym for an illegal or
+  /// undesirable name.
+  ///
+  /// \param Name - The name used internally in the assembly for references to
+  /// the symbol.
+  /// \param Rename - The value to which the Name parameter is
+  /// changed at the end of assembly.
+  virtual void emitXCOFFRenameDirective(const MCSymbol *Name, StringRef Rename);
+
   /// Emit an ELF .size directive.
   ///
   /// This corresponds to an assembler statement such as:
@@ -995,13 +1014,12 @@ public:
 
   virtual void emitSyntaxDirective();
 
-  /// Emit a .reloc directive.
-  /// Returns true if the relocation could not be emitted because Name is not
-  /// known.
-  virtual bool emitRelocDirective(const MCExpr &Offset, StringRef Name,
-                                  const MCExpr *Expr, SMLoc Loc,
-                                  const MCSubtargetInfo &STI) {
-    return true;
+  /// Record a relocation described by the .reloc directive. Return None if
+  /// succeeded. Otherwise, return a pair (Name is invalid, error message).
+  virtual Optional<std::pair<bool, std::string>>
+  emitRelocDirective(const MCExpr &Offset, StringRef Name, const MCExpr *Expr,
+                     SMLoc Loc, const MCSubtargetInfo &STI) {
+    return None;
   }
 
   virtual void emitAddrsig() {}

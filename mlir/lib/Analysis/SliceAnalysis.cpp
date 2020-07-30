@@ -41,20 +41,23 @@ static void getForwardSliceImpl(Operation *op,
   }
 
   if (auto forOp = dyn_cast<AffineForOp>(op)) {
-    for (auto *ownerInst : forOp.getInductionVar().getUsers())
-      if (forwardSlice->count(ownerInst) == 0)
-        getForwardSliceImpl(ownerInst, forwardSlice, filter);
+    for (Operation *userOp : forOp.getInductionVar().getUsers())
+      if (forwardSlice->count(userOp) == 0)
+        getForwardSliceImpl(userOp, forwardSlice, filter);
   } else if (auto forOp = dyn_cast<scf::ForOp>(op)) {
-    for (auto *ownerInst : forOp.getInductionVar().getUsers())
-      if (forwardSlice->count(ownerInst) == 0)
-        getForwardSliceImpl(ownerInst, forwardSlice, filter);
+    for (Operation *userOp : forOp.getInductionVar().getUsers())
+      if (forwardSlice->count(userOp) == 0)
+        getForwardSliceImpl(userOp, forwardSlice, filter);
+    for (Value result : forOp.getResults())
+      for (Operation *userOp : result.getUsers())
+        if (forwardSlice->count(userOp) == 0)
+          getForwardSliceImpl(userOp, forwardSlice, filter);
   } else {
     assert(op->getNumRegions() == 0 && "unexpected generic op with regions");
-    assert(op->getNumResults() <= 1 && "unexpected multiple results");
-    if (op->getNumResults() > 0) {
-      for (auto *ownerInst : op->getResult(0).getUsers())
-        if (forwardSlice->count(ownerInst) == 0)
-          getForwardSliceImpl(ownerInst, forwardSlice, filter);
+    for (Value result : op->getResults()) {
+      for (Operation *userOp : result.getUsers())
+        if (forwardSlice->count(userOp) == 0)
+          getForwardSliceImpl(userOp, forwardSlice, filter);
     }
   }
 
@@ -81,8 +84,7 @@ static void getBackwardSliceImpl(Operation *op,
   if (!op)
     return;
 
-  assert((op->getNumRegions() == 0 || isa<AffineForOp>(op) ||
-          isa<scf::ForOp>(op)) &&
+  assert((op->getNumRegions() == 0 || isa<AffineForOp, scf::ForOp>(op)) &&
          "unexpected generic op with regions");
 
   // Evaluate whether we should keep this def.
@@ -139,15 +141,15 @@ SetVector<Operation *> mlir::getSlice(Operation *op,
   SetVector<Operation *> backwardSlice;
   SetVector<Operation *> forwardSlice;
   while (currentIndex != slice.size()) {
-    auto *currentInst = (slice)[currentIndex];
-    // Compute and insert the backwardSlice starting from currentInst.
+    auto *currentOp = (slice)[currentIndex];
+    // Compute and insert the backwardSlice starting from currentOp.
     backwardSlice.clear();
-    getBackwardSlice(currentInst, &backwardSlice, backwardFilter);
+    getBackwardSlice(currentOp, &backwardSlice, backwardFilter);
     slice.insert(backwardSlice.begin(), backwardSlice.end());
 
-    // Compute and insert the forwardSlice starting from currentInst.
+    // Compute and insert the forwardSlice starting from currentOp.
     forwardSlice.clear();
-    getForwardSlice(currentInst, &forwardSlice, forwardFilter);
+    getForwardSlice(currentOp, &forwardSlice, forwardFilter);
     slice.insert(forwardSlice.begin(), forwardSlice.end());
     ++currentIndex;
   }
@@ -169,12 +171,9 @@ struct DFSState {
 } // namespace
 
 static void DFSPostorder(Operation *current, DFSState *state) {
-  assert(current->getNumResults() <= 1 && "NYI: multi-result");
-  if (current->getNumResults() > 0) {
-    for (auto &u : current->getResult(0).getUses()) {
-      auto *op = u.getOwner();
+  for (Value result : current->getResults()) {
+    for (Operation *op : result.getUsers())
       DFSPostorder(op, state);
-    }
   }
   bool inserted;
   using IterTy = decltype(state->seen.begin());

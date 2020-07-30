@@ -72,8 +72,8 @@ static bool areEquivalentExpr(const Expr *Left, const Expr *Right) {
   Expr::const_child_iterator LeftIter = Left->child_begin();
   Expr::const_child_iterator RightIter = Right->child_begin();
   while (LeftIter != Left->child_end() && RightIter != Right->child_end()) {
-    if (!areEquivalentExpr(dyn_cast<Expr>(*LeftIter),
-                           dyn_cast<Expr>(*RightIter)))
+    if (!areEquivalentExpr(dyn_cast_or_null<Expr>(*LeftIter),
+                           dyn_cast_or_null<Expr>(*RightIter)))
       return false;
     ++LeftIter;
     ++RightIter;
@@ -117,6 +117,9 @@ static bool areEquivalentExpr(const Expr *Left, const Expr *Right) {
   case Stmt::MemberExprClass:
     return cast<MemberExpr>(Left)->getMemberDecl() ==
            cast<MemberExpr>(Right)->getMemberDecl();
+  case Stmt::CXXFoldExprClass:
+    return cast<CXXFoldExpr>(Left)->getOperator() ==
+           cast<CXXFoldExpr>(Right)->getOperator();
   case Stmt::CXXFunctionalCastExprClass:
   case Stmt::CStyleCastExprClass:
     return cast<ExplicitCastExpr>(Left)->getTypeAsWritten() ==
@@ -497,7 +500,13 @@ static bool retrieveIntegerConstantExpr(const MatchFinder::MatchResult &Result,
                                         const Expr *&ConstExpr) {
   std::string CstId = (Id + "-const").str();
   ConstExpr = Result.Nodes.getNodeAs<Expr>(CstId);
-  return ConstExpr && ConstExpr->isIntegerConstantExpr(Value, *Result.Context);
+  if (!ConstExpr)
+    return false;
+  Optional<llvm::APSInt> R = ConstExpr->getIntegerConstantExpr(*Result.Context);
+  if (!R)
+    return false;
+  Value = *R;
+  return true;
 }
 
 // Overloaded `retrieveIntegerConstantExpr` for compatibility.
@@ -670,7 +679,7 @@ static bool retrieveRelationalIntegerConstantExpr(
 
     if (const auto *Arg = OverloadedOperatorExpr->getArg(1)) {
       if (!Arg->isValueDependent() &&
-          !Arg->isIntegerConstantExpr(Value, *Result.Context))
+          !Arg->isIntegerConstantExpr(*Result.Context))
         return false;
     }
     Symbol = OverloadedOperatorExpr->getArg(0);
@@ -1262,21 +1271,23 @@ void RedundantExpressionCheck::check(const MatchFinder::MatchResult &Result) {
           "left-right-shift-confusion")) {
     const auto *ShiftingConst = Result.Nodes.getNodeAs<Expr>("shift-const");
     assert(ShiftingConst && "Expr* 'ShiftingConst' is nullptr!");
-    APSInt ShiftingValue;
+    Optional<llvm::APSInt> ShiftingValue =
+        ShiftingConst->getIntegerConstantExpr(*Result.Context);
 
-    if (!ShiftingConst->isIntegerConstantExpr(ShiftingValue, *Result.Context))
+    if (!ShiftingValue)
       return;
 
     const auto *AndConst = Result.Nodes.getNodeAs<Expr>("and-const");
     assert(AndConst && "Expr* 'AndCont' is nullptr!");
-    APSInt AndValue;
-    if (!AndConst->isIntegerConstantExpr(AndValue, *Result.Context))
+    Optional<llvm::APSInt> AndValue =
+        AndConst->getIntegerConstantExpr(*Result.Context);
+    if (!AndValue)
       return;
 
     // If ShiftingConst is shifted left with more bits than the position of the
     // leftmost 1 in the bit representation of AndValue, AndConstant is
     // ineffective.
-    if (AndValue.getActiveBits() > ShiftingValue)
+    if (AndValue->getActiveBits() > *ShiftingValue)
       return;
 
     auto Diag = diag(BinaryAndExpr->getOperatorLoc(),

@@ -12,6 +12,7 @@
 #include "InputSection.h"
 #include "OutputSection.h"
 #include "lld/Common/LLVM.h"
+#include "llvm/ADT/MapVector.h"
 
 namespace lld {
 namespace macho {
@@ -28,10 +29,10 @@ public:
   const InputSection *lastSection() const { return inputs.back(); }
 
   // These accessors will only be valid after finalizing the section
-  size_t getSize() const override { return size; }
+  uint64_t getSize() const override { return size; }
   uint64_t getFileSize() const override { return fileSize; }
 
-  void mergeInput(InputSection *input) override;
+  void mergeInput(InputSection *input);
   void finalize() override;
 
   void writeTo(uint8_t *buf) const override;

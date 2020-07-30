@@ -1799,23 +1799,20 @@ define <4 x double> @test_v4f64_fneg_fmul_no_nsz(<4 x double> %x, <4 x double> %
 define double @fadd_fma_fmul_1(double %a, double %b, double %c, double %d, double %n1) nounwind {
 ; FMA-LABEL: fadd_fma_fmul_1:
 ; FMA:       # %bb.0:
-; FMA-NEXT:    vmulsd %xmm3, %xmm2, %xmm2
-; FMA-NEXT:    vfmadd231sd {{.*#+}} xmm2 = (xmm1 * xmm0) + xmm2
-; FMA-NEXT:    vaddsd %xmm4, %xmm2, %xmm0
+; FMA-NEXT:    vfmadd213sd {{.*#+}} xmm2 = (xmm3 * xmm2) + xmm4
+; FMA-NEXT:    vfmadd213sd {{.*#+}} xmm0 = (xmm1 * xmm0) + xmm2
 ; FMA-NEXT:    retq
 ;
 ; FMA4-LABEL: fadd_fma_fmul_1:
 ; FMA4:       # %bb.0:
-; FMA4-NEXT:    vmulsd %xmm3, %xmm2, %xmm2
+; FMA4-NEXT:    vfmaddsd {{.*#+}} xmm2 = (xmm2 * xmm3) + xmm4
 ; FMA4-NEXT:    vfmaddsd {{.*#+}} xmm0 = (xmm0 * xmm1) + xmm2
-; FMA4-NEXT:    vaddsd %xmm4, %xmm0, %xmm0
 ; FMA4-NEXT:    retq
 ;
 ; AVX512-LABEL: fadd_fma_fmul_1:
 ; AVX512:       # %bb.0:
-; AVX512-NEXT:    vmulsd %xmm3, %xmm2, %xmm2
-; AVX512-NEXT:    vfmadd231sd {{.*#+}} xmm2 = (xmm1 * xmm0) + xmm2
-; AVX512-NEXT:    vaddsd %xmm4, %xmm2, %xmm0
+; AVX512-NEXT:    vfmadd213sd {{.*#+}} xmm2 = (xmm3 * xmm2) + xmm4
+; AVX512-NEXT:    vfmadd213sd {{.*#+}} xmm0 = (xmm1 * xmm0) + xmm2
 ; AVX512-NEXT:    retq
   %m1 = fmul fast double %a, %b
   %m2 = fmul fast double %c, %d
@@ -1824,7 +1821,36 @@ define double @fadd_fma_fmul_1(double %a, double %b, double %c, double %d, doubl
   ret double %a2
 }
 
-; Minimum FMF, commute final add operands, change type.
+; Minimum FMF - the 1st fadd is contracted because that combines
+; fmul+fadd as specified by the order of operations; the 2nd fadd
+; requires reassociation to fuse with c*d.
+
+define float @fadd_fma_fmul_fmf(float %a, float %b, float %c, float %d, float %n0) nounwind {
+; FMA-LABEL: fadd_fma_fmul_fmf:
+; FMA:       # %bb.0:
+; FMA-NEXT:    vfmadd213ss {{.*#+}} xmm2 = (xmm3 * xmm2) + xmm4
+; FMA-NEXT:    vfmadd213ss {{.*#+}} xmm0 = (xmm1 * xmm0) + xmm2
+; FMA-NEXT:    retq
+;
+; FMA4-LABEL: fadd_fma_fmul_fmf:
+; FMA4:       # %bb.0:
+; FMA4-NEXT:    vfmaddss {{.*#+}} xmm2 = (xmm2 * xmm3) + xmm4
+; FMA4-NEXT:    vfmaddss {{.*#+}} xmm0 = (xmm0 * xmm1) + xmm2
+; FMA4-NEXT:    retq
+;
+; AVX512-LABEL: fadd_fma_fmul_fmf:
+; AVX512:       # %bb.0:
+; AVX512-NEXT:    vfmadd213ss {{.*#+}} xmm2 = (xmm3 * xmm2) + xmm4
+; AVX512-NEXT:    vfmadd213ss {{.*#+}} xmm0 = (xmm1 * xmm0) + xmm2
+; AVX512-NEXT:    retq
+  %m1 = fmul float %a, %b
+  %m2 = fmul float %c, %d
+  %a1 = fadd contract float %m1, %m2
+  %a2 = fadd reassoc float %n0, %a1
+  ret float %a2
+}
+
+; Not minimum FMF.
 
 define float @fadd_fma_fmul_2(float %a, float %b, float %c, float %d, float %n0) nounwind {
 ; FMA-LABEL: fadd_fma_fmul_2:
@@ -1860,28 +1886,27 @@ define <2 x double> @fadd_fma_fmul_3(<2 x double> %x1, <2 x double> %x2, <2 x do
 ; FMA-LABEL: fadd_fma_fmul_3:
 ; FMA:       # %bb.0:
 ; FMA-NEXT:    vmulpd %xmm3, %xmm2, %xmm2
-; FMA-NEXT:    vmulpd %xmm7, %xmm6, %xmm3
 ; FMA-NEXT:    vfmadd231pd {{.*#+}} xmm2 = (xmm1 * xmm0) + xmm2
-; FMA-NEXT:    vfmadd231pd {{.*#+}} xmm3 = (xmm5 * xmm4) + xmm3
-; FMA-NEXT:    vaddpd %xmm3, %xmm2, %xmm0
+; FMA-NEXT:    vfmadd231pd {{.*#+}} xmm2 = (xmm7 * xmm6) + xmm2
+; FMA-NEXT:    vfmadd231pd {{.*#+}} xmm2 = (xmm5 * xmm4) + xmm2
+; FMA-NEXT:    vmovapd %xmm2, %xmm0
 ; FMA-NEXT:    retq
 ;
 ; FMA4-LABEL: fadd_fma_fmul_3:
 ; FMA4:       # %bb.0:
 ; FMA4-NEXT:    vmulpd %xmm3, %xmm2, %xmm2
-; FMA4-NEXT:    vmulpd %xmm7, %xmm6, %xmm3
 ; FMA4-NEXT:    vfmaddpd {{.*#+}} xmm0 = (xmm0 * xmm1) + xmm2
-; FMA4-NEXT:    vfmaddpd {{.*#+}} xmm1 = (xmm4 * xmm5) + xmm3
-; FMA4-NEXT:    vaddpd %xmm1, %xmm0, %xmm0
+; FMA4-NEXT:    vfmaddpd {{.*#+}} xmm0 = (xmm6 * xmm7) + xmm0
+; FMA4-NEXT:    vfmaddpd {{.*#+}} xmm0 = (xmm4 * xmm5) + xmm0
 ; FMA4-NEXT:    retq
 ;
 ; AVX512-LABEL: fadd_fma_fmul_3:
 ; AVX512:       # %bb.0:
 ; AVX512-NEXT:    vmulpd %xmm3, %xmm2, %xmm2
-; AVX512-NEXT:    vmulpd %xmm7, %xmm6, %xmm3
 ; AVX512-NEXT:    vfmadd231pd {{.*#+}} xmm2 = (xmm1 * xmm0) + xmm2
-; AVX512-NEXT:    vfmadd231pd {{.*#+}} xmm3 = (xmm5 * xmm4) + xmm3
-; AVX512-NEXT:    vaddpd %xmm3, %xmm2, %xmm0
+; AVX512-NEXT:    vfmadd231pd {{.*#+}} xmm2 = (xmm7 * xmm6) + xmm2
+; AVX512-NEXT:    vfmadd231pd {{.*#+}} xmm2 = (xmm5 * xmm4) + xmm2
+; AVX512-NEXT:    vmovapd %xmm2, %xmm0
 ; AVX512-NEXT:    retq
   %m1 = fmul fast <2 x double> %x1, %x2
   %m2 = fmul fast <2 x double> %x3, %x4
@@ -1892,6 +1917,8 @@ define <2 x double> @fadd_fma_fmul_3(<2 x double> %x1, <2 x double> %x2, <2 x do
   %a3 = fadd fast <2 x double> %a1, %a2
   ret <2 x double> %a3
 }
+
+; negative test
 
 define float @fadd_fma_fmul_extra_use_1(float %a, float %b, float %c, float %d, float %n0, float* %p) nounwind {
 ; FMA-LABEL: fadd_fma_fmul_extra_use_1:
@@ -1925,6 +1952,8 @@ define float @fadd_fma_fmul_extra_use_1(float %a, float %b, float %c, float %d, 
   ret float %a2
 }
 
+; negative test
+
 define float @fadd_fma_fmul_extra_use_2(float %a, float %b, float %c, float %d, float %n0, float* %p) nounwind {
 ; FMA-LABEL: fadd_fma_fmul_extra_use_2:
 ; FMA:       # %bb.0:
@@ -1956,6 +1985,8 @@ define float @fadd_fma_fmul_extra_use_2(float %a, float %b, float %c, float %d, 
   %a2 = fadd fast float %n0, %a1
   ret float %a2
 }
+
+; negative test
 
 define float @fadd_fma_fmul_extra_use_3(float %a, float %b, float %c, float %d, float %n0, float* %p) nounwind {
 ; FMA-LABEL: fadd_fma_fmul_extra_use_3:

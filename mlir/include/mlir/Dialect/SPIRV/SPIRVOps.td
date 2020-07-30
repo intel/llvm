@@ -32,6 +32,7 @@ include "mlir/Dialect/SPIRV/SPIRVCooperativeMatrixOps.td"
 include "mlir/Dialect/SPIRV/SPIRVGLSLOps.td"
 include "mlir/Dialect/SPIRV/SPIRVGroupOps.td"
 include "mlir/Dialect/SPIRV/SPIRVLogicalOps.td"
+include "mlir/Dialect/SPIRV/SPIRVMatrixOps.td"
 include "mlir/Dialect/SPIRV/SPIRVNonUniformOps.td"
 include "mlir/Dialect/SPIRV/SPIRVStructureOps.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
@@ -168,6 +169,62 @@ def SPV_ControlBarrierOp : SPV_Op<"ControlBarrier", []> {
   let assemblyFormat = [{
     $execution_scope `,` $memory_scope `,` $memory_semantics attr-dict
   }];
+}
+
+// -----
+
+def SPV_CopyMemoryOp : SPV_Op<"CopyMemory", []> {
+  let summary = [{
+    Copy from the memory pointed to by Source to the memory pointed to by
+    Target. Both operands must be non-void pointers and having the same <id>
+    Type operand in their OpTypePointer type declaration.  Matching Storage
+    Class is not required.  The amount of memory copied is the size of the
+    type pointed to. The copied type must have a fixed size; i.e., it cannot
+    be, nor include, any OpTypeRuntimeArray types.
+  }];
+
+  let description = [{
+    If present, any Memory Operands must begin with a memory operand
+    literal. If not present, it is the same as specifying the memory operand
+    None. Before version 1.4, at most one memory operands mask can be
+    provided. Starting with version 1.4 two masks can be provided, as
+    described in Memory Operands. If no masks or only one mask is present,
+    it applies to both Source and Target. If two masks are present, the
+    first applies to Target and cannot include MakePointerVisible, and the
+    second applies to Source and cannot include MakePointerAvailable.
+
+    <!-- End of AutoGen section -->
+
+    ```
+    copy-memory-op ::= `spv.CopyMemory ` storage-class ssa-use
+                       storage-class ssa-use
+                       (`[` memory-access `]` (`, [` memory-access `]`)?)?
+                       ` : ` spirv-element-type
+    ```
+
+    #### Example:
+
+    ```mlir
+    %0 = spv.Variable : !spv.ptr<f32, Function>
+    %1 = spv.Variable : !spv.ptr<f32, Function>
+    spv.CopyMemory "Function" %0, "Function" %1 : f32
+    ```
+  }];
+
+  let arguments = (ins
+    SPV_AnyPtr:$target,
+    SPV_AnyPtr:$source,
+    OptionalAttr<SPV_MemoryAccessAttr>:$memory_access,
+    OptionalAttr<I32Attr>:$alignment,
+    OptionalAttr<SPV_MemoryAccessAttr>:$source_memory_access,
+    OptionalAttr<I32Attr>:$source_alignment
+  );
+
+  let results = (outs);
+
+  let verifier = [{ return verifyCopyMemory(*this); }];
+
+  let autogenSerialization = 0;
 }
 
 // -----
@@ -433,11 +490,11 @@ def SPV_VariableOp : SPV_Op<"Variable", []> {
     Result Type must be an OpTypePointer. Its Type operand is the type of
     object in memory.
 
-    Storage Class is the Storage Class of the memory holding the object. It
-    cannot be Generic. It must be the same as the Storage Class operand of
-    the Result Type.
+    Storage Class is the Storage Class of the memory holding the object.
+    Since the op is used to model function-level variables, the storage class
+    must be the `Function` Storage Class.
 
-    Initializer is optional.  If Initializer is present, it will be the
+    Initializer is optional. If Initializer is present, it will be the
     initial value of the variable’s memory content. Initializer must be an
     <id> from a constant instruction or a global (module scope) OpVariable
     instruction. Initializer must have the same type as the type pointed to
@@ -447,14 +504,10 @@ def SPV_VariableOp : SPV_Op<"Variable", []> {
 
     ```
     variable-op ::= ssa-id `=` `spv.Variable` (`init(` ssa-use `)`)?
-                    (`bind(` integer-literal, integer-literal `)`)?
-                    (`built_in(` string-literal `)`)?
                     attribute-dict? `:` spirv-pointer-type
     ```
 
-    where `init` specifies initializer and `bind` specifies the
-    descriptor set and binding number. `built_in` specifies SPIR-V
-    BuiltIn decoration associated with the op.
+    where `init` specifies initializer.
 
     #### Example:
 
@@ -462,9 +515,7 @@ def SPV_VariableOp : SPV_Op<"Variable", []> {
     %0 = spv.constant ...
 
     %1 = spv.Variable : !spv.ptr<f32, Function>
-    %2 = spv.Variable init(%0): !spv.ptr<f32, Private>
-    %3 = spv.Variable init(%0) bind(1, 2): !spv.ptr<f32, Uniform>
-    %3 = spv.Variable built_in("GlobalInvocationID") : !spv.ptr<vector<3xi32>, Uniform>
+    %2 = spv.Variable init(%0): !spv.ptr<f32, Function>
     ```
   }];
 

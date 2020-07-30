@@ -9,6 +9,7 @@
 #ifndef LLDB_SYMBOL_LINETABLE_H
 #define LLDB_SYMBOL_LINETABLE_H
 
+#include "lldb/Core/Address.h"
 #include "lldb/Core/ModuleChild.h"
 #include "lldb/Core/Section.h"
 #include "lldb/Symbol/LineEntry.h"
@@ -29,7 +30,8 @@ public:
   virtual void Clear() = 0;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(LineSequence);
+  LineSequence(const LineSequence &) = delete;
+  const LineSequence &operator=(const LineSequence &) = delete;
 };
 
 /// \class LineTable LineTable.h "lldb/Symbol/LineTable.h"
@@ -337,7 +339,8 @@ protected:
   bool ConvertEntryAtIndexToLineEntry(uint32_t idx, LineEntry &line_entry);
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(LineTable);
+  LineTable(const LineTable &) = delete;
+  const LineTable &operator=(const LineTable &) = delete;
 };
 
 } // namespace lldb_private

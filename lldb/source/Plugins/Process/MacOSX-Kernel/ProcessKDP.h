@@ -67,8 +67,7 @@ public:
   WillAttachToProcessWithName(const char *process_name,
                               bool wait_for_launch) override;
 
-  lldb_private::Status DoConnectRemote(lldb_private::Stream *strm,
-                                       llvm::StringRef remote_url) override;
+  lldb_private::Status DoConnectRemote(llvm::StringRef remote_url) override;
 
   lldb_private::Status DoAttachToProcessWithID(
       lldb::pid_t pid,
@@ -186,7 +185,8 @@ protected:
 private:
   // For ProcessKDP only
 
-  DISALLOW_COPY_AND_ASSIGN(ProcessKDP);
+  ProcessKDP(const ProcessKDP &) = delete;
+  const ProcessKDP &operator=(const ProcessKDP &) = delete;
 };
 
 #endif // LLDB_SOURCE_PLUGINS_PROCESS_MACOSX_KERNEL_PROCESSKDP_H

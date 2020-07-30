@@ -152,9 +152,11 @@ Convert a pointer to an integer.
 G_BITCAST
 ^^^^^^^^^
 
-Reinterpret a value as a new type. This is usually done without changing any
-bits but this is not always the case due a sublety in the definition of the
-:ref:`LLVM-IR Bitcast Instruction <i_bitcast>`.
+Reinterpret a value as a new type. This is usually done without
+changing any bits but this is not always the case due a sublety in the
+definition of the :ref:`LLVM-IR Bitcast Instruction <i_bitcast>`. It
+is allowed to bitcast between pointers with the same size, but
+different address spaces.
 
 .. code-block:: none
 
@@ -292,7 +294,7 @@ G_PTRMASK
 
 Zero out an arbitrary mask of bits of a pointer. The mask type must be
 an integer, and the number of vector elements must match for all
-operands. This corresponds to :ref:`i_intr_llvm_ptrmask`.
+operands. This corresponds to `i_intr_llvm_ptrmask`.
 
 .. code-block:: none
 

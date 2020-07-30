@@ -26,12 +26,19 @@ add_clang_library(clangTidyAbseilModule
   UpgradeDurationConversionsCheck.cpp
 
   LINK_LIBS
+  clangTidy
+  clangTidyUtils
+
+  DEPENDS
+  omp_gen
+  )
+
+clang_target_link_libraries(clangTidyAbseilModule
+  PRIVATE
   clangAST
   clangASTMatchers
   clangBasic
   clangLex
-  clangTidy
-  clangTidyUtils
   clangTooling
   clangTransformer
   )

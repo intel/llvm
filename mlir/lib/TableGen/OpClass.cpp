@@ -30,7 +30,7 @@ void tblgen::OpMethodSignature::writeDeclTo(raw_ostream &os) const {
 void tblgen::OpMethodSignature::writeDefTo(raw_ostream &os,
                                            StringRef namePrefix) const {
   // We need to remove the default values for parameters in method definition.
-  // TODO(antiagainst): We are using '=' and ',' as delimiters for parameter
+  // TODO: We are using '=' and ',' as delimiters for parameter
   // initializers. This is incorrect for initializer list with more than one
   // element. Change to a more robust approach.
   auto removeParamDefaultValue = [](StringRef params) {
@@ -222,12 +222,12 @@ void tblgen::OpClass::addTrait(Twine trait) {
 }
 
 void tblgen::OpClass::writeDeclTo(raw_ostream &os) const {
-  os << "class " << className << " : public Op<" << className;
+  os << "class " << className << " : public ::mlir::Op<" << className;
   for (const auto &trait : traitsVec)
     os << ", " << trait;
   os << "> {\npublic:\n";
   os << "  using Op::Op;\n";
-  os << "  using OperandAdaptor = " << className << "OperandAdaptor;\n";
+  os << "  using Adaptor = " << className << "Adaptor;\n";
 
   bool hasPrivateMethod = false;
   for (const auto &method : methods) {

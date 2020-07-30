@@ -512,9 +512,10 @@ llvm::collectChildrenInLoop(DomTreeNode *N, const Loop *CurLoop) {
 
   AddRegionToWorklist(N);
 
-  for (size_t I = 0; I < Worklist.size(); I++)
-    for (DomTreeNode *Child : Worklist[I]->getChildren())
+  for (size_t I = 0; I < Worklist.size(); I++) {
+    for (DomTreeNode *Child : Worklist[I]->children())
       AddRegionToWorklist(Child);
+  }
 
   return Worklist;
 }
@@ -622,11 +623,11 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
     if (MSSA) {
       MSSAU->applyUpdates({{DominatorTree::Delete, Preheader, L->getHeader()}},
                           *DT);
-      if (VerifyMemorySSA)
-        MSSA->verifyMemorySSA();
       SmallSetVector<BasicBlock *, 8> DeadBlockSet(L->block_begin(),
                                                    L->block_end());
       MSSAU->removeBlocks(DeadBlockSet);
+      if (VerifyMemorySSA)
+        MSSA->verifyMemorySSA();
     }
   }
 
@@ -870,14 +871,7 @@ Value *llvm::createMinMaxOp(IRBuilderBase &Builder,
   FastMathFlags FMF;
   FMF.setFast();
   Builder.setFastMathFlags(FMF);
-
-  Value *Cmp;
-  if (RK == RecurrenceDescriptor::MRK_FloatMin ||
-      RK == RecurrenceDescriptor::MRK_FloatMax)
-    Cmp = Builder.CreateFCmp(P, Left, Right, "rdx.minmax.cmp");
-  else
-    Cmp = Builder.CreateICmp(P, Left, Right, "rdx.minmax.cmp");
-
+  Value *Cmp = Builder.CreateCmp(P, Left, Right, "rdx.minmax.cmp");
   Value *Select = Builder.CreateSelect(Cmp, Left, Right, "rdx.minmax.select");
   return Select;
 }
@@ -888,7 +882,7 @@ llvm::getOrderedReduction(IRBuilderBase &Builder, Value *Acc, Value *Src,
                           unsigned Op,
                           RecurrenceDescriptor::MinMaxRecurrenceKind MinMaxKind,
                           ArrayRef<Value *> RedOps) {
-  unsigned VF = cast<VectorType>(Src->getType())->getNumElements();
+  unsigned VF = cast<FixedVectorType>(Src->getType())->getNumElements();
 
   // Extract and apply reduction ops in ascending order:
   // e.g. ((((Acc + Scl[0]) + Scl[1]) + Scl[2]) + ) ... + Scl[VF-1]
@@ -918,7 +912,7 @@ Value *
 llvm::getShuffleReduction(IRBuilderBase &Builder, Value *Src, unsigned Op,
                           RecurrenceDescriptor::MinMaxRecurrenceKind MinMaxKind,
                           ArrayRef<Value *> RedOps) {
-  unsigned VF = cast<VectorType>(Src->getType())->getNumElements();
+  unsigned VF = cast<FixedVectorType>(Src->getType())->getNumElements();
   // VF is a power of 2 so we can emit the reduction using log2(VF) shuffles
   // and vector ops, reducing the set of values being computed by half each
   // round.

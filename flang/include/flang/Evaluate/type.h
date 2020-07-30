@@ -139,13 +139,14 @@ public:
     return charLength_;
   }
   std::optional<common::ConstantSubscript> GetCharLength() const;
+  std::optional<std::size_t> MeasureSizeInBytes() const;
 
   std::string AsFortran() const;
   std::string AsFortran(std::string &&charLenExpr) const;
   DynamicType ResultTypeForMultiply(const DynamicType &) const;
 
   bool IsAssumedLengthCharacter() const;
-  bool IsUnknownLengthCharacter() const;
+  bool IsNonConstantLengthCharacter() const;
   bool IsTypelessIntrinsicArgument() const;
   constexpr bool IsAssumedType() const { // TYPE(*)
     return kind_ == AssumedTypeKind;

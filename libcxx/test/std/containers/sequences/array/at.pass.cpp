@@ -10,6 +10,9 @@
 
 // reference at (size_type); // constexpr in C++17
 
+// GCC 5 doesn't implement the required constexpr support
+// UNSUPPORTED: gcc-5
+
 #include <array>
 #include <cassert>
 
@@ -77,7 +80,8 @@ void test_exceptions()
         }
 
         try {
-            TEST_IGNORE_NODISCARD array.at(-1);
+            using size_type = decltype(array)::size_type;
+            TEST_IGNORE_NODISCARD array.at(static_cast<size_type>(-1));
             assert(false);
         } catch (std::out_of_range const&) {
             // pass

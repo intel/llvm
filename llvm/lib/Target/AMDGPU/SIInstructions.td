@@ -274,13 +274,14 @@ def S_OR_B32_term : WrapTerminatorInst<S_OR_B32>;
 def S_ANDN2_B32_term : WrapTerminatorInst<S_ANDN2_B32>;
 }
 
+
 def WAVE_BARRIER : SPseudoInstSI<(outs), (ins),
   [(int_amdgcn_wave_barrier)]> {
   let SchedRW = [];
   let hasNoSchedulingInfo = 1;
   let hasSideEffects = 1;
-  let mayLoad = 1;
-  let mayStore = 1;
+  let mayLoad = 0;
+  let mayStore = 0;
   let isConvergent = 1;
   let FixedSize = 1;
   let Size = 0;
@@ -378,6 +379,9 @@ multiclass PseudoInstKill <dag ins> {
 defm SI_KILL_I1 : PseudoInstKill <(ins SCSrc_i1:$src, i1imm:$killvalue)>;
 defm SI_KILL_F32_COND_IMM : PseudoInstKill <(ins VSrc_b32:$src0, i32imm:$src1, i32imm:$cond)>;
 
+let Defs = [EXEC] in
+def SI_KILL_CLEANUP : SPseudoInstSI <(outs), (ins)>;
+
 let Defs = [EXEC,VCC] in
 def SI_ILLEGAL_COPY : SPseudoInstSI <
   (outs unknown:$dst), (ins unknown:$src),
@@ -446,7 +450,7 @@ def SI_INIT_EXEC_FROM_INPUT : SPseudoInstSI <
 
 def : GCNPat <
   (int_amdgcn_init_exec timm:$src),
-  (SI_INIT_EXEC_LO (as_i32imm imm:$src))> {
+  (SI_INIT_EXEC_LO (as_i32timm timm:$src))> {
   let WaveSizePredicate = isWave32;
 }
 
@@ -662,6 +666,7 @@ defm SI_SPILL_S64  : SI_SPILL_SGPR <SReg_64>;
 defm SI_SPILL_S96  : SI_SPILL_SGPR <SReg_96>;
 defm SI_SPILL_S128 : SI_SPILL_SGPR <SReg_128>;
 defm SI_SPILL_S160 : SI_SPILL_SGPR <SReg_160>;
+defm SI_SPILL_S192 : SI_SPILL_SGPR <SReg_192>;
 defm SI_SPILL_S256 : SI_SPILL_SGPR <SReg_256>;
 defm SI_SPILL_S512 : SI_SPILL_SGPR <SReg_512>;
 defm SI_SPILL_S1024 : SI_SPILL_SGPR <SReg_1024>;
@@ -701,6 +706,7 @@ defm SI_SPILL_V64  : SI_SPILL_VGPR <VReg_64>;
 defm SI_SPILL_V96  : SI_SPILL_VGPR <VReg_96>;
 defm SI_SPILL_V128 : SI_SPILL_VGPR <VReg_128>;
 defm SI_SPILL_V160 : SI_SPILL_VGPR <VReg_160>;
+defm SI_SPILL_V192 : SI_SPILL_VGPR <VReg_192>;
 defm SI_SPILL_V256 : SI_SPILL_VGPR <VReg_256>;
 defm SI_SPILL_V512 : SI_SPILL_VGPR <VReg_512>;
 defm SI_SPILL_V1024 : SI_SPILL_VGPR <VReg_1024>;
@@ -914,6 +920,7 @@ class FMADModsPat<ValueType Ty, Instruction inst, SDPatternOperator mad_opr>
   $src2_mod, $src2, DSTCLAMP.NONE, DSTOMOD.NONE)
 >;
 
+let SubtargetPredicate = HasMadMacF32Insts in
 def : FMADModsPat<f32, V_MAD_F32, AMDGPUfmad_ftz>;
 def : FMADModsPat<f16, V_MAD_F16, AMDGPUfmad_ftz> {
   let SubtargetPredicate = Has16BitInsts;
@@ -1545,11 +1552,12 @@ class Ext32Pat <SDNode ext> : GCNPat <
 def : Ext32Pat <zext>;
 def : Ext32Pat <anyext>;
 
-// The multiplication scales from [0,1] to the unsigned integer range
+// The multiplication scales from [0,1) to the unsigned integer range,
+// rounding down a bit to avoid unwanted overflow.
 def : GCNPat <
   (AMDGPUurecip i32:$src0),
   (V_CVT_U32_F32_e32
-    (V_MUL_F32_e32 (i32 CONST.FP_UINT_MAX_PLUS_1),
+    (V_MUL_F32_e32 (i32 CONST.FP_4294966784),
                    (V_RCP_IFLAG_F32_e32 (V_CVT_F32_U32_e32 $src0))))
 >;
 
@@ -2205,7 +2213,7 @@ def : GCNPat<
 
 def : GCNPat<
   (add i32:$src0, (i32 NegSubInlineConst32:$src1)),
-  (V_SUB_I32_e64 VS_32:$src0, NegSubInlineConst32:$src1)> {
+  (V_SUB_CO_U32_e64 VS_32:$src0, NegSubInlineConst32:$src1)> {
   let SubtargetPredicate = NotHasAddNoCarryInsts;
 }
 

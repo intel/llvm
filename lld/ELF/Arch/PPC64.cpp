@@ -106,6 +106,11 @@ bool elf::isPPC64SmallCodeModelTocReloc(RelType type) {
   return type == R_PPC64_TOC16 || type == R_PPC64_TOC16_DS;
 }
 
+void elf::writePrefixedInstruction(uint8_t *loc, uint64_t insn) {
+  insn = config->isLE ? insn << 32 | insn >> 32 : insn;
+  write64(loc, insn);
+}
+
 static bool addOptional(StringRef name, uint64_t value,
                         std::vector<Defined *> &defined) {
   Symbol *sym = symtab->find(name);
@@ -374,6 +379,11 @@ static void writeFromHalf16(uint8_t *loc, uint32_t insn) {
 
 static uint32_t readFromHalf16(const uint8_t *loc) {
   return read32(config->isLE ? loc : loc - 2);
+}
+
+static uint64_t readPrefixedInstruction(const uint8_t *loc) {
+  uint64_t fullInstr = read64(loc);
+  return config->isLE ? (fullInstr << 32 | fullInstr >> 32) : fullInstr;
 }
 
 PPC64::PPC64() {
@@ -657,6 +667,8 @@ RelExpr PPC64::getRelExpr(RelType type, const Symbol &s,
   case R_PPC64_TOC16_HI:
   case R_PPC64_TOC16_LO:
     return R_GOTREL;
+  case R_PPC64_GOT_PCREL34:
+    return R_GOT_PC;
   case R_PPC64_TOC16_HA:
   case R_PPC64_TOC16_LO_DS:
     return config->tocOptimize ? R_PPC64_RELAX_TOC : R_GOTREL;
@@ -665,11 +677,14 @@ RelExpr PPC64::getRelExpr(RelType type, const Symbol &s,
   case R_PPC64_REL14:
   case R_PPC64_REL24:
     return R_PPC64_CALL_PLT;
+  case R_PPC64_REL24_NOTOC:
+    return R_PLT_PC;
   case R_PPC64_REL16_LO:
   case R_PPC64_REL16_HA:
   case R_PPC64_REL16_HI:
   case R_PPC64_REL32:
   case R_PPC64_REL64:
+  case R_PPC64_PCREL34:
     return R_PC;
   case R_PPC64_GOT_TLSGD16:
   case R_PPC64_GOT_TLSGD16_HA:
@@ -976,7 +991,8 @@ void PPC64::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     write32(loc, (read32(loc) & ~mask) | (val & mask));
     break;
   }
-  case R_PPC64_REL24: {
+  case R_PPC64_REL24:
+  case R_PPC64_REL24_NOTOC: {
     uint32_t mask = 0x03FFFFFC;
     checkInt(loc, val, 26, rel);
     checkAlignment(loc, val, 4, rel);
@@ -986,6 +1002,28 @@ void PPC64::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
   case R_PPC64_DTPREL64:
     write64(loc, val - dynamicThreadPointerOffset);
     break;
+  case R_PPC64_PCREL34: {
+    const uint64_t si0Mask = 0x00000003ffff0000;
+    const uint64_t si1Mask = 0x000000000000ffff;
+    const uint64_t fullMask = 0x0003ffff0000ffff;
+    checkInt(loc, val, 34, rel);
+
+    uint64_t instr = readPrefixedInstruction(loc) & ~fullMask;
+    writePrefixedInstruction(loc, instr | ((val & si0Mask) << 16) |
+                             (val & si1Mask));
+    break;
+  }
+  case R_PPC64_GOT_PCREL34: {
+    const uint64_t si0Mask = 0x00000003ffff0000;
+    const uint64_t si1Mask = 0x000000000000ffff;
+    const uint64_t fullMask = 0x0003ffff0000ffff;
+    checkInt(loc, val, 34, rel);
+
+    uint64_t instr = readPrefixedInstruction(loc) & ~fullMask;
+    writePrefixedInstruction(loc, instr | ((val & si0Mask) << 16) |
+                             (val & si1Mask));
+    break;
+  }
   default:
     llvm_unreachable("unknown relocation");
   }
@@ -993,11 +1031,26 @@ void PPC64::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
 
 bool PPC64::needsThunk(RelExpr expr, RelType type, const InputFile *file,
                        uint64_t branchAddr, const Symbol &s, int64_t a) const {
-  if (type != R_PPC64_REL14 && type != R_PPC64_REL24)
+  if (type != R_PPC64_REL14 && type != R_PPC64_REL24 &&
+      type != R_PPC64_REL24_NOTOC)
     return false;
+
+  // FIXME: Remove the fatal error once the call protocol is implemented.
+  if (type == R_PPC64_REL24_NOTOC && s.isInPlt())
+    fatal("unimplemented feature: external function call with the reltype"
+          " R_PPC64_REL24_NOTOC");
 
   // If a function is in the Plt it needs to be called with a call-stub.
   if (s.isInPlt())
+    return true;
+
+  // This check looks at the st_other bits of the callee with relocation
+  // R_PPC64_REL14 or R_PPC64_REL24. If the value is 1, then the callee
+  // clobbers the TOC and we need an R2 save stub.
+  if (type != R_PPC64_REL24_NOTOC && (s.stOther >> 5) == 1)
+    return true;
+
+  if (type == R_PPC64_REL24_NOTOC && (s.stOther >> 5) > 1)
     return true;
 
   // If a symbol is a weak undefined and we are compiling an executable
@@ -1025,7 +1078,7 @@ bool PPC64::inBranchRange(RelType type, uint64_t src, uint64_t dst) const {
   int64_t offset = dst - src;
   if (type == R_PPC64_REL14)
     return isInt<16>(offset);
-  if (type == R_PPC64_REL24)
+  if (type == R_PPC64_REL24 || type == R_PPC64_REL24_NOTOC)
     return isInt<26>(offset);
   llvm_unreachable("unsupported relocation type used in branch");
 }

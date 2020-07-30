@@ -1493,8 +1493,7 @@ CodeGenFunction::generateObjCSetterBody(const ObjCImplementationDecl *classImpl,
 
   BinaryOperator *assign = BinaryOperator::Create(
       getContext(), &ivarRef, finalArg, BO_Assign, ivarRef.getType(), VK_RValue,
-      OK_Ordinary, SourceLocation(),
-      FPOptions(getContext().getLangOpts()));
+      OK_Ordinary, SourceLocation(), FPOptionsOverride());
   EmitStmt(assign);
 }
 
@@ -1836,6 +1835,40 @@ void CodeGenFunction::EmitObjCForCollectionStmt(const ObjCForCollectionStmt &S){
     Builder.CreateGEP(EnumStateItems, index, "currentitem.ptr");
   llvm::Value *CurrentItem =
     Builder.CreateAlignedLoad(CurrentItemPtr, getPointerAlign());
+
+  if (SanOpts.has(SanitizerKind::ObjCCast)) {
+    // Before using an item from the collection, check that the implicit cast
+    // from id to the element type is valid. This is done with instrumentation
+    // roughly corresponding to:
+    //
+    //   if (![item isKindOfClass:expectedCls]) { /* emit diagnostic */ }
+    const ObjCObjectPointerType *ObjPtrTy =
+        elementType->getAsObjCInterfacePointerType();
+    const ObjCInterfaceType *InterfaceTy =
+        ObjPtrTy ? ObjPtrTy->getInterfaceType() : nullptr;
+    if (InterfaceTy) {
+      SanitizerScope SanScope(this);
+      auto &C = CGM.getContext();
+      assert(InterfaceTy->getDecl() && "No decl for ObjC interface type");
+      Selector IsKindOfClassSel = GetUnarySelector("isKindOfClass", C);
+      CallArgList IsKindOfClassArgs;
+      llvm::Value *Cls =
+          CGM.getObjCRuntime().GetClass(*this, InterfaceTy->getDecl());
+      IsKindOfClassArgs.add(RValue::get(Cls), C.getObjCClassType());
+      llvm::Value *IsClass =
+          CGM.getObjCRuntime()
+              .GenerateMessageSend(*this, ReturnValueSlot(), C.BoolTy,
+                                   IsKindOfClassSel, CurrentItem,
+                                   IsKindOfClassArgs)
+              .getScalarVal();
+      llvm::Constant *StaticData[] = {
+          EmitCheckSourceLocation(S.getBeginLoc()),
+          EmitCheckTypeDescriptor(QualType(InterfaceTy, 0))};
+      EmitCheck({{IsClass, SanitizerKind::ObjCCast}},
+                SanitizerHandler::InvalidObjCCast,
+                ArrayRef<llvm::Constant *>(StaticData), CurrentItem);
+    }
+  }
 
   // Cast that value to the right type.
   CurrentItem = Builder.CreateBitCast(CurrentItem, convertedElementType,
@@ -3256,7 +3289,6 @@ static llvm::Value *emitARCRetainLoadOfScalar(CodeGenFunction &CGF,
 llvm::Value *CodeGenFunction::EmitARCRetainScalarExpr(const Expr *e) {
   // The retain needs to happen within the full-expression.
   if (const ExprWithCleanups *cleanups = dyn_cast<ExprWithCleanups>(e)) {
-    enterFullExpression(cleanups);
     RunCleanupsScope scope(*this);
     return EmitARCRetainScalarExpr(cleanups->getSubExpr());
   }
@@ -3272,7 +3304,6 @@ llvm::Value *
 CodeGenFunction::EmitARCRetainAutoreleaseScalarExpr(const Expr *e) {
   // The retain needs to happen within the full-expression.
   if (const ExprWithCleanups *cleanups = dyn_cast<ExprWithCleanups>(e)) {
-    enterFullExpression(cleanups);
     RunCleanupsScope scope(*this);
     return EmitARCRetainAutoreleaseScalarExpr(cleanups->getSubExpr());
   }
@@ -3383,7 +3414,6 @@ static llvm::Value *emitARCUnsafeUnretainedScalarExpr(CodeGenFunction &CGF,
 llvm::Value *CodeGenFunction::EmitARCUnsafeUnretainedScalarExpr(const Expr *e) {
   // Look through full-expressions.
   if (const ExprWithCleanups *cleanups = dyn_cast<ExprWithCleanups>(e)) {
-    enterFullExpression(cleanups);
     RunCleanupsScope scope(*this);
     return emitARCUnsafeUnretainedScalarExpr(*this, cleanups->getSubExpr());
   }
@@ -3559,18 +3589,18 @@ CodeGenFunction::GenerateObjCAtomicSetterCopyHelperFunction(
   DeclRefExpr DstExpr(C, &DstDecl, false, DestTy, VK_RValue, SourceLocation());
   UnaryOperator *DST = UnaryOperator::Create(
       C, &DstExpr, UO_Deref, DestTy->getPointeeType(), VK_LValue, OK_Ordinary,
-      SourceLocation(), false, FPOptions(C.getLangOpts()));
+      SourceLocation(), false, FPOptionsOverride());
 
   DeclRefExpr SrcExpr(C, &SrcDecl, false, SrcTy, VK_RValue, SourceLocation());
   UnaryOperator *SRC = UnaryOperator::Create(
       C, &SrcExpr, UO_Deref, SrcTy->getPointeeType(), VK_LValue, OK_Ordinary,
-      SourceLocation(), false, FPOptions(C.getLangOpts()));
+      SourceLocation(), false, FPOptionsOverride());
 
   Expr *Args[2] = {DST, SRC};
   CallExpr *CalleeExp = cast<CallExpr>(PID->getSetterCXXAssignment());
   CXXOperatorCallExpr *TheCall = CXXOperatorCallExpr::Create(
       C, OO_Equal, CalleeExp->getCallee(), Args, DestTy->getPointeeType(),
-      VK_LValue, SourceLocation(), FPOptions(C.getLangOpts()));
+      VK_LValue, SourceLocation(), FPOptionsOverride());
 
   EmitStmt(TheCall);
 
@@ -3644,7 +3674,7 @@ CodeGenFunction::GenerateObjCAtomicGetterCopyHelperFunction(
 
   UnaryOperator *SRC = UnaryOperator::Create(
       C, &SrcExpr, UO_Deref, SrcTy->getPointeeType(), VK_LValue, OK_Ordinary,
-      SourceLocation(), false, FPOptions(C.getLangOpts()));
+      SourceLocation(), false, FPOptionsOverride());
 
   CXXConstructExpr *CXXConstExpr =
     cast<CXXConstructExpr>(PID->getGetterCXXConstructor());

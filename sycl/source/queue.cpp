@@ -18,17 +18,6 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-namespace detail {
-
-QueueOrder getQueueOrder(const property_list &propList) {
-  if (propList.has_property<property::queue::in_order>()) {
-    return QueueOrder::Ordered;
-  }
-  return QueueOrder::OOO;
-}
-
-} // namespace detail
-
 queue::queue(const context &syclContext, const device_selector &deviceSelector,
              const async_handler &asyncHandler, const property_list &propList) {
 
@@ -42,7 +31,7 @@ queue::queue(const context &syclContext, const device_selector &deviceSelector,
 
   impl = std::make_shared<detail::queue_impl>(
       detail::getSyclObjImpl(syclDevice), detail::getSyclObjImpl(syclContext),
-      asyncHandler, detail::getQueueOrder(propList), propList);
+      asyncHandler, propList);
 }
 
 queue::queue(const context &syclContext,
@@ -51,20 +40,19 @@ queue::queue(const context &syclContext,
              const property_list &propList) {
   impl = std::make_shared<detail::queue_impl>(
       detail::getSyclObjImpl(syclDevice), detail::getSyclObjImpl(syclContext),
-      asyncHandler, cl::sycl::detail::QueueOrder::OOO, propList);
+      asyncHandler, propList);
 }
 
 queue::queue(const device &syclDevice, const async_handler &asyncHandler,
              const property_list &propList) {
   impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(syclDevice), asyncHandler,
-      detail::getQueueOrder(propList), propList);
+      detail::getSyclObjImpl(syclDevice), asyncHandler, propList);
 }
 
 queue::queue(cl_command_queue clQueue, const context &syclContext,
              const async_handler &asyncHandler) {
   impl = std::make_shared<detail::queue_impl>(
-      detail::pi::cast<detail::RT::PiQueue>(clQueue),
+      reinterpret_cast<RT::PiQueue>(clQueue),
       detail::getSyclObjImpl(syclContext), asyncHandler);
 }
 
@@ -100,7 +88,7 @@ event queue::memcpy(void *dest, const void *src, size_t count) {
 }
 
 event queue::mem_advise(const void *ptr, size_t length, pi_mem_advice advice) {
-  return impl->mem_advise(ptr, length, advice);
+  return impl->mem_advise(impl, ptr, length, advice);
 }
 
 event queue::submit_impl(function_class<void(handler &)> CGH,

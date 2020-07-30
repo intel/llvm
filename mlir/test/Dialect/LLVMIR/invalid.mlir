@@ -5,6 +5,13 @@ func @invalid_noalias(%arg0: !llvm.i32 {llvm.noalias = 3}) {
   "llvm.return"() : () -> ()
 }
 
+// -----
+
+// expected-error@+1{{llvm.align argument attribute of non integer type}}
+func @invalid_align(%arg0: !llvm.i32 {llvm.align = "foo"}) {
+  "llvm.return"() : () -> ()
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Check that parser errors are properly produced and do not crash the compiler.
@@ -142,6 +149,13 @@ func @call_non_llvm_result(%callee : () -> (i32)) {
 func @call_non_llvm_input(%callee : (i32) -> (), %arg : i32) {
   // expected-error@+1 {{expected LLVM types as inputs}}
   llvm.call %callee(%arg) : (i32) -> ()
+}
+
+// -----
+
+func @constant_wrong_type() {
+  // expected-error@+1 {{only supports integer, float, string or elements attributes}}
+  llvm.mlir.constant(@constant_wrong_type) : !llvm<"void ()*">
 }
 
 // -----

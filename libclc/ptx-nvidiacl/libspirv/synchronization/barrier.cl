@@ -17,5 +17,4 @@ _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT void
 __spirv_ControlBarrier(unsigned int scope, unsigned int memory,
                        unsigned int semantics) {
   __syncthreads();
-  __spirv_MemoryBarrier(memory, semantics);
 }

@@ -14,6 +14,7 @@
 #ifndef LLVM_ANALYSIS_UTILS_LOCAL_H
 #define LLVM_ANALYSIS_UTILS_LOCAL_H
 
+#include "llvm/ADT/StringRef.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 
@@ -56,7 +57,7 @@ Value *EmitGEPOffset(IRBuilderTy *Builder, const DataLayout &DL, User *GEP,
 
         if (Size)
           Result = Builder->CreateAdd(Result, ConstantInt::get(IntIdxTy, Size),
-                                      GEP->getName()+".offs");
+                                      GEP->getName().str()+".offs");
         continue;
       }
 
@@ -70,27 +71,27 @@ Value *EmitGEPOffset(IRBuilderTy *Builder, const DataLayout &DL, User *GEP,
       Scale =
           ConstantExpr::getMul(OC, Scale, false /*NUW*/, isInBounds /*NSW*/);
       // Emit an add instruction.
-      Result = Builder->CreateAdd(Result, Scale, GEP->getName()+".offs");
+      Result = Builder->CreateAdd(Result, Scale, GEP->getName().str()+".offs");
       continue;
     }
 
     // Splat the index if needed.
     if (IntIdxTy->isVectorTy() && !Op->getType()->isVectorTy())
       Op = Builder->CreateVectorSplat(
-          cast<VectorType>(IntIdxTy)->getNumElements(), Op);
+          cast<FixedVectorType>(IntIdxTy)->getNumElements(), Op);
 
     // Convert to correct type.
     if (Op->getType() != IntIdxTy)
-      Op = Builder->CreateIntCast(Op, IntIdxTy, true, Op->getName()+".c");
+      Op = Builder->CreateIntCast(Op, IntIdxTy, true, Op->getName().str()+".c");
     if (Size != 1) {
       // We'll let instcombine(mul) convert this to a shl if possible.
       Op = Builder->CreateMul(Op, ConstantInt::get(IntIdxTy, Size),
-                              GEP->getName() + ".idx", false /*NUW*/,
+                              GEP->getName().str() + ".idx", false /*NUW*/,
                               isInBounds /*NSW*/);
     }
 
     // Emit an add instruction.
-    Result = Builder->CreateAdd(Op, Result, GEP->getName()+".offs");
+    Result = Builder->CreateAdd(Op, Result, GEP->getName().str()+".offs");
   }
   return Result;
 }

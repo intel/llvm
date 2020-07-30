@@ -113,27 +113,22 @@ namespace llvm {
   class TargetOptions {
   public:
     TargetOptions()
-        : PrintMachineCode(false), UnsafeFPMath(false), NoInfsFPMath(false),
-          NoNaNsFPMath(false), NoTrappingFPMath(true),
-          NoSignedZerosFPMath(false),
+        : UnsafeFPMath(false), NoInfsFPMath(false), NoNaNsFPMath(false),
+          NoTrappingFPMath(true), NoSignedZerosFPMath(false),
           HonorSignDependentRoundingFPMathOption(false), NoZerosInBSS(false),
           GuaranteedTailCallOpt(false), StackSymbolOrdering(true),
           EnableFastISel(false), EnableGlobalISel(false), UseInitArray(false),
           DisableIntegratedAS(false), RelaxELFRelocations(false),
           FunctionSections(false), DataSections(false),
-          UniqueSectionNames(true), UniqueBBSectionNames(false),
+          UniqueSectionNames(true), UniqueBasicBlockSectionNames(false),
           TrapUnreachable(false), NoTrapAfterNoreturn(false), TLSSize(0),
           EmulatedTLS(false), ExplicitEmulatedTLS(false), EnableIPRA(false),
           EmitStackSizeSection(false), EnableMachineOutliner(false),
           SupportsDefaultOutlining(false), EmitAddrsig(false),
           EmitCallSiteInfo(false), SupportsDebugEntryValues(false),
           EnableDebugEntryValues(false), ForceDwarfFrameSection(false),
+          XRayOmitFunctionIndex(false),
           FPDenormalMode(DenormalMode::IEEE, DenormalMode::IEEE) {}
-
-    /// PrintMachineCode - This flag is enabled when the -print-machineinstrs
-    /// option is specified on the command line, and should enable debugging
-    /// output from the code generator.
-    unsigned PrintMachineCode : 1;
 
     /// DisableFramePointerElim - This returns true if frame pointer elimination
     /// optimization should be disabled for the given machine function.
@@ -234,7 +229,7 @@ namespace llvm {
     unsigned UniqueSectionNames : 1;
 
     /// Use unique names for basic block sections.
-    unsigned UniqueBBSectionNames : 1;
+    unsigned UniqueBasicBlockSectionNames : 1;
 
     /// Emit target-specific trap instruction for 'unreachable' IR instructions.
     unsigned TrapUnreachable : 1;
@@ -292,6 +287,9 @@ namespace llvm {
 
     /// Emit DWARF debug frame section.
     unsigned ForceDwarfFrameSection : 1;
+
+    /// Emit XRay Function Index section
+    unsigned XRayOmitFunctionIndex : 1;
 
     /// FloatABIType - This setting is set by -float-abi=xxx option is specfied
     /// on the command line. This setting may either be Default, Soft, or Hard.

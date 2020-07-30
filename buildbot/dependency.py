@@ -73,6 +73,9 @@ def do_dependency(args):
                  "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
                  "-DOPENCL_ICD_LOADER_HEADERS_DIR={}".format(ocl_header_dir),
                  ".." ]
+
+    print("[Cmake Command]: {}".format(" ".join(cmake_cmd)))
+    
     subprocess.check_call(cmake_cmd, cwd=icd_build_dir)
 
     env_tmp=os.environ

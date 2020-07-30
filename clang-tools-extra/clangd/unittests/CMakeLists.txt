@@ -13,6 +13,10 @@ include_directories(
   ${CLANGD_BINARY_DIR}
   )
 
+if (CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG)
+  add_compile_options("-Wno-suggest-override")
+endif()
+
 if(CLANG_BUILT_STANDALONE)
   # LLVMTestingSupport library is needed for clangd tests.
   if (EXISTS ${LLVM_MAIN_SRC_DIR}/lib/Testing/Support
@@ -41,6 +45,9 @@ add_unittest(ClangdUnitTests ClangdTests
   CollectMacrosTests.cpp
   CompileCommandsTests.cpp
   CompilerTests.cpp
+  ConfigCompileTests.cpp
+  ConfigProviderTests.cpp
+  ConfigYAMLTests.cpp
   DexTests.cpp
   DiagnosticsTests.cpp
   DraftStoreTests.cpp
@@ -120,7 +127,6 @@ target_link_libraries(ClangdTests
   clangDaemon
   clangdSupport
   clangTidy
-  LLVMSupport
   LLVMTestingSupport
   )
 

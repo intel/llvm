@@ -6,14 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 // REQUIRES: diagnose-if-support
 
 // Test that libc++ generates a warning diagnostic when the container is
 // provided a non-const callable comparator.
 
-#include <set>
 #include <map>
+#include <set>
+#include <type_traits> // for __invokable
 
 struct BadCompare {
   template <class T, class U>

@@ -14,6 +14,7 @@
 
 #include "mlir/Dialect/SPIRV/SPIRVAttributes.h"
 #include "mlir/Dialect/SPIRV/SPIRVBinaryUtils.h"
+#include "mlir/Dialect/SPIRV/SPIRVModule.h"
 #include "mlir/Dialect/SPIRV/SPIRVOps.h"
 #include "mlir/Dialect/SPIRV/SPIRVTypes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -91,7 +92,7 @@ using BlockMergeInfoMap = DenseMap<Block *, BlockMergeInfo>;
 /// higher-order bits. So this deserializer uses that to get instruction
 /// boundary and parse instructions and build a SPIR-V ModuleOp gradually.
 ///
-// TODO(antiagainst): clean up created ops on errors
+// TODO: clean up created ops on errors
 class Deserializer {
 public:
   /// Creates a deserializer for the given SPIR-V `binary` module.
@@ -102,7 +103,7 @@ public:
   LogicalResult deserialize();
 
   /// Collects the final SPIR-V ModuleOp.
-  Optional<spirv::ModuleOp> collect();
+  spirv::OwningSPIRVModuleRef collect();
 
 private:
   //===--------------------------------------------------------------------===//
@@ -110,7 +111,7 @@ private:
   //===--------------------------------------------------------------------===//
 
   /// Initializes the `module` ModuleOp in this deserializer instance.
-  spirv::ModuleOp createModuleOp();
+  spirv::OwningSPIRVModuleRef createModuleOp();
 
   /// Processes SPIR-V module header in `binary`.
   LogicalResult processHeader();
@@ -224,6 +225,8 @@ private:
   LogicalResult processRuntimeArrayType(ArrayRef<uint32_t> operands);
 
   LogicalResult processStructType(ArrayRef<uint32_t> operands);
+
+  LogicalResult processMatrixType(ArrayRef<uint32_t> operands);
 
   //===--------------------------------------------------------------------===//
   // Constant
@@ -398,7 +401,8 @@ private:
   /// Method to deserialize an operation in the SPIR-V dialect that is a mirror
   /// of an instruction in the SPIR-V spec. This is auto generated if hasOpcode
   /// == 1 and autogenSerialization == 1 in ODS.
-  template <typename OpTy> LogicalResult processOp(ArrayRef<uint32_t> words) {
+  template <typename OpTy>
+  LogicalResult processOp(ArrayRef<uint32_t> words) {
     return emitError(unknownLoc, "unsupported deserialization for ")
            << OpTy::getOperationName() << " op";
   }
@@ -417,11 +421,11 @@ private:
   /// MLIRContext to create SPIR-V ModuleOp into.
   MLIRContext *context;
 
-  // TODO(antiagainst): create Location subclass for binary blob
+  // TODO: create Location subclass for binary blob
   Location unknownLoc;
 
   /// The SPIR-V ModuleOp.
-  Optional<spirv::ModuleOp> module;
+  spirv::OwningSPIRVModuleRef module;
 
   /// The current function under construction.
   Optional<spirv::FuncOp> curFunction;
@@ -552,13 +556,15 @@ LogicalResult Deserializer::deserialize() {
   return success();
 }
 
-Optional<spirv::ModuleOp> Deserializer::collect() { return module; }
+spirv::OwningSPIRVModuleRef Deserializer::collect() {
+  return std::move(module);
+}
 
 //===----------------------------------------------------------------------===//
 // Module structure
 //===----------------------------------------------------------------------===//
 
-spirv::ModuleOp Deserializer::createModuleOp() {
+spirv::OwningSPIRVModuleRef Deserializer::createModuleOp() {
   OpBuilder builder(context);
   OperationState state(unknownLoc, spirv::ModuleOp::getOperationName());
   spirv::ModuleOp::build(builder, state);
@@ -599,7 +605,7 @@ LogicalResult Deserializer::processHeader() {
            << majorVersion;
   }
 
-  // TODO(antiagainst): generator number, bound, schema
+  // TODO: generator number, bound, schema
   curOffset = spirv::kHeaderWordCount;
   return success();
 }
@@ -673,7 +679,7 @@ LogicalResult Deserializer::processMemoryModel(ArrayRef<uint32_t> operands) {
 }
 
 LogicalResult Deserializer::processDecoration(ArrayRef<uint32_t> words) {
-  // TODO : This function should also be auto-generated. For now, since only a
+  // TODO: This function should also be auto-generated. For now, since only a
   // few decorations are processed/handled in a meaningful manner, going with a
   // manual implementation.
   if (words.size() < 2) {
@@ -715,6 +721,8 @@ LogicalResult Deserializer::processDecoration(ArrayRef<uint32_t> words) {
     break;
   case spirv::Decoration::Block:
   case spirv::Decoration::BufferBlock:
+  case spirv::Decoration::Flat:
+  case spirv::Decoration::NoPerspective:
     if (words.size() != 2) {
       return emitError(unknownLoc, "OpDecoration with ")
              << decorationName << "needs a single target <id>";
@@ -725,6 +733,7 @@ LogicalResult Deserializer::processDecoration(ArrayRef<uint32_t> words) {
     // it is needed for many validation rules.
     decorations[words[0]].set(symbol, opBuilder.getUnitAttr());
     break;
+  case spirv::Decoration::Location:
   case spirv::Decoration::SpecId:
     if (words.size() != 3) {
       return emitError(unknownLoc, "OpDecoration with ")
@@ -798,7 +807,7 @@ LogicalResult Deserializer::processFunction(ArrayRef<uint32_t> operands) {
     return emitError(unknownLoc, "unknown Function Control: ") << operands[2];
   }
   if (functionControl.getValue() != spirv::FunctionControl::None) {
-    /// TODO : Handle different function controls
+    /// TODO: Handle different function controls
     return emitError(unknownLoc, "unhandled Function Control: '")
            << spirv::stringifyFunctionControl(functionControl.getValue())
            << "'";
@@ -1170,6 +1179,8 @@ LogicalResult Deserializer::processType(spirv::Opcode opcode,
     return processRuntimeArrayType(operands);
   case spirv::Opcode::OpTypeStruct:
     return processStructType(operands);
+  case spirv::Opcode::OpTypeMatrix:
+    return processMatrixType(operands);
   default:
     return emitError(unknownLoc, "unhandled type instruction");
   }
@@ -1189,7 +1200,7 @@ LogicalResult Deserializer::processArrayType(ArrayRef<uint32_t> operands) {
   }
 
   unsigned count = 0;
-  // TODO(antiagainst): The count can also come frome a specialization constant.
+  // TODO: The count can also come frome a specialization constant.
   auto countInfo = getConstant(operands[2]);
   if (!countInfo) {
     return emitError(unknownLoc, "OpTypeArray count <id> ")
@@ -1247,15 +1258,15 @@ Deserializer::processCooperativeMatrixType(ArrayRef<uint32_t> operands) {
            << operands[1];
   }
 
-  auto scope = spirv::symbolizeScope(operands[2]);
+  auto scope = spirv::symbolizeScope(getConstantInt(operands[2]).getInt());
   if (!scope) {
     return emitError(unknownLoc,
                      "OpTypeCooperativeMatrix references undefined scope <id> ")
            << operands[2];
   }
 
-  unsigned rows = operands[3];
-  unsigned columns = operands[4];
+  unsigned rows = getConstantInt(operands[3]).getInt();
+  unsigned columns = getConstantInt(operands[4]).getInt();
 
   typeMap[operands[0]] = spirv::CooperativeMatrixNVType::get(
       elementTy, scope.getValue(), rows, columns);
@@ -1298,7 +1309,7 @@ LogicalResult Deserializer::processStructType(ArrayRef<uint32_t> operands) {
     memberTypes.push_back(memberType);
   }
 
-  SmallVector<spirv::StructType::LayoutInfo, 0> layoutInfo;
+  SmallVector<spirv::StructType::OffsetInfo, 0> offsetInfo;
   SmallVector<spirv::StructType::MemberDecorationInfo, 0> memberDecorationsInfo;
   if (memberDecorationMap.count(operands[0])) {
     auto &allMemberDecorations = memberDecorationMap[operands[0]];
@@ -1307,29 +1318,48 @@ LogicalResult Deserializer::processStructType(ArrayRef<uint32_t> operands) {
         for (auto &memberDecoration : allMemberDecorations[memberIndex]) {
           // Check for offset.
           if (memberDecoration.first == spirv::Decoration::Offset) {
-            // If layoutInfo is empty, resize to the number of members;
-            if (layoutInfo.empty()) {
-              layoutInfo.resize(memberTypes.size());
+            // If offset info is empty, resize to the number of members;
+            if (offsetInfo.empty()) {
+              offsetInfo.resize(memberTypes.size());
             }
-            layoutInfo[memberIndex] = memberDecoration.second[0];
+            offsetInfo[memberIndex] = memberDecoration.second[0];
           } else {
             if (!memberDecoration.second.empty()) {
-              return emitError(unknownLoc,
-                               "unhandled OpMemberDecoration with decoration ")
-                     << stringifyDecoration(memberDecoration.first)
-                     << " which has additional operands";
+              memberDecorationsInfo.emplace_back(memberIndex, /*hasValue=*/1,
+                                                 memberDecoration.first,
+                                                 memberDecoration.second[0]);
+            } else {
+              memberDecorationsInfo.emplace_back(memberIndex, /*hasValue=*/0,
+                                                 memberDecoration.first, 0);
             }
-            memberDecorationsInfo.emplace_back(memberIndex,
-                                               memberDecoration.first);
           }
         }
       }
     }
   }
   typeMap[operands[0]] =
-      spirv::StructType::get(memberTypes, layoutInfo, memberDecorationsInfo);
-  // TODO(ravishankarm): Update StructType to have member name as attribute as
+      spirv::StructType::get(memberTypes, offsetInfo, memberDecorationsInfo);
+  // TODO: Update StructType to have member name as attribute as
   // well.
+  return success();
+}
+
+LogicalResult Deserializer::processMatrixType(ArrayRef<uint32_t> operands) {
+  if (operands.size() != 3) {
+    // Three operands are needed: result_id, column_type, and column_count
+    return emitError(unknownLoc, "OpTypeMatrix must have 3 operands"
+                                 " (result_id, column_type, and column_count)");
+  }
+  // Matrix columns must be of vector type
+  Type elementTy = getType(operands[1]);
+  if (!elementTy) {
+    return emitError(unknownLoc,
+                     "OpTypeMatrix references undefined column type.")
+           << operands[1];
+  }
+
+  uint32_t colsCount = operands[2];
+  typeMap[operands[0]] = spirv::MatrixType::get(elementTy, colsCount);
   return success();
 }
 
@@ -1540,8 +1570,8 @@ LogicalResult Deserializer::processConstantNull(ArrayRef<uint32_t> operands) {
     return success();
   }
 
-    return emitError(unknownLoc, "unsupported OpConstantNull type: ")
-           << resultType;
+  return emitError(unknownLoc, "unsupported OpConstantNull type: ")
+         << resultType;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1796,7 +1826,7 @@ spirv::LoopOp ControlFlowStructurizer::createLoopOp() {
   // merge block so that the newly created LoopOp will be inserted there.
   OpBuilder builder(&mergeBlock->front());
 
-  // TODO(antiagainst): handle loop control properly
+  // TODO: handle loop control properly
   auto loopOp = builder.create<spirv::LoopOp>(location);
   loopOp.addEntryAndMergeBlock();
 
@@ -1884,10 +1914,10 @@ LogicalResult ControlFlowStructurizer::structurizeImpl() {
   // Go through all ops and remap the operands.
   auto remapOperands = [&](Operation *op) {
     for (auto &operand : op->getOpOperands())
-      if (auto mappedOp = mapper.lookupOrNull(operand.get()))
+      if (Value mappedOp = mapper.lookupOrNull(operand.get()))
         operand.set(mappedOp);
     for (auto &succOp : op->getBlockOperands())
-      if (auto mappedOp = mapper.lookupOrNull(succOp.get()))
+      if (Block *mappedOp = mapper.lookupOrNull(succOp.get()))
         succOp.set(mappedOp);
   };
   for (auto &block : body) {
@@ -1939,7 +1969,7 @@ LogicalResult ControlFlowStructurizer::structurizeImpl() {
     // selection/loop. If so, they will be recorded within blockMergeInfo.
     // We need to update the pointers there to the newly remapped ones so we can
     // continue structurizing them later.
-    // TODO(antiagainst): The asserts in the following assumes input SPIR-V blob
+    // TODO: The asserts in the following assumes input SPIR-V blob
     // forms correctly nested selection/loop constructs. We should relax this
     // and support error cases better.
     auto it = blockMergeInfo.find(block);
@@ -2238,6 +2268,7 @@ LogicalResult Deserializer::processInstruction(spirv::Opcode opcode,
   case spirv::Opcode::OpTypeInt:
   case spirv::Opcode::OpTypeFloat:
   case spirv::Opcode::OpTypeVector:
+  case spirv::Opcode::OpTypeMatrix:
   case spirv::Opcode::OpTypeArray:
   case spirv::Opcode::OpTypeFunction:
   case spirv::Opcode::OpTypeRuntimeArray:
@@ -2325,7 +2356,7 @@ Deserializer::processOp<spirv::EntryPointOp>(ArrayRef<uint32_t> words) {
     return emitError(unknownLoc,
                      "missing Execution Model specification in OpEntryPoint");
   }
-  auto exec_model = opBuilder.getI32IntegerAttr(words[wordIndex++]);
+  auto execModel = opBuilder.getI32IntegerAttr(words[wordIndex++]);
   if (wordIndex >= words.size()) {
     return emitError(unknownLoc, "missing <id> in OpEntryPoint");
   }
@@ -2353,7 +2384,7 @@ Deserializer::processOp<spirv::EntryPointOp>(ArrayRef<uint32_t> words) {
     interface.push_back(opBuilder.getSymbolRefAttr(arg.getOperation()));
     wordIndex++;
   }
-  opBuilder.create<spirv::EntryPointOp>(unknownLoc, exec_model,
+  opBuilder.create<spirv::EntryPointOp>(unknownLoc, execModel,
                                         opBuilder.getSymbolRefAttr(fnName),
                                         opBuilder.getArrayAttr(interface));
   return success();
@@ -2482,18 +2513,88 @@ Deserializer::processOp<spirv::MemoryBarrierOp>(ArrayRef<uint32_t> operands) {
   return success();
 }
 
+template <>
+LogicalResult
+Deserializer::processOp<spirv::CopyMemoryOp>(ArrayRef<uint32_t> words) {
+  SmallVector<Type, 1> resultTypes;
+  size_t wordIndex = 0;
+  SmallVector<Value, 4> operands;
+  SmallVector<NamedAttribute, 4> attributes;
+
+  if (wordIndex < words.size()) {
+    auto arg = getValue(words[wordIndex]);
+
+    if (!arg) {
+      return emitError(unknownLoc, "unknown result <id> : ")
+             << words[wordIndex];
+    }
+
+    operands.push_back(arg);
+    wordIndex++;
+  }
+
+  if (wordIndex < words.size()) {
+    auto arg = getValue(words[wordIndex]);
+
+    if (!arg) {
+      return emitError(unknownLoc, "unknown result <id> : ")
+             << words[wordIndex];
+    }
+
+    operands.push_back(arg);
+    wordIndex++;
+  }
+
+  bool isAlignedAttr = false;
+
+  if (wordIndex < words.size()) {
+    auto attrValue = words[wordIndex++];
+    attributes.push_back(opBuilder.getNamedAttr(
+        "memory_access", opBuilder.getI32IntegerAttr(attrValue)));
+    isAlignedAttr = (attrValue == 2);
+  }
+
+  if (isAlignedAttr && wordIndex < words.size()) {
+    attributes.push_back(opBuilder.getNamedAttr(
+        "alignment", opBuilder.getI32IntegerAttr(words[wordIndex++])));
+  }
+
+  if (wordIndex < words.size()) {
+    attributes.push_back(opBuilder.getNamedAttr(
+        "source_memory_access",
+        opBuilder.getI32IntegerAttr(words[wordIndex++])));
+  }
+
+  if (wordIndex < words.size()) {
+    attributes.push_back(opBuilder.getNamedAttr(
+        "source_alignment", opBuilder.getI32IntegerAttr(words[wordIndex++])));
+  }
+
+  if (wordIndex != words.size()) {
+    return emitError(unknownLoc,
+                     "found more operands than expected when deserializing "
+                     "spirv::CopyMemoryOp, only ")
+           << wordIndex << " of " << words.size() << " processed";
+  }
+
+  Location loc = createFileLineColLoc(opBuilder);
+  opBuilder.create<spirv::CopyMemoryOp>(loc, resultTypes, operands, attributes);
+
+  return success();
+}
+
 // Pull in auto-generated Deserializer::dispatchToAutogenDeserialization() and
 // various Deserializer::processOp<...>() specializations.
 #define GET_DESERIALIZATION_FNS
 #include "mlir/Dialect/SPIRV/SPIRVSerialization.inc"
 } // namespace
 
-Optional<spirv::ModuleOp> spirv::deserialize(ArrayRef<uint32_t> binary,
-                                             MLIRContext *context) {
+spirv::OwningSPIRVModuleRef spirv::deserialize(ArrayRef<uint32_t> binary,
+                                               MLIRContext *context) {
   Deserializer deserializer(binary, context);
 
   if (failed(deserializer.deserialize()))
-    return llvm::None;
+    return nullptr;
 
   return deserializer.collect();
 }

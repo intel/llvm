@@ -47,17 +47,28 @@ struct TestVectorContractionConversion
   TestVectorContractionConversion(const TestVectorContractionConversion &pass) {
   }
 
-  Option<bool> lowerToLLVMMatrixIntrinsics{
+  Option<bool> lowerToFlatMatrix{
       *this, "vector-lower-matrix-intrinsics",
       llvm::cl::desc("Lower vector.contract to llvm.intr.matrix.multiply"),
+      llvm::cl::init(false)};
+  Option<bool> lowerToFlatTranspose{
+      *this, "vector-flat-transpose",
+      llvm::cl::desc("Lower 2-D vector.transpose to vector.flat_transpose"),
       llvm::cl::init(false)};
   Option<bool> lowerToOuterProduct{
       *this, "vector-outerproduct",
       llvm::cl::desc("Lower vector.contract to vector.outerproduct"),
       llvm::cl::init(false)};
+  Option<bool> lowerToFilterOuterProduct{
+      *this, "vector-filter-outerproduct",
+      llvm::cl::desc("Lower vector.contract to vector.outerproduct but not for "
+                     "vectors of size 4."),
+      llvm::cl::init(false)};
 
   void runOnFunction() override {
     OwningRewritePatternList patterns;
+
+    // Test on one pattern in isolation.
     if (lowerToOuterProduct) {
       VectorContractLowering lowering = VectorContractLowering::OuterProduct;
       VectorTransformsOptions options{lowering};
@@ -67,11 +78,46 @@ struct TestVectorContractionConversion
       return;
     }
 
-    VectorContractLowering lowering = VectorContractLowering::FMA;
-    if (lowerToLLVMMatrixIntrinsics)
-      lowering = VectorContractLowering::Matmul;
-    VectorTransformsOptions options{lowering};
+    // Test on one pattern in isolation.
+    if (lowerToFilterOuterProduct) {
+      VectorContractLowering lowering = VectorContractLowering::OuterProduct;
+      VectorTransformsOptions options{lowering};
+      patterns.insert<ContractionOpToOuterProductOpLowering>(
+          options, &getContext(), [](vector::ContractionOp op) {
+            // Only lowers vector.contract where the lhs as a type vector<MxNx?>
+            // where M is not 4.
+            if (op.getRhsType().getShape()[0] == 4)
+              return failure();
+            return success();
+          });
+      applyPatternsAndFoldGreedily(getFunction(), patterns);
+      return;
+    }
+
+    // Test on all contract lowering patterns.
+    VectorContractLowering contractLowering = VectorContractLowering::Dot;
+    if (lowerToFlatMatrix)
+      contractLowering = VectorContractLowering::Matmul;
+    VectorTransposeLowering transposeLowering =
+        VectorTransposeLowering::EltWise;
+    if (lowerToFlatTranspose)
+      transposeLowering = VectorTransposeLowering::Flat;
+    VectorTransformsOptions options{contractLowering, transposeLowering};
     populateVectorContractLoweringPatterns(patterns, &getContext(), options);
+    applyPatternsAndFoldGreedily(getFunction(), patterns);
+  }
+};
+
+struct TestVectorUnrollingPatterns
+    : public PassWrapper<TestVectorUnrollingPatterns, FunctionPass> {
+  void runOnFunction() override {
+    MLIRContext *ctx = &getContext();
+    OwningRewritePatternList patterns;
+    patterns.insert<UnrollVectorPattern<AddFOp>>(ArrayRef<int64_t>{2, 2}, ctx);
+    patterns.insert<UnrollVectorPattern<vector::ContractionOp>>(
+        ArrayRef<int64_t>{2, 2, 2}, ctx);
+    populateVectorToVectorCanonicalizationPatterns(patterns, ctx);
+    populateVectorToVectorTransformationPatterns(patterns, ctx);
     applyPatternsAndFoldGreedily(getFunction(), patterns);
   }
 };
@@ -91,5 +137,9 @@ void registerTestVectorConversions() {
   PassRegistration<TestVectorContractionConversion> contractionPass(
       "test-vector-contraction-conversion",
       "Test conversion patterns that lower contract ops in the vector dialect");
+
+  PassRegistration<TestVectorUnrollingPatterns> contractionUnrollingPass(
+      "test-vector-unrolling-patterns",
+      "Test conversion patterns to unroll contract ops in the vector dialect");
 }
 } // namespace mlir

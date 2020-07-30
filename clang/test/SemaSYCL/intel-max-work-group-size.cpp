@@ -1,5 +1,5 @@
-// RUN: %clang %s -fsyntax-only -fsycl-device-only -DTRIGGER_ERROR -Xclang -verify
-// RUN: %clang %s -fsyntax-only -Xclang -ast-dump -fsycl-device-only | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl -fsycl-is-device -triple spir64 -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl -fsycl-is-device -triple spir64 | FileCheck %s
 // RUN: %clang_cc1 -fsycl -fsycl-is-host -fsyntax-only -verify %s
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -20,8 +20,7 @@ void foo() {
 
 #else // __SYCL_DEVICE_ONLY__
 
-[[intelfpga::max_work_group_size(2, 2, 2)]] // expected-warning{{'max_work_group_size' attribute ignored}}
-void func_ignore() {}
+[[intelfpga::max_work_group_size(2, 2, 2)]] void func_do_not_ignore() {}
 
 struct FuncObj {
   [[intelfpga::max_work_group_size(4, 4, 4)]]
@@ -42,20 +41,20 @@ __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
 }
 
 int main() {
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel1
+  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
   // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}} 4 4 4
   kernel<class test_kernel1>(
       FuncObj());
 
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel2
+  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
   // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}} 8 8 8
   kernel<class test_kernel2>(
       []() [[intelfpga::max_work_group_size(8, 8, 8)]] {});
 
-  // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel3
-  // CHECK-NOT:   SYCLIntelMaxWorkGroupSizeAttr {{.*}}
+  // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
+  // CHECK:       SYCLIntelMaxWorkGroupSizeAttr {{.*}}
   kernel<class test_kernel3>(
-      []() {func_ignore();});
+      []() { func_do_not_ignore(); });
 
 #ifdef TRIGGER_ERROR
   [[intelfpga::max_work_group_size(1, 1, 1)]] int Var = 0; // expected-error{{'max_work_group_size' attribute only applies to functions}}

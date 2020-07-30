@@ -190,7 +190,7 @@ static void dumpStringOffsetsSection(raw_ostream &OS, DIDumpOptions DumpOpts,
     // version field and the padding, a total of 4 bytes). Add them back in
     // for reporting.
     OS << "Contribution size = " << (Contribution->Size + (Version < 5 ? 0 : 4))
-       << ", Format = " << (Format == DWARF32 ? "DWARF32" : "DWARF64")
+       << ", Format = " << dwarf::FormatString(Format)
        << ", Version = " << Version << "\n";
 
     Offset = Contribution->Base;
@@ -334,6 +334,13 @@ static void dumpLoclistsSection(raw_ostream &OS, DIDumpOptions DumpOpts,
     }
     Offset = EndOffset;
   }
+}
+
+static void dumpPubTableSection(raw_ostream &OS, DIDumpOptions DumpOpts,
+                                DWARFDataExtractor Data, bool GnuStyle) {
+  DWARFDebugPubTable Table;
+  Table.extract(Data, GnuStyle, DumpOpts.RecoverableErrorHandler);
+  Table.dump(OS);
 }
 
 void DWARFContext::dump(
@@ -513,15 +520,8 @@ void DWARFContext::dump(
       }
       OS << "debug_line[" << format("0x%8.8" PRIx64, Parser.getOffset())
          << "]\n";
-      OS.flush();
-      if (DumpOpts.Verbose) {
-        Parser.parseNext(DumpOpts.WarningHandler, DumpOpts.WarningHandler, &OS);
-      } else {
-        DWARFDebugLine::LineTable LineTable =
-            Parser.parseNext(DumpOpts.WarningHandler, DumpOpts.WarningHandler);
-        LineTable.dump(OS, DumpOpts);
-      }
-      OS.flush();
+      Parser.parseNext(DumpOpts.WarningHandler, DumpOpts.WarningHandler, &OS,
+                       DumpOpts.Verbose);
     }
   };
 
@@ -633,26 +633,32 @@ void DWARFContext::dump(
   }
 
   if (shouldDump(Explicit, ".debug_pubnames", DIDT_ID_DebugPubnames,
-                 DObj->getPubnamesSection().Data))
-    DWARFDebugPubTable(*DObj, DObj->getPubnamesSection(), isLittleEndian(), false)
-        .dump(OS);
+                 DObj->getPubnamesSection().Data)) {
+    DWARFDataExtractor PubTableData(*DObj, DObj->getPubnamesSection(),
+                                    isLittleEndian(), 0);
+    dumpPubTableSection(OS, DumpOpts, PubTableData, /*GnuStyle=*/false);
+  }
 
   if (shouldDump(Explicit, ".debug_pubtypes", DIDT_ID_DebugPubtypes,
-                 DObj->getPubtypesSection().Data))
-    DWARFDebugPubTable(*DObj, DObj->getPubtypesSection(), isLittleEndian(), false)
-        .dump(OS);
+                 DObj->getPubtypesSection().Data)) {
+    DWARFDataExtractor PubTableData(*DObj, DObj->getPubtypesSection(),
+                                    isLittleEndian(), 0);
+    dumpPubTableSection(OS, DumpOpts, PubTableData, /*GnuStyle=*/false);
+  }
 
   if (shouldDump(Explicit, ".debug_gnu_pubnames", DIDT_ID_DebugGnuPubnames,
-                 DObj->getGnuPubnamesSection().Data))
-    DWARFDebugPubTable(*DObj, DObj->getGnuPubnamesSection(), isLittleEndian(),
-                       true /* GnuStyle */)
-        .dump(OS);
+                 DObj->getGnuPubnamesSection().Data)) {
+    DWARFDataExtractor PubTableData(*DObj, DObj->getGnuPubnamesSection(),
+                                    isLittleEndian(), 0);
+    dumpPubTableSection(OS, DumpOpts, PubTableData, /*GnuStyle=*/true);
+  }
 
   if (shouldDump(Explicit, ".debug_gnu_pubtypes", DIDT_ID_DebugGnuPubtypes,
-                 DObj->getGnuPubtypesSection().Data))
-    DWARFDebugPubTable(*DObj, DObj->getGnuPubtypesSection(), isLittleEndian(),
-                       true /* GnuStyle */)
-        .dump(OS);
+                 DObj->getGnuPubtypesSection().Data)) {
+    DWARFDataExtractor PubTableData(*DObj, DObj->getGnuPubtypesSection(),
+                                    isLittleEndian(), 0);
+    dumpPubTableSection(OS, DumpOpts, PubTableData, /*GnuStyle=*/true);
+  }
 
   if (shouldDump(Explicit, ".debug_str_offsets", DIDT_ID_DebugStrOffsets,
                  DObj->getStrOffsetsSection().Data))

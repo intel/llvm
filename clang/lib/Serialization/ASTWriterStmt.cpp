@@ -194,6 +194,8 @@ void ASTStmtWriter::VisitWhileStmt(WhileStmt *S) {
     Record.AddDeclRef(S->getConditionVariable());
 
   Record.AddSourceLocation(S->getWhileLoc());
+  Record.AddSourceLocation(S->getLParenLoc());
+  Record.AddSourceLocation(S->getRParenLoc());
   Code = serialization::STMT_WHILE;
 }
 
@@ -548,16 +550,27 @@ void ASTStmtWriter::VisitExpr(Expr *E) {
 
 void ASTStmtWriter::VisitConstantExpr(ConstantExpr *E) {
   VisitExpr(E);
-  Record.push_back(static_cast<uint64_t>(E->ConstantExprBits.ResultKind));
+  Record.push_back(E->ConstantExprBits.ResultKind);
+
+  Record.push_back(E->ConstantExprBits.APValueKind);
+  Record.push_back(E->ConstantExprBits.IsUnsigned);
+  Record.push_back(E->ConstantExprBits.BitWidth);
+  // HasCleanup not serialized since we can just query the APValue.
+  Record.push_back(E->ConstantExprBits.IsImmediateInvocation);
+
   switch (E->ConstantExprBits.ResultKind) {
+  case ConstantExpr::RSK_None:
+    break;
   case ConstantExpr::RSK_Int64:
     Record.push_back(E->Int64Result());
-    Record.push_back(E->ConstantExprBits.IsUnsigned |
-                     E->ConstantExprBits.BitWidth << 1);
     break;
   case ConstantExpr::RSK_APValue:
     Record.AddAPValue(E->APValueResult());
+    break;
+  default:
+    llvm_unreachable("unexpected ResultKind!");
   }
+
   Record.AddStmt(E->getSubExpr());
   Code = serialization::EXPR_CONSTANT;
 }
@@ -772,12 +785,23 @@ void ASTStmtWriter::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
   Code = serialization::EXPR_ARRAY_SUBSCRIPT;
 }
 
+void ASTStmtWriter::VisitMatrixSubscriptExpr(MatrixSubscriptExpr *E) {
+  VisitExpr(E);
+  Record.AddStmt(E->getBase());
+  Record.AddStmt(E->getRowIdx());
+  Record.AddStmt(E->getColumnIdx());
+  Record.AddSourceLocation(E->getRBracketLoc());
+  Code = serialization::EXPR_ARRAY_SUBSCRIPT;
+}
+
 void ASTStmtWriter::VisitOMPArraySectionExpr(OMPArraySectionExpr *E) {
   VisitExpr(E);
   Record.AddStmt(E->getBase());
   Record.AddStmt(E->getLowerBound());
   Record.AddStmt(E->getLength());
-  Record.AddSourceLocation(E->getColonLoc());
+  Record.AddStmt(E->getStride());
+  Record.AddSourceLocation(E->getColonLocFirst());
+  Record.AddSourceLocation(E->getColonLocSecond());
   Record.AddSourceLocation(E->getRBracketLoc());
   Code = serialization::EXPR_OMP_ARRAY_SECTION;
 }
@@ -824,12 +848,15 @@ void ASTStmtWriter::VisitOMPIteratorExpr(OMPIteratorExpr *E) {
 void ASTStmtWriter::VisitCallExpr(CallExpr *E) {
   VisitExpr(E);
   Record.push_back(E->getNumArgs());
+  Record.push_back(E->hasStoredFPFeatures());
   Record.AddSourceLocation(E->getRParenLoc());
   Record.AddStmt(E->getCallee());
   for (CallExpr::arg_iterator Arg = E->arg_begin(), ArgEnd = E->arg_end();
        Arg != ArgEnd; ++Arg)
     Record.AddStmt(*Arg);
   Record.push_back(static_cast<unsigned>(E->getADLCallKind()));
+  if (E->hasStoredFPFeatures())
+    Record.push_back(E->getFPFeatures().getAsOpaqueInt());
   Code = serialization::EXPR_CALL;
 }
 
@@ -1525,7 +1552,6 @@ void ASTStmtWriter::VisitMSDependentExistsStmt(MSDependentExistsStmt *S) {
 void ASTStmtWriter::VisitCXXOperatorCallExpr(CXXOperatorCallExpr *E) {
   VisitCallExpr(E);
   Record.push_back(E->getOperator());
-  Record.push_back(E->getFPFeatures().getAsOpaqueInt());
   Record.AddSourceRange(E->Range);
   Code = serialization::EXPR_CXX_OPERATOR_CALL;
 }
@@ -1580,12 +1606,12 @@ void ASTStmtWriter::VisitCXXTemporaryObjectExpr(CXXTemporaryObjectExpr *E) {
 
 void ASTStmtWriter::VisitLambdaExpr(LambdaExpr *E) {
   VisitExpr(E);
-  Record.push_back(E->NumCaptures);
+  Record.push_back(E->LambdaExprBits.NumCaptures);
   Record.AddSourceRange(E->IntroducerRange);
-  Record.push_back(E->CaptureDefault); // FIXME: stable encoding
+  Record.push_back(E->LambdaExprBits.CaptureDefault); // FIXME: stable encoding
   Record.AddSourceLocation(E->CaptureDefaultLoc);
-  Record.push_back(E->ExplicitParams);
-  Record.push_back(E->ExplicitResultType);
+  Record.push_back(E->LambdaExprBits.ExplicitParams);
+  Record.push_back(E->LambdaExprBits.ExplicitResultType);
   Record.AddSourceLocation(E->ClosingBrace);
 
   // Add capture initializers.
@@ -1594,6 +1620,9 @@ void ASTStmtWriter::VisitLambdaExpr(LambdaExpr *E) {
        C != CEnd; ++C) {
     Record.AddStmt(*C);
   }
+
+  // Don't serialize the body. It belongs to the call operator declaration.
+  // LambdaExpr only stores a copy of the Stmt *.
 
   Code = serialization::EXPR_LAMBDA;
 }
@@ -1646,6 +1675,7 @@ void ASTStmtWriter::VisitBuiltinBitCastExpr(BuiltinBitCastExpr *E) {
   VisitExplicitCastExpr(E);
   Record.AddSourceLocation(E->getBeginLoc());
   Record.AddSourceLocation(E->getEndLoc());
+  Code = serialization::EXPR_BUILTIN_BIT_CAST;
 }
 
 void ASTStmtWriter::VisitUserDefinedLiteral(UserDefinedLiteral *E) {

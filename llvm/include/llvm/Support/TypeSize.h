@@ -15,6 +15,7 @@
 #ifndef LLVM_SUPPORT_TYPESIZE_H
 #define LLVM_SUPPORT_TYPESIZE_H
 
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/WithColor.h"
 
 #include <cstdint>
@@ -48,6 +49,12 @@ public:
   }
   bool operator!=(const ElementCount& RHS) const {
     return !(*this == RHS);
+  }
+  bool operator==(unsigned RHS) const { return Min == RHS && !Scalable; }
+  bool operator!=(unsigned RHS) const { return !(*this == RHS); }
+
+  ElementCount NextPowerOf2() const {
+    return ElementCount(llvm::NextPowerOf2(Min), Scalable);
   }
 };
 
@@ -221,6 +228,10 @@ public:
 
   TypeSize operator/(int64_t RHS) const {
     return { MinSize / RHS, IsScalable };
+  }
+
+  TypeSize NextPowerOf2() const {
+    return TypeSize(llvm::NextPowerOf2(MinSize), IsScalable);
   }
 };
 

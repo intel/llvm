@@ -12,6 +12,7 @@
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/id.hpp>
+#include <CL/sycl/interop_handle.hpp>
 #include <CL/sycl/interop_handler.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/nd_item.hpp>
@@ -143,12 +144,17 @@ public:
 
 class HostTask {
   std::function<void()> MHostTask;
+  std::function<void(interop_handle)> MInteropTask;
 
 public:
   HostTask() : MHostTask([]() {}) {}
   HostTask(std::function<void()> &&Func) : MHostTask(Func) {}
+  HostTask(std::function<void(interop_handle)> &&Func) : MInteropTask(Func) {}
+
+  bool isInteropTask() const { return !!MInteropTask; }
 
   void call() { MHostTask(); }
+  void call(interop_handle handle) { MInteropTask(handle); }
 };
 
 // Class which stores specific lambda object.

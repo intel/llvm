@@ -130,8 +130,26 @@ public:
         "exec_hi", "tma_lo", "tma_hi", "tba_lo", "tba_hi",
     });
 
+    switch (*Name) {
+    case 'I':
+      Info.setRequiresImmediate(-16, 64);
+      return true;
+    case 'J':
+      Info.setRequiresImmediate(-32768, 32767);
+      return true;
+    case 'A':
+    case 'B':
+    case 'C':
+      Info.setRequiresImmediate();
+      return true;
+    default:
+      break;
+    }
+
     StringRef S(Name);
-    if (S == "A") {
+
+    if (S == "DA" || S == "DB") {
+      Name++;
       Info.setRequiresImmediate();
       return true;
     }
@@ -203,6 +221,12 @@ public:
   // the constraint.  In practice, it won't be changed unless the
   // constraint is longer than one character.
   std::string convertConstraint(const char *&Constraint) const override {
+
+    StringRef S(Constraint);
+    if (S == "DA" || S == "DB") {
+      return std::string("^") + std::string(Constraint++, 2);
+    }
+
     const char *Begin = Constraint;
     TargetInfo::ConstraintInfo Info("", "");
     if (validateAsmConstraint(Constraint, Info))
@@ -218,6 +242,8 @@ public:
                  const std::vector<std::string> &FeatureVec) const override;
 
   ArrayRef<Builtin::Info> getTargetBuiltins() const override;
+
+  bool useFP16ConversionIntrinsics() const override { return false; }
 
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
@@ -355,7 +381,9 @@ public:
   // address space has value 0 but in private and local address space has
   // value ~0.
   uint64_t getNullPointerValue(LangAS AS) const override {
-    return AS == LangAS::opencl_local ? ~0 : 0;
+    // FIXME: Also should handle region.
+    return (AS == LangAS::opencl_local || AS == LangAS::opencl_private)
+      ? ~0 : 0;
   }
 
   void setAuxTarget(const TargetInfo *Aux) override;

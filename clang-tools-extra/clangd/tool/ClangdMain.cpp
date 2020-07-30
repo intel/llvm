@@ -17,10 +17,12 @@
 #include "refactor/Rename.h"
 #include "support/Path.h"
 #include "support/Shutdown.h"
+#include "support/ThreadsafeFS.h"
 #include "support/Trace.h"
 #include "clang/Basic/Version.h"
 #include "clang/Format/Format.h"
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
@@ -281,16 +283,23 @@ opt<bool> CrossFileRename{
 opt<bool> RecoveryAST{
     "recovery-ast",
     cat(Features),
-    desc("Preserve expressions in AST for broken code (C++ only). Note that "
-         "this feature is experimental and may lead to crashes"),
-    init(false),
-    Hidden,
+    desc("Preserve expressions in AST for broken code (C++ only)."),
+    init(ClangdServer::Options().BuildRecoveryAST),
 };
+
 opt<bool> RecoveryASTType{
     "recovery-ast-type",
     cat(Features),
     desc("Preserve the type for recovery AST. Note that "
          "this feature is experimental and may lead to crashes"),
+    init(false),
+    Hidden,
+};
+
+opt<bool> FoldingRanges{
+    "folding-ranges",
+    cat(Features),
+    desc("Enable preview of FoldingRanges feature"),
     init(false),
     Hidden,
 };
@@ -319,7 +328,7 @@ opt<bool> Test{
     "lit-test",
     cat(Misc),
     desc("Abbreviation for -input-style=delimited -pretty -sync "
-         "-enable-test-scheme -log=verbose. "
+         "-enable-test-scheme -enable-config=0 -log=verbose. "
          "Intended to simplify lit tests"),
     init(false),
     Hidden,
@@ -426,6 +435,20 @@ opt<bool> AsyncPreamble{
     Hidden,
 };
 
+opt<bool> EnableConfig{
+    "enable-config",
+    cat(Misc),
+    desc(
+        "Read user and project configuration from YAML files.\n"
+        "Project config is from a .clangd file in the project directory.\n"
+        "User config is from clangd/config.yaml in the following directories:\n"
+        "\tWindows: %USERPROFILE%\\AppData\\Local\n"
+        "\tMac OS: ~/Library/Preferences/\n"
+        "\tOthers: $XDG_CONFIG_HOME, usually ~/.config\n"
+        "Configuration is documented at https://clangd.llvm.org/config.html"),
+    init(true),
+};
+
 /// Supports a test URI scheme with relaxed constraints for lit tests.
 /// The path in a test URI will be combined with a platform-specific fake
 /// directory to form an absolute path. For example, test:///a.cpp is resolved
@@ -509,6 +532,9 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
     InputStyle = JSONStreamStyle::Delimited;
     LogLevel = Logger::Verbose;
     PrettyPrint = true;
+    // Disable config system by default to avoid external reads.
+    if (!EnableConfig.getNumOccurrences())
+      EnableConfig = false;
     // Disable background index on lit tests by default to prevent disk writes.
     if (!EnableBackgroundIndex.getNumOccurrences())
       EnableBackgroundIndex = false;
@@ -585,6 +611,8 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   // Use buffered stream to stderr (we still flush each log message). Unbuffered
   // stream can cause significant (non-deterministic) latency for the logger.
   llvm::errs().SetBuffered();
+  // Don't flush stdout when logging, this would be both slow and racy!
+  llvm::errs().tie(nullptr);
   StreamLogger Logger(llvm::errs(), LogLevel);
   LoggingSession LoggingSession(Logger);
   // Write some initial logs before we start doing any real work.
@@ -656,6 +684,7 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   Opts.AsyncThreadsCount = WorkerThreadsCount;
   Opts.BuildRecoveryAST = RecoveryAST;
   Opts.PreserveRecoveryASTType = RecoveryASTType;
+  Opts.FoldingRanges = FoldingRanges;
 
   clangd::CodeCompleteOptions CCOpts;
   CCOpts.IncludeIneligibleResults = IncludeIneligibleResults;
@@ -673,7 +702,27 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   CCOpts.AllScopes = AllScopesCompletion;
   CCOpts.RunParser = CodeCompletionParse;
 
-  RealFileSystemProvider FSProvider;
+  RealThreadsafeFS TFS;
+  std::vector<std::unique_ptr<config::Provider>> ProviderStack;
+  std::unique_ptr<config::Provider> Config;
+  if (EnableConfig) {
+    ProviderStack.push_back(
+        config::Provider::fromAncestorRelativeYAMLFiles(".clangd", TFS));
+    llvm::SmallString<256> UserConfig;
+    if (llvm::sys::path::user_config_directory(UserConfig)) {
+      llvm::sys::path::append(UserConfig, "clangd", "config.yaml");
+      vlog("User config file is {0}", UserConfig);
+      ProviderStack.push_back(config::Provider::fromYAMLFile(UserConfig, TFS));
+    } else {
+      elog("Couldn't determine user config file, not loading");
+    }
+    std::vector<const config::Provider *> ProviderPointers;
+    for (const auto& P : ProviderStack)
+      ProviderPointers.push_back(P.get());
+    Config = config::Provider::combine(std::move(ProviderPointers));
+    Opts.ConfigProvider = Config.get();
+  }
+
   // Initialize and run ClangdLSPServer.
   // Change stdin to binary to not lose \r\n on windows.
   llvm::sys::ChangeStdinToBinary();
@@ -716,7 +765,7 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
     ClangTidyOptProvider = std::make_unique<tidy::FileOptionsProvider>(
         tidy::ClangTidyGlobalOptions(),
         /* Default */ EmptyDefaults,
-        /* Override */ OverrideClangTidyOptions, FSProvider.getFileSystem());
+        /* Override */ OverrideClangTidyOptions, TFS.view(/*CWD=*/llvm::None));
     Opts.GetClangTidyOptions = [&](llvm::vfs::FileSystem &,
                                    llvm::StringRef File) {
       // This function must be thread-safe and tidy option providers are not.
@@ -764,8 +813,10 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   // Shall we allow to customize the file limit?
   RenameOpts.AllowCrossFile = CrossFileRename;
 
+  Opts.AsyncPreambleBuilds = AsyncPreamble;
+
   ClangdLSPServer LSPServer(
-      *TransportLayer, FSProvider, CCOpts, RenameOpts, CompileCommandsDirPath,
+      *TransportLayer, TFS, CCOpts, RenameOpts, CompileCommandsDirPath,
       /*UseDirBasedCDB=*/CompileArgsFrom == FilesystemCompileArgs,
       OffsetEncodingFromFlag, Opts);
   llvm::set_thread_name("clangd.main");

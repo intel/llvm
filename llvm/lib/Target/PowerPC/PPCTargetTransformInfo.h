@@ -41,6 +41,9 @@ public:
       : BaseT(TM, F.getParent()->getDataLayout()), ST(TM->getSubtargetImpl(F)),
         TLI(ST->getTargetLowering()) {}
 
+  Optional<Instruction *> instCombineIntrinsic(InstCombiner &IC,
+                                               IntrinsicInst &II) const;
+
   /// \name Scalar TTI Implementations
   /// @{
 
@@ -66,6 +69,8 @@ public:
                   TargetLibraryInfo *LibInfo);
   void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
                                TTI::UnrollingPreferences &UP);
+  void getPeelingPreferences(Loop *L, ScalarEvolution &SE,
+                             TTI::PeelingPreferences &PP);
   bool isLSRCostLess(TargetTransformInfo::LSRCost &C1,
                      TargetTransformInfo::LSRCost &C2);
 
@@ -103,6 +108,7 @@ public:
   int getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
                        TTI::TargetCostKind CostKind,
                        const Instruction *I = nullptr);
+  int getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind);
   int getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy,
                          TTI::TargetCostKind CostKind,
                          const Instruction *I = nullptr);
@@ -111,14 +117,11 @@ public:
                       unsigned AddressSpace,
                       TTI::TargetCostKind CostKind,
                       const Instruction *I = nullptr);
-  int getInterleavedMemoryOpCost(unsigned Opcode, Type *VecTy,
-                                 unsigned Factor,
-                                 ArrayRef<unsigned> Indices,
-                                 unsigned Alignment,
-                                 unsigned AddressSpace,
-                                 TTI::TargetCostKind CostKind = TTI::TCK_SizeAndLatency,
-                                 bool UseMaskForCond = false,
-                                 bool UseMaskForGaps = false);
+  int getInterleavedMemoryOpCost(
+      unsigned Opcode, Type *VecTy, unsigned Factor, ArrayRef<unsigned> Indices,
+      Align Alignment, unsigned AddressSpace,
+      TTI::TargetCostKind CostKind = TTI::TCK_SizeAndLatency,
+      bool UseMaskForCond = false, bool UseMaskForGaps = false);
   unsigned getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
                                  TTI::TargetCostKind CostKind);
 

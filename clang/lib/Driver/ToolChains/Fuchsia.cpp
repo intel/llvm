@@ -15,6 +15,7 @@
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
 #include "llvm/Option/ArgList.h"
+#include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/VirtualFileSystem.h"
@@ -163,7 +164,8 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-lc");
   }
 
-  C.addCommand(std::make_unique<Command>(JA, *this, Exec, CmdArgs, Inputs));
+  C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
+                                         Exec, CmdArgs, Inputs));
 }
 
 /// Fuchsia - Fuchsia tool chain which can call as(1) and ld(1) directly.
@@ -364,4 +366,14 @@ SanitizerMask Fuchsia::getDefaultSanitizers() const {
     break;
   }
   return Res;
+}
+
+void Fuchsia::addProfileRTLibs(const llvm::opt::ArgList &Args,
+                               llvm::opt::ArgStringList &CmdArgs) const {
+  // Add linker option -u__llvm_profile_runtime to cause runtime
+  // initialization module to be linked in.
+  if (needsProfileRT(Args))
+    CmdArgs.push_back(Args.MakeArgString(
+        Twine("-u", llvm::getInstrProfRuntimeHookVarName())));
+  ToolChain::addProfileRTLibs(Args, CmdArgs);
 }

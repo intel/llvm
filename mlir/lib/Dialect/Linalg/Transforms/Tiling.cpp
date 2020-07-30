@@ -161,7 +161,7 @@ struct TileCheck : public AffineExprVisitor<TileCheck> {
 //   }
 // }
 //
-// TODO(pifon, ntv): Investigate whether mixing implicit and explicit indices
+// TODO: Investigate whether mixing implicit and explicit indices
 // does not lead to losing information.
 static void transformIndexedGenericOpIndices(
     OpBuilder &b, LinalgOp op, SmallVectorImpl<Value> &ivs,
@@ -176,13 +176,13 @@ static void transformIndexedGenericOpIndices(
   // that refers to an existing function symbol. The `fun` function call will be
   // inserted in the loop body in that case.
   //
-  // TODO(pifon): Add support for `linalg.indexed_generic` with `fun` attribute.
+  // TODO: Add support for `linalg.indexed_generic` with `fun` attribute.
   auto &region = indexedGenericOp.region();
   if (region.empty()) {
     indexedGenericOp.emitOpError("expected a region");
     return;
   }
-  auto &block = region.getBlocks().front();
+  auto &block = region.front();
 
   OpBuilder::InsertionGuard g(b);
   b.setInsertionPointToStart(&block);
@@ -223,10 +223,10 @@ static bool isTiled(AffineMap map, ArrayRef<Value> tileSizes) {
 }
 
 static SmallVector<Value, 4> makeTiledViews(OpBuilder &b, Location loc,
-                                            LinalgOp linalgOp,
+                                            LinalgOp linalgOp, AffineMap map,
                                             ArrayRef<Value> ivs,
                                             ArrayRef<Value> tileSizes,
-                                            ArrayRef<Value> viewSizes) {
+                                            ArrayRef<Value> allViewSizes) {
   assert(linalgOp.hasBufferSemantics() &&
          "expected linalg op with buffer semantics");
   assert(ivs.size() == static_cast<size_t>(llvm::count_if(
@@ -236,6 +236,7 @@ static SmallVector<Value, 4> makeTiledViews(OpBuilder &b, Location loc,
 
   using namespace edsc::op;
 
+  auto viewSizes = applyMapToValues(b, loc, map, allViewSizes);
   // Construct (potentially temporary) mins and maxes on which to apply maps
   // that define tile subviews.
   SmallVector<Value, 8> lbs, subViewSizes;
@@ -356,7 +357,7 @@ Optional<TiledLinalgOp> static tileLinalgOpImpl(
     return llvm::None;
 
   // 2. Build the tiled loop ranges.
-  auto viewSizes = getViewSizes(b, op);
+  auto allViewSizes = getViewSizes(b, op);
   // The flattened loopToOperandRangesMaps is expected to be an invertible
   // permutation map (asserted in the inverse calculation).
   auto mapsRange = op.indexing_maps().getAsRange<AffineMapAttr>();
@@ -369,35 +370,38 @@ Optional<TiledLinalgOp> static tileLinalgOpImpl(
   SmallVector<SubViewOp::Range, 4> loopRanges;
   LoopIndexToRangeIndexMap loopIndexToRangeIndex;
   std::tie(loopRanges, loopIndexToRangeIndex) = makeTiledLoopRanges(
-      b, scope.getLocation(), viewSizesToLoopsMap, viewSizes, tileSizes);
+      b, scope.getLocation(), viewSizesToLoopsMap, allViewSizes, tileSizes);
   if (!options.interchangeVector.empty())
     applyPermutationToVector(loopRanges, options.interchangeVector);
 
   // 3. Create the tiled loops.
   LinalgOp res = op;
-  SmallVector<Value, 4> ivs(loopRanges.size());
+  SmallVector<Value, 4> ivs;
   SmallVector<Attribute, 4> iteratorTypes =
       llvm::to_vector<4>(op.iterator_types().cast<ArrayAttr>().getValue());
   if (!options.interchangeVector.empty())
     applyPermutationToVector(iteratorTypes, options.interchangeVector);
-  GenerateLoopNest<LoopTy>::doit(ivs, loopRanges, iteratorTypes, [&] {
-    auto &b = ScopedContext::getBuilderRef();
-    auto loc = ScopedContext::getLocation();
-    SmallVector<Value, 4> ivValues(ivs.begin(), ivs.end());
+  GenerateLoopNest<LoopTy>::doit(
+      loopRanges, iteratorTypes, [&](ValueRange localIvs) {
+        auto &b = ScopedContext::getBuilderRef();
+        auto loc = ScopedContext::getLocation();
+        ivs.assign(localIvs.begin(), localIvs.end());
+        SmallVector<Value, 4> ivValues(ivs.begin(), ivs.end());
 
-    // If we have to apply a permutation to the tiled loop nest, we have to
-    // reorder the induction variables This permutation is the right one
-    // assuming that loopRanges have previously been permuted by
-    // (i,j,k)->(k,i,j) So this permutation should be the inversePermutation
-    // of that one: (d0,d1,d2)->(d2,d0,d1)
-    if (!options.interchangeVector.empty())
-      ivValues = applyMapToValues(b, loc, invPermutationMap, ivValues);
+        // If we have to apply a permutation to the tiled loop nest, we have to
+        // reorder the induction variables This permutation is the right one
+        // assuming that loopRanges have previously been permuted by
+        // (i,j,k)->(k,i,j) So this permutation should be the inversePermutation
+        // of that one: (d0,d1,d2)->(d2,d0,d1)
+        if (!options.interchangeVector.empty())
+          ivValues = applyMapToValues(b, loc, invPermutationMap, ivValues);
 
-    auto views = makeTiledViews(b, loc, op, ivValues, tileSizes, viewSizes);
-    auto operands = getAssumedNonViewOperands(op);
-    views.append(operands.begin(), operands.end());
-    res = op.clone(b, loc, views);
-  });
+        auto views = makeTiledViews(b, loc, op, viewSizesToLoopsMap, ivValues,
+                                    tileSizes, allViewSizes);
+        auto operands = getAssumedNonViewOperands(op);
+        views.append(operands.begin(), operands.end());
+        res = op.clone(b, loc, views);
+      });
 
   // 4. Transforms index arguments of `linalg.generic` w.r.t. to the tiling.
   transformIndexedGenericOpIndices(b, res, ivs, loopIndexToRangeIndex);
@@ -459,8 +463,8 @@ class RewritePatternList<OpTy, OpTypes...> {
 public:
   static void insert(OwningRewritePatternList &patterns,
                      const LinalgTilingOptions &options, MLIRContext *ctx) {
-    patterns.insert<LinalgTilingPattern<OpTy>>(ctx, options,
-                                               LinalgMarker({}, "tiled"));
+    patterns.insert<LinalgTilingPattern<OpTy>>(
+        ctx, options, LinalgMarker({}, Identifier::get("tiled", ctx)));
     RewritePatternList<OpTypes...>::insert(patterns, options, ctx);
   }
 };

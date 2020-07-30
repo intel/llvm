@@ -41,7 +41,7 @@ public:
   /// for compile_commands.json in all parent directories of each file.
   /// If UseDirBasedCDB is false, compile commands are not read from disk.
   // FIXME: Clean up signature around CDBs.
-  ClangdLSPServer(Transport &Transp, const FileSystemProvider &FSProvider,
+  ClangdLSPServer(Transport &Transp, const ThreadsafeFS &TFS,
                   const clangd::CodeCompleteOptions &CCOpts,
                   const clangd::RenameOptions &RenameOpts,
                   llvm::Optional<Path> CompileCommandsDir, bool UseDirBasedCDB,
@@ -87,6 +87,8 @@ private:
   // otherwise.
   void onDocumentSymbol(const DocumentSymbolParams &,
                         Callback<llvm::json::Value>);
+  void onFoldingRange(const FoldingRangeParams &,
+                      Callback<std::vector<FoldingRange>>);
   void onCodeAction(const CodeActionParams &, Callback<llvm::json::Value>);
   void onCompletion(const CompletionParams &, Callback<CompletionList>);
   void onSignatureHelp(const TextDocumentPositionParams &,
@@ -121,8 +123,8 @@ private:
   void onDocumentLink(const DocumentLinkParams &,
                       Callback<std::vector<DocumentLink>>);
   void onSemanticTokens(const SemanticTokensParams &, Callback<SemanticTokens>);
-  void onSemanticTokensEdits(const SemanticTokensEditsParams &,
-                             Callback<SemanticTokensOrEdits>);
+  void onSemanticTokensDelta(const SemanticTokensDeltaParams &,
+                             Callback<SemanticTokensOrDelta>);
 
   std::vector<Fix> getFixes(StringRef File, const clangd::Diagnostic &D);
 
@@ -207,7 +209,7 @@ private:
     notify("$/progress", Params);
   }
 
-  const FileSystemProvider &FSProvider;
+  const ThreadsafeFS &TFS;
   /// Options used for code completion
   clangd::CodeCompleteOptions CCOpts;
   /// Options used for rename.

@@ -87,10 +87,6 @@ int main() {
   test<float, 0, intel::minimum<float>>(getMaximumFPValue<float>(), 8, 256);
   test<float, 0, intel::maximum<float>>(getMinimumFPValue<float>(), 8, 256);
 
-  test<double, 0, std::multiplies<double>>(1, 8, 256);
-  test<double, 0, intel::minimum<double>>(getMaximumFPValue<double>(), 8, 256);
-  test<double, 0, intel::maximum<double>>(getMinimumFPValue<double>(), 8, 256);
-
   // Check with CUSTOM type.
   test<CustomVec<long long>, 0, CustomVecPlus<long long>>(CustomVec<long long>(0), 8, 256);
 

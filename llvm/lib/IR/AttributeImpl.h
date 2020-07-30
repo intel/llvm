@@ -185,6 +185,22 @@ public:
   Type *getTypeValue() const { return Ty; }
 };
 
+class AttributeBitSet {
+  /// Bitset with a bit for each available attribute Attribute::AttrKind.
+  uint8_t AvailableAttrs[12] = {};
+  static_assert(Attribute::EndAttrKinds <= sizeof(AvailableAttrs) * CHAR_BIT,
+                "Too many attributes");
+
+public:
+  bool hasAttribute(Attribute::AttrKind Kind) const {
+    return AvailableAttrs[Kind / 8] & (1 << (Kind % 8));
+  }
+
+  void addAttribute(Attribute::AttrKind Kind) {
+    AvailableAttrs[Kind / 8] |= 1 << (Kind % 8);
+  }
+};
+
 //===----------------------------------------------------------------------===//
 /// \class
 /// This class represents a group of attributes that apply to one
@@ -195,8 +211,7 @@ class AttributeSetNode final
   friend TrailingObjects;
 
   unsigned NumAttrs; ///< Number of attributes in this node.
-  /// Bitset with a bit for each available attribute Attribute::AttrKind.
-  uint8_t AvailableAttrs[12] = {};
+  AttributeBitSet AvailableAttrs; ///< Available enum attributes.
 
   DenseMap<StringRef, Attribute> StringAttrs;
 
@@ -221,7 +236,7 @@ public:
   unsigned getNumAttributes() const { return NumAttrs; }
 
   bool hasAttribute(Attribute::AttrKind Kind) const {
-    return AvailableAttrs[Kind / 8] & ((uint64_t)1) << (Kind % 8);
+    return AvailableAttrs.hasAttribute(Kind);
   }
   bool hasAttribute(StringRef Kind) const;
   bool hasAttributes() const { return NumAttrs != 0; }
@@ -236,6 +251,7 @@ public:
   std::pair<unsigned, Optional<unsigned>> getAllocSizeArgs() const;
   std::string getAsString(bool InAttrGrp) const;
   Type *getByValType() const;
+  Type *getByRefType() const;
   Type *getPreallocatedType() const;
 
   using iterator = const Attribute *;
@@ -253,8 +269,6 @@ public:
   }
 };
 
-using IndexAttrPair = std::pair<unsigned, AttributeSet>;
-
 //===----------------------------------------------------------------------===//
 /// \class
 /// This class represents a set of attributes that apply to the function,
@@ -267,8 +281,10 @@ class AttributeListImpl final
 
 private:
   unsigned NumAttrSets; ///< Number of entries in this set.
-  /// Bitset with a bit for each available attribute Attribute::AttrKind.
-  uint8_t AvailableFunctionAttrs[12] = {};
+  /// Available enum function attributes.
+  AttributeBitSet AvailableFunctionAttrs;
+  /// Union of enum attributes available at any index.
+  AttributeBitSet AvailableSomewhereAttrs;
 
   // Helper fn for TrailingObjects class.
   size_t numTrailingObjects(OverloadToken<AttributeSet>) { return NumAttrSets; }
@@ -283,8 +299,14 @@ public:
   /// Return true if the AttributeSet or the FunctionIndex has an
   /// enum attribute of the given kind.
   bool hasFnAttribute(Attribute::AttrKind Kind) const {
-    return AvailableFunctionAttrs[Kind / 8] & ((uint64_t)1) << (Kind % 8);
+    return AvailableFunctionAttrs.hasAttribute(Kind);
   }
+
+  /// Return true if the specified attribute is set for at least one
+  /// parameter or for the return value. If Index is not nullptr, the index
+  /// of a parameter with the specified attribute is provided.
+  bool hasAttrSomewhere(Attribute::AttrKind Kind,
+                        unsigned *Index = nullptr) const;
 
   using iterator = const AttributeSet *;
 

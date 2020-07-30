@@ -81,10 +81,13 @@ struct FileHeader {
   ELF_EF Flags;
   llvm::yaml::Hex64 Entry;
 
-  Optional<llvm::yaml::Hex16> SHEntSize;
-  Optional<llvm::yaml::Hex64> SHOff;
-  Optional<llvm::yaml::Hex16> SHNum;
-  Optional<llvm::yaml::Hex16> SHStrNdx;
+  Optional<llvm::yaml::Hex64> EPhOff;
+  Optional<llvm::yaml::Hex16> EPhEntSize;
+  Optional<llvm::yaml::Hex16> EPhNum;
+  Optional<llvm::yaml::Hex16> EShEntSize;
+  Optional<llvm::yaml::Hex64> EShOff;
+  Optional<llvm::yaml::Hex16> EShNum;
+  Optional<llvm::yaml::Hex16> EShStrNdx;
 };
 
 struct SectionHeader {
@@ -92,7 +95,9 @@ struct SectionHeader {
 };
 
 struct SectionHeaderTable {
-  std::vector<SectionHeader> Sections;
+  Optional<std::vector<SectionHeader>> Sections;
+  Optional<std::vector<SectionHeader>> Excluded;
+  Optional<bool> NoHeaders;
 };
 
 struct SectionName {
@@ -250,6 +255,9 @@ struct RawContentSection : Section {
   static bool classof(const Chunk *S) {
     return S->Kind == ChunkKind::RawContent;
   }
+
+  // Is used when a content is read as an array of bytes.
+  Optional<std::vector<uint8_t>> ContentBuf;
 };
 
 struct NoBitsSection : Section {
@@ -684,6 +692,7 @@ struct MappingTraits<ELFYAML::FileHeader> {
 
 template <> struct MappingTraits<ELFYAML::SectionHeaderTable> {
   static void mapping(IO &IO, ELFYAML::SectionHeaderTable &SecHdrTable);
+  static StringRef validate(IO &IO, ELFYAML::SectionHeaderTable &SecHdrTable);
 };
 
 template <> struct MappingTraits<ELFYAML::SectionHeader> {

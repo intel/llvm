@@ -46,7 +46,7 @@ namespace {
 /// inner levels if necessary to determine at what depth copies need to be
 /// placed so that the allocated buffers fit within the memory capacity
 /// provided.
-// TODO(bondhugula): We currently can't generate copies correctly when stores
+// TODO: We currently can't generate copies correctly when stores
 // are strided. Check for strided stores.
 struct AffineDataCopyGeneration
     : public AffineDataCopyGenerationBase<AffineDataCopyGeneration> {
@@ -75,7 +75,7 @@ struct AffineDataCopyGeneration
 /// Generates copies for memref's living in 'slowMemorySpace' into newly created
 /// buffers in 'fastMemorySpace', and replaces memory operations to the former
 /// by the latter. Only load op's handled for now.
-/// TODO(bondhugula): extend this to store op's.
+/// TODO: extend this to store op's.
 std::unique_ptr<OperationPass<FuncOp>> mlir::createAffineDataCopyGenerationPass(
     unsigned slowMemorySpace, unsigned fastMemorySpace, unsigned tagMemorySpace,
     int minDmaTransferSize, uint64_t fastMemCapacityBytes) {
@@ -113,15 +113,14 @@ AffineDataCopyGeneration::runOnBlock(Block *block,
   // operations excluding AffineForOp's) are always assumed to not exhaust
   // memory. As a result, this approach is conservative in some cases at the
   // moment; we do a check later and report an error with location info.
-  // TODO(bondhugula): An 'affine.if' operation is being treated similar to an
+  // TODO: An 'affine.if' operation is being treated similar to an
   // operation. 'affine.if''s could have 'affine.for's in them;
   // treat them separately.
 
   // Get to the first load, store, or for op (that is not a copy nest itself).
   auto curBegin =
       std::find_if(block->begin(), block->end(), [&](Operation &op) {
-        return (isa<AffineLoadOp>(op) || isa<AffineStoreOp>(op) ||
-                isa<AffineForOp>(op)) &&
+        return isa<AffineLoadOp, AffineStoreOp, AffineForOp>(op) &&
                copyNests.count(&op) == 0;
       });
 
@@ -171,8 +170,7 @@ AffineDataCopyGeneration::runOnBlock(Block *block,
       }
       // Get to the next load or store op after 'forOp'.
       curBegin = std::find_if(std::next(it), block->end(), [&](Operation &op) {
-        return (isa<AffineLoadOp>(op) || isa<AffineStoreOp>(op) ||
-                isa<AffineForOp>(op)) &&
+        return isa<AffineLoadOp, AffineStoreOp, AffineForOp>(op) &&
                copyNests.count(&op) == 0;
       });
       it = curBegin;
@@ -188,7 +186,7 @@ AffineDataCopyGeneration::runOnBlock(Block *block,
   if (curBegin != block->end()) {
     // Can't be a terminator because it would have been skipped above.
     assert(!curBegin->isKnownTerminator() && "can't be a terminator");
-    // Exclude the affine terminator - hence, the std::prev.
+    // Exclude the affine.yield - hence, the std::prev.
     affineDataCopyGenerate(/*begin=*/curBegin, /*end=*/std::prev(block->end()),
                            copyOptions, /*filterMemRef=*/llvm::None, copyNests);
   }
@@ -214,13 +212,13 @@ void AffineDataCopyGeneration::runOnFunction() {
   // Promote any single iteration loops in the copy nests and collect
   // load/stores to simplify.
   SmallVector<Operation *, 4> copyOps;
-  for (auto nest : copyNests)
+  for (Operation *nest : copyNests)
     // With a post order walk, the erasure of loops does not affect
     // continuation of the walk or the collection of load/store ops.
     nest->walk([&](Operation *op) {
       if (auto forOp = dyn_cast<AffineForOp>(op))
         promoteIfSingleIteration(forOp);
-      else if (isa<AffineLoadOp>(op) || isa<AffineStoreOp>(op))
+      else if (isa<AffineLoadOp, AffineStoreOp>(op))
         copyOps.push_back(op);
     });
 
@@ -230,6 +228,6 @@ void AffineDataCopyGeneration::runOnFunction() {
   OwningRewritePatternList patterns;
   AffineLoadOp::getCanonicalizationPatterns(patterns, &getContext());
   AffineStoreOp::getCanonicalizationPatterns(patterns, &getContext());
-  for (auto op : copyOps)
+  for (Operation *op : copyOps)
     applyOpPatternsAndFold(op, std::move(patterns));
 }

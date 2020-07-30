@@ -272,7 +272,8 @@ namespace llvm {
     void ParseOptionalVisibility(unsigned &Res);
     void ParseOptionalDLLStorageClass(unsigned &Res);
     bool ParseOptionalCallingConv(unsigned &CC);
-    bool ParseOptionalAlignment(MaybeAlign &Alignment);
+    bool ParseOptionalAlignment(MaybeAlign &Alignment,
+                                bool AllowParens = false);
     bool ParseOptionalDerefAttrBytes(lltok::Kind AttrKind, uint64_t &Bytes);
     bool ParseScopeAndOrdering(bool isAtomic, SyncScope::ID &SSID,
                                AtomicOrdering &Ordering);
@@ -332,7 +333,10 @@ namespace llvm {
                                     std::vector<unsigned> &FwdRefAttrGrps,
                                     bool inAttrGrp, LocTy &BuiltinLoc);
     bool ParseByValWithOptionalType(Type *&Result);
+
+    bool ParseRequiredTypeAttr(Type *&Result, lltok::Kind AttrName);
     bool ParsePreallocated(Type *&Result);
+    bool ParseByRef(Type *&Result);
 
     // Module Summary Index Parsing.
     bool SkipModuleSummaryEntry();
@@ -365,6 +369,12 @@ namespace llvm {
     bool ParseVFuncId(FunctionSummary::VFuncId &VFuncId,
                       IdToIndexMapType &IdToIndexMap, unsigned Index);
     bool ParseOptionalVTableFuncs(VTableFuncList &VTableFuncs);
+    bool ParseOptionalParamAccesses(
+        std::vector<FunctionSummary::ParamAccess> &Params);
+    bool ParseParamNo(uint64_t &ParamNo);
+    bool ParseParamAccess(FunctionSummary::ParamAccess &Param);
+    bool ParseParamAccessCall(FunctionSummary::ParamAccess::Call &Call);
+    bool ParseParamAccessOffset(ConstantRange &range);
     bool ParseOptionalRefs(std::vector<ValueInfo> &Refs);
     bool ParseTypeIdEntry(unsigned ID);
     bool ParseTypeIdSummary(TypeIdSummary &TIS);

@@ -176,8 +176,7 @@ def int_wasm_widen_high_unsigned :
             [llvm_anyvector_ty],
             [IntrNoMem, IntrSpeculatable]>;
 
-// TODO: Replace these intrinsics with normal ISel patterns once the
-// pmin/pmax instructions are merged to the spec proposal.
+// TODO: Replace these intrinsics with normal ISel patterns
 def int_wasm_pmin :
   Intrinsic<[llvm_anyvector_ty],
             [LLVMMatchType<0>, LLVMMatchType<0>],
@@ -187,19 +186,25 @@ def int_wasm_pmax :
             [LLVMMatchType<0>, LLVMMatchType<0>],
             [IntrNoMem, IntrSpeculatable]>;
 
-//===----------------------------------------------------------------------===//
-// Bulk memory intrinsics
-//===----------------------------------------------------------------------===//
-
-def int_wasm_memory_init :
-  Intrinsic<[],
-            [llvm_i32_ty, llvm_i32_ty, llvm_ptr_ty, llvm_i32_ty, llvm_i32_ty],
-            [IntrWriteMem, IntrInaccessibleMemOrArgMemOnly, WriteOnly<ArgIndex<2>>,
-             IntrHasSideEffects, ImmArg<ArgIndex<0>>, ImmArg<ArgIndex<1>>]>;
-def int_wasm_data_drop :
-  Intrinsic<[],
-            [llvm_i32_ty],
-            [IntrNoDuplicate, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+// TODO: Replace these instrinsics with normal ISel patterns once the
+// rounding instructions are merged to the proposal
+// (https://github.com/WebAssembly/simd/pull/232).
+def int_wasm_ceil :
+  Intrinsic<[llvm_anyvector_ty],
+            [LLVMMatchType<0>],
+            [IntrNoMem, IntrSpeculatable]>;
+def int_wasm_floor :
+  Intrinsic<[llvm_anyvector_ty],
+            [LLVMMatchType<0>],
+            [IntrNoMem, IntrSpeculatable]>;
+def int_wasm_trunc :
+  Intrinsic<[llvm_anyvector_ty],
+            [LLVMMatchType<0>],
+            [IntrNoMem, IntrSpeculatable]>;
+def int_wasm_nearest :
+  Intrinsic<[llvm_anyvector_ty],
+            [LLVMMatchType<0>],
+            [IntrNoMem, IntrSpeculatable]>;
 
 //===----------------------------------------------------------------------===//
 // Thread-local storage intrinsics

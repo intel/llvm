@@ -577,11 +577,17 @@ static int __kmp_affinity_create_hwloc_map(AddrUnsPair **address2os,
     // Hack to try and infer the machine topology using only the data
     // available from cpuid on the current thread, and __kmp_xproc.
     KMP_ASSERT(__kmp_affinity_type == affinity_none);
-
-    nCoresPerPkg = __kmp_hwloc_get_nobjs_under_obj(
-        hwloc_get_obj_by_type(tp, HWLOC_OBJ_PACKAGE, 0), HWLOC_OBJ_CORE);
-    __kmp_nThreadsPerCore = __kmp_hwloc_get_nobjs_under_obj(
-        hwloc_get_obj_by_type(tp, HWLOC_OBJ_CORE, 0), HWLOC_OBJ_PU);
+    // hwloc only guarantees existance of PU object, so check PACKAGE and CORE
+    hwloc_obj_t o = hwloc_get_obj_by_type(tp, HWLOC_OBJ_PACKAGE, 0);
+    if (o != NULL)
+      nCoresPerPkg = __kmp_hwloc_get_nobjs_under_obj(o, HWLOC_OBJ_CORE);
+    else
+      nCoresPerPkg = 1; // no PACKAGE found
+    o = hwloc_get_obj_by_type(tp, HWLOC_OBJ_CORE, 0);
+    if (o != NULL)
+      __kmp_nThreadsPerCore = __kmp_hwloc_get_nobjs_under_obj(o, HWLOC_OBJ_PU);
+    else
+      __kmp_nThreadsPerCore = 1; // no CORE found
     __kmp_ncores = __kmp_xproc / __kmp_nThreadsPerCore;
     nPackages = (__kmp_xproc + nCoresPerPkg - 1) / nCoresPerPkg;
     if (__kmp_affinity_verbose) {
@@ -1968,7 +1974,8 @@ static void __kmp_dispatch_set_hierarchy_values() {
   __kmp_hier_max_units[kmp_hier_layer_e::LAYER_THREAD + 1] =
       nPackages * nCoresPerPkg * __kmp_nThreadsPerCore;
   __kmp_hier_max_units[kmp_hier_layer_e::LAYER_L1 + 1] = __kmp_ncores;
-#if KMP_ARCH_X86_64 && (KMP_OS_LINUX || KMP_OS_FREEBSD || KMP_OS_WINDOWS)
+#if KMP_ARCH_X86_64 && (KMP_OS_LINUX || KMP_OS_FREEBSD || KMP_OS_WINDOWS) && \
+    KMP_MIC_SUPPORTED
   if (__kmp_mic_type >= mic3)
     __kmp_hier_max_units[kmp_hier_layer_e::LAYER_L2 + 1] = __kmp_ncores / 2;
   else
@@ -1982,7 +1989,8 @@ static void __kmp_dispatch_set_hierarchy_values() {
   __kmp_hier_threads_per[kmp_hier_layer_e::LAYER_THREAD + 1] = 1;
   __kmp_hier_threads_per[kmp_hier_layer_e::LAYER_L1 + 1] =
       __kmp_nThreadsPerCore;
-#if KMP_ARCH_X86_64 && (KMP_OS_LINUX || KMP_OS_FREEBSD || KMP_OS_WINDOWS)
+#if KMP_ARCH_X86_64 && (KMP_OS_LINUX || KMP_OS_FREEBSD || KMP_OS_WINDOWS) && \
+    KMP_MIC_SUPPORTED
   if (__kmp_mic_type >= mic3)
     __kmp_hier_threads_per[kmp_hier_layer_e::LAYER_L2 + 1] =
         2 * __kmp_nThreadsPerCore;

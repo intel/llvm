@@ -372,9 +372,13 @@ public:
 
   virtual lldb::ProcessSP ConnectProcess(llvm::StringRef connect_url,
                                          llvm::StringRef plugin_name,
-                                         lldb_private::Debugger &debugger,
-                                         lldb_private::Target *target,
-                                         lldb_private::Status &error);
+                                         Debugger &debugger, Target *target,
+                                         Status &error);
+
+  virtual lldb::ProcessSP
+  ConnectProcessSynchronous(llvm::StringRef connect_url,
+                            llvm::StringRef plugin_name, Debugger &debugger,
+                            Stream &stream, Target *target, Status &error);
 
   /// Attach to an existing process using a process ID.
   ///
@@ -848,6 +852,12 @@ public:
   }
 
 protected:
+  /// Private implementation of connecting to a process. If the stream is set
+  /// we connect synchronously.
+  lldb::ProcessSP DoConnectProcess(llvm::StringRef connect_url,
+                                   llvm::StringRef plugin_name,
+                                   Debugger &debugger, Stream *stream,
+                                   Target *target, Status &error);
   bool m_is_host;
   // Set to true when we are able to actually set the OS version while being
   // connected. For remote platforms, we might set the version ahead of time
@@ -928,7 +938,8 @@ private:
 
   FileSpec GetModuleCacheRoot();
 
-  DISALLOW_COPY_AND_ASSIGN(Platform);
+  Platform(const Platform &) = delete;
+  const Platform &operator=(const Platform &) = delete;
 };
 
 class PlatformList {
@@ -995,7 +1006,8 @@ protected:
   lldb::PlatformSP m_selected_platform_sp;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(PlatformList);
+  PlatformList(const PlatformList &) = delete;
+  const PlatformList &operator=(const PlatformList &) = delete;
 };
 
 class OptionGroupPlatformRSync : public lldb_private::OptionGroup {
@@ -1020,7 +1032,9 @@ public:
   bool m_ignores_remote_hostname;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(OptionGroupPlatformRSync);
+  OptionGroupPlatformRSync(const OptionGroupPlatformRSync &) = delete;
+  const OptionGroupPlatformRSync &
+  operator=(const OptionGroupPlatformRSync &) = delete;
 };
 
 class OptionGroupPlatformSSH : public lldb_private::OptionGroup {
@@ -1043,7 +1057,9 @@ public:
   std::string m_ssh_opts;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(OptionGroupPlatformSSH);
+  OptionGroupPlatformSSH(const OptionGroupPlatformSSH &) = delete;
+  const OptionGroupPlatformSSH &
+  operator=(const OptionGroupPlatformSSH &) = delete;
 };
 
 class OptionGroupPlatformCaching : public lldb_private::OptionGroup {
@@ -1065,7 +1081,9 @@ public:
   std::string m_cache_dir;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(OptionGroupPlatformCaching);
+  OptionGroupPlatformCaching(const OptionGroupPlatformCaching &) = delete;
+  const OptionGroupPlatformCaching &
+  operator=(const OptionGroupPlatformCaching &) = delete;
 };
 
 } // namespace lldb_private

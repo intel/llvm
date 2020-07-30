@@ -1368,9 +1368,7 @@ TEST(DWARFDebugInfo, TestEmptyChildren) {
                          "    Children:        DW_CHILDREN_yes\n"
                          "    Attributes:\n"
                          "debug_info:\n"
-                         "  - Length:\n"
-                         "      TotalLength:          0\n"
-                         "    Version:         4\n"
+                         "  - Version:         4\n"
                          "    AbbrOffset:      0\n"
                          "    AddrSize:        8\n"
                          "    Entries:\n"
@@ -1379,7 +1377,7 @@ TEST(DWARFDebugInfo, TestEmptyChildren) {
                          "      - AbbrCode:        0x00000000\n"
                          "        Values:\n";
 
-  auto ErrOrSections = DWARFYAML::EmitDebugSections(StringRef(yamldata), true);
+  auto ErrOrSections = DWARFYAML::emitDebugSections(StringRef(yamldata));
   ASSERT_TRUE((bool)ErrOrSections);
   std::unique_ptr<DWARFContext> DwarfContext =
       DWARFContext::create(*ErrOrSections, 8);
@@ -1902,8 +1900,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidCURef) {
           - Attribute:       DW_AT_type
             Form:            DW_FORM_ref4
     debug_info:
-      - Length:
-          TotalLength:     22
+      - Length:          22
         Version:         4
         AbbrOffset:      0
         AddrSize:        8
@@ -1918,7 +1915,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidCURef) {
           - AbbrCode:        0x00000000
             Values:
   )";
-  auto ErrOrSections = DWARFYAML::EmitDebugSections(StringRef(yamldata));
+  auto ErrOrSections = DWARFYAML::emitDebugSections(StringRef(yamldata));
   ASSERT_TRUE((bool)ErrOrSections);
   std::unique_ptr<DWARFContext> DwarfContext =
       DWARFContext::create(*ErrOrSections, 8);
@@ -1951,8 +1948,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidRefAddr) {
           - Attribute:       DW_AT_type
             Form:            DW_FORM_ref_addr
     debug_info:
-      - Length:
-          TotalLength:     22
+      - Length:          22
         Version:         4
         AbbrOffset:      0
         AddrSize:        8
@@ -1967,7 +1963,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidRefAddr) {
           - AbbrCode:        0x00000000
             Values:
   )";
-  auto ErrOrSections = DWARFYAML::EmitDebugSections(StringRef(yamldata));
+  auto ErrOrSections = DWARFYAML::emitDebugSections(StringRef(yamldata));
   ASSERT_TRUE((bool)ErrOrSections);
   std::unique_ptr<DWARFContext> DwarfContext =
       DWARFContext::create(*ErrOrSections, 8);
@@ -1992,8 +1988,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidRanges) {
           - Attribute:       DW_AT_ranges
             Form:            DW_FORM_sec_offset
     debug_info:
-      - Length:
-          TotalLength:     16
+      - Length:          16
         Version:         4
         AbbrOffset:      0
         AddrSize:        8
@@ -2004,7 +1999,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidRanges) {
               - Value:           0x0000000000001000
 
   )";
-  auto ErrOrSections = DWARFYAML::EmitDebugSections(StringRef(yamldata));
+  auto ErrOrSections = DWARFYAML::emitDebugSections(StringRef(yamldata));
   ASSERT_TRUE((bool)ErrOrSections);
   std::unique_ptr<DWARFContext> DwarfContext =
       DWARFContext::create(*ErrOrSections, 8);
@@ -2030,8 +2025,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidRnglists) {
           - Attribute:       DW_AT_ranges
             Form:            DW_FORM_sec_offset
     debug_info:
-      - Length:
-          TotalLength:     17
+      - Length:          17
         Version:         5
         UnitType:        DW_UT_compile
         AbbrOffset:      0
@@ -2043,7 +2037,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidRnglists) {
               - Value:           0x0000000000001000
 
   )";
-  auto ErrOrSections = DWARFYAML::EmitDebugSections(StringRef(yamldata));
+  auto ErrOrSections = DWARFYAML::emitDebugSections(StringRef(yamldata));
   ASSERT_TRUE((bool)ErrOrSections);
   std::unique_ptr<DWARFContext> DwarfContext =
       DWARFContext::create(*ErrOrSections, 8);
@@ -2068,8 +2062,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidStmtList) {
           - Attribute:       DW_AT_stmt_list
             Form:            DW_FORM_sec_offset
     debug_info:
-      - Length:
-          TotalLength:     16
+      - Length:          16
         Version:         4
         AbbrOffset:      0
         AddrSize:        8
@@ -2080,7 +2073,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidStmtList) {
               - Value:           0x0000000000001000
 
   )";
-  auto ErrOrSections = DWARFYAML::EmitDebugSections(StringRef(yamldata));
+  auto ErrOrSections = DWARFYAML::emitDebugSections(StringRef(yamldata));
   ASSERT_TRUE((bool)ErrOrSections);
   std::unique_ptr<DWARFContext> DwarfContext =
       DWARFContext::create(*ErrOrSections, 8);
@@ -2103,8 +2096,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidStrp) {
           - Attribute:       DW_AT_name
             Form:            DW_FORM_strp
     debug_info:
-      - Length:
-          TotalLength:     12
+      - Length:          12
         Version:         4
         AbbrOffset:      0
         AddrSize:        8
@@ -2113,7 +2105,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidStrp) {
             Values:
               - Value:           0x0000000000001234
   )";
-  auto ErrOrSections = DWARFYAML::EmitDebugSections(StringRef(yamldata));
+  auto ErrOrSections = DWARFYAML::emitDebugSections(StringRef(yamldata));
   ASSERT_TRUE((bool)ErrOrSections);
   std::unique_ptr<DWARFContext> DwarfContext =
       DWARFContext::create(*ErrOrSections, 8);
@@ -2145,8 +2137,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidRefAddrBetween) {
           - Attribute:       DW_AT_type
             Form:            DW_FORM_ref_addr
     debug_info:
-      - Length:
-          TotalLength:     22
+      - Length:          22
         Version:         4
         AbbrOffset:      0
         AddrSize:        8
@@ -2161,7 +2152,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidRefAddrBetween) {
           - AbbrCode:        0x00000000
             Values:
   )";
-  auto ErrOrSections = DWARFYAML::EmitDebugSections(StringRef(yamldata));
+  auto ErrOrSections = DWARFYAML::emitDebugSections(StringRef(yamldata));
   ASSERT_TRUE((bool)ErrOrSections);
   std::unique_ptr<DWARFContext> DwarfContext =
       DWARFContext::create(*ErrOrSections, 8);
@@ -2187,8 +2178,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidLineSequence) {
           - Attribute:       DW_AT_stmt_list
             Form:            DW_FORM_sec_offset
     debug_info:
-      - Length:
-          TotalLength:     16
+      - Length:          16
         Version:         4
         AbbrOffset:      0
         AddrSize:        8
@@ -2198,8 +2188,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidLineSequence) {
               - Value:           0x0000000000000001
               - Value:           0x0000000000000000
     debug_line:
-      - Length:
-          TotalLength:     68
+      - Length:          68
         Version:         2
         PrologueLength:  34
         MinInstLength:   1
@@ -2232,7 +2221,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidLineSequence) {
             SubOpcode:       DW_LNE_end_sequence
             Data:            18446744073709551600
   )";
-  auto ErrOrSections = DWARFYAML::EmitDebugSections(yamldata);
+  auto ErrOrSections = DWARFYAML::emitDebugSections(yamldata);
   ASSERT_TRUE((bool)ErrOrSections);
   std::unique_ptr<DWARFContext> DwarfContext =
       DWARFContext::create(*ErrOrSections, 8);
@@ -2257,8 +2246,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidLineFileIndex) {
           - Attribute:       DW_AT_stmt_list
             Form:            DW_FORM_sec_offset
     debug_info:
-      - Length:
-          TotalLength:     16
+      - Length:          16
         Version:         4
         AbbrOffset:      0
         AddrSize:        8
@@ -2268,8 +2256,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidLineFileIndex) {
               - Value:           0x0000000000000001
               - Value:           0x0000000000000000
     debug_line:
-      - Length:
-          TotalLength:     61
+      - Length:          61
         Version:         2
         PrologueLength:  34
         MinInstLength:   1
@@ -2304,7 +2291,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidLineFileIndex) {
             SubOpcode:       DW_LNE_end_sequence
             Data:            5
   )";
-  auto ErrOrSections = DWARFYAML::EmitDebugSections(yamldata);
+  auto ErrOrSections = DWARFYAML::emitDebugSections(yamldata);
   ASSERT_TRUE((bool)ErrOrSections);
   std::unique_ptr<DWARFContext> DwarfContext =
       DWARFContext::create(*ErrOrSections, 8);
@@ -2329,8 +2316,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidLineTablePorlogueDirIndex) {
           - Attribute:       DW_AT_stmt_list
             Form:            DW_FORM_sec_offset
     debug_info:
-      - Length:
-          TotalLength:     16
+      - Length:          16
         Version:         4
         AbbrOffset:      0
         AddrSize:        8
@@ -2340,8 +2326,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidLineTablePorlogueDirIndex) {
               - Value:           0x0000000000000001
               - Value:           0x0000000000000000
     debug_line:
-      - Length:
-          TotalLength:     61
+      - Length:          61
         Version:         2
         PrologueLength:  34
         MinInstLength:   1
@@ -2376,7 +2361,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidLineTablePorlogueDirIndex) {
             SubOpcode:       DW_LNE_end_sequence
             Data:            1
   )";
-  auto ErrOrSections = DWARFYAML::EmitDebugSections(yamldata);
+  auto ErrOrSections = DWARFYAML::emitDebugSections(yamldata);
   ASSERT_TRUE((bool)ErrOrSections);
   std::unique_ptr<DWARFContext> DwarfContext =
       DWARFContext::create(*ErrOrSections, 8);
@@ -2402,8 +2387,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyDuplicateFileWarning) {
           - Attribute:       DW_AT_stmt_list
             Form:            DW_FORM_sec_offset
     debug_info:
-      - Length:
-          TotalLength:     16
+      - Length:          16
         Version:         4
         AbbrOffset:      0
         AddrSize:        8
@@ -2413,8 +2397,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyDuplicateFileWarning) {
               - Value:           0x0000000000000001
               - Value:           0x0000000000000000
     debug_line:
-      - Length:
-          TotalLength:     71
+      - Length:          71
         Version:         2
         PrologueLength:  44
         MinInstLength:   1
@@ -2453,7 +2436,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyDuplicateFileWarning) {
             SubOpcode:       DW_LNE_end_sequence
             Data:            2
   )";
-  auto ErrOrSections = DWARFYAML::EmitDebugSections(yamldata);
+  auto ErrOrSections = DWARFYAML::emitDebugSections(yamldata);
   ASSERT_TRUE((bool)ErrOrSections);
   std::unique_ptr<DWARFContext> DwarfContext =
       DWARFContext::create(*ErrOrSections, 8);
@@ -2480,8 +2463,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyCUDontShareLineTable) {
           - Attribute:       DW_AT_stmt_list
             Form:            DW_FORM_sec_offset
     debug_info:
-      - Length:
-          TotalLength:     16
+      - Length:          16
         Version:         4
         AbbrOffset:      0
         AddrSize:        8
@@ -2490,8 +2472,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyCUDontShareLineTable) {
             Values:
               - Value:           0x0000000000000001
               - Value:           0x0000000000000000
-      - Length:
-          TotalLength:     16
+      - Length:          16
         Version:         4
         AbbrOffset:      0
         AddrSize:        8
@@ -2501,8 +2482,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyCUDontShareLineTable) {
               - Value:           0x000000000000000D
               - Value:           0x0000000000000000
     debug_line:
-      - Length:
-          TotalLength:     60
+      - Length:          60
         Version:         2
         PrologueLength:  34
         MinInstLength:   1
@@ -2535,7 +2515,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyCUDontShareLineTable) {
             SubOpcode:       DW_LNE_end_sequence
             Data:            256
   )";
-  auto ErrOrSections = DWARFYAML::EmitDebugSections(yamldata);
+  auto ErrOrSections = DWARFYAML::emitDebugSections(yamldata);
   ASSERT_TRUE((bool)ErrOrSections);
   std::unique_ptr<DWARFContext> DwarfContext =
       DWARFContext::create(*ErrOrSections, 8);
@@ -2608,8 +2588,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyCURangesIncomplete) {
           - Attribute:       DW_AT_high_pc
             Form:            DW_FORM_addr
     debug_info:
-      - Length:
-          TotalLength:     46
+      - Length:          46
         Version:         4
         AbbrOffset:      0
         AddrSize:        8
@@ -2626,7 +2605,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyCURangesIncomplete) {
           - AbbrCode:        0x00000000
             Values:
   )";
-  auto ErrOrSections = DWARFYAML::EmitDebugSections(yamldata);
+  auto ErrOrSections = DWARFYAML::emitDebugSections(yamldata);
   ASSERT_TRUE((bool)ErrOrSections);
   std::unique_ptr<DWARFContext> DwarfContext =
       DWARFContext::create(*ErrOrSections, 8);
@@ -2668,8 +2647,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyLexicalBlockRanges) {
           - Attribute:       DW_AT_high_pc
             Form:            DW_FORM_addr
     debug_info:
-      - Length:
-          TotalLength:     52
+      - Length:          52
         Version:         4
         AbbrOffset:      0
         AddrSize:        8
@@ -2691,7 +2669,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyLexicalBlockRanges) {
           - AbbrCode:        0x00000000
             Values:
   )";
-  auto ErrOrSections = DWARFYAML::EmitDebugSections(yamldata);
+  auto ErrOrSections = DWARFYAML::emitDebugSections(yamldata);
   ASSERT_TRUE((bool)ErrOrSections);
   std::unique_ptr<DWARFContext> DwarfContext =
       DWARFContext::create(*ErrOrSections, 8);
@@ -2726,8 +2704,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyOverlappingFunctionRanges) {
           - Attribute:       DW_AT_high_pc
             Form:            DW_FORM_addr
     debug_info:
-      - Length:
-          TotalLength:     55
+      - Length:          55
         Version:         4
         AbbrOffset:      0
         AddrSize:        8
@@ -2748,7 +2725,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyOverlappingFunctionRanges) {
           - AbbrCode:        0x00000000
             Values:
   )";
-  auto ErrOrSections = DWARFYAML::EmitDebugSections(yamldata);
+  auto ErrOrSections = DWARFYAML::emitDebugSections(yamldata);
   ASSERT_TRUE((bool)ErrOrSections);
   std::unique_ptr<DWARFContext> DwarfContext =
       DWARFContext::create(*ErrOrSections, 8);
@@ -2793,8 +2770,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyOverlappingLexicalBlockRanges) {
           - Attribute:       DW_AT_high_pc
             Form:            DW_FORM_addr
     debug_info:
-      - Length:
-          TotalLength:     85
+      - Length:          85
         Version:         4
         AbbrOffset:      0
         AddrSize:        8
@@ -2822,7 +2798,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyOverlappingLexicalBlockRanges) {
           - AbbrCode:        0x00000000
             Values:
   )";
-  auto ErrOrSections = DWARFYAML::EmitDebugSections(yamldata);
+  auto ErrOrSections = DWARFYAML::emitDebugSections(yamldata);
   ASSERT_TRUE((bool)ErrOrSections);
   std::unique_ptr<DWARFContext> DwarfContext =
       DWARFContext::create(*ErrOrSections, 8);
@@ -2855,8 +2831,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidDIERange) {
           - Attribute:       DW_AT_high_pc
             Form:            DW_FORM_addr
     debug_info:
-      - Length:
-          TotalLength:     34
+      - Length:          34
         Version:         4
         AbbrOffset:      0
         AddrSize:        8
@@ -2872,7 +2847,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyInvalidDIERange) {
           - AbbrCode:        0x00000000
             Values:
   )";
-  auto ErrOrSections = DWARFYAML::EmitDebugSections(yamldata);
+  auto ErrOrSections = DWARFYAML::emitDebugSections(yamldata);
   ASSERT_TRUE((bool)ErrOrSections);
   std::unique_ptr<DWARFContext> DwarfContext =
       DWARFContext::create(*ErrOrSections, 8);
@@ -2912,8 +2887,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyElidedDoesntFail) {
           - Attribute:       DW_AT_high_pc
             Form:            DW_FORM_addr
     debug_info:
-      - Length:
-          TotalLength:     71
+      - Length:          71
         Version:         4
         AbbrOffset:      0
         AddrSize:        8
@@ -2936,7 +2910,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyElidedDoesntFail) {
           - AbbrCode:        0x00000000
             Values:
   )";
-  auto ErrOrSections = DWARFYAML::EmitDebugSections(yamldata);
+  auto ErrOrSections = DWARFYAML::emitDebugSections(yamldata);
   ASSERT_TRUE((bool)ErrOrSections);
   std::unique_ptr<DWARFContext> DwarfContext =
       DWARFContext::create(*ErrOrSections, 8);
@@ -2975,8 +2949,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyNestedFunctions) {
           - Attribute:       DW_AT_high_pc
             Form:            DW_FORM_addr
     debug_info:
-      - Length:
-          TotalLength:     73
+      - Length:          73
         Version:         4
         AbbrOffset:      0
         AddrSize:        8
@@ -3003,7 +2976,7 @@ TEST(DWARFDebugInfo, TestDwarfVerifyNestedFunctions) {
           - AbbrCode:        0x00000000
             Values:
   )";
-  auto ErrOrSections = DWARFYAML::EmitDebugSections(yamldata);
+  auto ErrOrSections = DWARFYAML::emitDebugSections(yamldata);
   ASSERT_TRUE((bool)ErrOrSections);
   std::unique_ptr<DWARFContext> DwarfContext =
       DWARFContext::create(*ErrOrSections, 8);

@@ -45,6 +45,7 @@
 #include "lldb/Target/Process.h"
 #include "lldb/Target/SectionLoadList.h"
 #include "lldb/Target/StackFrame.h"
+#include "lldb/Target/StackFrameRecognizer.h"
 #include "lldb/Target/SystemRuntime.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/ThreadSpec.h"
@@ -94,6 +95,8 @@ Target::Target(Debugger &debugger, const ArchSpec &target_arch,
       m_source_manager_up(), m_stop_hooks(), m_stop_hook_next_id(0),
       m_valid(true), m_suppress_stop_hooks(false),
       m_is_dummy_target(is_dummy_target),
+      m_frame_recognizer_manager_up(
+          std::make_unique<StackFrameRecognizerManager>()),
       m_stats_storage(static_cast<int>(StatisticKind::StatisticMax))
 
 {
@@ -143,6 +146,9 @@ void Target::PrimeFromDummyTarget(Target *target) {
     BreakpointName *new_bp_name = new BreakpointName(*bp_name_entry.second);
     AddBreakpointName(new_bp_name);
   }
+
+  m_frame_recognizer_manager_up = std::make_unique<StackFrameRecognizerManager>(
+      *target->m_frame_recognizer_manager_up);
 }
 
 void Target::Dump(Stream *s, lldb::DescriptionLevel description_level) {
@@ -2458,7 +2464,7 @@ lldb::addr_t Target::GetBreakableLoadAddress(lldb::addr_t addr) {
 
 SourceManager &Target::GetSourceManager() {
   if (!m_source_manager_up)
-    m_source_manager_up.reset(new SourceManager(shared_from_this()));
+    m_source_manager_up = std::make_unique<SourceManager>(shared_from_this());
   return *m_source_manager_up;
 }
 
@@ -2556,7 +2562,7 @@ void Target::RunStopHooks() {
   if (!any_active_hooks)
     return;
 
-  CommandReturnObject result;
+  CommandReturnObject result(m_debugger.GetUseColor());
 
   std::vector<ExecutionContext> exc_ctx_with_reasons;
   std::vector<SymbolContext> sym_ctx_with_reasons;
@@ -3137,7 +3143,7 @@ Target::StopHook::StopHook(const StopHook &rhs)
       m_thread_spec_up(), m_active(rhs.m_active),
       m_auto_continue(rhs.m_auto_continue) {
   if (rhs.m_thread_spec_up)
-    m_thread_spec_up.reset(new ThreadSpec(*rhs.m_thread_spec_up));
+    m_thread_spec_up = std::make_unique<ThreadSpec>(*rhs.m_thread_spec_up);
 }
 
 Target::StopHook::~StopHook() = default;
@@ -3427,7 +3433,8 @@ TargetProperties::TargetProperties(Target *target)
     m_collection_sp->SetValueChangedCallback(
         ePropertyDisableSTDIO, [this] { DisableSTDIOValueChangedCallback(); });
 
-    m_experimental_properties_up.reset(new TargetExperimentalProperties());
+    m_experimental_properties_up =
+        std::make_unique<TargetExperimentalProperties>();
     m_collection_sp->AppendProperty(
         ConstString(Properties::GetExperimentalSettingsName()),
         ConstString("Experimental settings - setting these won't produce "
@@ -3437,7 +3444,8 @@ TargetProperties::TargetProperties(Target *target)
     m_collection_sp =
         std::make_shared<TargetOptionValueProperties>(ConstString("target"));
     m_collection_sp->Initialize(g_target_properties);
-    m_experimental_properties_up.reset(new TargetExperimentalProperties());
+    m_experimental_properties_up =
+        std::make_unique<TargetExperimentalProperties>();
     m_collection_sp->AppendProperty(
         ConstString(Properties::GetExperimentalSettingsName()),
         ConstString("Experimental settings - setting these won't produce "

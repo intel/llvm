@@ -18,14 +18,20 @@
 #include "ClangTidyDiagnosticConsumer.h"
 #include "ClangTidyOptions.h"
 #include "GlobList.h"
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTDiagnostic.h"
 #include "clang/AST/Attr.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticOptions.h"
+#include "clang/Basic/FileManager.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Frontend/DiagnosticRenderer.h"
 #include "clang/Tooling/Core/Diagnostic.h"
+#include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringMap.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Regex.h"
 #include <tuple>
 #include <vector>
@@ -634,6 +640,8 @@ void ClangTidyDiagnosticConsumer::removeIncompatibleErrors() {
     std::tuple<unsigned, EventType, int, int, unsigned> Priority;
   };
 
+  removeDuplicatedDiagnosticsOfAliasCheckers();
+
   // Compute error sizes.
   std::vector<int> Sizes;
   std::vector<
@@ -727,4 +735,60 @@ std::vector<ClangTidyError> ClangTidyDiagnosticConsumer::take() {
   if (RemoveIncompatibleErrors)
     removeIncompatibleErrors();
   return std::move(Errors);
+}
+
+namespace {
+struct LessClangTidyErrorWithoutDiagnosticName {
+  bool operator()(const ClangTidyError *LHS, const ClangTidyError *RHS) const {
+    const tooling::DiagnosticMessage &M1 = LHS->Message;
+    const tooling::DiagnosticMessage &M2 = RHS->Message;
+
+    return std::tie(M1.FilePath, M1.FileOffset, M1.Message) <
+           std::tie(M2.FilePath, M2.FileOffset, M2.Message);
+  }
+};
+} // end anonymous namespace
+
+void ClangTidyDiagnosticConsumer::removeDuplicatedDiagnosticsOfAliasCheckers() {
+  using UniqueErrorSet =
+      std::set<ClangTidyError *, LessClangTidyErrorWithoutDiagnosticName>;
+  UniqueErrorSet UniqueErrors;
+
+  auto IT = Errors.begin();
+  while (IT != Errors.end()) {
+    ClangTidyError &Error = *IT;
+    std::pair<UniqueErrorSet::iterator, bool> Inserted =
+        UniqueErrors.insert(&Error);
+
+    // Unique error, we keep it and move along.
+    if (Inserted.second) {
+      ++IT;
+    } else {
+      ClangTidyError &ExistingError = **Inserted.first;
+      const llvm::StringMap<tooling::Replacements> &CandidateFix =
+          Error.Message.Fix;
+      const llvm::StringMap<tooling::Replacements> &ExistingFix =
+          (*Inserted.first)->Message.Fix;
+
+      if (CandidateFix != ExistingFix) {
+
+        // In case of a conflict, don't suggest any fix-it.
+        ExistingError.Message.Fix.clear();
+        ExistingError.Notes.emplace_back(
+            llvm::formatv("cannot apply fix-it because an alias checker has "
+                          "suggested a different fix-it; please remove one of "
+                          "the checkers ('{0}', '{1}') or "
+                          "ensure they are both configured the same",
+                          ExistingError.DiagnosticName, Error.DiagnosticName)
+                .str());
+      }
+
+      if (Error.IsWarningAsError)
+        ExistingError.IsWarningAsError = true;
+
+      // Since it is the same error, we should take it as alias and remove it.
+      ExistingError.EnabledDiagnosticAliases.emplace_back(Error.DiagnosticName);
+      IT = Errors.erase(IT);
+    }
+  }
 }

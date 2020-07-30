@@ -27,6 +27,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/MapVector.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -61,6 +62,7 @@ class CXXRecordDecl;
 class CXXTemporary;
 class FileEntry;
 class FPOptions;
+class FPOptionsOverride;
 class FunctionDecl;
 class HeaderSearch;
 class HeaderSearchOptions;
@@ -137,6 +139,12 @@ private:
   /// The module we're currently writing, if any.
   Module *WritingModule = nullptr;
 
+  /// The offset of the first bit inside the AST_BLOCK.
+  uint64_t ASTBlockStartOffset = 0;
+
+  /// The range representing all the AST_BLOCK.
+  std::pair<uint64_t, uint64_t> ASTBlockRange;
+
   /// The base directory for any relative paths we emit.
   std::string BaseDirectory;
 
@@ -205,6 +213,10 @@ private:
   /// Offset of each declaration in the bitstream, indexed by
   /// the declaration's ID.
   std::vector<serialization::DeclOffset> DeclOffsets;
+
+  /// The offset of the DECLTYPES_BLOCK. The offsets in DeclOffsets
+  /// are relative to this value.
+  uint64_t DeclTypesBlockStartOffset = 0;
 
   /// Sorted (by file offset) vector of pairs of file offset/DeclID.
   using LocDeclIDsTy =
@@ -441,7 +453,7 @@ private:
 
   /// A list of the module file extension writers.
   std::vector<std::unique_ptr<ModuleFileExtensionWriter>>
-    ModuleFileExtensionWriters;
+      ModuleFileExtensionWriters;
 
   /// Retrieve or create a submodule ID for this module.
   unsigned getSubmoduleID(Module *Mod);
@@ -458,7 +470,8 @@ private:
                                              ASTContext &Context);
 
   /// Calculate hash of the pcm content.
-  static ASTFileSignature createSignature(StringRef Bytes);
+  static std::pair<ASTFileSignature, ASTFileSignature>
+  createSignature(StringRef AllBytes, StringRef ASTBlockBytes);
 
   void WriteInputFiles(SourceManager &SourceMgr, HeaderSearchOptions &HSOpts,
                        bool Modules);
@@ -494,7 +507,7 @@ private:
                             bool IsModule);
   void WriteDeclUpdatesBlocks(RecordDataImpl &OffsetsRecord);
   void WriteDeclContextVisibleUpdate(const DeclContext *DC);
-  void WriteFPPragmaOptions(const FPOptions &Opts);
+  void WriteFPPragmaOptions(const FPOptionsOverride &Opts);
   void WriteOpenCLExtensions(Sema &SemaRef);
   void WriteOpenCLExtensionTypes(Sema &SemaRef);
   void WriteOpenCLExtensionDecls(Sema &SemaRef);

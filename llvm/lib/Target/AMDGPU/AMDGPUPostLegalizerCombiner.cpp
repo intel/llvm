@@ -137,9 +137,11 @@ static bool matchUCharToFloat(MachineInstr &MI, MachineRegisterInfo &MRI,
   // about in practice.
   LLT Ty = MRI.getType(DstReg);
   if (Ty == LLT::scalar(32) || Ty == LLT::scalar(16)) {
-    const APInt Mask = APInt::getHighBitsSet(32, 24);
-    return Helper.getKnownBits()->maskedValueIsZero(MI.getOperand(1).getReg(),
-                                                    Mask);
+    Register SrcReg = MI.getOperand(1).getReg();
+    unsigned SrcSize = MRI.getType(SrcReg).getSizeInBits();
+    assert(SrcSize == 16 || SrcSize == 32 || SrcSize == 64);
+    const APInt Mask = APInt::getHighBitsSet(SrcSize, SrcSize - 8);
+    return Helper.getKnownBits()->maskedValueIsZero(SrcReg, Mask);
   }
 
   return false;
@@ -151,14 +153,18 @@ static void applyUCharToFloat(MachineInstr &MI) {
   const LLT S32 = LLT::scalar(32);
 
   Register DstReg = MI.getOperand(0).getReg();
+  Register SrcReg = MI.getOperand(1).getReg();
   LLT Ty = B.getMRI()->getType(DstReg);
+  LLT SrcTy = B.getMRI()->getType(SrcReg);
+  if (SrcTy != S32)
+    SrcReg = B.buildAnyExtOrTrunc(S32, SrcReg).getReg(0);
 
   if (Ty == S32) {
     B.buildInstr(AMDGPU::G_AMDGPU_CVT_F32_UBYTE0, {DstReg},
-                   {MI.getOperand(1)}, MI.getFlags());
+                   {SrcReg}, MI.getFlags());
   } else {
     auto Cvt0 = B.buildInstr(AMDGPU::G_AMDGPU_CVT_F32_UBYTE0, {S32},
-                             {MI.getOperand(1)}, MI.getFlags());
+                             {SrcReg}, MI.getFlags());
     B.buildFPTrunc(DstReg, Cvt0, MI.getFlags());
   }
 
@@ -233,7 +239,7 @@ class AMDGPUPostLegalizerCombinerInfo : public CombinerInfo {
   MachineDominatorTree *MDT;
 
 public:
-  AMDGPUGenPostLegalizerCombinerHelper Generated;
+  AMDGPUGenPostLegalizerCombinerHelperRuleConfig GeneratedRuleCfg;
 
   AMDGPUPostLegalizerCombinerInfo(bool EnableOpt, bool OptSize, bool MinSize,
                                   const AMDGPULegalizerInfo *LI,
@@ -241,7 +247,7 @@ public:
       : CombinerInfo(/*AllowIllegalOps*/ false, /*ShouldLegalizeIllegal*/ true,
                      /*LegalizerInfo*/ LI, EnableOpt, OptSize, MinSize),
         KB(KB), MDT(MDT) {
-    if (!Generated.parseCommandLineOption())
+    if (!GeneratedRuleCfg.parseCommandLineOption())
       report_fatal_error("Invalid rule identifier");
   }
 
@@ -253,6 +259,7 @@ bool AMDGPUPostLegalizerCombinerInfo::combine(GISelChangeObserver &Observer,
                                               MachineInstr &MI,
                                               MachineIRBuilder &B) const {
   CombinerHelper Helper(Observer, B, KB, MDT);
+  AMDGPUGenPostLegalizerCombinerHelper Generated(GeneratedRuleCfg);
 
   if (Generated.tryCombineAll(Observer, MI, B, Helper))
     return true;

@@ -130,7 +130,6 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::UnresolvedLookupExprClass:
   case Expr::UnresolvedMemberExprClass:
   case Expr::TypoExprClass:
-  case Expr::RecoveryExprClass:
   case Expr::DependentCoawaitExprClass:
   case Expr::CXXDependentScopeMemberExprClass:
   case Expr::DependentScopeDeclRefExprClass:
@@ -224,6 +223,10 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
     }
     return Cl::CL_LValue;
 
+  // Subscripting matrix types behaves like member accesses.
+  case Expr::MatrixSubscriptExprClass:
+    return ClassifyInternal(Ctx, cast<MatrixSubscriptExpr>(E)->getBase());
+
     // C++ [expr.prim.general]p3: The result is an lvalue if the entity is a
     //   function or variable and a prvalue otherwise.
   case Expr::DeclRefExprClass:
@@ -272,6 +275,7 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
       return Cl::CL_PRValue;
     }
 
+  case Expr::RecoveryExprClass:
   case Expr::OpaqueValueExprClass:
     return ClassifyExprValueKind(Lang, E, E->getValueKind());
 

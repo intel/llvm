@@ -20,7 +20,7 @@
  * THE SOFTWARE.
  */
 
-#include "../../lib/math/math.h"
+#include <math/math.h>
 
 /*
    Algorithm:
@@ -316,7 +316,7 @@ __spirv_ocl_log(double x)
   double ret = is_near ? ret_near : ret_far;
 
   ret = __spirv_IsInf(x) ? as_double(PINFBITPATT_DP64) : ret;
-  ret = __spirv_IsNan(x) | (x < 0.0) ? as_double(QNANBITPATT_DP64) : ret;
+  ret = __spirv_IsNan(x) || (x < 0.0) ? as_double(QNANBITPATT_DP64) : ret;
   ret = x == 0.0 ? as_double(NINFBITPATT_DP64) : ret;
   return ret;
 }

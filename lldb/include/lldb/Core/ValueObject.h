@@ -963,9 +963,14 @@ protected:
 
   void SetPreferredDisplayLanguageIfNeeded(lldb::LanguageType);
 
+protected:
+  virtual void DoUpdateChildrenAddressType(ValueObject &valobj) { return; };
+
 private:
   virtual CompilerType MaybeCalculateCompleteType();
-  void UpdateChildrenAddressType();
+  void UpdateChildrenAddressType() {
+    GetRoot()->DoUpdateChildrenAddressType(*this);
+  }
 
   lldb::ValueObjectSP GetValueForExpressionPath_Impl(
       llvm::StringRef expression_cstr,
@@ -974,7 +979,8 @@ private:
       const GetValueForExpressionPathOptions &options,
       ExpressionPathAftermath *final_task_on_target);
 
-  DISALLOW_COPY_AND_ASSIGN(ValueObject);
+  ValueObject(const ValueObject &) = delete;
+  const ValueObject &operator=(const ValueObject &) = delete;
 };
 
 // A value object manager class that is seeded with the static variable value

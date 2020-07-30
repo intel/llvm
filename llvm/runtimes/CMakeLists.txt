@@ -7,7 +7,7 @@
 # Setting CMake minimum required version should be at the very top of the file
 # if this is the entry point.
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-  cmake_minimum_required(VERSION 3.4.3)
+  cmake_minimum_required(VERSION 3.13.4)
   project(Runtimes C CXX ASM)
 endif()
 
@@ -56,7 +56,7 @@ if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_SOURCE_DIR})
     set_property(GLOBAL APPEND PROPERTY SUB_COMPONENTS ${name})
   endfunction()
 
-  cmake_minimum_required(VERSION 3.4.3)
+  cmake_minimum_required(VERSION 3.13.4)
   project(Runtimes C CXX ASM)
 
   find_package(LLVM PATHS "${LLVM_BINARY_DIR}" NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
@@ -222,6 +222,8 @@ else() # if this is included from LLVM's CMake
   if (LLVM_EXTERNAL_LIBCXX_SOURCE_DIR AND "libcxx" IN_LIST LLVM_ENABLE_RUNTIMES)
     # This looks wrong, but libcxx's build actually wants the header dir to be
     # the root build dir, not the include directory.
+    set(LIBCXX_BINARY_DIR ${LLVM_BINARY_DIR})
+    set(LIBCXX_SOURCE_DIR ${LLVM_EXTERNAL_LIBCXX_SOURCE_DIR})
     set(LIBCXX_HEADER_DIR ${LLVM_BINARY_DIR})
     set(CXX_HEADER_TARGET runtime-libcxx-headers)
     add_subdirectory(${LLVM_EXTERNAL_LIBCXX_SOURCE_DIR}/include ${CXX_HEADER_TARGET})
@@ -245,6 +247,7 @@ else() # if this is included from LLVM's CMake
                                         -DCMAKE_ASM_COMPILER_TARGET=${TARGET_TRIPLE}
                                         -DCMAKE_C_COMPILER_WORKS=ON
                                         -DCMAKE_ASM_COMPILER_WORKS=ON
+                                        ${BUILTINS_CMAKE_ARGS}
                              PASSTHROUGH_PREFIXES COMPILER_RT
                              USE_TOOLCHAIN
                              ${EXTRA_ARGS})
@@ -395,6 +398,7 @@ else() # if this is included from LLVM's CMake
                                         -DCMAKE_C_COMPILER_WORKS=ON
                                         -DCMAKE_CXX_COMPILER_WORKS=ON
                                         -DCMAKE_ASM_COMPILER_WORKS=ON
+                                        ${RUNTIMES_CMAKE_ARGS}
                              PASSTHROUGH_PREFIXES LLVM_ENABLE_RUNTIMES
                                                   ${ARG_PREFIXES}
                              EXTRA_TARGETS ${extra_targets}
@@ -409,7 +413,7 @@ else() # if this is included from LLVM's CMake
   # runtime_register_target(target)
   #   Utility function to register external runtime target.
   function(runtime_register_target name target)
-    cmake_parse_arguments(ARG "" "" "DEPENDS" ${ARGN})
+    cmake_parse_arguments(ARG "" "" "DEPENDS;CMAKE_ARGS" ${ARGN})
     include(${LLVM_BINARY_DIR}/runtimes/${name}/Components.cmake OPTIONAL)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${LLVM_BINARY_DIR}/runtimes/${name}/Components.cmake)
 
@@ -453,6 +457,7 @@ else() # if this is included from LLVM's CMake
       set(test_targets "${test_targets}" PARENT_SCOPE)
     endif()
 
+    set(${name}_extra_args ${ARG_CMAKE_ARGS})
     get_cmake_property(variableNames VARIABLES)
     foreach(variableName ${variableNames})
       string(FIND "${variableName}" "RUNTIMES_${target}_" out)
@@ -462,14 +467,16 @@ else() # if this is included from LLVM's CMake
         list(APPEND ${name}_extra_args "-D${new_name}=${new_value}")
       endif()
     endforeach()
-    foreach(variableName ${variableNames})
-      string(FIND "${variableName}" "RUNTIMES_${name}_" out)
-      if("${out}" EQUAL 0)
-        string(REPLACE "RUNTIMES_${name}_" "" new_name ${variableName})
-        string(REPLACE ";" "|" new_value "${${variableName}}")
-        list(APPEND ${name}_extra_args "-D${new_name}=${new_value}")
-      endif()
-    endforeach()
+    if(NOT "${name}" STREQUAL "${target}")
+      foreach(variableName ${variableNames})
+        string(FIND "${variableName}" "RUNTIMES_${name}_" out)
+        if("${out}" EQUAL 0)
+          string(REPLACE "RUNTIMES_${name}_" "" new_name ${variableName})
+          string(REPLACE ";" "|" new_value "${${variableName}}")
+          list(APPEND ${name}_extra_args "-D${new_name}=${new_value}")
+        endif()
+      endforeach()
+    endif()
 
     if(NOT RUNTIMES_${name}_LLVM_ENABLE_RUNTIMES AND NOT RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES)
       string(REPLACE ";" "|" LLVM_ENABLE_RUNTIMES_PASSTHROUGH "${LLVM_ENABLE_RUNTIMES}")

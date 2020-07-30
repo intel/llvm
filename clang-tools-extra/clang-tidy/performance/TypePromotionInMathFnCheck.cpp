@@ -32,7 +32,6 @@ TypePromotionInMathFnCheck::TypePromotionInMathFnCheck(
     StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
       IncludeStyle(Options.getLocalOrGlobal("IncludeStyle",
-                                            utils::IncludeSorter::getMapping(),
                                             utils::IncludeSorter::IS_LLVM)) {}
 
 void TypePromotionInMathFnCheck::registerPPCallbacks(
@@ -44,8 +43,7 @@ void TypePromotionInMathFnCheck::registerPPCallbacks(
 
 void TypePromotionInMathFnCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "IncludeStyle", IncludeStyle,
-                utils::IncludeSorter::getMapping());
+  Options.store(Opts, "IncludeStyle", IncludeStyle);
 }
 
 void TypePromotionInMathFnCheck::registerMatchers(MatchFinder *Finder) {
@@ -193,10 +191,9 @@ void TypePromotionInMathFnCheck::check(const MatchFinder::MatchResult &Result) {
   // <math.h>, because the functions we're suggesting moving away from are all
   // declared in <math.h>.
   if (FnInCmath)
-    if (auto IncludeFixit = IncludeInserter->CreateIncludeInsertion(
-            Result.Context->getSourceManager().getFileID(Call->getBeginLoc()),
-            "cmath", /*IsAngled=*/true))
-      Diag << *IncludeFixit;
+    Diag << IncludeInserter->CreateIncludeInsertion(
+        Result.Context->getSourceManager().getFileID(Call->getBeginLoc()),
+        "cmath", /*IsAngled=*/true);
 }
 
 } // namespace performance

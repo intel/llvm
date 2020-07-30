@@ -73,10 +73,10 @@ const auto isMoveOnly = [] {
 };
 
 template <class T> struct NodeID;
-template <> struct NodeID<Expr> { static const std::string value; };
-template <> struct NodeID<Decl> { static const std::string value; };
-const std::string NodeID<Expr>::value = "expr";
-const std::string NodeID<Decl>::value = "decl";
+template <> struct NodeID<Expr> { static constexpr StringRef value = "expr"; };
+template <> struct NodeID<Decl> { static constexpr StringRef value = "decl"; };
+constexpr StringRef NodeID<Expr>::value;
+constexpr StringRef NodeID<Decl>::value;
 
 template <class T, class F = const Stmt *(ExprMutationAnalyzer::*)(const T *)>
 const Stmt *tryEachMatch(ArrayRef<ast_matchers::BoundNodes> Matches,
@@ -201,14 +201,15 @@ const Stmt *ExprMutationAnalyzer::findDeclPointeeMutation(
 
 const Stmt *ExprMutationAnalyzer::findDirectMutation(const Expr *Exp) {
   // LHS of any assignment operators.
-  const auto AsAssignmentLhs =
-      binaryOperator(isAssignmentOperator(),
-                     hasLHS(maybeEvalCommaExpr(equalsNode(Exp))));
+  const auto AsAssignmentLhs = binaryOperator(
+      isAssignmentOperator(),
+      hasLHS(maybeEvalCommaExpr(ignoringParenImpCasts(equalsNode(Exp)))));
 
   // Operand of increment/decrement operators.
   const auto AsIncDecOperand =
       unaryOperator(anyOf(hasOperatorName("++"), hasOperatorName("--")),
-                    hasUnaryOperand(maybeEvalCommaExpr(equalsNode(Exp))));
+                    hasUnaryOperand(maybeEvalCommaExpr(
+                        ignoringParenImpCasts(equalsNode(Exp)))));
 
   // Invoking non-const member function.
   // A member function is assumed to be non-const when it is unresolved.

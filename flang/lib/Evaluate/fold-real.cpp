@@ -37,9 +37,12 @@ Expr<Type<TypeCategory::Real, KIND>> FoldIntrinsicFunction(
       context.messages().Say(
           "%s(real(kind=%d)) cannot be folded on host"_en_US, name, KIND);
     }
+  } else if (name == "amax0" || name == "amin0" || name == "amin1" ||
+      name == "amax1" || name == "dmin1" || name == "dmax1") {
+    return RewriteSpecificMINorMAX(context, std::move(funcRef));
   } else if (name == "atan" || name == "atan2" || name == "hypot" ||
       name == "mod") {
-    std::string localName{name == "atan2" ? "atan" : name};
+    std::string localName{name == "atan" ? "atan2" : name};
     CHECK(args.size() == 2);
     if (auto callable{
             context.hostIntrinsicsLibrary()

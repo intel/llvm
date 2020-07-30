@@ -433,6 +433,17 @@ public:
   ProfileSummaryInfo *getPSI() const { return PSI; }
   BlockFrequencyInfo *getBFI() const { return BFI; }
 
+  /// Just dump dot graph to a user-provided path and title.
+  /// This doesn't open the dot viewer program and
+  /// helps visualization when outside debugging session.
+  /// FileName expects absolute path. If provided
+  /// without any path separators then the file
+  /// will be created in the current directory.
+  /// Error will be emitted if the path is insane.
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  LLVM_DUMP_METHOD void dumpDotGraph(const Twine &FileName, const Twine &Title);
+#endif
+
   /// Pop up a GraphViz/gv window with the DAG rendered using 'dot'.
   void viewGraph(const std::string &Title);
   void viewGraph();
@@ -920,7 +931,8 @@ public:
   SDValue getVScale(const SDLoc &DL, EVT VT, APInt MulImm) {
     assert(MulImm.getMinSignedBits() <= VT.getSizeInBits() &&
            "Immediate does not fit VT");
-    return getNode(ISD::VSCALE, DL, VT, getConstant(MulImm, DL, VT));
+    return getNode(ISD::VSCALE, DL, VT,
+                   getConstant(MulImm.sextOrTrunc(VT.getSizeInBits()), DL, VT));
   }
 
   /// Return a GLOBAL_OFFSET_TABLE node. This does not have a useful SDLoc.
@@ -1331,6 +1343,9 @@ public:
   /// Return a freeze using the SDLoc of the value operand.
   SDValue getFreeze(SDValue V);
 
+  /// Return an AssertAlignSDNode.
+  SDValue getAssertAlign(const SDLoc &DL, SDValue V, Align A);
+
   /// Return the specified value casted to
   /// the target's desired shift amount type.
   SDValue getShiftAmountOperand(EVT LHSTy, SDValue Op);
@@ -1596,6 +1611,12 @@ public:
   void salvageDebugInfo(SDNode &N);
 
   void dump() const;
+
+  /// In most cases this function returns the ABI alignment for a given type,
+  /// except for illegal vector types where the alignment exceeds that of the
+  /// stack. In such cases we attempt to break the vector down to a legal type
+  /// and return the ABI alignment for that instead.
+  Align getReducedAlign(EVT VT, bool UseABI);
 
   /// Create a stack temporary based on the size in bytes and the alignment
   SDValue CreateStackTemporary(TypeSize Bytes, Align Alignment);

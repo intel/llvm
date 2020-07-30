@@ -21,13 +21,20 @@ add_clang_library(clangTidyMiscModule
   UnusedUsingDeclsCheck.cpp
 
   LINK_LIBS
+  clangTidy
+  clangTidyUtils
+
+  DEPENDS
+  omp_gen
+  )
+
+clang_target_link_libraries(clangTidyMiscModule
+  PRIVATE
   clangAnalysis
   clangAST
   clangASTMatchers
   clangBasic
   clangLex
   clangSerialization
-  clangTidy
-  clangTidyUtils
   clangTooling
   )

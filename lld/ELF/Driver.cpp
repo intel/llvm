@@ -330,8 +330,6 @@ static void checkOptions() {
   if (config->relocatable) {
     if (config->shared)
       error("-r and -shared may not be used together");
-    if (config->gcSections)
-      error("-r and --gc-sections may not be used together");
     if (config->gdbIndex)
       error("-r and --gdb-index may not be used together");
     if (config->icf != ICFLevel::None)
@@ -411,6 +409,24 @@ static GnuStackKind getZGnuStack(opt::InputArgList &args) {
   return GnuStackKind::NoExec;
 }
 
+static uint8_t getZStartStopVisibility(opt::InputArgList &args) {
+  for (auto *arg : args.filtered_reverse(OPT_z)) {
+    std::pair<StringRef, StringRef> kv = StringRef(arg->getValue()).split('=');
+    if (kv.first == "start-stop-visibility") {
+      if (kv.second == "default")
+        return STV_DEFAULT;
+      else if (kv.second == "internal")
+        return STV_INTERNAL;
+      else if (kv.second == "hidden")
+        return STV_HIDDEN;
+      else if (kv.second == "protected")
+        return STV_PROTECTED;
+      error("unknown -z start-stop-visibility= value: " + StringRef(kv.second));
+    }
+  }
+  return STV_PROTECTED;
+}
+
 static bool isKnownZFlag(StringRef s) {
   return s == "combreloc" || s == "copyreloc" || s == "defs" ||
          s == "execstack" || s == "force-bti" || s == "force-ibt" ||
@@ -426,7 +442,9 @@ static bool isKnownZFlag(StringRef s) {
          s == "rela" || s == "relro" || s == "retpolineplt" ||
          s == "rodynamic" || s == "shstk" || s == "text" || s == "undefs" ||
          s == "wxneeded" || s.startswith("common-page-size=") ||
-         s.startswith("max-page-size=") || s.startswith("stack-size=");
+         s.startswith("dead-reloc-in-nonalloc=") ||
+         s.startswith("max-page-size=") || s.startswith("stack-size=") ||
+         s.startswith("start-stop-visibility=");
 }
 
 // Report an error for an unknown -z option.
@@ -945,7 +963,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->ltoSampleProfile = args.getLastArgValue(OPT_lto_sample_profile);
   config->ltoBasicBlockSections =
       args.getLastArgValue(OPT_lto_basicblock_sections);
-  config->ltoUniqueBBSectionNames =
+  config->ltoUniqueBasicBlockSectionNames =
       args.hasFlag(OPT_lto_unique_bb_section_names,
                    OPT_no_lto_unique_bb_section_names, false);
   config->mapFile = args.getLastArgValue(OPT_Map);
@@ -1002,6 +1020,8 @@ static void readConfigs(opt::InputArgList &args) {
       getOldNewOptions(args, OPT_thinlto_object_suffix_replace_eq);
   config->thinLTOPrefixReplace =
       getOldNewOptions(args, OPT_thinlto_prefix_replace_eq);
+  config->thinLTOModulesToCompile =
+      args::getStrings(args, OPT_thinlto_single_module_eq);
   config->timeTraceEnabled = args.hasArg(OPT_time_trace);
   config->timeTraceGranularity =
       args::getInteger(args, OPT_time_trace_granularity, 500);
@@ -1044,8 +1064,30 @@ static void readConfigs(opt::InputArgList &args) {
   config->zSeparate = getZSeparate(args);
   config->zShstk = hasZOption(args, "shstk");
   config->zStackSize = args::getZOptionValue(args, OPT_z, "stack-size", 0);
+  config->zStartStopVisibility = getZStartStopVisibility(args);
   config->zText = getZFlag(args, "text", "notext", true);
   config->zWxneeded = hasZOption(args, "wxneeded");
+
+  for (opt::Arg *arg : args.filtered(OPT_z)) {
+    std::pair<StringRef, StringRef> option =
+        StringRef(arg->getValue()).split('=');
+    if (option.first != "dead-reloc-in-nonalloc")
+      continue;
+    constexpr StringRef errPrefix = "-z dead-reloc-in-nonalloc=: ";
+    std::pair<StringRef, StringRef> kv = option.second.split('=');
+    if (kv.first.empty() || kv.second.empty()) {
+      error(errPrefix + "expected <section_glob>=<value>");
+      continue;
+    }
+    uint64_t v;
+    if (!to_integer(kv.second, v))
+      error(errPrefix + "expected a non-negative integer, but got '" +
+            kv.second + "'");
+    else if (Expected<GlobPattern> pat = GlobPattern::create(kv.first))
+      config->deadRelocInNonAlloc.emplace_back(std::move(*pat), v);
+    else
+      error(errPrefix + toString(pat.takeError()));
+  }
 
   // Parse LTO options.
   if (auto *arg = args.getLastArg(OPT_plugin_opt_mcpu_eq))
@@ -1172,25 +1214,22 @@ static void readConfigs(opt::InputArgList &args) {
       error(arg->getSpelling() + ": " + toString(pat.takeError()));
   }
 
-  // Parses -dynamic-list and -export-dynamic-symbol. They make some
-  // symbols private. Note that -export-dynamic takes precedence over them
-  // as it says all symbols should be exported.
-  if (!config->exportDynamic) {
-    for (auto *arg : args.filtered(OPT_dynamic_list))
-      if (Optional<MemoryBufferRef> buffer = readFile(arg->getValue()))
-        readDynamicList(*buffer);
+  // When producing an executable, --dynamic-list specifies non-local defined
+  // symbols whith are required to be exported. When producing a shared object,
+  // symbols not specified by --dynamic-list are non-preemptible.
+  config->symbolic =
+      args.hasArg(OPT_Bsymbolic) || args.hasArg(OPT_dynamic_list);
+  for (auto *arg : args.filtered(OPT_dynamic_list))
+    if (Optional<MemoryBufferRef> buffer = readFile(arg->getValue()))
+      readDynamicList(*buffer);
 
-    for (auto *arg : args.filtered(OPT_export_dynamic_symbol))
-      config->dynamicList.push_back(
-          {arg->getValue(), /*isExternCpp=*/false, /*hasWildcard=*/false});
-  }
-
-  // If --export-dynamic-symbol=foo is given and symbol foo is defined in
-  // an object file in an archive file, that object file should be pulled
-  // out and linked. (It doesn't have to behave like that from technical
-  // point of view, but this is needed for compatibility with GNU.)
+  // --export-dynamic-symbol specifies additional --dynamic-list symbols if any
+  // other option expresses a symbolic intention: -no-pie, -pie, -Bsymbolic,
+  // -Bsymbolic-functions (if STT_FUNC), --dynamic-list.
   for (auto *arg : args.filtered(OPT_export_dynamic_symbol))
-    config->undefined.push_back(arg->getValue());
+    config->dynamicList.push_back(
+        {arg->getValue(), /*isExternCpp=*/false,
+         /*hasWildcard=*/hasWildcard(arg->getValue())});
 
   for (auto *arg : args.filtered(OPT_version_script))
     if (Optional<std::string> path = searchScript(arg->getValue())) {
@@ -1474,15 +1513,11 @@ static void excludeLibs(opt::InputArgList &args) {
     visit(file);
 }
 
-// Force Sym to be entered in the output. Used for -u or equivalent.
+// Force Sym to be entered in the output.
 static void handleUndefined(Symbol *sym) {
   // Since a symbol may not be used inside the program, LTO may
   // eliminate it. Mark the symbol as "used" to prevent it.
   sym->isUsedInRegularObj = true;
-
-  // GNU linkers allow -u foo -ldef -lref. We should not treat it as a backward
-  // reference.
-  backwardReferences.erase(sym);
 
   if (sym->isLazy())
     sym->fetch();
@@ -1679,6 +1714,12 @@ static Symbol *addUndefined(StringRef name) {
       Undefined{nullptr, name, STB_GLOBAL, STV_DEFAULT, 0});
 }
 
+static Symbol *addUnusedUndefined(StringRef name) {
+  Undefined sym{nullptr, name, STB_GLOBAL, STV_DEFAULT, 0};
+  sym.isUsedInRegularObj = false;
+  return symtab->addSymbol(sym);
+}
+
 // This function is where all the optimizations of link-time
 // optimization takes place. When LTO is in use, some input files are
 // not in native object file format but in the LLVM bitcode format.
@@ -1696,8 +1737,11 @@ template <class ELFT> void LinkerDriver::compileBitcodeFiles() {
   for (InputFile *file : lto->compile()) {
     auto *obj = cast<ObjFile<ELFT>>(file);
     obj->parse(/*ignoreComdats=*/true);
-    for (Symbol *sym : obj->getGlobalSymbols())
-      sym->parseSymbolVersion();
+
+    // Parse '@' in symbol names for non-relocatable output.
+    if (!config->relocatable)
+      for (Symbol *sym : obj->getGlobalSymbols())
+        sym->parseSymbolVersion();
     objectFiles.push_back(file);
   }
 }
@@ -1855,6 +1899,11 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   for (auto *arg : args.filtered(OPT_trace_symbol))
     symtab->insert(arg->getValue())->traced = true;
 
+  // Handle -u/--undefined before input files. If both a.a and b.so define foo,
+  // -u foo a.a b.so will fetch a.a.
+  for (StringRef name : config->undefined)
+    addUnusedUndefined(name);
+
   // Add all files to the symbol table. This will add almost all
   // symbols that we need to the symbol table. This process might
   // add files to the link, via autolinking, these files are always
@@ -1879,10 +1928,10 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   for (StringRef name : script->referencedSymbols)
     addUndefined(name);
 
-  // Handle the `--undefined <sym>` options.
-  for (StringRef arg : config->undefined)
-    if (Symbol *sym = symtab->find(arg))
-      handleUndefined(sym);
+  // Prevent LTO from removing any definition referenced by -u.
+  for (StringRef name : config->undefined)
+    if (Defined *sym = dyn_cast_or_null<Defined>(symtab->find(name)))
+      sym->isUsedInRegularObj = true;
 
   // If an entry symbol is in a static archive, pull out that file now.
   if (Symbol *sym = symtab->find(config->entry))
@@ -1893,9 +1942,9 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
     handleUndefinedGlob(pat);
 
   // Mark -init and -fini symbols so that the LTO doesn't eliminate them.
-  if (Symbol *sym = symtab->find(config->init))
+  if (Symbol *sym = dyn_cast_or_null<Defined>(symtab->find(config->init)))
     sym->isUsedInRegularObj = true;
-  if (Symbol *sym = symtab->find(config->fini))
+  if (Symbol *sym = dyn_cast_or_null<Defined>(symtab->find(config->fini)))
     sym->isUsedInRegularObj = true;
 
   // If any of our inputs are bitcode files, the LTO code generator may create
@@ -1970,7 +2019,10 @@ template <class ELFT> void LinkerDriver::link(opt::InputArgList &args) {
   // Likewise, --plugin-opt=emit-llvm and --plugin-opt=emit-asm are the
   // options to create output files in bitcode or assembly code
   // repsectively. No object files are generated.
-  if (config->thinLTOIndexOnly || config->emitLLVM || config->ltoEmitAsm)
+  // Also bail out here when only certain thinLTO modules are specified for
+  // compilation. The intermediate object file are the expected output.
+  if (config->thinLTOIndexOnly || config->emitLLVM || config->ltoEmitAsm ||
+      !config->thinLTOModulesToCompile.empty())
     return;
 
   // Apply symbol renames for -wrap.

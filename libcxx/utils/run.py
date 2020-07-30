@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #===----------------------------------------------------------------------===##
 #
 # Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -13,8 +14,6 @@ program's error code.
 """
 
 import argparse
-import os
-import shutil
 import subprocess
 import sys
 
@@ -23,14 +22,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--execdir', type=str, required=True)
     parser.add_argument('--codesign_identity', type=str, required=False, default=None)
-    parser.add_argument('--dependencies', type=str, nargs='*', required=False, default=[])
     parser.add_argument('--env', type=str, nargs='*', required=False, default=dict())
-    (args, remaining) = parser.parse_known_args(sys.argv[1:])
-
-    if len(remaining) < 2:
-        sys.stderr.write('Missing actual commands to run')
-        exit(1)
-    commandLine = remaining[1:] # Skip the '--'
+    parser.add_argument("command", nargs=argparse.ONE_OR_MORE)
+    args = parser.parse_args()
+    commandLine = args.command
 
     # Do any necessary codesigning.
     if args.codesign_identity:
@@ -43,24 +38,8 @@ def main():
     # Extract environment variables into a dictionary
     env = {k : v  for (k, v) in map(lambda s: s.split('=', 1), args.env)}
 
-    # Create the execution directory, and make sure we remove it at the end.
-    try:
-        os.makedirs(args.execdir)
-
-        # Ensure the file dependencies exist and copy them to the execution directory.
-        for dep in args.dependencies:
-            if not os.path.exists(dep):
-                sys.stderr.write('Missing file or directory "{}" marked as a dependency of a test'.format(dep))
-                exit(1)
-            if os.path.isdir(dep):
-                shutil.copytree(dep, os.path.join(args.execdir, os.path.basename(dep)), symlinks=True)
-            else:
-                shutil.copy2(dep, args.execdir)
-
-        # Run the command line with the given environment in the execution directory.
-        return subprocess.call(subprocess.list2cmdline(commandLine), cwd=args.execdir, env=env, shell=True)
-    finally:
-        shutil.rmtree(args.execdir)
+    # Run the command line with the given environment in the execution directory.
+    return subprocess.call(subprocess.list2cmdline(commandLine), cwd=args.execdir, env=env, shell=True)
 
 
 if __name__ == '__main__':

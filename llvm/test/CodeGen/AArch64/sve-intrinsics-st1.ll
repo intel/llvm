@@ -1,4 +1,9 @@
-; RUN: llc -mtriple=aarch64-linux-gnu -mattr=+sve < %s | FileCheck %s
+; RUN: llc -mtriple=aarch64-linux-gnu -mattr=+sve < %s 2>%t | FileCheck %s
+; RUN: llc -O0 -mtriple=aarch64-linux-gnu -mattr=+sve < %s | FileCheck %s
+; RUN: FileCheck --check-prefix=WARN --allow-empty %s <%t
+
+; If this check fails please read test/CodeGen/AArch64/README for instructions on how to resolve it.
+; WARN-NOT: warning
 
 ;
 ; ST1B
@@ -68,6 +73,16 @@ define void @st1h_f16(<vscale x 8 x half> %data, <vscale x 8 x i1> %pred, half* 
   call void @llvm.aarch64.sve.st1.nxv8f16(<vscale x 8 x half> %data,
                                           <vscale x 8 x i1> %pred,
                                           half* %addr)
+  ret void
+}
+
+define void @st1h_bf16(<vscale x 8 x bfloat> %data, <vscale x 8 x i1> %pred, bfloat* %addr) #0 {
+; CHECK-LABEL: st1h_bf16:
+; CHECK: st1h { z0.h }, p0, [x0]
+; CHECK-NEXT: ret
+  call void @llvm.aarch64.sve.st1.nxv8bf16(<vscale x 8 x bfloat> %data,
+                                           <vscale x 8 x i1> %pred,
+                                           bfloat* %addr)
   ret void
 }
 
@@ -157,6 +172,7 @@ declare void @llvm.aarch64.sve.st1.nxv16i8(<vscale x 16 x i8>, <vscale x 16 x i1
 declare void @llvm.aarch64.sve.st1.nxv8i8(<vscale x 8 x i8>, <vscale x 8 x i1>, i8*)
 declare void @llvm.aarch64.sve.st1.nxv8i16(<vscale x 8 x i16>, <vscale x 8 x i1>, i16*)
 declare void @llvm.aarch64.sve.st1.nxv8f16(<vscale x 8 x half>, <vscale x 8 x i1>, half*)
+declare void @llvm.aarch64.sve.st1.nxv8bf16(<vscale x 8 x bfloat>, <vscale x 8 x i1>, bfloat*)
 
 declare void @llvm.aarch64.sve.st1.nxv4i8(<vscale x 4 x i8>, <vscale x 4 x i1>, i8*)
 declare void @llvm.aarch64.sve.st1.nxv4i16(<vscale x 4 x i16>, <vscale x 4 x i1>, i16*)
@@ -168,3 +184,6 @@ declare void @llvm.aarch64.sve.st1.nxv2i16(<vscale x 2 x i16>, <vscale x 2 x i1>
 declare void @llvm.aarch64.sve.st1.nxv2i32(<vscale x 2 x i32>, <vscale x 2 x i1>, i32*)
 declare void @llvm.aarch64.sve.st1.nxv2i64(<vscale x 2 x i64>, <vscale x 2 x i1>, i64*)
 declare void @llvm.aarch64.sve.st1.nxv2f64(<vscale x 2 x double>, <vscale x 2 x i1>, double*)
+
+; +bf16 is required for the bfloat version.
+attributes #0 = { "target-features"="+sve,+bf16" }

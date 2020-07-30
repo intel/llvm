@@ -78,7 +78,7 @@ kernel void device_side_enqueue(global int *a, global int *b, int i, char c0) {
   //                            [[ConstInt2]] [[Event1]] [[Event2]]
   //                            [[BlockKer2]] [[BlockLit2]] [[ConstInt20]] [[ConstInt8]]
 
-  // CHECK-LLVM: [[Block3:%[0-9]+]] = bitcast [[BlockTy3]]* %block3 to %struct.__opencl_block_literal_generic*
+  // CHECK-LLVM: [[Block3:%[0-9]+]] = bitcast [[BlockTy3]]* %block4 to %struct.__opencl_block_literal_generic*
   // CHECK-LLVM: [[Block3Ptr:%[0-9]+]] = addrspacecast %struct.__opencl_block_literal_generic* [[Block3]] to i8 addrspace(4)
   // CHECK-LLVM: [[BlockInv3:%[0-9]+]] = addrspacecast void (i8 addrspace(4)*)* @__device_side_enqueue_block_invoke_2_kernel to i8 addrspace(4)*
   // CHECK-LLVM: call i32 @__enqueue_kernel_basic_events(%opencl.queue_t* {{.*}}, i32 {{.*}}, %struct.ndrange_t* {{.*}}, i32 2, %opencl.clk_event_t* addrspace(4)* {{.*}}, %opencl.clk_event_t* addrspace(4)* {{.*}}, i8 addrspace(4)* [[BlockInv3]], i8 addrspace(4)* [[Block3Ptr]])
@@ -139,7 +139,7 @@ kernel void device_side_enqueue(global int *a, global int *b, int i, char c0) {
   //                            [[ConstInt0]] [[EventNull]] [[Event1]]
   //                            [[BlockKer5]] [[BlockLit5]] [[ConstInt20]] [[ConstInt8]]
 
-  // CHECK-LLVM: [[Block5:%[0-9]+]] = bitcast [[BlockTy3]]* %block14 to %struct.__opencl_block_literal_generic*
+  // CHECK-LLVM: [[Block5:%[0-9]+]] = bitcast [[BlockTy3]]* %block15 to %struct.__opencl_block_literal_generic*
   // CHECK-LLVM: [[Block5Ptr:%[0-9]+]] = addrspacecast %struct.__opencl_block_literal_generic* [[Block5]] to i8 addrspace(4)
   // CHECK-LLVM: [[BlockInv5:%[0-9]+]] = addrspacecast void (i8 addrspace(4)*)* @__device_side_enqueue_block_invoke_5_kernel to i8 addrspace(4)*
   // CHECK-LLVM: call i32 @__enqueue_kernel_basic_events(%opencl.queue_t* {{.*}}, i32 {{.*}}, %struct.ndrange_t* {{.*}}, i32 0, %opencl.clk_event_t* addrspace(4)* null, %opencl.clk_event_t* addrspace(4)* {{.*}}, i8 addrspace(4)* [[BlockInv5]], i8 addrspace(4)* [[Block5Ptr]])

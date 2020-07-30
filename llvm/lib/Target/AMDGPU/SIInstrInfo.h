@@ -84,6 +84,9 @@ private:
   bool moveScalarAddSub(SetVectorType &Worklist, MachineInstr &Inst,
                         MachineDominatorTree *MDT = nullptr) const;
 
+  void lowerSelect(SetVectorType &Worklist, MachineInstr &Inst,
+                   MachineDominatorTree *MDT = nullptr) const;
+
   void lowerScalarAbs(SetVectorType &Worklist,
                       MachineInstr &Inst) const;
 
@@ -180,9 +183,6 @@ public:
   bool areLoadsFromSameBasePtr(SDNode *Load1, SDNode *Load2,
                                int64_t &Offset1,
                                int64_t &Offset2) const override;
-
-  unsigned getOperandSizeInBytes(const MachineInstr &LdSt,
-                                 const MachineOperand *MOp) const;
 
   bool getMemOperandsWithOffsetWidth(
       const MachineInstr &LdSt,
@@ -690,6 +690,9 @@ public:
                         [&MRI, this](const MachineOperand &MO) {
       return MO.isReg() && RI.isVGPR(MRI, MO.getReg());});
   }
+
+  /// Return true if the instruction modifies the mode register.q
+  static bool modifiesModeRegister(const MachineInstr &MI);
 
   /// Whether we must prevent this instruction from executing with EXEC = 0.
   bool hasUnwantedEffectsWhenEXECEmpty(const MachineInstr &MI) const;

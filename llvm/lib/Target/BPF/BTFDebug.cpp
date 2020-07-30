@@ -22,6 +22,7 @@
 #include "llvm/MC/MCSectionELF.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/Support/LineIterator.h"
+#include "llvm/Target/TargetLoweringObjectFile.h"
 
 using namespace llvm;
 
@@ -568,7 +569,7 @@ void BTFDebug::visitDerivedType(const DIDerivedType *DTy, uint32_t &TypeId,
         auto CTag = CTy->getTag();
         if ((CTag == dwarf::DW_TAG_structure_type ||
              CTag == dwarf::DW_TAG_union_type) &&
-            !CTy->isForwardDecl()) {
+            !CTy->getName().empty() && !CTy->isForwardDecl()) {
           /// Find a candidate, generate a fixup. Later on the struct/union
           /// pointee type will be replaced with either a real type or
           /// a forward declaration.
@@ -605,6 +606,38 @@ void BTFDebug::visitTypeEntry(const DIType *Ty, uint32_t &TypeId,
                               bool CheckPointer, bool SeenPointer) {
   if (!Ty || DIToIdMap.find(Ty) != DIToIdMap.end()) {
     TypeId = DIToIdMap[Ty];
+
+    // To handle the case like the following:
+    //    struct t;
+    //    typedef struct t _t;
+    //    struct s1 { _t *c; };
+    //    int test1(struct s1 *arg) { ... }
+    //
+    //    struct t { int a; int b; };
+    //    struct s2 { _t c; }
+    //    int test2(struct s2 *arg) { ... }
+    //
+    // During traversing test1() argument, "_t" is recorded
+    // in DIToIdMap and a forward declaration fixup is created
+    // for "struct t" to avoid pointee type traversal.
+    //
+    // During traversing test2() argument, even if we see "_t" is
+    // already defined, we should keep moving to eventually
+    // bring in types for "struct t". Otherwise, the "struct s2"
+    // definition won't be correct.
+    if (Ty && (!CheckPointer || !SeenPointer)) {
+      if (const auto *DTy = dyn_cast<DIDerivedType>(Ty)) {
+        unsigned Tag = DTy->getTag();
+        if (Tag == dwarf::DW_TAG_typedef || Tag == dwarf::DW_TAG_const_type ||
+            Tag == dwarf::DW_TAG_volatile_type ||
+            Tag == dwarf::DW_TAG_restrict_type) {
+          uint32_t TmpTypeId;
+          visitTypeEntry(DTy->getBaseType(), TmpTypeId, CheckPointer,
+                         SeenPointer);
+        }
+      }
+    }
+
     return;
   }
 
@@ -632,7 +665,17 @@ void BTFDebug::visitMapDefType(const DIType *Ty, uint32_t &TypeId) {
     return;
   }
 
-  // MapDef type is a struct type
+  // MapDef type may be a struct type or a non-pointer derived type
+  const DIType *OrigTy = Ty;
+  while (auto *DTy = dyn_cast<DIDerivedType>(Ty)) {
+    auto Tag = DTy->getTag();
+    if (Tag != dwarf::DW_TAG_typedef && Tag != dwarf::DW_TAG_const_type &&
+        Tag != dwarf::DW_TAG_volatile_type &&
+        Tag != dwarf::DW_TAG_restrict_type)
+      break;
+    Ty = DTy->getBaseType();
+  }
+
   const auto *CTy = dyn_cast<DICompositeType>(Ty);
   if (!CTy)
     return;
@@ -641,27 +684,15 @@ void BTFDebug::visitMapDefType(const DIType *Ty, uint32_t &TypeId) {
   if (Tag != dwarf::DW_TAG_structure_type || CTy->isForwardDecl())
     return;
 
-  // Record this type
+  // Visit all struct members to ensure pointee type is visited
   const DINodeArray Elements = CTy->getElements();
-  bool HasBitField = false;
-  for (const auto *Element : Elements) {
-    auto E = cast<DIDerivedType>(Element);
-    if (E->isBitField()) {
-      HasBitField = true;
-      break;
-    }
-  }
-
-  auto TypeEntry =
-      std::make_unique<BTFTypeStruct>(CTy, true, HasBitField, Elements.size());
-  StructTypes.push_back(TypeEntry.get());
-  TypeId = addType(std::move(TypeEntry), CTy);
-
-  // Visit all struct members
   for (const auto *Element : Elements) {
     const auto *MemberType = cast<DIDerivedType>(Element);
     visitTypeEntry(MemberType->getBaseType());
   }
+
+  // Visit this type, struct or a const/typedef/volatile/restrict type
+  visitTypeEntry(OrigTy, TypeId, false, false);
 }
 
 /// Read file contents from the actual file or from the source
@@ -1094,6 +1125,20 @@ void BTFDebug::processGlobals(bool ProcessingMapDef) {
 
     if (ProcessingMapDef != SecName.startswith(".maps"))
       continue;
+
+    // Create a .rodata datasec if the global variable is an initialized
+    // constant with private linkage and if it won't be in .rodata.str<#>
+    // and .rodata.cst<#> sections.
+    if (SecName == ".rodata" && Global.hasPrivateLinkage() &&
+        DataSecEntries.find(std::string(SecName)) == DataSecEntries.end()) {
+      SectionKind GVKind =
+          TargetLoweringObjectFile::getKindForGlobal(&Global, Asm->TM);
+      // skip .rodata.str<#> and .rodata.cst<#> sections
+      if (!GVKind.isMergeableCString() && !GVKind.isMergeableConst()) {
+        DataSecEntries[std::string(SecName)] =
+            std::make_unique<BTFKindDataSec>(Asm, std::string(SecName));
+      }
+    }
 
     SmallVector<DIGlobalVariableExpression *, 1> GVs;
     Global.getDebugInfo(GVs);

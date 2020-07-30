@@ -41,6 +41,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
+#include "llvm/IR/IntrinsicsARM.h"
 #include "llvm/IR/IntrinsicsX86.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/Type.h"
@@ -111,7 +112,7 @@ Constant *FoldBitCast(Constant *C, Type *DestTy, const DataLayout &DL) {
   if (auto *VTy = dyn_cast<VectorType>(C->getType())) {
     // Handle a vector->scalar integer/fp cast.
     if (isa<IntegerType>(DestTy) || DestTy->isFloatingPointTy()) {
-      unsigned NumSrcElts = VTy->getNumElements();
+      unsigned NumSrcElts = cast<FixedVectorType>(VTy)->getNumElements();
       Type *SrcEltTy = VTy->getElementType();
 
       // If the vector is a vector of floating point, convert it to vector of int
@@ -154,8 +155,8 @@ Constant *FoldBitCast(Constant *C, Type *DestTy, const DataLayout &DL) {
     return ConstantExpr::getBitCast(C, DestTy);
 
   // If the element types match, IR can fold it.
-  unsigned NumDstElt = DestVTy->getNumElements();
-  unsigned NumSrcElt = cast<VectorType>(C->getType())->getNumElements();
+  unsigned NumDstElt = cast<FixedVectorType>(DestVTy)->getNumElements();
+  unsigned NumSrcElt = cast<FixedVectorType>(C->getType())->getNumElements();
   if (NumDstElt == NumSrcElt)
     return ConstantExpr::getBitCast(C, DestTy);
 
@@ -333,10 +334,29 @@ Constant *llvm::ConstantFoldLoadThroughBitcast(Constant *C, Type *DestTy,
                                          const DataLayout &DL) {
   do {
     Type *SrcTy = C->getType();
+    uint64_t DestSize = DL.getTypeSizeInBits(DestTy);
+    uint64_t SrcSize = DL.getTypeSizeInBits(SrcTy);
+    if (SrcSize < DestSize)
+      return nullptr;
+
+    // Catch the obvious splat cases (since all-zeros can coerce non-integral
+    // pointers legally).
+    if (C->isNullValue() && !DestTy->isX86_MMXTy())
+      return Constant::getNullValue(DestTy);
+    if (C->isAllOnesValue() &&
+        (DestTy->isIntegerTy() || DestTy->isFloatingPointTy() ||
+         DestTy->isVectorTy()) &&
+        !DestTy->isX86_MMXTy() && !DestTy->isPtrOrPtrVectorTy())
+      // Get ones when the input is trivial, but
+      // only for supported types inside getAllOnesValue.
+      return Constant::getAllOnesValue(DestTy);
 
     // If the type sizes are the same and a cast is legal, just directly
     // cast the constant.
-    if (DL.getTypeSizeInBits(DestTy) == DL.getTypeSizeInBits(SrcTy)) {
+    // But be careful not to coerce non-integral pointers illegally.
+    if (SrcSize == DestSize &&
+        DL.isNonIntegralPointerType(SrcTy->getScalarType()) ==
+            DL.isNonIntegralPointerType(DestTy->getScalarType())) {
       Instruction::CastOps Cast = Instruction::BitCast;
       // If we are going from a pointer to int or vice versa, we spell the cast
       // differently.
@@ -470,8 +490,8 @@ bool ReadDataFromGlobal(Constant *C, uint64_t ByteOffset, unsigned char *CurPtr,
       NumElts = AT->getNumElements();
       EltTy = AT->getElementType();
     } else {
-      NumElts = cast<VectorType>(C->getType())->getNumElements();
-      EltTy = cast<VectorType>(C->getType())->getElementType();
+      NumElts = cast<FixedVectorType>(C->getType())->getNumElements();
+      EltTy = cast<FixedVectorType>(C->getType())->getElementType();
     }
     uint64_t EltSize = DL.getTypeAllocSize(EltTy);
     uint64_t Index = ByteOffset / EltSize;
@@ -1437,6 +1457,11 @@ bool llvm::canConstantFoldCallTo(const CallBase *Call, const Function *F) {
   case Intrinsic::experimental_vector_reduce_smax:
   case Intrinsic::experimental_vector_reduce_umin:
   case Intrinsic::experimental_vector_reduce_umax:
+  // Target intrinsics
+  case Intrinsic::arm_mve_vctp8:
+  case Intrinsic::arm_mve_vctp16:
+  case Intrinsic::arm_mve_vctp32:
+  case Intrinsic::arm_mve_vctp64:
     return true;
 
   // Floating point operations cannot be folded in strictfp functions in
@@ -1459,7 +1484,7 @@ bool llvm::canConstantFoldCallTo(const CallBase *Call, const Function *F) {
   case Intrinsic::fmuladd:
   case Intrinsic::convert_from_fp16:
   case Intrinsic::convert_to_fp16:
-  // The intrinsics below depend on rounding mode in MXCSR.
+  case Intrinsic::amdgcn_cos:
   case Intrinsic::amdgcn_cubeid:
   case Intrinsic::amdgcn_cubema:
   case Intrinsic::amdgcn_cubesc:
@@ -1467,6 +1492,8 @@ bool llvm::canConstantFoldCallTo(const CallBase *Call, const Function *F) {
   case Intrinsic::amdgcn_fmul_legacy:
   case Intrinsic::amdgcn_fract:
   case Intrinsic::amdgcn_ldexp:
+  case Intrinsic::amdgcn_sin:
+  // The intrinsics below depend on rounding mode in MXCSR.
   case Intrinsic::x86_sse_cvtss2si:
   case Intrinsic::x86_sse_cvtss2si64:
   case Intrinsic::x86_sse_cvttss2si:
@@ -1961,6 +1988,26 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
         return ConstantFoldFP(cos, V, Ty);
       case Intrinsic::sqrt:
         return ConstantFoldFP(sqrt, V, Ty);
+      case Intrinsic::amdgcn_cos:
+      case Intrinsic::amdgcn_sin:
+        if (V < -256.0 || V > 256.0)
+          // The gfx8 and gfx9 architectures handle arguments outside the range
+          // [-256, 256] differently. This should be a rare case so bail out
+          // rather than trying to handle the difference.
+          return nullptr;
+        bool IsCos = IntrinsicID == Intrinsic::amdgcn_cos;
+        double V4 = V * 4.0;
+        if (V4 == floor(V4)) {
+          // Force exact results for quarter-integer inputs.
+          const double SinVals[4] = { 0.0, 1.0, 0.0, -1.0 };
+          V = SinVals[((int)V4 + (IsCos ? 1 : 0)) & 3];
+        } else {
+          if (IsCos)
+            V = cos(V * 2.0 * numbers::pi);
+          else
+            V = sin(V * 2.0 * numbers::pi);
+        }
+        return GetConstantFoldFPValue(V, Ty);
     }
 
     if (!TLI)
@@ -2585,8 +2632,8 @@ static Constant *ConstantFoldScalarCall3(StringRef Name,
           // how rounding should be done, and provide their own folding to be
           // consistent with rounding. This is the same approach as used by
           // DAGTypeLegalizer::ExpandIntRes_MULFIX.
-          APInt Lhs = Op1->getValue();
-          APInt Rhs = Op2->getValue();
+          const APInt &Lhs = Op1->getValue();
+          const APInt &Rhs = Op2->getValue();
           unsigned Scale = Op3->getValue().getZExtValue();
           unsigned Width = Lhs.getBitWidth();
           assert(Scale < Width && "Illegal scale.");
@@ -2667,24 +2714,27 @@ static Constant *ConstantFoldVectorCall(StringRef Name,
                                         const DataLayout &DL,
                                         const TargetLibraryInfo *TLI,
                                         const CallBase *Call) {
-  SmallVector<Constant *, 4> Result(VTy->getNumElements());
-  SmallVector<Constant *, 4> Lane(Operands.size());
-  Type *Ty = VTy->getElementType();
-
   // Do not iterate on scalable vector. The number of elements is unknown at
   // compile-time.
   if (isa<ScalableVectorType>(VTy))
     return nullptr;
 
-  if (IntrinsicID == Intrinsic::masked_load) {
+  auto *FVTy = cast<FixedVectorType>(VTy);
+
+  SmallVector<Constant *, 4> Result(FVTy->getNumElements());
+  SmallVector<Constant *, 4> Lane(Operands.size());
+  Type *Ty = FVTy->getElementType();
+
+  switch (IntrinsicID) {
+  case Intrinsic::masked_load: {
     auto *SrcPtr = Operands[0];
     auto *Mask = Operands[2];
     auto *Passthru = Operands[3];
 
-    Constant *VecData = ConstantFoldLoadFromConstPtr(SrcPtr, VTy, DL);
+    Constant *VecData = ConstantFoldLoadFromConstPtr(SrcPtr, FVTy, DL);
 
     SmallVector<Constant *, 32> NewElements;
-    for (unsigned I = 0, E = VTy->getNumElements(); I != E; ++I) {
+    for (unsigned I = 0, E = FVTy->getNumElements(); I != E; ++I) {
       auto *MaskElt = Mask->getAggregateElement(I);
       if (!MaskElt)
         break;
@@ -2710,12 +2760,38 @@ static Constant *ConstantFoldVectorCall(StringRef Name,
         return nullptr;
       }
     }
-    if (NewElements.size() != VTy->getNumElements())
+    if (NewElements.size() != FVTy->getNumElements())
       return nullptr;
     return ConstantVector::get(NewElements);
   }
+  case Intrinsic::arm_mve_vctp8:
+  case Intrinsic::arm_mve_vctp16:
+  case Intrinsic::arm_mve_vctp32:
+  case Intrinsic::arm_mve_vctp64: {
+    if (auto *Op = dyn_cast<ConstantInt>(Operands[0])) {
+      unsigned Lanes = FVTy->getNumElements();
+      uint64_t Limit = Op->getZExtValue();
+      // vctp64 are currently modelled as returning a v4i1, not a v2i1. Make
+      // sure we get the limit right in that case and set all relevant lanes.
+      if (IntrinsicID == Intrinsic::arm_mve_vctp64)
+        Limit *= 2;
 
-  for (unsigned I = 0, E = VTy->getNumElements(); I != E; ++I) {
+      SmallVector<Constant *, 16> NCs;
+      for (unsigned i = 0; i < Lanes; i++) {
+        if (i < Limit)
+          NCs.push_back(ConstantInt::getTrue(Ty));
+        else
+          NCs.push_back(ConstantInt::getFalse(Ty));
+      }
+      return ConstantVector::get(NCs);
+    }
+    break;
+  }
+  default:
+    break;
+  }
+
+  for (unsigned I = 0, E = FVTy->getNumElements(); I != E; ++I) {
     // Gather a column of constants.
     for (unsigned J = 0, JE = Operands.size(); J != JE; ++J) {
       // Some intrinsics use a scalar type for certain arguments.

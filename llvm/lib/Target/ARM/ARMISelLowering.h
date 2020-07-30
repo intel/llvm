@@ -208,6 +208,10 @@ class VectorType;
       VQMOVNs,      // Vector (V) Saturating (Q) Move and Narrow (N), signed (s)
       VQMOVNu,      // Vector (V) Saturating (Q) Move and Narrow (N), unsigned (u)
 
+      // MVE float <> half converts
+      VCVTN,        // MVE vcvt f32 -> f16, truncating into either the bottom or top lanes
+      VCVTL,        // MVE vcvt f16 -> f32, extending from either the bottom or top lanes
+
       // Vector multiply long:
       VMULLs,       // ...signed
       VMULLu,       // ...unsigned
@@ -215,20 +219,28 @@ class VectorType;
       // MVE reductions
       VADDVs,       // sign- or zero-extend the elements of a vector to i32,
       VADDVu,       //   add them all together, and return an i32 of their sum
+      VADDVps,      // Same as VADDV[su] but with a v4i1 predicate mask
+      VADDVpu,
       VADDLVs,      // sign- or zero-extend elements to i64 and sum, returning
       VADDLVu,      //   the low and high 32-bit halves of the sum
-      VADDLVAs,     // same as VADDLV[su] but also add an input accumulator
+      VADDLVAs,     // Same as VADDLV[su] but also add an input accumulator
       VADDLVAu,     //   provided as low and high halves
-      VADDLVps,     // same as VADDLVs but with a v4i1 predicate mask
-      VADDLVpu,     // same as VADDLVu but with a v4i1 predicate mask
-      VADDLVAps,    // same as VADDLVps but with a v4i1 predicate mask
-      VADDLVApu,    // same as VADDLVpu but with a v4i1 predicate mask
-      VMLAVs,
-      VMLAVu,
-      VMLALVs,
-      VMLALVu,
-      VMLALVAs,
-      VMLALVAu,
+      VADDLVps,     // Same as VADDLV[su] but with a v4i1 predicate mask
+      VADDLVpu,
+      VADDLVAps,    // Same as VADDLVp[su] but with a v4i1 predicate mask
+      VADDLVApu,
+      VMLAVs,       // sign- or zero-extend the elements of two vectors to i32, multiply them
+      VMLAVu,       //   and add the results together, returning an i32 of their sum
+      VMLAVps,      // Same as VMLAV[su] with a v4i1 predicate mask
+      VMLAVpu,
+      VMLALVs,      // Same as VMLAV but with i64, returning the low and
+      VMLALVu,      //   high 32-bit halves of the sum
+      VMLALVps,     // Same as VMLALV[su] with a v4i1 predicate mask
+      VMLALVpu,
+      VMLALVAs,     // Same as VMLALV but also add an input accumulator
+      VMLALVAu,     //   provided as low and high halves
+      VMLALVAps,    // Same as VMLALVA[su] with a v4i1 predicate mask
+      VMLALVApu,
 
       SMULWB,       // Signed multiply word by half word, bottom
       SMULWT,       // Signed multiply word by half word, top
@@ -267,8 +279,8 @@ class VectorType;
       // Vector AND with NOT of immediate
       VBICIMM,
 
-      // Vector bitwise select
-      VBSL,
+      // Pseudo vector bitwise select
+      VBSP,
 
       // Pseudo-instruction representing a memory copy using ldm/stm
       // instructions.
@@ -449,9 +461,9 @@ class VectorType;
                                        const SelectionDAG &DAG,
                                        unsigned Depth) const override;
 
-    bool targetShrinkDemandedConstant(SDValue Op, const APInt &Demanded,
+    bool targetShrinkDemandedConstant(SDValue Op, const APInt &DemandedBits,
+                                      const APInt &DemandedElts,
                                       TargetLoweringOpt &TLO) const override;
-
 
     bool ExpandInlineAsm(CallInst *CI) const override;
 
@@ -764,6 +776,8 @@ class VectorType;
     SDValue LowerDIV_Windows(SDValue Op, SelectionDAG &DAG, bool Signed) const;
     void ExpandDIV_Windows(SDValue Op, SelectionDAG &DAG, bool Signed,
                            SmallVectorImpl<SDValue> &Results) const;
+    SDValue ExpandBITCAST(SDNode *N, SelectionDAG &DAG,
+                          const ARMSubtarget *Subtarget) const;
     SDValue LowerWindowsDIVLibCall(SDValue Op, SelectionDAG &DAG, bool Signed,
                                    SDValue &Chain) const;
     SDValue LowerREM(SDNode *N, SelectionDAG &DAG) const;
@@ -787,6 +801,11 @@ class VectorType;
     bool isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
                                     EVT VT) const override;
 
+    SDValue MoveToHPR(const SDLoc &dl, SelectionDAG &DAG, MVT LocVT, MVT ValVT,
+                      SDValue Val) const;
+    SDValue MoveFromHPR(const SDLoc &dl, SelectionDAG &DAG, MVT LocVT,
+                        MVT ValVT, SDValue Val) const;
+
     SDValue ReconstructShuffle(SDValue Op, SelectionDAG &DAG) const;
 
     SDValue LowerCallResult(SDValue Chain, SDValue InFlag,
@@ -805,6 +824,17 @@ class VectorType;
     void insertCopiesSplitCSR(
       MachineBasicBlock *Entry,
       const SmallVectorImpl<MachineBasicBlock *> &Exits) const override;
+
+    bool
+    splitValueIntoRegisterParts(SelectionDAG &DAG, const SDLoc &DL, SDValue Val,
+                                SDValue *Parts, unsigned NumParts, MVT PartVT,
+                                Optional<CallingConv::ID> CC) const override;
+
+    SDValue
+    joinRegisterPartsIntoValue(SelectionDAG &DAG, const SDLoc &DL,
+                               const SDValue *Parts, unsigned NumParts,
+                               MVT PartVT, EVT ValueVT,
+                               Optional<CallingConv::ID> CC) const override;
 
     SDValue
     LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv, bool isVarArg,
@@ -826,7 +856,7 @@ class VectorType;
                       SmallVectorImpl<SDValue> &InVals) const override;
 
     /// HandleByVal - Target-specific cleanup for ByVal support.
-    void HandleByVal(CCState *, unsigned &, unsigned) const override;
+    void HandleByVal(CCState *, unsigned &, Align) const override;
 
     /// IsEligibleForTailCallOptimization - Check whether the call is eligible
     /// for tail call optimization. Targets which want to do tail call

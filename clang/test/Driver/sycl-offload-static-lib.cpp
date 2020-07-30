@@ -139,3 +139,10 @@
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 9: file-table-tform, {6, 8}, tempfiletable, (device-sycl)
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 10: clang-offload-wrapper, {9}, object, (device-sycl)
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 11: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64-unknown-unknown-sycldevice)" {10}, image
+
+/// ###########################################################################
+
+/// test behaviors of -foffload-static-lib with no value
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -foffload-static-lib= -c %s 2>&1 \
+// RUN:   | FileCheck %s -check-prefixes=FOFFLOAD_STATIC_LIB_NOVALUE
+// FOFFLOAD_STATIC_LIB_NOVALUE: warning: argument unused during compilation: '-foffload-static-lib='

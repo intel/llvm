@@ -273,7 +273,6 @@ SourceRange Stmt::getSourceRange() const {
 }
 
 SourceLocation Stmt::getBeginLoc() const {
-  //  llvm::errs() << "getBeginLoc() for " << getStmtClassName() << "\n";
   switch (getStmtClass()) {
   case Stmt::NoStmtClass: llvm_unreachable("statement without class");
 #define ABSTRACT_STMT(type)
@@ -1013,7 +1012,8 @@ void SwitchStmt::setConditionVariable(const ASTContext &Ctx, VarDecl *V) {
 }
 
 WhileStmt::WhileStmt(const ASTContext &Ctx, VarDecl *Var, Expr *Cond,
-                     Stmt *Body, SourceLocation WL)
+                     Stmt *Body, SourceLocation WL, SourceLocation LParenLoc,
+                     SourceLocation RParenLoc)
     : Stmt(WhileStmtClass) {
   bool HasVar = Var != nullptr;
   WhileStmtBits.HasVar = HasVar;
@@ -1024,6 +1024,8 @@ WhileStmt::WhileStmt(const ASTContext &Ctx, VarDecl *Var, Expr *Cond,
     setConditionVariable(Ctx, Var);
 
   setWhileLoc(WL);
+  setLParenLoc(LParenLoc);
+  setRParenLoc(RParenLoc);
 }
 
 WhileStmt::WhileStmt(EmptyShell Empty, bool HasVar)
@@ -1032,12 +1034,14 @@ WhileStmt::WhileStmt(EmptyShell Empty, bool HasVar)
 }
 
 WhileStmt *WhileStmt::Create(const ASTContext &Ctx, VarDecl *Var, Expr *Cond,
-                             Stmt *Body, SourceLocation WL) {
+                             Stmt *Body, SourceLocation WL,
+                             SourceLocation LParenLoc,
+                             SourceLocation RParenLoc) {
   bool HasVar = Var != nullptr;
   void *Mem =
       Ctx.Allocate(totalSizeToAlloc<Stmt *>(NumMandatoryStmtPtr + HasVar),
                    alignof(WhileStmt));
-  return new (Mem) WhileStmt(Ctx, Var, Cond, Body, WL);
+  return new (Mem) WhileStmt(Ctx, Var, Cond, Body, WL, LParenLoc, RParenLoc);
 }
 
 WhileStmt *WhileStmt::CreateEmpty(const ASTContext &Ctx, bool HasVar) {

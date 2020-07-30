@@ -54,12 +54,12 @@ XcodeSDK::XcodeSDK(XcodeSDK::Info info) : m_name(GetName(info.type).str()) {
   }
 }
 
-XcodeSDK &XcodeSDK::operator=(XcodeSDK other) {
+XcodeSDK &XcodeSDK::operator=(const XcodeSDK &other) {
   m_name = other.m_name;
   return *this;
 }
 
-bool XcodeSDK::operator==(XcodeSDK other) {
+bool XcodeSDK::operator==(const XcodeSDK &other) {
   return m_name == other.m_name;
 }
 
@@ -147,7 +147,7 @@ bool XcodeSDK::Info::operator==(const Info &other) const {
          std::tie(other.type, other.version, other.internal);
 }
 
-void XcodeSDK::Merge(XcodeSDK other) {
+void XcodeSDK::Merge(const XcodeSDK &other) {
   // The "bigger" SDK always wins.
   auto l = Parse();
   auto r = other.Parse();
@@ -284,4 +284,26 @@ XcodeSDK::Type XcodeSDK::GetSDKTypeForTriple(const llvm::Triple &triple) {
   default:
     return XcodeSDK::unknown;
   }
+}
+
+std::string XcodeSDK::FindXcodeContentsDirectoryInPath(llvm::StringRef path) {
+  auto begin = llvm::sys::path::begin(path);
+  auto end = llvm::sys::path::end(path);
+
+  // Iterate over the path components until we find something that ends with
+  // .app. If the next component is Contents then we've found the Contents
+  // directory.
+  for (auto it = begin; it != end; ++it) {
+    if (it->endswith(".app")) {
+      auto next = it;
+      if (++next != end && *next == "Contents") {
+        llvm::SmallString<128> buffer;
+        llvm::sys::path::append(buffer, begin, ++next,
+                                llvm::sys::path::Style::posix);
+        return buffer.str().str();
+      }
+    }
+  }
+
+  return {};
 }

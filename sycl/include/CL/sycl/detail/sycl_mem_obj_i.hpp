@@ -69,6 +69,7 @@ protected:
   // which is unavailable.
   shared_ptr_class<MemObjRecord> MRecord;
   friend class Scheduler;
+  friend class ExecCGCommand;
 };
 
 } // namespace detail

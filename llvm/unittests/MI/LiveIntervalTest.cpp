@@ -443,6 +443,21 @@ TEST(LiveIntervalTest, DeadSubRegMoveUp) {
   });
 }
 
+TEST(LiveIntervalTest, EarlyClobberSubRegMoveUp) {
+  // handleMoveUp had a bug where moving an early-clobber subreg def into the
+  // middle of an earlier segment resulted in an invalid live range.
+  liveIntervalTest(R"MIR(
+    %4:sreg_32 = IMPLICIT_DEF
+    %6:sreg_32 = IMPLICIT_DEF
+    undef early-clobber %9.sub0:sreg_64 = WWM %4:sreg_32, implicit $exec
+    %5:sreg_32 = S_FLBIT_I32_B32 %9.sub0:sreg_64
+    early-clobber %9.sub1:sreg_64 = WWM %6:sreg_32, implicit $exec
+    %7:sreg_32 = S_FLBIT_I32_B32 %9.sub1:sreg_64
+)MIR", [](MachineFunction &MF, LiveIntervals &LIS) {
+    testHandleMove(MF, LIS, 4, 3);
+  });
+}
+
 TEST(LiveIntervalTest, TestMoveSubRegDefAcrossUseDef) {
   liveIntervalTest(R"MIR(
     %1:vreg_64 = IMPLICIT_DEF
@@ -481,6 +496,26 @@ TEST(LiveIntervalTest, TestMoveSubRegDefAcrossUseDefMulti) {
      // The scheduler clears undef from subregister defs before moving
      UndefSubregDef.getOperand(0).setIsUndef(false);
      testHandleMove(MF, LIS, 4, 1, 1);
+  });
+}
+
+TEST(LiveIntervalTest, TestMoveSubRegUseAcrossMainRangeHole) {
+  liveIntervalTest(R"MIR(
+    %1:sgpr_128 = IMPLICIT_DEF
+  bb.1:
+    %2:sgpr_32 = COPY %1.sub2
+    %3:sgpr_32 = COPY %1.sub1
+    %1.sub2 = COPY %2
+    undef %1.sub0 = IMPLICIT_DEF
+    %1.sub2 = IMPLICIT_DEF
+    S_CBRANCH_SCC1 %bb.1, implicit undef $scc
+    S_BRANCH %bb.2
+  bb.2:
+)MIR", [](MachineFunction &MF, LiveIntervals &LIS) {
+    MachineInstr &MI = getMI(MF, 3, /*BlockNum=*/1);
+    MI.getOperand(0).setIsUndef(false);
+    testHandleMove(MF, LIS, 4, 3, 1);
+    testHandleMove(MF, LIS, 1, 4, 1);
   });
 }
 

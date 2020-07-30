@@ -38,6 +38,12 @@ StringRef OperationName::getDialect() const {
   return getStringRef().split('.').first;
 }
 
+/// Return the operation name with dialect name stripped, if it has one.
+StringRef OperationName::stripDialect() const {
+  auto splitName = getStringRef().split(".");
+  return splitName.second.empty() ? splitName.first : splitName.second;
+}
+
 /// Return the name of this operation.  This always succeeds.
 StringRef OperationName::getStringRef() const {
   if (auto *op = representation.dyn_cast<const AbstractOperation *>())
@@ -274,7 +280,7 @@ InFlightDiagnostic Operation::emitError(const Twine &message) {
   if (getContext()->shouldPrintOpOnDiagnostic()) {
     // Print out the operation explicitly here so that we can print the generic
     // form.
-    // TODO(riverriddle) It would be nice if we could instead provide the
+    // TODO: It would be nice if we could instead provide the
     // specific printing flags when adding the operation as an argument to the
     // diagnostic.
     std::string printedOp;
@@ -1009,6 +1015,22 @@ LogicalResult OpTrait::impl::verifyOperandSizeAttr(Operation *op,
 LogicalResult OpTrait::impl::verifyResultSizeAttr(Operation *op,
                                                   StringRef attrName) {
   return verifyValueSizeAttr(op, attrName, /*isOperand=*/false);
+}
+
+LogicalResult OpTrait::impl::verifyNoRegionArguments(Operation *op) {
+  for (Region &region : op->getRegions()) {
+    if (region.empty())
+      continue;
+
+    if (region.getNumArguments() != 0) {
+      if (op->getNumRegions() > 1)
+        return op->emitOpError("region #")
+               << region.getRegionNumber() << " should have no arguments";
+      else
+        return op->emitOpError("region should have no arguments");
+    }
+  }
+  return success();
 }
 
 //===----------------------------------------------------------------------===//

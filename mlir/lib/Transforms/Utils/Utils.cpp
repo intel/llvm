@@ -28,19 +28,17 @@ using namespace mlir;
 
 /// Return true if this operation dereferences one or more memref's.
 // Temporary utility: will be replaced when this is modeled through
-// side-effects/op traits. TODO(b/117228571)
+// side-effects/op traits. TODO
 static bool isMemRefDereferencingOp(Operation &op) {
-  if (isa<AffineLoadOp>(op) || isa<AffineStoreOp>(op) ||
-      isa<AffineDmaStartOp>(op) || isa<AffineDmaWaitOp>(op))
-    return true;
-  return false;
+  return isa<AffineReadOpInterface, AffineWriteOpInterface, AffineDmaStartOp,
+             AffineDmaWaitOp>(op);
 }
 
 /// Return the AffineMapAttr associated with memory 'op' on 'memref'.
 static NamedAttribute getAffineMapAttrForMemRef(Operation *op, Value memref) {
   return TypeSwitch<Operation *, NamedAttribute>(op)
-      .Case<AffineDmaStartOp, AffineLoadOp, AffinePrefetchOp, AffineStoreOp,
-            AffineDmaWaitOp>(
+      .Case<AffineDmaStartOp, AffineReadOpInterface, AffinePrefetchOp,
+            AffineWriteOpInterface, AffineDmaWaitOp>(
           [=](auto op) { return op.getAffineMapAttrForMemRef(memref); });
 }
 
@@ -85,7 +83,7 @@ LogicalResult mlir::replaceAllMemRefUsesWith(Value oldMemRef, Value newMemRef,
     return success();
 
   if (usePositions.size() > 1) {
-    // TODO(mlir-team): extend it for this case when needed (rare).
+    // TODO: extend it for this case when needed (rare).
     assert(false && "multiple dereferencing uses in a single op not supported");
     return failure();
   }
@@ -164,7 +162,7 @@ LogicalResult mlir::replaceAllMemRefUsesWith(Value oldMemRef, Value newMemRef,
   // Create new fully composed AffineMap for new op to be created.
   assert(newMapOperands.size() == newMemRefRank);
   auto newMap = builder.getMultiDimIdentityMap(newMemRefRank);
-  // TODO(b/136262594) Avoid creating/deleting temporary AffineApplyOps here.
+  // TODO: Avoid creating/deleting temporary AffineApplyOps here.
   fullyComposeAffineMapAndOperands(&newMap, &newMapOperands);
   newMap = simplifyAffineMap(newMap);
   canonicalizeMapAndOperands(&newMap, &newMapOperands);
@@ -447,7 +445,9 @@ LogicalResult mlir::normalizeMemRef(AllocOp allocOp) {
       MemRefType::Builder(memrefType)
           .setShape(newShape)
           .setAffineMaps(b.getMultiDimIdentityMap(newRank));
-  auto newAlloc = b.create<AllocOp>(allocOp.getLoc(), newMemRefType);
+
+  auto newAlloc = b.create<AllocOp>(allocOp.getLoc(), newMemRefType, llvm::None,
+                                    allocOp.alignmentAttr());
 
   // Replace all uses of the old memref.
   if (failed(replaceAllMemRefUsesWith(oldMemRef, /*newMemRef=*/newAlloc,

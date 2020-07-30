@@ -15,22 +15,22 @@
 #define LLVM_ANALYSIS_LOOPACCESSANALYSIS_H
 
 #include "llvm/ADT/EquivalenceClasses.h"
-#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/LoopAnalysisManager.h"
+#include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/Pass.h"
 
 namespace llvm {
 
-class Value;
+class AAResults;
 class DataLayout;
-class ScalarEvolution;
 class Loop;
-class SCEV;
-class SCEVUnionPredicate;
 class LoopAccessInfo;
 class OptimizationRemarkEmitter;
-class raw_osstream;
+class raw_ostream;
+class SCEV;
+class SCEVUnionPredicate;
+class Value;
 
 /// Collection of parameters shared beetween the Loop Vectorizer and the
 /// Loop Access Analysis.
@@ -418,7 +418,7 @@ public:
                       bool UseDependencies);
 
   /// Returns the checks that generateChecks created.
-  const SmallVector<RuntimePointerCheck, 4> &getChecks() const {
+  const SmallVectorImpl<RuntimePointerCheck> &getChecks() const {
     return Checks;
   }
 
@@ -510,7 +510,7 @@ private:
 class LoopAccessInfo {
 public:
   LoopAccessInfo(Loop *L, ScalarEvolution *SE, const TargetLibraryInfo *TLI,
-                 AliasAnalysis *AA, DominatorTree *DT, LoopInfo *LI);
+                 AAResults *AA, DominatorTree *DT, LoopInfo *LI);
 
   /// Return true we can analyze the memory accesses in the loop and there are
   /// no memory dependence cycles.
@@ -583,7 +583,7 @@ public:
 
 private:
   /// Analyze the loop.
-  void analyzeLoop(AliasAnalysis *AA, LoopInfo *LI,
+  void analyzeLoop(AAResults *AA, LoopInfo *LI,
                    const TargetLibraryInfo *TLI, DominatorTree *DT);
 
   /// Check if the structure of the loop allows it to be analyzed by this
@@ -726,7 +726,7 @@ private:
   // The used analysis passes.
   ScalarEvolution *SE = nullptr;
   const TargetLibraryInfo *TLI = nullptr;
-  AliasAnalysis *AA = nullptr;
+  AAResults *AA = nullptr;
   DominatorTree *DT = nullptr;
   LoopInfo *LI = nullptr;
 };

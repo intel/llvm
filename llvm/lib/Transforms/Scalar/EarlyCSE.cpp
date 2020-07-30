@@ -41,6 +41,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PatternMatch.h"
+#include "llvm/IR/Statepoint.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/Value.h"
@@ -456,6 +457,14 @@ template <> struct DenseMapInfo<CallValue> {
 
 unsigned DenseMapInfo<CallValue>::getHashValue(CallValue Val) {
   Instruction *Inst = Val.Inst;
+
+  // gc.relocate is 'special' call: its second and third operands are
+  // not real values, but indices into statepoint's argument list.
+  // Get values they point to.
+  if (const GCRelocateInst *GCR = dyn_cast<GCRelocateInst>(Inst))
+    return hash_combine(GCR->getOpcode(), GCR->getOperand(0),
+                        GCR->getBasePtr(), GCR->getDerivedPtr());
+
   // Hash all of the operands as pointers and mix in the opcode.
   return hash_combine(
       Inst->getOpcode(),
@@ -466,6 +475,14 @@ bool DenseMapInfo<CallValue>::isEqual(CallValue LHS, CallValue RHS) {
   Instruction *LHSI = LHS.Inst, *RHSI = RHS.Inst;
   if (LHS.isSentinel() || RHS.isSentinel())
     return LHSI == RHSI;
+
+  // See comment above in `getHashValue()`.
+  if (const GCRelocateInst *GCR1 = dyn_cast<GCRelocateInst>(LHSI))
+    if (const GCRelocateInst *GCR2 = dyn_cast<GCRelocateInst>(RHSI))
+      return GCR1->getOperand(0) == GCR2->getOperand(0) &&
+             GCR1->getBasePtr() == GCR2->getBasePtr() &&
+             GCR1->getDerivedPtr() == GCR2->getDerivedPtr();
+
   return LHSI->isIdenticalTo(RHSI);
 }
 
@@ -603,8 +620,8 @@ private:
   public:
     StackNode(ScopedHTType &AvailableValues, LoadHTType &AvailableLoads,
               InvariantHTType &AvailableInvariants, CallHTType &AvailableCalls,
-              unsigned cg, DomTreeNode *n, DomTreeNode::iterator child,
-              DomTreeNode::iterator end)
+              unsigned cg, DomTreeNode *n, DomTreeNode::const_iterator child,
+              DomTreeNode::const_iterator end)
         : CurrentGeneration(cg), ChildGeneration(cg), Node(n), ChildIter(child),
           EndIter(end),
           Scopes(AvailableValues, AvailableLoads, AvailableInvariants,
@@ -618,7 +635,7 @@ private:
     unsigned childGeneration() { return ChildGeneration; }
     void childGeneration(unsigned generation) { ChildGeneration = generation; }
     DomTreeNode *node() { return Node; }
-    DomTreeNode::iterator childIter() { return ChildIter; }
+    DomTreeNode::const_iterator childIter() { return ChildIter; }
 
     DomTreeNode *nextChild() {
       DomTreeNode *child = *ChildIter;
@@ -626,7 +643,7 @@ private:
       return child;
     }
 
-    DomTreeNode::iterator end() { return EndIter; }
+    DomTreeNode::const_iterator end() { return EndIter; }
     bool isProcessed() { return Processed; }
     void process() { Processed = true; }
 
@@ -634,8 +651,8 @@ private:
     unsigned CurrentGeneration;
     unsigned ChildGeneration;
     DomTreeNode *Node;
-    DomTreeNode::iterator ChildIter;
-    DomTreeNode::iterator EndIter;
+    DomTreeNode::const_iterator ChildIter;
+    DomTreeNode::const_iterator EndIter;
     NodeScope Scopes;
     bool Processed = false;
   };
@@ -949,7 +966,7 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
       }
 
       salvageKnowledge(&Inst, &AC);
-      salvageDebugInfoOrMarkUndef(Inst);
+      salvageDebugInfo(Inst);
       removeMSSA(Inst);
       Inst.eraseFromParent();
       Changed = true;

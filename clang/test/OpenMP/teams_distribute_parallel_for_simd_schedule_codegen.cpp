@@ -3,10 +3,18 @@
 #define HEADER
 
 // Test host codegen.
-// RUN: %clang_cc1 -DCK1 -verify -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-llvm %s -o - | FileCheck %s --check-prefix CK1 --check-prefix CK1-64
+// RUN: %clang_cc1 -DCK1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-llvm %s -o - | FileCheck %s --check-prefix CK1 --check-prefix CK1-64 --check-prefix CK1-OMP45
+// RUN: %clang_cc1 -DCK1 -verify -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-llvm %s -o - | FileCheck %s --check-prefix CK1 --check-prefix CK1-64 --check-prefix CK1-OMP50
+// RUN: %clang_cc1 -DCK1 -fopenmp -fopenmp-version=45 -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-pch -o %t %s
+// RUN: %clang_cc1 -DCK1 -fopenmp -fopenmp-version=45 -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix CK1 --check-prefix CK1-64
+
 // RUN: %clang_cc1 -DCK1 -fopenmp -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-pch -o %t %s
 // RUN: %clang_cc1 -DCK1 -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix CK1 --check-prefix CK1-64
+// RUN: %clang_cc1 -DCK1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -emit-llvm %s -o - | FileCheck %s --check-prefix CK1 --check-prefix CK1-32
 // RUN: %clang_cc1 -DCK1 -verify -fopenmp -x c++ -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -emit-llvm %s -o - | FileCheck %s --check-prefix CK1 --check-prefix CK1-32
+
+// RUN: %clang_cc1 -DCK1 -fopenmp -fopenmp-version=45 -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -emit-pch -o %t %s
+// RUN: %clang_cc1 -DCK1 -fopenmp -fopenmp-version=45 -x c++ -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix CK1 --check-prefix CK1-32
 // RUN: %clang_cc1 -DCK1 -fopenmp -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -emit-pch -o %t %s
 // RUN: %clang_cc1 -DCK1 -fopenmp -x c++ -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix CK1 --check-prefix CK1-32
 
@@ -26,21 +34,21 @@ struct SS{
   // CK1: define {{.*}}i32 @{{.+}}foo{{.+}}(
   int foo(void) {
 
-  // CK1: call i32 @__tgt_target_teams(
+  // CK1: call i32 @__tgt_target_teams_mapper(
   // CK1: call void @[[OFFL1:.+]](
     #pragma omp target
     #pragma omp teams distribute parallel for simd
     for(int i = 0; i < X; i++) {
       a[i] = (T)0;
     }
-  // CK1: call i32 @__tgt_target_teams(
+  // CK1: call i32 @__tgt_target_teams_mapper(
   // CK1: call void @[[OFFL2:.+]](
     #pragma omp target
     #pragma omp teams distribute parallel for simd schedule(static)
     for(int i = 0; i < X; i++) {
       a[i] = (T)0;
     }
-  // CK1: call i32 @__tgt_target_teams(
+  // CK1: call i32 @__tgt_target_teams_mapper(
   // CK1: call void @[[OFFL3:.+]](
     #pragma omp target
     #pragma omp teams distribute parallel for simd schedule(static, X/2)
@@ -48,7 +56,7 @@ struct SS{
       a[i] = (T)0;
     }
 
-  // CK1: call i32 @__tgt_target_teams(
+  // CK1: call i32 @__tgt_target_teams_mapper(
   // CK1: call void @[[OFFL4:.+]](
     #pragma omp target
     #pragma omp teams distribute parallel for simd schedule(dynamic)
@@ -56,7 +64,7 @@ struct SS{
       a[i] = (T)0;
     }
 
-  // CK1: call i32 @__tgt_target_teams(
+  // CK1: call i32 @__tgt_target_teams_mapper(
   // CK1: call void @[[OFFL5:.+]](
     #pragma omp target
     #pragma omp teams distribute parallel for simd schedule(dynamic, X/2)
@@ -120,7 +128,8 @@ struct SS{
   // CK1: ret void
 
   // CK1: define internal void @[[PAR_OUTL4]]({{.+}})
-  // CK1: call void @__kmpc_dispatch_init_4({{.+}}, {{.+}}, i32 35,
+  // CK1-OMP45: call void @__kmpc_dispatch_init_4({{.+}}, {{.+}}, i32 35,
+  // CK1-OMP50: call void @__kmpc_dispatch_init_4({{.+}}, {{.+}}, i32 1073741859,
   // CK1: call {{.+}} @__kmpc_dispatch_next_4(
   // CK1: ret void
 
@@ -135,7 +144,8 @@ struct SS{
   // CK1: ret void
 
   // CK1: define internal void @[[PAR_OUTL5]]({{.+}})
-  // CK1: call void @__kmpc_dispatch_init_4({{.+}}, {{.+}}, i32 35,
+  // CK1-OMP45: call void @__kmpc_dispatch_init_4({{.+}}, {{.+}}, i32 35,
+  // CK1-OMP50: call void @__kmpc_dispatch_init_4({{.+}}, {{.+}}, i32 1073741859,
   // CK1: call {{.+}} @__kmpc_dispatch_next_4(
   // CK1: ret void
 
@@ -153,9 +163,20 @@ int teams_template_struct(void) {
 #endif // CK1
 
 // Test host codegen.
-// RUN: %clang_cc1 -DCK2 -verify -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-llvm %s -o - | FileCheck %s --check-prefix CK2 --check-prefix CK2-64
+// RUN: %clang_cc1 -DCK2 -verify -fopenmp -fopenmp-version=45 -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-llvm %s -o - | FileCheck %s --check-prefix CK2 --check-prefix CK2-64 --check-prefix CK2-OMP45
+
+// RUN: %clang_cc1 -DCK2 -verify -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-llvm %s -o - | FileCheck %s --check-prefix CK2 --check-prefix CK2-64 --check-prefix CK2-OMP50
+
+// RUN: %clang_cc1 -DCK2 -fopenmp -fopenmp-version=45 -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-pch -o %t %s
+// RUN: %clang_cc1 -DCK2 -fopenmp -fopenmp-version=45 -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix CK2 --check-prefix CK2-64
 // RUN: %clang_cc1 -DCK2 -fopenmp -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -emit-pch -o %t %s
 // RUN: %clang_cc1 -DCK2 -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=powerpc64le-ibm-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix CK2 --check-prefix CK2-64
+
+
+// RUN: %clang_cc1 -DCK2 -verify -fopenmp -fopenmp-version=45 -x c++ -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -emit-llvm %s -o - | FileCheck %s --check-prefix CK2 --check-prefix CK2-32
+// RUN: %clang_cc1 -DCK2 -fopenmp -fopenmp-version=45 -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -emit-pch -o %t %s
+// RUN: %clang_cc1 -DCK2 -fopenmp -fopenmp-version=45 -x c++ -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix CK2 --check-prefix CK2-32
+
 // RUN: %clang_cc1 -DCK2 -verify -fopenmp -x c++ -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -emit-llvm %s -o - | FileCheck %s --check-prefix CK2 --check-prefix CK2-32
 // RUN: %clang_cc1 -DCK2 -fopenmp -x c++ -std=c++11 -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -emit-pch -o %t %s
 // RUN: %clang_cc1 -DCK2 -fopenmp -x c++ -triple i386-unknown-unknown -fopenmp-targets=i386-pc-linux-gnu -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix CK2 --check-prefix CK2-32
@@ -234,15 +255,15 @@ int main (int argc, char **argv) {
 }
 
 // CK2: define {{.*}}i32 @{{[^,]+}}(i{{.+}}{{.+}} %[[ARGC:.+]], {{.+}})
-// CK2: call i32 @__tgt_target_teams(
+// CK2: call i32 @__tgt_target_teams_mapper(
 // CK2: call void @[[OFFL1:.+]]({{.+}})
-// CK2: call i32 @__tgt_target_teams(
+// CK2: call i32 @__tgt_target_teams_mapper(
 // CK2: call void @[[OFFL2:.+]]({{.+}})
-// CK2: call i32 @__tgt_target_teams(
+// CK2: call i32 @__tgt_target_teams_mapper(
 // CK2: call void @[[OFFL3:.+]]({{.+}})
-// CK2: call i32 @__tgt_target_teams(
+// CK2: call i32 @__tgt_target_teams_mapper(
 // CK2: call void @[[OFFL4:.+]]({{.+}})
-// CK2: call i32 @__tgt_target_teams(
+// CK2: call i32 @__tgt_target_teams_mapper(
 // CK2: call void @[[OFFL5:.+]]({{.+}})
 // CK2: {{%.+}} = call{{.*}} i32 @[[TMAIN:.+]]({{.+}})
 // CK2: ret
@@ -303,7 +324,8 @@ int main (int argc, char **argv) {
 // CK2: ret void
 
 // CK2: define internal void @[[PAR_OUTL4]]({{.+}})
-// CK2: call void @__kmpc_dispatch_init_4({{.+}}, {{.+}}, i32 35,
+// CK2-OMP45: call void @__kmpc_dispatch_init_4({{.+}}, {{.+}}, i32 35,
+// CK2-OMP50: call void @__kmpc_dispatch_init_4({{.+}}, {{.+}}, i32 1073741859,
 // CK2: call {{.+}} @__kmpc_dispatch_next_4(
 // CK2: ret void
 
@@ -319,20 +341,22 @@ int main (int argc, char **argv) {
 // CK2: ret void
 
 // CK2: define internal void @[[PAR_OUTL5]]({{.+}})
-// CK2: call void @__kmpc_dispatch_init_4({{.+}}, {{.+}}, i32 35,
+// CK2-OMP45: call void @__kmpc_dispatch_init_4({{.+}}, {{.+}}, i32 35,
+// CK2-OMP50: call void @__kmpc_dispatch_init_4({{.+}}, {{.+}}, i32 1073741859,
+
 // CK2: call {{.+}} @__kmpc_dispatch_next_4(
 // CK2: ret void
 
 // CK2: define {{.*}}i32 @[[TMAIN]]({{.+}})
-// CK2: call i32 @__tgt_target_teams(
+// CK2: call i32 @__tgt_target_teams_mapper(
 // CK2: call void @[[OFFLT1:.+]]({{.+}})
-// CK2: call i32 @__tgt_target_teams(
+// CK2: call i32 @__tgt_target_teams_mapper(
 // CK2: call void @[[OFFLT2:.+]]({{.+}})
-// CK2: call i32 @__tgt_target_teams(
+// CK2: call i32 @__tgt_target_teams_mapper(
 // CK2: call void @[[OFFLT3:.+]]({{.+}})
-// CK2: call i32 @__tgt_target_teams(
+// CK2: call i32 @__tgt_target_teams_mapper(
 // CK2: call void @[[OFFLT4:.+]]({{.+}})
-// CK2: call i32 @__tgt_target_teams(
+// CK2: call i32 @__tgt_target_teams_mapper(
 // CK2: call void @[[OFFLT5:.+]]({{.+}})
 // CK2:  ret
 // CK2-NEXT: }
@@ -393,7 +417,9 @@ int main (int argc, char **argv) {
 // CK2: ret void
 
 // CK2: define internal void @[[PAR_OUTLT4]]({{.+}})
-// CK2: call void @__kmpc_dispatch_init_4({{.+}}, {{.+}}, i32 35,
+// CK2-OMP45: call void @__kmpc_dispatch_init_4({{.+}}, {{.+}}, i32 35,
+// CK2-OMP50: call void @__kmpc_dispatch_init_4({{.+}}, {{.+}}, i32 1073741859,
+
 // CK2: call {{.+}} @__kmpc_dispatch_next_4(
 // CK2: ret void
 
@@ -408,7 +434,9 @@ int main (int argc, char **argv) {
 // CK2: ret void
 
 // CK2: define internal void @[[PAR_OUTLT5]]({{.+}})
-// CK2: call void @__kmpc_dispatch_init_4({{.+}}, {{.+}}, i32 35,
+// CK2-OMP45: call void @__kmpc_dispatch_init_4({{.+}}, {{.+}}, i32 35,
+// CK2-OMP50: call void @__kmpc_dispatch_init_4({{.+}}, {{.+}}, i32 1073741859,
+
 // CK2: call {{.+}} @__kmpc_dispatch_next_4(
 // CK2: ret void
 

@@ -1,5 +1,4 @@
 //===-- lib/Semantics/resolve-names.cpp -----------------------------------===//
-//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -10,6 +9,7 @@
 #include "assignment.h"
 #include "check-omp-structure.h"
 #include "mod-file.h"
+#include "pointer-assignment.h"
 #include "program-tree.h"
 #include "resolve-names-utils.h"
 #include "rewrite-parse-tree.h"
@@ -18,7 +18,9 @@
 #include "flang/Common/indirection.h"
 #include "flang/Common/restorer.h"
 #include "flang/Evaluate/characteristics.h"
+#include "flang/Evaluate/check-expression.h"
 #include "flang/Evaluate/common.h"
+#include "flang/Evaluate/fold-designator.h"
 #include "flang/Evaluate/fold.h"
 #include "flang/Evaluate/intrinsics.h"
 #include "flang/Evaluate/tools.h"
@@ -287,7 +289,7 @@ protected:
     case parser::AccessSpec::Kind::Private:
       return Attr::PRIVATE;
     }
-    common::die("unreachable"); // suppress g++ warning
+    llvm_unreachable("Switch covers all cases"); // suppress g++ warning
   }
   Attr IntentSpecToAttr(const parser::IntentSpec &x) {
     switch (x.v) {
@@ -298,7 +300,7 @@ protected:
     case parser::IntentSpec::Intent::InOut:
       return Attr::INTENT_INOUT;
     }
-    common::die("unreachable"); // suppress g++ warning
+    llvm_unreachable("Switch covers all cases"); // suppress g++ warning
   }
 
 private:
@@ -455,6 +457,8 @@ public:
   // TODO: Will return the scope of a FORALL or implied DO loop; is this ok?
   // If not, should call FindProgramUnitContaining() instead.
   Scope &InclusiveScope();
+  // The enclosing scope, skipping derived types.
+  Scope &NonDerivedTypeScope();
 
   // Create a new scope and push it on the scope stack.
   void PushScope(Scope::Kind kind, Symbol *symbol);
@@ -806,6 +810,8 @@ public:
       const parser::Name &, const parser::InitialDataTarget &);
   void PointerInitialization(
       const parser::Name &, const parser::ProcPointerInit &);
+  void NonPointerInitialization(
+      const parser::Name &, const parser::ConstantExpr &, bool inComponentDecl);
   void CheckExplicitInterface(const parser::Name &);
   void CheckBindings(const parser::TypeBoundProcedureStmt::WithoutInterface &);
 
@@ -907,7 +913,7 @@ private:
   void SetSaveAttr(Symbol &);
   bool HandleUnrestrictedSpecificIntrinsicFunction(const parser::Name &);
   const parser::Name *FindComponent(const parser::Name *, const parser::Name &);
-  void CheckInitialDataTarget(const Symbol &, const SomeExpr &, SourceName);
+  bool CheckInitialDataTarget(const Symbol &, const SomeExpr &, SourceName);
   void CheckInitialProcTarget(const Symbol &, const parser::Name &, SourceName);
   void Initialization(const parser::Name &, const parser::Initialization &,
       bool inComponentDecl);
@@ -970,6 +976,7 @@ public:
   bool Pre(const parser::AcSpec &);
   bool Pre(const parser::AcImpliedDo &);
   bool Pre(const parser::DataImpliedDo &);
+  bool Pre(const parser::DataIDoObject &);
   bool Pre(const parser::DataStmtObject &);
   bool Pre(const parser::DataStmtValue &);
   bool Pre(const parser::DoConstruct &);
@@ -1143,9 +1150,9 @@ bool OmpVisitor::NeedsScope(const parser::OpenMPBlockConstruct &x) {
   const auto &beginBlockDir{std::get<parser::OmpBeginBlockDirective>(x.t)};
   const auto &beginDir{std::get<parser::OmpBlockDirective>(beginBlockDir.t)};
   switch (beginDir.v) {
-  case parser::OmpBlockDirective::Directive::TargetData:
-  case parser::OmpBlockDirective::Directive::Master:
-  case parser::OmpBlockDirective::Directive::Ordered:
+  case llvm::omp::Directive::OMPD_target_data:
+  case llvm::omp::Directive::OMPD_master:
+  case llvm::omp::Directive::OMPD_ordered:
     return false;
   default:
     return true;
@@ -1229,10 +1236,11 @@ public:
 
 private:
   struct OmpContext {
-    OmpContext(const parser::CharBlock &source, OmpDirective d, Scope &s)
+    OmpContext(
+        const parser::CharBlock &source, llvm::omp::Directive d, Scope &s)
         : directiveSource{source}, directive{d}, scope{s} {}
     parser::CharBlock directiveSource;
-    OmpDirective directive;
+    llvm::omp::Directive directive;
     Scope &scope;
     // TODO: default DSA is implicitly determined in different ways
     Symbol::Flag defaultDSA{Symbol::Flag::OmpShared};
@@ -1246,14 +1254,14 @@ private:
     CHECK(!ompContext_.empty());
     return ompContext_.back();
   }
-  void PushContext(const parser::CharBlock &source, OmpDirective dir) {
+  void PushContext(const parser::CharBlock &source, llvm::omp::Directive dir) {
     ompContext_.emplace_back(source, dir, context_.FindScope(source));
   }
   void PopContext() { ompContext_.pop_back(); }
   void SetContextDirectiveSource(parser::CharBlock &dir) {
     GetContext().directiveSource = dir;
   }
-  void SetContextDirectiveEnum(OmpDirective dir) {
+  void SetContextDirectiveEnum(llvm::omp::Directive dir) {
     GetContext().directive = dir;
   }
   Scope &currScope() { return GetContext().scope; }
@@ -1396,13 +1404,27 @@ public:
   void Post(const parser::AssignedGotoStmt &);
 
   // These nodes should never be reached: they are handled in ProgramUnit
-  bool Pre(const parser::MainProgram &) { DIE("unreachable"); }
-  bool Pre(const parser::FunctionSubprogram &) { DIE("unreachable"); }
-  bool Pre(const parser::SubroutineSubprogram &) { DIE("unreachable"); }
-  bool Pre(const parser::SeparateModuleSubprogram &) { DIE("unreachable"); }
-  bool Pre(const parser::Module &) { DIE("unreachable"); }
-  bool Pre(const parser::Submodule &) { DIE("unreachable"); }
-  bool Pre(const parser::BlockData &) { DIE("unreachable"); }
+  bool Pre(const parser::MainProgram &) {
+    llvm_unreachable("This node is handled in ProgramUnit");
+  }
+  bool Pre(const parser::FunctionSubprogram &) {
+    llvm_unreachable("This node is handled in ProgramUnit");
+  }
+  bool Pre(const parser::SubroutineSubprogram &) {
+    llvm_unreachable("This node is handled in ProgramUnit");
+  }
+  bool Pre(const parser::SeparateModuleSubprogram &) {
+    llvm_unreachable("This node is handled in ProgramUnit");
+  }
+  bool Pre(const parser::Module &) {
+    llvm_unreachable("This node is handled in ProgramUnit");
+  }
+  bool Pre(const parser::Submodule &) {
+    llvm_unreachable("This node is handled in ProgramUnit");
+  }
+  bool Pre(const parser::BlockData &) {
+    llvm_unreachable("This node is handled in ProgramUnit");
+  }
 
   void NoteExecutablePartCall(Symbol::Flag, const parser::Call &);
 
@@ -1415,7 +1437,8 @@ private:
 
   void PreSpecificationConstruct(const parser::SpecificationConstruct &);
   void CreateGeneric(const parser::GenericSpec &);
-  void FinishSpecificationPart();
+  void FinishSpecificationPart(const std::list<parser::DeclarationConstruct> &);
+  void AnalyzeStmtFunctionStmt(const parser::StmtFunctionStmt &);
   void CheckImports();
   void CheckImport(const SourceName &, const SourceName &);
   void HandleCall(Symbol::Flag, const parser::Call &);
@@ -1999,6 +2022,10 @@ Scope &ScopeHandler::InclusiveScope() {
   DIE("inclusive scope not found");
 }
 
+Scope &ScopeHandler::NonDerivedTypeScope() {
+  return currScope_->IsDerivedType() ? currScope_->parent() : *currScope_;
+}
+
 void ScopeHandler::PushScope(Scope::Kind kind, Symbol *symbol) {
   PushScope(currScope().MakeScope(kind, symbol));
 }
@@ -2284,6 +2311,7 @@ void ModuleVisitor::Post(const parser::UseStmt &x) {
     }
     for (const auto &[name, symbol] : *useModuleScope_) {
       if (symbol->attrs().test(Attr::PUBLIC) &&
+          !symbol->attrs().test(Attr::INTRINSIC) &&
           !symbol->detailsIf<MiscDetails>()) {
         if (useNames.count(name) == 0) {
           auto *localSymbol{FindInScope(currScope(), name)};
@@ -2689,11 +2717,9 @@ bool SubprogramVisitor::HandleStmtFunction(const parser::StmtFunctionStmt &x) {
   details.set_result(result);
   const auto &parsedExpr{std::get<parser::Scalar<parser::Expr>>(x.t)};
   Walk(parsedExpr);
-  if (auto expr{AnalyzeExpr(context(), parsedExpr)}) {
-    details.set_stmtFunction(std::move(*expr));
-  } else {
-    context().SetError(symbol);
-  }
+  // The analysis of the expression that constitutes the body of the
+  // statement function is deferred to FinishSpecificationPart() so that
+  // all declarations and implicit typing are complete.
   PopScope();
   return true;
 }
@@ -3294,9 +3320,7 @@ void DeclarationVisitor::Post(const parser::EnumDef &) {
 
 bool DeclarationVisitor::Pre(const parser::AccessSpec &x) {
   Attr attr{AccessSpecToAttr(x)};
-  const Scope &scope{
-      currScope().IsDerivedType() ? currScope().parent() : currScope()};
-  if (!scope.IsModule()) { // C817
+  if (!NonDerivedTypeScope().IsModule()) { // C817
     Say(currStmtSource().value(),
         "%s attribute may only appear in the specification part of a module"_err_en_US,
         EnumToString(attr));
@@ -4354,6 +4378,7 @@ void DeclarationVisitor::CheckEquivalenceSets() {
 bool DeclarationVisitor::Pre(const parser::SaveStmt &x) {
   if (x.v.empty()) {
     saveInfo_.saveAll = currStmtSource();
+    currScope().set_hasSAVE();
   } else {
     for (const parser::SavedEntity &y : x.v) {
       auto kind{std::get<parser::SavedEntity::Kind>(y.t)};
@@ -4381,6 +4406,7 @@ void DeclarationVisitor::CheckSaveStmts() {
           *saveInfo_.saveAll, "Global SAVE statement"_en_US);
     } else if (auto msg{CheckSaveAttr(*symbol)}) {
       Say(name, std::move(*msg));
+      context().SetError(*symbol);
     } else {
       SetSaveAttr(*symbol);
     }
@@ -4427,15 +4453,16 @@ std::optional<MessageFixedText> DeclarationVisitor::CheckSaveAttr(
   } else if (symbol.has<ProcEntityDetails>() &&
       !symbol.attrs().test(Attr::POINTER)) {
     return "Procedure '%s' with SAVE attribute must also have POINTER attribute"_err_en_US;
+  } else if (IsAutomatic(symbol)) {
+    return "SAVE attribute may not be applied to automatic data object '%s'"_err_en_US;
   } else {
     return std::nullopt;
   }
 }
 
-// Instead of setting SAVE attribute, record the name in saveInfo_.entities.
+// Record SAVEd names in saveInfo_.entities.
 Attrs DeclarationVisitor::HandleSaveName(const SourceName &name, Attrs attrs) {
   if (attrs.test(Attr::SAVE)) {
-    attrs.set(Attr::SAVE, false);
     AddSaveName(saveInfo_.entities, name);
   }
   return attrs;
@@ -4725,7 +4752,7 @@ void DeclarationVisitor::SetType(
 
 std::optional<DerivedTypeSpec> DeclarationVisitor::ResolveDerivedType(
     const parser::Name &name) {
-  Symbol *symbol{FindSymbol(name)};
+  Symbol *symbol{FindSymbol(NonDerivedTypeScope(), name)};
   if (!symbol || symbol->has<UnknownDetails>()) {
     if (allowForwardReferenceToDerivedType()) {
       if (!symbol) {
@@ -4989,23 +5016,32 @@ bool ConstructVisitor::Pre(const parser::DataImpliedDo &x) {
   return false;
 }
 
+// Sets InDataStmt flag on a variable (or misidentified function) in a DATA
+// statement so that the predicate IsInitialized(base symbol) will be true
+// during semantic analysis before the symbol's initializer is constructed.
+bool ConstructVisitor::Pre(const parser::DataIDoObject &x) {
+  std::visit(
+      common::visitors{
+          [&](const parser::Scalar<Indirection<parser::Designator>> &y) {
+            Walk(y.thing.value());
+            const parser::Name &first{parser::GetFirstName(y.thing.value())};
+            if (first.symbol) {
+              first.symbol->set(Symbol::Flag::InDataStmt);
+            }
+          },
+          [&](const Indirection<parser::DataImpliedDo> &y) { Walk(y.value()); },
+      },
+      x.u);
+  return false;
+}
+
 bool ConstructVisitor::Pre(const parser::DataStmtObject &x) {
   std::visit(common::visitors{
                  [&](const Indirection<parser::Variable> &y) {
                    Walk(y.value());
-                   if (const auto *designator{
-                           std::get_if<Indirection<parser::Designator>>(
-                               &y.value().u)}) {
-                     if (const parser::Name *
-                         name{ResolveDesignator(designator->value())}) {
-                       if (name->symbol) {
-                         name->symbol->set(Symbol::Flag::InDataStmt);
-                       }
-                     }
-                     // TODO check C874 - C881
-                   } else {
-                     // TODO report C875 error: variable is not a designator
-                     // here?
+                   const parser::Name &first{parser::GetFirstName(y.value())};
+                   if (first.symbol) {
+                     first.symbol->set(Symbol::Flag::InDataStmt);
                    }
                  },
                  [&](const parser::DataImpliedDo &y) {
@@ -5143,6 +5179,12 @@ void ConstructVisitor::Post(const parser::SelectTypeStmt &x) {
     // This isn't a name in the current scope, it is in each TypeGuardStmt
     MakePlaceholder(*name, MiscDetails::Kind::SelectTypeAssociateName);
     association.name = &*name;
+    auto exprType{association.selector.expr->GetType()};
+    if (exprType && !exprType->IsPolymorphic()) { // C1159
+      Say(association.selector.source,
+          "Selector '%s' in SELECT TYPE statement must be "
+          "polymorphic"_err_en_US);
+    }
   } else {
     if (const Symbol *
         whole{UnwrapWholeSymbolDataRef(association.selector.expr)}) {
@@ -5151,6 +5193,13 @@ void ConstructVisitor::Post(const parser::SelectTypeStmt &x) {
         Say(association.selector.source, // C901
             "Selector is not a variable"_err_en_US);
         association = {};
+      }
+      if (const DeclTypeSpec * type{whole->GetType()}) {
+        if (!type->IsPolymorphic()) { // C1159
+          Say(association.selector.source,
+              "Selector '%s' in SELECT TYPE statement must be "
+              "polymorphic"_err_en_US);
+        }
       }
     } else {
       Say(association.selector.source, // C1157
@@ -5460,7 +5509,15 @@ const parser::Name *DeclarationVisitor::ResolveDataRef(
           },
           [&](const Indirection<parser::ArrayElement> &y) {
             Walk(y.value().subscripts);
-            return ResolveDataRef(y.value().base);
+            const parser::Name *name{ResolveDataRef(y.value().base)};
+            if (!name) {
+            } else if (!name->symbol->has<ProcEntityDetails>()) {
+              ConvertToObjectEntity(*name->symbol);
+            } else if (!context().HasError(*name->symbol)) {
+              SayWithDecl(*name, *name->symbol,
+                  "Cannot reference function '%s' as data"_err_en_US);
+            }
+            return name;
           },
           [&](const Indirection<parser::CoindexedNamedObject> &y) {
             Walk(y.value().imageSelector);
@@ -5588,25 +5645,16 @@ const parser::Name *DeclarationVisitor::FindComponent(
 }
 
 // C764, C765
-void DeclarationVisitor::CheckInitialDataTarget(
+bool DeclarationVisitor::CheckInitialDataTarget(
     const Symbol &pointer, const SomeExpr &expr, SourceName source) {
-  auto &messages{GetFoldingContext().messages()};
-  auto restorer{messages.SetLocation(source)};
-  if (!evaluate::IsInitialDataTarget(expr, &messages)) {
-    Say(source,
-        "Pointer '%s' cannot be initialized with a reference to a designator with non-constant subscripts"_err_en_US,
-        pointer.name());
-    return;
-  }
-  if (pointer.Rank() != expr.Rank()) {
-    Say(source,
-        "Pointer '%s' of rank %d cannot be initialized with a target of different rank (%d)"_err_en_US,
-        pointer.name(), pointer.Rank(), expr.Rank());
-    return;
-  }
-  // TODO: check type compatibility
-  // TODO: check non-deferred type parameter values
-  // TODO: check contiguity if pointer is CONTIGUOUS
+  auto &context{GetFoldingContext()};
+  auto restorer{context.messages().SetLocation(source)};
+  auto dyType{evaluate::DynamicType::From(pointer)};
+  CHECK(dyType);
+  auto designator{evaluate::TypedWrapper<evaluate::Designator>(
+      *dyType, evaluate::DataRef{pointer})};
+  CHECK(designator);
+  return CheckInitialTarget(context, *designator, expr);
 }
 
 void DeclarationVisitor::CheckInitialProcTarget(
@@ -5635,52 +5683,42 @@ void DeclarationVisitor::CheckInitialProcTarget(
 
 void DeclarationVisitor::Initialization(const parser::Name &name,
     const parser::Initialization &init, bool inComponentDecl) {
-  if (!name.symbol) {
-    return;
-  }
-  if (std::holds_alternative<parser::InitialDataTarget>(init.u)) {
-    // Defer analysis to the end of the specification parts so that forward
-    // references work better.
-    return;
-  }
   // Traversal of the initializer was deferred to here so that the
   // symbol being declared can be available for use in the expression, e.g.:
   //   real, parameter :: x = tiny(x)
-  Walk(init.u);
+  if (!name.symbol) {
+    return;
+  }
   Symbol &ultimate{name.symbol->GetUltimate()};
+  if (IsAllocatable(ultimate)) {
+    Say(name, "Allocatable component '%s' cannot be initialized"_err_en_US);
+    return;
+  }
+  if (std::holds_alternative<parser::InitialDataTarget>(init.u)) {
+    // Defer analysis further to the end of the specification parts so that
+    // forward references and attribute checks (e.g., SAVE) work better.
+    // TODO: But pointer initializers of components in named constants of
+    // derived types may still need more attention.
+    return;
+  }
   if (auto *details{ultimate.detailsIf<ObjectEntityDetails>()}) {
     // TODO: check C762 - all bounds and type parameters of component
     // are colons or constant expressions if component is initialized
-    bool isPointer{false};
+    bool isNullPointer{false};
     std::visit(
         common::visitors{
             [&](const parser::ConstantExpr &expr) {
-              if (inComponentDecl) {
-                // Can't convert to type of component, which might not yet
-                // be known; that's done later during instantiation.
-                if (MaybeExpr value{EvaluateExpr(expr)}) {
-                  details->set_init(std::move(*value));
-                }
-              } else {
-                if (MaybeExpr folded{EvaluateConvertedExpr(
-                        ultimate, expr, expr.thing.value().source)}) {
-                  details->set_init(std::move(*folded));
-                }
-              }
+              NonPointerInitialization(name, expr, inComponentDecl);
             },
             [&](const parser::NullInit &) {
-              isPointer = true;
+              isNullPointer = true;
               details->set_init(SomeExpr{evaluate::NullPointer{}});
             },
-            [&](const parser::InitialDataTarget &initExpr) {
-              isPointer = true;
-              if (MaybeExpr expr{EvaluateExpr(initExpr)}) {
-                CheckInitialDataTarget(
-                    ultimate, *expr, initExpr.value().source);
-                details->set_init(std::move(*expr));
-              }
+            [&](const parser::InitialDataTarget &) {
+              DIE("InitialDataTarget can't appear here");
             },
             [&](const std::list<Indirection<parser::DataStmtValue>> &) {
+              // TODO: Need to Walk(init.u); when implementing this case
               if (inComponentDecl) {
                 Say(name,
                     "Component '%s' initialized with DATA statement values"_err_en_US);
@@ -5690,18 +5728,14 @@ void DeclarationVisitor::Initialization(const parser::Name &name,
             },
         },
         init.u);
-    if (isPointer) {
+    if (isNullPointer) {
       if (!IsPointer(ultimate)) {
         Say(name,
-            "Non-pointer component '%s' initialized with pointer target"_err_en_US);
+            "Non-pointer component '%s' initialized with null pointer"_err_en_US);
       }
-    } else {
-      if (IsPointer(ultimate)) {
-        Say(name,
-            "Object pointer component '%s' initialized with non-pointer expression"_err_en_US);
-      } else if (IsAllocatable(ultimate)) {
-        Say(name, "Allocatable component '%s' cannot be initialized"_err_en_US);
-      }
+    } else if (IsPointer(ultimate)) {
+      Say(name,
+          "Object pointer component '%s' initialized with non-pointer expression"_err_en_US);
     }
   }
 }
@@ -5755,6 +5789,31 @@ void DeclarationVisitor::PointerInitialization(
   }
 }
 
+void DeclarationVisitor::NonPointerInitialization(const parser::Name &name,
+    const parser::ConstantExpr &expr, bool inComponentDecl) {
+  if (name.symbol) {
+    Symbol &ultimate{name.symbol->GetUltimate()};
+    if (IsPointer(ultimate)) {
+      Say(name, "'%s' is a pointer but is not initialized like one"_err_en_US);
+    } else if (auto *details{ultimate.detailsIf<ObjectEntityDetails>()}) {
+      CHECK(!details->init());
+      Walk(expr);
+      // TODO: check C762 - all bounds and type parameters of component
+      // are colons or constant expressions if component is initialized
+      if (inComponentDecl) {
+        // Can't convert to type of component, which might not yet
+        // be known; that's done later during instantiation.
+        if (MaybeExpr value{EvaluateExpr(expr)}) {
+          details->set_init(std::move(*value));
+        }
+      } else if (MaybeExpr folded{EvaluateConvertedExpr(
+                     ultimate, expr, expr.thing.value().source)}) {
+        details->set_init(std::move(*folded));
+      }
+    }
+  }
+}
+
 void ResolveNamesVisitor::HandleCall(
     Symbol::Flag procFlag, const parser::Call &call) {
   std::visit(
@@ -5769,7 +5828,7 @@ void ResolveNamesVisitor::HandleCall(
 void ResolveNamesVisitor::HandleProcedureName(
     Symbol::Flag flag, const parser::Name &name) {
   CHECK(flag == Symbol::Flag::Function || flag == Symbol::Flag::Subroutine);
-  auto *symbol{FindSymbol(name)};
+  auto *symbol{FindSymbol(NonDerivedTypeScope(), name)};
   if (!symbol) {
     if (context().intrinsics().IsIntrinsic(name.source.ToString())) {
       symbol =
@@ -5955,7 +6014,8 @@ bool ResolveNamesVisitor::Pre(const parser::SpecificationPart &x) {
   Walk(std::get<1>(x.t));
   Walk(std::get<2>(x.t));
   Walk(std::get<3>(x.t));
-  const std::list<parser::DeclarationConstruct> &decls{std::get<4>(x.t)};
+  Walk(std::get<4>(x.t));
+  const std::list<parser::DeclarationConstruct> &decls{std::get<5>(x.t)};
   for (const auto &decl : decls) {
     if (const auto *spec{
             std::get_if<parser::SpecificationConstruct>(&decl.u)}) {
@@ -5963,7 +6023,7 @@ bool ResolveNamesVisitor::Pre(const parser::SpecificationPart &x) {
     }
   }
   Walk(decls);
-  FinishSpecificationPart();
+  FinishSpecificationPart(decls);
   return false;
 }
 
@@ -6020,7 +6080,8 @@ void ResolveNamesVisitor::CreateGeneric(const parser::GenericSpec &x) {
   info.Resolve(&MakeSymbol(symbolName, Attrs{}, std::move(genericDetails)));
 }
 
-void ResolveNamesVisitor::FinishSpecificationPart() {
+void ResolveNamesVisitor::FinishSpecificationPart(
+    const std::list<parser::DeclarationConstruct> &decls) {
   badStmtFuncFound_ = false;
   CheckImports();
   bool inModule{currScope().kind() == Scope::Kind::Module};
@@ -6033,16 +6094,52 @@ void ResolveNamesVisitor::FinishSpecificationPart() {
       CheckGenericProcedures(symbol);
     }
     if (inModule && symbol.attrs().test(Attr::EXTERNAL) &&
-        !symbol.test(Symbol::Flag::Function)) {
+        !symbol.test(Symbol::Flag::Function) &&
+        !symbol.test(Symbol::Flag::Subroutine)) {
       // in a module, external proc without return type is subroutine
-      symbol.set(Symbol::Flag::Subroutine);
+      symbol.set(
+          symbol.GetType() ? Symbol::Flag::Function : Symbol::Flag::Subroutine);
     }
   }
   currScope().InstantiateDerivedTypes(context());
+  for (const auto &decl : decls) {
+    if (const auto *statement{std::get_if<
+            parser::Statement<common::Indirection<parser::StmtFunctionStmt>>>(
+            &decl.u)}) {
+      AnalyzeStmtFunctionStmt(statement->statement.value());
+    }
+  }
   // TODO: what about instantiations in BLOCK?
   CheckSaveStmts();
   CheckCommonBlocks();
   CheckEquivalenceSets();
+}
+
+// Analyze the bodies of statement functions now that the symbols in this
+// specification part have been fully declared and implicitly typed.
+void ResolveNamesVisitor::AnalyzeStmtFunctionStmt(
+    const parser::StmtFunctionStmt &stmtFunc) {
+  Symbol *symbol{std::get<parser::Name>(stmtFunc.t).symbol};
+  if (!symbol || !symbol->has<SubprogramDetails>()) {
+    return;
+  }
+  auto &details{symbol->get<SubprogramDetails>()};
+  auto expr{AnalyzeExpr(
+      context(), std::get<parser::Scalar<parser::Expr>>(stmtFunc.t))};
+  if (!expr) {
+    context().SetError(*symbol);
+    return;
+  }
+  if (auto type{evaluate::DynamicType::From(*symbol)}) {
+    auto converted{ConvertToType(*type, std::move(*expr))};
+    if (!converted) {
+      context().SetError(*symbol);
+      return;
+    }
+    details.set_stmtFunction(std::move(*converted));
+  } else {
+    details.set_stmtFunction(std::move(*expr));
+  }
 }
 
 void ResolveNamesVisitor::CheckImports() {
@@ -6228,8 +6325,8 @@ void ResolveNamesVisitor::ResolveSpecificationParts(ProgramTree &node) {
       node.stmt());
   Walk(node.spec());
   // If this is a function, convert result to an object. This is to prevent the
-  // result to be converted later to a function symbol if it is called inside
-  // the function.
+  // result from being converted later to a function symbol if it is called
+  // inside the function.
   // If the result is function pointer, then ConvertToObjectEntity will not
   // convert the result to an object, and calling the symbol inside the function
   // will result in calls to the result pointer.
@@ -6373,41 +6470,19 @@ bool OmpAttributeVisitor::Pre(const parser::OpenMPBlockConstruct &x) {
   const auto &beginBlockDir{std::get<parser::OmpBeginBlockDirective>(x.t)};
   const auto &beginDir{std::get<parser::OmpBlockDirective>(beginBlockDir.t)};
   switch (beginDir.v) {
-  case parser::OmpBlockDirective::Directive::Master:
-    PushContext(beginDir.source, OmpDirective::MASTER);
-    break;
-  case parser::OmpBlockDirective::Directive::Ordered:
-    PushContext(beginDir.source, OmpDirective::ORDERED);
-    break;
-  case parser::OmpBlockDirective::Directive::Parallel:
-    PushContext(beginDir.source, OmpDirective::PARALLEL);
-    break;
-  case parser::OmpBlockDirective::Directive::Single:
-    PushContext(beginDir.source, OmpDirective::SINGLE);
-    break;
-  case parser::OmpBlockDirective::Directive::Target:
-    PushContext(beginDir.source, OmpDirective::TARGET);
-    break;
-  case parser::OmpBlockDirective::Directive::TargetData:
-    PushContext(beginDir.source, OmpDirective::TARGET_DATA);
-    break;
-  case parser::OmpBlockDirective::Directive::Task:
-    PushContext(beginDir.source, OmpDirective::TASK);
-    break;
-  case parser::OmpBlockDirective::Directive::Teams:
-    PushContext(beginDir.source, OmpDirective::TEAMS);
-    break;
-  case parser::OmpBlockDirective::Directive::Workshare:
-    PushContext(beginDir.source, OmpDirective::WORKSHARE);
-    break;
-  case parser::OmpBlockDirective::Directive::ParallelWorkshare:
-    PushContext(beginDir.source, OmpDirective::PARALLEL_WORKSHARE);
-    break;
-  case parser::OmpBlockDirective::Directive::TargetTeams:
-    PushContext(beginDir.source, OmpDirective::TARGET_TEAMS);
-    break;
-  case parser::OmpBlockDirective::Directive::TargetParallel:
-    PushContext(beginDir.source, OmpDirective::TARGET_PARALLEL);
+  case llvm::omp::Directive::OMPD_master:
+  case llvm::omp::Directive::OMPD_ordered:
+  case llvm::omp::Directive::OMPD_parallel:
+  case llvm::omp::Directive::OMPD_single:
+  case llvm::omp::Directive::OMPD_target:
+  case llvm::omp::Directive::OMPD_target_data:
+  case llvm::omp::Directive::OMPD_task:
+  case llvm::omp::Directive::OMPD_teams:
+  case llvm::omp::Directive::OMPD_workshare:
+  case llvm::omp::Directive::OMPD_parallel_workshare:
+  case llvm::omp::Directive::OMPD_target_teams:
+  case llvm::omp::Directive::OMPD_target_parallel:
+    PushContext(beginDir.source, beginDir.v);
     break;
   default:
     // TODO others
@@ -6422,74 +6497,31 @@ bool OmpAttributeVisitor::Pre(const parser::OpenMPLoopConstruct &x) {
   const auto &beginDir{std::get<parser::OmpLoopDirective>(beginLoopDir.t)};
   const auto &clauseList{std::get<parser::OmpClauseList>(beginLoopDir.t)};
   switch (beginDir.v) {
-  case parser::OmpLoopDirective::Directive::Distribute:
-    PushContext(beginDir.source, OmpDirective::DISTRIBUTE);
+  case llvm::omp::Directive::OMPD_distribute:
+  case llvm::omp::Directive::OMPD_distribute_parallel_do:
+  case llvm::omp::Directive::OMPD_distribute_parallel_do_simd:
+  case llvm::omp::Directive::OMPD_distribute_simd:
+  case llvm::omp::Directive::OMPD_do:
+  case llvm::omp::Directive::OMPD_do_simd:
+  case llvm::omp::Directive::OMPD_parallel_do:
+  case llvm::omp::Directive::OMPD_parallel_do_simd:
+  case llvm::omp::Directive::OMPD_simd:
+  case llvm::omp::Directive::OMPD_target_parallel_do:
+  case llvm::omp::Directive::OMPD_target_parallel_do_simd:
+  case llvm::omp::Directive::OMPD_target_teams_distribute:
+  case llvm::omp::Directive::OMPD_target_teams_distribute_parallel_do:
+  case llvm::omp::Directive::OMPD_target_teams_distribute_parallel_do_simd:
+  case llvm::omp::Directive::OMPD_target_teams_distribute_simd:
+  case llvm::omp::Directive::OMPD_target_simd:
+  case llvm::omp::Directive::OMPD_taskloop:
+  case llvm::omp::Directive::OMPD_taskloop_simd:
+  case llvm::omp::Directive::OMPD_teams_distribute:
+  case llvm::omp::Directive::OMPD_teams_distribute_parallel_do:
+  case llvm::omp::Directive::OMPD_teams_distribute_parallel_do_simd:
+  case llvm::omp::Directive::OMPD_teams_distribute_simd:
+    PushContext(beginDir.source, beginDir.v);
     break;
-  case parser::OmpLoopDirective::Directive::DistributeParallelDo:
-    PushContext(beginDir.source, OmpDirective::DISTRIBUTE_PARALLEL_DO);
-    break;
-  case parser::OmpLoopDirective::Directive::DistributeParallelDoSimd:
-    PushContext(beginDir.source, OmpDirective::DISTRIBUTE_PARALLEL_DO_SIMD);
-    break;
-  case parser::OmpLoopDirective::Directive::DistributeSimd:
-    PushContext(beginDir.source, OmpDirective::DISTRIBUTE_SIMD);
-    break;
-  case parser::OmpLoopDirective::Directive::Do:
-    PushContext(beginDir.source, OmpDirective::DO);
-    break;
-  case parser::OmpLoopDirective::Directive::DoSimd:
-    PushContext(beginDir.source, OmpDirective::DO_SIMD);
-    break;
-  case parser::OmpLoopDirective::Directive::ParallelDo:
-    PushContext(beginDir.source, OmpDirective::PARALLEL_DO);
-    break;
-  case parser::OmpLoopDirective::Directive::ParallelDoSimd:
-    PushContext(beginDir.source, OmpDirective::PARALLEL_DO_SIMD);
-    break;
-  case parser::OmpLoopDirective::Directive::Simd:
-    PushContext(beginDir.source, OmpDirective::SIMD);
-    break;
-  case parser::OmpLoopDirective::Directive::TargetParallelDo:
-    PushContext(beginDir.source, OmpDirective::TARGET_PARALLEL_DO);
-    break;
-  case parser::OmpLoopDirective::Directive::TargetParallelDoSimd:
-    PushContext(beginDir.source, OmpDirective::TARGET_PARALLEL_DO_SIMD);
-    break;
-  case parser::OmpLoopDirective::Directive::TargetTeamsDistribute:
-    PushContext(beginDir.source, OmpDirective::TARGET_TEAMS_DISTRIBUTE);
-    break;
-  case parser::OmpLoopDirective::Directive::TargetTeamsDistributeParallelDo:
-    PushContext(
-        beginDir.source, OmpDirective::TARGET_TEAMS_DISTRIBUTE_PARALLEL_DO);
-    break;
-  case parser::OmpLoopDirective::Directive::TargetTeamsDistributeParallelDoSimd:
-    PushContext(beginDir.source,
-        OmpDirective::TARGET_TEAMS_DISTRIBUTE_PARALLEL_DO_SIMD);
-    break;
-  case parser::OmpLoopDirective::Directive::TargetTeamsDistributeSimd:
-    PushContext(beginDir.source, OmpDirective::TARGET_TEAMS_DISTRIBUTE_SIMD);
-    break;
-  case parser::OmpLoopDirective::Directive::TargetSimd:
-    PushContext(beginDir.source, OmpDirective::TARGET_SIMD);
-    break;
-  case parser::OmpLoopDirective::Directive::Taskloop:
-    PushContext(beginDir.source, OmpDirective::TASKLOOP);
-    break;
-  case parser::OmpLoopDirective::Directive::TaskloopSimd:
-    PushContext(beginDir.source, OmpDirective::TASKLOOP_SIMD);
-    break;
-  case parser::OmpLoopDirective::Directive::TeamsDistribute:
-    PushContext(beginDir.source, OmpDirective::TEAMS_DISTRIBUTE);
-    break;
-  case parser::OmpLoopDirective::Directive::TeamsDistributeParallelDo:
-    PushContext(beginDir.source, OmpDirective::TEAMS_DISTRIBUTE_PARALLEL_DO);
-    break;
-  case parser::OmpLoopDirective::Directive::TeamsDistributeParallelDoSimd:
-    PushContext(
-        beginDir.source, OmpDirective::TEAMS_DISTRIBUTE_PARALLEL_DO_SIMD);
-    break;
-  case parser::OmpLoopDirective::Directive::TeamsDistributeSimd:
-    PushContext(beginDir.source, OmpDirective::TEAMS_DISTRIBUTE_SIMD);
+  default:
     break;
   }
   ClearDataSharingAttributeObjects();
@@ -6513,8 +6545,8 @@ void OmpAttributeVisitor::ResolveSeqLoopIndexInParallelOrTaskConstruct(
     if (targetIt == ompContext_.rend()) {
       return;
     }
-    if (parallelSet.test(targetIt->directive) ||
-        taskGeneratingSet.test(targetIt->directive)) {
+    if (llvm::omp::parallelSet.test(targetIt->directive) ||
+        llvm::omp::taskGeneratingSet.test(targetIt->directive)) {
       break;
     }
   }
@@ -6601,7 +6633,7 @@ void OmpAttributeVisitor::PrivatizeAssociatedLoopIndex(
   if (level <= 0)
     return;
   Symbol::Flag ivDSA{Symbol::Flag::OmpPrivate};
-  if (simdSet.test(GetContext().directive)) {
+  if (llvm::omp::simdSet.test(GetContext().directive)) {
     if (level == 1) {
       ivDSA = Symbol::Flag::OmpLinear;
     } else {
@@ -6632,11 +6664,11 @@ bool OmpAttributeVisitor::Pre(const parser::OpenMPSectionsConstruct &x) {
   const auto &beginDir{
       std::get<parser::OmpSectionsDirective>(beginSectionsDir.t)};
   switch (beginDir.v) {
-  case parser::OmpSectionsDirective::Directive::ParallelSections:
-    PushContext(beginDir.source, OmpDirective::PARALLEL_SECTIONS);
+  case llvm::omp::Directive::OMPD_parallel_sections:
+  case llvm::omp::Directive::OMPD_sections:
+    PushContext(beginDir.source, beginDir.v);
     break;
-  case parser::OmpSectionsDirective::Directive::Sections:
-    PushContext(beginDir.source, OmpDirective::SECTIONS);
+  default:
     break;
   }
   ClearDataSharingAttributeObjects();
@@ -6644,7 +6676,7 @@ bool OmpAttributeVisitor::Pre(const parser::OpenMPSectionsConstruct &x) {
 }
 
 bool OmpAttributeVisitor::Pre(const parser::OpenMPThreadprivate &x) {
-  PushContext(x.source, OmpDirective::THREADPRIVATE);
+  PushContext(x.source, llvm::omp::Directive::OMPD_threadprivate);
   const auto &list{std::get<parser::OmpObjectList>(x.t)};
   ResolveOmpObjectList(list, Symbol::Flag::OmpThreadprivate);
   return false;

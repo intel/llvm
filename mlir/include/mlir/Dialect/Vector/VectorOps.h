@@ -1,4 +1,4 @@
-//===- VectorOps.h - MLIR Super Vectorizer Operations -----------*- C++ -*-===//
+//===- VectorOps.h - MLIR Vector Dialect Operations -------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -19,6 +19,7 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/Interfaces/VectorInterfaces.h"
 
 namespace mlir {
 class MLIRContext;
@@ -46,16 +47,26 @@ void populateVectorSlicesLoweringPatterns(OwningRewritePatternList &patterns,
 
 /// Enum to control the lowering of `vector.contract` operations.
 enum class VectorContractLowering {
-  /// Progressively lower to finer grained `vector.contract` and `vector.fma`.
-  FMA = 0,
+  /// Progressively lower to finer grained `vector.contract` and dot-products.
+  Dot = 0,
   /// Lower to `vector.matrix_multiply`, maps 1-1 to LLVM matrix intrinsics.
   Matmul = 1,
   /// Lower to `vector.outerproduct`.
   OuterProduct = 2,
 };
+/// Enum to control the lowering of `vector.transpose` operations.
+enum class VectorTransposeLowering {
+  // Lower transpose into element-wise extract and inserts.
+  EltWise = 0,
+  /// Lower 2-D transpose to `vector.flat_transpose`, maps 1-1 to LLVM matrix
+  /// intrinsics.
+  Flat = 1,
+};
 /// Structure to control the behavior of vector transform patterns.
 struct VectorTransformsOptions {
-  VectorContractLowering vectorContractLowering = VectorContractLowering::FMA;
+  VectorContractLowering vectorContractLowering = VectorContractLowering::Dot;
+  VectorTransposeLowering vectorTransposeLowering =
+      VectorTransposeLowering::EltWise;
   VectorTransformsOptions &
   setVectorTransformsOptions(VectorContractLowering opt) {
     vectorContractLowering = opt;

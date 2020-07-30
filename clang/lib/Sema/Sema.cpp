@@ -42,7 +42,7 @@
 #include "clang/Sema/TemplateInstCallback.h"
 #include "clang/Sema/TypoCorrection.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/TimeProfiler.h"
 
 using namespace clang;
@@ -159,9 +159,8 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
           LangOpts.getMSPointerToMemberRepresentationMethod()),
       VtorDispStack(LangOpts.getVtorDispMode()), PackStack(0),
       DataSegStack(nullptr), BSSSegStack(nullptr), ConstSegStack(nullptr),
-      CodeSegStack(nullptr), FpPragmaStack(CurFPFeatures.getAsOpaqueInt()),
-      CurInitSeg(nullptr), VisContext(nullptr),
-      PragmaAttributeCurrentTargetDecl(nullptr),
+      CodeSegStack(nullptr), FpPragmaStack(0xffffffff), CurInitSeg(nullptr),
+      VisContext(nullptr), PragmaAttributeCurrentTargetDecl(nullptr),
       IsBuildingRecoveryCallExpr(false), Cleanup{}, LateTemplateParser(nullptr),
       LateTemplateParserCleanup(nullptr), OpaqueParser(nullptr), IdResolver(pp),
       StdExperimentalNamespaceCache(nullptr), StdInitializerList(nullptr),
@@ -299,6 +298,20 @@ void Sema::Initialize() {
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
   addImplicitTypedef(SEMA_STRINGIZE(__ocl_##ImgType##_##Suffix##_t),           \
                      Context.SingletonId);
+#include "clang/Basic/OpenCLImageTypes.def"
+#undef SEMA_STRINGIZE
+  }
+
+  if (getLangOpts().SYCLIsDevice || getLangOpts().OpenCL) {
+#ifdef SEMA_STRINGIZE
+#error "Undefine SEMA_STRINGIZE macro."
+#endif
+#define SEMA_STRINGIZE(s) #s
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  addImplicitTypedef(SEMA_STRINGIZE(__ocl_sampled_##ImgType##_##Suffix##_t),   \
+                     Context.Sampled##SingletonId);
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
 #include "clang/Basic/OpenCLImageTypes.def"
 #undef SEMA_STRINGIZE
   }
@@ -554,8 +567,10 @@ ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
   if (VK == VK_RValue && !E->isRValue()) {
     switch (Kind) {
     default:
-      llvm_unreachable("can't implicitly cast lvalue to rvalue with this cast "
-                       "kind");
+      llvm_unreachable(("can't implicitly cast lvalue to rvalue with this cast "
+                        "kind: " +
+                        std::string(CastExpr::getCastKindName(Kind)))
+                           .c_str());
     case CK_Dependent:
     case CK_LValueToRValue:
     case CK_ArrayToPointerDecay:
@@ -977,6 +992,8 @@ void Sema::ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind) {
       SyclIntHeader->emit(getLangOpts().SYCLIntHeader);
     MarkDevice();
   }
+  if (getLangOpts().SYCLExplicitSIMD)
+    MarkSyclSimd();
 
   emitDeferredDiags();
 
@@ -1031,6 +1048,11 @@ void Sema::ActOnEndOfTranslationUnit() {
                                  LateParsedInstantiations.begin(),
                                  LateParsedInstantiations.end());
     LateParsedInstantiations.clear();
+
+    if (LangOpts.PCHInstantiateTemplates) {
+      llvm::TimeTraceScope TimeScope("PerformPendingInstantiations");
+      PerformPendingInstantiations();
+    }
   }
 
   DiagnoseUnterminatedPragmaPack();
@@ -1507,7 +1529,7 @@ public:
   typedef UsedDeclVisitor<DeferredDiagnosticsEmitter> Inherited;
 
   // Whether the function is already in the current use-path.
-  llvm::SmallSet<CanonicalDeclPtr<Decl>, 4> InUsePath;
+  llvm::SmallPtrSet<CanonicalDeclPtr<Decl>, 4> InUsePath;
 
   // The current use-path.
   llvm::SmallVector<CanonicalDeclPtr<FunctionDecl>, 4> UsePath;
@@ -1516,7 +1538,7 @@ public:
   // case not in OpenMP device context. Done[1] is for the case in OpenMP
   // device context. We need two sets because diagnostics emission may be
   // different depending on whether it is in OpenMP device context.
-  llvm::SmallSet<CanonicalDeclPtr<Decl>, 4> DoneMap[2];
+  llvm::SmallPtrSet<CanonicalDeclPtr<Decl>, 4> DoneMap[2];
 
   // Emission state of the root node of the current use graph.
   bool ShouldEmitRootNode;
@@ -1753,12 +1775,7 @@ void Sema::checkDeviceDecl(const ValueDecl *D, SourceLocation Loc) {
     if (Ty->isDependentType())
       return;
 
-    auto IsSYCLDeviceCuda = getLangOpts().SYCLIsDevice &&
-                            Context.getTargetInfo().getTriple().isNVPTX();
-    if ((Ty->isFloat16Type() && !Context.getTargetInfo().hasFloat16Type() &&
-         // Disable check for SYCL CUDA BE until FP16 support is properly
-         // reported there (issue#1799)
-         !IsSYCLDeviceCuda) ||
+    if ((Ty->isFloat16Type() && !Context.getTargetInfo().hasFloat16Type()) ||
         ((Ty->isFloat128Type() ||
           (Ty->isRealFloatingType() && Context.getTypeSize(Ty) == 128)) &&
          !Context.getTargetInfo().hasFloat128Type()) ||
@@ -1982,7 +1999,7 @@ void Sema::PopCompoundScope() {
 /// Determine whether any errors occurred within this function/method/
 /// block.
 bool Sema::hasAnyUnrecoverableErrorsInThisFunction() const {
-  return getCurFunction()->ErrorTrap.hasUnrecoverableErrorOccurred();
+  return getCurFunction()->hasUnrecoverableErrorOccurred();
 }
 
 void Sema::setFunctionHasBranchIntoScope() {

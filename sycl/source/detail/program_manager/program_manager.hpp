@@ -7,16 +7,16 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/device_binary_image.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/spec_constant_impl.hpp>
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/spec_constant_impl.hpp>
 
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <unordered_map>
@@ -43,9 +43,11 @@ namespace detail {
 class context_impl;
 using ContextImplPtr = std::shared_ptr<context_impl>;
 class program_impl;
-
-enum DeviceLibExt {
-  cl_intel_devicelib_assert = 0,
+// DeviceLibExt is shared between sycl runtime and sycl-post-link tool.
+// If any update is made here, need to sync with DeviceLibExt definition
+// in llvm/tools/sycl-post-link/sycl-post-link.cpp
+enum class DeviceLibExt : std::uint32_t {
+  cl_intel_devicelib_assert,
   cl_intel_devicelib_math,
   cl_intel_devicelib_math_fp64,
   cl_intel_devicelib_complex,
@@ -61,7 +63,8 @@ public:
   static ProgramManager &getInstance();
   RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M,
                                       const string_class &KernelName,
-                                      const context &Context);
+                                      const context &Context,
+                                      bool JITCompilationIsRequired = false);
   RT::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
                                 const context &Context);
   /// Builds or retrieves from cache a program defining the kernel with given
@@ -74,12 +77,15 @@ public:
   ///        current specialization constants settings; can be nullptr.
   ///        Passing as a raw pointer is OK, since it is not captured anywhere
   ///        once the function returns.
+  /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
+  ///        add a check that kernel is compiled, otherwise don't add the check.
   RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
                                   const string_class &KernelName,
-                                  const program_impl *Prg = nullptr);
-  RT::PiKernel getOrCreateKernel(OSModuleHandle M, const context &Context,
-                                 const string_class &KernelName,
-                                 const program_impl *Prg);
+                                  const program_impl *Prg = nullptr,
+                                  bool JITCompilationIsRequired = false);
+  std::pair<RT::PiKernel, std::mutex *>
+  getOrCreateKernel(OSModuleHandle M, const context &Context,
+                    const string_class &KernelName, const program_impl *Prg);
   RT::PiProgram getPiProgramFromPiKernel(RT::PiKernel Kernel,
                                          const ContextImplPtr Context);
 
@@ -102,6 +108,7 @@ public:
   void flushSpecConstants(const program_impl &Prg,
                           pi::PiProgram NativePrg = nullptr,
                           const RTDeviceBinaryImage *Img = nullptr);
+  uint32_t getDeviceLibReqMask(const RTDeviceBinaryImage &Img);
 
 private:
   ProgramManager();
@@ -110,7 +117,8 @@ private:
   ProgramManager &operator=(ProgramManager const &) = delete;
 
   RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M, KernelSetId KSId,
-                                      const context &Context);
+                                      const context &Context,
+                                      bool JITCompilationIsRequired = false);
   using ProgramPtr = unique_ptr_class<remove_pointer_t<RT::PiProgram>,
                                       decltype(&::piProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
@@ -118,7 +126,7 @@ private:
                    const string_class &LinkOptions,
                    const std::vector<RT::PiDevice> &Devices,
                    std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms,
-                   bool LinkDeviceLibs = false);
+                   uint32_t DeviceLibReqMask);
   /// Provides a new kernel set id for grouping kernel names together
   KernelSetId getNextKernelSetId() const;
   /// Returns the kernel set associated with the kernel, handles some special

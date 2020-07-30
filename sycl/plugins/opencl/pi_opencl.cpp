@@ -160,7 +160,6 @@ static pi_result USMSetIndirectAccess(pi_kernel kernel) {
 
 extern "C" {
 
-// Example of a PI interface that does not map exactly to an OpenCL one.
 pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
                          pi_uint32 *num_platforms) {
   cl_int result = clGetPlatformIDs(cast<cl_uint>(num_entries),
@@ -176,7 +175,14 @@ pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
   return static_cast<pi_result>(result);
 }
 
-// Example of a PI interface that does not map exactly to an OpenCL one.
+pi_result piextPlatformCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                              pi_platform *platform) {
+  assert(platform);
+  assert(nativeHandle);
+  *platform = reinterpret_cast<pi_platform>(nativeHandle);
+  return PI_SUCCESS;
+}
+
 pi_result piDevicesGet(pi_platform platform, pi_device_type device_type,
                        pi_uint32 num_entries, pi_device *devices,
                        pi_uint32 *num_devices) {
@@ -266,7 +272,7 @@ pi_result piextDeviceSelectBinary(pi_device device, pi_device_binary *images,
 }
 
 pi_result piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                            pi_device *piDevice) {
+                                            pi_platform, pi_device *piDevice) {
   assert(piDevice != nullptr);
   *piDevice = reinterpret_cast<pi_device>(nativeHandle);
   return PI_SUCCESS;
@@ -313,7 +319,7 @@ pi_result piQueueCreate(pi_context context, pi_device device,
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                           pi_queue *piQueue) {
+                                           pi_context, pi_queue *piQueue) {
   assert(piQueue != nullptr);
   *piQueue = reinterpret_cast<pi_queue>(nativeHandle);
   return PI_SUCCESS;
@@ -398,6 +404,7 @@ pi_result piProgramCreate(pi_context context, const void *il, size_t length,
 }
 
 pi_result piextProgramCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                             pi_context,
                                              pi_program *piProgram) {
   assert(piProgram != nullptr);
   *piProgram = reinterpret_cast<pi_program>(nativeHandle);
@@ -440,6 +447,13 @@ pi_result piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
   return cast<pi_result>(
       clSetKernelArg(cast<cl_kernel>(kernel), cast<cl_uint>(arg_index),
                      sizeof(arg_value), cast<const cl_mem *>(arg_value)));
+}
+
+pi_result piextKernelSetArgSampler(pi_kernel kernel, pi_uint32 arg_index,
+                                   const pi_sampler *arg_value) {
+  return cast<pi_result>(
+      clSetKernelArg(cast<cl_kernel>(kernel), cast<cl_uint>(arg_index),
+                     sizeof(cl_sampler), cast<const cl_sampler *>(arg_value)));
 }
 
 pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
@@ -556,12 +570,12 @@ pi_result piclProgramCreateWithSource(pi_context context, pi_uint32 count,
   return ret_err;
 }
 
-pi_result piclProgramCreateWithBinary(pi_context context, pi_uint32 num_devices,
-                                      const pi_device *device_list,
-                                      const size_t *lengths,
-                                      const unsigned char **binaries,
-                                      pi_int32 *binary_status,
-                                      pi_program *ret_program) {
+pi_result piProgramCreateWithBinary(pi_context context, pi_uint32 num_devices,
+                                    const pi_device *device_list,
+                                    const size_t *lengths,
+                                    const unsigned char **binaries,
+                                    pi_int32 *binary_status,
+                                    pi_program *ret_program) {
 
   pi_result ret_err = PI_INVALID_OPERATION;
   *ret_program = cast<pi_program>(clCreateProgramWithBinary(
@@ -1072,6 +1086,11 @@ static pi_result piextGetNativeHandle(void *piObj,
   return PI_SUCCESS;
 }
 
+pi_result piextPlatformGetNativeHandle(pi_platform platform,
+                                       pi_native_handle *nativeHandle) {
+  return piextGetNativeHandle(platform, nativeHandle);
+}
+
 pi_result piextDeviceGetNativeHandle(pi_device device,
                                      pi_native_handle *nativeHandle) {
   return piextGetNativeHandle(device, nativeHandle);
@@ -1113,6 +1132,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Platform
   _PI_CL(piPlatformsGet, piPlatformsGet)
   _PI_CL(piPlatformGetInfo, clGetPlatformInfo)
+  _PI_CL(piextPlatformGetNativeHandle, piextPlatformGetNativeHandle)
+  _PI_CL(piextPlatformCreateWithNativeHandle,
+         piextPlatformCreateWithNativeHandle)
   // Device
   _PI_CL(piDevicesGet, piDevicesGet)
   _PI_CL(piDeviceGetInfo, clGetDeviceInfo)
@@ -1151,7 +1173,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Program
   _PI_CL(piProgramCreate, piProgramCreate)
   _PI_CL(piclProgramCreateWithSource, piclProgramCreateWithSource)
-  _PI_CL(piclProgramCreateWithBinary, piclProgramCreateWithBinary)
+  _PI_CL(piProgramCreateWithBinary, piProgramCreateWithBinary)
   _PI_CL(piProgramGetInfo, clGetProgramInfo)
   _PI_CL(piProgramCompile, clCompileProgram)
   _PI_CL(piProgramBuild, clBuildProgram)
@@ -1193,6 +1215,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piEnqueueKernelLaunch, clEnqueueNDRangeKernel)
   _PI_CL(piEnqueueNativeKernel, clEnqueueNativeKernel)
   _PI_CL(piEnqueueEventsWait, clEnqueueMarkerWithWaitList)
+  _PI_CL(piEnqueueEventsWaitWithBarrier, clEnqueueBarrierWithWaitList)
   _PI_CL(piEnqueueMemBufferRead, clEnqueueReadBuffer)
   _PI_CL(piEnqueueMemBufferReadRect, clEnqueueReadBufferRect)
   _PI_CL(piEnqueueMemBufferWrite, clEnqueueWriteBuffer)
@@ -1218,6 +1241,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMGetMemAllocInfo, piextUSMGetMemAllocInfo)
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
+  _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)
 
 #undef _PI_CL
 

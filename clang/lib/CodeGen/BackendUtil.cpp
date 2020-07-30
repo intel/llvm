@@ -27,6 +27,7 @@
 #include "llvm/CodeGen/RegAllocRegistry.h"
 #include "llvm/CodeGen/SchedulerRegistry.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -42,7 +43,6 @@
 #include "llvm/Passes/StandardInstrumentations.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/TargetRegistry.h"
@@ -75,6 +75,7 @@
 #include "llvm/Transforms/ObjCARC.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVN.h"
+#include "llvm/Transforms/Scalar/LowerMatrixIntrinsics.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/CanonicalizeAliases.h"
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
@@ -82,11 +83,6 @@
 #include "llvm/Transforms/Utils/SymbolRewriter.h"
 #include "llvm/Transforms/Utils/UniqueInternalLinkageNames.h"
 #include <memory>
-
-namespace SPIRV {
-  extern llvm::cl::opt<bool> SPIRVNoDerefAttr;
-}
-
 using namespace clang;
 using namespace llvm;
 
@@ -244,8 +240,8 @@ static void addSanitizerCoveragePass(const PassManagerBuilder &Builder,
   const CodeGenOptions &CGOpts = BuilderWrapper.getCGOpts();
   auto Opts = getSancovOptsFromCGOpts(CGOpts);
   PM.add(createModuleSanitizerCoverageLegacyPassPass(
-      Opts, CGOpts.SanitizeCoverageWhitelistFiles,
-      CGOpts.SanitizeCoverageBlacklistFiles));
+      Opts, CGOpts.SanitizeCoverageAllowlistFiles,
+      CGOpts.SanitizeCoverageBlocklistFiles));
 }
 
 // Check if ASan should use GC-friendly instrumentation for globals.
@@ -358,11 +354,6 @@ static void addDataFlowSanitizerPass(const PassManagerBuilder &Builder,
   PM.add(createDataFlowSanitizerPass(LangOpts.SanitizerBlacklistFiles));
 }
 
-static void addMemTagOptimizationPasses(const PassManagerBuilder &Builder,
-                                        legacy::PassManagerBase &PM) {
-  PM.add(createStackSafetyGlobalInfoWrapperPass());
-}
-
 static TargetLibraryInfoImpl *createTLII(llvm::Triple &TargetTriple,
                                          const CodeGenOptions &CodeGenOpts) {
   TargetLibraryInfoImpl *TLII = new TargetLibraryInfoImpl(TargetTriple);
@@ -436,7 +427,8 @@ static CodeGenFileType getCodeGenFileType(BackendAction Action) {
   }
 }
 
-static void initTargetOptions(llvm::TargetOptions &Options,
+static void initTargetOptions(DiagnosticsEngine &Diags,
+                              llvm::TargetOptions &Options,
                               const CodeGenOptions &CodeGenOpts,
                               const clang::TargetOptions &TargetOpts,
                               const LangOptions &LangOpts,
@@ -489,14 +481,35 @@ static void initTargetOptions(llvm::TargetOptions &Options,
   if (LangOpts.WasmExceptions)
     Options.ExceptionModel = llvm::ExceptionHandling::Wasm;
 
-  Options.NoInfsFPMath = CodeGenOpts.NoInfsFPMath;
-  Options.NoNaNsFPMath = CodeGenOpts.NoNaNsFPMath;
+  Options.NoInfsFPMath = LangOpts.NoHonorInfs;
+  Options.NoNaNsFPMath = LangOpts.NoHonorNaNs;
   Options.NoZerosInBSS = CodeGenOpts.NoZeroInitializedInBSS;
-  Options.UnsafeFPMath = CodeGenOpts.UnsafeFPMath;
+  Options.UnsafeFPMath = LangOpts.UnsafeFPMath;
   Options.StackAlignmentOverride = CodeGenOpts.StackAlignment;
+
+  Options.BBSections =
+      llvm::StringSwitch<llvm::BasicBlockSection>(CodeGenOpts.BBSections)
+          .Case("all", llvm::BasicBlockSection::All)
+          .Case("labels", llvm::BasicBlockSection::Labels)
+          .StartsWith("list=", llvm::BasicBlockSection::List)
+          .Case("none", llvm::BasicBlockSection::None)
+          .Default(llvm::BasicBlockSection::None);
+
+  if (Options.BBSections == llvm::BasicBlockSection::List) {
+    ErrorOr<std::unique_ptr<MemoryBuffer>> MBOrErr =
+        MemoryBuffer::getFile(CodeGenOpts.BBSections.substr(5));
+    if (!MBOrErr)
+      Diags.Report(diag::err_fe_unable_to_load_basic_block_sections_file)
+          << MBOrErr.getError().message();
+    else
+      Options.BBSectionsFuncListBuf = std::move(*MBOrErr);
+  }
+
   Options.FunctionSections = CodeGenOpts.FunctionSections;
   Options.DataSections = CodeGenOpts.DataSections;
   Options.UniqueSectionNames = CodeGenOpts.UniqueSectionNames;
+  Options.UniqueBasicBlockSectionNames =
+      CodeGenOpts.UniqueBasicBlockSectionNames;
   Options.TLSSize = CodeGenOpts.TLSSize;
   Options.EmulatedTLS = CodeGenOpts.EmulatedTLS;
   Options.ExplicitEmulatedTLS = CodeGenOpts.ExplicitEmulatedTLS;
@@ -505,6 +518,7 @@ static void initTargetOptions(llvm::TargetOptions &Options,
   Options.EmitAddrsig = CodeGenOpts.Addrsig;
   Options.ForceDwarfFrameSection = CodeGenOpts.ForceDwarfFrameSection;
   Options.EmitCallSiteInfo = CodeGenOpts.EmitCallSiteInfo;
+  Options.XRayOmitFunctionIndex = CodeGenOpts.XRayOmitFunctionIndex;
 
   Options.MCOptions.SplitDwarfFile = CodeGenOpts.SplitDwarfFile;
   Options.MCOptions.MCRelaxAll = CodeGenOpts.RelaxAll;
@@ -525,6 +539,8 @@ static void initTargetOptions(llvm::TargetOptions &Options,
          Entry.Group == frontend::IncludeDirGroup::System))
       Options.MCOptions.IASSearchPaths.push_back(
           Entry.IgnoreSysRoot ? Entry.Path : HSOpts.Sysroot + Entry.Path);
+  Options.MCOptions.Argv0 = CodeGenOpts.Argv0;
+  Options.MCOptions.CommandLineArgs = CodeGenOpts.CommandLineArgs;
 }
 static Optional<GCOVOptions> getGCOVOptions(const CodeGenOptions &CodeGenOpts) {
   if (CodeGenOpts.DisableGCov)
@@ -602,51 +618,22 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
          CodeGenOpts.PrepareForThinLTO));
   }
 
-  // FIXME: This code is a workaround for a number of problems with optimized
-  // SYCL code for the SPIR target. This change trying to balance between doing
-  // too few and too many optimizations. The current approach is to disable as
-  // much as possible just to keep the compiler functional. Eventually we can
-  // consider allowing -On option to configure the optimization set for the FE
-  // device compiler as well, but before that we must fix all the functional and
-  // performance issues caused by LLVM transformantions.
-  // E.g. LLVM optimizations make use of llvm intrinsics, instructions, data
-  // types, etc., which are not supported by the SPIR-V translator (current
-  // "back-end" for SYCL device compiler).
-  // NOTE: We use "normal" inliner (i.e. from O2/O3), but limit the rest of
-  // optimization pipeline. Inliner is a must for enabling size reduction
-  // optimizations.
-  if (LangOpts.SYCLIsDevice && TargetTriple.isSPIR()) {
-    PMBuilder.OptLevel = 1;
-    PMBuilder.SizeLevel = 2;
-    PMBuilder.SLPVectorize = false;
-    PMBuilder.LoopVectorize = false;
-    PMBuilder.DivergentTarget = true;
-    PMBuilder.DisableGVNLoadPRE = true;
-    PMBuilder.ForgetAllSCEVInLoopUnroll = true;
+  PMBuilder.OptLevel = CodeGenOpts.OptimizationLevel;
+  PMBuilder.SizeLevel = CodeGenOpts.OptimizeSize;
+  PMBuilder.SLPVectorize = CodeGenOpts.VectorizeSLP;
+  PMBuilder.LoopVectorize = CodeGenOpts.VectorizeLoop;
+  // Only enable CGProfilePass when using integrated assembler, since
+  // non-integrated assemblers don't recognize .cgprofile section.
+  PMBuilder.CallGraphProfile = !CodeGenOpts.DisableIntegratedAS;
 
-    PMBuilder.DisableUnrollLoops = true;
-    // Loop interleaving in the loop vectorizer has historically been set to be
-    // enabled when loop unrolling is enabled.
-    PMBuilder.LoopsInterleaved = false;
-    PMBuilder.MergeFunctions = false;
-    PMBuilder.PrepareForThinLTO = false;
-    PMBuilder.PrepareForLTO = false;
-    PMBuilder.RerollLoops = false;
-  } else {
-    PMBuilder.OptLevel = CodeGenOpts.OptimizationLevel;
-    PMBuilder.SizeLevel = CodeGenOpts.OptimizeSize;
-    PMBuilder.SLPVectorize = CodeGenOpts.VectorizeSLP;
-    PMBuilder.LoopVectorize = CodeGenOpts.VectorizeLoop;
-
-    PMBuilder.DisableUnrollLoops = !CodeGenOpts.UnrollLoops;
-    // Loop interleaving in the loop vectorizer has historically been set to be
-    // enabled when loop unrolling is enabled.
-    PMBuilder.LoopsInterleaved = CodeGenOpts.UnrollLoops;
-    PMBuilder.MergeFunctions = CodeGenOpts.MergeFunctions;
-    PMBuilder.PrepareForThinLTO = CodeGenOpts.PrepareForThinLTO;
-    PMBuilder.PrepareForLTO = CodeGenOpts.PrepareForLTO;
-    PMBuilder.RerollLoops = CodeGenOpts.RerollLoops;
-  }
+  PMBuilder.DisableUnrollLoops = !CodeGenOpts.UnrollLoops;
+  // Loop interleaving in the loop vectorizer has historically been set to be
+  // enabled when loop unrolling is enabled.
+  PMBuilder.LoopsInterleaved = CodeGenOpts.UnrollLoops;
+  PMBuilder.MergeFunctions = CodeGenOpts.MergeFunctions;
+  PMBuilder.PrepareForThinLTO = CodeGenOpts.PrepareForThinLTO;
+  PMBuilder.PrepareForLTO = CodeGenOpts.PrepareForLTO;
+  PMBuilder.RerollLoops = CodeGenOpts.RerollLoops;
 
   MPM.add(new TargetLibraryInfoWrapperPass(*TLII));
 
@@ -743,11 +730,6 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
                            addDataFlowSanitizerPass);
   }
 
-  if (LangOpts.Sanitize.has(SanitizerKind::MemTag)) {
-    PMBuilder.addExtension(PassManagerBuilder::EP_OptimizerLast,
-                           addMemTagOptimizationPasses);
-  }
-
   // Set up the per-function pass manager.
   FPM.add(new TargetLibraryInfoWrapperPass(*TLII));
   if (CodeGenOpts.VerifyModule)
@@ -840,7 +822,7 @@ void EmitAssemblyHelper::CreateTargetMachine(bool MustCreateTM) {
   CodeGenOpt::Level OptLevel = getCGOptLevel(CodeGenOpts);
 
   llvm::TargetOptions Options;
-  initTargetOptions(Options, CodeGenOpts, TargetOpts, LangOpts, HSOpts);
+  initTargetOptions(Diags, Options, CodeGenOpts, TargetOpts, LangOpts, HSOpts);
   TM.reset(TheTarget->createTargetMachine(Triple, TargetOpts.CPU, FeaturesStr,
                                           Options, RM, CM, OptLevel));
 }
@@ -909,6 +891,9 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
   // Clean-up SYCL device code if LLVM passes are disabled
   if (LangOpts.SYCLIsDevice && CodeGenOpts.DisableLLVMPasses)
     PerModulePasses.add(createDeadCodeEliminationPass());
+
+  if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD)
+    PerModulePasses.add(createGenXSPIRVWriterAdaptorPass());
 
   switch (Action) {
   case Backend_EmitNothing:
@@ -1049,8 +1034,8 @@ static void addSanitizersAtO0(ModulePassManager &MPM,
       CodeGenOpts.SanitizeCoverageTraceCmp) {
     auto SancovOpts = getSancovOptsFromCGOpts(CodeGenOpts);
     MPM.addPass(ModuleSanitizerCoveragePass(
-        SancovOpts, CodeGenOpts.SanitizeCoverageWhitelistFiles,
-        CodeGenOpts.SanitizeCoverageBlacklistFiles));
+        SancovOpts, CodeGenOpts.SanitizeCoverageAllowlistFiles,
+        CodeGenOpts.SanitizeCoverageBlocklistFiles));
   }
 
   auto ASanPass = [&](SanitizerMask Mask, bool CompileKernel) {
@@ -1171,11 +1156,13 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
   PTO.LoopInterleaving = CodeGenOpts.UnrollLoops;
   PTO.LoopVectorization = CodeGenOpts.VectorizeLoop;
   PTO.SLPVectorization = CodeGenOpts.VectorizeSLP;
-  PTO.CallGraphProfile = CodeGenOpts.CallGraphProfile;
+  // Only enable CGProfilePass when using integrated assembler, since
+  // non-integrated assemblers don't recognize .cgprofile section.
+  PTO.CallGraphProfile = !CodeGenOpts.DisableIntegratedAS;
   PTO.Coroutines = LangOpts.Coroutines;
 
   PassInstrumentationCallbacks PIC;
-  StandardInstrumentations SI;
+  StandardInstrumentations SI(CodeGenOpts.DebugPassManager);
   SI.registerCallbacks(PIC);
   PassBuilder PB(TM.get(), PTO, PGOOpt, &PIC);
 
@@ -1295,7 +1282,6 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
 
       // Register callbacks to schedule sanitizer passes at the appropriate part of
       // the pipeline.
-      // FIXME: either handle asan/the remaining sanitizers or error out
       if (LangOpts.Sanitize.has(SanitizerKind::LocalBounds))
         PB.registerScalarOptimizerLateEPCallback(
             [](FunctionPassManager &FPM, PassBuilder::OptimizationLevel Level) {
@@ -1310,56 +1296,46 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
                    PassBuilder::OptimizationLevel Level) {
               auto SancovOpts = getSancovOptsFromCGOpts(CodeGenOpts);
               MPM.addPass(ModuleSanitizerCoveragePass(
-                  SancovOpts, CodeGenOpts.SanitizeCoverageWhitelistFiles,
-                  CodeGenOpts.SanitizeCoverageBlacklistFiles));
+                  SancovOpts, CodeGenOpts.SanitizeCoverageAllowlistFiles,
+                  CodeGenOpts.SanitizeCoverageBlocklistFiles));
             });
       }
 
       if (LangOpts.Sanitize.has(SanitizerKind::Memory)) {
         int TrackOrigins = CodeGenOpts.SanitizeMemoryTrackOrigins;
         bool Recover = CodeGenOpts.SanitizeRecover.has(SanitizerKind::Memory);
-        PB.registerPipelineStartEPCallback(
-            [TrackOrigins, Recover](ModulePassManager &MPM) {
-              MPM.addPass(MemorySanitizerPass({TrackOrigins, Recover, false}));
-            });
         PB.registerOptimizerLastEPCallback(
             [TrackOrigins, Recover](ModulePassManager &MPM,
                                     PassBuilder::OptimizationLevel Level) {
+              MPM.addPass(MemorySanitizerPass({TrackOrigins, Recover, false}));
               MPM.addPass(createModuleToFunctionPassAdaptor(
                   MemorySanitizerPass({TrackOrigins, Recover, false})));
             });
       }
       if (LangOpts.Sanitize.has(SanitizerKind::Thread)) {
-        PB.registerPipelineStartEPCallback(
-            [](ModulePassManager &MPM) { MPM.addPass(ThreadSanitizerPass()); });
         PB.registerOptimizerLastEPCallback(
             [](ModulePassManager &MPM, PassBuilder::OptimizationLevel Level) {
+              MPM.addPass(ThreadSanitizerPass());
               MPM.addPass(
                   createModuleToFunctionPassAdaptor(ThreadSanitizerPass()));
             });
       }
       if (LangOpts.Sanitize.has(SanitizerKind::Address)) {
-        PB.registerPipelineStartEPCallback([&](ModulePassManager &MPM) {
-          MPM.addPass(
-              RequireAnalysisPass<ASanGlobalsMetadataAnalysis, Module>());
-        });
         bool Recover = CodeGenOpts.SanitizeRecover.has(SanitizerKind::Address);
         bool UseAfterScope = CodeGenOpts.SanitizeAddressUseAfterScope;
-        PB.registerOptimizerLastEPCallback(
-            [Recover, UseAfterScope](ModulePassManager &MPM,
-                                     PassBuilder::OptimizationLevel Level) {
-              MPM.addPass(
-                  createModuleToFunctionPassAdaptor(AddressSanitizerPass(
-                      /*CompileKernel=*/false, Recover, UseAfterScope)));
-            });
         bool ModuleUseAfterScope = asanUseGlobalsGC(TargetTriple, CodeGenOpts);
         bool UseOdrIndicator = CodeGenOpts.SanitizeAddressUseOdrIndicator;
-        PB.registerPipelineStartEPCallback(
-            [Recover, ModuleUseAfterScope,
-             UseOdrIndicator](ModulePassManager &MPM) {
+        PB.registerOptimizerLastEPCallback(
+            [Recover, UseAfterScope, ModuleUseAfterScope, UseOdrIndicator](
+                ModulePassManager &MPM, PassBuilder::OptimizationLevel Level) {
+              MPM.addPass(
+                  RequireAnalysisPass<ASanGlobalsMetadataAnalysis, Module>());
               MPM.addPass(ModuleAddressSanitizerPass(
                   /*CompileKernel=*/false, Recover, ModuleUseAfterScope,
                   UseOdrIndicator));
+              MPM.addPass(
+                  createModuleToFunctionPassAdaptor(AddressSanitizerPass(
+                      /*CompileKernel=*/false, Recover, UseAfterScope)));
             });
       }
       if (Optional<GCOVOptions> Options = getGCOVOptions(CodeGenOpts))
@@ -1404,12 +1380,14 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
           /*CompileKernel=*/true, /*Recover=*/true));
     }
 
-    if (CodeGenOpts.OptimizationLevel > 0 &&
-        LangOpts.Sanitize.has(SanitizerKind::MemTag)) {
-      MPM.addPass(StackSafetyGlobalAnnotatorPass());
-    }
-
     if (CodeGenOpts.OptimizationLevel == 0) {
+      // FIXME: the backends do not handle matrix intrinsics currently. Make
+      // sure they are also lowered in O0. A lightweight version of the pass
+      // should run in the backend pipeline on demand.
+      if (LangOpts.MatrixTypes)
+        MPM.addPass(
+            createModuleToFunctionPassAdaptor(LowerMatrixIntrinsicsPass()));
+
       addCoroutinePassesAtO0(MPM, LangOpts, CodeGenOpts);
       addSanitizersAtO0(MPM, TargetTriple, LangOpts, CodeGenOpts);
     }
@@ -1522,15 +1500,12 @@ BitcodeModule *clang::FindThinLTOModule(MutableArrayRef<BitcodeModule> BMs) {
   return nullptr;
 }
 
-static void runThinLTOBackend(ModuleSummaryIndex *CombinedIndex, Module *M,
-                              const HeaderSearchOptions &HeaderOpts,
-                              const CodeGenOptions &CGOpts,
-                              const clang::TargetOptions &TOpts,
-                              const LangOptions &LOpts,
-                              std::unique_ptr<raw_pwrite_stream> OS,
-                              std::string SampleProfile,
-                              std::string ProfileRemapping,
-                              BackendAction Action) {
+static void runThinLTOBackend(
+    DiagnosticsEngine &Diags, ModuleSummaryIndex *CombinedIndex, Module *M,
+    const HeaderSearchOptions &HeaderOpts, const CodeGenOptions &CGOpts,
+    const clang::TargetOptions &TOpts, const LangOptions &LOpts,
+    std::unique_ptr<raw_pwrite_stream> OS, std::string SampleProfile,
+    std::string ProfileRemapping, BackendAction Action) {
   StringMap<DenseMap<GlobalValue::GUID, GlobalValueSummary *>>
       ModuleToDefinedGVSummaries;
   CombinedIndex->collectDefinedGVSummariesPerModule(ModuleToDefinedGVSummaries);
@@ -1600,7 +1575,7 @@ static void runThinLTOBackend(ModuleSummaryIndex *CombinedIndex, Module *M,
   Conf.RelocModel = CGOpts.RelocationModel;
   Conf.CGOptLevel = getCGOptLevel(CGOpts);
   Conf.OptLevel = CGOpts.OptimizationLevel;
-  initTargetOptions(Conf.Options, CGOpts, TOpts, LOpts, HeaderOpts);
+  initTargetOptions(Diags, Conf.Options, CGOpts, TOpts, LOpts, HeaderOpts);
   Conf.SampleProfile = std::move(SampleProfile);
   Conf.PTO.LoopUnrolling = CGOpts.UnrollLoops;
   // For historical reasons, loop interleaving is set to mirror setting for loop
@@ -1608,7 +1583,9 @@ static void runThinLTOBackend(ModuleSummaryIndex *CombinedIndex, Module *M,
   Conf.PTO.LoopInterleaving = CGOpts.UnrollLoops;
   Conf.PTO.LoopVectorization = CGOpts.VectorizeLoop;
   Conf.PTO.SLPVectorization = CGOpts.VectorizeSLP;
-  Conf.PTO.CallGraphProfile = CGOpts.CallGraphProfile;
+  // Only enable CGProfilePass when using integrated assembler, since
+  // non-integrated assemblers don't recognize .cgprofile section.
+  Conf.PTO.CallGraphProfile = !CGOpts.DisableIntegratedAS;
 
   // Context sensitive profile.
   if (CGOpts.hasProfileCSIRInstr()) {
@@ -1690,8 +1667,8 @@ void clang::EmitBackendOutput(DiagnosticsEngine &Diags,
     // of an error).
     if (CombinedIndex) {
       if (!CombinedIndex->skipModuleByDistributedBackend()) {
-        runThinLTOBackend(CombinedIndex.get(), M, HeaderOpts, CGOpts, TOpts,
-                          LOpts, std::move(OS), CGOpts.SampleProfileFile,
+        runThinLTOBackend(Diags, CombinedIndex.get(), M, HeaderOpts, CGOpts,
+                          TOpts, LOpts, std::move(OS), CGOpts.SampleProfileFile,
                           CGOpts.ProfileRemappingFile, Action);
         return;
       }

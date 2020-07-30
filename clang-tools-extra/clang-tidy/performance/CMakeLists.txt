@@ -21,11 +21,18 @@ add_clang_library(clangTidyPerformanceModule
   UnnecessaryValueParamCheck.cpp
 
   LINK_LIBS
+  clangTidy
+  clangTidyUtils
+
+  DEPENDS
+  omp_gen
+  )
+
+clang_target_link_libraries(clangTidyPerformanceModule
+  PRIVATE
   clangAST
   clangASTMatchers
   clangAnalysis
   clangBasic
   clangLex
-  clangTidy
-  clangTidyUtils
   )

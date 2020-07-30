@@ -864,7 +864,7 @@ bool ReduceCrashingMetadata::TestInsts(std::vector<Instruction *> &Insts) {
   // selected in Instructions.
   for (Function &F : *M)
     for (Instruction &Inst : instructions(F)) {
-      if (Instructions.find(&Inst) == Instructions.end()) {
+      if (!Instructions.count(&Inst)) {
         Inst.dropUnknownNonDebugMetadata();
         Inst.setDebugLoc({});
       }
@@ -1229,7 +1229,7 @@ static Error DebugACrash(BugDriver &BD, BugTester TestFn) {
       unsigned NewSize = 0;
       for (std::string &Name : FunctionNames) {
         Function *Fn = BD.getProgram().getFunction(Name);
-        assert(Fn && "Could not find funcion?");
+        assert(Fn && "Could not find function?");
 
         std::vector<Attribute> Attrs;
         for (Attribute A : Fn->getAttributes().getFnAttributes())

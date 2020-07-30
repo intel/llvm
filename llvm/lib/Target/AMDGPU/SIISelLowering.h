@@ -42,7 +42,8 @@ private:
   SDValue getImplicitArgPtr(SelectionDAG &DAG, const SDLoc &SL) const;
   SDValue lowerKernargMemParameter(SelectionDAG &DAG, EVT VT, EVT MemVT,
                                    const SDLoc &SL, SDValue Chain,
-                                   uint64_t Offset, unsigned Align, bool Signed,
+                                   uint64_t Offset, Align Alignment,
+                                   bool Signed,
                                    const ISD::InputArg *Arg = nullptr) const;
 
   SDValue lowerStackParameter(SelectionDAG &DAG, CCValAssign &VA,
@@ -119,6 +120,7 @@ private:
   /// Custom lowering for ISD::FP_ROUND for MVT::f16.
   SDValue lowerFP_ROUND(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFMINNUM_FMAXNUM(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerXMULO(SDValue Op, SelectionDAG &DAG) const;
 
   SDValue getSegmentAperture(unsigned AS, const SDLoc &DL,
                              SelectionDAG &DAG) const;
@@ -203,6 +205,11 @@ public:
   /// and not emit a relocation for an LDS global.
   bool shouldUseLDSConstAddress(const GlobalValue *GV) const;
 
+  /// Check if EXTRACT_VECTOR_ELT/INSERT_VECTOR_ELT (<n x e>, var-idx) should be
+  /// expanded into a set of cmp/select instructions.
+  static bool shouldExpandVectorDynExt(unsigned EltSize, unsigned NumElem,
+                                       bool IsDivergentIdx);
+
 private:
   // Analyze a combined offset from an amdgcn_buffer_ intrinsic and store the
   // three offsets (voffset, soffset and instoffset) into the SDValue[3] array
@@ -210,7 +217,7 @@ private:
   /// \returns 0 If there is a non-constant offset or if the offset is 0.
   /// Otherwise returns the constant offset.
   unsigned setBufferOffsets(SDValue CombinedOffset, SelectionDAG &DAG,
-                           SDValue *Offsets, unsigned Align = 4) const;
+                            SDValue *Offsets, Align Alignment = Align(4)) const;
 
   // Handle 8 bit and 16 bit buffer loads
   SDValue handleByteShortBufferLoads(SelectionDAG &DAG, EVT LoadVT, SDLoc DL,
@@ -390,20 +397,25 @@ public:
                                     std::string &Constraint,
                                     std::vector<SDValue> &Ops,
                                     SelectionDAG &DAG) const override;
-  void LowerAsmOperandForConstraintA(SDValue Op,
-                                     std::vector<SDValue> &Ops,
-                                     SelectionDAG &DAG) const;
+  bool getAsmOperandConstVal(SDValue Op, uint64_t &Val) const;
+  bool checkAsmConstraintVal(SDValue Op,
+                             const std::string &Constraint,
+                             uint64_t Val) const;
+  bool checkAsmConstraintValA(SDValue Op,
+                              uint64_t Val,
+                              unsigned MaxSize = 64) const;
   SDValue copyToM0(SelectionDAG &DAG, SDValue Chain, const SDLoc &DL,
                    SDValue V) const;
 
   void finalizeLowering(MachineFunction &MF) const override;
 
-  void computeKnownBitsForFrameIndex(const SDValue Op,
+  void computeKnownBitsForFrameIndex(int FrameIdx,
                                      KnownBits &Known,
-                                     const APInt &DemandedElts,
-                                     const SelectionDAG &DAG,
-                                     unsigned Depth = 0) const override;
+                                     const MachineFunction &MF) const override;
 
+  Align computeKnownAlignForTargetInstr(GISelKnownBits &Analysis, Register R,
+                                        const MachineRegisterInfo &MRI,
+                                        unsigned Depth = 0) const override;
   bool isSDNodeSourceOfDivergence(const SDNode *N,
     FunctionLoweringInfo *FLI, LegacyDivergenceAnalysis *DA) const override;
 
@@ -452,6 +464,9 @@ public:
                                       MachineFunction &MF,
                                       const SIRegisterInfo &TRI,
                                       SIMachineFunctionInfo &Info) const;
+
+  std::pair<int, MVT> getTypeLegalizationCost(const DataLayout &DL,
+                                              Type *Ty) const;
 };
 
 } // End namespace llvm

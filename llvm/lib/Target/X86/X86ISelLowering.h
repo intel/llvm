@@ -1036,7 +1036,8 @@ namespace llvm {
     EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,
                            EVT VT) const override;
 
-    bool targetShrinkDemandedConstant(SDValue Op, const APInt &Demanded,
+    bool targetShrinkDemandedConstant(SDValue Op, const APInt &DemandedBits,
+                                      const APInt &DemandedElts,
                                       TargetLoweringOpt &TLO) const override;
 
     /// Determine which of the bits specified in Mask are known to be either
@@ -1059,6 +1060,12 @@ namespace llvm {
                                                  APInt &KnownZero,
                                                  TargetLoweringOpt &TLO,
                                                  unsigned Depth) const override;
+
+    bool SimplifyDemandedVectorEltsForTargetShuffle(SDValue Op,
+                                                    const APInt &DemandedElts,
+                                                    unsigned MaskIndex,
+                                                    TargetLoweringOpt &TLO,
+                                                    unsigned Depth) const;
 
     bool SimplifyDemandedBitsForTargetNode(SDValue Op,
                                            const APInt &DemandedBits,
@@ -1181,6 +1188,7 @@ namespace llvm {
 
     bool shouldSinkOperands(Instruction *I,
                             SmallVectorImpl<Use *> &Ops) const override;
+    bool shouldConvertPhiType(Type *From, Type *To) const override;
 
     /// Return true if folding a vector load into ExtVal (a sign, zero, or any
     /// extend node) is profitable.
@@ -1428,7 +1436,7 @@ namespace llvm {
     SDValue LowerMemOpCallTo(SDValue Chain, SDValue StackPtr, SDValue Arg,
                              const SDLoc &dl, SelectionDAG &DAG,
                              const CCValAssign &VA,
-                             ISD::ArgFlagsTy Flags) const;
+                             ISD::ArgFlagsTy Flags, bool isByval) const;
 
     // Call lowering helpers.
 

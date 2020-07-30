@@ -1,4 +1,4 @@
-// RUN: %clang -I %S/Inputs -fsycl-device-only -Xclang -fsycl-int-header=%t.h %s -c -o %T/kernel.spv
+// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s
 //
 // CHECK: #include <CL/sycl/detail/kernel_desc.hpp>
@@ -17,7 +17,6 @@
 // CHECK: static constexpr
 // CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {
 // CHECK-NEXT: //--- _ZTSZ4mainE14wrapped_access
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 12, 0 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 0 },
 // CHECK-EMPTY:
 // CHECK-NEXT: };

@@ -34,19 +34,14 @@ cl::opt<bool> PGSOColdCodeOnlyForInstrPGO(
              "to cold code under instrumentation PGO."));
 
 cl::opt<bool> PGSOColdCodeOnlyForSamplePGO(
-    "pgso-cold-code-only-for-sample-pgo", cl::Hidden, cl::init(true),
+    "pgso-cold-code-only-for-sample-pgo", cl::Hidden, cl::init(false),
     cl::desc("Apply the profile guided size optimizations only "
              "to cold code under sample PGO."));
 
 cl::opt<bool> PGSOColdCodeOnlyForPartialSamplePGO(
-    "pgso-cold-code-only-for-partial-sample-pgo", cl::Hidden, cl::init(true),
+    "pgso-cold-code-only-for-partial-sample-pgo", cl::Hidden, cl::init(false),
     cl::desc("Apply the profile guided size optimizations only "
              "to cold code under partial-profile sample PGO."));
-
-cl::opt<bool> PGSOIRPassOrTestOnly(
-    "pgso-ir-pass-or-test-only", cl::Hidden, cl::init(false),
-    cl::desc("Apply the profile guided size optimizations only"
-             "to the IR passes or tests."));
 
 cl::opt<bool> ForcePGSO(
     "force-pgso", cl::Hidden, cl::init(false),

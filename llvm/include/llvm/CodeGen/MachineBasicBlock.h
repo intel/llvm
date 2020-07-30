@@ -167,11 +167,8 @@ private:
   // Indicate that this basic block ends a section.
   bool IsEndSection = false;
 
-  /// Default target of the callbr of a basic block.
-  bool InlineAsmBrDefaultTarget = false;
-
-  /// List of indirect targets of the callbr of a basic block.
-  SmallPtrSet<const MachineBasicBlock*, 4> InlineAsmBrIndirectTargets;
+  /// Indicate that this basic block is the indirect dest of an INLINEASM_BR.
+  bool IsInlineAsmBrIndirectTarget = false;
 
   /// since getSymbol is a relatively heavy-weight operation, the symbol
   /// is only computed once and is cached.
@@ -468,34 +465,28 @@ public:
   /// Returns the section ID of this basic block.
   MBBSectionID getSectionID() const { return SectionID; }
 
+  /// Returns the unique section ID number of this basic block.
+  unsigned getSectionIDNum() const {
+    return ((unsigned)MBBSectionID::SectionType::Cold) -
+           ((unsigned)SectionID.Type) + SectionID.Number;
+  }
+
   /// Sets the section ID for this basic block.
   void setSectionID(MBBSectionID V) { SectionID = V; }
 
+  /// Returns true if this block may have an INLINEASM_BR (overestimate, by
+  /// checking if any of the successors are indirect targets of any inlineasm_br
+  /// in the function).
+  bool mayHaveInlineAsmBr() const;
+
   /// Returns true if this is the indirect dest of an INLINEASM_BR.
-  bool isInlineAsmBrIndirectTarget(const MachineBasicBlock *Tgt) const {
-    return InlineAsmBrIndirectTargets.count(Tgt);
+  bool isInlineAsmBrIndirectTarget() const {
+    return IsInlineAsmBrIndirectTarget;
   }
 
   /// Indicates if this is the indirect dest of an INLINEASM_BR.
-  void addInlineAsmBrIndirectTarget(const MachineBasicBlock *Tgt) {
-    InlineAsmBrIndirectTargets.insert(Tgt);
-  }
-
-  /// Transfers indirect targets to INLINEASM_BR's copy block.
-  void transferInlineAsmBrIndirectTargets(MachineBasicBlock *CopyBB) {
-    for (auto *Target : InlineAsmBrIndirectTargets)
-      CopyBB->addInlineAsmBrIndirectTarget(Target);
-    return InlineAsmBrIndirectTargets.clear();
-  }
-
-  /// Returns true if this is the default dest of an INLINEASM_BR.
-  bool isInlineAsmBrDefaultTarget() const {
-    return InlineAsmBrDefaultTarget;
-  }
-
-  /// Indicates if this is the default deft of an INLINEASM_BR.
-  void setInlineAsmBrDefaultTarget() {
-    InlineAsmBrDefaultTarget = true;
+  void setIsInlineAsmBrIndirectTarget(bool V = true) {
+    IsInlineAsmBrIndirectTarget = V;
   }
 
   /// Returns true if it is legal to hoist instructions into this block.
@@ -514,11 +505,13 @@ public:
     return getSectionID() == MBB->getSectionID();
   }
 
-  /// Update the terminator instructions in block to account for changes to the
-  /// layout. If the block previously used a fallthrough, it may now need a
-  /// branch, and if it previously used branching it may now be able to use a
-  /// fallthrough.
-  void updateTerminator();
+  /// Update the terminator instructions in block to account for changes to
+  /// block layout which may have been made. PreviousLayoutSuccessor should be
+  /// set to the block which may have been used as fallthrough before the block
+  /// layout was modified.  If the block previously fell through to that block,
+  /// it may now need a branch. If it previously branched to another block, it
+  /// may now be able to fallthrough to the current layout successor.
+  void updateTerminator(MachineBasicBlock *PreviousLayoutSuccessor);
 
   // Machine-CFG mutators
 

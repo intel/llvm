@@ -148,10 +148,11 @@ private:
       else
         return ToSymbolOrErr.takeError();
     } else {
-      if (auto ToSymbolOrErr = findSymbolByAddress(FixupValue))
-        ToSymbol = &*ToSymbolOrErr;
-      else
-        return ToSymbolOrErr.takeError();
+      auto ToSymbolSec = findSectionByIndex(UnsignedRI.r_symbolnum - 1);
+      if (!ToSymbolSec)
+        return ToSymbolSec.takeError();
+      ToSymbol = getSymbolByAddress(ToSymbolSec->Address);
+      assert(ToSymbol && "No symbol for section");
       FixupValue -= ToSymbol->getAddress();
     }
 
@@ -181,9 +182,33 @@ private:
     using namespace support;
     auto &Obj = getObject();
 
+    LLVM_DEBUG(dbgs() << "Processing relocations:\n");
+
     for (auto &S : Obj.sections()) {
 
       JITTargetAddress SectionAddress = S.getAddress();
+
+      // Skip relocations virtual sections.
+      if (S.isVirtual()) {
+        if (S.relocation_begin() != S.relocation_end())
+          return make_error<JITLinkError>("Virtual section contains "
+                                          "relocations");
+        continue;
+      }
+
+      // Skip relocations for debug symbols.
+      {
+        auto &NSec =
+            getSectionByIndex(Obj.getSectionIndex(S.getRawDataRefImpl()));
+        if (!NSec.GraphSection) {
+          LLVM_DEBUG({
+            dbgs() << "  Skipping relocations for MachO section "
+                   << NSec.SegName << "/" << NSec.SectName
+                   << " which has no associated graph section\n";
+          });
+          continue;
+        }
+      }
 
       for (auto RelItr = S.relocation_begin(), RelEnd = S.relocation_end();
            RelItr != RelEnd; ++RelItr) {
@@ -199,9 +224,10 @@ private:
         JITTargetAddress FixupAddress = SectionAddress + (uint32_t)RI.r_address;
 
         LLVM_DEBUG({
-          dbgs() << "Processing " << getMachOARM64RelocationKindName(*Kind)
-                 << " relocation at " << format("0x%016" PRIx64, FixupAddress)
-                 << "\n";
+          auto &NSec =
+              getSectionByIndex(Obj.getSectionIndex(S.getRawDataRefImpl()));
+          dbgs() << "  " << NSec.SectName << " + "
+                 << formatv("{0:x8}", RI.r_address) << ":\n";
         });
 
         // Find the block that the fixup points to.
@@ -355,6 +381,7 @@ private:
         }
 
         LLVM_DEBUG({
+          dbgs() << "    ";
           Edge GE(*Kind, FixupAddress - BlockToFix->getAddress(), *TargetSymbol,
                   Addend);
           printEdge(dbgs(), *BlockToFix, GE,

@@ -42,6 +42,8 @@ const char *SYCL::Linker::constructLLVMSpirvCommand(Compilation &C,
   } else {
     CmdArgs.push_back("-spirv-max-version=1.1");
     CmdArgs.push_back("-spirv-ext=+all");
+    if (C.getArgs().hasArg(options::OPT_fsycl_esimd))
+      CmdArgs.push_back("-spirv-allow-unknown-intrinsics");
     CmdArgs.push_back("-o");
     CmdArgs.push_back(Output.getFilename());
   }
@@ -50,7 +52,8 @@ const char *SYCL::Linker::constructLLVMSpirvCommand(Compilation &C,
   SmallString<128> LLVMSpirvPath(C.getDriver().Dir);
   llvm::sys::path::append(LLVMSpirvPath, "llvm-spirv");
   const char *LLVMSpirv = C.getArgs().MakeArgString(LLVMSpirvPath);
-  C.addCommand(std::make_unique<Command>(JA, *this, LLVMSpirv, CmdArgs, None));
+  C.addCommand(std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::AtFileUTF8(), LLVMSpirv, CmdArgs, None));
   return OutputFileName;
 }
 
@@ -87,7 +90,8 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
   SmallString<128> ForeachPath(C.getDriver().Dir);
   llvm::sys::path::append(ForeachPath, "llvm-foreach");
   const char *Foreach = C.getArgs().MakeArgString(ForeachPath);
-  C.addCommand(std::make_unique<Command>(JA, *T, Foreach, ForeachArgs, None));
+  C.addCommand(std::make_unique<Command>(
+      JA, *T, ResponseFileSupport::None(), Foreach, ForeachArgs, None));
 }
 
 const char *SYCL::Linker::constructLLVMLinkCommand(Compilation &C,
@@ -125,7 +129,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(Compilation &C,
   SmallString<128> ExecPath(C.getDriver().Dir);
   llvm::sys::path::append(ExecPath, "llvm-link");
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
-  C.addCommand(std::make_unique<Command>(JA, *this, Exec, CmdArgs, None));
+  C.addCommand(std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::AtFileUTF8(), Exec, CmdArgs, None));
   return OutputFileName;
 }
 
@@ -138,7 +143,8 @@ void SYCL::Linker::constructLlcCommand(Compilation &C, const JobAction &JA,
   SmallString<128> LlcPath(C.getDriver().Dir);
   llvm::sys::path::append(LlcPath, "llc");
   const char *Llc = C.getArgs().MakeArgString(LlcPath);
-  C.addCommand(std::make_unique<Command>(JA, *this, Llc, LlcArgs, None));
+  C.addCommand(std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::AtFileUTF8(), Llc, LlcArgs, None));
 }
 
 // For SYCL the inputs of the linker job are SPIR-V binaries and output is
@@ -308,7 +314,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
 
   SmallString<128> ExecPath(getToolChain().GetProgramPath("aoc"));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
-  auto Cmd = std::make_unique<Command>(JA, *this, Exec, CmdArgs, None);
+  auto Cmd = std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::None(), Exec, CmdArgs, None);
   if (!ForeachInputs.empty())
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
                                 this, ForeachExt);
@@ -344,7 +351,8 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
   TC.TranslateLinkerTargetArgs(Args, CmdArgs);
   SmallString<128> ExecPath(getToolChain().GetProgramPath("ocloc"));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
-  auto Cmd = std::make_unique<Command>(JA, *this, Exec, CmdArgs, None);
+  auto Cmd = std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::None(), Exec, CmdArgs, None);
   if (!ForeachInputs.empty())
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
                                 this);
@@ -376,7 +384,8 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(Compilation &C,
   TC.TranslateLinkerTargetArgs(Args, CmdArgs);
   SmallString<128> ExecPath(getToolChain().GetProgramPath("opencl-aot"));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
-  auto Cmd = std::make_unique<Command>(JA, *this, Exec, CmdArgs, None);
+  auto Cmd = std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::None(), Exec, CmdArgs, None);
   if (!ForeachInputs.empty())
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
                                 this);
@@ -475,17 +484,36 @@ static void addImpliedArgs(const llvm::Triple &Triple,
                            const llvm::opt::ArgList &Args,
                            llvm::opt::ArgStringList &CmdArgs) {
   // Current implied args are for debug information and disabling of
-  // optimizations.
-  // TODO: Add support for other architectures (gen, x86_64) as those are
-  // being defined.
+  // optimizations.  They are passed along to the respective areas as follows:
+  //  FPGA and default device:  -g -cl-opt-disable
+  //  GEN:  -options "-g -O0"
+  //  CPU:  "--bo=-g -cl-opt-disable"
+  llvm::opt::ArgStringList BeArgs;
+  bool IsGen = Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
+  if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
+    if (!A->getOption().matches(options::OPT_g0))
+      BeArgs.push_back("-g");
+  if (Args.getLastArg(options::OPT_O0))
+    BeArgs.push_back(IsGen ? "-O0" : "-cl-opt-disable");
+  if (BeArgs.empty())
+    return;
   if (Triple.getSubArch() == llvm::Triple::NoSubArch ||
       Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
-    if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
-      if (!A->getOption().matches(options::OPT_g0))
-        CmdArgs.push_back("-g");
-    if (Args.getLastArg(options::OPT_O0))
-      CmdArgs.push_back("-cl-opt-disable");
+    for (StringRef A : BeArgs)
+      CmdArgs.push_back(Args.MakeArgString(A));
+    return;
   }
+  SmallString<128> BeOpt;
+  if (IsGen)
+    CmdArgs.push_back("-options");
+  else
+    BeOpt = "--bo=";
+  for (unsigned I = 0; I < BeArgs.size(); ++I) {
+    if (I)
+      BeOpt += ' ';
+    BeOpt += BeArgs[I];
+  }
+  CmdArgs.push_back(Args.MakeArgString(BeOpt));
 }
 
 void SYCLToolChain::TranslateBackendTargetArgs(const llvm::opt::ArgList &Args,

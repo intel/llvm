@@ -1,12 +1,12 @@
-; RUN: opt < %s -basicaa -aa-eval -print-all-alias-modref-info -disable-output 2>&1 | FileCheck %s
+; RUN: opt < %s -basic-aa -aa-eval -print-all-alias-modref-info -disable-output 2>&1 | FileCheck %s
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-darwin13.4.0"
 
 ; CHECK-LABEL: compute1
 ; CHECK: MayAlias:	i32* %arrayidx8, i32* %out
-; CHECK: NoAlias:	i32* %arrayidx11, i32* %out
+; CHECK: MayAlias:	i32* %arrayidx11, i32* %out
 ; CHECK: MayAlias:	i32* %arrayidx11, i32* %arrayidx8
-; CHECK: NoAlias:	i32* %arrayidx14, i32* %out
+; CHECK: MayAlias:	i32* %arrayidx14, i32* %out
 ; CHECK: MayAlias:	i32* %arrayidx14, i32* %arrayidx8
 ; CHECK: MayAlias:	i32* %arrayidx11, i32* %arrayidx14
 define void @compute1(i32 %num.0.lcssa, i32* %out) {

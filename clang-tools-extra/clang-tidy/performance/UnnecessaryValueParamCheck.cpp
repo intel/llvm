@@ -69,7 +69,6 @@ UnnecessaryValueParamCheck::UnnecessaryValueParamCheck(
     StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
       IncludeStyle(Options.getLocalOrGlobal("IncludeStyle",
-                                            utils::IncludeSorter::getMapping(),
                                             utils::IncludeSorter::IS_LLVM)),
       AllowedTypes(
           utils::options::parseStringList(Options.get("AllowedTypes", ""))) {}
@@ -181,8 +180,7 @@ void UnnecessaryValueParamCheck::registerPPCallbacks(
 
 void UnnecessaryValueParamCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "IncludeStyle", IncludeStyle,
-                utils::IncludeSorter::getMapping());
+  Options.store(Opts, "IncludeStyle", IncludeStyle);
   Options.store(Opts, "AllowedTypes",
                 utils::options::serializeStringList(AllowedTypes));
 }
@@ -205,11 +203,10 @@ void UnnecessaryValueParamCheck::handleMoveFix(const ParmVarDecl &Var,
   auto EndLoc = Lexer::getLocForEndOfToken(CopyArgument.getLocation(), 0, SM,
                                            Context.getLangOpts());
   Diag << FixItHint::CreateInsertion(CopyArgument.getBeginLoc(), "std::move(")
-       << FixItHint::CreateInsertion(EndLoc, ")");
-  if (auto IncludeFixit = Inserter->CreateIncludeInsertion(
-          SM.getFileID(CopyArgument.getBeginLoc()), "utility",
-          /*IsAngled=*/true))
-    Diag << *IncludeFixit;
+       << FixItHint::CreateInsertion(EndLoc, ")")
+       << Inserter->CreateIncludeInsertion(
+              SM.getFileID(CopyArgument.getBeginLoc()), "utility",
+              /*IsAngled=*/true);
 }
 
 } // namespace performance

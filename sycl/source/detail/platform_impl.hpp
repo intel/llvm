@@ -11,7 +11,6 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
-#include <detail/force_device.hpp>
 #include <detail/platform_info.hpp>
 #include <detail/plugin.hpp>
 
@@ -106,6 +105,9 @@ public:
   /// \return a vector of all available SYCL platforms.
   static vector_class<platform> get_platforms();
 
+  // \return the Backend associated with this platform.
+  backend get_backend() const noexcept { return getPlugin().getBackend(); }
+
   // \return the Plugin associated with this platform.
   const plugin &getPlugin() const {
     assert(!MHostPlatform && "Plugin is not available for Host.");
@@ -119,6 +121,11 @@ public:
     assert(!MHostPlatform && "Plugin is not available for Host");
     MPlugin = std::move(PluginPtr);
   }
+
+  /// Gets the native handle of the SYCL platform.
+  ///
+  /// \return a native handle.
+  pi_native_handle getNative() const;
 
 private:
   bool MHostPlatform = false;

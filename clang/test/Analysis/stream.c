@@ -1,4 +1,4 @@
-// RUN: %clang_analyze_cc1 -analyzer-checker=alpha.unix.Stream -analyzer-store region -verify %s
+// RUN: %clang_analyze_cc1 -analyzer-checker=core,alpha.unix.Stream -verify %s
 
 #include "Inputs/system-header-simulator.h"
 
@@ -139,7 +139,7 @@ void f_leak(int c) {
   if (!p)
     return;
   if(c)
-    return; // expected-warning {{Opened File never closed. Potential Resource leak}}
+    return; // expected-warning {{Opened stream never closed. Potential resource leak}}
   fclose(p);
 }
 
@@ -193,3 +193,77 @@ void check_freopen_3() {
     fclose(f1);
   }
 }
+
+extern FILE *GlobalF;
+extern void takeFile(FILE *);
+
+void check_escape1() {
+  FILE *F = tmpfile();
+  if (!F)
+    return;
+  fwrite("1", 1, 1, F); // may fail
+  GlobalF = F;
+  fwrite("1", 1, 1, F); // no warning
+}
+
+void check_escape2() {
+  FILE *F = tmpfile();
+  if (!F)
+    return;
+  fwrite("1", 1, 1, F); // may fail
+  takeFile(F);
+  fwrite("1", 1, 1, F); // no warning
+}
+
+void check_escape3() {
+  FILE *F = tmpfile();
+  if (!F)
+    return;
+  takeFile(F);
+  F = freopen(0, "w", F);
+  if (!F)
+    return;
+  fwrite("1", 1, 1, F); // may fail
+  fwrite("1", 1, 1, F); // no warning
+}
+
+void check_escape4() {
+  FILE *F = tmpfile();
+  if (!F)
+    return;
+  fwrite("1", 1, 1, F); // may fail
+
+  // no escape at (non-StreamChecker-handled) system call
+  // FIXME: all such calls should be handled by the checker
+  fprintf(F, "0");
+
+  fwrite("1", 1, 1, F); // expected-warning {{might be 'indeterminate'}}
+  fclose(F);
+}
+
+int Test;
+_Noreturn void handle_error();
+
+void check_leak_noreturn_1() {
+  FILE *F1 = tmpfile();
+  if (!F1)
+    return;
+  if (Test == 1) {
+    handle_error(); // no warning
+  }
+  rewind(F1);
+} // expected-warning {{Opened stream never closed. Potential resource leak}}
+
+// Check that "location uniqueing" works.
+// This results in reporting only one occurence of resource leak for a stream.
+void check_leak_noreturn_2() {
+  FILE *F1 = tmpfile();
+  if (!F1)
+    return;
+  if (Test == 1) {
+    return; // no warning
+  }
+  rewind(F1);
+} // expected-warning {{Opened stream never closed. Potential resource leak}}
+// FIXME: This warning should be placed at the `return` above.
+// See https://reviews.llvm.org/D83120 about details.

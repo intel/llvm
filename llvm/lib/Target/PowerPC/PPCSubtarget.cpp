@@ -78,6 +78,7 @@ void PPCSubtarget::initializeEnvironment() {
   HasP8Crypto = false;
   HasP9Vector = false;
   HasP9Altivec = false;
+  HasP10Vector = false;
   HasPrefixInstrs = false;
   HasPCRelativeMemops = false;
   HasFCPSGN = false;
@@ -179,7 +180,7 @@ void PPCSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
 bool PPCSubtarget::enableMachineScheduler() const { return true; }
 
 bool PPCSubtarget::enableMachinePipeliner() const {
-  return (CPUDirective == PPC::DIR_PWR9) && EnableMachinePipeliner;
+  return getSchedModel().hasInstrSchedModel() && EnableMachinePipeliner;
 }
 
 bool PPCSubtarget::useDFAforSMS() const { return false; }

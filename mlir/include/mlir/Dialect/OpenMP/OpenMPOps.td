@@ -24,7 +24,6 @@ def OpenMP_Dialect : Dialect {
 class OpenMP_Op<string mnemonic, list<OpTrait> traits = []> :
       Op<OpenMP_Dialect, mnemonic, traits>;
 
-
 //===----------------------------------------------------------------------===//
 // 2.6 parallel Construct
 //===----------------------------------------------------------------------===//
@@ -81,8 +80,8 @@ def ParallelOp : OpenMP_Op<"parallel", [AttrSizedOperandSegments]> {
     of the parallel region.
   }];
 
-  let arguments = (ins Optional<I1>:$if_expr_var,
-             Optional<AnyInteger>:$num_threads_var,
+  let arguments = (ins Optional<AnyType>:$if_expr_var,
+             Optional<AnyType>:$num_threads_var,
              OptionalAttr<ClauseDefault>:$default_val,
              Variadic<AnyType>:$private_vars,
              Variadic<AnyType>:$firstprivate_vars,
@@ -91,6 +90,9 @@ def ParallelOp : OpenMP_Op<"parallel", [AttrSizedOperandSegments]> {
              OptionalAttr<ClauseProcBind>:$proc_bind_val);
 
   let regions = (region AnyRegion:$region);
+
+  let parser = [{ return parseParallelOp(parser, result); }];
+  let printer = [{ return printParallelOp(p, *this); }];
 }
 
 def TerminatorOp : OpenMP_Op<"terminator", [Terminator]> {

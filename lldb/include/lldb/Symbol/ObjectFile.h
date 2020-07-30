@@ -172,10 +172,10 @@ public:
                                        lldb::addr_t header_addr,
                                        lldb::DataBufferSP &file_data_sp);
 
-  static size_t GetModuleSpecifications(const FileSpec &file,
-                                        lldb::offset_t file_offset,
-                                        lldb::offset_t file_size,
-                                        ModuleSpecList &specs);
+  static size_t
+  GetModuleSpecifications(const FileSpec &file, lldb::offset_t file_offset,
+                          lldb::offset_t file_size, ModuleSpecList &specs,
+                          lldb::DataBufferSP data_sp = lldb::DataBufferSP());
 
   static size_t GetModuleSpecifications(const lldb_private::FileSpec &file,
                                         lldb::DataBufferSP &data_sp,
@@ -686,7 +686,8 @@ protected:
                                         uint64_t Offset);
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(ObjectFile);
+  ObjectFile(const ObjectFile &) = delete;
+  const ObjectFile &operator=(const ObjectFile &) = delete;
 };
 
 } // namespace lldb_private

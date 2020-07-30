@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clc.h>
 #include <core/clc_core.h>
+#include <spirv/spirv.h>
 
 #define __CLC_UPSAMPLE_IMPL(PREFIX, BGENTYPE, GENTYPE, UGENTYPE)               \
   _CLC_OVERLOAD _CLC_DEF BGENTYPE __spirv_ocl_##PREFIX##_upsample(             \

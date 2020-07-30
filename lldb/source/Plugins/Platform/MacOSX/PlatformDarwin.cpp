@@ -237,6 +237,30 @@ lldb_private::Status PlatformDarwin::GetSharedModuleWithLocalCache(
 
   Status err;
 
+  if (IsHost()) {
+    // When debugging on the host, we are most likely using the same shared
+    // cache as our inferior. The dylibs from the shared cache might not
+    // exist on the filesystem, so let's use the images in our own memory
+    // to create the modules.
+
+    // Check if the requested image is in our shared cache.
+    SharedCacheImageInfo image_info =
+        HostInfo::GetSharedCacheImageInfo(module_spec.GetFileSpec().GetPath());
+
+    // If we found it and it has the correct UUID, let's proceed with
+    // creating a module from the memory contents.
+    if (image_info.uuid &&
+        (!module_spec.GetUUID() || module_spec.GetUUID() == image_info.uuid)) {
+      ModuleSpec shared_cache_spec(module_spec.GetFileSpec(), image_info.uuid,
+                                   image_info.data_sp);
+      err = ModuleList::GetSharedModule(shared_cache_spec, module_sp,
+                                        module_search_paths_ptr,
+                                        old_module_sp_ptr, did_create_ptr);
+      if (module_sp)
+        return err;
+    }
+  }
+
   err = ModuleList::GetSharedModule(module_spec, module_sp,
                                     module_search_paths_ptr, old_module_sp_ptr,
                                     did_create_ptr);
@@ -548,6 +572,19 @@ bool PlatformDarwin::ARMGetSupportedArchitectureAtIndex(uint32_t idx,
 #define OSNAME "bridgeos"
 #else
 #define OSNAME "ios"
+#endif
+
+#if TARGET_OS_OSX
+  if (IsHost()) {
+    if (idx == 0) {
+      arch.SetTriple("arm64e-apple-macosx");
+      return true;
+    } else if (idx == 1) {
+      arch.SetTriple("arm64-apple-macosx");
+      return true;
+    }
+    return false;
+  }
 #endif
 
   const ArchSpec::Core system_core = system_arch.GetCore();
@@ -1133,19 +1170,6 @@ static FileSpec GetXcodeSelectPath() {
   return g_xcode_select_filespec;
 }
 
-lldb_private::FileSpec PlatformDarwin::GetXcodeDeveloperDirectory() {
-  static lldb_private::FileSpec g_developer_directory;
-  static llvm::once_flag g_once_flag;
-  llvm::call_once(g_once_flag, []() {
-    if (FileSpec fspec = GetXcodeContentsDirectory()) {
-      fspec.AppendPathComponent("Developer");
-      if (FileSystem::Instance().Exists(fspec))
-        g_developer_directory = fspec;
-    }
-  });
-  return g_developer_directory;
-}
-
 BreakpointSP PlatformDarwin::SetThreadCreationBreakpoint(Target &target) {
   BreakpointSP bp_sp;
   static const char *g_bp_names[] = {
@@ -1260,7 +1284,7 @@ FileSpec PlatformDarwin::FindSDKInXcodeForModules(XcodeSDK::Type sdk_type,
 }
 
 FileSpec PlatformDarwin::GetSDKDirectoryForModules(XcodeSDK::Type sdk_type) {
-  FileSpec sdks_spec = GetXcodeContentsDirectory();
+  FileSpec sdks_spec = HostInfo::GetXcodeContentsDirectory();
   sdks_spec.AppendPathComponent("Developer");
   sdks_spec.AppendPathComponent("Platforms");
 
@@ -1586,7 +1610,7 @@ lldb_private::FileSpec PlatformDarwin::LocateExecutable(const char *basename) {
   llvm::call_once(g_once_flag, []() {
 
     // When locating executables, trust the DEVELOPER_DIR first if it is set
-    FileSpec xcode_contents_dir = GetXcodeContentsDirectory();
+    FileSpec xcode_contents_dir = HostInfo::GetXcodeContentsDirectory();
     if (xcode_contents_dir) {
       FileSpec xcode_lldb_resources = xcode_contents_dir;
       xcode_lldb_resources.AppendPathComponent("SharedFrameworks");
@@ -1736,72 +1760,6 @@ std::string PlatformDarwin::FindComponentInPath(llvm::StringRef path,
     }
   }
   return {};
-}
-
-std::string
-PlatformDarwin::FindXcodeContentsDirectoryInPath(llvm::StringRef path) {
-  auto begin = llvm::sys::path::begin(path);
-  auto end = llvm::sys::path::end(path);
-
-  // Iterate over the path components until we find something that ends with
-  // .app. If the next component is Contents then we've found the Contents
-  // directory.
-  for (auto it = begin; it != end; ++it) {
-    if (it->endswith(".app")) {
-      auto next = it;
-      if (++next != end && *next == "Contents") {
-        llvm::SmallString<128> buffer;
-        llvm::sys::path::append(buffer, begin, ++next,
-                                llvm::sys::path::Style::posix);
-        return buffer.str().str();
-      }
-    }
-  }
-
-  return {};
-}
-
-FileSpec PlatformDarwin::GetXcodeContentsDirectory() {
-  static FileSpec g_xcode_contents_path;
-  static std::once_flag g_once_flag;
-  std::call_once(g_once_flag, [&]() {
-    // Try the shlib dir first.
-    if (FileSpec fspec = HostInfo::GetShlibDir()) {
-      if (FileSystem::Instance().Exists(fspec)) {
-        std::string xcode_contents_dir =
-            FindXcodeContentsDirectoryInPath(fspec.GetPath());
-        if (!xcode_contents_dir.empty()) {
-          g_xcode_contents_path = FileSpec(xcode_contents_dir);
-          return;
-        }
-      }
-    }
-
-    if (const char *developer_dir_env_var = getenv("DEVELOPER_DIR")) {
-      FileSpec fspec(developer_dir_env_var);
-      if (FileSystem::Instance().Exists(fspec)) {
-        std::string xcode_contents_dir =
-            FindXcodeContentsDirectoryInPath(fspec.GetPath());
-        if (!xcode_contents_dir.empty()) {
-          g_xcode_contents_path = FileSpec(xcode_contents_dir);
-          return;
-        }
-      }
-    }
-
-    FileSpec fspec(HostInfo::GetXcodeSDKPath(XcodeSDK::GetAnyMacOS()));
-    if (fspec) {
-      if (FileSystem::Instance().Exists(fspec)) {
-        std::string xcode_contents_dir =
-            FindXcodeContentsDirectoryInPath(fspec.GetPath());
-        if (!xcode_contents_dir.empty()) {
-          g_xcode_contents_path = FileSpec(xcode_contents_dir);
-          return;
-        }
-      }
-    }
-  });
-  return g_xcode_contents_path;
 }
 
 FileSpec PlatformDarwin::GetCurrentToolchainDirectory() {

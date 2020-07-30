@@ -27,6 +27,7 @@
 #define LLVM_SUPPORT_LOWLEVELTYPEIMPL_H
 
 #include "llvm/ADT/DenseMapInfo.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/MachineValueType.h"
 #include <cassert>
 
@@ -193,6 +194,13 @@ public:
   }
 
   void print(raw_ostream &OS) const;
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  LLVM_DUMP_METHOD void dump() const {
+    print(dbgs());
+    dbgs() << '\n';
+  }
+#endif
 
   bool operator==(const LLT &RHS) const {
     return IsPointer == RHS.IsPointer && IsVector == RHS.IsVector &&

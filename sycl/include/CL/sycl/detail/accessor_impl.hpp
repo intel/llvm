@@ -17,6 +17,17 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace intel {
+namespace gpu {
+// Forward declare a "back-door" access class to support ESIMD.
+class AccessorPrivateProxy;
+} // namespace gpu
+} // namespace intel
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
+
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
 namespace detail {
 
 class Command;
@@ -59,16 +70,29 @@ public:
   }
 };
 
+// TODO ESIMD Currently all accessors are treated as ESIMD under corresponding
+// compiler option enabling the macro below. Eventually ESIMD kernels and usual
+// kernels must co-exist and there must be a mechanism for distinguishing usual
+// and ESIMD accessors.
+#ifndef __SYCL_EXPLICIT_SIMD__
+constexpr bool IsESIMDAccInit = false;
+#else
+constexpr bool IsESIMDAccInit = true;
+#endif // __SYCL_EXPLICIT_SIMD__
+
 class __SYCL_EXPORT AccessorImplHost {
 public:
   AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject,
                    int Dims, int ElemSize, int OffsetInBytes = 0,
-                   bool IsSubBuffer = false)
+                   bool IsSubBuffer = false, bool IsESIMDAcc = IsESIMDAccInit)
       : MOffset(Offset), MAccessRange(AccessRange), MMemoryRange(MemoryRange),
         MAccessMode(AccessMode), MSYCLMemObj(SYCLMemObject), MDims(Dims),
         MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
-        MIsSubBuffer(IsSubBuffer) {}
+        MIsSubBuffer(IsSubBuffer) {
+    MIsESIMDAcc =
+        IsESIMDAcc && (SYCLMemObject->getType() == SYCLMemObjI::BUFFER);
+  }
 
   ~AccessorImplHost();
 
@@ -77,7 +101,7 @@ public:
         MMemoryRange(Other.MMemoryRange), MAccessMode(Other.MAccessMode),
         MSYCLMemObj(Other.MSYCLMemObj), MDims(Other.MDims),
         MElemSize(Other.MElemSize), MOffsetInBytes(Other.MOffsetInBytes),
-        MIsSubBuffer(Other.MIsSubBuffer) {}
+        MIsSubBuffer(Other.MIsSubBuffer), MIsESIMDAcc(Other.MIsESIMDAcc) {}
 
   // The resize method provides a way to change the size of the
   // allocated memory and corresponding properties for the accessor.
@@ -109,6 +133,9 @@ public:
   Command *MBlockedCmd = nullptr;
 
   bool PerWI = false;
+
+  // Whether this accessor is ESIMD accessor with special memory allocation.
+  bool MIsESIMDAcc;
 };
 
 using AccessorImplPtr = shared_ptr_class<AccessorImplHost>;
@@ -121,7 +148,8 @@ public:
                    bool IsSubBuffer = false) {
     impl = shared_ptr_class<AccessorImplHost>(new AccessorImplHost(
         Offset, AccessRange, MemoryRange, AccessMode, SYCLMemObject, Dims,
-        ElemSize, OffsetInBytes, IsSubBuffer));
+        ElemSize, OffsetInBytes, IsSubBuffer,
+        IsESIMDAccInit && (SYCLMemObject->getType() == SYCLMemObjI::BUFFER)));
   }
 
 protected:
@@ -140,6 +168,9 @@ protected:
   friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
 
   AccessorImplPtr impl;
+
+private:
+  friend class sycl::intel::gpu::AccessorPrivateProxy;
 };
 
 class __SYCL_EXPORT LocalAccessorImplHost {
@@ -182,6 +213,57 @@ protected:
 using Requirement = AccessorImplHost;
 
 void __SYCL_EXPORT addHostAccessorAndWait(Requirement *Req);
+
+#if __cplusplus > 201402L
+
+template <typename MayBeTag1, typename MayBeTag2>
+constexpr access::mode deduceAccessMode() {
+  // property_list = {} is not properly detected by deduction guide,
+  // when parameter is passed without curly braces: access(buffer, noinit)
+  // thus simplest approach is to check 2 last arguments for being a tag
+  if constexpr (std::is_same<MayBeTag1,
+                             mode_tag_t<access::mode::read>>::value ||
+                std::is_same<MayBeTag2,
+                             mode_tag_t<access::mode::read>>::value) {
+    return access::mode::read;
+  }
+
+  if constexpr (std::is_same<MayBeTag1,
+                             mode_tag_t<access::mode::write>>::value ||
+                std::is_same<MayBeTag2,
+                             mode_tag_t<access::mode::write>>::value) {
+    return access::mode::write;
+  }
+
+  if constexpr (
+      std::is_same<MayBeTag1,
+                   mode_target_tag_t<access::mode::read,
+                                     access::target::constant_buffer>>::value ||
+      std::is_same<MayBeTag2,
+                   mode_target_tag_t<access::mode::read,
+                                     access::target::constant_buffer>>::value) {
+    return access::mode::read;
+  }
+
+  return access::mode::read_write;
+}
+
+template <typename MayBeTag1, typename MayBeTag2>
+constexpr access::target deduceAccessTarget(access::target defaultTarget) {
+  if constexpr (
+      std::is_same<MayBeTag1,
+                   mode_target_tag_t<access::mode::read,
+                                     access::target::constant_buffer>>::value ||
+      std::is_same<MayBeTag2,
+                   mode_target_tag_t<access::mode::read,
+                                     access::target::constant_buffer>>::value) {
+    return access::target::constant_buffer;
+  }
+
+  return defaultTarget;
+}
+
+#endif
 
 } // namespace detail
 } // namespace sycl

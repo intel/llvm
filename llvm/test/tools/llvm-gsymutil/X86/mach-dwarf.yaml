@@ -539,8 +539,7 @@ DWARF:
         - Attribute:       DW_AT_type
           Form:            DW_FORM_ref_addr
   debug_aranges:
-    - Length:
-        TotalLength:     60
+    - Length:          60
       Version:         2
       CuOffset:        0
       AddrSize:        8
@@ -575,8 +574,7 @@ DWARF:
       - DieOffset:       0x000000D8
         Name:            char
   debug_info:
-    - Length:
-        TotalLength:     220
+    - Length:          220
       Version:         4
       AbbrOffset:      0
       AddrSize:        8
@@ -695,8 +693,7 @@ DWARF:
         - AbbrCode:        0x00000000
           Values:          []
   debug_line:
-    - Length:
-        TotalLength:     102
+    - Length:          102
       Version:         4
       PrologueLength:  32
       MinInstLength:   1

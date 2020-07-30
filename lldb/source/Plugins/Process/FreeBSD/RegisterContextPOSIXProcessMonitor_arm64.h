@@ -17,8 +17,8 @@ class RegisterContextPOSIXProcessMonitor_arm64
       public POSIXBreakpointProtocol {
 public:
   RegisterContextPOSIXProcessMonitor_arm64(
-      lldb_private::Thread &thread, uint32_t concrete_frame_idx,
-      lldb_private::RegisterInfoInterface *register_info);
+      lldb_private::Thread &thread,
+      std::unique_ptr<RegisterInfoPOSIX_arm64> register_info);
 
 protected:
   bool ReadGPR();
@@ -71,6 +71,11 @@ protected:
   uint32_t NumSupportedHardwareWatchpoints();
 
 private:
+  RegisterInfoPOSIX_arm64::GPR m_gpr_arm64; // 64-bit general purpose registers.
+
+  RegisterInfoPOSIX_arm64::FPU
+      m_fpr; // floating-point registers including extended register sets.
+
   ProcessMonitor &GetMonitor();
 };
 

@@ -8,8 +8,8 @@
 
 #include <spirv/spirv.h>
 
-#include "../../lib/math/math.h"
-#include "../../lib/clcmacro.h"
+#include <clcmacro.h>
+#include <math/math.h>
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_exp(float x) {
 

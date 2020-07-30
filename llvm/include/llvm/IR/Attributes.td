@@ -39,6 +39,12 @@ def Builtin : EnumAttr<"builtin">;
 /// Pass structure by value.
 def ByVal : TypeAttr<"byval">;
 
+/// Mark in-memory ABI type.
+def ByRef : TypeAttr<"byref">;
+
+/// Parameter or return value may not contain uninitialized or poison bits.
+def NoUndef : EnumAttr<"noundef">;
+
 /// Marks function as being in a cold path.
 def Cold : EnumAttr<"cold">;
 
@@ -233,10 +239,12 @@ def ZExt : EnumAttr<"zeroext">;
 def LessPreciseFPMAD : StrBoolAttr<"less-precise-fpmad">;
 def NoInfsFPMath : StrBoolAttr<"no-infs-fp-math">;
 def NoNansFPMath : StrBoolAttr<"no-nans-fp-math">;
+def NoSignedZerosFPMath : StrBoolAttr<"no-signed-zeros-fp-math">;
 def UnsafeFPMath : StrBoolAttr<"unsafe-fp-math">;
 def NoJumpTables : StrBoolAttr<"no-jump-tables">;
 def NoInlineLineTables : StrBoolAttr<"no-inline-line-tables">;
 def ProfileSampleAccurate : StrBoolAttr<"profile-sample-accurate">;
+def UseSampleProfile : StrBoolAttr<"use-sample-profile">;
 
 class CompatRule<string F> {
   // The name of the function called to check the attribute of the caller and
@@ -255,6 +263,7 @@ def : CompatRule<"isEqual<SanitizeHWAddressAttr>">;
 def : CompatRule<"isEqual<SanitizeMemTagAttr>">;
 def : CompatRule<"isEqual<SafeStackAttr>">;
 def : CompatRule<"isEqual<ShadowCallStackAttr>">;
+def : CompatRule<"isEqual<UseSampleProfileAttr>">;
 
 class MergeRule<string F> {
   // The name of the function called to merge the attributes of the caller and
@@ -268,6 +277,7 @@ class MergeRule<string F> {
 def : MergeRule<"setAND<LessPreciseFPMADAttr>">;
 def : MergeRule<"setAND<NoInfsFPMathAttr>">;
 def : MergeRule<"setAND<NoNansFPMathAttr>">;
+def : MergeRule<"setAND<NoSignedZerosFPMathAttr>">;
 def : MergeRule<"setAND<UnsafeFPMathAttr>">;
 def : MergeRule<"setOR<NoImplicitFloatAttr>">;
 def : MergeRule<"setOR<NoJumpTablesAttr>">;

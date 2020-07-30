@@ -177,7 +177,7 @@ if.end:                                           ; preds = %while.body
 while.end:                                        ; preds = %while.cond
   br label %while.cond1
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
-; LoopControlInitiationIntervalINTEL = 0x10000 (65536)
+; LoopControlInitiationIntervalINTELMask = 0x10000 (65536)
 ; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 65536 2
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 while.cond1:                                      ; preds = %if.end8, %if.then6, %while.end
@@ -204,7 +204,7 @@ if.end8:                                          ; preds = %while.body3
 while.end9:                                       ; preds = %while.cond1
   br label %while.cond10
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
-; LoopControlMaxConcurrencyINTEL = 0x20000 (131072)
+; LoopControlMaxConcurrencyINTELMask = 0x20000 (131072)
 ; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 131072 4
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 while.cond10:                                     ; preds = %if.end17, %if.then15, %while.end9
@@ -276,7 +276,7 @@ entry:
   store i32 0, i32* %i, align 4
   br label %for.cond
 
-; Per SPIR-V spec, LoopControlPipelineEnableINTEL = 0x80000 (524288)
+; Per SPIR-V spec, LoopControlPipelineEnableINTELMask = 0x80000 (524288)
 ; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 524288 1
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV-NEGATIVE-NOT: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 524288 1
@@ -311,7 +311,7 @@ entry:
   store i32 42, i32* %m, align 4
   br label %while.cond
 
-; Per SPIR-V spec, LoopControlLoopCoalesceINTEL = 0x100000 (1048576)
+; Per SPIR-V spec, LoopControlLoopCoalesceINTELMask = 0x100000 (1048576)
 ; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 1048576 4
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV-NEGATIVE-NOT: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 1048576 4
@@ -340,7 +340,7 @@ while.end:                                        ; preds = %while.cond
   store i32 0, i32* %i, align 4
   br label %while.cond1
 
-; Per SPIR-V spec, LoopControlLoopCoalesceINTEL = 0x100000 (1048576)
+; Per SPIR-V spec, LoopControlLoopCoalesceINTELMask = 0x100000 (1048576)
 ; CHECK-SPIRV: 4 LoopMerge {{[0-9]+}} {{[0-9]+}} 1048576
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV-NEGATIVE-NOT: 4 LoopMerge {{[0-9]+}} {{[0-9]+}} 1048576
@@ -377,7 +377,7 @@ entry:
   store i32 0, i32* %i, align 4
   br label %for.cond
 
-; Per SPIR-V spec, LoopControlMaxInterleavingINTEL = 0x200000 (2097152)
+; Per SPIR-V spec, LoopControlMaxInterleavingINTELMask = 0x200000 (2097152)
 ; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 2097152 3
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV-NEGATIVE-NOT: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 2097152 3
@@ -411,7 +411,7 @@ entry:
   store i32 0, i32* %i, align 4
   br label %for.cond
 
-; Per SPIR-V spec, LoopControlSpeculatedIterationsINTEL = 0x400000 (4194304)
+; Per SPIR-V spec, LoopControlSpeculatedIterationsINTELMask = 0x400000 (4194304)
 ; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 4194304 4
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV-NEGATIVE-NOT: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 4194304 4

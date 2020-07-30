@@ -371,6 +371,10 @@ class CommandLineCompletionTestCase(TestBase):
         self.complete_from_to("watchpoint set variable foo --watch w", "watchpoint set variable foo --watch write")
         self.complete_from_to('watchpoint set variable foo -w read_', 'watchpoint set variable foo -w read_write')
 
+    def test_command_script_delete(self):
+        self.runCmd("command script add -h test_desc -f none -s current usercmd1")
+        self.check_completion_with_desc('command script delete ', [['usercmd1', 'test_desc']])
+
     def test_completion_description_commands(self):
         """Test descriptions of top-level command completions"""
         self.check_completion_with_desc("", [
@@ -410,6 +414,17 @@ class CommandLineCompletionTestCase(TestBase):
         # Unknown long option.
         self.check_completion_with_desc("breakpoint set --Z", [
         ])
+
+    def test_frame_select(self):
+        self.build()
+        self.main_source_spec = lldb.SBFileSpec("main.cpp")
+        lldbutil.run_to_source_breakpoint(self, '// Break here', self.main_source_spec)
+
+        self.complete_from_to('frame select ', ['0'])
+    
+    def test_frame_recognizer_delete(self):
+        self.runCmd("frame recognizer add -l py_class -s module_name -n recognizer_name")
+        self.check_completion_with_desc('frame recognizer delete ', [['0', 'py_class, module module_name, symbol recognizer_name']])
 
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr24489")
     def test_symbol_name(self):

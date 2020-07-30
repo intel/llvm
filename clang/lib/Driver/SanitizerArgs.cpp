@@ -27,7 +27,8 @@ using namespace llvm::opt;
 static const SanitizerMask NeedsUbsanRt =
     SanitizerKind::Undefined | SanitizerKind::Integer |
     SanitizerKind::ImplicitConversion | SanitizerKind::Nullability |
-    SanitizerKind::CFI | SanitizerKind::FloatDivideByZero;
+    SanitizerKind::CFI | SanitizerKind::FloatDivideByZero |
+    SanitizerKind::ObjCCast;
 static const SanitizerMask NeedsUbsanCxxRt =
     SanitizerKind::Vptr | SanitizerKind::CFI;
 static const SanitizerMask NotAllowedWithTrap = SanitizerKind::Vptr;
@@ -48,11 +49,11 @@ static const SanitizerMask SupportsCoverage =
     SanitizerKind::DataFlow | SanitizerKind::Fuzzer |
     SanitizerKind::FuzzerNoLink | SanitizerKind::FloatDivideByZero |
     SanitizerKind::SafeStack | SanitizerKind::ShadowCallStack |
-    SanitizerKind::Thread;
+    SanitizerKind::Thread | SanitizerKind::ObjCCast;
 static const SanitizerMask RecoverableByDefault =
     SanitizerKind::Undefined | SanitizerKind::Integer |
     SanitizerKind::ImplicitConversion | SanitizerKind::Nullability |
-    SanitizerKind::FloatDivideByZero;
+    SanitizerKind::FloatDivideByZero | SanitizerKind::ObjCCast;
 static const SanitizerMask Unrecoverable =
     SanitizerKind::Unreachable | SanitizerKind::Return;
 static const SanitizerMask AlwaysRecoverable =
@@ -62,7 +63,8 @@ static const SanitizerMask TrappingSupported =
     (SanitizerKind::Undefined & ~SanitizerKind::Vptr) |
     SanitizerKind::UnsignedIntegerOverflow | SanitizerKind::ImplicitConversion |
     SanitizerKind::Nullability | SanitizerKind::LocalBounds |
-    SanitizerKind::CFI | SanitizerKind::FloatDivideByZero;
+    SanitizerKind::CFI | SanitizerKind::FloatDivideByZero |
+    SanitizerKind::ObjCCast;
 static const SanitizerMask TrappingDefault = SanitizerKind::CFI;
 static const SanitizerMask CFIClasses =
     SanitizerKind::CFIVCall | SanitizerKind::CFINVCall |
@@ -236,6 +238,10 @@ static SanitizerMask parseSanitizeTrapArgs(const Driver &D,
   TrappingKinds |= TrappingDefault & ~TrapRemove;
 
   return TrappingKinds;
+}
+
+bool SanitizerArgs::needsFuzzerInterceptors() const {
+  return needsFuzzer() && !needsAsanRt() && !needsTsanRt() && !needsMsanRt();
 }
 
 bool SanitizerArgs::needsUbsanRt() const {
@@ -745,12 +751,12 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   // So, there is no way to clear coverage lists but you can append to them.
   if (CoverageFeatures) {
     parseSpecialCaseListArg(
-        D, Args, CoverageWhitelistFiles,
-        options::OPT_fsanitize_coverage_whitelist, OptSpecifier(),
+        D, Args, CoverageAllowlistFiles,
+        options::OPT_fsanitize_coverage_allowlist, OptSpecifier(),
         clang::diag::err_drv_malformed_sanitizer_coverage_whitelist);
     parseSpecialCaseListArg(
-        D, Args, CoverageBlacklistFiles,
-        options::OPT_fsanitize_coverage_blacklist, OptSpecifier(),
+        D, Args, CoverageBlocklistFiles,
+        options::OPT_fsanitize_coverage_blocklist, OptSpecifier(),
         clang::diag::err_drv_malformed_sanitizer_coverage_blacklist);
   }
 
@@ -954,9 +960,9 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       CmdArgs.push_back(F.second);
   }
   addSpecialCaseListOpt(
-      Args, CmdArgs, "-fsanitize-coverage-whitelist=", CoverageWhitelistFiles);
+      Args, CmdArgs, "-fsanitize-coverage-allowlist=", CoverageAllowlistFiles);
   addSpecialCaseListOpt(
-      Args, CmdArgs, "-fsanitize-coverage-blacklist=", CoverageBlacklistFiles);
+      Args, CmdArgs, "-fsanitize-coverage-blocklist=", CoverageBlocklistFiles);
 
   if (TC.getTriple().isOSWindows() && needsUbsanRt()) {
     // Instruct the code generator to embed linker directives in the object file
@@ -1068,7 +1074,7 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
     CmdArgs.push_back(Args.MakeArgString("hwasan-abi=" + HwasanAbi));
   }
 
-  if (Sanitizers.has(SanitizerKind::HWAddress)) {
+  if (Sanitizers.has(SanitizerKind::HWAddress) && TC.getTriple().isAArch64()) {
     CmdArgs.push_back("-target-feature");
     CmdArgs.push_back("+tagged-globals");
   }

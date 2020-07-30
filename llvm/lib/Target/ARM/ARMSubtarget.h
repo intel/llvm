@@ -61,6 +61,8 @@ protected:
     CortexA73,
     CortexA75,
     CortexA76,
+    CortexA77,
+    CortexA78,
     CortexA8,
     CortexA9,
     CortexM3,
@@ -69,6 +71,7 @@ protected:
     CortexR5,
     CortexR52,
     CortexR7,
+    CortexX1,
     Exynos,
     Krait,
     Kryo,
@@ -702,6 +705,7 @@ public:
   bool hasD32() const { return HasD32; }
   bool hasFullFP16() const { return HasFullFP16; }
   bool hasFP16FML() const { return HasFP16FML; }
+  bool hasBF16() const { return HasBF16; }
 
   bool hasFuseAES() const { return HasFuseAES; }
   bool hasFuseLiterals() const { return HasFuseLiterals; }

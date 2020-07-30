@@ -67,6 +67,8 @@ public:
 
 protected:
   bool UpdateValue() override;
+  
+  void DoUpdateChildrenAddressType(ValueObject &valobj) override;
 
   CompilerType GetCompilerTypeImpl() override;
 
@@ -80,7 +82,8 @@ private:
                       ValueObjectManager &manager,
                       const lldb::VariableSP &var_sp);
   // For ValueObject only
-  DISALLOW_COPY_AND_ASSIGN(ValueObjectVariable);
+  ValueObjectVariable(const ValueObjectVariable &) = delete;
+  const ValueObjectVariable &operator=(const ValueObjectVariable &) = delete;
 };
 
 } // namespace lldb_private

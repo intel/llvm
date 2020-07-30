@@ -39,6 +39,7 @@
 #include <set>
 #include <sstream>
 #include <thread>
+#include <vector>
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Option/Arg.h"
@@ -174,6 +175,7 @@ void SendThreadExitedEvent(lldb::tid_t tid) {
 void SendTerminatedEvent() {
   if (!g_vsc.sent_terminated_event) {
     g_vsc.sent_terminated_event = true;
+    g_vsc.RunTerminateCommands();
     // Send a "terminated" event
     llvm::json::Object event(CreateEventObject("terminated"));
     g_vsc.SendJSON(llvm::json::Value(std::move(event)));
@@ -433,6 +435,30 @@ void EventThreadFunction() {
             g_vsc.SendJSON(llvm::json::Value(std::move(bp_event)));
           }
         }
+      } else if (lldb::SBTarget::EventIsTargetEvent(event)) {
+        if (event_mask & lldb::SBTarget::eBroadcastBitModulesLoaded ||
+            event_mask & lldb::SBTarget::eBroadcastBitModulesUnloaded ||
+            event_mask & lldb::SBTarget::eBroadcastBitSymbolsLoaded) {
+          int num_modules = lldb::SBTarget::GetNumModulesFromEvent(event);
+          for (int i = 0; i < num_modules; i++) {
+            auto module = lldb::SBTarget::GetModuleAtIndexFromEvent(i, event);
+            auto module_event = CreateEventObject("module");
+            llvm::json::Value module_value = CreateModule(module);
+            llvm::json::Object body;
+            if (event_mask & lldb::SBTarget::eBroadcastBitModulesLoaded) {
+              body.try_emplace("reason", "new");
+            } else if (event_mask &
+                        lldb::SBTarget::eBroadcastBitModulesUnloaded) {
+              body.try_emplace("reason", "removed");
+            } else if (event_mask &
+                        lldb::SBTarget::eBroadcastBitSymbolsLoaded) {
+              body.try_emplace("reason", "changed");
+            }
+            body.try_emplace("module", module_value);
+            module_event.try_emplace("body", std::move(body));
+            g_vsc.SendJSON(llvm::json::Value(std::move(module_event)));
+          }
+        }
       } else if (event.BroadcasterMatchesRef(g_vsc.broadcaster)) {
         if (event_mask & eBroadcastBitStopEventThread) {
           done = true;
@@ -514,6 +540,7 @@ void SetSourceMapFromArguments(const llvm::json::Object &arguments) {
 //   }]
 // }
 void request_attach(const llvm::json::Object &request) {
+  g_vsc.is_attach = true;
   llvm::json::Object response;
   lldb::SBError error;
   FillResponse(request, response);
@@ -529,6 +556,7 @@ void request_attach(const llvm::json::Object &request) {
   g_vsc.pre_run_commands = GetStrings(arguments, "preRunCommands");
   g_vsc.stop_commands = GetStrings(arguments, "stopCommands");
   g_vsc.exit_commands = GetStrings(arguments, "exitCommands");
+  g_vsc.terminate_commands = GetStrings(arguments, "terminateCommands");
   auto attachCommands = GetStrings(arguments, "attachCommands");
   llvm::StringRef core_file = GetString(arguments, "coreFile");
   g_vsc.stop_at_entry =
@@ -769,10 +797,11 @@ void request_disconnect(const llvm::json::Object &request) {
   FillResponse(request, response);
   auto arguments = request.getObject("arguments");
 
-  bool terminateDebuggee = GetBoolean(arguments, "terminateDebuggee", false);
+  bool defaultTerminateDebuggee = g_vsc.is_attach ? false : true;
+  bool terminateDebuggee =
+      GetBoolean(arguments, "terminateDebuggee", defaultTerminateDebuggee);
   lldb::SBProcess process = g_vsc.target.GetProcess();
   auto state = process.GetState();
-
   switch (state) {
   case lldb::eStateInvalid:
   case lldb::eStateUnloaded:
@@ -788,15 +817,14 @@ void request_disconnect(const llvm::json::Object &request) {
   case lldb::eStateStopped:
   case lldb::eStateRunning:
     g_vsc.debugger.SetAsync(false);
-    if (terminateDebuggee)
-      process.Kill();
-    else
-      process.Detach();
+    lldb::SBError error = terminateDebuggee ? process.Kill() : process.Detach();
+    if (!error.Success())
+      response.try_emplace("error", error.GetCString());
     g_vsc.debugger.SetAsync(true);
     break;
   }
-  g_vsc.SendJSON(llvm::json::Value(std::move(response)));
   SendTerminatedEvent();
+  g_vsc.SendJSON(llvm::json::Value(std::move(response)));
   if (g_vsc.event_thread.joinable()) {
     g_vsc.broadcaster.BroadcastEventByType(eBroadcastBitStopEventThread);
     g_vsc.event_thread.join();
@@ -1146,6 +1174,72 @@ void request_evaluate(const llvm::json::Object &request) {
   g_vsc.SendJSON(llvm::json::Value(std::move(response)));
 }
 
+// "getCompileUnitsRequest": {
+//   "allOf": [ { "$ref": "#/definitions/Request" }, {
+//     "type": "object",
+//     "description": "Compile Unit request; value of command field is
+//                     'getCompileUnits'.",
+//     "properties": {
+//       "command": {
+//         "type": "string",
+//         "enum": [ "getCompileUnits" ]
+//       },
+//       "arguments": {
+//         "$ref": "#/definitions/getCompileUnitRequestArguments"
+//       }
+//     },
+//     "required": [ "command", "arguments" ]
+//   }]
+// },
+// "getCompileUnitsRequestArguments": {
+//   "type": "object",
+//   "description": "Arguments for 'getCompileUnits' request.",
+//   "properties": {
+//     "moduleId": {
+//       "type": "string",
+//       "description": "The ID of the module."
+//     }
+//   },
+//   "required": [ "moduleId" ]
+// },
+// "getCompileUnitsResponse": {
+//   "allOf": [ { "$ref": "#/definitions/Response" }, {
+//     "type": "object",
+//     "description": "Response to 'getCompileUnits' request.",
+//     "properties": {
+//       "body": {
+//         "description": "Response to 'getCompileUnits' request. Array of
+//                         paths of compile units."
+//       }
+//     }
+//   }]
+// }
+
+void request_getCompileUnits(const llvm::json::Object &request) {
+  llvm::json::Object response;
+  FillResponse(request, response);
+  lldb::SBProcess process = g_vsc.target.GetProcess();
+  llvm::json::Object body;
+  llvm::json::Array units;
+  auto arguments = request.getObject("arguments");
+  std::string module_id = std::string(GetString(arguments, "moduleId"));
+  int num_modules = g_vsc.target.GetNumModules();
+  for (int i = 0; i < num_modules; i++) {
+    auto curr_module = g_vsc.target.GetModuleAtIndex(i);
+    if (module_id == curr_module.GetUUIDString()) {
+      int num_units = curr_module.GetNumCompileUnits();
+      for (int j = 0; j < num_units; j++) {
+        auto curr_unit = curr_module.GetCompileUnitAtIndex(j);\
+        units.emplace_back(CreateCompileUnit(curr_unit));\
+      }
+      body.try_emplace("compileUnits", std::move(units));
+      break;
+    }
+  }
+  response.try_emplace("body", std::move(body));
+  g_vsc.SendJSON(llvm::json::Value(std::move(response)));
+}
+
 // "InitializeRequest": {
 //   "allOf": [ { "$ref": "#/definitions/Request" }, {
 //     "type": "object",
@@ -1357,6 +1451,7 @@ void request_initialize(const llvm::json::Object &request) {
 //   }]
 // }
 void request_launch(const llvm::json::Object &request) {
+  g_vsc.is_attach = false;
   llvm::json::Object response;
   lldb::SBError error;
   FillResponse(request, response);
@@ -1365,6 +1460,7 @@ void request_launch(const llvm::json::Object &request) {
   g_vsc.pre_run_commands = GetStrings(arguments, "preRunCommands");
   g_vsc.stop_commands = GetStrings(arguments, "stopCommands");
   g_vsc.exit_commands = GetStrings(arguments, "exitCommands");
+  g_vsc.terminate_commands = GetStrings(arguments, "terminateCommands");
   auto launchCommands = GetStrings(arguments, "launchCommands");
   g_vsc.stop_at_entry = GetBoolean(arguments, "stopOnEntry", false);
   const llvm::StringRef debuggerRoot = GetString(arguments, "debuggerRoot");
@@ -2729,6 +2825,7 @@ const std::map<std::string, RequestCallback> &GetRequestHandlers() {
       REQUEST_CALLBACK(disconnect),
       REQUEST_CALLBACK(evaluate),
       REQUEST_CALLBACK(exceptionInfo),
+      REQUEST_CALLBACK(getCompileUnits),
       REQUEST_CALLBACK(initialize),
       REQUEST_CALLBACK(launch),
       REQUEST_CALLBACK(next),

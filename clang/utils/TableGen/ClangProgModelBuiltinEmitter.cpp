@@ -747,8 +747,12 @@ void BuiltinNameEmitter::EmitQualTypeFinder() {
          I++) {
       for (const auto *T :
            GenType->getValueAsDef("TypeList")->getValueAsListOfDefs("List")) {
-        OS << "Context."
-           << T->getValueAsDef("QTName")->getValueAsString("Name") << ", ";
+        if (T->getValueAsDef("QTName")->isSubClassOf("QualTypeFromFunction"))
+          OS << T->getValueAsDef("QTName")->getValueAsString("Name")
+             << "(Context), ";
+        else
+          OS << "Context."
+             << T->getValueAsDef("QTName")->getValueAsString("Name") << ", ";
       }
     }
     OS << "});\n";
@@ -787,8 +791,12 @@ void BuiltinNameEmitter::EmitQualTypeFinder() {
       continue;
     // Emit the cases for non generic, non image types.
     OS << "    case TID_" << T->getValueAsString("Name") << ":\n";
-    OS << "      QT.push_back(Context." << QT->getValueAsString("Name")
-       << ");\n";
+    if (QT->isSubClassOf("QualTypeFromFunction"))
+      OS << "      QT.push_back(" << QT->getValueAsString("Name")
+         << "(Context));\n";
+    else
+      OS << "      QT.push_back(Context." << QT->getValueAsString("Name")
+         << ");\n";
     OS << "      break;\n";
   }
 

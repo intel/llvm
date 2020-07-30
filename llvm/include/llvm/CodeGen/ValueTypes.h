@@ -103,6 +103,17 @@ namespace llvm {
       return VecTy;
     }
 
+    /// Return a VT for a vector type whose attributes match ourselves
+    /// with the exception of the element type that is chosen by the caller.
+    EVT changeVectorElementType(EVT EltVT) const {
+      if (!isSimple())
+        return changeExtendedVectorElementType(EltVT);
+      MVT VecTy = MVT::getVectorVT(EltVT.V, getVectorElementCount());
+      assert(VecTy.SimpleTy != MVT::INVALID_SIMPLE_VALUE_TYPE &&
+             "Simple vector VT not representable by simple integer vector VT!");
+      return VecTy;
+    }
+
     /// Return the type converted to an equivalently sized integer or vector
     /// with integer element type. Similar to changeVectorElementTypeToInteger,
     /// but also handles scalars.
@@ -288,7 +299,7 @@ namespace llvm {
       if (isSimple())
         return V.getVectorElementCount();
 
-      return {getExtendedVectorNumElements(), isExtendedScalableVector()};
+      return getExtendedVectorElementCount();
     }
 
     /// Given a vector type, return the minimum number of elements it contains.
@@ -378,7 +389,7 @@ namespace llvm {
 
     /// Returns true if the given vector is a power of 2.
     bool isPow2VectorType() const {
-      unsigned NElts = getVectorNumElements();
+      unsigned NElts = getVectorMinNumElements();
       return !(NElts & (NElts - 1));
     }
 
@@ -386,10 +397,9 @@ namespace llvm {
     /// and returns that type.
     EVT getPow2VectorType(LLVMContext &Context) const {
       if (!isPow2VectorType()) {
-        unsigned NElts = getVectorNumElements();
-        unsigned Pow2NElts = 1 <<  Log2_32_Ceil(NElts);
-        return EVT::getVectorVT(Context, getVectorElementType(), Pow2NElts,
-                                isScalableVector());
+        ElementCount NElts = getVectorElementCount();
+        NElts.Min = 1 << Log2_32_Ceil(NElts.Min);
+        return EVT::getVectorVT(Context, getVectorElementType(), NElts);
       }
       else {
         return *this;
@@ -432,6 +442,7 @@ namespace llvm {
     // These are all out-of-line to prevent users of this header file
     // from having a dependency on Type.h.
     EVT changeExtendedTypeToInteger() const;
+    EVT changeExtendedVectorElementType(EVT EltVT) const;
     EVT changeExtendedVectorElementTypeToInteger() const;
     static EVT getExtendedIntegerVT(LLVMContext &C, unsigned BitWidth);
     static EVT getExtendedVectorVT(LLVMContext &C, EVT VT, unsigned NumElements,

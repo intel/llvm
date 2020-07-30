@@ -96,8 +96,37 @@ class RegionAndSymbolInvalidationTraits;
 class SymbolManager;
 class SwitchNodeBuilder;
 
+/// Hints for figuring out of a call should be inlined during evalCall().
+struct EvalCallOptions {
+  /// This call is a constructor or a destructor for which we do not currently
+  /// compute the this-region correctly.
+  bool IsCtorOrDtorWithImproperlyModeledTargetRegion = false;
+
+  /// This call is a constructor or a destructor for a single element within
+  /// an array, a part of array construction or destruction.
+  bool IsArrayCtorOrDtor = false;
+
+  /// This call is a constructor or a destructor of a temporary value.
+  bool IsTemporaryCtorOrDtor = false;
+
+  /// This call is a constructor for a temporary that is lifetime-extended
+  /// by binding it to a reference-type field within an aggregate,
+  /// for example 'A { const C &c; }; A a = { C() };'
+  bool IsTemporaryLifetimeExtendedViaAggregate = false;
+
+  /// This call is a pre-C++17 elidable constructor that we failed to elide
+  /// because we failed to compute the target region into which
+  /// this constructor would have been ultimately elided. Analysis that
+  /// we perform in this case is still correct but it behaves differently,
+  /// as if copy elision is disabled.
+  bool IsElidableCtorThatHasNotBeenElided = false;
+
+  EvalCallOptions() {}
+};
+
 class ExprEngine {
   void anchor();
+
 public:
   /// The modes of inlining, which override the default analysis-wide settings.
   enum InliningModes {
@@ -106,27 +135,6 @@ public:
 
     /// Do minimal inlining of callees.
     Inline_Minimal = 0x1
-  };
-
-  /// Hints for figuring out of a call should be inlined during evalCall().
-  struct EvalCallOptions {
-    /// This call is a constructor or a destructor for which we do not currently
-    /// compute the this-region correctly.
-    bool IsCtorOrDtorWithImproperlyModeledTargetRegion = false;
-
-    /// This call is a constructor or a destructor for a single element within
-    /// an array, a part of array construction or destruction.
-    bool IsArrayCtorOrDtor = false;
-
-    /// This call is a constructor or a destructor of a temporary value.
-    bool IsTemporaryCtorOrDtor = false;
-
-    /// This call is a constructor for a temporary that is lifetime-extended
-    /// by binding it to a reference-type field within an aggregate,
-    /// for example 'A { const C &c; }; A a = { C() };'
-    bool IsTemporaryLifetimeExtendedViaAggregate = false;
-
-    EvalCallOptions() {}
   };
 
 private:
@@ -709,6 +717,35 @@ public:
                        const CallEvent &Call,
                        const EvalCallOptions &CallOpts = {});
 
+  /// Find location of the object that is being constructed by a given
+  /// constructor. This should ideally always succeed but due to not being
+  /// fully implemented it sometimes indicates that it failed via its
+  /// out-parameter CallOpts; in such cases a fake temporary region is
+  /// returned, which is better than nothing but does not represent
+  /// the actual behavior of the program.
+  SVal computeObjectUnderConstruction(
+      const Expr *E, ProgramStateRef State, const LocationContext *LCtx,
+      const ConstructionContext *CC, EvalCallOptions &CallOpts);
+
+  /// Update the program state with all the path-sensitive information
+  /// that's necessary to perform construction of an object with a given
+  /// syntactic construction context. V and CallOpts have to be obtained from
+  /// computeObjectUnderConstruction() invoked with the same set of
+  /// the remaining arguments (E, State, LCtx, CC).
+  ProgramStateRef updateObjectsUnderConstruction(
+      SVal V, const Expr *E, ProgramStateRef State, const LocationContext *LCtx,
+      const ConstructionContext *CC, const EvalCallOptions &CallOpts);
+
+  /// A convenient wrapper around computeObjectUnderConstruction
+  /// and updateObjectsUnderConstruction.
+  std::pair<ProgramStateRef, SVal> handleConstructionContext(
+      const Expr *E, ProgramStateRef State, const LocationContext *LCtx,
+      const ConstructionContext *CC, EvalCallOptions &CallOpts) {
+    SVal V = computeObjectUnderConstruction(E, State, LCtx, CC, CallOpts);
+    return std::make_pair(
+        updateObjectsUnderConstruction(V, E, State, LCtx, CC, CallOpts), V);
+  }
+
 private:
   ProgramStateRef finishArgumentConstruction(ProgramStateRef State,
                                              const CallEvent &Call);
@@ -826,16 +863,6 @@ private:
   /// statement created a temporary object region rather than directly
   /// constructing into an existing region.
   const CXXConstructExpr *findDirectConstructorForCurrentCFGElement();
-
-  /// Update the program state with all the path-sensitive information
-  /// that's necessary to perform construction of an object with a given
-  /// syntactic construction context. If the construction context is unavailable
-  /// or unusable for any reason, a dummy temporary region is returned, and the
-  /// IsConstructorWithImproperlyModeledTargetRegion flag is set in \p CallOpts.
-  /// Returns the updated program state and the new object's this-region.
-  std::pair<ProgramStateRef, SVal> handleConstructionContext(
-      const Expr *E, ProgramStateRef State, const LocationContext *LCtx,
-      const ConstructionContext *CC, EvalCallOptions &CallOpts);
 
   /// Common code that handles either a CXXConstructExpr or a
   /// CXXInheritedCtorInitExpr.

@@ -52,13 +52,16 @@ def FeatureXSAVE   : SubtargetFeature<"xsave", "HasXSAVE", "true",
                                        "Support xsave instructions">;
 
 def FeatureXSAVEOPT: SubtargetFeature<"xsaveopt", "HasXSAVEOPT", "true",
-                                       "Support xsaveopt instructions">;
+                                       "Support xsaveopt instructions",
+                                       [FeatureXSAVE]>;
 
 def FeatureXSAVEC  : SubtargetFeature<"xsavec", "HasXSAVEC", "true",
-                                       "Support xsavec instructions">;
+                                       "Support xsavec instructions",
+                                       [FeatureXSAVE]>;
 
 def FeatureXSAVES  : SubtargetFeature<"xsaves", "HasXSAVES", "true",
-                                       "Support xsaves instructions">;
+                                       "Support xsaves instructions",
+                                       [FeatureXSAVE]>;
 
 def FeatureSSE1    : SubtargetFeature<"sse", "X86SSELevel", "SSE1",
                                       "Enable SSE instructions">;
@@ -231,8 +234,8 @@ def FeaturePRFCHW  : SubtargetFeature<"prfchw", "HasPRFCHW", "true",
                                       "Support PRFCHW instructions">;
 def FeatureRDSEED  : SubtargetFeature<"rdseed", "HasRDSEED", "true",
                                       "Support RDSEED instruction">;
-def FeatureLAHFSAHF : SubtargetFeature<"sahf", "HasLAHFSAHF", "true",
-                                       "Support LAHF and SAHF instructions">;
+def FeatureLAHFSAHF : SubtargetFeature<"sahf", "HasLAHFSAHF64", "true",
+                           "Support LAHF and SAHF instructions in 64-bit mode">;
 def FeatureMWAITX  : SubtargetFeature<"mwaitx", "HasMWAITX", "true",
                                       "Enable MONITORX/MWAITX timer functionality">;
 def FeatureCLZERO  : SubtargetFeature<"clzero", "HasCLZERO", "true",
@@ -241,11 +244,14 @@ def FeatureCLDEMOTE  : SubtargetFeature<"cldemote", "HasCLDEMOTE", "true",
                                       "Enable Cache Demote">;
 def FeaturePTWRITE  : SubtargetFeature<"ptwrite", "HasPTWRITE", "true",
                                       "Support ptwrite instruction">;
-// FIXME: This feature is deprecated in 10.0 and should not be used for
-// anything, but removing it would break IR files that may contain it in a
-// target-feature attribute.
-def FeatureDeprecatedMPX : SubtargetFeature<"mpx", "DeprecatedHasMPX", "false",
-                                      "Deprecated. Support MPX instructions">;
+def FeatureAMXTILE     : SubtargetFeature<"amx-tile", "HasAMXTILE", "true",
+                                      "Support AMX-TILE instructions">;
+def FeatureAMXINT8     : SubtargetFeature<"amx-int8", "HasAMXINT8", "true",
+                                      "Support AMX-INT8 instructions",
+                                      [FeatureAMXTILE]>;
+def FeatureAMXBF16     : SubtargetFeature<"amx-bf16", "HasAMXBF16", "true",
+                                      "Support AMX-BF16 instructions",
+                                      [FeatureAMXTILE]>;
 def FeatureLEAForSP : SubtargetFeature<"lea-sp", "UseLeaForSP", "true",
                                      "Use LEA for adjusting the stack pointer">;
 def FeatureSlowDivide32 : SubtargetFeature<"idivl-to-divb",
@@ -443,6 +449,15 @@ def FeatureLVIControlFlowIntegrity
           "precede all indirect calls/branches from a register with an "
           "LFENCE instruction to serialize control flow. Also decompose RET "
           "instructions into a POP+LFENCE+JMP sequence.">;
+
+// Enable SESES to mitigate speculative execution attacks
+def FeatureSpeculativeExecutionSideEffectSuppression
+    : SubtargetFeature<
+          "seses", "UseSpeculativeExecutionSideEffectSuppression", "true",
+          "Prevent speculative execution side channel timing attacks by "
+          "inserting a speculation barrier before memory reads, memory writes, "
+          "and conditional branches. Implies LVI Control Flow integrity.",
+          [FeatureLVIControlFlowIntegrity]>;
 
 // Mitigate LVI attacks against data loads
 def FeatureLVILoadHardening
@@ -789,15 +804,13 @@ def ProcessorFeatures {
     !listconcat(GLPInheritableFeatures, GLPSpecificFeatures);
 
   // Tremont
-  list<SubtargetFeature> TRMAdditionalFeatures = [FeatureCLDEMOTE,
-                                                  FeatureGFNI,
-                                                  FeatureMOVDIRI,
-                                                  FeatureMOVDIR64B,
-                                                  FeatureWAITPKG];
+  list<SubtargetFeature> TRMAdditionalFeatures = [FeatureCLWB,
+                                                  FeatureGFNI];
   list<SubtargetFeature> TRMSpecificFeatures = [FeatureUseGLMDivSqrtCosts];
+  list<SubtargetFeature> TRMInheritableFeatures =
+    !listconcat(GLPInheritableFeatures, TRMAdditionalFeatures);
   list<SubtargetFeature> TRMFeatures =
-    !listconcat(GLPInheritableFeatures, TRMAdditionalFeatures,
-                TRMSpecificFeatures);
+    !listconcat(TRMInheritableFeatures, TRMSpecificFeatures);
 
   // Knights Landing
   list<SubtargetFeature> KNLFeatures = [FeatureX87,
@@ -849,6 +862,7 @@ def ProcessorFeatures {
                                                          FeatureFXSR,
                                                          FeatureNOPL,
                                                          FeatureCMPXCHG16B,
+                                                         FeaturePRFCHW,
                                                          FeatureLZCNT,
                                                          FeaturePOPCNT,
                                                          FeatureSlowSHLD,
@@ -944,6 +958,8 @@ def ProcessorFeatures {
   // Excavator
   list<SubtargetFeature> BdVer4AdditionalFeatures = [FeatureAVX2,
                                                      FeatureBMI2,
+                                                     FeatureMOVBE,
+                                                     FeatureRDRAND,
                                                      FeatureMWAITX];
   list<SubtargetFeature> BdVer4InheritableFeatures =
     !listconcat(BdVer3InheritableFeatures, BdVer4AdditionalFeatures);
@@ -1006,8 +1022,12 @@ class Proc<string Name, list<SubtargetFeature> Features>
 
 // NOTE: CMPXCHG8B is here for legacy compatibility so that it is only disabled
 // if i386/i486 is specifically requested.
+// NOTE: 64Bit is here as "generic" is the default llc CPU. The X86Subtarget
+// constructor checks that any CPU used in 64-bit mode has Feature64Bit enabled.
+// It has no effect on code generation.
 def : Proc<"generic",         [FeatureX87, FeatureSlowUAMem16,
-                               FeatureCMPXCHG8B, FeatureInsertVZEROUPPER]>;
+                               FeatureCMPXCHG8B, Feature64Bit,
+                               FeatureInsertVZEROUPPER]>;
 def : Proc<"i386",            [FeatureX87, FeatureSlowUAMem16,
                                FeatureInsertVZEROUPPER]>;
 def : Proc<"i486",            [FeatureX87, FeatureSlowUAMem16,
@@ -1051,10 +1071,20 @@ def : ProcessorModel<"pentium-m", GenericPostRAModel,
                       FeatureCMOV, FeatureInsertVZEROUPPER]>;
 
 foreach P = ["pentium4", "pentium4m"] in {
-  def : ProcessorModel<P, GenericPostRAModel,
-                       [FeatureX87, FeatureSlowUAMem16, FeatureCMPXCHG8B,
+//  def : ProcessorModel<P, GenericPostRAModel,
+//                       [FeatureX87, FeatureSlowUAMem16, FeatureCMPXCHG8B,
+//                        FeatureMMX, FeatureSSE2, FeatureFXSR, FeatureNOPL,
+//                        FeatureCMOV, FeatureInsertVZEROUPPER]>;
+
+  // Since 'pentium4' is the default 32-bit CPU on Linux and Windows,
+  // give it more modern tunings.
+  // FIXME: This wouldn't be needed if we supported mtune.
+  def : ProcessorModel<P, SandyBridgeModel,
+                       [FeatureX87, FeatureCMPXCHG8B,
                         FeatureMMX, FeatureSSE2, FeatureFXSR, FeatureNOPL,
-                        FeatureCMOV, FeatureInsertVZEROUPPER]>;
+                        FeatureCMOV, FeatureInsertVZEROUPPER,
+                        FeatureSlow3OpsLEA, FeatureSlowDivide64,
+                        FeatureSlowIncDec, FeatureMacroFusion]>;
 }
 
 // Intel Quark.

@@ -93,6 +93,10 @@ protected:
   /// constants into comdat sections.
   bool HasCOFFComdatConstants = false;
 
+  /// True if this is an XCOFF target that supports visibility attributes as
+  /// part of .global, .weak, .extern, and .comm. Default is false.
+  bool HasVisibilityOnlyWithLinkage = false;
+
   /// This is the maximum possible length of an instruction, which is needed to
   /// compute the size of an inline asm.  Defaults to 4.
   unsigned MaxInstLength = 4;
@@ -205,6 +209,9 @@ protected:
   const char *Data32bitsDirective;
   const char *Data64bitsDirective;
 
+  /// True if data directives support signed values
+  bool SupportsSignedData = true;
+
   /// If non-null, a directive that is used to emit a word which should be
   /// relocated as a 64-bit GP-relative offset, e.g. .gpdword on Mips.  Defaults
   /// to nullptr.
@@ -307,10 +314,6 @@ protected:
   /// false.
   bool HasAltEntry = false;
 
-  /// True if this target supports the XCOFF .extern directive.  Defaults to
-  /// false.
-  bool HasDotExternDirective = false;
-
   /// Used to declare a global as being a weak symbol. Defaults to ".weak".
   const char *WeakDirective;
 
@@ -331,10 +334,6 @@ protected:
   /// Defaults to false.
   bool AvoidWeakIfComdat = false;
 
-  /// True if we have a .lglobl directive, which is used to emit the information
-  /// of a static symbol into the symbol table. Defaults to false.
-  bool HasDotLGloblDirective = false;
-
   /// This attribute, if not MCSA_Invalid, is used to declare a symbol as having
   /// hidden visibility.  Defaults to MCSA_Hidden.
   MCSymbolAttr HiddenVisibilityAttr = MCSA_Hidden;
@@ -346,10 +345,6 @@ protected:
   /// This attribute, if not MCSA_Invalid, is used to declare a symbol as having
   /// protected visibility.  Defaults to MCSA_Protected
   MCSymbolAttr ProtectedVisibilityAttr = MCSA_Protected;
-
-  // This attribute is used to indicate symbols such as commons on AIX may have
-  // a storage mapping class embedded in the name.
-  bool SymbolsHaveSMC = false;
 
   //===--- Dwarf Emission Directives -----------------------------------===//
 
@@ -444,6 +439,7 @@ public:
   const char *getData16bitsDirective() const { return Data16bitsDirective; }
   const char *getData32bitsDirective() const { return Data32bitsDirective; }
   const char *getData64bitsDirective() const { return Data64bitsDirective; }
+  bool supportsSignedData() const { return SupportsSignedData; }
   const char *getGPRel64Directive() const { return GPRel64Directive; }
   const char *getGPRel32Directive() const { return GPRel32Directive; }
   const char *getDTPRel64Directive() const { return DTPRel64Directive; }
@@ -506,6 +502,9 @@ public:
   bool hasMachoTBSSDirective() const { return HasMachoTBSSDirective; }
   bool hasCOFFAssociativeComdats() const { return HasCOFFAssociativeComdats; }
   bool hasCOFFComdatConstants() const { return HasCOFFComdatConstants; }
+  bool hasVisibilityOnlyWithLinkage() const {
+    return HasVisibilityOnlyWithLinkage;
+  }
 
   /// Returns the maximum possible encoded instruction size in bytes. If \p STI
   /// is null, this should be the maximum size for any subtarget.
@@ -587,7 +586,6 @@ public:
   bool hasIdentDirective() const { return HasIdentDirective; }
   bool hasNoDeadStrip() const { return HasNoDeadStrip; }
   bool hasAltEntry() const { return HasAltEntry; }
-  bool hasDotExternDirective() const { return HasDotExternDirective; }
   const char *getWeakDirective() const { return WeakDirective; }
   const char *getWeakRefDirective() const { return WeakRefDirective; }
   bool hasWeakDefDirective() const { return HasWeakDefDirective; }
@@ -598,8 +596,6 @@ public:
 
   bool avoidWeakIfComdat() const { return AvoidWeakIfComdat; }
 
-  bool hasDotLGloblDirective() const { return HasDotLGloblDirective; }
-
   MCSymbolAttr getHiddenVisibilityAttr() const { return HiddenVisibilityAttr; }
 
   MCSymbolAttr getHiddenDeclarationVisibilityAttr() const {
@@ -609,8 +605,6 @@ public:
   MCSymbolAttr getProtectedVisibilityAttr() const {
     return ProtectedVisibilityAttr;
   }
-
-  bool getSymbolsHaveSMC() const { return SymbolsHaveSMC; }
 
   bool doesSupportDebugInformation() const { return SupportsDebugInformation; }
 

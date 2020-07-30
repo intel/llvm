@@ -340,6 +340,10 @@ const SomeExpr *GetExprHelper::Get(const parser::Variable &x) {
   CheckMissingAnalysis(!x.typedExpr, x);
   return common::GetPtrFromOptional(x.typedExpr->v);
 }
+const SomeExpr *GetExprHelper::Get(const parser::DataStmtConstant &x) {
+  CheckMissingAnalysis(!x.typedExpr, x);
+  return common::GetPtrFromOptional(x.typedExpr->v);
+}
 
 const evaluate::Assignment *GetAssignment(const parser::AssignmentStmt &x) {
   CheckMissingAnalysis(!x.typedAssignment, x);
@@ -506,16 +510,19 @@ bool CanBeTypeBoundProc(const Symbol *symbol) {
   }
 }
 
-bool IsInitialized(const Symbol &symbol) {
-  if (symbol.test(Symbol::Flag::InDataStmt)) {
+bool IsInitialized(const Symbol &symbol, bool ignoreDATAstatements) {
+  if (!ignoreDATAstatements && symbol.test(Symbol::Flag::InDataStmt)) {
     return true;
   } else if (IsNamedConstant(symbol)) {
     return false;
   } else if (const auto *object{symbol.detailsIf<ObjectEntityDetails>()}) {
-    if (IsAllocatable(symbol) || object->init()) {
+    if (object->init()) {
       return true;
-    }
-    if (!IsPointer(symbol) && object->type()) {
+    } else if (object->isDummy() || IsFunctionResult(symbol)) {
+      return false;
+    } else if (IsAllocatable(symbol)) {
+      return true;
+    } else if (!IsPointer(symbol) && object->type()) {
       if (const auto *derived{object->type()->AsDerived()}) {
         if (derived->HasDefaultInitialization()) {
           return true;
@@ -553,6 +560,49 @@ bool IsSeparateModuleProcedureInterface(const Symbol *symbol) {
   return false;
 }
 
+// 3.11 automatic data object
+bool IsAutomatic(const Symbol &symbol) {
+  if (const auto *object{symbol.detailsIf<ObjectEntityDetails>()}) {
+    if (!object->isDummy() && !IsAllocatable(symbol) && !IsPointer(symbol)) {
+      if (const DeclTypeSpec * type{symbol.GetType()}) {
+        // If a type parameter value is not a constant expression, the
+        // object is automatic.
+        if (type->category() == DeclTypeSpec::Character) {
+          if (const auto &length{
+                  type->characterTypeSpec().length().GetExplicit()}) {
+            if (!evaluate::IsConstantExpr(*length)) {
+              return true;
+            }
+          }
+        } else if (const DerivedTypeSpec * derived{type->AsDerived()}) {
+          for (const auto &pair : derived->parameters()) {
+            if (const auto &value{pair.second.GetExplicit()}) {
+              if (!evaluate::IsConstantExpr(*value)) {
+                return true;
+              }
+            }
+          }
+        }
+      }
+      // If an array bound is not a constant expression, the object is
+      // automatic.
+      for (const ShapeSpec &dim : object->shape()) {
+        if (const auto &lb{dim.lbound().GetExplicit()}) {
+          if (!evaluate::IsConstantExpr(*lb)) {
+            return true;
+          }
+        }
+        if (const auto &ub{dim.ubound().GetExplicit()}) {
+          if (!evaluate::IsConstantExpr(*ub)) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
 bool IsFinalizable(const Symbol &symbol) {
   if (const DeclTypeSpec * type{symbol.GetType()}) {
     if (const DerivedTypeSpec * derived{type->AsDerived()}) {
@@ -581,6 +631,35 @@ bool HasImpureFinal(const DerivedTypeSpec &derived) {
 
 bool IsCoarray(const Symbol &symbol) { return symbol.Corank() > 0; }
 
+bool IsAutomaticObject(const Symbol &symbol) {
+  if (IsDummy(symbol) || IsPointer(symbol) || IsAllocatable(symbol)) {
+    return false;
+  }
+  if (const DeclTypeSpec * type{symbol.GetType()}) {
+    if (type->category() == DeclTypeSpec::Character) {
+      ParamValue length{type->characterTypeSpec().length()};
+      if (length.isExplicit()) {
+        if (MaybeIntExpr lengthExpr{length.GetExplicit()}) {
+          if (!ToInt64(lengthExpr)) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  if (symbol.IsObjectArray()) {
+    for (const ShapeSpec &spec : symbol.get<ObjectEntityDetails>().shape()) {
+      auto &lbound{spec.lbound().GetExplicit()};
+      auto &ubound{spec.ubound().GetExplicit()};
+      if ((lbound && !evaluate::ToInt64(*lbound)) ||
+          (ubound && !evaluate::ToInt64(*ubound))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 bool IsAssumedLengthCharacter(const Symbol &symbol) {
   if (const DeclTypeSpec * type{symbol.GetType()}) {
     return type->category() == DeclTypeSpec::Character &&
@@ -588,6 +667,11 @@ bool IsAssumedLengthCharacter(const Symbol &symbol) {
   } else {
     return false;
   }
+}
+
+bool IsInBlankCommon(const Symbol &symbol) {
+  const Symbol *block{FindCommonBlockContaining(symbol)};
+  return block && block->name().empty();
 }
 
 // C722 and C723:  For a function to be assumed length, it must be external and
@@ -1133,13 +1217,6 @@ const Symbol *FindImmediateComponent(const DerivedTypeSpec &type,
   return nullptr;
 }
 
-bool IsFunctionResult(const Symbol &symbol) {
-  return (symbol.has<ObjectEntityDetails>() &&
-             symbol.get<ObjectEntityDetails>().isFuncResult()) ||
-      (symbol.has<ProcEntityDetails>() &&
-          symbol.get<ProcEntityDetails>().isFuncResult());
-}
-
 bool IsFunctionResultWithSameNameAsFunction(const Symbol &symbol) {
   if (IsFunctionResult(symbol)) {
     if (const Symbol * function{symbol.owner().symbol()}) {
@@ -1206,6 +1283,15 @@ void LabelEnforce::SayWithConstruct(SemanticsContext &context,
     parser::CharBlock constructLocation) {
   context.Say(stmtLocation, message)
       .Attach(constructLocation, GetEnclosingConstructMsg());
+}
+
+bool HasAlternateReturns(const Symbol &subprogram) {
+  for (const auto *dummyArg : subprogram.get<SubprogramDetails>().dummyArgs()) {
+    if (!dummyArg) {
+      return true;
+    }
+  }
+  return false;
 }
 
 } // namespace Fortran::semantics

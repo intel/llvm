@@ -132,7 +132,10 @@ private:
   }
 
   bool hasExtIntType() const override { return true; }
+
+  bool hasProtectedVisibility() const override { return false; }
 };
+
 class LLVM_LIBRARY_VISIBILITY WebAssembly32TargetInfo
     : public WebAssemblyTargetInfo {
 public:

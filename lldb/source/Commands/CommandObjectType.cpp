@@ -1031,8 +1031,8 @@ protected:
     std::unique_ptr<RegularExpression> formatter_regex;
 
     if (m_options.m_category_regex.OptionWasSet()) {
-      category_regex.reset(new RegularExpression(
-          m_options.m_category_regex.GetCurrentValueAsRef()));
+      category_regex = std::make_unique<RegularExpression>(
+          m_options.m_category_regex.GetCurrentValueAsRef());
       if (!category_regex->IsValid()) {
         result.AppendErrorWithFormat(
             "syntax error in category regular expression '%s'",
@@ -1044,8 +1044,8 @@ protected:
 
     if (argc == 1) {
       const char *arg = command.GetArgumentAtIndex(0);
-      formatter_regex.reset(
-          new RegularExpression(llvm::StringRef::withNullAsEmpty(arg)));
+      formatter_regex = std::make_unique<RegularExpression>(
+          llvm::StringRef::withNullAsEmpty(arg));
       if (!formatter_regex->IsValid()) {
         result.AppendErrorWithFormat("syntax error in regular expression '%s'",
                                      arg);
@@ -1066,13 +1066,15 @@ protected:
       TypeCategoryImpl::ForEachCallbacks<FormatterType> foreach;
       foreach
         .SetExact([&result, &formatter_regex, &any_printed](
-                      ConstString name,
+                      const TypeMatcher &type_matcher,
                       const FormatterSharedPointer &format_sp) -> bool {
           if (formatter_regex) {
             bool escape = true;
-            if (name.GetStringRef() == formatter_regex->GetText()) {
+            if (type_matcher.CreatedBySameMatchString(
+                    ConstString(formatter_regex->GetText()))) {
               escape = false;
-            } else if (formatter_regex->Execute(name.GetStringRef())) {
+            } else if (formatter_regex->Execute(
+                           type_matcher.GetMatchString().GetStringRef())) {
               escape = false;
             }
 
@@ -1081,20 +1083,23 @@ protected:
           }
 
           any_printed = true;
-          result.GetOutputStream().Printf("%s: %s\n", name.AsCString(),
-                                          format_sp->GetDescription().c_str());
+          result.GetOutputStream().Printf(
+              "%s: %s\n", type_matcher.GetMatchString().GetCString(),
+              format_sp->GetDescription().c_str());
           return true;
         });
 
       foreach
         .SetWithRegex([&result, &formatter_regex, &any_printed](
-                          const RegularExpression &regex,
+                          const TypeMatcher &type_matcher,
                           const FormatterSharedPointer &format_sp) -> bool {
           if (formatter_regex) {
             bool escape = true;
-            if (regex.GetText() == formatter_regex->GetText()) {
+            if (type_matcher.CreatedBySameMatchString(
+                    ConstString(formatter_regex->GetText()))) {
               escape = false;
-            } else if (formatter_regex->Execute(regex.GetText())) {
+            } else if (formatter_regex->Execute(
+                           type_matcher.GetMatchString().GetStringRef())) {
               escape = false;
             }
 
@@ -1103,9 +1108,9 @@ protected:
           }
 
           any_printed = true;
-          result.GetOutputStream().Printf("%s: %s\n",
-                                          regex.GetText().str().c_str(),
-                                          format_sp->GetDescription().c_str());
+          result.GetOutputStream().Printf(
+              "%s: %s\n", type_matcher.GetMatchString().GetCString(),
+              format_sp->GetDescription().c_str());
           return true;
         });
 
@@ -1681,10 +1686,10 @@ protected:
     if (DataVisualization::NamedSummaryFormats::GetCount() > 0) {
       result.GetOutputStream().Printf("Named summaries:\n");
       DataVisualization::NamedSummaryFormats::ForEach(
-          [&result](ConstString name,
+          [&result](const TypeMatcher &type_matcher,
                     const TypeSummaryImplSP &summary_sp) -> bool {
             result.GetOutputStream().Printf(
-                "%s: %s\n", name.AsCString(),
+                "%s: %s\n", type_matcher.GetMatchString().GetCString(),
                 summary_sp->GetDescription().c_str());
             return true;
           });
@@ -2092,7 +2097,8 @@ protected:
 
     if (argc == 1) {
       const char *arg = command.GetArgumentAtIndex(0);
-      regex.reset(new RegularExpression(llvm::StringRef::withNullAsEmpty(arg)));
+      regex = std::make_unique<RegularExpression>(
+          llvm::StringRef::withNullAsEmpty(arg));
       if (!regex->IsValid()) {
         result.AppendErrorWithFormat(
             "syntax error in category regular expression '%s'", arg);

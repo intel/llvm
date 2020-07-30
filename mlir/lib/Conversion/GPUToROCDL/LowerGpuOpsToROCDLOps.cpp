@@ -15,6 +15,7 @@
 
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Conversion/VectorToLLVM/ConvertVectorToLLVM.h"
+#include "mlir/Conversion/VectorToROCDL/VectorToROCDL.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/GPU/Passes.h"
 #include "mlir/Dialect/LLVMIR/ROCDLDialect.h"
@@ -40,13 +41,22 @@ namespace {
 //
 // This pass only handles device code and is not meant to be run on GPU host
 // code.
-class LowerGpuOpsToROCDLOpsPass
+struct LowerGpuOpsToROCDLOpsPass
     : public ConvertGpuOpsToROCDLOpsBase<LowerGpuOpsToROCDLOpsPass> {
-public:
+  LowerGpuOpsToROCDLOpsPass() = default;
+  LowerGpuOpsToROCDLOpsPass(unsigned indexBitwidth) {
+    this->indexBitwidth = indexBitwidth;
+  }
+
   void runOnOperation() override {
     gpu::GPUModuleOp m = getOperation();
 
-    LLVMTypeConverter converter(m.getContext());
+    /// Customize the bitwidth used for the device side index computations.
+    LowerToLLVMOptions options = {/*useBarePtrCallConv =*/false,
+                                  /*emitCWrappers =*/true,
+                                  /*indexBitwidth =*/indexBitwidth,
+                                  /*useAlignedAlloc =*/false};
+    LLVMTypeConverter converter(m.getContext(), options);
 
     OwningRewritePatternList patterns;
 
@@ -55,6 +65,7 @@ public:
     patterns.clear();
 
     populateVectorToLLVMConversionPatterns(converter, patterns);
+    populateVectorToROCDLConversionPatterns(converter, patterns);
     populateStdToLLVMConversionPatterns(converter, patterns);
     populateGpuToROCDLConversionPatterns(converter, patterns);
     LLVMConversionTarget target(getContext());
@@ -63,9 +74,9 @@ public:
                         LLVM::LogOp, LLVM::Log10Op, LLVM::Log2Op>();
     target.addIllegalOp<FuncOp>();
     target.addLegalDialect<ROCDL::ROCDLDialect>();
-    // TODO(whchung): Remove once we support replacing non-root ops.
+    // TODO: Remove once we support replacing non-root ops.
     target.addLegalOp<gpu::YieldOp, gpu::GPUModuleOp, gpu::ModuleEndOp>();
-    if (failed(applyPartialConversion(m, target, patterns, &converter)))
+    if (failed(applyPartialConversion(m, target, patterns)))
       signalPassFailure();
   }
 };
@@ -104,6 +115,6 @@ void mlir::populateGpuToROCDLConversionPatterns(
 }
 
 std::unique_ptr<OperationPass<gpu::GPUModuleOp>>
-mlir::createLowerGpuOpsToROCDLOpsPass() {
-  return std::make_unique<LowerGpuOpsToROCDLOpsPass>();
+mlir::createLowerGpuOpsToROCDLOpsPass(unsigned indexBitwidth) {
+  return std::make_unique<LowerGpuOpsToROCDLOpsPass>(indexBitwidth);
 }

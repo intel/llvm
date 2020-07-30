@@ -225,14 +225,15 @@ int FormatControl<CONTEXT>::CueUpNextDataEdit(Context &context, bool stop) {
   while (true) {
     std::optional<int> repeat;
     bool unlimited{false};
-    CharType ch{Capitalize(GetNextChar(context))};
+    auto maybeReversionPoint{offset_};
+    CharType ch{GetNextChar(context)};
     while (ch == ',' || ch == ':') {
       // Skip commas, and don't complain if they're missing; the format
       // validator does that.
       if (stop && ch == ':') {
         return 0;
       }
-      ch = Capitalize(GetNextChar(context));
+      ch = GetNextChar(context);
     }
     if (ch == '-' || ch == '+' || (ch >= '0' && ch <= '9')) {
       repeat = GetIntField(context, ch);
@@ -246,6 +247,7 @@ int FormatControl<CONTEXT>::CueUpNextDataEdit(Context &context, bool stop) {
         return 0;
       }
     }
+    ch = Capitalize(ch);
     if (ch == '(') {
       if (height_ >= maxHeight_) {
         context.SignalError(IostatErrorInFormat,
@@ -253,6 +255,7 @@ int FormatControl<CONTEXT>::CueUpNextDataEdit(Context &context, bool stop) {
         return 0;
       }
       stack_[height_].start = offset_ - 1; // the '('
+      RUNTIME_CHECK(context, format_[stack_[height_].start] == '(');
       if (unlimited || height_ == 0) {
         stack_[height_].remaining = Iteration::unlimited;
         unlimitedLoopCheck = offset_ - 1;
@@ -263,6 +266,12 @@ int FormatControl<CONTEXT>::CueUpNextDataEdit(Context &context, bool stop) {
         stack_[height_].remaining = *repeat - 1;
       } else {
         stack_[height_].remaining = 0;
+      }
+      if (height_ == 1) {
+        // Subtle point (F'2018 13.4 para 9): tha last parenthesized group
+        // at height 1 becomes the restart point after control reaches the
+        // end of the format, including its repeat count.
+        stack_[0].start = maybeReversionPoint - 1;
       }
       ++height_;
     } else if (height_ == 0) {
@@ -275,14 +284,15 @@ int FormatControl<CONTEXT>::CueUpNextDataEdit(Context &context, bool stop) {
         }
         context.AdvanceRecord(); // implied / before rightmost )
       }
+      auto restart{stack_[height_ - 1].start + 1};
       if (stack_[height_ - 1].remaining == Iteration::unlimited) {
-        offset_ = stack_[height_ - 1].start + 1;
+        offset_ = restart;
         if (offset_ == unlimitedLoopCheck) {
           context.SignalError(IostatErrorInFormat,
               "Unlimited repetition in FORMAT lacks data edit descriptors");
         }
       } else if (stack_[height_ - 1].remaining-- > 0) {
-        offset_ = stack_[height_ - 1].start + 1;
+        offset_ = restart;
       } else {
         --height_;
       }
@@ -395,7 +405,7 @@ DataEdit FormatControl<CONTEXT>::GetNextDataEdit(
     ++height_;
   }
   edit.repeat = 1;
-  if (height_ > 1) {
+  if (height_ > 1) { // Subtle: stack_[0].start doesn't necessarily point to '('
     int start{stack_[height_ - 1].start};
     if (format_[start] != '(') {
       if (stack_[height_ - 1].remaining > maxRepeat) {

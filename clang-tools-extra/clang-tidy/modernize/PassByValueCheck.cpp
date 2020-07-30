@@ -121,13 +121,11 @@ collectParamDecls(const CXXConstructorDecl *Ctor,
 PassByValueCheck::PassByValueCheck(StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
       IncludeStyle(Options.getLocalOrGlobal("IncludeStyle",
-                                            utils::IncludeSorter::getMapping(),
                                             utils::IncludeSorter::IS_LLVM)),
       ValuesOnly(Options.get("ValuesOnly", false)) {}
 
 void PassByValueCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "IncludeStyle", IncludeStyle,
-                utils::IncludeSorter::getMapping());
+  Options.store(Opts, "IncludeStyle", IncludeStyle);
   Options.store(Opts, "ValuesOnly", ValuesOnly);
 }
 
@@ -217,14 +215,11 @@ void PassByValueCheck::check(const MatchFinder::MatchResult &Result) {
   // Use std::move in the initialization list.
   Diag << FixItHint::CreateInsertion(Initializer->getRParenLoc(), ")")
        << FixItHint::CreateInsertion(
-              Initializer->getLParenLoc().getLocWithOffset(1), "std::move(");
-
-  if (auto IncludeFixit = Inserter->CreateIncludeInsertion(
-          Result.SourceManager->getFileID(Initializer->getSourceLocation()),
-          "utility",
-          /*IsAngled=*/true)) {
-    Diag << *IncludeFixit;
-  }
+              Initializer->getLParenLoc().getLocWithOffset(1), "std::move(")
+       << Inserter->CreateIncludeInsertion(
+              Result.SourceManager->getFileID(Initializer->getSourceLocation()),
+              "utility",
+              /*IsAngled=*/true);
 }
 
 } // namespace modernize

@@ -1733,19 +1733,21 @@ public:
     return Insert(new FenceInst(Context, Ordering, SSID), Name);
   }
 
-  AtomicCmpXchgInst *
-  CreateAtomicCmpXchg(Value *Ptr, Value *Cmp, Value *New,
-                      AtomicOrdering SuccessOrdering,
-                      AtomicOrdering FailureOrdering,
-                      SyncScope::ID SSID = SyncScope::System) {
-    return Insert(new AtomicCmpXchgInst(Ptr, Cmp, New, SuccessOrdering,
-                                        FailureOrdering, SSID));
+  AtomicCmpXchgInst *CreateAtomicCmpXchg(
+      Value *Ptr, Value *Cmp, Value *New, AtomicOrdering SuccessOrdering,
+      AtomicOrdering FailureOrdering, SyncScope::ID SSID = SyncScope::System) {
+    const DataLayout &DL = BB->getModule()->getDataLayout();
+    Align Alignment(DL.getTypeStoreSize(New->getType()));
+    return Insert(new AtomicCmpXchgInst(
+        Ptr, Cmp, New, Alignment, SuccessOrdering, FailureOrdering, SSID));
   }
 
   AtomicRMWInst *CreateAtomicRMW(AtomicRMWInst::BinOp Op, Value *Ptr, Value *Val,
                                  AtomicOrdering Ordering,
                                  SyncScope::ID SSID = SyncScope::System) {
-    return Insert(new AtomicRMWInst(Op, Ptr, Val, Ordering, SSID));
+    const DataLayout &DL = BB->getModule()->getDataLayout();
+    Align Alignment(DL.getTypeStoreSize(Val->getType()));
+    return Insert(new AtomicRMWInst(Op, Ptr, Val, Alignment, Ordering, SSID));
   }
 
   Value *CreateGEP(Value *Ptr, ArrayRef<Value *> IdxList,
@@ -2279,6 +2281,13 @@ public:
   Value *CreateFCmp(CmpInst::Predicate P, Value *LHS, Value *RHS,
                     const Twine &Name = "", MDNode *FPMathTag = nullptr) {
     return CreateFCmpHelper(P, LHS, RHS, Name, FPMathTag, false);
+  }
+
+  Value *CreateCmp(CmpInst::Predicate Pred, Value *LHS, Value *RHS,
+                   const Twine &Name = "", MDNode *FPMathTag = nullptr) {
+    return CmpInst::isFPPredicate(Pred)
+               ? CreateFCmp(Pred, LHS, RHS, Name, FPMathTag)
+               : CreateICmp(Pred, LHS, RHS, Name);
   }
 
   // Create a signaling floating-point comparison (i.e. one that raises an FP

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "stop.h"
+#include "file.h"
 #include "io-error.h"
 #include "terminator.h"
 #include "unit.h"
@@ -39,16 +40,24 @@ static void DescribeIEEESignaledExceptions() {
     if (excepts & FE_UNDERFLOW) {
       std::fputs(" UNDERFLOW", stderr);
     }
+    std::fputc('\n', stderr);
   }
+}
+
+static void CloseAllExternalUnits(const char *why) {
+  Fortran::runtime::io::IoErrorHandler handler{why};
+  Fortran::runtime::io::ExternalFileUnit::CloseAll(handler);
 }
 
 [[noreturn]] void RTNAME(StopStatement)(
     int code, bool isErrorStop, bool quiet) {
+  CloseAllExternalUnits("STOP statement");
   if (!quiet) {
+    std::fprintf(stderr, "Fortran %s", isErrorStop ? "ERROR STOP" : "STOP");
     if (code != EXIT_SUCCESS) {
-      std::fprintf(stderr, "Fortran %s: code %d\n",
-          isErrorStop ? "ERROR STOP" : "STOP", code);
+      std::fprintf(stderr, ": code %d\n", code);
     }
+    std::fputc('\n', stderr);
     DescribeIEEESignaledExceptions();
   }
   std::exit(code);
@@ -56,6 +65,7 @@ static void DescribeIEEESignaledExceptions() {
 
 [[noreturn]] void RTNAME(StopStatementText)(
     const char *code, bool isErrorStop, bool quiet) {
+  CloseAllExternalUnits("STOP statement");
   if (!quiet) {
     std::fprintf(
         stderr, "Fortran %s: %s\n", isErrorStop ? "ERROR STOP" : "STOP", code);
@@ -64,14 +74,27 @@ static void DescribeIEEESignaledExceptions() {
   std::exit(EXIT_FAILURE);
 }
 
+void RTNAME(PauseStatement)() {
+  if (Fortran::runtime::io::IsATerminal(0)) {
+    Fortran::runtime::io::IoErrorHandler handler{"PAUSE statement"};
+    Fortran::runtime::io::ExternalFileUnit::FlushAll(handler);
+    std::fputs("Fortran PAUSE: hit RETURN to continue:", stderr);
+    std::fflush(nullptr);
+    if (std::fgetc(stdin) == EOF) {
+      CloseAllExternalUnits("PAUSE statement");
+      std::exit(EXIT_SUCCESS);
+    }
+  }
+}
+
 [[noreturn]] void RTNAME(FailImageStatement)() {
   Fortran::runtime::NotifyOtherImagesOfFailImageStatement();
+  CloseAllExternalUnits("FAIL IMAGE statement");
   std::exit(EXIT_FAILURE);
 }
 
 [[noreturn]] void RTNAME(ProgramEndStatement)() {
-  Fortran::runtime::io::IoErrorHandler handler{"END statement"};
-  Fortran::runtime::io::ExternalFileUnit::CloseAll(handler);
+  CloseAllExternalUnits("END statement");
   std::exit(EXIT_SUCCESS);
 }
 }

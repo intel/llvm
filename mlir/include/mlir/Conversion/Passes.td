@@ -100,6 +100,11 @@ def ConvertGpuLaunchFuncToGpuRuntimeCalls : Pass<"launch-func-to-gpu-runtime",
 def ConvertGpuOpsToNVVMOps : Pass<"convert-gpu-to-nvvm", "gpu::GPUModuleOp"> {
   let summary = "Generate NVVM operations for gpu operations";
   let constructor = "mlir::createLowerGpuOpsToNVVMOpsPass()";
+  let options = [
+    Option<"indexBitwidth", "index-bitwidth", "unsigned",
+           /*default=kDeriveIndexBitwidthFromDataLayout*/"0",
+           "Bitwidth of the index type, 0 to use size of machine word">
+  ];
 }
 
 //===----------------------------------------------------------------------===//
@@ -109,6 +114,11 @@ def ConvertGpuOpsToNVVMOps : Pass<"convert-gpu-to-nvvm", "gpu::GPUModuleOp"> {
 def ConvertGpuOpsToROCDLOps : Pass<"convert-gpu-to-rocdl", "gpu::GPUModuleOp"> {
   let summary = "Generate ROCDL operations for gpu operations";
   let constructor = "mlir::createLowerGpuOpsToROCDLOpsPass()";
+  let options = [
+    Option<"indexBitwidth", "index-bitwidth", "unsigned",
+           /*default=kDeriveIndexBitwidthFromDataLayout*/"0",
+           "Bitwidth of the index type, 0 to use size of machine word">
+  ];
 }
 
 //===----------------------------------------------------------------------===//
@@ -180,9 +190,9 @@ def SCFToStandard : Pass<"convert-scf-to-std"> {
 // SCFToGPU
 //===----------------------------------------------------------------------===//
 
-def ConvertSimpleSCFToGPU : FunctionPass<"convert-scf-to-gpu"> {
-  let summary = "Convert top-level loops to GPU kernels";
-  let constructor = "mlir::createSimpleSCFToGPUPass()";
+def ConvertAffineForToGPU : FunctionPass<"convert-affine-for-to-gpu"> {
+  let summary = "Convert top-level AffineFor Ops to GPU kernels";
+  let constructor = "mlir::createAffineForToGPUPass()";
   let options = [
     Option<"numBlockDims", "gpu-block-dims", "unsigned", /*default=*/"1u",
            "Number of GPU block dimensions for mapping">,
@@ -191,22 +201,37 @@ def ConvertSimpleSCFToGPU : FunctionPass<"convert-scf-to-gpu"> {
   ];
 }
 
-def ConvertSCFToGPU : FunctionPass<"convert-loop-op-to-gpu"> {
-  let summary = "Convert top-level scf::ForOp to GPU kernels";
-  let constructor = "mlir::createLoopToGPUPass()";
-  let options = [
-    ListOption<"numWorkGroups", "gpu-num-workgroups", "int64_t",
-               "Num workgroups in the GPU launch",
-               "llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated">,
-    ListOption<"workGroupSize", "gpu-workgroup-size", "int64_t",
-               "Workgroup Size in the GPU launch",
-               "llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated">
-  ];
-}
-
 def ConvertParallelLoopToGpu : Pass<"convert-parallel-loops-to-gpu"> {
   let summary = "Convert mapped scf.parallel ops to gpu launch operations";
   let constructor = "mlir::createParallelLoopToGpuPass()";
+}
+
+//===----------------------------------------------------------------------===//
+// ShapeToStandard
+//===----------------------------------------------------------------------===//
+
+def ConvertShapeToStandard : Pass<"convert-shape-to-std", "ModuleOp"> {
+  let summary = "Convert operations from the shape dialect into the standard "
+                "dialect";
+  let constructor = "mlir::createConvertShapeToStandardPass()";
+}
+
+//===----------------------------------------------------------------------===//
+// ShapeToSCF
+//===----------------------------------------------------------------------===//
+
+def ConvertShapeToSCF : FunctionPass<"convert-shape-to-scf"> {
+  let summary = "Convert operations from the shape dialect to the SCF dialect";
+  let constructor = "mlir::createConvertShapeToSCFPass()";
+}
+
+//===----------------------------------------------------------------------===//
+// SPIRVToLLVM
+//===----------------------------------------------------------------------===//
+
+def ConvertSPIRVToLLVM : Pass<"convert-spirv-to-llvm", "ModuleOp"> {
+  let summary = "Convert SPIR-V dialect to LLVM dialect";
+  let constructor = "mlir::createConvertSPIRVToLLVMPass()";
 }
 
 //===----------------------------------------------------------------------===//
@@ -293,6 +318,21 @@ def ConvertVectorToLLVM : Pass<"convert-vector-to-llvm", "ModuleOp"> {
   let summary = "Lower the operations from the vector dialect into the LLVM "
                 "dialect";
   let constructor = "mlir::createConvertVectorToLLVMPass()";
+  let options = [
+    Option<"reassociateFPReductions", "reassociate-fp-reductions",
+           "bool", /*default=*/"false",
+           "Allows llvm to reassociate floating-point reductions for speed">
+  ];
+}
+
+//===----------------------------------------------------------------------===//
+// VectorToROCDL
+//===----------------------------------------------------------------------===//
+
+def ConvertVectorToROCDL : Pass<"convert-vector-to-rocdl", "ModuleOp"> {
+  let summary = "Lower the operations from the vector dialect into the ROCDL "
+                "dialect";
+  let constructor = "mlir::createConvertVectorToROCDLPass()";
 }
 
 #endif // MLIR_CONVERSION_PASSES

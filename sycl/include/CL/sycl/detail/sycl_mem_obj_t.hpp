@@ -179,6 +179,7 @@ public:
     };
   }
 
+protected:
   void updateHostMemory(void *const Ptr);
 
   // Update host with the latest data + notify scheduler that the memory object
@@ -188,6 +189,7 @@ public:
   // members must be alive.
   void updateHostMemory();
 
+public:
   DLL_LOCAL bool useHostPtr() {
     return has_property<property::buffer::use_host_ptr>() ||
            has_property<property::image::use_host_ptr>();

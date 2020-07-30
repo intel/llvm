@@ -25,7 +25,6 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/CodeGen/SelectionDAGISel.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/CodeGen/ValueTypes.h"
 #include "llvm/IR/DiagnosticInfo.h"
@@ -33,6 +32,7 @@
 #include "llvm/IR/IntrinsicsRISCV.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -148,12 +148,27 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::SRL_PARTS, XLenVT, Custom);
   setOperationAction(ISD::SRA_PARTS, XLenVT, Custom);
 
-  setOperationAction(ISD::ROTL, XLenVT, Expand);
-  setOperationAction(ISD::ROTR, XLenVT, Expand);
-  setOperationAction(ISD::BSWAP, XLenVT, Expand);
-  setOperationAction(ISD::CTTZ, XLenVT, Expand);
-  setOperationAction(ISD::CTLZ, XLenVT, Expand);
-  setOperationAction(ISD::CTPOP, XLenVT, Expand);
+  if (!(Subtarget.hasStdExtZbb() || Subtarget.hasStdExtZbp())) {
+    setOperationAction(ISD::ROTL, XLenVT, Expand);
+    setOperationAction(ISD::ROTR, XLenVT, Expand);
+  }
+
+  if (!Subtarget.hasStdExtZbp())
+    setOperationAction(ISD::BSWAP, XLenVT, Expand);
+
+  if (!Subtarget.hasStdExtZbb()) {
+    setOperationAction(ISD::CTTZ, XLenVT, Expand);
+    setOperationAction(ISD::CTLZ, XLenVT, Expand);
+    setOperationAction(ISD::CTPOP, XLenVT, Expand);
+  }
+
+  if (Subtarget.hasStdExtZbp())
+    setOperationAction(ISD::BITREVERSE, XLenVT, Legal);
+
+  if (Subtarget.hasStdExtZbt()) {
+    setOperationAction(ISD::FSHL, XLenVT, Legal);
+    setOperationAction(ISD::FSHR, XLenVT, Legal);
+  }
 
   ISD::CondCode FPCCToExtend[] = {
       ISD::SETOGT, ISD::SETOGE, ISD::SETONE, ISD::SETUEQ, ISD::SETUGT,
@@ -197,6 +212,14 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     setTruncStoreAction(MVT::f64, MVT::f16, Expand);
   }
 
+  if (Subtarget.is64Bit() &&
+      !(Subtarget.hasStdExtD() || Subtarget.hasStdExtF())) {
+    setOperationAction(ISD::FP_TO_UINT, MVT::i32, Custom);
+    setOperationAction(ISD::FP_TO_SINT, MVT::i32, Custom);
+    setOperationAction(ISD::STRICT_FP_TO_UINT, MVT::i32, Custom);
+    setOperationAction(ISD::STRICT_FP_TO_SINT, MVT::i32, Custom);
+  }
+
   setOperationAction(ISD::GlobalAddress, XLenVT, Custom);
   setOperationAction(ISD::BlockAddress, XLenVT, Custom);
   setOperationAction(ISD::ConstantPool, XLenVT, Custom);
@@ -228,6 +251,12 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
 
   // Effectively disable jump table generation.
   setMinimumJumpTableEntries(INT_MAX);
+
+  // Jumps are expensive, compared to logic
+  setJumpIsExpensive();
+
+  // We can use any register for comparisons
+  setHasMultipleConditionRegisters();
 }
 
 EVT RISCVTargetLowering::getSetCCResultType(const DataLayout &DL, LLVMContext &,
@@ -904,6 +933,32 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
   switch (N->getOpcode()) {
   default:
     llvm_unreachable("Don't know how to custom type legalize this operation!");
+  case ISD::STRICT_FP_TO_SINT:
+  case ISD::STRICT_FP_TO_UINT:
+  case ISD::FP_TO_SINT:
+  case ISD::FP_TO_UINT: {
+    bool IsStrict = N->isStrictFPOpcode();
+    assert(N->getValueType(0) == MVT::i32 && Subtarget.is64Bit() &&
+           "Unexpected custom legalisation");
+    SDValue Op0 = IsStrict ? N->getOperand(1) : N->getOperand(0);
+    RTLIB::Libcall LC;
+    if (N->getOpcode() == ISD::FP_TO_SINT ||
+        N->getOpcode() == ISD::STRICT_FP_TO_SINT)
+      LC = RTLIB::getFPTOSINT(Op0.getValueType(), N->getValueType(0));
+    else
+      LC = RTLIB::getFPTOUINT(Op0.getValueType(), N->getValueType(0));
+    MakeLibCallOptions CallOptions;
+    EVT OpVT = Op0.getValueType();
+    CallOptions.setTypeListBeforeSoften(OpVT, N->getValueType(0), true);
+    SDValue Chain = IsStrict ? N->getOperand(0) : SDValue();
+    SDValue Result;
+    std::tie(Result, Chain) =
+        makeLibCall(DAG, LC, N->getValueType(0), Op0, CallOptions, DL, Chain);
+    Results.push_back(Result);
+    if (IsStrict)
+      Results.push_back(Chain);
+    break;
+  }
   case ISD::READCYCLECOUNTER: {
     assert(!Subtarget.is64Bit() &&
            "READCYCLECOUNTER only has custom type legalization on riscv32");
@@ -1200,7 +1255,7 @@ static MachineBasicBlock *emitSplitF64Pseudo(MachineInstr &MI,
   Register HiReg = MI.getOperand(1).getReg();
   Register SrcReg = MI.getOperand(2).getReg();
   const TargetRegisterClass *SrcRC = &RISCV::FPR64RegClass;
-  int FI = MF.getInfo<RISCVMachineFunctionInfo>()->getMoveF64FrameIndex();
+  int FI = MF.getInfo<RISCVMachineFunctionInfo>()->getMoveF64FrameIndex(MF);
 
   TII.storeRegToStackSlot(*BB, MI, SrcReg, MI.getOperand(2).isKill(), FI, SrcRC,
                           RI);
@@ -1232,7 +1287,7 @@ static MachineBasicBlock *emitBuildPairF64Pseudo(MachineInstr &MI,
   Register LoReg = MI.getOperand(1).getReg();
   Register HiReg = MI.getOperand(2).getReg();
   const TargetRegisterClass *DstRC = &RISCV::FPR64RegClass;
-  int FI = MF.getInfo<RISCVMachineFunctionInfo>()->getMoveF64FrameIndex();
+  int FI = MF.getInfo<RISCVMachineFunctionInfo>()->getMoveF64FrameIndex(MF);
 
   MachineMemOperand *MMO =
       MF.getMachineMemOperand(MachinePointerInfo::getFixedStack(MF, FI),
@@ -1458,14 +1513,15 @@ static bool CC_RISCVAssign2XLen(unsigned XLen, CCState &State, CCValAssign VA1,
                                      VA1.getLocVT(), CCValAssign::Full));
   } else {
     // Both halves must be passed on the stack, with proper alignment.
-    unsigned StackAlign = std::max(XLenInBytes, ArgFlags1.getOrigAlign());
+    Align StackAlign =
+        std::max(Align(XLenInBytes), ArgFlags1.getNonZeroOrigAlign());
     State.addLoc(
         CCValAssign::getMem(VA1.getValNo(), VA1.getValVT(),
                             State.AllocateStack(XLenInBytes, StackAlign),
                             VA1.getLocVT(), CCValAssign::Full));
     State.addLoc(CCValAssign::getMem(
-        ValNo2, ValVT2, State.AllocateStack(XLenInBytes, XLenInBytes), LocVT2,
-        CCValAssign::Full));
+        ValNo2, ValVT2, State.AllocateStack(XLenInBytes, Align(XLenInBytes)),
+        LocVT2, CCValAssign::Full));
     return false;
   }
 
@@ -1476,8 +1532,8 @@ static bool CC_RISCVAssign2XLen(unsigned XLen, CCState &State, CCValAssign VA1,
   } else {
     // The second half is passed via the stack, without additional alignment.
     State.addLoc(CCValAssign::getMem(
-        ValNo2, ValVT2, State.AllocateStack(XLenInBytes, XLenInBytes), LocVT2,
-        CCValAssign::Full));
+        ValNo2, ValVT2, State.AllocateStack(XLenInBytes, Align(XLenInBytes)),
+        LocVT2, CCValAssign::Full));
   }
 
   return false;
@@ -1545,7 +1601,7 @@ static bool CC_RISCV(const DataLayout &DL, RISCVABI::ABI ABI, unsigned ValNo,
   // original type is larger than 2*XLEN, so the register alignment rule does
   // not apply.
   unsigned TwoXLenInBytes = (2 * XLen) / 8;
-  if (!IsFixed && ArgFlags.getOrigAlign() == TwoXLenInBytes &&
+  if (!IsFixed && ArgFlags.getNonZeroOrigAlign() == TwoXLenInBytes &&
       DL.getTypeAllocSize(OrigTy) == TwoXLenInBytes) {
     unsigned RegIdx = State.getFirstUnallocated(ArgGPRs);
     // Skip 'odd' register if necessary.
@@ -1572,13 +1628,13 @@ static bool CC_RISCV(const DataLayout &DL, RISCVABI::ABI ABI, unsigned ValNo,
     Register Reg = State.AllocateReg(ArgGPRs);
     LocVT = MVT::i32;
     if (!Reg) {
-      unsigned StackOffset = State.AllocateStack(8, 8);
+      unsigned StackOffset = State.AllocateStack(8, Align(8));
       State.addLoc(
           CCValAssign::getMem(ValNo, ValVT, StackOffset, LocVT, LocInfo));
       return false;
     }
     if (!State.AllocateReg(ArgGPRs))
-      State.AllocateStack(4, 4);
+      State.AllocateStack(4, Align(4));
     State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, LocVT, LocInfo));
     return false;
   }
@@ -1618,7 +1674,8 @@ static bool CC_RISCV(const DataLayout &DL, RISCVABI::ABI ABI, unsigned ValNo,
     Reg = State.AllocateReg(ArgFPR64s, ArgFPR32s);
   else
     Reg = State.AllocateReg(ArgGPRs);
-  unsigned StackOffset = Reg ? 0 : State.AllocateStack(XLen / 8, XLen / 8);
+  unsigned StackOffset =
+      Reg ? 0 : State.AllocateStack(XLen / 8, Align(XLen / 8));
 
   // If we reach this point and PendingLocs is non-empty, we must be at the
   // end of a split argument that must be passed indirectly.
@@ -1673,7 +1730,7 @@ void RISCVTargetLowering::analyzeInputArgs(
 
     RISCVABI::ABI ABI = MF.getSubtarget<RISCVSubtarget>().getTargetABI();
     if (CC_RISCV(MF.getDataLayout(), ABI, i, ArgVT, ArgVT, CCValAssign::Full,
-                 ArgFlags, CCInfo, /*IsRet=*/true, IsRet, ArgTy)) {
+                 ArgFlags, CCInfo, /*IsFixed=*/true, IsRet, ArgTy)) {
       LLVM_DEBUG(dbgs() << "InputArg #" << i << " has unhandled type "
                         << EVT(ArgVT).getEVTString() << '\n');
       llvm_unreachable(nullptr);
@@ -1887,13 +1944,13 @@ static bool CC_RISCV_FastCC(unsigned ValNo, MVT ValVT, MVT LocVT,
   }
 
   if (LocVT == MVT::i32 || LocVT == MVT::f32) {
-    unsigned Offset4 = State.AllocateStack(4, 4);
+    unsigned Offset4 = State.AllocateStack(4, Align(4));
     State.addLoc(CCValAssign::getMem(ValNo, ValVT, Offset4, LocVT, LocInfo));
     return false;
   }
 
   if (LocVT == MVT::i64 || LocVT == MVT::f64) {
-    unsigned Offset5 = State.AllocateStack(8, 8);
+    unsigned Offset5 = State.AllocateStack(8, Align(8));
     State.addLoc(CCValAssign::getMem(ValNo, ValVT, Offset5, LocVT, LocInfo));
     return false;
   }
@@ -2934,6 +2991,26 @@ bool RISCVTargetLowering::shouldExtendTypeInLibCall(EVT Type) const {
     return false;
 
   return true;
+}
+
+bool RISCVTargetLowering::decomposeMulByConstant(LLVMContext &Context, EVT VT,
+                                                 SDValue C) const {
+  // Check integral scalar types.
+  if (VT.isScalarInteger()) {
+    // Do not perform the transformation on riscv32 with the M extension.
+    if (!Subtarget.is64Bit() && Subtarget.hasStdExtM())
+      return false;
+    if (auto *ConstNode = dyn_cast<ConstantSDNode>(C.getNode())) {
+      if (ConstNode->getAPIntValue().getBitWidth() > 8 * sizeof(int64_t))
+        return false;
+      int64_t Imm = ConstNode->getSExtValue();
+      if (isPowerOf2_64(Imm + 1) || isPowerOf2_64(Imm - 1) ||
+          isPowerOf2_64(1 - Imm) || isPowerOf2_64(-1 - Imm))
+        return true;
+    }
+  }
+
+  return false;
 }
 
 #define GET_REGISTER_MATCHER

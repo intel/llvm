@@ -2,7 +2,7 @@ set(LLVM_TARGET_DEFINITIONS GPUToROCDL.td)
 mlir_tablegen(GPUToROCDL.cpp.inc -gen-rewriters)
 add_public_tablegen_target(MLIRGPUToROCDLIncGen)
 
-add_mlir_conversion_library(MLIRGPUtoROCDLTransforms
+add_mlir_conversion_library(MLIRGPUToROCDLTransforms
   LowerGpuOpsToROCDLOps.cpp
 
   DEPENDS
@@ -15,4 +15,5 @@ add_mlir_conversion_library(MLIRGPUtoROCDLTransforms
   MLIRROCDLIR
   MLIRPass
   MLIRStandardToLLVM
+  MLIRVectorToROCDL
   )

@@ -23,6 +23,7 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/TinyPtrVector.h"
+#include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Allocator.h"
@@ -552,6 +553,41 @@ public:
     unsigned AlwaysInline : 1;
   };
 
+  /// Describes the uses of a parameter by the function.
+  struct ParamAccess {
+    static constexpr uint32_t RangeWidth = 64;
+
+    /// Describes the use of a value in a call instruction, specifying the
+    /// call's target, the value's parameter number, and the possible range of
+    /// offsets from the beginning of the value that are passed.
+    struct Call {
+      uint64_t ParamNo = 0;
+      GlobalValue::GUID Callee = 0;
+      ConstantRange Offsets{/*BitWidth=*/RangeWidth, /*isFullSet=*/true};
+
+      Call() = default;
+      Call(uint64_t ParamNo, GlobalValue::GUID Callee,
+           const ConstantRange &Offsets)
+          : ParamNo(ParamNo), Callee(Callee), Offsets(Offsets) {}
+    };
+
+    uint64_t ParamNo = 0;
+    /// The range contains byte offsets from the parameter pointer which
+    /// accessed by the function. In the per-module summary, it only includes
+    /// accesses made by the function instructions. In the combined summary, it
+    /// also includes accesses by nested function calls.
+    ConstantRange Use{/*BitWidth=*/RangeWidth, /*isFullSet=*/true};
+    /// In the per-module summary, it summarizes the byte offset applied to each
+    /// pointer parameter before passing to each corresponding callee.
+    /// In the combined summary, it's empty and information is propagated by
+    /// inter-procedural analysis and applied to the Use field.
+    std::vector<Call> Calls;
+
+    ParamAccess() = default;
+    ParamAccess(uint64_t ParamNo, const ConstantRange &Use)
+        : ParamNo(ParamNo), Use(Use) {}
+  };
+
   /// Create an empty FunctionSummary (with specified call edges).
   /// Used to represent external nodes and the dummy root node.
   static FunctionSummary
@@ -567,7 +603,8 @@ public:
         std::vector<FunctionSummary::VFuncId>(),
         std::vector<FunctionSummary::VFuncId>(),
         std::vector<FunctionSummary::ConstVCall>(),
-        std::vector<FunctionSummary::ConstVCall>());
+        std::vector<FunctionSummary::ConstVCall>(),
+        std::vector<FunctionSummary::ParamAccess>());
   }
 
   /// A dummy node to reference external functions that aren't in the index
@@ -591,6 +628,10 @@ private:
 
   std::unique_ptr<TypeIdInfo> TIdInfo;
 
+  /// Uses for every parameter to this function.
+  using ParamAccessesTy = std::vector<ParamAccess>;
+  std::unique_ptr<ParamAccessesTy> ParamAccesses;
+
 public:
   FunctionSummary(GVFlags Flags, unsigned NumInsts, FFlags FunFlags,
                   uint64_t EntryCount, std::vector<ValueInfo> Refs,
@@ -599,18 +640,21 @@ public:
                   std::vector<VFuncId> TypeTestAssumeVCalls,
                   std::vector<VFuncId> TypeCheckedLoadVCalls,
                   std::vector<ConstVCall> TypeTestAssumeConstVCalls,
-                  std::vector<ConstVCall> TypeCheckedLoadConstVCalls)
+                  std::vector<ConstVCall> TypeCheckedLoadConstVCalls,
+                  std::vector<ParamAccess> Params)
       : GlobalValueSummary(FunctionKind, Flags, std::move(Refs)),
         InstCount(NumInsts), FunFlags(FunFlags), EntryCount(EntryCount),
         CallGraphEdgeList(std::move(CGEdges)) {
     if (!TypeTests.empty() || !TypeTestAssumeVCalls.empty() ||
         !TypeCheckedLoadVCalls.empty() || !TypeTestAssumeConstVCalls.empty() ||
         !TypeCheckedLoadConstVCalls.empty())
-      TIdInfo = std::make_unique<TypeIdInfo>(TypeIdInfo{
-          std::move(TypeTests), std::move(TypeTestAssumeVCalls),
-          std::move(TypeCheckedLoadVCalls),
-          std::move(TypeTestAssumeConstVCalls),
-          std::move(TypeCheckedLoadConstVCalls)});
+      TIdInfo = std::make_unique<TypeIdInfo>(
+          TypeIdInfo{std::move(TypeTests), std::move(TypeTestAssumeVCalls),
+                     std::move(TypeCheckedLoadVCalls),
+                     std::move(TypeTestAssumeConstVCalls),
+                     std::move(TypeCheckedLoadConstVCalls)});
+    if (!Params.empty())
+      ParamAccesses = std::make_unique<ParamAccessesTy>(std::move(Params));
   }
   // Gets the number of readonly and writeonly refs in RefEdgeList
   std::pair<unsigned, unsigned> specialRefCounts() const;
@@ -679,6 +723,23 @@ public:
     if (TIdInfo)
       return TIdInfo->TypeCheckedLoadConstVCalls;
     return {};
+  }
+
+  /// Returns the list of known uses of pointer parameters.
+  ArrayRef<ParamAccess> paramAccesses() const {
+    if (ParamAccesses)
+      return *ParamAccesses;
+    return {};
+  }
+
+  /// Sets the list of known uses of pointer parameters.
+  void setParamAccesses(std::vector<ParamAccess> NewParams) {
+    if (NewParams.empty())
+      ParamAccesses.reset();
+    else if (ParamAccesses)
+      *ParamAccesses = std::move(NewParams);
+    else
+      ParamAccesses = std::make_unique<ParamAccessesTy>(std::move(NewParams));
   }
 
   /// Add a type test to the summary. This is used by WholeProgramDevirt if we
@@ -833,7 +894,8 @@ struct TypeTestResolution {
     Single,    ///< Single element (last example in "Short Inline Bit Vectors")
     AllOnes,   ///< All-ones bit vector ("Eliminating Bit Vector Checks for
                ///  All-Ones Bit Vectors")
-  } TheKind = Unsat;
+    Unknown,   ///< Unknown (analysis not performed, don't lower)
+  } TheKind = Unknown;
 
   /// Range of size-1 expressed as a bit width. For example, if the size is in
   /// range [1,256], this number will be 8. This helps generate the most compact
@@ -1031,7 +1093,7 @@ public:
   // in the way some record are interpreted, like flags for instance.
   // Note that incrementing this may require changes in both BitcodeReader.cpp
   // and BitcodeWriter.cpp.
-  static constexpr uint64_t BitcodeSummaryVersion = 8;
+  static constexpr uint64_t BitcodeSummaryVersion = 9;
 
   // Regular LTO module name for ASM writer
   static constexpr const char *getRegularLTOModuleName() {

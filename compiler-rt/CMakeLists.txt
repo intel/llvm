@@ -3,7 +3,7 @@
 # An important constraint of the build is that it only produces libraries
 # based on the ability of the host toolchain to target various platforms.
 
-cmake_minimum_required(VERSION 3.4.3)
+cmake_minimum_required(VERSION 3.13.4)
 
 if(POLICY CMP0075)
   cmake_policy(SET CMP0075 NEW)
@@ -535,8 +535,6 @@ else()
   set(COMPILER_RT_LLD_PATH ${LLVM_MAIN_SRC_DIR}/../lld)
   if(EXISTS ${COMPILER_RT_LLD_PATH}/ AND LLVM_TOOL_LLD_BUILD)
     set(COMPILER_RT_HAS_LLD TRUE)
-  else()
-    set(COMPILER_RT_HAS_LLD ${COMPILER_RT_HAS_FUSE_LD_LLD_FLAG})
   endif()
 endif()
 pythonize_bool(COMPILER_RT_HAS_LLD)

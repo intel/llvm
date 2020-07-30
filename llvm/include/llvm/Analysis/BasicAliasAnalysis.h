@@ -140,11 +140,6 @@ private:
     // Total constant offset w.r.t the base from indexing through
     // pointers/arrays/vectors
     APInt OtherOffset;
-    // Constant offset w.r.t the base from indexing through
-    // pointers/arrays/vectors, including the lower bounds of index variables,
-    // if there are any. Currently only known non-negative lower bounds are
-    // added.
-    APInt MinOtherOffset;
     // Scaled variable (non-constant) indices.
     SmallVector<VariableGEPIndex, 4> VarIndices;
     // Is GEP index scale compile-time constant.
@@ -194,7 +189,7 @@ private:
   bool
   constantOffsetHeuristic(const SmallVectorImpl<VariableGEPIndex> &VarIndices,
                           LocationSize V1Size, LocationSize V2Size,
-                          APInt BaseOffset, AssumptionCache *AC,
+                          const APInt &BaseOffset, AssumptionCache *AC,
                           DominatorTree *DT);
 
   bool isValueEqualInPotentialCycles(const Value *V1, const Value *V2);

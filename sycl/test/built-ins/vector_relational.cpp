@@ -4,14 +4,11 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// TODO: ptxas fatal   : Ptx assembly aborted due to errors
-// XFAIL: cuda
-
 #include <CL/sycl.hpp>
 
-#include <iostream>
 #include <cassert>
 #include <cmath>
+#include <iostream>
 
 namespace s = cl::sycl;
 

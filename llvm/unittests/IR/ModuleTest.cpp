@@ -12,6 +12,7 @@
 #include "llvm/IR/ModuleSummaryIndex.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/RandomNumberGenerator.h"
+#include "llvm/Support/SourceMgr.h"
 #include "gtest/gtest.h"
 
 #include <random>
@@ -55,7 +56,7 @@ TEST(ModuleTest, randomNumberGenerator) {
   static char ID;
   struct DummyPass : ModulePass {
     DummyPass() : ModulePass(ID) {}
-    bool runOnModule(Module &) { return true; }
+    bool runOnModule(Module &) override { return true; }
   } DP;
 
   Module M("R", Context);
@@ -112,7 +113,7 @@ TEST(ModuleTest, setProfileSummary) {
   std::unique_ptr<Module> M = parseAssemblyString(IRString, Err, Context);
   auto *PS = ProfileSummary::getFromMD(M->getProfileSummary(/*IsCS*/ false));
   EXPECT_NE(nullptr, PS);
-  EXPECT_EQ(false, PS->isPartialProfile());
+  EXPECT_FALSE(PS->isPartialProfile());
   PS->setPartialProfile(true);
   M->setProfileSummary(PS->getMD(Context), ProfileSummary::PSK_Sample);
   delete PS;

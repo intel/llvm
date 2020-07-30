@@ -302,9 +302,12 @@ struct Object {
   IndirectSymbolTable IndirectSymTable;
   LinkData DataInCode;
   LinkData FunctionStarts;
+  LinkData CodeSignature;
 
   Optional<uint32_t> SwiftVersion;
 
+  /// The index of LC_CODE_SIGNATURE load command if present.
+  Optional<size_t> CodeSignatureCommandIndex;
   /// The index of LC_SYMTAB load command if present.
   Optional<size_t> SymTabCommandIndex;
   /// The index of LC_DYLD_INFO or LC_DYLD_INFO_ONLY load command if present.
@@ -323,6 +326,11 @@ struct Object {
 
   Error
   removeSections(function_ref<bool(const std::unique_ptr<Section> &)> ToRemove);
+
+  Error removeLoadCommands(function_ref<bool(const LoadCommand &)> ToRemove);
+
+  void updateLoadCommandIndexes();
+
   void addLoadCommand(LoadCommand LC);
 
   /// Creates a new segment load command in the object and returns a reference

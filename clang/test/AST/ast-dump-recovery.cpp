@@ -4,18 +4,38 @@
 int some_func(int *);
 
 // CHECK:     VarDecl {{.*}} invalid_call
-// CHECK-NEXT: `-ImplicitCastExpr {{.*}} 'int' contains-errors
 // CHECK-NEXT:  `-RecoveryExpr {{.*}} 'int' contains-errors
 // CHECK-NEXT:    |-UnresolvedLookupExpr {{.*}} 'some_func'
 // CHECK-NEXT:    `-IntegerLiteral {{.*}} 123
 // DISABLED-NOT: -RecoveryExpr {{.*}} contains-errors
 int invalid_call = some_func(123);
+void test_invalid_call(int s) {
+  // CHECK:      CallExpr {{.*}} '<dependent type>' contains-errors
+  // CHECK-NEXT: |-UnresolvedLookupExpr {{.*}} 'some_func'
+  // CHECK-NEXT: |-RecoveryExpr {{.*}} <col:13>
+  // CHECK-NEXT: `-BinaryOperator {{.*}}
+  // CHECK-NEXT:   |-RecoveryExpr {{.*}}
+  // CHECK-NEXT:   `-IntegerLiteral {{.*}} <col:28> 'int' 1
+  some_func(undef1, undef2+1);
+
+  // CHECK:      BinaryOperator {{.*}} '<dependent type>' contains-errors '='
+  // CHECK-NEXT: |-DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT: `-CallExpr {{.*}} '<dependent type>' contains-errors
+  // CHECK-NEXT:   |-UnresolvedLookupExpr {{.*}} 'some_func'
+  // CHECK-NEXT:   `-RecoveryExpr {{.*}} contains-errors
+  s = some_func(undef1);
+
+  // CHECK:     VarDecl {{.*}} var 'int'
+  // CHECK-NEXT: `-CallExpr {{.*}} '<dependent type>' contains-errors
+  // CHECK-NEXT:   |-UnresolvedLookupExpr {{.*}} 'some_func'
+  // CHECK-NEXT:   `-RecoveryExpr {{.*}} contains-errors
+  int var = some_func(undef1);
+}
 
 int ambig_func(double);
 int ambig_func(float);
 
 // CHECK:     VarDecl {{.*}} ambig_call
-// CHECK-NEXT: `-ImplicitCastExpr {{.*}} 'int' contains-errors
 // CHECK-NEXT:  `-RecoveryExpr {{.*}} 'int' contains-errors
 // CHECK-NEXT:    |-UnresolvedLookupExpr {{.*}} 'ambig_func'
 // CHECK-NEXT:    `-IntegerLiteral {{.*}} 123
@@ -140,11 +160,14 @@ void InvalidInitalizer(int x) {
   // CHECK-NEXT: `-RecoveryExpr {{.*}} contains-errors
   // CHECK-NEXT:  `-InitListExpr
   Bar b2 = {1};
-  // FIXME: preserve the invalid initializer.
-  // CHECK: `-VarDecl {{.*}} b3 'Bar'
+  // CHECK:     `-VarDecl {{.*}} b3 'Bar'
+  // CHECK-NEXT:  `-RecoveryExpr {{.*}} 'Bar' contains-errors
+  // CHECK-NEXT:    `-DeclRefExpr {{.*}} 'x' 'int'
   Bar b3 = Bar(x);
-  // FIXME: preserve the invalid initializer.
-  // CHECK: `-VarDecl {{.*}} b4 'Bar'
+  // CHECK:     `-VarDecl {{.*}} b4 'Bar'
+  // CHECK-NEXT:  `-RecoveryExpr {{.*}} 'Bar' contains-errors
+  // CHECK-NEXT:    `-InitListExpr {{.*}} 'void'
+  // CHECK-NEXT:      `-DeclRefExpr {{.*}} 'x' 'int'
   Bar b4 = Bar{x};
   // CHECK:     `-VarDecl {{.*}} b5 'Bar'
   // CHECK-NEXT: `-CXXUnresolvedConstructExpr {{.*}} 'Bar' contains-errors 'Bar'
@@ -157,6 +180,16 @@ void InvalidInitalizer(int x) {
   // CHECK-NEXT:   `-RecoveryExpr {{.*}} contains-errors
   // CHECK-NEXT:     `-UnresolvedLookupExpr {{.*}} 'invalid'
   Bar b6 = Bar{invalid()};
+
+  // CHECK:     RecoveryExpr {{.*}} 'Bar' contains-errors
+  // CHECK-NEXT:  `-IntegerLiteral {{.*}} 'int' 1
+  Bar(1);
+
+  // CHECK:     `-VarDecl {{.*}} var1
+  // CHECK-NEXT: `-BinaryOperator {{.*}} '<dependent type>' contains-errors
+  // CHECK-NEXT:   |-RecoveryExpr {{.*}} '<dependent type>' contains-errors
+  // CHECK-NEXT:   `-IntegerLiteral {{.*}} 'int' 1
+  int var1 = undef + 1;
 }
 void InitializerForAuto() {
   // CHECK:     `-VarDecl {{.*}} invalid a 'auto'
@@ -181,3 +214,54 @@ void InitializerForAuto() {
 // Verified that the generated call operator is invalid.
 // CHECK: |-CXXMethodDecl {{.*}} invalid operator() 'auto () const -> auto'
 using Escape = decltype([] { return undef(); }());
+
+// CHECK:      VarDecl {{.*}} NoCrashOnInvalidInitList
+// CHECK-NEXT: `-RecoveryExpr {{.*}} '<dependent type>' contains-errors lvalue
+// CHECK-NEXT:   `-InitListExpr
+// CHECK-NEXT:     `-DesignatedInitExpr {{.*}} 'void'
+// CHECK-NEXT:       `-CXXNullPtrLiteralExpr {{.*}} 'nullptr_t'
+struct {
+  int& abc;
+} NoCrashOnInvalidInitList = {
+  .abc = nullptr,
+};
+
+// Verify the value category of recovery expression.
+int prvalue(int);
+int &lvalue(int);
+int &&xvalue(int);
+void ValueCategory() {
+  // CHECK:  RecoveryExpr {{.*}} 'int' contains-errors
+  prvalue(); // call to a function (nonreference return type) yields a prvalue (not print by default)
+  // CHECK:  RecoveryExpr {{.*}} 'int' contains-errors lvalue
+  lvalue(); // call to a function (lvalue reference return type) yields an lvalue.
+  // CHECK:  RecoveryExpr {{.*}} 'int' contains-errors xvalue
+  xvalue(); // call to a function (rvalue reference return type) yields an xvalue.
+}
+
+void InvalidCondition() {
+  // CHECK:      IfStmt {{.*}}
+  // CHECK-NEXT: |-RecoveryExpr {{.*}} <col:7, col:15> '<dependent type>' contains-errors
+  // CHECK-NEXT: | `-UnresolvedLookupExpr {{.*}} <col:7>
+  if (invalid()) {}
+
+  // CHECK:      WhileStmt {{.*}}
+  // CHECK-NEXT: |-RecoveryExpr {{.*}} <col:10, col:18> '<dependent type>' contains-errors
+  // CHECK-NEXT: | `-UnresolvedLookupExpr {{.*}} <col:10>
+  while (invalid()) {}
+
+  // CHECK:      SwitchStmt {{.*}}
+  // CHECK-NEXT: |-RecoveryExpr {{.*}} '<dependent type>' contains-errors
+  // CHECK-NEXT: | `-UnresolvedLookupExpr {{.*}} <col:10>
+  switch(invalid()) {
+    case 1:
+      break;
+  }
+  // FIXME: figure out why the type of ConditionalOperator is not int.
+  // CHECK:      ConditionalOperator {{.*}} '<dependent type>' contains-errors
+  // CHECK-NEXT: |-RecoveryExpr {{.*}} '<dependent type>' contains-errors
+  // CHECK-NEXT: | `-UnresolvedLookupExpr {{.*}}
+  // CHECK-NEXT: |-IntegerLiteral {{.*}} 'int' 1
+  // CHECK-NEXT: `-IntegerLiteral {{.*}} 'int' 2
+  invalid() ? 1 : 2;
+}

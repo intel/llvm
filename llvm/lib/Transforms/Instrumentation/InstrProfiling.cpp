@@ -110,6 +110,12 @@ cl::opt<bool> AtomicCounterUpdatePromoted(
              " for promoted counters only"),
     cl::init(false));
 
+cl::opt<bool> AtomicFirstCounter(
+    "atomic-first-counter", cl::ZeroOrMore,
+    cl::desc("Use atomic fetch add for first counter in a function (usually "
+             "the entry counter)"),
+    cl::init(false));
+
 // If the option is not specified, the default behavior about whether
 // counter promotion is done depends on how instrumentaiton lowering
 // pipeline is setup, i.e., the default value of true of this option
@@ -696,7 +702,8 @@ void InstrProfiling::lowerIncrement(InstrProfIncrementInst *Inc) {
     Addr = Builder.CreateIntToPtr(Add, Int64PtrTy);
   }
 
-  if (Options.Atomic || AtomicCounterUpdateAll) {
+  if (Options.Atomic || AtomicCounterUpdateAll ||
+      (Index == 0 && AtomicFirstCounter)) {
     Builder.CreateAtomicRMW(AtomicRMWInst::Add, Addr, Inc->getStep(),
                             AtomicOrdering::Monotonic);
   } else {
@@ -1034,9 +1041,9 @@ void InstrProfiling::emitRegistration() {
 }
 
 bool InstrProfiling::emitRuntimeHook() {
-  // We expect the linker to be invoked with -u<hook_var> flag for linux,
-  // for which case there is no need to emit the user function.
-  if (TT.isOSLinux())
+  // We expect the linker to be invoked with -u<hook_var> flag for Linux or
+  // Fuchsia, in which case there is no need to emit the user function.
+  if (TT.isOSLinux() || TT.isOSFuchsia())
     return false;
 
   // If the module's provided its own runtime, we don't need to do anything.

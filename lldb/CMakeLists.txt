@@ -1,7 +1,4 @@
-cmake_minimum_required(VERSION 3.4.3)
-if(CMAKE_SYSTEM_NAME STREQUAL Windows)
-  cmake_minimum_required(VERSION 3.13)
-endif()
+cmake_minimum_required(VERSION 3.13.4)
 
 if(POLICY CMP0075)
   cmake_policy(SET CMP0075 NEW)
@@ -64,7 +61,7 @@ endif ()
 # some of these generated headers. This approach is copied from Clang's main
 # CMakeLists.txt, so it should kept in sync the code in Clang which was added
 # in llvm-svn 308844.
-if(LLVM_ENABLE_MODULES AND NOT LLDB_BUILT_STANDALONE)
+if(LLVM_ENABLE_MODULES)
   list(APPEND LLVM_COMMON_DEPENDS intrinsics_gen)
 endif()
 

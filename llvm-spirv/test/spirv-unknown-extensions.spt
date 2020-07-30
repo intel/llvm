@@ -39,6 +39,6 @@
 
 1 FunctionEnd
 
-; RUN: not --crash llvm-spirv %s -to-binary -o - 2>&1 | FileCheck %s
+; RUN: not llvm-spirv %s -to-binary -o - 2>&1 | FileCheck %s
 ; CHECK: input SPIR-V module uses unknown extension 'unknown_spirv_extension'
 

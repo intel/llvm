@@ -48,6 +48,13 @@ func @remap_input_1_to_N_remaining_use(%arg0: f32) {
   "work"(%arg0) : (f32) -> ()
 }
 
+// CHECK-LABEL: func @remap_materialize_1_to_1(%{{.*}}: i43)
+func @remap_materialize_1_to_1(%arg0: i42) {
+  // CHECK: %[[V:.*]] = "test.cast"(%arg0) : (i43) -> i42
+  // CHECK: "test.return"(%[[V]])
+  "test.return"(%arg0) : (i42) -> ()
+}
+
 // CHECK-LABEL: func @remap_input_to_self
 func @remap_input_to_self(%arg0: index) {
   // CHECK-NOT: test.cast
@@ -146,15 +153,11 @@ func @remove_foldable_op(%arg0 : i32) -> (i32) {
 
 // CHECK-LABEL: @create_block
 func @create_block() {
-  // expected-remark@+1 {{op 'test.container' is not legalizable}}
-  "test.container"() ({
-    // Check that we created a block with arguments.
-    // CHECK-NOT: test.create_block
-    // CHECK: ^{{.*}}(%{{.*}}: i32, %{{.*}}: i32):
-    // CHECK: test.finish
-    "test.create_block"() : () -> ()
-    "test.finish"() : () -> ()
-  }) : () -> ()
+  // Check that we created a block with arguments.
+  // CHECK-NOT: test.create_block
+  // CHECK: ^{{.*}}(%{{.*}}: i32, %{{.*}}: i32):
+  "test.create_block"() : () -> ()
+
   // expected-remark@+1 {{op 'std.return' is not legalizable}}
   return
 }
@@ -205,15 +208,12 @@ func @fail_to_convert_region() {
 
 // CHECK-LABEL: @create_illegal_block
 func @create_illegal_block() {
-  // expected-remark@+1 {{op 'test.container' is not legalizable}}
-  "test.container"() ({
-    // Check that we can undo block creation, i.e. that the block was removed.
-    // CHECK: test.create_illegal_block
-    // CHECK-NOT: ^{{.*}}(%{{.*}}: i32, %{{.*}}: i32):
-    // expected-remark@+1 {{op 'test.create_illegal_block' is not legalizable}}
-    "test.create_illegal_block"() : () -> ()
-    "test.finish"() : () -> ()
-  }) : () -> ()
+  // Check that we can undo block creation, i.e. that the block was removed.
+  // CHECK: test.create_illegal_block
+  // CHECK-NOT: ^{{.*}}(%{{.*}}: i32, %{{.*}}: i32):
+  // expected-remark@+1 {{op 'test.create_illegal_block' is not legalizable}}
+  "test.create_illegal_block"() : () -> ()
+
   // expected-remark@+1 {{op 'std.return' is not legalizable}}
   return
 }

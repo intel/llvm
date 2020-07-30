@@ -59,6 +59,7 @@ void initializeSPIRVLowerConstExprPass(PassRegistry &);
 void initializeSPIRVLowerSPIRBlocksPass(PassRegistry &);
 void initializeSPIRVLowerOCLBlocksPass(PassRegistry &);
 void initializeSPIRVLowerMemmovePass(PassRegistry &);
+void initializeSPIRVLowerSaddWithOverflowPass(PassRegistry &);
 void initializeSPIRVRegularizeLLVMPass(PassRegistry &);
 void initializeSPIRVToOCL12Pass(PassRegistry &);
 void initializeSPIRVToOCL20Pass(PassRegistry &);
@@ -188,6 +189,9 @@ ModulePass *createSPIRVLowerOCLBlocks();
 /// variable.
 ModulePass *createSPIRVLowerMemmove();
 
+/// Create a pass for lowering llvm.sadd.with.overflow
+ModulePass *createSPIRVLowerSaddWithOverflow();
+
 /// Create a pass for regularize LLVM module to be translated to SPIR-V.
 ModulePass *createSPIRVRegularizeLLVM();
 
@@ -210,6 +214,11 @@ ModulePass *createPreprocessMetadata();
 /// Create and return a pass that writes the module to the specified
 /// ostream.
 ModulePass *createSPIRVWriterPass(std::ostream &Str);
+
+/// Create and return a pass that writes the module to the specified
+/// ostream.
+ModulePass *createSPIRVWriterPass(std::ostream &Str,
+                                  const SPIRV::TranslatorOpts &Opts);
 
 } // namespace llvm
 

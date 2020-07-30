@@ -426,12 +426,42 @@ OpFoldResult AndOp::fold(ArrayRef<Attribute> operands) {
   /// and(x, 0) -> 0
   if (matchPattern(rhs(), m_Zero()))
     return rhs();
+  /// and(x, allOnes) -> x
+  APInt intValue;
+  if (matchPattern(rhs(), m_ConstantInt(&intValue)) &&
+      intValue.isAllOnesValue())
+    return lhs();
   /// and(x,x) -> x
   if (lhs() == rhs())
     return rhs();
 
   return constFoldBinaryOp<IntegerAttr>(operands,
                                         [](APInt a, APInt b) { return a & b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AssertOp
+//===----------------------------------------------------------------------===//
+
+namespace {
+struct EraseRedundantAssertions : public OpRewritePattern<AssertOp> {
+  using OpRewritePattern<AssertOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AssertOp op,
+                                PatternRewriter &rewriter) const override {
+    // Erase assertion if argument is constant true.
+    if (matchPattern(op.arg(), m_One())) {
+      rewriter.eraseOp(op);
+      return success();
+    }
+    return failure();
+  }
+};
+} // namespace
+
+void AssertOp::getCanonicalizationPatterns(OwningRewritePatternList &patterns,
+                                           MLIRContext *context) {
+  patterns.insert<EraseRedundantAssertions>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -495,22 +525,21 @@ void GenericAtomicRMWOp::build(OpBuilder &builder, OperationState &result,
 
     Region *bodyRegion = result.addRegion();
     bodyRegion->push_back(new Block());
-    bodyRegion->front().addArgument(elementType);
+    bodyRegion->addArgument(elementType);
   }
 }
 
 static LogicalResult verify(GenericAtomicRMWOp op) {
-  auto &block = op.body().front();
-  if (block.getNumArguments() != 1)
+  auto &body = op.body();
+  if (body.getNumArguments() != 1)
     return op.emitOpError("expected single number of entry block arguments");
 
-  if (op.getResult().getType() != block.getArgument(0).getType())
+  if (op.getResult().getType() != body.getArgument(0).getType())
     return op.emitOpError(
         "expected block argument of the same type result type");
 
   bool hasSideEffects =
-      op.body()
-          .walk([&](Operation *nestedOp) {
+      body.walk([&](Operation *nestedOp) {
             if (MemoryEffectOpInterface::hasNoEffect(nestedOp))
               return WalkResult::advance();
             nestedOp->emitError("body of 'generic_atomic_rmw' should contain "
@@ -784,8 +813,8 @@ static void buildCmpIOp(OpBuilder &build, OperationState &result,
 
 // Compute `lhs` `pred` `rhs`, where `pred` is one of the known integer
 // comparison predicates.
-static bool applyCmpPredicate(CmpIPredicate predicate, const APInt &lhs,
-                              const APInt &rhs) {
+bool mlir::applyCmpPredicate(CmpIPredicate predicate, const APInt &lhs,
+                             const APInt &rhs) {
   switch (predicate) {
   case CmpIPredicate::eq:
     return lhs.eq(rhs);
@@ -838,8 +867,8 @@ static void buildCmpFOp(OpBuilder &build, OperationState &result,
 
 /// Compute `lhs` `pred` `rhs`, where `pred` is one of the known floating point
 /// comparison predicates.
-static bool applyCmpPredicate(CmpFPredicate predicate, const APFloat &lhs,
-                              const APFloat &rhs) {
+bool mlir::applyCmpPredicate(CmpFPredicate predicate, const APFloat &lhs,
+                             const APFloat &rhs) {
   auto cmpResult = lhs.compare(rhs);
   switch (predicate) {
   case CmpFPredicate::AlwaysFalse:
@@ -891,7 +920,7 @@ OpFoldResult CmpFOp::fold(ArrayRef<Attribute> operands) {
   auto lhs = operands.front().dyn_cast_or_null<FloatAttr>();
   auto rhs = operands.back().dyn_cast_or_null<FloatAttr>();
 
-  // TODO(gcmn) We could actually do some intelligent things if we know only one
+  // TODO: We could actually do some intelligent things if we know only one
   // of the operands, but it's inf or nan.
   if (!lhs || !rhs)
     return {};
@@ -1028,8 +1057,6 @@ CondBranchOp::getMutableSuccessorOperands(unsigned index) {
 }
 
 Block *CondBranchOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
-  if (BoolAttr condAttr = operands.front().dyn_cast_or_null<BoolAttr>())
-    return condAttr.getValue() ? trueDest() : falseDest();
   if (IntegerAttr condAttr = operands.front().dyn_cast_or_null<IntegerAttr>())
     return condAttr.getValue().isOneValue() ? trueDest() : falseDest();
   return nullptr;
@@ -1117,7 +1144,8 @@ static LogicalResult verify(ConstantOp &op) {
     auto fn =
         op.getParentOfType<ModuleOp>().lookupSymbol<FuncOp>(fnAttr.getValue());
     if (!fn)
-      return op.emitOpError("reference to undefined function 'bar'");
+      return op.emitOpError()
+             << "reference to undefined function '" << fnAttr.getValue() << "'";
 
     // Check that the referenced function has the correct type.
     if (fn.getType() != type)
@@ -1172,9 +1200,7 @@ bool ConstantOp::isBuildableWith(Attribute value, Type type) {
   if (value.getType() != type)
     return false;
   // Finally, check that the attribute kind is handled.
-  return value.isa<BoolAttr>() || value.isa<IntegerAttr>() ||
-         value.isa<FloatAttr>() || value.isa<ElementsAttr>() ||
-         value.isa<UnitAttr>();
+  return value.isa<IntegerAttr, FloatAttr, ElementsAttr, UnitAttr>();
 }
 
 void ConstantFloatOp::build(OpBuilder &builder, OperationState &result,
@@ -1267,81 +1293,88 @@ LogicalResult DeallocOp::fold(ArrayRef<Attribute> cstOperands,
 // DimOp
 //===----------------------------------------------------------------------===//
 
-static void print(OpAsmPrinter &p, DimOp op) {
-  p << "dim " << op.getOperand() << ", " << op.getIndex();
-  p.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{"index"});
-  p << " : " << op.getOperand().getType();
+void DimOp::build(OpBuilder &builder, OperationState &result,
+                  Value memrefOrTensor, int64_t index) {
+  auto loc = result.location;
+  Value indexValue = builder.create<ConstantIndexOp>(loc, index);
+  build(builder, result, memrefOrTensor, indexValue);
 }
 
-static ParseResult parseDimOp(OpAsmParser &parser, OperationState &result) {
-  OpAsmParser::OperandType operandInfo;
-  IntegerAttr indexAttr;
-  Type type;
-  Type indexType = parser.getBuilder().getIndexType();
+void DimOp::build(OpBuilder &builder, OperationState &result,
+                  Value memrefOrTensor, Value index) {
+  auto indexTy = builder.getIndexType();
+  build(builder, result, indexTy, memrefOrTensor, index);
+}
 
-  return failure(
-      parser.parseOperand(operandInfo) || parser.parseComma() ||
-      parser.parseAttribute(indexAttr, indexType, "index", result.attributes) ||
-      parser.parseOptionalAttrDict(result.attributes) ||
-      parser.parseColonType(type) ||
-      parser.resolveOperand(operandInfo, type, result.operands) ||
-      parser.addTypeToList(indexType, result.types));
+Optional<int64_t> DimOp::getConstantIndex() {
+  if (auto constantOp = index().getDefiningOp<ConstantOp>())
+    return constantOp.getValue().cast<IntegerAttr>().getInt();
+  return {};
 }
 
 static LogicalResult verify(DimOp op) {
-  // Check that we have an integer index operand.
-  auto indexAttr = op.getAttrOfType<IntegerAttr>("index");
-  if (!indexAttr)
-    return op.emitOpError("requires an integer attribute named 'index'");
-  int64_t index = indexAttr.getInt();
 
-  auto type = op.getOperand().getType();
+  // Assume unknown index to be in range.
+  Optional<int64_t> index = op.getConstantIndex();
+  if (!index.hasValue())
+    return success();
+
+  // Check that constant index is not knowingly out of range.
+  auto type = op.memrefOrTensor().getType();
   if (auto tensorType = type.dyn_cast<RankedTensorType>()) {
-    if (index >= tensorType.getRank())
+    if (index.getValue() >= tensorType.getRank())
       return op.emitOpError("index is out of range");
   } else if (auto memrefType = type.dyn_cast<MemRefType>()) {
-    if (index >= memrefType.getRank())
+    if (index.getValue() >= memrefType.getRank())
       return op.emitOpError("index is out of range");
-
   } else if (type.isa<UnrankedTensorType>()) {
-    // ok, assumed to be in-range.
+    // Assume index to be in range.
   } else {
-    return op.emitOpError("requires an operand with tensor or memref type");
+    llvm_unreachable("expected operand with tensor or memref type");
   }
 
   return success();
 }
 
 OpFoldResult DimOp::fold(ArrayRef<Attribute> operands) {
-  // Constant fold dim when the size along the index referred to is a constant.
-  auto opType = memrefOrTensor().getType();
-  if (auto shapedType = opType.dyn_cast<ShapedType>())
-    if (!shapedType.isDynamicDim(getIndex()))
-      return IntegerAttr::get(IndexType::get(getContext()),
-                              shapedType.getShape()[getIndex()]);
+  auto index = operands[1].dyn_cast_or_null<IntegerAttr>();
 
-  // Fold dim to the size argument for an AllocOp/ViewOp/SubViewOp.
-  auto memrefType = opType.dyn_cast<MemRefType>();
+  // All forms of folding require a known index.
+  if (!index)
+    return {};
+
+  // Fold if the shape extent along the given index is known.
+  auto argTy = memrefOrTensor().getType();
+  if (auto shapedTy = argTy.dyn_cast<ShapedType>()) {
+    if (!shapedTy.isDynamicDim(index.getInt())) {
+      Builder builder(getContext());
+      return builder.getIndexAttr(shapedTy.getShape()[index.getInt()]);
+    }
+  }
+
+  // Fold dim to the size argument for an `AllocOp`, `ViewOp`, or `SubViewOp`.
+  auto memrefType = argTy.dyn_cast<MemRefType>();
   if (!memrefType)
     return {};
 
-  // The size at getIndex() is now known to be a dynamic size of a memref.
+  // The size at the given index is now known to be a dynamic size of a memref.
   auto memref = memrefOrTensor().getDefiningOp();
+  unsigned unsignedIndex = index.getValue().getZExtValue();
   if (auto alloc = dyn_cast_or_null<AllocOp>(memref))
     return *(alloc.getDynamicSizes().begin() +
-             memrefType.getDynamicDimIndex(getIndex()));
+             memrefType.getDynamicDimIndex(unsignedIndex));
 
   if (auto view = dyn_cast_or_null<ViewOp>(memref))
     return *(view.getDynamicSizes().begin() +
-             memrefType.getDynamicDimIndex(getIndex()));
+             memrefType.getDynamicDimIndex(unsignedIndex));
 
   if (auto subview = dyn_cast_or_null<SubViewOp>(memref)) {
-    assert(subview.isDynamicSize(getIndex()) &&
+    assert(subview.isDynamicSize(unsignedIndex) &&
            "Expected dynamic subview size");
-    return subview.getDynamicSize(getIndex());
+    return subview.getDynamicSize(unsignedIndex);
   }
 
-  /// dim(memrefcast) -> dim
+  // dim(memrefcast) -> dim
   if (succeeded(foldMemRefCast(*this)))
     return getResult();
 
@@ -1699,8 +1732,8 @@ struct ExtractElementFromTensorFromElements
     if (extract.indices().size() != 1)
       return failure();
 
-    auto tensor_from_elements =
-        dyn_cast<TensorFromElementsOp>(extract.aggregate().getDefiningOp());
+    auto tensor_from_elements = dyn_cast_or_null<TensorFromElementsOp>(
+        extract.aggregate().getDefiningOp());
     if (tensor_from_elements == nullptr)
       return failure();
 
@@ -1764,6 +1797,15 @@ bool FPTruncOp::areCastCompatible(Type a, Type b) {
 
 // Index cast is applicable from index to integer and backwards.
 bool IndexCastOp::areCastCompatible(Type a, Type b) {
+  if (a.isa<ShapedType>() && b.isa<ShapedType>()) {
+    auto aShaped = a.cast<ShapedType>();
+    auto bShaped = b.cast<ShapedType>();
+
+    return (aShaped.getShape() == bShaped.getShape()) &&
+           areCastCompatible(aShaped.getElementType(),
+                             bShaped.getElementType());
+  }
+
   return (a.isIndex() && b.isSignlessInteger()) ||
          (a.isSignlessInteger() && b.isIndex());
 }
@@ -1803,6 +1845,8 @@ OpFoldResult LoadOp::fold(ArrayRef<Attribute> cstOperands) {
 //===----------------------------------------------------------------------===//
 // MemRefCastOp
 //===----------------------------------------------------------------------===//
+
+Value MemRefCastOp::getViewSource() { return source(); }
 
 bool MemRefCastOp::areCastCompatible(Type a, Type b) {
   auto aT = a.dyn_cast<MemRefType>();
@@ -2013,15 +2057,16 @@ static LogicalResult verify(ReturnOp op) {
   const auto &results = function.getType().getResults();
   if (op.getNumOperands() != results.size())
     return op.emitOpError("has ")
-           << op.getNumOperands()
-           << " operands, but enclosing function returns " << results.size();
+           << op.getNumOperands() << " operands, but enclosing function (@"
+           << function.getName() << ") returns " << results.size();
 
   for (unsigned i = 0, e = results.size(); i != e; ++i)
     if (op.getOperand(i).getType() != results[i])
       return op.emitError()
              << "type of return operand " << i << " ("
              << op.getOperand(i).getType()
-             << ") doesn't match function result type (" << results[i] << ")";
+             << ") doesn't match function result type (" << results[i] << ")"
+             << " in function @" << function.getName();
 
   return success();
 }
@@ -2083,7 +2128,7 @@ static LogicalResult verify(SelectOp op) {
   // If the result type is a vector or tensor, the type can be a mask with the
   // same elements.
   Type resultType = op.getType();
-  if (!resultType.isa<TensorType>() && !resultType.isa<VectorType>())
+  if (!resultType.isa<TensorType, VectorType>())
     return op.emitOpError()
            << "expected condition to be a signless i1, but got "
            << conditionType;
@@ -2202,8 +2247,7 @@ OpFoldResult SplatOp::fold(ArrayRef<Attribute> operands) {
   assert(operands.size() == 1 && "splat takes one operand");
 
   auto constOperand = operands.front();
-  if (!constOperand ||
-      (!constOperand.isa<IntegerAttr>() && !constOperand.isa<FloatAttr>()))
+  if (!constOperand || !constOperand.isa<IntegerAttr, FloatAttr>())
     return {};
 
   auto shapedType = getType().cast<ShapedType>();
@@ -2248,6 +2292,9 @@ OpFoldResult SubIOp::fold(ArrayRef<Attribute> operands) {
   // subi(x,x) -> 0
   if (getOperand(0) == getOperand(1))
     return Builder(getContext()).getZeroAttr(getType());
+  // subi(x,0) -> x
+  if (matchPattern(rhs(), m_Zero()))
+    return lhs();
 
   return constFoldBinaryOp<IntegerAttr>(operands,
                                         [](APInt a, APInt b) { return a - b; });

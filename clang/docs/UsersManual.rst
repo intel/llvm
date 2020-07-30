@@ -1220,7 +1220,7 @@ are listed below.
 
    * ``-fno-math-errno``
 
-   * ``-ffinite-math``
+   * ``-ffinite-math-only``
 
    * ``-fassociative-math``
 
@@ -1306,14 +1306,14 @@ are listed below.
 **-f[no-]honor-infinities**
 
    If both ``-fno-honor-infinities`` and ``-fno-honor-nans`` are used,
-   has the same effect as specifying ``-ffinite-math``.
+   has the same effect as specifying ``-ffinite-math-only``.
 
 .. _opt_fhonor-nans:
 
 **-f[no-]honor-nans**
 
    If both ``-fno-honor-infinities`` and ``-fno-honor-nans`` are used,
-   has the same effect as specifying ``-ffinite-math``.
+   has the same effect as specifying ``-ffinite-math-only``.
 
 .. _opt_fsigned-zeros:
 
@@ -1351,9 +1351,9 @@ are listed below.
 
    Defaults to ``-fno-unsafe-math-optimizations``.
 
-.. _opt_ffinite-math:
+.. _opt_ffinite-math-only:
 
-**-f[no-]finite-math**
+**-f[no-]finite-math-only**
 
    Allow floating-point optimizations that assume arguments and results are
    not NaNs or +-Inf.  This defines the ``__FINITE_MATH_ONLY__`` preprocessor macro.
@@ -1362,7 +1362,7 @@ are listed below.
    * ``-fno-honor-infinities``
    * ``-fno-honor-nans``
 
-   Defaults to ``-fno-finite-math``.
+   Defaults to ``-fno-finite-math-only``.
 
 .. _opt_frounding-math:
 
@@ -1697,6 +1697,44 @@ are listed below.
      $ cd $P/foo && clang -c -funique-internal-linkage-names name_conflict.c
      $ cd $P/bar && clang -c -funique-internal-linkage-names name_conflict.c
      $ cd $P && clang foo/name_conflict.o && bar/name_conflict.o
+
+**-fbasic-block-sections=[labels, all, list=<arg>, none]**
+
+  Controls whether Clang emits a label for each basic block.  Further, with
+  values "all" and "list=arg", each basic block or a subset of basic blocks
+  can be placed in its own unique section.
+
+  With the ``list=<arg>`` option, a file containing the subset of basic blocks
+  that need to placed in unique sections can be specified.  The format of the
+  file is as follows.  For example, ``list=spec.txt`` where ``spec.txt`` is the
+  following:
+
+  ::
+
+        !foo
+        !!2
+        !_Z3barv
+
+  will place the machine basic block with ``id 2`` in function ``foo`` in a
+  unique section.  It will also place all basic blocks of functions ``bar``
+  in unique sections.
+
+  Further, section clusters can also be specified using the ``list=<arg>``
+  option.  For example, ``list=spec.txt`` where ``spec.txt`` contains:
+
+  ::
+
+        !foo
+        !!1 !!3 !!5
+        !!2 !!4 !!6
+
+  will create two unique sections for function ``foo`` with the first
+  containing the odd numbered basic blocks and the second containing the
+  even numbered basic blocks.
+
+  Basic block sections allow the linker to reorder basic blocks and enables
+  link-time optimizations like whole program inter-procedural basic block
+  reordering.
 
 Profile Guided Optimization
 ---------------------------
@@ -3094,7 +3132,7 @@ Global objects must be constructed before the first kernel using the global obje
 is executed and destroyed just after the last kernel using the program objects is
 executed. In OpenCL v2.0 drivers there is no specific API for invoking global
 constructors. However, an easy workaround would be to enqueue a constructor
-initialization kernel that has a name ``@_GLOBAL__sub_I_<compiled file name>``.
+initialization kernel that has a name ``_GLOBAL__sub_I_<compiled file name>``.
 This kernel is only present if there are any global objects to be initialized in
 the compiled binary. One way to check this is by passing ``CL_PROGRAM_KERNEL_NAMES``
 to ``clGetProgramInfo`` (OpenCL v2.0 s5.8.7).
@@ -3110,7 +3148,7 @@ before running any kernels in which the objects are used.
      clang -cl-std=clc++ test.cl
 
 If there are any global objects to be initialized, the final binary will contain
-the ``@_GLOBAL__sub_I_test.cl`` kernel to be enqueued.
+the ``_GLOBAL__sub_I_test.cl`` kernel to be enqueued.
 
 Global destructors can not be invoked in OpenCL v2.0 drivers. However, all memory used
 for program scope objects is released on ``clReleaseProgram``.

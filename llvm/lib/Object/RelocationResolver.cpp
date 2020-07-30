@@ -62,6 +62,8 @@ static bool supportsAArch64(uint64_t Type) {
   switch (Type) {
   case ELF::R_AARCH64_ABS32:
   case ELF::R_AARCH64_ABS64:
+  case ELF::R_AARCH64_PREL32:
+  case ELF::R_AARCH64_PREL64:
     return true;
   default:
     return false;
@@ -74,6 +76,10 @@ static uint64_t resolveAArch64(RelocationRef R, uint64_t S, uint64_t A) {
     return (S + getELFAddend(R)) & 0xFFFFFFFF;
   case ELF::R_AARCH64_ABS64:
     return S + getELFAddend(R);
+  case ELF::R_AARCH64_PREL32:
+    return (S + getELFAddend(R) - R.getOffset()) & 0xFFFFFFFF;
+  case ELF::R_AARCH64_PREL64:
+    return S + getELFAddend(R) - R.getOffset();
   default:
     llvm_unreachable("Invalid relocation type");
   }
@@ -127,10 +133,33 @@ static uint64_t resolveMips64(RelocationRef R, uint64_t S, uint64_t A) {
   }
 }
 
+static bool supportsMSP430(uint64_t Type) {
+  switch (Type) {
+  case ELF::R_MSP430_32:
+  case ELF::R_MSP430_16_BYTE:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static uint64_t resolveMSP430(RelocationRef R, uint64_t S, uint64_t A) {
+  switch (R.getType()) {
+  case ELF::R_MSP430_32:
+    return (S + getELFAddend(R)) & 0xFFFFFFFF;
+  case ELF::R_MSP430_16_BYTE:
+    return (S + getELFAddend(R)) & 0xFFFF;
+  default:
+    llvm_unreachable("Invalid relocation type");
+  }
+}
+
 static bool supportsPPC64(uint64_t Type) {
   switch (Type) {
   case ELF::R_PPC64_ADDR32:
   case ELF::R_PPC64_ADDR64:
+  case ELF::R_PPC64_REL32:
+  case ELF::R_PPC64_REL64:
     return true;
   default:
     return false;
@@ -143,6 +172,10 @@ static uint64_t resolvePPC64(RelocationRef R, uint64_t S, uint64_t A) {
     return (S + getELFAddend(R)) & 0xFFFFFFFF;
   case ELF::R_PPC64_ADDR64:
     return S + getELFAddend(R);
+  case ELF::R_PPC64_REL32:
+    return (S + getELFAddend(R) - R.getOffset()) & 0xFFFFFFFF;
+  case ELF::R_PPC64_REL64:
+    return S + getELFAddend(R) - R.getOffset();
   default:
     llvm_unreachable("Invalid relocation type");
   }
@@ -238,22 +271,42 @@ static uint64_t resolveX86(RelocationRef R, uint64_t S, uint64_t A) {
 }
 
 static bool supportsPPC32(uint64_t Type) {
-  return Type == ELF::R_PPC_ADDR32;
+  switch (Type) {
+  case ELF::R_PPC_ADDR32:
+  case ELF::R_PPC_REL32:
+    return true;
+  default:
+    return false;
+  }
 }
 
 static uint64_t resolvePPC32(RelocationRef R, uint64_t S, uint64_t A) {
-  if (R.getType() == ELF::R_PPC_ADDR32)
+  switch (R.getType()) {
+  case ELF::R_PPC_ADDR32:
     return (S + getELFAddend(R)) & 0xFFFFFFFF;
+  case ELF::R_PPC_REL32:
+    return (S + getELFAddend(R) - R.getOffset()) & 0xFFFFFFFF;
+  }
   llvm_unreachable("Invalid relocation type");
 }
 
 static bool supportsARM(uint64_t Type) {
-  return Type == ELF::R_ARM_ABS32;
+  switch (Type) {
+  case ELF::R_ARM_ABS32:
+  case ELF::R_ARM_REL32:
+    return true;
+  default:
+    return false;
+  }
 }
 
 static uint64_t resolveARM(RelocationRef R, uint64_t S, uint64_t A) {
-  if (R.getType() == ELF::R_ARM_ABS32)
+  switch (R.getType()) {
+  case ELF::R_ARM_ABS32:
     return (S + A) & 0xFFFFFFFF;
+  case ELF::R_ARM_REL32:
+    return (S + A - R.getOffset()) & 0xFFFFFFFF;
+  }
   llvm_unreachable("Invalid relocation type");
 }
 
@@ -505,6 +558,19 @@ static bool supportsWasm32(uint64_t Type) {
   }
 }
 
+static bool supportsWasm64(uint64_t Type) {
+  switch (Type) {
+  case wasm::R_WASM_MEMORY_ADDR_LEB64:
+  case wasm::R_WASM_MEMORY_ADDR_SLEB64:
+  case wasm::R_WASM_MEMORY_ADDR_I64:
+  case wasm::R_WASM_TABLE_INDEX_SLEB64:
+  case wasm::R_WASM_TABLE_INDEX_I64:
+    return true;
+  default:
+    return supportsWasm32(Type);
+  }
+}
+
 static uint64_t resolveWasm32(RelocationRef R, uint64_t S, uint64_t A) {
   switch (R.getType()) {
   case wasm::R_WASM_FUNCTION_INDEX_LEB:
@@ -523,6 +589,20 @@ static uint64_t resolveWasm32(RelocationRef R, uint64_t S, uint64_t A) {
     return A;
   default:
     llvm_unreachable("Invalid relocation type");
+  }
+}
+
+static uint64_t resolveWasm64(RelocationRef R, uint64_t S, uint64_t A) {
+  switch (R.getType()) {
+  case wasm::R_WASM_MEMORY_ADDR_LEB64:
+  case wasm::R_WASM_MEMORY_ADDR_SLEB64:
+  case wasm::R_WASM_MEMORY_ADDR_I64:
+  case wasm::R_WASM_TABLE_INDEX_SLEB64:
+  case wasm::R_WASM_TABLE_INDEX_I64:
+    // For wasm section, its offset at 0 -- ignoring Value
+    return A;
+  default:
+    return resolveWasm32(R, S, A);
   }
 }
 
@@ -591,6 +671,8 @@ getRelocationResolver(const ObjectFile &Obj) {
     case Triple::mipsel:
     case Triple::mips:
       return {supportsMips32, resolveMips32};
+    case Triple::msp430:
+      return {supportsMSP430, resolveMSP430};
     case Triple::sparc:
       return {supportsSparc32, resolveSparc32};
     case Triple::hexagon:
@@ -607,6 +689,8 @@ getRelocationResolver(const ObjectFile &Obj) {
   } else if (Obj.isWasm()) {
     if (Obj.getArch() == Triple::wasm32)
       return {supportsWasm32, resolveWasm32};
+    if (Obj.getArch() == Triple::wasm64)
+      return {supportsWasm64, resolveWasm64};
     return {nullptr, nullptr};
   }
 

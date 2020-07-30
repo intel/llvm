@@ -33,6 +33,7 @@
 #include "llvm/Analysis/EHPersonalities.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/InlineAsm.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
@@ -529,6 +530,7 @@ bool ObjCARCContract::tryToPeepholeInstruction(
     return true;
   case ARCInstKind::IntrinsicUser:
     // Remove calls to @llvm.objc.clang.arc.use(...).
+    Changed = true;
     Inst->eraseFromParent();
     return true;
   default:

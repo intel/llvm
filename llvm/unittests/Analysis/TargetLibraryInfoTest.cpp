@@ -415,13 +415,17 @@ TEST_F(TargetLibraryInfoTest, ValidProto) {
       "declare void @_ZdaPvSt11align_val_t(i8*, i64)\n"
       "declare void @_ZdaPvSt11align_val_tRKSt9nothrow_t(i8*, i64, %struct*)\n"
       "declare void @_ZdaPvj(i8*, i32)\n"
+      "declare void @_ZdaPvjSt11align_val_t(i8*, i32, i32)\n"
       "declare void @_ZdaPvm(i8*, i64)\n"
+      "declare void @_ZdaPvmSt11align_val_t(i8*, i64, i64)\n"
       "declare void @_ZdlPv(i8*)\n"
       "declare void @_ZdlPvRKSt9nothrow_t(i8*, %struct*)\n"
       "declare void @_ZdlPvSt11align_val_t(i8*, i64)\n"
       "declare void @_ZdlPvSt11align_val_tRKSt9nothrow_t(i8*, i64, %struct*)\n"
       "declare void @_ZdlPvj(i8*, i32)\n"
+      "declare void @_ZdlPvjSt11align_val_t(i8*, i32, i32)\n"
       "declare void @_ZdlPvm(i8*, i64)\n"
+      "declare void @_ZdlPvmSt11align_val_t(i8*, i64, i64)\n"
       "declare i8* @_Znaj(i32)\n"
       "declare i8* @_ZnajRKSt9nothrow_t(i32, %struct*)\n"
       "declare i8* @_ZnajSt11align_val_t(i32, i32)\n"
@@ -490,6 +494,9 @@ TEST_F(TargetLibraryInfoTest, ValidProto) {
       "declare i8* @memalign(i64, i64)\n"
       "declare i8* @mempcpy(i8*, i8*, i64)\n"
       "declare i8* @memrchr(i8*, i32, i64)\n"
+
+      "declare void @__atomic_load(i64, i8*, i8*, i32)\n"
+      "declare void @__atomic_store(i64, i8*, i8*, i32)\n"
 
       // These are similar to the FILE* fgetc/fputc.
       "declare i32 @_IO_getc(%struct*)\n"

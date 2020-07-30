@@ -10,14 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Support/Windows/WindowsSupport.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/Windows/WindowsSupport.h"
 #include "llvm/Support/WindowsError.h"
 #include "llvm/Support/raw_ostream.h"
+#include <psapi.h>
 #include <cstdio>
 #include <fcntl.h>
 #include <io.h>
@@ -188,7 +189,13 @@ static bool Execute(ProcessInfo &PI, StringRef Program,
   // Windows wants a command line, not an array of args, to pass to the new
   // process.  We have to concatenate them all, while quoting the args that
   // have embedded spaces (or are empty).
-  std::string Command = flattenWindowsCommandLine(Args);
+  auto Result = flattenWindowsCommandLine(Args);
+  if (std::error_code ec = Result.getError()) {
+    SetLastError(ec.value());
+    MakeErrMsg(ErrMsg, std::string("Unable to convert command-line to UTF-16"));
+    return false;
+  }
+  std::wstring Command = *Result;
 
   // The pointer to the environment block for the new process.
   std::vector<wchar_t> EnvBlock;
@@ -270,18 +277,11 @@ static bool Execute(ProcessInfo &PI, StringRef Program,
     return false;
   }
 
-  SmallVector<wchar_t, MAX_PATH> CommandUtf16;
-  if (std::error_code ec = windows::UTF8ToUTF16(Command, CommandUtf16)) {
-    SetLastError(ec.value());
-    MakeErrMsg(ErrMsg,
-               std::string("Unable to convert command-line to UTF-16"));
-    return false;
-  }
-
-  BOOL rc = CreateProcessW(ProgramUtf16.data(), CommandUtf16.data(), 0, 0,
-                           TRUE, CREATE_UNICODE_ENVIRONMENT,
-                           EnvBlock.empty() ? 0 : EnvBlock.data(), 0, &si,
-                           &pi);
+  std::vector<wchar_t> CommandUtf16(Command.size() + 1, 0);
+  std::copy(Command.begin(), Command.end(), CommandUtf16.begin());
+  BOOL rc = CreateProcessW(ProgramUtf16.data(), CommandUtf16.data(), 0, 0, TRUE,
+                           CREATE_UNICODE_ENVIRONMENT,
+                           EnvBlock.empty() ? 0 : EnvBlock.data(), 0, &si, &pi);
   DWORD err = GetLastError();
 
   // Regardless of whether the process got created or not, we are done with
@@ -375,7 +375,7 @@ static std::string quoteSingleArg(StringRef Arg) {
 }
 
 namespace llvm {
-std::string sys::flattenWindowsCommandLine(ArrayRef<StringRef> Args) {
+ErrorOr<std::wstring> sys::flattenWindowsCommandLine(ArrayRef<StringRef> Args) {
   std::string Command;
   for (StringRef Arg : Args) {
     if (argNeedsQuotes(Arg))
@@ -386,11 +386,16 @@ std::string sys::flattenWindowsCommandLine(ArrayRef<StringRef> Args) {
     Command.push_back(' ');
   }
 
-  return Command;
+  SmallVector<wchar_t, MAX_PATH> CommandUtf16;
+  if (std::error_code ec = windows::UTF8ToUTF16(Command, CommandUtf16))
+    return ec;
+
+  return std::wstring(CommandUtf16.begin(), CommandUtf16.end());
 }
 
 ProcessInfo sys::Wait(const ProcessInfo &PI, unsigned SecondsToWait,
-                      bool WaitUntilChildTerminates, std::string *ErrMsg) {
+                      bool WaitUntilChildTerminates, std::string *ErrMsg,
+                      Optional<ProcessStatistics> *ProcStat) {
   assert(PI.Pid && "invalid pid to wait on, process not started?");
   assert((PI.Process && PI.Process != INVALID_HANDLE_VALUE) &&
          "invalid process handle to wait on, process not started?");
@@ -401,6 +406,8 @@ ProcessInfo sys::Wait(const ProcessInfo &PI, unsigned SecondsToWait,
     milliSecondsToWait = SecondsToWait * 1000;
 
   ProcessInfo WaitResult = PI;
+  if (ProcStat)
+    ProcStat->reset();
   DWORD WaitStatus = WaitForSingleObject(PI.Process, milliSecondsToWait);
   if (WaitStatus == WAIT_TIMEOUT) {
     if (SecondsToWait) {
@@ -418,6 +425,22 @@ ProcessInfo sys::Wait(const ProcessInfo &PI, unsigned SecondsToWait,
     } else {
       // Non-blocking wait.
       return ProcessInfo();
+    }
+  }
+
+  // Get process execution statistics.
+  if (ProcStat) {
+    FILETIME CreationTime, ExitTime, KernelTime, UserTime;
+    PROCESS_MEMORY_COUNTERS MemInfo;
+    if (GetProcessTimes(PI.Process, &CreationTime, &ExitTime, &KernelTime,
+                        &UserTime) &&
+        GetProcessMemoryInfo(PI.Process, &MemInfo, sizeof(MemInfo))) {
+      auto UserT = std::chrono::duration_cast<std::chrono::microseconds>(
+          toDuration(UserTime));
+      auto KernelT = std::chrono::duration_cast<std::chrono::microseconds>(
+          toDuration(KernelTime));
+      uint64_t PeakMemory = MemInfo.PeakPagefileUsage / 1024;
+      *ProcStat = ProcessStatistics{UserT + KernelT, UserT, PeakMemory};
     }
   }
 
@@ -512,12 +535,16 @@ llvm::sys::writeFileWithEncoding(StringRef FileName, StringRef Contents,
 
 bool llvm::sys::commandLineFitsWithinSystemLimits(StringRef Program,
                                                   ArrayRef<StringRef> Args) {
-  // The documented max length of the command line passed to CreateProcess.
-  static const size_t MaxCommandStringLength = 32768;
+  // The documentation on CreateProcessW states that the size of the argument
+  // lpCommandLine must not be greater than 32767 characters, including the
+  // Unicode terminating null character. We use smaller value to reduce risk
+  // of getting invalid command line due to unaccounted factors.
+  static const size_t MaxCommandStringLength = 32000;
   SmallVector<StringRef, 8> FullArgs;
   FullArgs.push_back(Program);
   FullArgs.append(Args.begin(), Args.end());
-  std::string Result = flattenWindowsCommandLine(FullArgs);
-  return (Result.size() + 1) <= MaxCommandStringLength;
+  auto Result = flattenWindowsCommandLine(FullArgs);
+  assert(!Result.getError());
+  return (Result->size() + 1) <= MaxCommandStringLength;
 }
 }

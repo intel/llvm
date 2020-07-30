@@ -16,6 +16,9 @@
 #include <detail/plugin.hpp>
 #include <pi_cuda.hpp>
 
+// PI CUDA kernels carry an additional argument for the implicit global offset.
+#define NUM_IMPLICIT_ARGS 1
+
 using namespace cl::sycl;
 
 struct CudaKernelsTest : public ::testing::Test {
@@ -128,10 +131,11 @@ const char *threeParamsTwoLocal = "\n\
 TEST_F(CudaKernelsTest, PICreateProgramAndKernel) {
 
   pi_program prog;
-  ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piclProgramCreateWithSource>(
-          context_, 1, (const char **)&ptxSource, nullptr, &prog)),
-      PI_SUCCESS);
+  pi_int32 binary_status = PI_SUCCESS;
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
+                context_, 1, &device_, nullptr,
+                (const unsigned char **)&ptxSource, &binary_status, &prog)),
+            PI_SUCCESS);
 
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramBuild>(
                 prog, 1, &device_, "", nullptr, nullptr)),
@@ -147,10 +151,15 @@ TEST_F(CudaKernelsTest, PICreateProgramAndKernel) {
 TEST_F(CudaKernelsTest, PIKernelArgumentSimple) {
 
   pi_program prog;
-  ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piclProgramCreateWithSource>(
-          context_, 1, (const char **)&ptxSource, nullptr, &prog)),
-      PI_SUCCESS);
+  /// NOTE: `binary_status` currently unsused in the CUDA backend but in case we
+  /// use it at some point in the future, pass it anyway and check the result.
+  /// Same goes for all the other tests in this file.
+  pi_int32 binary_status = PI_SUCCESS;
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
+                context_, 1, &device_, nullptr,
+                (const unsigned char **)&ptxSource, &binary_status, &prog)),
+            PI_SUCCESS);
+  ASSERT_EQ(binary_status, PI_SUCCESS);
 
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramBuild>(
                 prog, 1, &device_, "", nullptr, nullptr)),
@@ -166,7 +175,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSimple) {
                 kern, 0, sizeof(int), &number)),
             PI_SUCCESS);
   const auto &kernArgs = kern->get_arg_indices();
-  ASSERT_EQ(kernArgs.size(), (size_t)1);
+  ASSERT_EQ(kernArgs.size(), (size_t)1 + NUM_IMPLICIT_ARGS);
   int storedValue = *(static_cast<const int *>(kernArgs[0]));
   ASSERT_EQ(storedValue, number);
 }
@@ -174,10 +183,12 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSimple) {
 TEST_F(CudaKernelsTest, PIKernelArgumentSetTwice) {
 
   pi_program prog;
-  ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piclProgramCreateWithSource>(
-          context_, 1, (const char **)&ptxSource, nullptr, &prog)),
-      PI_SUCCESS);
+  pi_int32 binary_status = PI_SUCCESS;
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
+                context_, 1, &device_, nullptr,
+                (const unsigned char **)&ptxSource, &binary_status, &prog)),
+            PI_SUCCESS);
+  ASSERT_EQ(binary_status, PI_SUCCESS);
 
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramBuild>(
                 prog, 1, &device_, "", nullptr, nullptr)),
@@ -193,7 +204,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwice) {
                 kern, 0, sizeof(int), &number)),
             PI_SUCCESS);
   const auto &kernArgs = kern->get_arg_indices();
-  ASSERT_GT(kernArgs.size(), (size_t)0);
+  ASSERT_GT(kernArgs.size(), (size_t)0 + NUM_IMPLICIT_ARGS);
   int storedValue = *(static_cast<const int *>(kernArgs[0]));
   ASSERT_EQ(storedValue, number);
 
@@ -202,7 +213,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwice) {
                 kern, 0, sizeof(int), &otherNumber)),
             PI_SUCCESS);
   const auto &kernArgs2 = kern->get_arg_indices();
-  ASSERT_EQ(kernArgs2.size(), (size_t)1);
+  ASSERT_EQ(kernArgs2.size(), (size_t)1 + NUM_IMPLICIT_ARGS);
   storedValue = *(static_cast<const int *>(kernArgs2[0]));
   ASSERT_EQ(storedValue, otherNumber);
 }
@@ -210,10 +221,12 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwice) {
 TEST_F(CudaKernelsTest, PIKernelSetMemObj) {
 
   pi_program prog;
-  ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piclProgramCreateWithSource>(
-          context_, 1, (const char **)&ptxSource, nullptr, &prog)),
-      PI_SUCCESS);
+  pi_int32 binary_status = PI_SUCCESS;
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
+                context_, 1, &device_, nullptr,
+                (const unsigned char **)&ptxSource, &binary_status, &prog)),
+            PI_SUCCESS);
+  ASSERT_EQ(binary_status, PI_SUCCESS);
 
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramBuild>(
                 prog, 1, &device_, "", nullptr, nullptr)),
@@ -234,7 +247,7 @@ TEST_F(CudaKernelsTest, PIKernelSetMemObj) {
                 kern, 0, sizeof(pi_mem), &memObj)),
             PI_SUCCESS);
   const auto &kernArgs = kern->get_arg_indices();
-  ASSERT_EQ(kernArgs.size(), (size_t)1);
+  ASSERT_EQ(kernArgs.size(), (size_t)1 + NUM_IMPLICIT_ARGS);
   pi_mem storedValue = *(static_cast<pi_mem *>(kernArgs[0]));
   ASSERT_EQ(storedValue, memObj);
 }
@@ -242,10 +255,12 @@ TEST_F(CudaKernelsTest, PIKernelSetMemObj) {
 TEST_F(CudaKernelsTest, PIkerneldispatch) {
 
   pi_program prog;
-  ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piclProgramCreateWithSource>(
-          context_, 1, (const char **)&ptxSource, nullptr, &prog)),
-      PI_SUCCESS);
+  pi_int32 binary_status = PI_SUCCESS;
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
+                context_, 1, &device_, nullptr,
+                (const unsigned char **)&ptxSource, &binary_status, &prog)),
+            PI_SUCCESS);
+  ASSERT_EQ(binary_status, PI_SUCCESS);
 
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramBuild>(
                 prog, 1, &device_, "", nullptr, nullptr)),
@@ -282,10 +297,12 @@ TEST_F(CudaKernelsTest, PIkerneldispatch) {
 TEST_F(CudaKernelsTest, PIkerneldispatchTwo) {
 
   pi_program prog;
-  ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piclProgramCreateWithSource>(
-          context_, 1, (const char **)&twoParams, nullptr, &prog)),
-      PI_SUCCESS);
+  pi_int32 binary_status = PI_SUCCESS;
+  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
+                context_, 1, &device_, nullptr,
+                (const unsigned char **)&twoParams, &binary_status, &prog)),
+            PI_SUCCESS);
+  ASSERT_EQ(binary_status, PI_SUCCESS);
 
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramBuild>(
                 prog, 1, &device_, "", nullptr, nullptr)),
@@ -333,10 +350,13 @@ TEST_F(CudaKernelsTest, PIkerneldispatchTwo) {
 TEST_F(CudaKernelsTest, PIKernelArgumentSetTwiceOneLocal) {
 
   pi_program prog;
+  pi_int32 binary_status = PI_SUCCESS;
   ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piclProgramCreateWithSource>(
-          context_, 1, (const char **)&threeParamsTwoLocal, nullptr, &prog)),
+      (plugin.call_nocheck<detail::PiApiKind::piProgramCreateWithBinary>(
+          context_, 1, &device_, nullptr,
+          (const unsigned char **)&threeParamsTwoLocal, &binary_status, &prog)),
       PI_SUCCESS);
+  ASSERT_EQ(binary_status, PI_SUCCESS);
 
   ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piProgramBuild>(
                 prog, 1, &device_, "", nullptr, nullptr)),
@@ -352,7 +372,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwiceOneLocal) {
                 kern, 0, sizeof(int), &number)),
             PI_SUCCESS);
   const auto &kernArgs = kern->get_arg_indices();
-  ASSERT_GT(kernArgs.size(), (size_t)0);
+  ASSERT_GT(kernArgs.size(), (size_t)0 + NUM_IMPLICIT_ARGS);
   int storedValue = *(static_cast<const int *>(kernArgs[0]));
   ASSERT_EQ(storedValue, number);
 
@@ -360,7 +380,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwiceOneLocal) {
                 kern, 1, sizeof(int), nullptr)),
             PI_SUCCESS);
   const auto &kernArgs2 = kern->get_arg_indices();
-  ASSERT_EQ(kernArgs2.size(), (size_t)2);
+  ASSERT_EQ(kernArgs2.size(), (size_t)2 + NUM_IMPLICIT_ARGS);
   storedValue = *(static_cast<const int *>(kernArgs2[1]));
   ASSERT_EQ(storedValue, 0);
 
@@ -368,7 +388,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwiceOneLocal) {
                 kern, 2, sizeof(int), nullptr)),
             PI_SUCCESS);
   const auto &kernArgs3 = kern->get_arg_indices();
-  ASSERT_EQ(kernArgs3.size(), (size_t)3);
+  ASSERT_EQ(kernArgs3.size(), (size_t)3 + NUM_IMPLICIT_ARGS);
   storedValue = *(static_cast<const int *>(kernArgs3[2]));
   ASSERT_EQ(storedValue, static_cast<int>(sizeof(int)));
 }

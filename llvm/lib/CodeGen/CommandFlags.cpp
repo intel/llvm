@@ -78,7 +78,7 @@ CGOPT(std::string, BBSections)
 CGOPT(unsigned, TLSSize)
 CGOPT(bool, EmulatedTLS)
 CGOPT(bool, UniqueSectionNames)
-CGOPT(bool, UniqueBBSectionNames)
+CGOPT(bool, UniqueBasicBlockSectionNames)
 CGOPT(EABI, EABIVersion)
 CGOPT(DebuggerKind, DebuggerTuningOpt)
 CGOPT(bool, EnableStackSizeSection)
@@ -86,6 +86,7 @@ CGOPT(bool, EnableAddrsig)
 CGOPT(bool, EmitCallSiteInfo)
 CGOPT(bool, EnableDebugEntryValues)
 CGOPT(bool, ForceDwarfFrameSection)
+CGOPT(bool, XRayOmitFunctionIndex)
 
 codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
 #define CGBINDOPT(NAME)                                                        \
@@ -350,11 +351,11 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
       cl::init(true));
   CGBINDOPT(UniqueSectionNames);
 
-  static cl::opt<bool> UniqueBBSectionNames(
+  static cl::opt<bool> UniqueBasicBlockSectionNames(
       "unique-bb-section-names",
       cl::desc("Give unique names to every basic block section"),
       cl::init(false));
-  CGBINDOPT(UniqueBBSectionNames);
+  CGBINDOPT(UniqueBasicBlockSectionNames);
 
   static cl::opt<EABI> EABIVersion(
       "meabi", cl::desc("Set EABI type (default depends on triple):"),
@@ -403,6 +404,11 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
       "force-dwarf-frame-section",
       cl::desc("Always emit a debug frame section."), cl::init(false));
   CGBINDOPT(ForceDwarfFrameSection);
+
+  static cl::opt<bool> XRayOmitFunctionIndex(
+      "no-xray-index", cl::desc("Don't emit xray_fn_idx section"),
+      cl::init(false));
+  CGBINDOPT(XRayOmitFunctionIndex);
 
 #undef CGBINDOPT
 
@@ -460,7 +466,7 @@ TargetOptions codegen::InitTargetOptionsFromCodeGenFlags() {
   Options.FunctionSections = getFunctionSections();
   Options.BBSections = getBBSectionsMode(Options);
   Options.UniqueSectionNames = getUniqueSectionNames();
-  Options.UniqueBBSectionNames = getUniqueBBSectionNames();
+  Options.UniqueBasicBlockSectionNames = getUniqueBasicBlockSectionNames();
   Options.TLSSize = getTLSSize();
   Options.EmulatedTLS = getEmulatedTLS();
   Options.ExplicitEmulatedTLS = EmulatedTLSView->getNumOccurrences() > 0;
@@ -470,6 +476,7 @@ TargetOptions codegen::InitTargetOptionsFromCodeGenFlags() {
   Options.EmitCallSiteInfo = getEmitCallSiteInfo();
   Options.EnableDebugEntryValues = getEnableDebugEntryValues();
   Options.ForceDwarfFrameSection = getForceDwarfFrameSection();
+  Options.XRayOmitFunctionIndex = getXRayOmitFunctionIndex();
 
   Options.MCOptions = mc::InitMCTargetOptionsFromFlags();
 

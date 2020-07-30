@@ -187,7 +187,7 @@ static BasicBlock *unifyReturnBlockSet(Function &F,
 
   for (BasicBlock *BB : ReturningBlocks) {
     // Cleanup possible branch to unconditional branch to the return.
-    simplifyCFG(BB, TTI, {2});
+    simplifyCFG(BB, TTI, SimplifyCFGOptions().bonusInstThreshold(2));
   }
 
   return NewRetBlock;
@@ -199,8 +199,7 @@ bool AMDGPUUnifyDivergentExitNodes::runOnFunction(Function &F) {
   // If there's only one exit, we don't need to do anything, unless this is a
   // pixel shader and that exit is an infinite loop, since we still have to
   // insert an export in that case.
-  if (PDT.getRoots().size() <= 1 &&
-      F.getCallingConv() != CallingConv::AMDGPU_PS)
+  if (PDT.root_size() <= 1 && F.getCallingConv() != CallingConv::AMDGPU_PS)
     return false;
 
   LegacyDivergenceAnalysis &DA = getAnalysis<LegacyDivergenceAnalysis>();
@@ -216,7 +215,8 @@ bool AMDGPUUnifyDivergentExitNodes::runOnFunction(Function &F) {
 
   bool InsertExport = false;
 
-  for (BasicBlock *BB : PDT.getRoots()) {
+  bool Changed = false;
+  for (BasicBlock *BB : PDT.roots()) {
     if (isa<ReturnInst>(BB->getTerminator())) {
       if (!isUniformlyReached(DA, *BB))
         ReturningBlocks.push_back(BB);
@@ -281,6 +281,7 @@ bool AMDGPUUnifyDivergentExitNodes::runOnFunction(Function &F) {
         BB->getTerminator()->eraseFromParent();
         BranchInst::Create(TransitionBB, DummyReturnBB, BoolTrue, BB);
       }
+      Changed = true;
     }
   }
 
@@ -299,6 +300,7 @@ bool AMDGPUUnifyDivergentExitNodes::runOnFunction(Function &F) {
         BB->getTerminator()->eraseFromParent();
         BranchInst::Create(UnreachableBlock, BB);
       }
+      Changed = true;
     }
 
     if (!ReturningBlocks.empty()) {
@@ -322,15 +324,16 @@ bool AMDGPUUnifyDivergentExitNodes::runOnFunction(Function &F) {
       // actually reached here.
       ReturnInst::Create(F.getContext(), RetVal, UnreachableBlock);
       ReturningBlocks.push_back(UnreachableBlock);
+      Changed = true;
     }
   }
 
   // Now handle return blocks.
   if (ReturningBlocks.empty())
-    return false; // No blocks return
+    return Changed; // No blocks return
 
   if (ReturningBlocks.size() == 1 && !InsertExport)
-    return false; // Already has a single return block
+    return Changed; // Already has a single return block
 
   const TargetTransformInfo &TTI
     = getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);

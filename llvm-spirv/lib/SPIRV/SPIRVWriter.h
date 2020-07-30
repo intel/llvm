@@ -96,6 +96,7 @@ public:
   bool transSourceLanguage();
   bool transExtension();
   bool transBuiltinSet();
+  bool isKnownIntrinsic(Intrinsic::ID Id);
   SPIRVValue *transIntrinsicInst(IntrinsicInst *Intrinsic, SPIRVBasicBlock *BB);
   SPIRVValue *transCallInst(CallInst *Call, SPIRVBasicBlock *BB);
   SPIRVValue *transDirectCallInst(CallInst *Call, SPIRVBasicBlock *BB);
@@ -105,6 +106,7 @@ public:
   bool transDecoration(Value *V, SPIRVValue *BV);
   SPIRVWord transFunctionControlMask(Function *);
   SPIRVFunction *transFunctionDecl(Function *F);
+  void transVectorComputeMetadata(Function *F);
   bool transGlobalVariables();
 
   Op transBoolOpCode(SPIRVValue *Opn, Op OC);
@@ -172,7 +174,7 @@ private:
                                SPIRVExtInstSetKind *BuiltinSet = nullptr,
                                SPIRVWord *EntryPoint = nullptr,
                                SmallVectorImpl<std::string> *Dec = nullptr);
-  bool oclIsKernel(Function *F);
+  bool isKernel(Function *F);
   bool transMetadata();
   bool transOCLMetadata();
   SPIRVInstruction *transBuiltinToInst(StringRef DemangledName, CallInst *CI,

@@ -65,11 +65,11 @@ public:
   /// The merge function follows a strict order to maintain monotonicity:
   /// 1. SDK with the higher SDKType wins.
   /// 2. The newer SDK wins.
-  void Merge(XcodeSDK other);
+  void Merge(const XcodeSDK &other);
 
-  XcodeSDK &operator=(XcodeSDK other);
+  XcodeSDK &operator=(const XcodeSDK &other);
   XcodeSDK(const XcodeSDK&) = default;
-  bool operator==(XcodeSDK other);
+  bool operator==(const XcodeSDK &other);
 
   /// Return parsed SDK type and version number.
   Info Parse() const;
@@ -87,6 +87,8 @@ public:
   static std::string GetCanonicalName(Info info);
   /// Return the best-matching SDK type for a specific triple.
   static XcodeSDK::Type GetSDKTypeForTriple(const llvm::Triple &triple);
+
+  static std::string FindXcodeContentsDirectoryInPath(llvm::StringRef path);
 };
 
 } // namespace lldb_private

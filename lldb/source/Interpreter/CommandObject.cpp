@@ -282,7 +282,7 @@ void CommandObject::HandleCompletion(CompletionRequest &request) {
   } else {
     // Can we do anything generic with the options?
     Options *cur_options = GetOptions();
-    CommandReturnObject result;
+    CommandReturnObject result(m_interpreter.GetDebugger().GetUseColor());
     OptionElementVector opt_element_vector;
 
     if (cur_options != nullptr) {
@@ -836,8 +836,8 @@ void CommandObject::FormatLongHelpText(Stream &output_strm,
     }
     std::string whitespace_prefix = line.substr(0, result);
     std::string remainder = line.substr(result);
-    interpreter.OutputFormattedHelpText(output_strm, whitespace_prefix.c_str(),
-                                        remainder.c_str());
+    interpreter.OutputFormattedHelpText(output_strm, whitespace_prefix,
+                                        remainder);
   }
 }
 
@@ -849,13 +849,11 @@ void CommandObject::GenerateHelpText(CommandReturnObject &result) {
 
 void CommandObject::GenerateHelpText(Stream &output_strm) {
   CommandInterpreter &interpreter = GetCommandInterpreter();
+  std::string help_text(GetHelp());
   if (WantsRawCommandString()) {
-    std::string help_text(GetHelp());
     help_text.append("  Expects 'raw' input (see 'help raw-input'.)");
-    interpreter.OutputFormattedHelpText(output_strm, "", "", help_text.c_str(),
-                                        1);
-  } else
-    interpreter.OutputFormattedHelpText(output_strm, "", "", GetHelp(), 1);
+  }
+  interpreter.OutputFormattedHelpText(output_strm, "", help_text);
   output_strm << "\nSyntax: " << GetSyntax() << "\n";
   Options *options = GetOptions();
   if (options != nullptr) {
@@ -1066,6 +1064,7 @@ CommandObject::ArgumentTableEntry CommandObject::g_arguments_data[] = {
     { eArgTypeIndex, "index", CommandCompletions::eNoCompletion, { nullptr, false }, "An index into a list." },
     { eArgTypeLanguage, "source-language", CommandCompletions::eNoCompletion, { LanguageTypeHelpTextCallback, true }, nullptr },
     { eArgTypeLineNum, "linenum", CommandCompletions::eNoCompletion, { nullptr, false }, "Line number in a source file." },
+    { eArgTypeFileLineColumn, "linespec", CommandCompletions::eNoCompletion, { nullptr, false }, "A source specifier in the form file:line[:column]" },
     { eArgTypeLogCategory, "log-category", CommandCompletions::eNoCompletion, { nullptr, false }, "The name of a category within a log channel, e.g. all (try \"log list\" to see a list of all channels and their categories." },
     { eArgTypeLogChannel, "log-channel", CommandCompletions::eNoCompletion, { nullptr, false }, "The name of a log channel, e.g. process.gdb-remote (try \"log list\" to see a list of all channels and their categories)." },
     { eArgTypeMethod, "method", CommandCompletions::eNoCompletion, { nullptr, false }, "A C++ method name." },

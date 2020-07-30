@@ -346,20 +346,20 @@ involving multiple operands/attributes/results are provided as the second
 template parameter to the `Op` class. They should be deriving from the `OpTrait`
 class. See [Constraints](#constraints) for more information.
 
-### Operation interfaces
+### Interfaces
 
-[Operation interfaces](Interfaces.md#operation-interfaces) allow
-operations to expose method calls without the
-caller needing to know the exact operation type. Operation interfaces
-defined in C++ can be accessed in the ODS framework via the
-`OpInterfaceTrait` class. Aside from using pre-existing interfaces in
-the C++ API, the ODS framework also provides a simplified mechanism
-for defining such interfaces which removes much of the boilerplate
-necessary.
+[Interfaces](Interfaces.md#attribute-operation-type-interfaces) allow for
+attributes, operations, and types to expose method calls without the caller
+needing to know the derived type. Operation interfaces defined in C++ can be
+accessed in the ODS framework via the `OpInterfaceTrait` class. Aside from using
+pre-existing interfaces in the C++ API, the ODS framework also provides a
+simplified mechanism for defining such interfaces which removes much of the
+boilerplate necessary.
 
-Providing a definition of the `OpInterface` class will auto-generate the C++
-classes for the interface. An `OpInterface` includes a name, for the C++ class,
-a description, and a list of interface methods.
+Providing a definition of the `AttrInterface`, `OpInterface`, or `TypeInterface`
+class will auto-generate the C++ classes for the interface. An interface
+includes a name, for the C++ class, a description, and a list of interface
+methods.
 
 ```tablegen
 def MyInterface : OpInterface<"MyInterface"> {
@@ -444,16 +444,17 @@ def MyInterface : OpInterface<"MyInterface"> {
     // Note: `ConcreteOp` corresponds to the derived operation typename.
     InterfaceMethod<"/*insert doc here*/",
       "unsigned", "getNumWithDefault", (ins), /*methodBody=*/[{}], [{
-        ConcreteOp op = cast<ConcreteOp>(getOperation());
+        ConcreteOp op = cast<ConcreteOp>(this->getOperation());
         return op.getNumInputs() + op.getNumOutputs();
     }]>,
   ];
 }
 
-// Interfaces can optionally be wrapped inside DeclareOpInterfaceMethods. This
-// would result in autogenerating declarations for members `foo`, `bar` and
-// `fooStatic`. Methods with bodies are not declared inside the op
-// declaration but instead handled by the op interface trait directly.
+// Operation interfaces can optionally be wrapped inside
+// DeclareOpInterfaceMethods. This would result in autogenerating declarations
+// for members `foo`, `bar` and `fooStatic`. Methods with bodies are not
+// declared inside the op declaration but instead handled by the op interface
+// trait directly.
 def OpWithInferTypeInterfaceOp : Op<...
     [DeclareOpInterfaceMethods<MyInterface>]> { ... }
 
@@ -465,9 +466,9 @@ def OpWithOverrideInferTypeInterfaceOp : Op<...
     [DeclareOpInterfaceMethods<MyInterface, ["getNumWithDefault"]>]> { ... }
 ```
 
-A verification method can also be specified on the `OpInterface` by setting
-`verify`. Setting `verify` results in the generated trait having a `verifyTrait`
-method that is applied to all operations implementing the trait.
+Operation interfaces may also provide a verification method on `OpInterface` by
+setting `verify`. Setting `verify` results in the generated trait having a
+`verifyTrait` method that is applied to all operations implementing the trait.
 
 ### Builder methods
 
@@ -626,7 +627,8 @@ let verifier = [{
 ```
 
 Code placed in `verifier` will be called after the auto-generated verification
-code.
+code. The order of trait verification excluding those of `verifier` should not
+be relied upon.
 
 ### Declarative Assembly Format
 
@@ -711,7 +713,8 @@ of the assembly format can be marked as `optional` based on the presence of this
 information. An optional group is defined by wrapping a set of elements within
 `()` followed by a `?` and has the following requirements:
 
-*   The first element of the group must either be a literal or an operand.
+*   The first element of the group must either be a literal, attribute, or an
+    operand.
     -   This is because the first element must be optionally parsable.
 *   Exactly one argument variable within the group must be marked as the anchor
     of the group.
@@ -778,8 +781,8 @@ There are many operations that have known type equality constraints registered
 as traits on the operation; for example the true, false, and result values of a
 `select` operation often have the same type. The assembly format may inspect
 these equal constraints to discern the types of missing variables. The currently
-supported traits are: `AllTypesMatch`, `SameTypeOperands`, and
-`SameOperandsAndResultType`.
+supported traits are: `AllTypesMatch`, `TypesMatchWith`, `SameTypeOperands`,
+and `SameOperandsAndResultType`.
 
 ### `hasCanonicalizer`
 
@@ -847,9 +850,8 @@ to access them. For example, for a binary arithmetic operation, it may provide
 `.lhs()` to access the first operand and `.rhs()` to access the second operand.
 
 The operand adaptor class lives in the same namespace as the operation class,
-and has the name of the operation followed by `OperandAdaptor`. A template
-declaration `OperandAdaptor<>` is provided to look up the operand adaptor for
-the given operation.
+and has the name of the operation followed by `Adaptor` as well as an alias
+`Adaptor` inside the op class.
 
 Operand adaptors can be used in function templates that also process operations:
 
@@ -861,7 +863,7 @@ std::pair<Value, Value> zip(BinaryOpTy &&op) {
 
 void process(AddOp op, ArrayRef<Value> newOperands) {
   zip(op);
-  zip(OperandAdaptor<AddOp>(newOperands));
+  zip(Adaptor<AddOp>(newOperands));
   /*...*/
 }
 ```
@@ -963,9 +965,9 @@ is used. They serve as "hooks" to the enclosing environment.  This includes
   replaced by the operand/result's type. E.g., for `F32` in `F32:$operand`, its
   `$_self` will be expanded as `getOperand(...).getType()`.
 
-TODO(b/130663252): Reconsider the leading symbol for special placeholders.
-Eventually we want to allow referencing operand/result $-names; such $-names
-can start with underscore.
+TODO: Reconsider the leading symbol for special placeholders. Eventually we want
+to allow referencing operand/result $-names; such $-names can start with
+underscore.
 
 For example, to write an attribute `attr` is an `IntegerAttr`, in C++ you can
 just call `attr.isa<IntegerAttr>()`. The code can be wrapped in a `CPred` as

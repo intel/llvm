@@ -10,7 +10,12 @@
 
 #include "llvm/Analysis/StackSafetyAnalysis.h"
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/ModuleSummaryAnalysis.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
+#include "llvm/Analysis/StackLifetime.h"
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/GlobalValue.h"
@@ -20,6 +25,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <memory>
@@ -28,37 +34,24 @@ using namespace llvm;
 
 #define DEBUG_TYPE "stack-safety"
 
+STATISTIC(NumAllocaStackSafe, "Number of safe allocas");
+STATISTIC(NumAllocaTotal, "Number of total allocas");
+
 static cl::opt<int> StackSafetyMaxIterations("stack-safety-max-iterations",
                                              cl::init(20), cl::Hidden);
 
-static cl::opt<int> StackSafetyPrint("stack-safety-print", cl::init(0),
-                                     cl::Hidden);
+static cl::opt<bool> StackSafetyPrint("stack-safety-print", cl::init(false),
+                                      cl::Hidden);
+
+static cl::opt<bool> StackSafetyRun("stack-safety-run", cl::init(false),
+                                    cl::Hidden);
 
 namespace {
 
-/// Rewrite an SCEV expression for a memory access address to an expression that
-/// represents offset from the given alloca.
-class AllocaOffsetRewriter : public SCEVRewriteVisitor<AllocaOffsetRewriter> {
-  const Value *AllocaPtr;
-
-public:
-  AllocaOffsetRewriter(ScalarEvolution &SE, const Value *AllocaPtr)
-      : SCEVRewriteVisitor(SE), AllocaPtr(AllocaPtr) {}
-
-  const SCEV *visitUnknown(const SCEVUnknown *Expr) {
-    // FIXME: look through one or several levels of definitions?
-    // This can be inttoptr(AllocaPtr) and SCEV would not unwrap
-    // it for us.
-    if (Expr->getValue() == AllocaPtr)
-      return SE.getZero(Expr->getType());
-    return Expr;
-  }
-};
-
 /// Describes use of address in as a function call argument.
-struct PassAsArgInfo {
+template <typename CalleeTy> struct CallInfo {
   /// Function being called.
-  const GlobalValue *Callee = nullptr;
+  const CalleeTy *Callee = nullptr;
   /// Index of argument which pass address.
   size_t ParamNo = 0;
   // Offset range of address from base address (alloca or calling function
@@ -66,27 +59,26 @@ struct PassAsArgInfo {
   // Range should never set to empty-set, that is an invalid access range
   // that can cause empty-set to be propagated with ConstantRange::add
   ConstantRange Offset;
-  PassAsArgInfo(const GlobalValue *Callee, size_t ParamNo, ConstantRange Offset)
+  CallInfo(const CalleeTy *Callee, size_t ParamNo, const ConstantRange &Offset)
       : Callee(Callee), ParamNo(ParamNo), Offset(Offset) {}
-
-  StringRef getName() const { return Callee->getName(); }
 };
 
-raw_ostream &operator<<(raw_ostream &OS, const PassAsArgInfo &P) {
-  return OS << "@" << P.getName() << "(arg" << P.ParamNo << ", " << P.Offset
-            << ")";
+template <typename CalleeTy>
+raw_ostream &operator<<(raw_ostream &OS, const CallInfo<CalleeTy> &P) {
+  return OS << "@" << P.Callee->getName() << "(arg" << P.ParamNo << ", "
+            << P.Offset << ")";
 }
 
 /// Describe uses of address (alloca or parameter) inside of the function.
-struct UseInfo {
+template <typename CalleeTy> struct UseInfo {
   // Access range if the address (alloca or parameters).
   // It is allowed to be empty-set when there are no known accesses.
   ConstantRange Range;
 
   // List of calls which pass address as an argument.
-  SmallVector<PassAsArgInfo, 4> Calls;
+  SmallVector<CallInfo<CalleeTy>, 4> Calls;
 
-  explicit UseInfo(unsigned PointerSize) : Range{PointerSize, false} {}
+  UseInfo(unsigned PointerSize) : Range{PointerSize, false} {}
 
   void updateRange(const ConstantRange &R) {
     assert(!R.isUpperSignWrapped());
@@ -95,7 +87,8 @@ struct UseInfo {
   }
 };
 
-raw_ostream &operator<<(raw_ostream &OS, const UseInfo &U) {
+template <typename CalleeTy>
+raw_ostream &operator<<(raw_ostream &OS, const UseInfo<CalleeTy> &U) {
   OS << U.Range;
   for (auto &Call : U.Calls)
     OS << ", " << Call;
@@ -105,6 +98,13 @@ raw_ostream &operator<<(raw_ostream &OS, const UseInfo &U) {
 // Check if we should bailout for such ranges.
 bool isUnsafe(const ConstantRange &R) {
   return R.isEmptySet() || R.isFullSet() || R.isUpperSignWrapped();
+}
+
+ConstantRange addOverflowNever(const ConstantRange &L, const ConstantRange &R) {
+  if (L.signedAddMayOverflow(R) !=
+      ConstantRange::OverflowResult::NeverOverflows)
+    return ConstantRange(L.getBitWidth(), true);
+  return L.add(R);
 }
 
 /// Calculate the allocation size of a given alloca. Returns empty range
@@ -138,9 +138,9 @@ ConstantRange getStaticAllocaSizeRange(const AllocaInst &AI) {
   return R;
 }
 
-struct FunctionInfo {
-  SmallVector<UseInfo, 4> Allocas;
-  SmallVector<UseInfo, 4> Params;
+template <typename CalleeTy> struct FunctionInfo {
+  std::map<const AllocaInst *, UseInfo<CalleeTy>> Allocas;
+  std::map<uint32_t, UseInfo<CalleeTy>> Params;
   // TODO: describe return value as depending on one or more of its arguments.
 
   // StackSafetyDataFlowAnalysis counter stored here for faster access.
@@ -153,24 +153,22 @@ struct FunctionInfo {
       << ((F && F->isInterposable()) ? " interposable" : "") << "\n";
 
     O << "    args uses:\n";
-    size_t Pos = 0;
-    for (auto &P : Params) {
-      StringRef Name = "<N/A>";
+    for (auto &KV : Params) {
+      O << "      ";
       if (F)
-        Name = F->getArg(Pos)->getName();
-      O << "      " << Name << "[]: " << P << "\n";
-      ++Pos;
+        O << F->getArg(KV.first)->getName();
+      else
+        O << formatv("arg{0}", KV.first);
+      O << "[]: " << KV.second << "\n";
     }
 
     O << "    allocas uses:\n";
     if (F) {
-      size_t Pos = 0;
       for (auto &I : instructions(F)) {
-        if (const auto *AI = dyn_cast<AllocaInst>(&I)) {
-          auto &AS = Allocas[Pos];
+        if (const AllocaInst *AI = dyn_cast<AllocaInst>(&I)) {
+          auto &AS = Allocas.find(AI)->second;
           O << "      " << AI->getName() << "["
             << getStaticAllocaSizeRange(*AI).getUpper() << "]: " << AS << "\n";
-          ++Pos;
         }
       }
     } else {
@@ -179,16 +177,17 @@ struct FunctionInfo {
   }
 };
 
-using GVToSSI = std::map<const GlobalValue *, FunctionInfo>;
+using GVToSSI = std::map<const GlobalValue *, FunctionInfo<GlobalValue>>;
 
 } // namespace
 
 struct StackSafetyInfo::InfoTy {
-  FunctionInfo Info;
+  FunctionInfo<GlobalValue> Info;
 };
 
 struct StackSafetyGlobalInfo::InfoTy {
   GVToSSI Info;
+  SmallPtrSet<const AllocaInst *, 8> SafeAllocas;
 };
 
 namespace {
@@ -203,12 +202,13 @@ class StackSafetyLocalAnalysis {
 
   ConstantRange offsetFrom(Value *Addr, Value *Base);
   ConstantRange getAccessRange(Value *Addr, Value *Base,
-                               ConstantRange SizeRange);
+                               const ConstantRange &SizeRange);
   ConstantRange getAccessRange(Value *Addr, Value *Base, TypeSize Size);
   ConstantRange getMemIntrinsicAccessRange(const MemIntrinsic *MI, const Use &U,
                                            Value *Base);
 
-  bool analyzeAllUses(Value *Ptr, UseInfo &AS);
+  bool analyzeAllUses(Value *Ptr, UseInfo<GlobalValue> &AS,
+                      const StackLifetime &SL);
 
 public:
   StackSafetyLocalAnalysis(Function &F, ScalarEvolution &SE)
@@ -217,16 +217,19 @@ public:
         UnknownRange(PointerSize, true) {}
 
   // Run the transformation on the associated function.
-  FunctionInfo run();
+  FunctionInfo<GlobalValue> run();
 };
 
 ConstantRange StackSafetyLocalAnalysis::offsetFrom(Value *Addr, Value *Base) {
-  if (!SE.isSCEVable(Addr->getType()))
+  if (!SE.isSCEVable(Addr->getType()) || !SE.isSCEVable(Base->getType()))
     return UnknownRange;
 
-  AllocaOffsetRewriter Rewriter(SE, Base);
-  const SCEV *Expr = Rewriter.visit(SE.getSCEV(Addr));
-  ConstantRange Offset = SE.getSignedRange(Expr);
+  auto *PtrTy = IntegerType::getInt8PtrTy(SE.getContext());
+  const SCEV *AddrExp = SE.getTruncateOrZeroExtend(SE.getSCEV(Addr), PtrTy);
+  const SCEV *BaseExp = SE.getTruncateOrZeroExtend(SE.getSCEV(Base), PtrTy);
+  const SCEV *Diff = SE.getMinusSCEV(AddrExp, BaseExp);
+
+  ConstantRange Offset = SE.getSignedRange(Diff);
   if (isUnsafe(Offset))
     return UnknownRange;
   return Offset.sextOrTrunc(PointerSize);
@@ -234,7 +237,7 @@ ConstantRange StackSafetyLocalAnalysis::offsetFrom(Value *Addr, Value *Base) {
 
 ConstantRange
 StackSafetyLocalAnalysis::getAccessRange(Value *Addr, Value *Base,
-                                         ConstantRange SizeRange) {
+                                         const ConstantRange &SizeRange) {
   // Zero-size loads and stores do not access memory.
   if (SizeRange.isEmptySet())
     return ConstantRange::getEmpty(PointerSize);
@@ -244,10 +247,7 @@ StackSafetyLocalAnalysis::getAccessRange(Value *Addr, Value *Base,
   if (isUnsafe(Offsets))
     return UnknownRange;
 
-  if (Offsets.signedAddMayOverflow(SizeRange) !=
-      ConstantRange::OverflowResult::NeverOverflows)
-    return UnknownRange;
-  Offsets = Offsets.add(SizeRange);
+  Offsets = addOverflowNever(Offsets, SizeRange);
   if (isUnsafe(Offsets))
     return UnknownRange;
   return Offsets;
@@ -291,20 +291,30 @@ ConstantRange StackSafetyLocalAnalysis::getMemIntrinsicAccessRange(
 
 /// The function analyzes all local uses of Ptr (alloca or argument) and
 /// calculates local access range and all function calls where it was used.
-bool StackSafetyLocalAnalysis::analyzeAllUses(Value *Ptr, UseInfo &US) {
+bool StackSafetyLocalAnalysis::analyzeAllUses(Value *Ptr,
+                                              UseInfo<GlobalValue> &US,
+                                              const StackLifetime &SL) {
   SmallPtrSet<const Value *, 16> Visited;
   SmallVector<const Value *, 8> WorkList;
   WorkList.push_back(Ptr);
+  const AllocaInst *AI = dyn_cast<AllocaInst>(Ptr);
 
   // A DFS search through all uses of the alloca in bitcasts/PHI/GEPs/etc.
   while (!WorkList.empty()) {
     const Value *V = WorkList.pop_back_val();
     for (const Use &UI : V->uses()) {
-      const auto *I = cast<const Instruction>(UI.getUser());
+      const auto *I = cast<Instruction>(UI.getUser());
+      if (!SL.isReachable(I))
+        continue;
+
       assert(V == UI.get());
 
       switch (I->getOpcode()) {
       case Instruction::Load: {
+        if (AI && !SL.isAliveAfter(AI, I)) {
+          US.updateRange(UnknownRange);
+          return false;
+        }
         US.updateRange(
             getAccessRange(UI, Ptr, DL.getTypeStoreSize(I->getType())));
         break;
@@ -316,6 +326,10 @@ bool StackSafetyLocalAnalysis::analyzeAllUses(Value *Ptr, UseInfo &US) {
       case Instruction::Store: {
         if (V == I->getOperand(0)) {
           // Stored the pointer - conservatively assume it may be unsafe.
+          US.updateRange(UnknownRange);
+          return false;
+        }
+        if (AI && !SL.isAliveAfter(AI, I)) {
           US.updateRange(UnknownRange);
           return false;
         }
@@ -333,13 +347,29 @@ bool StackSafetyLocalAnalysis::analyzeAllUses(Value *Ptr, UseInfo &US) {
 
       case Instruction::Call:
       case Instruction::Invoke: {
-        const auto &CB = cast<CallBase>(*I);
-
         if (I->isLifetimeStartOrEnd())
           break;
 
+        if (AI && !SL.isAliveAfter(AI, I)) {
+          US.updateRange(UnknownRange);
+          return false;
+        }
+
         if (const MemIntrinsic *MI = dyn_cast<MemIntrinsic>(I)) {
           US.updateRange(getMemIntrinsicAccessRange(MI, UI, Ptr));
+          break;
+        }
+
+        const auto &CB = cast<CallBase>(*I);
+        if (!CB.isArgOperand(&UI)) {
+          US.updateRange(UnknownRange);
+          return false;
+        }
+
+        unsigned ArgNo = CB.getArgOperandNo(&UI);
+        if (CB.isByValArgument(ArgNo)) {
+          US.updateRange(getAccessRange(
+              UI, Ptr, DL.getTypeStoreSize(CB.getParamByValType(ArgNo))));
           break;
         }
 
@@ -354,19 +384,7 @@ bool StackSafetyLocalAnalysis::analyzeAllUses(Value *Ptr, UseInfo &US) {
         }
 
         assert(isa<Function>(Callee) || isa<GlobalAlias>(Callee));
-
-        int Found = 0;
-        for (size_t ArgNo = 0; ArgNo < CB.getNumArgOperands(); ++ArgNo) {
-          if (CB.getArgOperand(ArgNo) == V) {
-            ++Found;
-            US.Calls.emplace_back(Callee, ArgNo, offsetFrom(UI, Ptr));
-          }
-        }
-        if (!Found) {
-          US.updateRange(UnknownRange);
-          return false;
-        }
-
+        US.Calls.emplace_back(Callee, ArgNo, offsetFrom(UI, Ptr));
         break;
       }
 
@@ -380,25 +398,32 @@ bool StackSafetyLocalAnalysis::analyzeAllUses(Value *Ptr, UseInfo &US) {
   return true;
 }
 
-FunctionInfo StackSafetyLocalAnalysis::run() {
-  FunctionInfo Info;
+FunctionInfo<GlobalValue> StackSafetyLocalAnalysis::run() {
+  FunctionInfo<GlobalValue> Info;
   assert(!F.isDeclaration() &&
          "Can't run StackSafety on a function declaration");
 
   LLVM_DEBUG(dbgs() << "[StackSafety] " << F.getName() << "\n");
 
-  for (auto &I : instructions(F)) {
-    if (auto *AI = dyn_cast<AllocaInst>(&I)) {
-      Info.Allocas.emplace_back(PointerSize);
-      UseInfo &AS = Info.Allocas.back();
-      analyzeAllUses(AI, AS);
-    }
+  SmallVector<AllocaInst *, 64> Allocas;
+  for (auto &I : instructions(F))
+    if (auto *AI = dyn_cast<AllocaInst>(&I))
+      Allocas.push_back(AI);
+  StackLifetime SL(F, Allocas, StackLifetime::LivenessType::Must);
+  SL.run();
+
+  for (auto *AI : Allocas) {
+    auto &UI = Info.Allocas.emplace(AI, PointerSize).first->second;
+    analyzeAllUses(AI, UI, SL);
   }
 
   for (Argument &A : make_range(F.arg_begin(), F.arg_end())) {
-    Info.Params.emplace_back(PointerSize);
-    UseInfo &PS = Info.Params.back();
-    analyzeAllUses(&A, PS);
+    // Non pointers and bypass arguments are not going to be used in any global
+    // processing.
+    if (A.getType()->isPointerTy() && !A.hasByValAttr()) {
+      auto &UI = Info.Params.emplace(A.getArgNo(), PointerSize).first->second;
+      analyzeAllUses(&A, UI, SL);
+    }
   }
 
   LLVM_DEBUG(Info.print(dbgs(), F.getName(), &F));
@@ -406,20 +431,19 @@ FunctionInfo StackSafetyLocalAnalysis::run() {
   return Info;
 }
 
-class StackSafetyDataFlowAnalysis {
-  using FunctionMap = std::map<const GlobalValue *, FunctionInfo>;
+template <typename CalleeTy> class StackSafetyDataFlowAnalysis {
+  using FunctionMap = std::map<const CalleeTy *, FunctionInfo<CalleeTy>>;
 
   FunctionMap Functions;
   const ConstantRange UnknownRange;
 
   // Callee-to-Caller multimap.
-  DenseMap<const GlobalValue *, SmallVector<const GlobalValue *, 4>> Callers;
-  SetVector<const GlobalValue *> WorkList;
+  DenseMap<const CalleeTy *, SmallVector<const CalleeTy *, 4>> Callers;
+  SetVector<const CalleeTy *> WorkList;
 
-
-  bool updateOneUse(UseInfo &US, bool UpdateToFullSet);
-  void updateOneNode(const GlobalValue *Callee, FunctionInfo &FS);
-  void updateOneNode(const GlobalValue *Callee) {
+  bool updateOneUse(UseInfo<CalleeTy> &US, bool UpdateToFullSet);
+  void updateOneNode(const CalleeTy *Callee, FunctionInfo<CalleeTy> &FS);
+  void updateOneNode(const CalleeTy *Callee) {
     updateOneNode(Callee, Functions.find(Callee)->second);
   }
   void updateAllNodes() {
@@ -438,34 +462,33 @@ public:
 
   const FunctionMap &run();
 
-  ConstantRange getArgumentAccessRange(const GlobalValue *Callee,
-                                       unsigned ParamNo,
+  ConstantRange getArgumentAccessRange(const CalleeTy *Callee, unsigned ParamNo,
                                        const ConstantRange &Offsets) const;
 };
 
-ConstantRange StackSafetyDataFlowAnalysis::getArgumentAccessRange(
-    const GlobalValue *Callee, unsigned ParamNo,
+template <typename CalleeTy>
+ConstantRange StackSafetyDataFlowAnalysis<CalleeTy>::getArgumentAccessRange(
+    const CalleeTy *Callee, unsigned ParamNo,
     const ConstantRange &Offsets) const {
-  auto IT = Functions.find(Callee);
+  auto FnIt = Functions.find(Callee);
   // Unknown callee (outside of LTO domain or an indirect call).
-  if (IT == Functions.end())
+  if (FnIt == Functions.end())
     return UnknownRange;
-  const FunctionInfo &FS = IT->second;
-  if (ParamNo >= FS.Params.size()) // possibly vararg
+  auto &FS = FnIt->second;
+  auto ParamIt = FS.Params.find(ParamNo);
+  if (ParamIt == FS.Params.end())
     return UnknownRange;
-  auto &Access = FS.Params[ParamNo].Range;
+  auto &Access = ParamIt->second.Range;
   if (Access.isEmptySet())
     return Access;
-  if (Access.isFullSet() || Offsets.isFullSet())
+  if (Access.isFullSet())
     return UnknownRange;
-  if (Offsets.signedAddMayOverflow(Access) !=
-      ConstantRange::OverflowResult::NeverOverflows)
-    return UnknownRange;
-  return Access.add(Offsets);
+  return addOverflowNever(Access, Offsets);
 }
 
-bool StackSafetyDataFlowAnalysis::updateOneUse(UseInfo &US,
-                                               bool UpdateToFullSet) {
+template <typename CalleeTy>
+bool StackSafetyDataFlowAnalysis<CalleeTy>::updateOneUse(UseInfo<CalleeTy> &US,
+                                                         bool UpdateToFullSet) {
   bool Changed = false;
   for (auto &CS : US.Calls) {
     assert(!CS.Offset.isEmptySet() &&
@@ -484,12 +507,13 @@ bool StackSafetyDataFlowAnalysis::updateOneUse(UseInfo &US,
   return Changed;
 }
 
-void StackSafetyDataFlowAnalysis::updateOneNode(const GlobalValue *Callee,
-                                                FunctionInfo &FS) {
+template <typename CalleeTy>
+void StackSafetyDataFlowAnalysis<CalleeTy>::updateOneNode(
+    const CalleeTy *Callee, FunctionInfo<CalleeTy> &FS) {
   bool UpdateToFullSet = FS.UpdateCount > StackSafetyMaxIterations;
   bool Changed = false;
-  for (auto &PS : FS.Params)
-    Changed |= updateOneUse(PS, UpdateToFullSet);
+  for (auto &KV : FS.Params)
+    Changed |= updateOneUse(KV.second, UpdateToFullSet);
 
   if (Changed) {
     LLVM_DEBUG(dbgs() << "=== update [" << FS.UpdateCount
@@ -503,16 +527,14 @@ void StackSafetyDataFlowAnalysis::updateOneNode(const GlobalValue *Callee,
   }
 }
 
-void StackSafetyDataFlowAnalysis::runDataFlow() {
-  Callers.clear();
-  WorkList.clear();
-
-  SmallVector<const GlobalValue *, 16> Callees;
+template <typename CalleeTy>
+void StackSafetyDataFlowAnalysis<CalleeTy>::runDataFlow() {
+  SmallVector<const CalleeTy *, 16> Callees;
   for (auto &F : Functions) {
     Callees.clear();
-    FunctionInfo &FS = F.second;
-    for (auto &PS : FS.Params)
-      for (auto &CS : PS.Calls)
+    auto &FS = F.second;
+    for (auto &KV : FS.Params)
+      for (auto &CS : KV.second.Calls)
         Callees.push_back(CS.Callee);
 
     llvm::sort(Callees);
@@ -525,55 +547,48 @@ void StackSafetyDataFlowAnalysis::runDataFlow() {
   updateAllNodes();
 
   while (!WorkList.empty()) {
-    const GlobalValue *Callee = WorkList.back();
+    const CalleeTy *Callee = WorkList.back();
     WorkList.pop_back();
     updateOneNode(Callee);
   }
 }
 
 #ifndef NDEBUG
-void StackSafetyDataFlowAnalysis::verifyFixedPoint() {
+template <typename CalleeTy>
+void StackSafetyDataFlowAnalysis<CalleeTy>::verifyFixedPoint() {
   WorkList.clear();
   updateAllNodes();
   assert(WorkList.empty());
 }
 #endif
 
-const StackSafetyDataFlowAnalysis::FunctionMap &
-StackSafetyDataFlowAnalysis::run() {
+template <typename CalleeTy>
+const typename StackSafetyDataFlowAnalysis<CalleeTy>::FunctionMap &
+StackSafetyDataFlowAnalysis<CalleeTy>::run() {
   runDataFlow();
   LLVM_DEBUG(verifyFixedPoint());
   return Functions;
 }
 
-bool setStackSafetyMetadata(Module &M, const GVToSSI &SSGI) {
-  bool Changed = false;
-  for (auto &F : M.functions()) {
-    if (F.isDeclaration() || F.hasOptNone())
-      continue;
-    auto Iter = SSGI.find(&F);
-    if (Iter == SSGI.end())
-      continue;
-    const FunctionInfo &Summary = Iter->second;
-    size_t Pos = 0;
-    for (auto &I : instructions(F)) {
-      if (auto *AI = dyn_cast<AllocaInst>(&I)) {
-        auto &AS = Summary.Allocas[Pos];
-        if (getStaticAllocaSizeRange(*AI).contains(AS.Range)) {
-          AI->setMetadata(M.getMDKindID("stack-safe"),
-                          MDNode::get(M.getContext(), None));
-          Changed = true;
-        }
-        ++Pos;
-      }
-    }
+FunctionSummary *resolveCallee(GlobalValueSummary *S) {
+  while (S) {
+    if (!S->isLive() || !S->isDSOLocal())
+      return nullptr;
+    if (FunctionSummary *FS = dyn_cast<FunctionSummary>(S))
+      return FS;
+    AliasSummary *AS = dyn_cast<AliasSummary>(S);
+    if (!AS)
+      return nullptr;
+    S = AS->getBaseObject();
+    if (S == AS)
+      return nullptr;
   }
-  return Changed;
+  return nullptr;
 }
 
 const Function *findCalleeInModule(const GlobalValue *GV) {
   while (GV) {
-    if (GV->isInterposable() || !GV->isDSOLocal())
+    if (GV->isDeclaration() || GV->isInterposable() || !GV->isDSOLocal())
       return nullptr;
     if (const Function *F = dyn_cast<Function>(GV))
       return F;
@@ -587,7 +602,28 @@ const Function *findCalleeInModule(const GlobalValue *GV) {
   return nullptr;
 }
 
-void resolveAllCalls(UseInfo &Use) {
+GlobalValueSummary *getGlobalValueSummary(const ModuleSummaryIndex *Index,
+                                          uint64_t ValueGUID) {
+  auto VI = Index->getValueInfo(ValueGUID);
+  if (!VI || VI.getSummaryList().empty())
+    return nullptr;
+  assert(VI.getSummaryList().size() == 1);
+  auto &Summary = VI.getSummaryList()[0];
+  return Summary.get();
+}
+
+const ConstantRange *findParamAccess(const FunctionSummary &FS,
+                                     uint32_t ParamNo) {
+  assert(FS.isLive());
+  assert(FS.isDSOLocal());
+  for (auto &PS : FS.paramAccesses())
+    if (ParamNo == PS.ParamNo)
+      return &PS.Use;
+  return nullptr;
+}
+
+void resolveAllCalls(UseInfo<GlobalValue> &Use,
+                     const ModuleSummaryIndex *Index) {
   ConstantRange FullSet(Use.Range.getBitWidth(), true);
   for (auto &C : Use.Calls) {
     const Function *F = findCalleeInModule(C.Callee);
@@ -596,17 +632,29 @@ void resolveAllCalls(UseInfo &Use) {
       continue;
     }
 
-    return Use.updateRange(FullSet);
-  }
-}
+    if (!Index)
+      return Use.updateRange(FullSet);
+    GlobalValueSummary *GVS = getGlobalValueSummary(Index, C.Callee->getGUID());
 
-void resolveAllCalls(SmallVectorImpl<UseInfo> &Values) {
-  for (auto &V : Values)
-    resolveAllCalls(V);
+    FunctionSummary *FS = resolveCallee(GVS);
+    if (!FS)
+      return Use.updateRange(FullSet);
+    const ConstantRange *Found = findParamAccess(*FS, C.ParamNo);
+    if (!Found)
+      return Use.updateRange(FullSet);
+    ConstantRange Access = Found->sextOrTrunc(Use.Range.getBitWidth());
+    Use.updateRange(addOverflowNever(Access, C.Offset));
+    C.Callee = nullptr;
+  }
+
+  Use.Calls.erase(std::remove_if(Use.Calls.begin(), Use.Calls.end(),
+                                 [](auto &T) { return !T.Callee; }),
+                  Use.Calls.end());
 }
 
 GVToSSI createGlobalStackSafetyInfo(
-    std::map<const GlobalValue *, FunctionInfo> Functions) {
+    std::map<const GlobalValue *, FunctionInfo<GlobalValue>> Functions,
+    const ModuleSummaryIndex *Index) {
   GVToSSI SSI;
   if (Functions.empty())
     return SSI;
@@ -614,33 +662,32 @@ GVToSSI createGlobalStackSafetyInfo(
   // FIXME: Simplify printing and remove copying here.
   auto Copy = Functions;
 
-  for (auto &FI : Copy)
-    resolveAllCalls(FI.second.Params);
+  for (auto &FnKV : Copy)
+    for (auto &KV : FnKV.second.Params)
+      resolveAllCalls(KV.second, Index);
 
   uint32_t PointerSize = Copy.begin()
                              ->first->getParent()
                              ->getDataLayout()
                              .getMaxPointerSizeInBits();
-  StackSafetyDataFlowAnalysis SSDFA(PointerSize, std::move(Copy));
+  StackSafetyDataFlowAnalysis<GlobalValue> SSDFA(PointerSize, std::move(Copy));
 
   for (auto &F : SSDFA.run()) {
     auto FI = F.second;
-    size_t Pos = 0;
     auto &SrcF = Functions[F.first];
-    for (auto &A : FI.Allocas) {
-      resolveAllCalls(A);
+    for (auto &KV : FI.Allocas) {
+      auto &A = KV.second;
+      resolveAllCalls(A, Index);
       for (auto &C : A.Calls) {
         A.updateRange(
             SSDFA.getArgumentAccessRange(C.Callee, C.ParamNo, C.Offset));
       }
       // FIXME: This is needed only to preserve calls in print() results.
-      A.Calls = SrcF.Allocas[Pos].Calls;
-      ++Pos;
+      A.Calls = SrcF.Allocas.find(KV.first)->second.Calls;
     }
-    Pos = 0;
-    for (auto &P : FI.Params) {
-      P.Calls = SrcF.Params[Pos].Calls;
-      ++Pos;
+    for (auto &KV : FI.Params) {
+      auto &P = KV.second;
+      P.Calls = SrcF.Params.find(KV.first)->second.Calls;
     }
     SSI[F.first] = std::move(FI);
   }
@@ -676,26 +723,70 @@ void StackSafetyInfo::print(raw_ostream &O) const {
 
 const StackSafetyGlobalInfo::InfoTy &StackSafetyGlobalInfo::getInfo() const {
   if (!Info) {
-    std::map<const GlobalValue *, FunctionInfo> Functions;
+    std::map<const GlobalValue *, FunctionInfo<GlobalValue>> Functions;
     for (auto &F : M->functions()) {
       if (!F.isDeclaration()) {
         auto FI = GetSSI(F).getInfo().Info;
         Functions.emplace(&F, std::move(FI));
       }
     }
-    Info.reset(new InfoTy{createGlobalStackSafetyInfo(std::move(Functions))});
+    Info.reset(new InfoTy{
+        createGlobalStackSafetyInfo(std::move(Functions), Index), {}});
+    for (auto &FnKV : Info->Info) {
+      for (auto &KV : FnKV.second.Allocas) {
+        ++NumAllocaTotal;
+        const AllocaInst *AI = KV.first;
+        if (getStaticAllocaSizeRange(*AI).contains(KV.second.Range)) {
+          Info->SafeAllocas.insert(AI);
+          ++NumAllocaStackSafe;
+        }
+      }
+    }
     if (StackSafetyPrint)
       print(errs());
   }
   return *Info;
 }
 
+std::vector<FunctionSummary::ParamAccess>
+StackSafetyInfo::getParamAccesses() const {
+  // Implementation transforms internal representation of parameter information
+  // into FunctionSummary format.
+  std::vector<FunctionSummary::ParamAccess> ParamAccesses;
+  for (const auto &KV : getInfo().Info.Params) {
+    auto &PS = KV.second;
+    // Parameter accessed by any or unknown offset, represented as FullSet by
+    // StackSafety, is handled as the parameter for which we have no
+    // StackSafety info at all. So drop it to reduce summary size.
+    if (PS.Range.isFullSet())
+      continue;
+
+    ParamAccesses.emplace_back(KV.first, PS.Range);
+    FunctionSummary::ParamAccess &Param = ParamAccesses.back();
+
+    Param.Calls.reserve(PS.Calls.size());
+    for (auto &C : PS.Calls) {
+      // Parameter forwarded into another function by any or unknown offset
+      // will make ParamAccess::Range as FullSet anyway. So we can drop the
+      // entire parameter like we did above.
+      // TODO(vitalybuka): Return already filtered parameters from getInfo().
+      if (C.Offset.isFullSet()) {
+        ParamAccesses.pop_back();
+        break;
+      }
+      Param.Calls.emplace_back(C.ParamNo, C.Callee->getGUID(), C.Offset);
+    }
+  }
+  return ParamAccesses;
+}
+
 StackSafetyGlobalInfo::StackSafetyGlobalInfo() = default;
 
 StackSafetyGlobalInfo::StackSafetyGlobalInfo(
-    Module *M, std::function<const StackSafetyInfo &(Function &F)> GetSSI)
-    : M(M), GetSSI(GetSSI) {
-  if (StackSafetyPrint > 1)
+    Module *M, std::function<const StackSafetyInfo &(Function &F)> GetSSI,
+    const ModuleSummaryIndex *Index)
+    : M(M), GetSSI(GetSSI), Index(Index) {
+  if (StackSafetyRun)
     getInfo();
 }
 
@@ -707,8 +798,9 @@ StackSafetyGlobalInfo::operator=(StackSafetyGlobalInfo &&) = default;
 
 StackSafetyGlobalInfo::~StackSafetyGlobalInfo() = default;
 
-bool StackSafetyGlobalInfo::setMetadata(Module &M) const {
-  return setStackSafetyMetadata(M, getInfo().Info);
+bool StackSafetyGlobalInfo::isSafe(const AllocaInst &AI) const {
+  const auto &Info = getInfo();
+  return Info.SafeAllocas.count(&AI);
 }
 
 void StackSafetyGlobalInfo::print(raw_ostream &O) const {
@@ -767,24 +859,20 @@ AnalysisKey StackSafetyGlobalAnalysis::Key;
 
 StackSafetyGlobalInfo
 StackSafetyGlobalAnalysis::run(Module &M, ModuleAnalysisManager &AM) {
+  // FIXME: Lookup Module Summary.
   FunctionAnalysisManager &FAM =
       AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
-  return {&M, [&FAM](Function &F) -> const StackSafetyInfo & {
+  return {&M,
+          [&FAM](Function &F) -> const StackSafetyInfo & {
             return FAM.getResult<StackSafetyAnalysis>(F);
-          }};
+          },
+          nullptr};
 }
 
 PreservedAnalyses StackSafetyGlobalPrinterPass::run(Module &M,
                                                     ModuleAnalysisManager &AM) {
   OS << "'Stack Safety Analysis' for module '" << M.getName() << "'\n";
   AM.getResult<StackSafetyGlobalAnalysis>(M).print(OS);
-  return PreservedAnalyses::all();
-}
-
-PreservedAnalyses
-StackSafetyGlobalAnnotatorPass::run(Module &M, ModuleAnalysisManager &AM) {
-  auto &SSGI = AM.getResult<StackSafetyGlobalAnalysis>(M);
-  SSGI.setMetadata(M);
   return PreservedAnalyses::all();
 }
 
@@ -805,18 +893,85 @@ void StackSafetyGlobalInfoWrapperPass::print(raw_ostream &O,
 
 void StackSafetyGlobalInfoWrapperPass::getAnalysisUsage(
     AnalysisUsage &AU) const {
+  AU.setPreservesAll();
   AU.addRequired<StackSafetyInfoWrapperPass>();
 }
 
 bool StackSafetyGlobalInfoWrapperPass::runOnModule(Module &M) {
-  SSGI = {&M, [this](Function &F) -> const StackSafetyInfo & {
+  const ModuleSummaryIndex *ImportSummary = nullptr;
+  if (auto *IndexWrapperPass =
+          getAnalysisIfAvailable<ImmutableModuleSummaryIndexWrapperPass>())
+    ImportSummary = IndexWrapperPass->getIndex();
+
+  SSGI = {&M,
+          [this](Function &F) -> const StackSafetyInfo & {
             return getAnalysis<StackSafetyInfoWrapperPass>(F).getResult();
-          }};
-  return SSGI.setMetadata(M);
+          },
+          ImportSummary};
+  return false;
 }
 
-ModulePass *llvm::createStackSafetyGlobalInfoWrapperPass() {
-  return new StackSafetyGlobalInfoWrapperPass();
+bool llvm::needsParamAccessSummary(const Module &M) {
+  if (StackSafetyRun)
+    return true;
+  for (auto &F : M.functions())
+    if (F.hasFnAttribute(Attribute::SanitizeMemTag))
+      return true;
+  return false;
+}
+
+void llvm::generateParamAccessSummary(ModuleSummaryIndex &Index) {
+  const ConstantRange FullSet(FunctionSummary::ParamAccess::RangeWidth, true);
+  std::map<const FunctionSummary *, FunctionInfo<FunctionSummary>> Functions;
+
+  // Convert the ModuleSummaryIndex to a FunctionMap
+  for (auto &GVS : Index) {
+    for (auto &GV : GVS.second.SummaryList) {
+      FunctionSummary *FS = dyn_cast<FunctionSummary>(GV.get());
+      if (!FS)
+        continue;
+      if (FS->isLive() && FS->isDSOLocal()) {
+        FunctionInfo<FunctionSummary> FI;
+        for (auto &PS : FS->paramAccesses()) {
+          auto &US =
+              FI.Params
+                  .emplace(PS.ParamNo, FunctionSummary::ParamAccess::RangeWidth)
+                  .first->second;
+          US.Range = PS.Use;
+          for (auto &Call : PS.Calls) {
+            assert(!Call.Offsets.isFullSet());
+            FunctionSummary *S = resolveCallee(
+                Index.findSummaryInModule(Call.Callee, FS->modulePath()));
+            if (!S) {
+              US.Range = FullSet;
+              US.Calls.clear();
+              break;
+            }
+            US.Calls.emplace_back(S, Call.ParamNo, Call.Offsets);
+          }
+        }
+        Functions.emplace(FS, std::move(FI));
+      }
+      // Reset data for all summaries. Alive and DSO local will be set back from
+      // of data flow results below. Anything else will not be accessed
+      // by ThinLTO backend, so we can save on bitcode size.
+      FS->setParamAccesses({});
+    }
+  }
+  StackSafetyDataFlowAnalysis<FunctionSummary> SSDFA(
+      FunctionSummary::ParamAccess::RangeWidth, std::move(Functions));
+  for (auto &KV : SSDFA.run()) {
+    std::vector<FunctionSummary::ParamAccess> NewParams;
+    NewParams.reserve(KV.second.Params.size());
+    for (auto &Param : KV.second.Params) {
+      NewParams.emplace_back();
+      FunctionSummary::ParamAccess &New = NewParams.back();
+      New.ParamNo = Param.first;
+      New.Use = Param.second.Range; // Only range is needed.
+    }
+    const_cast<FunctionSummary *>(KV.first)->setParamAccesses(
+        std::move(NewParams));
+  }
 }
 
 static const char LocalPassArg[] = "stack-safety-local";
@@ -829,7 +984,8 @@ INITIALIZE_PASS_END(StackSafetyInfoWrapperPass, LocalPassArg, LocalPassName,
 
 static const char GlobalPassName[] = "Stack Safety Analysis";
 INITIALIZE_PASS_BEGIN(StackSafetyGlobalInfoWrapperPass, DEBUG_TYPE,
-                      GlobalPassName, false, false)
+                      GlobalPassName, false, true)
 INITIALIZE_PASS_DEPENDENCY(StackSafetyInfoWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(ImmutableModuleSummaryIndexWrapperPass)
 INITIALIZE_PASS_END(StackSafetyGlobalInfoWrapperPass, DEBUG_TYPE,
-                    GlobalPassName, false, false)
+                    GlobalPassName, false, true)

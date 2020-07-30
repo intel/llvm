@@ -35,6 +35,18 @@ class GISelChangeObserver;
 
 class LegalizerHelper {
 public:
+  /// Expose MIRBuilder so clients can set their own RecordInsertInstruction
+  /// functions
+  MachineIRBuilder &MIRBuilder;
+
+  /// To keep track of changes made by the LegalizerHelper.
+  GISelChangeObserver &Observer;
+
+private:
+  MachineRegisterInfo &MRI;
+  const LegalizerInfo &LI;
+
+public:
   enum LegalizeResult {
     /// Instruction was already legal and no change was made to the
     /// MachineFunction.
@@ -47,6 +59,9 @@ public:
     /// instruction.
     UnableToLegalize,
   };
+
+  /// Expose LegalizerInfo so the clients can re-use.
+  const LegalizerInfo &getLegalizerInfo() const { return LI; }
 
   LegalizerHelper(MachineFunction &MF, GISelChangeObserver &Observer,
                   MachineIRBuilder &B);
@@ -90,13 +105,6 @@ public:
   /// involved and ignoring the added elements later.
   LegalizeResult moreElementsVector(MachineInstr &MI, unsigned TypeIdx,
                                     LLT MoreTy);
-
-  /// Expose MIRBuilder so clients can set their own RecordInsertInstruction
-  /// functions
-  MachineIRBuilder &MIRBuilder;
-
-  /// Expose LegalizerInfo so the clients can re-use.
-  const LegalizerInfo &getLegalizerInfo() const { return LI; }
 
   /// Cast the given value to an LLT::scalar with an equivalent size. Returns
   /// the register to use if an instruction was inserted. Returns the original
@@ -155,6 +163,8 @@ private:
   widenScalarExtract(MachineInstr &MI, unsigned TypeIdx, LLT WideTy);
   LegalizeResult
   widenScalarInsert(MachineInstr &MI, unsigned TypeIdx, LLT WideTy);
+  LegalizeResult widenScalarAddSubSat(MachineInstr &MI, unsigned TypeIdx,
+                                      LLT WideTy);
 
   /// Helper function to split a wide generic register into bitwise blocks with
   /// the given Type (which implies the number of blocks needed). The generic
@@ -292,6 +302,7 @@ public:
 
   LegalizeResult lowerFPTRUNC_F64_TO_F16(MachineInstr &MI);
   LegalizeResult lowerFPTRUNC(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
+  LegalizeResult lowerFPOWI(MachineInstr &MI);
 
   LegalizeResult lowerMinMax(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
   LegalizeResult lowerFCopySign(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
@@ -306,15 +317,11 @@ public:
   LegalizeResult lowerExtract(MachineInstr &MI);
   LegalizeResult lowerInsert(MachineInstr &MI);
   LegalizeResult lowerSADDO_SSUBO(MachineInstr &MI);
+  LegalizeResult lowerAddSubSatToMinMax(MachineInstr &MI);
+  LegalizeResult lowerAddSubSatToAddoSubo(MachineInstr &MI);
   LegalizeResult lowerBswap(MachineInstr &MI);
   LegalizeResult lowerBitreverse(MachineInstr &MI);
   LegalizeResult lowerReadWriteRegister(MachineInstr &MI);
-
-private:
-  MachineRegisterInfo &MRI;
-  const LegalizerInfo &LI;
-  /// To keep track of changes made by the LegalizerHelper.
-  GISelChangeObserver &Observer;
 };
 
 /// Helper function that creates a libcall to the given \p Name using the given

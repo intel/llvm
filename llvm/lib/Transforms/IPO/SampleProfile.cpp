@@ -37,6 +37,7 @@
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
+#include "llvm/Analysis/InlineAdvisor.h"
 #include "llvm/Analysis/InlineCost.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
@@ -148,14 +149,17 @@ static cl::opt<bool> ProfileAccurateForSymsInList(
              "be accurate. It may be overriden by profile-sample-accurate. "));
 
 static cl::opt<bool> ProfileMergeInlinee(
-    "sample-profile-merge-inlinee", cl::Hidden, cl::init(false),
+    "sample-profile-merge-inlinee", cl::Hidden, cl::init(true),
     cl::desc("Merge past inlinee's profile to outline version if sample "
-             "profile loader decided not to inline a call site."));
+             "profile loader decided not to inline a call site. It will "
+             "only be enabled when top-down order of profile loading is "
+             "enabled. "));
 
 static cl::opt<bool> ProfileTopDownLoad(
-    "sample-profile-top-down-load", cl::Hidden, cl::init(false),
+    "sample-profile-top-down-load", cl::Hidden, cl::init(true),
     cl::desc("Do profile annotation and inlining for functions in top-down "
-             "order of call graph during sample profile loading."));
+             "order of call graph during sample profile loading. It only "
+             "works for new pass manager. "));
 
 static cl::opt<bool> ProfileSizeInline(
     "sample-profile-inline-size", cl::Hidden, cl::init(false),
@@ -916,9 +920,8 @@ bool SampleProfileLoader::inlineCallInstruction(CallBase &CB) {
   InlineFunctionInfo IFI(nullptr, GetAC);
   if (InlineFunction(CB, IFI).isSuccess()) {
     // The call to InlineFunction erases I, so we can't pass it here.
-    ORE->emit(OptimizationRemark(CSINLINE_DEBUG, "InlineSuccess", DLoc, BB)
-              << "inlined callee '" << ore::NV("Callee", CalledFunction)
-              << "' into '" << ore::NV("Caller", BB->getParent()) << "'");
+    emitInlinedInto(*ORE, DLoc, BB, *CalledFunction, *BB->getParent(), Cost,
+                    true, CSINLINE_DEBUG);
     return true;
   }
   return false;
@@ -1042,6 +1045,7 @@ bool SampleProfileLoader::inlineHotFunctions(
           if (R != SymbolMap.end() && R->getValue() &&
               !R->getValue()->isDeclaration() &&
               R->getValue()->getSubprogram() &&
+              R->getValue()->hasFnAttribute("use-sample-profile") &&
               isLegalToPromote(*I, R->getValue(), &Reason)) {
             uint64_t C = FS->getEntrySamples();
             auto &DI =
@@ -1784,8 +1788,17 @@ SampleProfileLoader::buildFunctionOrder(Module &M, CallGraph *CG) {
   FunctionOrderList.reserve(M.size());
 
   if (!ProfileTopDownLoad || CG == nullptr) {
+    if (ProfileMergeInlinee) {
+      // Disable ProfileMergeInlinee if profile is not loaded in top down order,
+      // because the profile for a function may be used for the profile
+      // annotation of its outline copy before the profile merging of its
+      // non-inlined inline instances, and that is not the way how
+      // ProfileMergeInlinee is supposed to work.
+      ProfileMergeInlinee = false;
+    }
+
     for (Function &F : M)
-      if (!F.isDeclaration())
+      if (!F.isDeclaration() && F.hasFnAttribute("use-sample-profile"))
         FunctionOrderList.push_back(&F);
     return FunctionOrderList;
   }
@@ -1795,7 +1808,7 @@ SampleProfileLoader::buildFunctionOrder(Module &M, CallGraph *CG) {
   while (!CGI.isAtEnd()) {
     for (CallGraphNode *node : *CGI) {
       auto F = node->getFunction();
-      if (F && !F->isDeclaration())
+      if (F && !F->isDeclaration() && F->hasFnAttribute("use-sample-profile"))
         FunctionOrderList.push_back(F);
     }
     ++CGI;

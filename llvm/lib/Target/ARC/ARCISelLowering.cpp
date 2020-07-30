@@ -22,7 +22,6 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/CodeGen/SelectionDAGISel.h"
 #include "llvm/CodeGen/ValueTypes.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/Intrinsics.h"
@@ -245,7 +244,7 @@ SDValue ARCTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   // Analyze return values to determine the number of bytes of stack required.
   CCState RetCCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), RVLocs,
                     *DAG.getContext());
-  RetCCInfo.AllocateStack(CCInfo.getNextStackOffset(), 4);
+  RetCCInfo.AllocateStack(CCInfo.getNextStackOffset(), Align(4));
   RetCCInfo.AnalyzeCallResult(Ins, RetCC_ARC);
 
   // Get a count of how many bytes are to be pushed on the stack.
@@ -622,7 +621,7 @@ ARCTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
 
   // Analyze return values.
   if (!IsVarArg)
-    CCInfo.AllocateStack(AFI->getReturnStackOffset(), 4);
+    CCInfo.AllocateStack(AFI->getReturnStackOffset(), Align(4));
 
   CCInfo.AnalyzeReturn(Outs, RetCC_ARC);
 

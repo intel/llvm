@@ -763,6 +763,18 @@ TEST(CommandLineTest, DefaultOptions) {
 TEST(CommandLineTest, ArgumentLimit) {
   std::string args(32 * 4096, 'a');
   EXPECT_FALSE(llvm::sys::commandLineFitsWithinSystemLimits("cl", args.data()));
+  std::string args2(256, 'a');
+  EXPECT_TRUE(llvm::sys::commandLineFitsWithinSystemLimits("cl", args2.data()));
+  if (Triple(sys::getProcessTriple()).isOSWindows()) {
+    // We use 32000 as a limit for command line length. Program name ('cl'),
+    // separating spaces and termination null character occupy 5 symbols.
+    std::string long_arg(32000 - 5, 'b');
+    EXPECT_TRUE(
+        llvm::sys::commandLineFitsWithinSystemLimits("cl", long_arg.data()));
+    long_arg += 'b';
+    EXPECT_FALSE(
+        llvm::sys::commandLineFitsWithinSystemLimits("cl", long_arg.data()));
+  }
 }
 
 TEST(CommandLineTest, ResponseFileWindows) {
@@ -1722,6 +1734,29 @@ TEST(CommandLineTest, OptionErrorMessageSuggest) {
   StackOption<bool> OptLong("aluminium", cl::desc("Some long option"));
 
   const char *args[] = {"prog", "--aluminum"};
+
+  std::string Errs;
+  raw_string_ostream OS(Errs);
+
+  EXPECT_FALSE(cl::ParseCommandLineOptions(2, args, StringRef(), &OS));
+  OS.flush();
+  EXPECT_FALSE(Errs.find("prog: Did you mean '--aluminium'?\n") ==
+               std::string::npos);
+  Errs.clear();
+
+  cl::ResetAllOptionOccurrences();
+}
+
+TEST(CommandLineTest, OptionErrorMessageSuggestNoHidden) {
+  // We expect that 'really hidden' option do not show up in option
+  // suggestions.
+  cl::ResetCommandLineParser();
+
+  StackOption<bool> OptLong("aluminium", cl::desc("Some long option"));
+  StackOption<bool> OptLong2("aluminum", cl::desc("Bad option"),
+                             cl::ReallyHidden);
+
+  const char *args[] = {"prog", "--alumnum"};
 
   std::string Errs;
   raw_string_ostream OS(Errs);

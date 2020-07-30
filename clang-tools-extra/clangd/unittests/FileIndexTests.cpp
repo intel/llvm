@@ -22,6 +22,7 @@
 #include "index/Relation.h"
 #include "index/Serialization.h"
 #include "index/Symbol.h"
+#include "support/Threading.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/Utils.h"
 #include "clang/Index/IndexSymbol.h"
@@ -272,14 +273,14 @@ TEST(FileIndexTest, RebuildWithPreamble) {
   PI.CompileCommand.Filename = FooCpp;
   PI.CompileCommand.CommandLine = {"clang", "-xc++", FooCpp};
 
-  llvm::StringMap<std::string> Files;
-  Files[FooCpp] = "";
-  Files[FooH] = R"cpp(
+  MockFS FS;
+  FS.Files[FooCpp] = "";
+  FS.Files[FooH] = R"cpp(
     namespace ns_in_header {
       int func_in_header();
     }
   )cpp";
-  PI.FS = buildTestFS(std::move(Files));
+  PI.TFS = &FS;
 
   PI.Contents = R"cpp(
     #include "foo.h"
@@ -507,6 +508,31 @@ TEST(FileIndexTest, StalePreambleSymbolsDeleted) {
                    AST.getASTContext(), AST.getPreprocessorPtr(),
                    AST.getCanonicalIncludes());
   EXPECT_THAT(runFuzzyFind(M, ""), UnorderedElementsAre(QName("b")));
+}
+
+// Verifies that concurrent calls to updateMain don't "lose" any updates.
+TEST(FileIndexTest, Threadsafety) {
+  FileIndex M;
+  Notification Go;
+
+  constexpr int Count = 10;
+  {
+    // Set up workers to concurrently call updateMain() with separate files.
+    AsyncTaskRunner Pool;
+    for (unsigned I = 0; I < Count; ++I) {
+      auto TU = TestTU::withCode(llvm::formatv("int xxx{0};", I).str());
+      TU.Filename = llvm::formatv("x{0}.c", I).str();
+      Pool.runAsync(TU.Filename, [&, Filename(testPath(TU.Filename)),
+                                  AST(TU.build())]() mutable {
+        Go.wait();
+        M.updateMain(Filename, AST);
+      });
+    }
+    // On your marks, get set...
+    Go.notify();
+  }
+
+  EXPECT_THAT(runFuzzyFind(M, "xxx"), ::testing::SizeIs(Count));
 }
 
 TEST(FileShardedIndexTest, Sharding) {

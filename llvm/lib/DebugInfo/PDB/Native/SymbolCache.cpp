@@ -7,9 +7,9 @@
 #include "llvm/DebugInfo/PDB/Native/DbiStream.h"
 #include "llvm/DebugInfo/PDB/Native/GlobalsStream.h"
 #include "llvm/DebugInfo/PDB/Native/ISectionContribVisitor.h"
-#include "llvm/DebugInfo/PDB/Native/ModuleDebugStream.h"
 #include "llvm/DebugInfo/PDB/Native/NativeCompilandSymbol.h"
 #include "llvm/DebugInfo/PDB/Native/NativeEnumGlobals.h"
+#include "llvm/DebugInfo/PDB/Native/NativeEnumLineNumbers.h"
 #include "llvm/DebugInfo/PDB/Native/NativeEnumTypes.h"
 #include "llvm/DebugInfo/PDB/Native/NativeFunctionSymbol.h"
 #include "llvm/DebugInfo/PDB/Native/NativePublicSymbol.h"
@@ -71,6 +71,7 @@ SymbolCache::SymbolCache(NativeSession &Session, DbiStream *Dbi)
     : Session(Session), Dbi(Dbi), AddrToModuleIndex(IMapAllocator) {
   // Id 0 is reserved for the invalid symbol.
   Cache.push_back(nullptr);
+  SourceFiles.push_back(nullptr);
 
   if (Dbi)
     Compilands.resize(Dbi->modules().getModuleCount());
@@ -287,6 +288,26 @@ SymIndexId SymbolCache::getOrCreateGlobalSymbolByOffset(uint32_t Offset) {
   return Id;
 }
 
+Expected<ModuleDebugStreamRef>
+SymbolCache::getModuleDebugStream(uint32_t Index) const {
+  assert(Dbi && "Dbi stream not present");
+
+  DbiModuleDescriptor Modi = Dbi->modules().getModuleDescriptor(Index);
+
+  uint16_t ModiStream = Modi.getModuleStreamIndex();
+  if (ModiStream == kInvalidStreamIndex)
+    return make_error<RawError>("Module stream not present");
+
+  std::unique_ptr<msf::MappedBlockStream> ModStreamData =
+      Session.getPDBFile().createIndexedStream(ModiStream);
+
+  ModuleDebugStreamRef ModS(Modi, std::move(ModStreamData));
+  if (auto EC = ModS.reload())
+    return std::move(EC);
+
+  return std::move(ModS);
+}
+
 std::unique_ptr<PDBSymbol>
 SymbolCache::findSymbolBySectOffset(uint32_t Sect, uint32_t Offset,
                                     PDB_SymType Type) {
@@ -298,8 +319,16 @@ SymbolCache::findSymbolBySectOffset(uint32_t Sect, uint32_t Offset,
     return findFunctionSymbolBySectOffset(Sect, Offset);
   case PDB_SymType::PublicSymbol:
     return findPublicSymbolBySectOffset(Sect, Offset);
+  case PDB_SymType::Compiland: {
+    Optional<uint16_t> Modi =
+        getModuleIndexForAddr(Session.getVAFromSectOffset(Sect, Offset));
+    if (!Modi)
+      return nullptr;
+    return getOrCreateCompiland(*Modi);
+  }
   case PDB_SymType::None: {
-    // FIXME: Implement for PDB_SymType::Data.
+    // FIXME: Implement for PDB_SymType::Data. The symbolizer calls this but
+    // only uses it to find the symbol length.
     if (auto Sym = findFunctionSymbolBySectOffset(Sect, Offset))
       return Sym;
     return nullptr;
@@ -311,37 +340,39 @@ SymbolCache::findSymbolBySectOffset(uint32_t Sect, uint32_t Offset,
 
 std::unique_ptr<PDBSymbol>
 SymbolCache::findFunctionSymbolBySectOffset(uint32_t Sect, uint32_t Offset) {
-  auto Iter = AddressToFunctionSymId.find({Sect, Offset});
-  if (Iter != AddressToFunctionSymId.end())
+  auto Iter = AddressToSymbolId.find({Sect, Offset});
+  if (Iter != AddressToSymbolId.end())
     return getSymbolById(Iter->second);
 
   if (!Dbi)
     return nullptr;
 
-  auto Modi = getModuleIndexForAddr(Sect, Offset);
+  auto Modi = getModuleIndexForAddr(Session.getVAFromSectOffset(Sect, Offset));
   if (!Modi)
     return nullptr;
 
-  DbiModuleDescriptor ModDesc = Dbi->modules().getModuleDescriptor(*Modi);
-  uint16_t StreamIndex = ModDesc.getModuleStreamIndex();
-  if (StreamIndex == kInvalidStreamIndex)
-    return nullptr;
-  auto ModStreamData = Session.getPDBFile().createIndexedStream(StreamIndex);
-  ModuleDebugStreamRef ModS(ModDesc, std::move(ModStreamData));
-  if (auto EC = ModS.reload()) {
-    consumeError(std::move(EC));
+  auto ExpectedModS = getModuleDebugStream(*Modi);
+  if (!ExpectedModS) {
+    consumeError(ExpectedModS.takeError());
     return nullptr;
   }
+  CVSymbolArray Syms = ExpectedModS->getSymbolArray();
 
   // Search for the symbol in this module.
-  CVSymbolArray Syms = ModS.getSymbolArray();
   for (auto I = Syms.begin(), E = Syms.end(); I != E; ++I) {
     if (I->kind() != S_LPROC32 && I->kind() != S_GPROC32)
       continue;
     auto PS = cantFail(SymbolDeserializer::deserializeAs<ProcSym>(*I));
     if (Sect == PS.Segment && Offset >= PS.CodeOffset &&
         Offset < PS.CodeOffset + PS.CodeSize) {
+      // Check if the symbol is already cached.
+      auto Found = AddressToSymbolId.find({PS.Segment, PS.CodeOffset});
+      if (Found != AddressToSymbolId.end())
+        return getSymbolById(Found->second);
+
+      // Otherwise, create a new symbol.
       SymIndexId Id = createSymbol<NativeFunctionSymbol>(PS);
+      AddressToSymbolId.insert({{PS.Segment, PS.CodeOffset}, Id});
       return getSymbolById(Id);
     }
 
@@ -392,6 +423,8 @@ SymbolCache::findPublicSymbolBySectOffset(uint32_t Sect, uint32_t Offset) {
     } else
       Count = Half;
   }
+  if (It == AddrMap.begin())
+    return nullptr;
   --It;
 
   Expected<CVSymbol> Sym = readSymbolFromStream(SymStream, *It);
@@ -399,9 +432,187 @@ SymbolCache::findPublicSymbolBySectOffset(uint32_t Sect, uint32_t Offset) {
     consumeError(Sym.takeError());
     return nullptr;
   }
+
+  // Check if the symbol is already cached.
   auto PS = cantFail(SymbolDeserializer::deserializeAs<PublicSym32>(Sym.get()));
+  auto Found = AddressToPublicSymId.find({PS.Segment, PS.Offset});
+  if (Found != AddressToPublicSymId.end())
+    return getSymbolById(Found->second);
+
+  // Otherwise, create a new symbol.
   SymIndexId Id = createSymbol<NativePublicSymbol>(PS);
+  AddressToPublicSymId.insert({{PS.Segment, PS.Offset}, Id});
   return getSymbolById(Id);
+}
+
+std::vector<SymbolCache::LineTableEntry>
+SymbolCache::findLineTable(uint16_t Modi) const {
+  // Check if this module has already been added.
+  auto LineTableIter = LineTable.find(Modi);
+  if (LineTableIter != LineTable.end())
+    return LineTableIter->second;
+
+  std::vector<LineTableEntry> &ModuleLineTable = LineTable[Modi];
+
+  // If there is an error or there are no lines, just return the
+  // empty vector.
+  Expected<ModuleDebugStreamRef> ExpectedModS = getModuleDebugStream(Modi);
+  if (!ExpectedModS) {
+    consumeError(ExpectedModS.takeError());
+    return ModuleLineTable;
+  }
+
+  std::vector<std::vector<LineTableEntry>> EntryList;
+  for (const auto &SS : ExpectedModS->getSubsectionsArray()) {
+    if (SS.kind() != DebugSubsectionKind::Lines)
+      continue;
+
+    DebugLinesSubsectionRef Lines;
+    BinaryStreamReader Reader(SS.getRecordData());
+    if (auto EC = Lines.initialize(Reader)) {
+      consumeError(std::move(EC));
+      continue;
+    }
+
+    uint32_t RelocSegment = Lines.header()->RelocSegment;
+    uint32_t RelocOffset = Lines.header()->RelocOffset;
+    for (const LineColumnEntry &Group : Lines) {
+      if (Group.LineNumbers.empty())
+        continue;
+
+      std::vector<LineTableEntry> Entries;
+
+      // If there are column numbers, then they should be in a parallel stream
+      // to the line numbers.
+      auto ColIt = Group.Columns.begin();
+      auto ColsEnd = Group.Columns.end();
+
+      for (const LineNumberEntry &LN : Group.LineNumbers) {
+        uint64_t VA =
+            Session.getVAFromSectOffset(RelocSegment, RelocOffset + LN.Offset);
+        LineInfo Line(LN.Flags);
+        uint32_t ColNum = 0;
+
+        if (Lines.hasColumnInfo() && ColIt != ColsEnd) {
+          ColNum = ColIt->StartColumn;
+          ++ColIt;
+        }
+        Entries.push_back({VA, Line, ColNum, Group.NameIndex, false});
+      }
+
+      // Add a terminal entry line to mark the end of this subsection.
+      uint64_t VA = Session.getVAFromSectOffset(
+          RelocSegment, RelocOffset + Lines.header()->CodeSize);
+      LineInfo LastLine(Group.LineNumbers.back().Flags);
+      uint32_t ColNum =
+          (Lines.hasColumnInfo()) ? Group.Columns.back().StartColumn : 0;
+      Entries.push_back({VA, LastLine, ColNum, Group.NameIndex, true});
+
+      EntryList.push_back(Entries);
+    }
+  }
+
+  // Sort EntryList, and add flattened contents to the line table.
+  std::sort(EntryList.begin(), EntryList.end(),
+            [](const std::vector<LineTableEntry> &LHS,
+               const std::vector<LineTableEntry> &RHS) {
+              return LHS[0].Addr < RHS[0].Addr;
+            });
+  for (size_t I = 0; I < EntryList.size(); ++I)
+    ModuleLineTable.insert(ModuleLineTable.end(), EntryList[I].begin(),
+                           EntryList[I].end());
+
+  return ModuleLineTable;
+}
+
+std::unique_ptr<IPDBEnumLineNumbers>
+SymbolCache::findLineNumbersByVA(uint64_t VA, uint32_t Length) const {
+  Optional<uint16_t> MaybeModi = getModuleIndexForAddr(VA);
+  if (!MaybeModi)
+    return nullptr;
+  uint16_t Modi = *MaybeModi;
+
+  std::vector<LineTableEntry> Lines = findLineTable(Modi);
+  if (Lines.empty())
+    return nullptr;
+
+  // Find the first line in the line table whose address is not greater than
+  // the one we are searching for.
+  auto LineIter = llvm::partition_point(Lines, [&](const LineTableEntry &E) {
+    return (E.Addr < VA || (E.Addr == VA && E.IsTerminalEntry));
+  });
+
+  // Try to back up if we've gone too far.
+  if (LineIter == Lines.end() || LineIter->Addr > VA) {
+    if (LineIter == Lines.begin() || std::prev(LineIter)->IsTerminalEntry)
+      return nullptr;
+    --LineIter;
+  }
+
+  Expected<ModuleDebugStreamRef> ExpectedModS = getModuleDebugStream(Modi);
+  if (!ExpectedModS) {
+    consumeError(ExpectedModS.takeError());
+    return nullptr;
+  }
+  Expected<DebugChecksumsSubsectionRef> ExpectedChecksums =
+      ExpectedModS->findChecksumsSubsection();
+  if (!ExpectedChecksums) {
+    consumeError(ExpectedChecksums.takeError());
+    return nullptr;
+  }
+
+  // Populate a vector of NativeLineNumbers that have addresses in the given
+  // address range.
+  Optional<uint16_t> EndModi = getModuleIndexForAddr(VA + Length);
+  if (!EndModi)
+    return nullptr;
+  std::vector<NativeLineNumber> LineNumbers;
+  while (Modi <= *EndModi) {
+    // If we reached the end of the current module, increment Modi and get the
+    // new line table and checksums array.
+    if (LineIter == Lines.end()) {
+      ++Modi;
+
+      ExpectedModS = getModuleDebugStream(Modi);
+      if (!ExpectedModS) {
+        consumeError(ExpectedModS.takeError());
+        break;
+      }
+      ExpectedChecksums = ExpectedModS->findChecksumsSubsection();
+      if (!ExpectedChecksums) {
+        consumeError(ExpectedChecksums.takeError());
+        break;
+      }
+
+      Lines = findLineTable(Modi);
+      LineIter = Lines.begin();
+
+      if (Lines.empty())
+        continue;
+    }
+
+    if (LineIter->IsTerminalEntry) {
+      ++LineIter;
+      continue;
+    }
+
+    // If the line is still within the address range, create a NativeLineNumber
+    // and add to the list.
+    if (LineIter->Addr > VA + Length)
+      break;
+
+    uint32_t LineSect, LineOff;
+    Session.addressForVA(LineIter->Addr, LineSect, LineOff);
+    uint32_t LineLength = std::next(LineIter)->Addr - LineIter->Addr;
+    auto ChecksumIter =
+        ExpectedChecksums->getArray().at(LineIter->FileNameIndex);
+    uint32_t SrcFileId = getOrCreateSourceFile(*ChecksumIter);
+    NativeLineNumber LineNum(Session, LineIter->Line, LineIter->ColumnNumber,
+                             LineSect, LineOff, LineLength, SrcFileId, Modi);
+    LineNumbers.push_back(LineNum);
+    ++LineIter;
+  }
+  return std::make_unique<NativeEnumLineNumbers>(std::move(LineNumbers));
 }
 
 std::unique_ptr<PDBSymbolCompiland>
@@ -419,6 +630,31 @@ SymbolCache::getOrCreateCompiland(uint32_t Index) {
   }
 
   return Session.getConcreteSymbolById<PDBSymbolCompiland>(Compilands[Index]);
+}
+
+std::unique_ptr<IPDBSourceFile>
+SymbolCache::getSourceFileById(SymIndexId FileId) const {
+  assert(FileId < SourceFiles.size());
+
+  // Id 0 is reserved.
+  if (FileId == 0)
+    return nullptr;
+
+  return std::unique_ptr<NativeSourceFile>(
+      new NativeSourceFile(*SourceFiles[FileId].get()));
+}
+
+SymIndexId
+SymbolCache::getOrCreateSourceFile(const FileChecksumEntry &Checksums) const {
+  auto Iter = FileNameOffsetToId.find(Checksums.FileNameOffset);
+  if (Iter != FileNameOffsetToId.end())
+    return Iter->second;
+
+  SymIndexId Id = SourceFiles.size();
+  auto SrcFile = std::make_unique<NativeSourceFile>(Session, Id, Checksums);
+  SourceFiles.push_back(std::move(SrcFile));
+  FileNameOffsetToId[Checksums.FileNameOffset] = Id;
+  return Id;
 }
 
 void SymbolCache::parseSectionContribs() {
@@ -451,9 +687,8 @@ void SymbolCache::parseSectionContribs() {
   Dbi->visitSectionContributions(V);
 }
 
-Optional<uint16_t> SymbolCache::getModuleIndexForAddr(uint32_t Sect,
-                                                      uint32_t Offset) const {
-  auto Iter = AddrToModuleIndex.find(Session.getVAFromSectOffset(Sect, Offset));
+Optional<uint16_t> SymbolCache::getModuleIndexForAddr(uint64_t Addr) const {
+  auto Iter = AddrToModuleIndex.find(Addr);
   if (Iter == AddrToModuleIndex.end())
     return None;
   return Iter.value();

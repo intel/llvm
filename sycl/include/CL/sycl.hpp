@@ -11,7 +11,6 @@
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/backend.hpp>
-#include <CL/sycl/backend/opencl.hpp>
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/builtins.hpp>
 #include <CL/sycl/context.hpp>
@@ -23,6 +22,7 @@
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/image.hpp>
+#include <CL/sycl/intel/atomic.hpp>
 #include <CL/sycl/intel/builtins.hpp>
 #include <CL/sycl/intel/function_pointer.hpp>
 #include <CL/sycl/intel/group_algorithm.hpp>

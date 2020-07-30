@@ -57,9 +57,12 @@ spv.module Logical GLSL450 {
     // CHECK: [[CONST3:%.*]] = spv.constant 0 : i32
     // CHECK: [[ARG3PTR:%.*]] = spv.AccessChain [[ADDRESSARG3]]{{\[}}[[CONST3]]
     // CHECK: [[ARG3:%.*]] = spv.Load "StorageBuffer" [[ARG3PTR]]
-    // CHECK: [[ARG2:%.*]] = spv._address_of [[VAR2]]
-    // CHECK: [[ARG1:%.*]] = spv._address_of [[VAR1]]
-    // CHECK: [[ARG0:%.*]] = spv._address_of [[VAR0]]
+    // CHECK: [[ADDRESSARG2:%.*]] = spv._address_of [[VAR2]]
+    // CHECK: [[ARG2:%.*]] = spv.Bitcast [[ADDRESSARG2]]
+    // CHECK: [[ADDRESSARG1:%.*]] = spv._address_of [[VAR1]]
+    // CHECK: [[ARG1:%.*]] = spv.Bitcast [[ADDRESSARG1]]
+    // CHECK: [[ADDRESSARG0:%.*]] = spv._address_of [[VAR0]]
+    // CHECK: [[ARG0:%.*]] = spv.Bitcast [[ADDRESSARG0]]
     %0 = spv._address_of @__builtin_var_WorkgroupId__ : !spv.ptr<vector<3xi32>, Input>
     %1 = spv.Load "Input" %0 : vector<3xi32>
     %2 = spv.CompositeExtract %1[0 : i32] : vector<3xi32>
@@ -102,14 +105,14 @@ spv.module Logical GLSL450 {
     %37 = spv.IAdd %arg4, %11 : i32
     // CHECK: spv.AccessChain [[ARG0]]
     %c0 = spv.constant 0 : i32
-    %38 = spv.AccessChain %arg0[%c0, %36, %37] : !spv.ptr<!spv.struct<!spv.array<12 x !spv.array<4 x f32>>>, StorageBuffer>
+    %38 = spv.AccessChain %arg0[%c0, %36, %37] : !spv.ptr<!spv.struct<!spv.array<12 x !spv.array<4 x f32>>>, StorageBuffer>, i32, i32, i32
     %39 = spv.Load "StorageBuffer" %38 : f32
     // CHECK: spv.AccessChain [[ARG1]]
-    %40 = spv.AccessChain %arg1[%c0, %36, %37] : !spv.ptr<!spv.struct<!spv.array<12 x !spv.array<4 x f32>>>, StorageBuffer>
+    %40 = spv.AccessChain %arg1[%c0, %36, %37] : !spv.ptr<!spv.struct<!spv.array<12 x !spv.array<4 x f32>>>, StorageBuffer>, i32, i32, i32
     %41 = spv.Load "StorageBuffer" %40 : f32
     %42 = spv.FAdd %39, %41 : f32
     // CHECK: spv.AccessChain [[ARG2]]
-    %43 = spv.AccessChain %arg2[%c0, %36, %37] : !spv.ptr<!spv.struct<!spv.array<12 x !spv.array<4 x f32>>>, StorageBuffer>
+    %43 = spv.AccessChain %arg2[%c0, %36, %37] : !spv.ptr<!spv.struct<!spv.array<12 x !spv.array<4 x f32>>>, StorageBuffer>, i32, i32, i32
     spv.Store "StorageBuffer" %43, %42 : f32
     spv.Return
   }

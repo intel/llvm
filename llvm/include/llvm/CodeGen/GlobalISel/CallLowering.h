@@ -61,7 +61,8 @@ public:
       if (!Regs.empty() && Flags.empty())
         this->Flags.push_back(ISD::ArgFlagsTy());
       // FIXME: We should have just one way of saying "no register".
-      assert((Ty->isVoidTy() == (Regs.empty() || Regs[0] == 0)) &&
+      assert(((Ty->isVoidTy() || Ty->isEmptyTy()) ==
+              (Regs.empty() || Regs[0] == 0)) &&
              "only void types should have no register");
     }
 
@@ -110,15 +111,18 @@ public:
   /// argument should go, exactly what happens can vary slightly. This
   /// class abstracts the differences.
   struct ValueHandler {
-    ValueHandler(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI,
-                 CCAssignFn *AssignFn)
-      : MIRBuilder(MIRBuilder), MRI(MRI), AssignFn(AssignFn) {}
+    ValueHandler(bool IsIncoming, MachineIRBuilder &MIRBuilder,
+                 MachineRegisterInfo &MRI, CCAssignFn *AssignFn)
+        : MIRBuilder(MIRBuilder), MRI(MRI), AssignFn(AssignFn),
+          IsIncomingArgumentHandler(IsIncoming) {}
 
     virtual ~ValueHandler() = default;
 
     /// Returns true if the handler is dealing with incoming arguments,
     /// i.e. those that move values from some physical location to vregs.
-    virtual bool isIncomingArgumentHandler() const = 0;
+    bool isIncomingArgumentHandler() const {
+      return IsIncomingArgumentHandler;
+    }
 
     /// Materialize a VReg containing the address of the specified
     /// stack-based object. This is either based on a FrameIndex or
@@ -146,6 +150,7 @@ public:
     virtual void assignValueToAddress(const ArgInfo &Arg, Register Addr,
                                       uint64_t Size, MachinePointerInfo &MPO,
                                       CCValAssign &VA) {
+      assert(Arg.Regs.size() == 1);
       assignValueToAddress(Arg.Regs[0], Addr, Size, MPO, VA);
     }
 
@@ -176,7 +181,20 @@ public:
     CCAssignFn *AssignFn;
 
   private:
+    bool IsIncomingArgumentHandler;
     virtual void anchor();
+  };
+
+  struct IncomingValueHandler : public ValueHandler {
+    IncomingValueHandler(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI,
+                         CCAssignFn *AssignFn)
+        : ValueHandler(true, MIRBuilder, MRI, AssignFn) {}
+  };
+
+  struct OutgoingValueHandler : public ValueHandler {
+    OutgoingValueHandler(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI,
+                         CCAssignFn *AssignFn)
+        : ValueHandler(false, MIRBuilder, MRI, AssignFn) {}
   };
 
 protected:
@@ -288,6 +306,8 @@ public:
                            ArrayRef<Register> VRegs) const {
     return false;
   }
+
+  virtual bool fallBackToDAGISel(const Function &F) const { return false; }
 
   /// This hook must be implemented to lower the incoming (formal)
   /// arguments, described by \p VRegs, for GlobalISel. Each argument

@@ -65,12 +65,18 @@ def parse_args():
             dest="useProgressBar",
             help="Do not use curses based progress bar",
             action="store_false")
-    format_group.add_argument("--show-unsupported",
-            help="Show unsupported tests",
-            action="store_true")
-    format_group.add_argument("--show-xfail",
-            help="Show tests that were expected to fail",
-            action="store_true")
+
+    # Note: this does not generate flags for user-defined result codes.
+    success_codes = [c for c in lit.Test.ResultCode.all_codes()
+                     if not c.isFailure]
+    for code in success_codes:
+        format_group.add_argument(
+            "--show-{}".format(code.name.lower()),
+            dest="shown_codes",
+            help="Show {} tests ({})".format(code.label.lower(), code.name),
+            action="append_const",
+            const=code,
+            default=[])
 
     execution_group = parser.add_argument_group("Test Execution")
     execution_group.add_argument("--path",

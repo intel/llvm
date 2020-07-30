@@ -108,6 +108,8 @@ public:
 
   virtual bool hasMostDerivedReturn(GlobalDecl GD) const { return false; }
 
+  virtual bool useSinitAndSterm() const { return false; }
+
   /// Returns true if the target allows calling a function through a pointer
   /// with a different signature than the actual function (or equivalently,
   /// bitcasting a function or function pointer to a different function type).
@@ -399,6 +401,13 @@ public:
   addImplicitConstructorArgs(CodeGenFunction &CGF, const CXXConstructorDecl *D,
                              CXXCtorType Type, bool ForVirtualBase,
                              bool Delegating, CallArgList &Args);
+
+  /// Get the implicit (second) parameter that comes after the "this" pointer,
+  /// or nullptr if there is isn't one.
+  virtual llvm::Value *
+  getCXXDestructorImplicitParam(CodeGenFunction &CGF,
+                                const CXXDestructorDecl *DD, CXXDtorType Type,
+                                bool ForVirtualBase, bool Delegating) = 0;
 
   /// Emit the destructor call.
   virtual void EmitDestructorCall(CodeGenFunction &CGF,

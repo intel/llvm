@@ -485,7 +485,8 @@ public:
     lldb::TargetSP m_target_sp;
     ModuleList m_module_list;
 
-    DISALLOW_COPY_AND_ASSIGN(TargetEventData);
+    TargetEventData(const TargetEventData &) = delete;
+    const TargetEventData &operator=(const TargetEventData &) = delete;
   };
 
   ~Target() override;
@@ -1250,6 +1251,10 @@ public:
 
   void SetREPL(lldb::LanguageType language, lldb::REPLSP repl_sp);
 
+  StackFrameRecognizerManager &GetFrameRecognizerManager() {
+    return *m_frame_recognizer_manager_up;
+  }
+
 protected:
   /// Implementing of ModuleList::Notifier.
 
@@ -1324,6 +1329,8 @@ protected:
   bool m_suppress_stop_hooks;
   bool m_is_dummy_target;
   unsigned m_next_persistent_variable_index = 0;
+  /// Stores the frame recognizers of this target.
+  lldb::StackFrameRecognizerManagerUP m_frame_recognizer_manager_up;
 
   static void ImageSearchPathsChanged(const PathMappingList &path_list,
                                       void *baton);
@@ -1369,7 +1376,8 @@ private:
 
   void FinalizeFileActions(ProcessLaunchInfo &info);
 
-  DISALLOW_COPY_AND_ASSIGN(Target);
+  Target(const Target &) = delete;
+  const Target &operator=(const Target &) = delete;
 };
 
 } // namespace lldb_private

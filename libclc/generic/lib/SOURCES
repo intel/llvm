@@ -1,5 +1,3 @@
-subnormal_config.cl
-subnormal_helper_func.ll
 async/async_work_group_copy.cl
 async/async_work_group_strided_copy.cl
 async/prefetch.cl
@@ -107,7 +105,6 @@ math/floor.cl
 math/fma.cl
 math/fmax.cl
 math/fmin.cl
-math/clc_fmod.cl
 math/fmod.cl
 math/fract.cl
 math/frexp.cl
@@ -125,7 +122,6 @@ math/half_rsqrt.cl
 math/half_sin.cl
 math/half_sqrt.cl
 math/half_tan.cl
-math/clc_hypot.cl
 math/hypot.cl
 math/ilogb.cl
 math/ldexp.cl
@@ -155,19 +151,13 @@ math/native_rsqrt.cl
 math/native_sin.cl
 math/native_sqrt.cl
 math/native_tan.cl
-math/clc_nextafter.cl
 math/nextafter.cl
 math/pow.cl
-math/clc_pown.cl
 math/pown.cl
-math/clc_powr.cl
 math/powr.cl
-math/clc_remainder.cl
 math/remainder.cl
-math/clc_remquo.cl
 math/remquo.cl
 math/rint.cl
-math/clc_rootn.cl
 math/rootn.cl
 math/round.cl
 math/rsqrt.cl

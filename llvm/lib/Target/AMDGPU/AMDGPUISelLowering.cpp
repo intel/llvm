@@ -443,7 +443,7 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::UREM, VT, Expand);
     setOperationAction(ISD::SMUL_LOHI, VT, Expand);
     setOperationAction(ISD::UMUL_LOHI, VT, Expand);
-    setOperationAction(ISD::SDIVREM, VT, Custom);
+    setOperationAction(ISD::SDIVREM, VT, Expand);
     setOperationAction(ISD::UDIVREM, VT, Expand);
     setOperationAction(ISD::SELECT, VT, Expand);
     setOperationAction(ISD::VSELECT, VT, Expand);
@@ -1010,20 +1010,24 @@ void AMDGPUTargetLowering::analyzeFormalArgumentsCompute(
   const unsigned ExplicitOffset = ST.getExplicitKernelArgOffset(Fn);
   CallingConv::ID CC = Fn.getCallingConv();
 
-  unsigned MaxAlign = 1;
+  Align MaxAlign = Align(1);
   uint64_t ExplicitArgOffset = 0;
   const DataLayout &DL = Fn.getParent()->getDataLayout();
 
   unsigned InIndex = 0;
 
   for (const Argument &Arg : Fn.args()) {
+    const bool IsByRef = Arg.hasByRefAttr();
     Type *BaseArgTy = Arg.getType();
-    unsigned Align = DL.getABITypeAlignment(BaseArgTy);
-    MaxAlign = std::max(Align, MaxAlign);
-    unsigned AllocSize = DL.getTypeAllocSize(BaseArgTy);
+    Type *MemArgTy = IsByRef ? Arg.getParamByRefType() : BaseArgTy;
+    MaybeAlign Alignment = IsByRef ? Arg.getParamAlign() : None;
+    if (!Alignment)
+      Alignment = DL.getABITypeAlign(MemArgTy);
+    MaxAlign = max(Alignment, MaxAlign);
+    uint64_t AllocSize = DL.getTypeAllocSize(MemArgTy);
 
-    uint64_t ArgOffset = alignTo(ExplicitArgOffset, Align) + ExplicitOffset;
-    ExplicitArgOffset = alignTo(ExplicitArgOffset, Align) + AllocSize;
+    uint64_t ArgOffset = alignTo(ExplicitArgOffset, Alignment) + ExplicitOffset;
+    ExplicitArgOffset = alignTo(ExplicitArgOffset, Alignment) + AllocSize;
 
     // We're basically throwing away everything passed into us and starting over
     // to get accurate in-memory offsets. The "PartOffset" is completely useless
@@ -1224,7 +1228,7 @@ SDValue AMDGPUTargetLowering::LowerOperation(SDValue Op,
   switch (Op.getOpcode()) {
   default:
     Op->print(errs(), &DAG);
-    llvm_unreachable("Custom lowering code for this"
+    llvm_unreachable("Custom lowering code for this "
                      "instruction is not implemented yet!");
     break;
   case ISD::SIGN_EXTEND_INREG: return LowerSIGN_EXTEND_INREG(Op, DAG);
@@ -1321,7 +1325,7 @@ SDValue AMDGPUTargetLowering::LowerGlobalAddress(AMDGPUMachineFunction* MFI,
 
     // TODO: We could emit code to handle the initialization somewhere.
     if (!hasDefinedInitializer(GV)) {
-      unsigned Offset = MFI->allocateLDSGlobal(DL, *GV);
+      unsigned Offset = MFI->allocateLDSGlobal(DL, *cast<GlobalVariable>(GV));
       return DAG.getConstant(Offset, SDLoc(Op), Op.getValueType());
     }
   }
@@ -1699,10 +1703,11 @@ SDValue AMDGPUTargetLowering::LowerDIVREM24(SDValue Op, SelectionDAG &DAG,
   const AMDGPUMachineFunction *MFI = MF.getInfo<AMDGPUMachineFunction>();
 
   // float fr = mad(fqneg, fb, fa);
-  unsigned OpCode = !MFI->getMode().allFP32Denormals() ?
+  unsigned OpCode = !Subtarget->hasMadMacF32Insts() ?
+                    (unsigned)ISD::FMA :
+                    !MFI->getMode().allFP32Denormals() ?
                     (unsigned)ISD::FMAD :
                     (unsigned)AMDGPUISD::FMAD_FTZ;
-
   SDValue fr = DAG.getNode(OpCode, DL, FltVT, fqneg, fb, fa);
 
   // int iq = (int)fq;
@@ -1785,10 +1790,11 @@ void AMDGPUTargetLowering::LowerUDIVREM64(SDValue Op,
     const SIMachineFunctionInfo *MFI = MF.getInfo<SIMachineFunctionInfo>();
 
     // Compute denominator reciprocal.
-    unsigned FMAD = !MFI->getMode().allFP32Denormals() ?
+    unsigned FMAD = !Subtarget->hasMadMacF32Insts() ?
+                    (unsigned)ISD::FMA :
+                    !MFI->getMode().allFP32Denormals() ?
                     (unsigned)ISD::FMAD :
                     (unsigned)AMDGPUISD::FMAD_FTZ;
-
 
     SDValue Cvt_Lo = DAG.getNode(ISD::UINT_TO_FP, DL, MVT::f32, RHS_Lo);
     SDValue Cvt_Hi = DAG.getNode(ISD::UINT_TO_FP, DL, MVT::f32, RHS_Hi);
@@ -1974,103 +1980,43 @@ SDValue AMDGPUTargetLowering::LowerUDIVREM(SDValue Op,
       return Res;
   }
 
-  SDValue Num = Op.getOperand(0);
-  SDValue Den = Op.getOperand(1);
+  SDValue X = Op.getOperand(0);
+  SDValue Y = Op.getOperand(1);
 
-  // RCP =  URECIP(Den) = 2^32 / Den + e
-  // e is rounding error.
-  SDValue RCP = DAG.getNode(AMDGPUISD::URECIP, DL, VT, Den);
+  // See AMDGPUCodeGenPrepare::expandDivRem32 for a description of the
+  // algorithm used here.
 
-  // RCP_LO = mul(RCP, Den) */
-  SDValue RCP_LO = DAG.getNode(ISD::MUL, DL, VT, RCP, Den);
+  // Initial estimate of inv(y).
+  SDValue Z = DAG.getNode(AMDGPUISD::URECIP, DL, VT, Y);
 
-  // RCP_HI = mulhu (RCP, Den) */
-  SDValue RCP_HI = DAG.getNode(ISD::MULHU, DL, VT, RCP, Den);
+  // One round of UNR.
+  SDValue NegY = DAG.getNode(ISD::SUB, DL, VT, DAG.getConstant(0, DL, VT), Y);
+  SDValue NegYZ = DAG.getNode(ISD::MUL, DL, VT, NegY, Z);
+  Z = DAG.getNode(ISD::ADD, DL, VT, Z,
+                  DAG.getNode(ISD::MULHU, DL, VT, Z, NegYZ));
 
-  // NEG_RCP_LO = -RCP_LO
-  SDValue NEG_RCP_LO = DAG.getNode(ISD::SUB, DL, VT, DAG.getConstant(0, DL, VT),
-                                                     RCP_LO);
+  // Quotient/remainder estimate.
+  SDValue Q = DAG.getNode(ISD::MULHU, DL, VT, X, Z);
+  SDValue R =
+      DAG.getNode(ISD::SUB, DL, VT, X, DAG.getNode(ISD::MUL, DL, VT, Q, Y));
 
-  // ABS_RCP_LO = (RCP_HI == 0 ? NEG_RCP_LO : RCP_LO)
-  SDValue ABS_RCP_LO = DAG.getSelectCC(DL, RCP_HI, DAG.getConstant(0, DL, VT),
-                                           NEG_RCP_LO, RCP_LO,
-                                           ISD::SETEQ);
-  // Calculate the rounding error from the URECIP instruction
-  // E = mulhu(ABS_RCP_LO, RCP)
-  SDValue E = DAG.getNode(ISD::MULHU, DL, VT, ABS_RCP_LO, RCP);
+  // First quotient/remainder refinement.
+  EVT CCVT = getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), VT);
+  SDValue One = DAG.getConstant(1, DL, VT);
+  SDValue Cond = DAG.getSetCC(DL, CCVT, R, Y, ISD::SETUGE);
+  Q = DAG.getNode(ISD::SELECT, DL, VT, Cond,
+                  DAG.getNode(ISD::ADD, DL, VT, Q, One), Q);
+  R = DAG.getNode(ISD::SELECT, DL, VT, Cond,
+                  DAG.getNode(ISD::SUB, DL, VT, R, Y), R);
 
-  // RCP_A_E = RCP + E
-  SDValue RCP_A_E = DAG.getNode(ISD::ADD, DL, VT, RCP, E);
+  // Second quotient/remainder refinement.
+  Cond = DAG.getSetCC(DL, CCVT, R, Y, ISD::SETUGE);
+  Q = DAG.getNode(ISD::SELECT, DL, VT, Cond,
+                  DAG.getNode(ISD::ADD, DL, VT, Q, One), Q);
+  R = DAG.getNode(ISD::SELECT, DL, VT, Cond,
+                  DAG.getNode(ISD::SUB, DL, VT, R, Y), R);
 
-  // RCP_S_E = RCP - E
-  SDValue RCP_S_E = DAG.getNode(ISD::SUB, DL, VT, RCP, E);
-
-  // Tmp0 = (RCP_HI == 0 ? RCP_A_E : RCP_SUB_E)
-  SDValue Tmp0 = DAG.getSelectCC(DL, RCP_HI, DAG.getConstant(0, DL, VT),
-                                     RCP_A_E, RCP_S_E,
-                                     ISD::SETEQ);
-  // Quotient = mulhu(Tmp0, Num)
-  SDValue Quotient = DAG.getNode(ISD::MULHU, DL, VT, Tmp0, Num);
-
-  // Num_S_Remainder = Quotient * Den
-  SDValue Num_S_Remainder = DAG.getNode(ISD::MUL, DL, VT, Quotient, Den);
-
-  // Remainder = Num - Num_S_Remainder
-  SDValue Remainder = DAG.getNode(ISD::SUB, DL, VT, Num, Num_S_Remainder);
-
-  // Remainder_GE_Den = (Remainder >= Den ? -1 : 0)
-  SDValue Remainder_GE_Den = DAG.getSelectCC(DL, Remainder, Den,
-                                                 DAG.getConstant(-1, DL, VT),
-                                                 DAG.getConstant(0, DL, VT),
-                                                 ISD::SETUGE);
-  // Remainder_GE_Zero = (Num >= Num_S_Remainder ? -1 : 0)
-  SDValue Remainder_GE_Zero = DAG.getSelectCC(DL, Num,
-                                                  Num_S_Remainder,
-                                                  DAG.getConstant(-1, DL, VT),
-                                                  DAG.getConstant(0, DL, VT),
-                                                  ISD::SETUGE);
-  // Tmp1 = Remainder_GE_Den & Remainder_GE_Zero
-  SDValue Tmp1 = DAG.getNode(ISD::AND, DL, VT, Remainder_GE_Den,
-                                               Remainder_GE_Zero);
-
-  // Calculate Division result:
-
-  // Quotient_A_One = Quotient + 1
-  SDValue Quotient_A_One = DAG.getNode(ISD::ADD, DL, VT, Quotient,
-                                       DAG.getConstant(1, DL, VT));
-
-  // Quotient_S_One = Quotient - 1
-  SDValue Quotient_S_One = DAG.getNode(ISD::SUB, DL, VT, Quotient,
-                                       DAG.getConstant(1, DL, VT));
-
-  // Div = (Tmp1 == 0 ? Quotient : Quotient_A_One)
-  SDValue Div = DAG.getSelectCC(DL, Tmp1, DAG.getConstant(0, DL, VT),
-                                     Quotient, Quotient_A_One, ISD::SETEQ);
-
-  // Div = (Remainder_GE_Zero == 0 ? Quotient_S_One : Div)
-  Div = DAG.getSelectCC(DL, Remainder_GE_Zero, DAG.getConstant(0, DL, VT),
-                            Quotient_S_One, Div, ISD::SETEQ);
-
-  // Calculate Rem result:
-
-  // Remainder_S_Den = Remainder - Den
-  SDValue Remainder_S_Den = DAG.getNode(ISD::SUB, DL, VT, Remainder, Den);
-
-  // Remainder_A_Den = Remainder + Den
-  SDValue Remainder_A_Den = DAG.getNode(ISD::ADD, DL, VT, Remainder, Den);
-
-  // Rem = (Tmp1 == 0 ? Remainder : Remainder_S_Den)
-  SDValue Rem = DAG.getSelectCC(DL, Tmp1, DAG.getConstant(0, DL, VT),
-                                    Remainder, Remainder_S_Den, ISD::SETEQ);
-
-  // Rem = (Remainder_GE_Zero == 0 ? Remainder_A_Den : Rem)
-  Rem = DAG.getSelectCC(DL, Remainder_GE_Zero, DAG.getConstant(0, DL, VT),
-                            Remainder_A_Den, Rem, ISD::SETEQ);
-  SDValue Ops[2] = {
-    Div,
-    Rem
-  };
-  return DAG.getMergeValues(Ops, DL);
+  return DAG.getMergeValues({Q, R}, DL);
 }
 
 SDValue AMDGPUTargetLowering::LowerSDIVREM(SDValue Op,
@@ -2756,14 +2702,12 @@ SDValue AMDGPUTargetLowering::LowerFP_TO_SINT(SDValue Op,
   // TODO: Factor out code common with LowerFP_TO_UINT.
 
   EVT SrcVT = Src.getValueType();
-  if (Subtarget->has16BitInsts() && SrcVT == MVT::f16) {
+  if (SrcVT == MVT::f16 ||
+      (SrcVT == MVT::f32 && Src.getOpcode() == ISD::FP16_TO_FP)) {
     SDLoc DL(Op);
 
-    SDValue FPExtend = DAG.getNode(ISD::FP_EXTEND, DL, MVT::f32, Src);
-    SDValue FpToInt32 =
-        DAG.getNode(Op.getOpcode(), DL, MVT::i64, FPExtend);
-
-    return FpToInt32;
+    SDValue FpToInt32 = DAG.getNode(Op.getOpcode(), DL, MVT::i32, Src);
+    return DAG.getNode(ISD::SIGN_EXTEND, DL, MVT::i64, FpToInt32);
   }
 
   if (Op.getValueType() == MVT::i64 && Src.getValueType() == MVT::f64)
@@ -2779,14 +2723,12 @@ SDValue AMDGPUTargetLowering::LowerFP_TO_UINT(SDValue Op,
   // TODO: Factor out code common with LowerFP_TO_SINT.
 
   EVT SrcVT = Src.getValueType();
-  if (Subtarget->has16BitInsts() && SrcVT == MVT::f16) {
+  if (SrcVT == MVT::f16 ||
+      (SrcVT == MVT::f32 && Src.getOpcode() == ISD::FP16_TO_FP)) {
     SDLoc DL(Op);
 
-    SDValue FPExtend = DAG.getNode(ISD::FP_EXTEND, DL, MVT::f32, Src);
-    SDValue FpToInt32 =
-        DAG.getNode(Op.getOpcode(), DL, MVT::i64, FPExtend);
-
-    return FpToInt32;
+    SDValue FpToUInt32 = DAG.getNode(Op.getOpcode(), DL, MVT::i32, Src);
+    return DAG.getNode(ISD::ZERO_EXTEND, DL, MVT::i64, FpToUInt32);
   }
 
   if (Op.getValueType() == MVT::i64 && Src.getValueType() == MVT::f64)
@@ -2928,16 +2870,17 @@ SDValue AMDGPUTargetLowering::performLoadCombine(SDNode *N,
   EVT VT = LN->getMemoryVT();
 
   unsigned Size = VT.getStoreSize();
-  unsigned Align = LN->getAlignment();
-  if (Align < Size && isTypeLegal(VT)) {
+  Align Alignment = LN->getAlign();
+  if (Alignment < Size && isTypeLegal(VT)) {
     bool IsFast;
     unsigned AS = LN->getAddressSpace();
 
     // Expand unaligned loads earlier than legalization. Due to visitation order
     // problems during legalization, the emitted instructions to pack and unpack
     // the bytes again are not eliminated in the case of an unaligned copy.
-    if (!allowsMisalignedMemoryAccesses(
-            VT, AS, Align, LN->getMemOperand()->getFlags(), &IsFast)) {
+    if (!allowsMisalignedMemoryAccesses(VT, AS, Alignment.value(),
+                                        LN->getMemOperand()->getFlags(),
+                                        &IsFast)) {
       SDValue Ops[2];
 
       if (VT.isVector())
@@ -2982,8 +2925,8 @@ SDValue AMDGPUTargetLowering::performStoreCombine(SDNode *N,
 
   SDLoc SL(N);
   SelectionDAG &DAG = DCI.DAG;
-  unsigned Align = SN->getAlignment();
-  if (Align < Size && isTypeLegal(VT)) {
+  Align Alignment = SN->getAlign();
+  if (Alignment < Size && isTypeLegal(VT)) {
     bool IsFast;
     unsigned AS = SN->getAddressSpace();
 
@@ -2991,8 +2934,9 @@ SDValue AMDGPUTargetLowering::performStoreCombine(SDNode *N,
     // order problems during legalization, the emitted instructions to pack and
     // unpack the bytes again are not eliminated in the case of an unaligned
     // copy.
-    if (!allowsMisalignedMemoryAccesses(
-            VT, AS, Align, SN->getMemOperand()->getFlags(), &IsFast)) {
+    if (!allowsMisalignedMemoryAccesses(VT, AS, Alignment.value(),
+                                        SN->getMemOperand()->getFlags(),
+                                        &IsFast)) {
       if (VT.isVector())
         return scalarizeVectorStore(SN, DAG);
 
@@ -3518,24 +3462,24 @@ SDValue AMDGPUTargetLowering::performCtlz_CttzCombine(const SDLoc &SL, SDValue C
   ISD::CondCode CCOpcode = cast<CondCodeSDNode>(Cond.getOperand(2))->get();
   SDValue CmpLHS = Cond.getOperand(0);
 
-  unsigned Opc = isCttzOpc(RHS.getOpcode()) ? AMDGPUISD::FFBL_B32 :
-                                           AMDGPUISD::FFBH_U32;
-
   // select (setcc x, 0, eq), -1, (ctlz_zero_undef x) -> ffbh_u32 x
   // select (setcc x, 0, eq), -1, (cttz_zero_undef x) -> ffbl_u32 x
   if (CCOpcode == ISD::SETEQ &&
       (isCtlzOpc(RHS.getOpcode()) || isCttzOpc(RHS.getOpcode())) &&
-      RHS.getOperand(0) == CmpLHS &&
-      isNegativeOne(LHS)) {
+      RHS.getOperand(0) == CmpLHS && isNegativeOne(LHS)) {
+    unsigned Opc =
+        isCttzOpc(RHS.getOpcode()) ? AMDGPUISD::FFBL_B32 : AMDGPUISD::FFBH_U32;
     return getFFBX_U32(DAG, CmpLHS, SL, Opc);
   }
 
   // select (setcc x, 0, ne), (ctlz_zero_undef x), -1 -> ffbh_u32 x
   // select (setcc x, 0, ne), (cttz_zero_undef x), -1 -> ffbl_u32 x
   if (CCOpcode == ISD::SETNE &&
-      (isCtlzOpc(LHS.getOpcode()) || isCttzOpc(RHS.getOpcode())) &&
-      LHS.getOperand(0) == CmpLHS &&
-      isNegativeOne(RHS)) {
+      (isCtlzOpc(LHS.getOpcode()) || isCttzOpc(LHS.getOpcode())) &&
+      LHS.getOperand(0) == CmpLHS && isNegativeOne(RHS)) {
+    unsigned Opc =
+        isCttzOpc(LHS.getOpcode()) ? AMDGPUISD::FFBL_B32 : AMDGPUISD::FFBH_U32;
+
     return getFFBX_U32(DAG, CmpLHS, SL, Opc);
   }
 
@@ -4319,7 +4263,6 @@ const char* AMDGPUTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(DIV_FMAS)
   NODE_NAME_CASE(DIV_FIXUP)
   NODE_NAME_CASE(FMAD_FTZ)
-  NODE_NAME_CASE(TRIG_PREOP)
   NODE_NAME_CASE(RCP)
   NODE_NAME_CASE(RSQ)
   NODE_NAME_CASE(RCP_LEGACY)
@@ -4393,6 +4336,7 @@ const char* AMDGPUTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(ATOMIC_DEC)
   NODE_NAME_CASE(ATOMIC_LOAD_FMIN)
   NODE_NAME_CASE(ATOMIC_LOAD_FMAX)
+  NODE_NAME_CASE(ATOMIC_LOAD_CSUB)
   NODE_NAME_CASE(BUFFER_LOAD)
   NODE_NAME_CASE(BUFFER_LOAD_UBYTE)
   NODE_NAME_CASE(BUFFER_LOAD_USHORT)
@@ -4419,6 +4363,7 @@ const char* AMDGPUTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(BUFFER_ATOMIC_INC)
   NODE_NAME_CASE(BUFFER_ATOMIC_DEC)
   NODE_NAME_CASE(BUFFER_ATOMIC_CMPSWAP)
+  NODE_NAME_CASE(BUFFER_ATOMIC_CSUB)
   NODE_NAME_CASE(BUFFER_ATOMIC_FADD)
   NODE_NAME_CASE(BUFFER_ATOMIC_PK_FADD)
   NODE_NAME_CASE(ATOMIC_PK_FADD)
@@ -4585,11 +4530,10 @@ void AMDGPUTargetLowering::computeKnownBitsForTargetNode(
   }
   case AMDGPUISD::LDS: {
     auto GA = cast<GlobalAddressSDNode>(Op.getOperand(0).getNode());
-    unsigned Align = GA->getGlobal()->getAlignment();
+    Align Alignment = GA->getGlobal()->getPointerAlignment(DAG.getDataLayout());
 
     Known.Zero.setHighBits(16);
-    if (Align)
-      Known.Zero.setLowBits(Log2_32(Align));
+    Known.Zero.setLowBits(Log2(Alignment));
     break;
   }
   case ISD::INTRINSIC_WO_CHAIN: {
@@ -4733,7 +4677,6 @@ bool AMDGPUTargetLowering::isKnownNeverNaNForTargetNode(SDValue Op,
   case AMDGPUISD::DIV_SCALE:
   case AMDGPUISD::DIV_FMAS:
   case AMDGPUISD::DIV_FIXUP:
-  case AMDGPUISD::TRIG_PREOP:
     // TODO: Refine on operands.
     return SNaN;
   case AMDGPUISD::SIN_HW:
@@ -4771,6 +4714,7 @@ bool AMDGPUTargetLowering::isKnownNeverNaNForTargetNode(SDValue Op,
       // TODO: Need is known positive check.
       return false;
     }
+    case Intrinsic::amdgcn_trig_preop:
     case Intrinsic::amdgcn_fdot2:
       // TODO: Refine on operand
       return SNaN;

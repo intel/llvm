@@ -30,7 +30,7 @@ def do_check(args):
         args.test_suite,
         "-j", str(cpu_count)]
 
-    print(cmake_cmd)
+    print("[Cmake Command]: {}".format(" ".join(cmake_cmd)))
 
     env_tmp=os.environ
     env_tmp["LIT_ARGS"]="\"{}\"".format("-v")

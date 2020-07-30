@@ -445,6 +445,14 @@ public:
   }
 };
 
+#ifdef _MSC_VER
+// Workaround for MSVC++ bug (Version 2017, 15.8.9) - w/o this forward
+// declaration, the friend declaration in ObjCProtoName below has no effect
+// and leads to compilation error when ObjCProtoName::Protocol private field
+// is accessed in PointerType::printLeft.
+class PointerType;
+#endif // _MSC_VER
+
 class ObjCProtoName : public Node {
   const Node *Ty;
   StringView Protocol;
@@ -1199,7 +1207,7 @@ public:
 
   template<typename Fn> void match(Fn F) const { F(Params); }
 
-  NodeArray getParams() { return Params; }
+  const NodeArray &getParams() const { return Params; }
 
   void printLeft(OutputStream &S) const override {
     S += "<";
@@ -2057,6 +2065,9 @@ public:
     else
       S << Integer;
   }
+
+  // Retrieves the string view of the integer value this node represents.
+  const StringView &getIntegerValue() const { return Integer; }
 };
 
 class IntegerLiteral : public Node {
@@ -2085,6 +2096,13 @@ public:
     if (Type.size() <= 3)
       S += Type;
   }
+
+  // Retrieves the string view of the integer value represented by this node.
+  const StringView &getValue() const { return Value; }
+
+  // Retrieves the string view of the type string of the integer value this node
+  // represents.
+  const StringView &getType() const { return Type; }
 };
 
 template <class Float> struct FloatData;
@@ -5096,6 +5114,22 @@ Node *AbstractManglingParser<Derived, Alloc>::parseSpecialName() {
 //            ::= <special-name>
 template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseEncoding() {
+  // The template parameters of an encoding are unrelated to those of the
+  // enclosing context.
+  class SaveTemplateParams {
+    AbstractManglingParser *Parser;
+    decltype(TemplateParams) OldParams;
+
+  public:
+    SaveTemplateParams(AbstractManglingParser *Parser) : Parser(Parser) {
+      OldParams = std::move(Parser->TemplateParams);
+      Parser->TemplateParams.clear();
+    }
+    ~SaveTemplateParams() {
+      Parser->TemplateParams = std::move(OldParams);
+    }
+  } SaveTemplateParams(this);
+
   if (look() == 'G' || look() == 'T')
     return getDerived().parseSpecialName();
 

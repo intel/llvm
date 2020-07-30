@@ -16,8 +16,9 @@
 #include "NVPTXLowerAggrCopies.h"
 #include "NVPTXTargetObjectFile.h"
 #include "NVPTXTargetTransformInfo.h"
-#include "TargetInfo/NVPTXTargetInfo.h"
+#include "SYCL/GlobalOffset.h"
 #include "SYCL/LocalAccessorToSharedMemory.h"
+#include "TargetInfo/NVPTXTargetInfo.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
@@ -71,6 +72,7 @@ void initializeNVPTXLowerArgsPass(PassRegistry &);
 void initializeNVPTXLowerAllocaPass(PassRegistry &);
 void initializeNVPTXProxyRegErasurePass(PassRegistry &);
 
+void initializeGlobalOffsetPass(PassRegistry &);
 void initializeLocalAccessorToSharedMemoryPass(PassRegistry &);
 
 } // end namespace llvm
@@ -94,6 +96,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTarget() {
   initializeNVPTXProxyRegErasurePass(PR);
 
   // SYCL-specific passes, needed here to be available to `opt`.
+  initializeGlobalOffsetPass(PR);
   initializeLocalAccessorToSharedMemoryPass(PR);
 }
 
@@ -274,6 +277,7 @@ void NVPTXPassConfig::addIRPasses() {
 
   if (getTM<NVPTXTargetMachine>().getTargetTriple().getOS() == Triple::CUDA &&
       getTM<NVPTXTargetMachine>().getTargetTriple().getEnvironment() == Triple::SYCLDevice) {
+    addPass(createGlobalOffsetPass());
     addPass(createLocalAccessorToSharedMemoryPass());
   }
 

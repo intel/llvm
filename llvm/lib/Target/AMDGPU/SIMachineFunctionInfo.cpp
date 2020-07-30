@@ -53,7 +53,7 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
   FlatWorkGroupSizes = ST.getFlatWorkGroupSizes(F);
   WavesPerEU = ST.getWavesPerEU(F);
 
-  Occupancy = ST.computeOccupancy(MF, getLDSSize());
+  Occupancy = ST.computeOccupancy(F, getLDSSize());
   CallingConv::ID CC = F.getCallingConv();
 
   // FIXME: Should have analysis or something rather than attribute to detect
@@ -303,7 +303,16 @@ bool SIMachineFunctionInfo::allocateSGPRSpillToVGPR(MachineFunction &MF,
     Register LaneVGPR;
     unsigned VGPRIndex = (NumVGPRSpillLanes % WaveSize);
 
-    if (VGPRIndex == 0 && !FuncInfo->VGPRReservedForSGPRSpill) {
+    // Reserve a VGPR (when NumVGPRSpillLanes = 0, WaveSize, 2*WaveSize, ..) and
+    // when one of the two conditions is true:
+    // 1. One reserved VGPR being tracked by VGPRReservedForSGPRSpill is not yet
+    // reserved.
+    // 2. All spill lanes of reserved VGPR(s) are full and another spill lane is
+    // required.
+    if (FuncInfo->VGPRReservedForSGPRSpill && NumVGPRSpillLanes < WaveSize) {
+      assert(FuncInfo->VGPRReservedForSGPRSpill == SpillVGPRs.back().VGPR);
+      LaneVGPR = FuncInfo->VGPRReservedForSGPRSpill;
+    } else if (VGPRIndex == 0) {
       LaneVGPR = TRI->findUnusedRegister(MRI, &AMDGPU::VGPR_32RegClass, MF);
       if (LaneVGPR == AMDGPU::NoRegister) {
         // We have no VGPRs left for spilling SGPRs. Reset because we will not

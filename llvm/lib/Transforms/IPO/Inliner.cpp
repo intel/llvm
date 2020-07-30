@@ -191,8 +191,8 @@ static void mergeInlinedArrayAllocas(Function *Caller, InlineFunctionInfo &IFI,
     // function.  Also, AllocasForType can be empty of course!
     bool MergedAwayAlloca = false;
     for (AllocaInst *AvailableAlloca : AllocasForType) {
-      unsigned Align1 = AI->getAlignment(),
-               Align2 = AvailableAlloca->getAlignment();
+      Align Align1 = AI->getAlign();
+      Align Align2 = AvailableAlloca->getAlign();
 
       // The available alloca has to be in the right function, not in some other
       // function in this SCC.
@@ -219,18 +219,8 @@ static void mergeInlinedArrayAllocas(Function *Caller, InlineFunctionInfo &IFI,
 
       AI->replaceAllUsesWith(AvailableAlloca);
 
-      if (Align1 != Align2) {
-        if (!Align1 || !Align2) {
-          const DataLayout &DL = Caller->getParent()->getDataLayout();
-          unsigned TypeAlign = DL.getABITypeAlignment(AI->getAllocatedType());
-
-          Align1 = Align1 ? Align1 : TypeAlign;
-          Align2 = Align2 ? Align2 : TypeAlign;
-        }
-
-        if (Align1 > Align2)
-          AvailableAlloca->setAlignment(AI->getAlign());
-      }
+      if (Align1 > Align2)
+        AvailableAlloca->setAlignment(AI->getAlign());
 
       AI->eraseFromParent();
       MergedAwayAlloca = true;
@@ -668,14 +658,18 @@ InlinerPass::~InlinerPass() {
 
 InlineAdvisor &
 InlinerPass::getAdvisor(const ModuleAnalysisManagerCGSCCProxy::Result &MAM,
-                        Module &M) {
+                        FunctionAnalysisManager &FAM, Module &M) {
   auto *IAA = MAM.getCachedResult<InlineAdvisorAnalysis>(M);
   if (!IAA) {
     // It should still be possible to run the inliner as a stand-alone SCC pass,
     // for test scenarios. In that case, we default to the
     // DefaultInlineAdvisor, which doesn't need to keep state between SCC pass
     // runs. It also uses just the default InlineParams.
-    OwnedDefaultAdvisor.emplace(getInlineParams());
+    // In this case, we need to use the provided FAM, which is valid for the
+    // duration of the inliner pass, and thus the lifetime of the owned advisor.
+    // The one we would get from the MAM can be invalidated as a result of the
+    // inliner's activity.
+    OwnedDefaultAdvisor.emplace(FAM, getInlineParams());
     return *OwnedDefaultAdvisor;
   }
   assert(IAA->getAdvisor() &&
@@ -695,7 +689,11 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
   Module &M = *InitialC.begin()->getFunction().getParent();
   ProfileSummaryInfo *PSI = MAMProxy.getCachedResult<ProfileSummaryAnalysis>(M);
 
-  InlineAdvisor &Advisor = getAdvisor(MAMProxy, M);
+  FunctionAnalysisManager &FAM =
+      AM.getResult<FunctionAnalysisManagerCGSCCProxy>(InitialC, CG)
+          .getManager();
+
+  InlineAdvisor &Advisor = getAdvisor(MAMProxy, FAM, M);
   Advisor.onPassEntry();
 
   auto AdvisorOnExit = make_scope_exit([&] { Advisor.onPassExit(); });
@@ -732,10 +730,6 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
   // and eventually they all become too large to inline, rather than
   // incrementally maknig a single function grow in a super linear fashion.
   SmallVector<std::pair<CallBase *, int>, 16> Calls;
-
-  FunctionAnalysisManager &FAM =
-      AM.getResult<FunctionAnalysisManagerCGSCCProxy>(InitialC, CG)
-          .getManager();
 
   // Populate the initial list of calls in this SCC.
   for (auto &N : InitialC) {
@@ -797,7 +791,9 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
     LazyCallGraph::Node &N = *CG.lookup(F);
     if (CG.lookupSCC(N) != C)
       continue;
-    if (F.hasOptNone()) {
+    if (!Calls[I].first->getCalledFunction()->hasFnAttribute(
+            Attribute::AlwaysInline) &&
+        F.hasOptNone()) {
       setInlineRemark(*Calls[I].first, "optnone attribute");
       continue;
     }
@@ -838,7 +834,7 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
         continue;
       }
 
-      auto Advice = Advisor.getAdvice(*CB, FAM);
+      auto Advice = Advisor.getAdvice(*CB);
       // Check whether we want to inline this callsite.
       if (!Advice->isInliningRecommended()) {
         Advice->recordUnattemptedInlining();

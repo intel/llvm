@@ -408,7 +408,7 @@ void FinalOverriders::dump(raw_ostream &Out, BaseSubobject Base,
 
   // Now dump the overriders for this base subobject.
   for (const auto *MD : RD->methods()) {
-    if (!MD->isVirtual())
+    if (!VTableContextBase::hasVtableSlot(MD))
       continue;
     MD = MD->getCanonicalDecl();
 
@@ -486,8 +486,8 @@ static bool HasSameVirtualSignature(const CXXMethodDecl *LHS,
 
 bool VCallOffsetMap::MethodsCanShareVCallOffset(const CXXMethodDecl *LHS,
                                                 const CXXMethodDecl *RHS) {
-  assert(LHS->isVirtual() && "LHS must be virtual!");
-  assert(RHS->isVirtual() && "LHS must be virtual!");
+  assert(VTableContextBase::hasVtableSlot(LHS) && "LHS must be virtual!");
+  assert(VTableContextBase::hasVtableSlot(RHS) && "LHS must be virtual!");
 
   // A destructor can share a vcall offset with another destructor.
   if (isa<CXXDestructorDecl>(LHS))
@@ -535,6 +535,8 @@ public:
     VBaseOffsetOffsetsMapTy;
 
 private:
+  const ItaniumVTableContext &VTables;
+
   /// MostDerivedClass - The most derived class for which we're building vcall
   /// and vbase offsets.
   const CXXRecordDecl *MostDerivedClass;
@@ -583,13 +585,15 @@ private:
   CharUnits getCurrentOffsetOffset() const;
 
 public:
-  VCallAndVBaseOffsetBuilder(const CXXRecordDecl *MostDerivedClass,
+  VCallAndVBaseOffsetBuilder(const ItaniumVTableContext &VTables,
+                             const CXXRecordDecl *MostDerivedClass,
                              const CXXRecordDecl *LayoutClass,
                              const FinalOverriders *Overriders,
                              BaseSubobject Base, bool BaseIsVirtual,
                              CharUnits OffsetInLayoutClass)
-    : MostDerivedClass(MostDerivedClass), LayoutClass(LayoutClass),
-    Context(MostDerivedClass->getASTContext()), Overriders(Overriders) {
+      : VTables(VTables), MostDerivedClass(MostDerivedClass),
+        LayoutClass(LayoutClass), Context(MostDerivedClass->getASTContext()),
+        Overriders(Overriders) {
 
     // Add vcall and vbase offsets.
     AddVCallAndVBaseOffsets(Base, BaseIsVirtual, OffsetInLayoutClass);
@@ -662,9 +666,13 @@ CharUnits VCallAndVBaseOffsetBuilder::getCurrentOffsetOffset() const {
   // vcall offset itself).
   int64_t OffsetIndex = -(int64_t)(3 + Components.size());
 
-  CharUnits PointerWidth =
-    Context.toCharUnitsFromBits(Context.getTargetInfo().getPointerWidth(0));
-  CharUnits OffsetOffset = PointerWidth * OffsetIndex;
+  // Under the relative ABI, the offset widths are 32-bit ints instead of
+  // pointer widths.
+  CharUnits OffsetWidth = Context.toCharUnitsFromBits(
+      VTables.isRelativeLayout() ? 32
+                                 : Context.getTargetInfo().getPointerWidth(0));
+  CharUnits OffsetOffset = OffsetWidth * OffsetIndex;
+
   return OffsetOffset;
 }
 
@@ -689,7 +697,7 @@ void VCallAndVBaseOffsetBuilder::AddVCallOffsets(BaseSubobject Base,
 
   // Add the vcall offsets.
   for (const auto *MD : RD->methods()) {
-    if (!MD->isVirtual())
+    if (!VTableContextBase::hasVtableSlot(MD))
       continue;
     MD = MD->getCanonicalDecl();
 
@@ -1077,7 +1085,7 @@ typedef llvm::SmallPtrSet<const CXXMethodDecl *, 8> OverriddenMethodsSetTy;
 template <class VisitorTy>
 static void
 visitAllOverriddenMethods(const CXXMethodDecl *MD, VisitorTy &Visitor) {
-  assert(MD->isVirtual() && "Method is not virtual!");
+  assert(VTableContextBase::hasVtableSlot(MD) && "Method is not virtual!");
 
   for (const CXXMethodDecl *OverriddenMD : MD->overridden_methods()) {
     if (!Visitor(OverriddenMD))
@@ -1271,13 +1279,13 @@ ThisAdjustment ItaniumVTableBuilder::ComputeThisAdjustment(
     if (VCallOffsets.empty()) {
       // We don't have vcall offsets for this virtual base, go ahead and
       // build them.
-      VCallAndVBaseOffsetBuilder Builder(MostDerivedClass, MostDerivedClass,
-                                         /*Overriders=*/nullptr,
-                                         BaseSubobject(Offset.VirtualBase,
-                                                       CharUnits::Zero()),
-                                         /*BaseIsVirtual=*/true,
-                                         /*OffsetInLayoutClass=*/
-                                             CharUnits::Zero());
+      VCallAndVBaseOffsetBuilder Builder(
+          VTables, MostDerivedClass, MostDerivedClass,
+          /*Overriders=*/nullptr,
+          BaseSubobject(Offset.VirtualBase, CharUnits::Zero()),
+          /*BaseIsVirtual=*/true,
+          /*OffsetInLayoutClass=*/
+          CharUnits::Zero());
 
       VCallOffsets = Builder.getVCallOffsets();
     }
@@ -1481,7 +1489,7 @@ void ItaniumVTableBuilder::AddMethods(
 
   // Now go through all virtual member functions and add them.
   for (const auto *MD : RD->methods()) {
-    if (!MD->isVirtual())
+    if (!ItaniumVTableContext::hasVtableSlot(MD))
       continue;
     MD = MD->getCanonicalDecl();
 
@@ -1635,9 +1643,9 @@ void ItaniumVTableBuilder::LayoutPrimaryAndSecondaryVTables(
   VTableIndices.push_back(VTableIndex);
 
   // Add vcall and vbase offsets for this vtable.
-  VCallAndVBaseOffsetBuilder Builder(MostDerivedClass, LayoutClass, &Overriders,
-                                     Base, BaseIsVirtualInLayoutClass,
-                                     OffsetInLayoutClass);
+  VCallAndVBaseOffsetBuilder Builder(
+      VTables, MostDerivedClass, LayoutClass, &Overriders, Base,
+      BaseIsVirtualInLayoutClass, OffsetInLayoutClass);
   Components.append(Builder.components_begin(), Builder.components_end());
 
   // Check if we need to add these vcall offsets.
@@ -2161,7 +2169,7 @@ void ItaniumVTableBuilder::dumpLayout(raw_ostream &Out) {
 
   for (const auto *MD : MostDerivedClass->methods()) {
     // We only want virtual member functions.
-    if (!MD->isVirtual())
+    if (!ItaniumVTableContext::hasVtableSlot(MD))
       continue;
     MD = MD->getCanonicalDecl();
 
@@ -2200,12 +2208,40 @@ void ItaniumVTableBuilder::dumpLayout(raw_ostream &Out) {
 }
 }
 
+static VTableLayout::AddressPointsIndexMapTy
+MakeAddressPointIndices(const VTableLayout::AddressPointsMapTy &addressPoints,
+                        unsigned numVTables) {
+  VTableLayout::AddressPointsIndexMapTy indexMap(numVTables);
+
+  for (auto it = addressPoints.begin(); it != addressPoints.end(); ++it) {
+    const auto &addressPointLoc = it->second;
+    unsigned vtableIndex = addressPointLoc.VTableIndex;
+    unsigned addressPoint = addressPointLoc.AddressPointIndex;
+    if (indexMap[vtableIndex]) {
+      // Multiple BaseSubobjects can map to the same AddressPointLocation, but
+      // every vtable index should have a unique address point.
+      assert(indexMap[vtableIndex] == addressPoint &&
+             "Every vtable index should have a unique address point. Found a "
+             "vtable that has two different address points.");
+    } else {
+      indexMap[vtableIndex] = addressPoint;
+    }
+  }
+
+  // Note that by this point, not all the address may be initialized if the
+  // AddressPoints map is empty. This is ok if the map isn't needed. See
+  // MicrosoftVTableContext::computeVTableRelatedInformation() which uses an
+  // emprt map.
+  return indexMap;
+}
+
 VTableLayout::VTableLayout(ArrayRef<size_t> VTableIndices,
                            ArrayRef<VTableComponent> VTableComponents,
                            ArrayRef<VTableThunkTy> VTableThunks,
                            const AddressPointsMapTy &AddressPoints)
     : VTableComponents(VTableComponents), VTableThunks(VTableThunks),
-      AddressPoints(AddressPoints) {
+      AddressPoints(AddressPoints), AddressPointIndices(MakeAddressPointIndices(
+                                        AddressPoints, VTableIndices.size())) {
   if (VTableIndices.size() <= 1)
     assert(VTableIndices.size() == 1 && VTableIndices[0] == 0);
   else
@@ -2221,8 +2257,13 @@ VTableLayout::VTableLayout(ArrayRef<size_t> VTableIndices,
 
 VTableLayout::~VTableLayout() { }
 
-ItaniumVTableContext::ItaniumVTableContext(ASTContext &Context)
-    : VTableContextBase(/*MS=*/false) {}
+bool VTableContextBase::hasVtableSlot(const CXXMethodDecl *MD) {
+  return MD->isVirtual() && !MD->isConsteval();
+}
+
+ItaniumVTableContext::ItaniumVTableContext(
+    ASTContext &Context, VTableComponentLayout ComponentLayout)
+    : VTableContextBase(/*MS=*/false), ComponentLayout(ComponentLayout) {}
 
 ItaniumVTableContext::~ItaniumVTableContext() {}
 
@@ -2251,7 +2292,7 @@ ItaniumVTableContext::getVirtualBaseOffsetOffset(const CXXRecordDecl *RD,
   if (I != VirtualBaseClassOffsetOffsets.end())
     return I->second;
 
-  VCallAndVBaseOffsetBuilder Builder(RD, RD, /*Overriders=*/nullptr,
+  VCallAndVBaseOffsetBuilder Builder(*this, RD, RD, /*Overriders=*/nullptr,
                                      BaseSubobject(RD, CharUnits::Zero()),
                                      /*BaseIsVirtual=*/false,
                                      /*OffsetInLayoutClass=*/CharUnits::Zero());
@@ -2500,8 +2541,9 @@ private:
     BasesSetVectorTy VisitedBases;
     AddMethods(BaseSubobject(MostDerivedClass, CharUnits::Zero()), 0, nullptr,
                VisitedBases);
-    assert((HasRTTIComponent ? Components.size() - 1 : Components.size()) &&
-           "vftable can't be empty");
+    // Note that it is possible for the vftable to contain only an RTTI
+    // pointer, if all virtual functions are constewval.
+    assert(!Components.empty() && "vftable can't be empty");
 
     assert(MethodVFTableLocations.empty());
     for (const auto &I : MethodInfoMap) {
@@ -2880,7 +2922,7 @@ static void GroupNewVirtualOverloads(
     if (Inserted)
       Groups.push_back(MethodGroup());
     if (const auto *MD = dyn_cast<CXXMethodDecl>(ND))
-      if (MD->isVirtual())
+      if (MicrosoftVTableContext::hasVtableSlot(MD))
         Groups[J->second].push_back(MD->getCanonicalDecl());
   }
 
@@ -3476,7 +3518,7 @@ static const FullPathTy *selectBestPath(ASTContext &Context,
         getOffsetOfFullPath(Context, TopLevelRD, SpecificPath);
     FinalOverriders Overriders(TopLevelRD, CharUnits::Zero(), TopLevelRD);
     for (const CXXMethodDecl *MD : Info.IntroducingObject->methods()) {
-      if (!MD->isVirtual())
+      if (!MicrosoftVTableContext::hasVtableSlot(MD))
         continue;
       FinalOverriders::OverriderInfo OI =
           Overriders.getOverrider(MD->getCanonicalDecl(), BaseOffset);
@@ -3615,7 +3657,7 @@ void MicrosoftVTableContext::dumpMethodLocations(
 
   for (const auto &I : NewMethods) {
     const CXXMethodDecl *MD = cast<const CXXMethodDecl>(I.first.getDecl());
-    assert(MD->isVirtual());
+    assert(hasVtableSlot(MD));
 
     std::string MethodName = PredefinedExpr::ComputeName(
         PredefinedExpr::PrettyFunctionNoVirtual, MD);
@@ -3735,7 +3777,7 @@ MicrosoftVTableContext::getVFTableLayout(const CXXRecordDecl *RD,
 
 MethodVFTableLocation
 MicrosoftVTableContext::getMethodVFTableLocation(GlobalDecl GD) {
-  assert(cast<CXXMethodDecl>(GD.getDecl())->isVirtual() &&
+  assert(hasVtableSlot(cast<CXXMethodDecl>(GD.getDecl())) &&
          "Only use this method for virtual methods or dtors");
   if (isa<CXXDestructorDecl>(GD.getDecl()))
     assert(GD.getDtorType() == Dtor_Deleting);

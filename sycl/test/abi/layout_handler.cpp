@@ -161,19 +161,27 @@ void foo() {
 // CHECK: 448 |         std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > >::pointer _M_start
 // CHECK-NEXT: 456 |         std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > >::pointer _M_finish
 // CHECK-NEXT: 464 |         std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > >::pointer _M_end_of_storage
-// CHECK-NEXT: 472 |   _Bool MIsHost
-// CHECK-NEXT: 480 |   struct cl::sycl::detail::code_location MCodeLoc
-// CHECK-NEXT: 480 |     const char * MFileName
-// CHECK-NEXT: 488 |     const char * MFunctionName
-// CHECK-NEXT: 496 |     unsigned long MLineNo
-// CHECK-NEXT: 504 |     unsigned long MColumnNo
-// CHECK-NEXT: 512 |   _Bool MIsFinalized
-// CHECK-NEXT: 520 |   class cl::sycl::event MLastEvent
-// CHECK-NEXT: 520 |     class std::shared_ptr<class cl::sycl::detail::event_impl> impl
-// CHECK-NEXT: 520 |       class std::__shared_ptr<class cl::sycl::detail::event_impl, __gnu_cxx::_S_atomic> (base)
-// CHECK-NEXT: 520 |         class std::__shared_ptr_access<class cl::sycl::detail::event_impl, __gnu_cxx::_S_atomic, false, false> (base) (empty)
-// CHECK-NEXT: 520 |         std::__shared_ptr<class cl::sycl::detail::event_impl, __gnu_cxx::_S_atomic>::element_type * _M_ptr
-// CHECK-NEXT: 528 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
-// CHECK-NEXT: 528 |           _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
-// CHECK-NEXT:     | [sizeof=536, dsize=536, align=8,
-// CHECK-NEXT:     |  nvsize=536, nvalign=8]
+// CHECK-NEXT: 472 |   class std::vector<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > > MEventsWaitWithBarrier
+// CHECK-NEXT: 472 |     struct std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > > (base)
+// CHECK-NEXT: 472 |       struct std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > >::_Vector_impl _M_impl
+// CHECK-NEXT: 472 |         class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > (base) (empty)
+// CHECK-NEXT: 472 |           class __gnu_cxx::new_allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > (base) (empty)
+// CHECK: 472 |         std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > >::pointer _M_start
+// CHECK-NEXT: 480 |         std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > >::pointer _M_finish
+// CHECK-NEXT: 488 |         std::_Vector_base<class std::shared_ptr<class cl::sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class cl::sycl::detail::event_impl> > >::pointer _M_end_of_storage
+// CHECK-NEXT: 496 |   _Bool MIsHost
+// CHECK-NEXT: 504 |   struct cl::sycl::detail::code_location MCodeLoc
+// CHECK-NEXT: 504 |     const char * MFileName
+// CHECK-NEXT: 512 |     const char * MFunctionName
+// CHECK-NEXT: 520 |     unsigned long MLineNo
+// CHECK-NEXT: 528 |     unsigned long MColumnNo
+// CHECK-NEXT: 536 |   _Bool MIsFinalized
+// CHECK-NEXT: 544 |   class cl::sycl::event MLastEvent
+// CHECK-NEXT: 544 |     class std::shared_ptr<class cl::sycl::detail::event_impl> impl
+// CHECK-NEXT: 544 |       class std::__shared_ptr<class cl::sycl::detail::event_impl, __gnu_cxx::_S_atomic> (base)
+// CHECK-NEXT: 544 |         class std::__shared_ptr_access<class cl::sycl::detail::event_impl, __gnu_cxx::_S_atomic, false, false> (base) (empty)
+// CHECK-NEXT: 544 |         std::__shared_ptr<class cl::sycl::detail::event_impl, __gnu_cxx::_S_atomic>::element_type * _M_ptr
+// CHECK-NEXT: 552 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
+// CHECK-NEXT: 552 |           _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
+// CHECK-NEXT:     | [sizeof=560, dsize=560, align=8,
+// CHECK-NEXT:     |  nvsize=560, nvalign=8]

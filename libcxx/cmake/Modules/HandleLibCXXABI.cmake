@@ -52,7 +52,7 @@ macro(setup_abi_lib abidefines abishared abistatic abifiles abidirs)
             COMMENT "Copying C++ ABI header ${fpath}...")
         list(APPEND abilib_headers "${dst}")
 
-        if (NOT LIBCXX_USING_INSTALLED_LLVM AND LIBCXX_HEADER_DIR)
+        if (LIBCXX_HEADER_DIR)
           set(dst "${LIBCXX_HEADER_DIR}/include/c++/v1/${dstdir}/${fpath}")
           add_custom_command(OUTPUT ${dst}
               DEPENDS ${src}
@@ -102,7 +102,9 @@ if ("${LIBCXX_CXX_ABI_LIBNAME}" STREQUAL "libstdc++" OR
     "${_LIBSUPCXX_LIBNAME}" "${_LIBSUPCXX_LIBNAME}" "${_LIBSUPCXX_INCLUDE_FILES}" "bits"
     )
 elseif ("${LIBCXX_CXX_ABI_LIBNAME}" STREQUAL "libcxxabi")
-  set(LIBCXX_CXX_ABI_INCLUDE_PATHS "${LIBCXX_SOURCE_DIR}/../libcxxabi/include")
+  if(NOT LIBCXX_CXX_ABI_INCLUDE_PATHS)
+    set(LIBCXX_CXX_ABI_INCLUDE_PATHS "${LIBCXX_SOURCE_DIR}/../libcxxabi/include")
+  endif()
 
   if(LIBCXX_STANDALONE_BUILD AND NOT (LIBCXX_CXX_ABI_INTREE OR HAVE_LIBCXXABI))
     set(shared c++abi)
@@ -116,7 +118,9 @@ elseif ("${LIBCXX_CXX_ABI_LIBNAME}" STREQUAL "libcxxabi")
     "-DLIBCXX_BUILDING_LIBCXXABI"
     "${shared}" "${static}" "cxxabi.h;__cxxabi_config.h" "")
 elseif ("${LIBCXX_CXX_ABI_LIBNAME}" STREQUAL "libcxxrt")
-  set(LIBCXX_CXX_ABI_INCLUDE_PATHS "/usr/include/c++/v1")
+  if(NOT LIBCXX_CXX_ABI_INCLUDE_PATHS)
+    set(LIBCXX_CXX_ABI_INCLUDE_PATHS "/usr/include/c++/v1")
+  endif()
   setup_abi_lib(
     "-DLIBCXXRT"
     "cxxrt" "cxxrt" "cxxabi.h;unwind.h;unwind-arm.h;unwind-itanium.h" ""

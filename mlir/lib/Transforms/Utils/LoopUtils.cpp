@@ -149,7 +149,7 @@ static Value ceilDivPositive(OpBuilder &builder, Location loc, Value dividend,
 
 /// Promotes the loop body of a forOp to its containing block if the forOp
 /// was known to have a single iteration.
-// TODO(bondhugula): extend this for arbitrary affine bounds.
+// TODO: extend this for arbitrary affine bounds.
 LogicalResult mlir::promoteIfSingleIteration(AffineForOp forOp) {
   Optional<uint64_t> tripCount = getConstantTripCount(forOp);
   if (!tripCount || tripCount.getValue() != 1)
@@ -220,7 +220,12 @@ LogicalResult mlir::promoteIfSingleIteration(scf::ForOp forOp) {
 /// their body into the containing Block.
 void mlir::promoteSingleIterationLoops(FuncOp f) {
   // Gathers all innermost loops through a post order pruned walk.
-  f.walk([](AffineForOp forOp) { promoteIfSingleIteration(forOp); });
+  f.walk([](Operation *op) {
+    if (auto forOp = dyn_cast<AffineForOp>(op))
+      promoteIfSingleIteration(forOp);
+    else if (auto forOp = dyn_cast<scf::ForOp>(op))
+      promoteIfSingleIteration(forOp);
+  });
 }
 
 /// Generates an affine.for op with the specified lower and upper bounds
@@ -524,7 +529,7 @@ LogicalResult mlir::loopUnrollByFactor(AffineForOp forOp,
     return failure();
 
   // If the trip count is lower than the unroll factor, no unrolled body.
-  // TODO(bondhugula): option to specify cleanup loop unrolling.
+  // TODO: option to specify cleanup loop unrolling.
   Optional<uint64_t> mayBeConstantTripCount = getConstantTripCount(forOp);
   if (mayBeConstantTripCount.hasValue() &&
       mayBeConstantTripCount.getValue() < unrollFactor)
@@ -618,7 +623,7 @@ LogicalResult mlir::loopUnrollByFactor(scf::ForOp forOp,
             : boundsBuilder.create<ConstantIndexOp>(loc, stepUnrolledCst);
   } else {
     // Dynamic loop bounds computation.
-    // TODO(andydavis) Add dynamic asserts for negative lb/ub/step, or
+    // TODO: Add dynamic asserts for negative lb/ub/step, or
     // consider using ceilDiv from AffineApplyExpander.
     auto lowerBound = forOp.lowerBound();
     auto upperBound = forOp.upperBound();
@@ -715,7 +720,7 @@ LogicalResult mlir::loopUnrollJamByFactor(AffineForOp forOp,
   // Loops where both lower and upper bounds are multi-result maps won't be
   // unrolled (since the trip can't be expressed as an affine function in
   // general).
-  // TODO(mlir-team): this may not be common, but we could support the case
+  // TODO: this may not be common, but we could support the case
   // where the lower bound is a multi-result map and the ub is a single result
   // one.
   if (forOp.getLowerBoundMap().getNumResults() != 1)
@@ -1122,7 +1127,7 @@ static Loops stripmineSink(scf::ForOp forOp, Value factor,
 // Returns the new AffineForOps, nested immediately under `target`.
 template <typename ForType, typename SizeType>
 static ForType stripmineSink(ForType forOp, SizeType factor, ForType target) {
-  // TODO(ntv): Use cheap structural assertions that targets are nested under
+  // TODO: Use cheap structural assertions that targets are nested under
   // forOp and that targets are not nested under each other when DominanceInfo
   // exposes the capability. It seems overkill to construct a whole function
   // dominance tree at this point.
@@ -1221,7 +1226,7 @@ static LogicalResult hoistOpsBetween(scf::ForOp outer, scf::ForOp inner) {
       continue;
     }
     // Skip if op has side effects.
-    // TODO(ntv): loads to immutable memory regions are ok.
+    // TODO: loads to immutable memory regions are ok.
     if (!MemoryEffectOpInterface::hasNoEffect(&op)) {
       status = failure();
       continue;
@@ -1240,8 +1245,8 @@ static LogicalResult hoistOpsBetween(scf::ForOp outer, scf::ForOp inner) {
 // be formed.
 static LogicalResult tryIsolateBands(const TileLoops &tileLoops) {
   LogicalResult status = success();
-  auto &interTile = tileLoops.first;
-  auto &intraTile = tileLoops.second;
+  const Loops &interTile = tileLoops.first;
+  const Loops &intraTile = tileLoops.second;
   auto size = interTile.size();
   assert(size == intraTile.size());
   if (size <= 1)
@@ -1289,7 +1294,7 @@ TileLoops mlir::extractFixedOuterLoops(scf::ForOp rootForOp,
   auto intraTile = tile(forOps, tileSizes, forOps.back());
   TileLoops tileLoops = std::make_pair(forOps, intraTile);
 
-  // TODO(ntv, zinenko) for now we just ignore the result of band isolation.
+  // TODO: for now we just ignore the result of band isolation.
   // In the future, mapping decisions may be impacted by the ability to
   // isolate perfectly nested bands.
   tryIsolateBands(tileLoops);
@@ -1317,7 +1322,7 @@ static LoopParams normalizeLoop(OpBuilder &boundsBuilder,
   // Compute the number of iterations the loop executes: ceildiv(ub - lb, step)
   // assuming the step is strictly positive.  Update the bounds and the step
   // of the loop to go from 0 to the number of iterations, if necessary.
-  // TODO(zinenko): introduce support for negative steps or emit dynamic asserts
+  // TODO: introduce support for negative steps or emit dynamic asserts
   // on step positivity, whatever gets implemented first.
   if (isZeroBased && isStepOne)
     return {/*lowerBound=*/lowerBound, /*upperBound=*/upperBound,
@@ -1467,33 +1472,34 @@ void mlir::collapseParallelLoops(
   // value. The remainders then determine based on that range, which iteration
   // of the original induction value this represents. This is a normalized value
   // that is un-normalized already by the previous logic.
-  auto newPloop = outsideBuilder.create<scf::ParallelOp>(loc, lowerBounds,
-                                                         upperBounds, steps);
-  OpBuilder insideBuilder(newPloop.region());
-  for (unsigned i = 0, e = combinedDimensions.size(); i < e; ++i) {
-    Value previous = newPloop.getBody()->getArgument(i);
-    unsigned numberCombinedDimensions = combinedDimensions[i].size();
-    // Iterate over all except the last induction value.
-    for (unsigned j = 0, e = numberCombinedDimensions - 1; j < e; ++j) {
-      unsigned idx = combinedDimensions[i][j];
+  auto newPloop = outsideBuilder.create<scf::ParallelOp>(
+      loc, lowerBounds, upperBounds, steps,
+      [&](OpBuilder &insideBuilder, Location, ValueRange ploopIVs) {
+        for (unsigned i = 0, e = combinedDimensions.size(); i < e; ++i) {
+          Value previous = ploopIVs[i];
+          unsigned numberCombinedDimensions = combinedDimensions[i].size();
+          // Iterate over all except the last induction value.
+          for (unsigned j = 0, e = numberCombinedDimensions - 1; j < e; ++j) {
+            unsigned idx = combinedDimensions[i][j];
 
-      // Determine the current induction value's current loop iteration
-      Value iv = insideBuilder.create<SignedRemIOp>(loc, previous,
-                                                    normalizedUpperBounds[idx]);
-      replaceAllUsesInRegionWith(loops.getBody()->getArgument(idx), iv,
-                                 loops.region());
+            // Determine the current induction value's current loop iteration
+            Value iv = insideBuilder.create<SignedRemIOp>(
+                loc, previous, normalizedUpperBounds[idx]);
+            replaceAllUsesInRegionWith(loops.getBody()->getArgument(idx), iv,
+                                       loops.region());
 
-      // Remove the effect of the current induction value to prepare for the
-      // next value.
-      previous = insideBuilder.create<SignedDivIOp>(
-          loc, previous, normalizedUpperBounds[idx + 1]);
-    }
+            // Remove the effect of the current induction value to prepare for
+            // the next value.
+            previous = insideBuilder.create<SignedDivIOp>(
+                loc, previous, normalizedUpperBounds[idx]);
+          }
 
-    // The final induction value is just the remaining value.
-    unsigned idx = combinedDimensions[i][numberCombinedDimensions - 1];
-    replaceAllUsesInRegionWith(loops.getBody()->getArgument(idx), previous,
-                               loops.region());
-  }
+          // The final induction value is just the remaining value.
+          unsigned idx = combinedDimensions[i][numberCombinedDimensions - 1];
+          replaceAllUsesInRegionWith(loops.getBody()->getArgument(idx),
+                                     previous, loops.region());
+        }
+      });
 
   // Replace the old loop with the new loop.
   loops.getBody()->back().erase();
@@ -1546,7 +1552,7 @@ findHighestBlockForPlacement(const MemRefRegion &region, Block &block,
   // symbolic/variant.
   auto it = enclosingFors.rbegin();
   for (auto e = enclosingFors.rend(); it != e; ++it) {
-    // TODO(bondhugula): also need to be checking this for regions symbols that
+    // TODO: also need to be checking this for regions symbols that
     // aren't loop IVs, whether we are within their resp. defs' dominance scope.
     if (llvm::is_contained(symbols, it->getInductionVar()))
       break;
@@ -1574,7 +1580,7 @@ struct StrideInfo {
 /// potentially multiple striding levels from outermost to innermost. For an
 /// n-dimensional region, there can be at most n-1 levels of striding
 /// successively nested.
-//  TODO(bondhugula): make this work with non-identity layout maps.
+//  TODO: make this work with non-identity layout maps.
 static void getMultiLevelStrides(const MemRefRegion &region,
                                  ArrayRef<int64_t> bufferShape,
                                  SmallVectorImpl<StrideInfo> *strideInfos) {
@@ -1859,7 +1865,7 @@ static LogicalResult generateCopy(
     SmallVector<StrideInfo, 4> dmaStrideInfos;
     getMultiLevelStrides(region, fastBufferShape, &dmaStrideInfos);
 
-    // TODO(bondhugula): use all stride levels once DmaStartOp is extended for
+    // TODO: use all stride levels once DmaStartOp is extended for
     // multi-level strides.
     if (dmaStrideInfos.size() > 1) {
       LLVM_DEBUG(llvm::dbgs() << "Only up to one level of stride supported\n");
@@ -2114,7 +2120,7 @@ uint64_t mlir::affineDataCopyGenerate(Block::iterator begin,
 
     // Each memref has a single buffer associated with it irrespective of how
     // many load's and store's happen on it.
-    // TODO(bondhugula): in the future, when regions don't intersect and satisfy
+    // TODO: in the future, when regions don't intersect and satisfy
     // other properties (based on load/store regions), we could consider
     // multiple buffers per memref.
 
@@ -2129,7 +2135,7 @@ uint64_t mlir::affineDataCopyGenerate(Block::iterator begin,
     auto updateRegion =
         [&](const SmallMapVector<Value, std::unique_ptr<MemRefRegion>, 4>
                 &targetRegions) {
-          auto it = targetRegions.find(region->memref);
+          const auto it = targetRegions.find(region->memref);
           if (it == targetRegions.end())
             return false;
 
