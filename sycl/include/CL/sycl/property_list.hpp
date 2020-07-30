@@ -29,14 +29,14 @@ class property_list {
   template <typename T, typename... Tail>
   struct AllProperties<T, Tail...>
       : std::conditional<
-            std::is_base_of<detail::SimplePropertyBase, T>::value ||
-                std::is_base_of<detail::ComplexPropertyBase, T>::value,
+            std::is_base_of<detail::DataLessPropertyBase, T>::value ||
+                std::is_base_of<detail::PropertyWithDataBase, T>::value,
             AllProperties<Tail...>, std::false_type>::type {};
 
 public:
   template <typename... PropsT, typename = typename std::enable_if<
                                     AllProperties<PropsT...>::value>::type>
-  property_list(PropsT... Props) : MSimpleProps(false) {
+  property_list(PropsT... Props) : MDataLessProps(false) {
     ctorHelper(Props...);
   }
 
@@ -57,38 +57,38 @@ private:
 
   template <typename... PropsT, class PropT>
   typename std::enable_if<
-      std::is_base_of<detail::SimplePropertyBase, PropT>::value>::type
+      std::is_base_of<detail::DataLessPropertyBase, PropT>::value>::type
   ctorHelper(PropT &, PropsT... Props) {
     const int PropKind = static_cast<int>(PropT::getKind());
-    MSimpleProps[PropKind] = true;
+    MDataLessProps[PropKind] = true;
     ctorHelper(Props...);
   }
 
   template <typename... PropsT, class PropT>
   typename std::enable_if<
-      std::is_base_of<detail::ComplexPropertyBase, PropT>::value>::type
+      std::is_base_of<detail::PropertyWithDataBase, PropT>::value>::type
   ctorHelper(PropT &Prop, PropsT... Props) {
-    MComplexProps.emplace_back(new PropT(Prop));
+    MPropsWithData.emplace_back(new PropT(Prop));
     ctorHelper(Props...);
   }
 
   template <typename PropT>
   typename std::enable_if<
-      std::is_base_of<detail::SimplePropertyBase, PropT>::value, bool>::type
+      std::is_base_of<detail::DataLessPropertyBase, PropT>::value, bool>::type
   has_property_helper() const {
     const int PropKind = static_cast<int>(PropT::getKind());
-    if (PropKind >= detail::SimplePropKind::SimplePropKindSize)
+    if (PropKind >= detail::DataLessPropKind::DataLessPropKindSize)
       return false;
-    return MSimpleProps[PropKind];
+    return MDataLessProps[PropKind];
   }
 
   template <typename PropT>
   typename std::enable_if<
-      std::is_base_of<detail::ComplexPropertyBase, PropT>::value, bool>::type
+      std::is_base_of<detail::PropertyWithDataBase, PropT>::value, bool>::type
   has_property_helper() const {
     const int PropKind = static_cast<int>(PropT::getKind());
-    for (const std::shared_ptr<detail::ComplexPropertyBase> &Prop :
-         MComplexProps)
+    for (const std::shared_ptr<detail::PropertyWithDataBase> &Prop :
+         MPropsWithData)
       if (Prop->isSame(PropKind))
         return true;
     return false;
@@ -96,7 +96,7 @@ private:
 
   template <typename PropT>
   typename std::enable_if<
-      std::is_base_of<detail::SimplePropertyBase, PropT>::value, PropT>::type
+      std::is_base_of<detail::DataLessPropertyBase, PropT>::value, PropT>::type
   get_property_helper() const {
     // In case of simple property we can just construct it
     return PropT{};
@@ -104,15 +104,15 @@ private:
 
   template <typename PropT>
   typename std::enable_if<
-      std::is_base_of<detail::ComplexPropertyBase, PropT>::value, PropT>::type
+      std::is_base_of<detail::PropertyWithDataBase, PropT>::value, PropT>::type
   get_property_helper() const {
     const int PropKind = static_cast<int>(PropT::getKind());
-    if (PropKind >= detail::ComplexPropKind::ComplexPropKindSize)
+    if (PropKind >= detail::PropWithDataKind::PropWithDataKindSize)
       throw sycl::invalid_object_error("The property is not found",
                                        PI_INVALID_VALUE);
 
-    for (const std::shared_ptr<detail::ComplexPropertyBase> &Prop :
-         MComplexProps)
+    for (const std::shared_ptr<detail::PropertyWithDataBase> &Prop :
+         MPropsWithData)
       if (Prop->isSame(PropKind))
         return *static_cast<PropT *>(Prop.get());
 
@@ -122,9 +122,9 @@ private:
 
 private:
   // Stores enable/not enabled for simple properties
-  std::bitset<detail::SimplePropKind::SimplePropKindSize> MSimpleProps;
+  std::bitset<detail::DataLessPropKind::DataLessPropKindSize> MDataLessProps;
   // Stores shared_ptrs to complex properties
-  std::vector<std::shared_ptr<detail::ComplexPropertyBase>> MComplexProps;
+  std::vector<std::shared_ptr<detail::PropertyWithDataBase>> MPropsWithData;
 };
 
 } // namespace sycl

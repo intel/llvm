@@ -15,15 +15,15 @@ namespace sycl {
 
 namespace detail {
 
-// All properties are split here to simple and complex. A simple property is one
-// which has no data stored in it. A complex property is one which has data
-// stored in it and usually provides and access to it.
-// For simple property we just store a bool which indicates if a property is
-// set or not. For complex properties we store a pointer to the base class
-// because we do not know the size of such properties beforehand.
+// All properties are split here to dataless properties and properties with
+// data. A dataless property is one which has no data stored in it. A property
+// with data is one which has data stored in it and usually provides and access
+// to it. For dataless property we just store a bool which indicates if a
+// property is set or not. For properties with data we store a pointer to the
+// base class because we do not know the size of such properties beforehand.
 
-// List of all simple properties' IDs
-enum SimplePropKind {
+// List of all dataless properties' IDs
+enum DataLessPropKind {
   BufferUseHostPtr = 0,
   ImageUseHostPtr,
   QueueEnableProfiling,
@@ -31,48 +31,49 @@ enum SimplePropKind {
   NoInit,
   BufferUsePinnedHostMemory,
   UsePrimaryContext,
-  SimplePropKindSize
+  DataLessPropKindSize
 };
 
-// List of all complex properties' IDs
-enum ComplexPropKind {
+// List of all properties with data IDs
+enum PropWithDataKind {
   BufferUseMutex = 0,
   BufferContextBound,
   ImageUseMutex,
   ImageContextBound,
-  ComplexPropKindSize
+  PropWithDataKindSize
 };
 
-// Base class for simple properties, needed to check that the type of an object
-// passed to the property_list is a property.
-class SimplePropertyBase {};
+// Base class for dataless properties, needed to check that the type of an
+// object passed to the property_list is a property.
+class DataLessPropertyBase {};
 
-// Helper class for the simple properties. Every simple property is supposed to
-// inherit from it. The ID template parameter should be one from SimplePropKind.
-template <int ID> class SimpleProperty : SimplePropertyBase {
+// Helper class for the dataless properties. Every such property is supposed
+// to inherit from it. The ID template parameter should be one from
+// DataLessPropKind.
+template <int ID> class DataLessProperty : DataLessPropertyBase {
 public:
   static constexpr int getKind() { return ID; }
 };
 
-// Base class for complex properties, needed to check that the type of an object
-// passed to the property_list is a property and for checking if two complex
-// properties are of the same type.
-class ComplexPropertyBase {
+// Base class for properties with data, needed to check that the type of an
+// object passed to the property_list is a property and for checking if two
+// properties with data are of the same type.
+class PropertyWithDataBase {
 public:
-  ComplexPropertyBase(int ID) : MID(ID) {}
+  PropertyWithDataBase(int ID) : MID(ID) {}
   bool isSame(int ID) const { return ID == MID; }
-  virtual ~ComplexPropertyBase() = default;
+  virtual ~PropertyWithDataBase() = default;
 
 private:
   int MID = -1;
 };
 
-// Helper class for the complex properties. Every complex property is supposed
+// Helper class for the properties with data. Every such property is supposed
 // to inherit from it. The ID template parameter should be one from
-// ComplexPropKind.
-template <int ID> class ComplexProperty : public ComplexPropertyBase {
+// PropWithDataKind.
+template <int ID> class PropertyWithData : public PropertyWithDataBase {
 public:
-  ComplexProperty() : ComplexPropertyBase(ID) {}
+  PropertyWithData() : PropertyWithDataBase(ID) {}
   static int getKind() { return ID; }
 };
 

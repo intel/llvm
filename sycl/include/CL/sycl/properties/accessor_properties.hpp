@@ -15,7 +15,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace property {
 
-class noinit : public detail::SimpleProperty<detail::NoInit> {};
+class noinit : public detail::DataLessProperty<detail::NoInit> {};
 
 } // namespace property
 

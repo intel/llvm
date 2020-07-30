@@ -16,9 +16,10 @@ namespace sycl {
 
 namespace property {
 namespace buffer {
-class use_host_ptr : public detail::SimpleProperty<detail::BufferUseHostPtr> {};
+class use_host_ptr : public detail::DataLessProperty<detail::BufferUseHostPtr> {
+};
 
-class use_mutex : public detail::ComplexProperty<detail::BufferUseMutex> {
+class use_mutex : public detail::PropertyWithData<detail::BufferUseMutex> {
 public:
   use_mutex(sycl::mutex_class &MutexRef) : MMutex(MutexRef) {}
 
@@ -29,7 +30,7 @@ private:
 };
 
 class context_bound
-    : public detail::ComplexProperty<detail::BufferContextBound> {
+    : public detail::PropertyWithData<detail::BufferContextBound> {
 public:
   context_bound(sycl::context BoundContext) : MCtx(std::move(BoundContext)) {}
 
@@ -47,11 +48,10 @@ namespace property {
 namespace buffer {
 
 class use_pinned_host_memory
-    : public detail::SimpleProperty<detail::BufferUsePinnedHostMemory> {};
+    : public detail::DataLessProperty<detail::BufferUsePinnedHostMemory> {};
 } // namespace buffer
 } // namespace property
 } // namespace oneapi
 } // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
-

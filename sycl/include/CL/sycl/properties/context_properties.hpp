@@ -17,7 +17,7 @@ namespace property {
 namespace context {
 namespace cuda {
 class use_primary_context
-    : public detail::SimpleProperty<detail::UsePrimaryContext> {};
+    : public detail::DataLessProperty<detail::UsePrimaryContext> {};
 } // namespace cuda
 } // namespace context
 } // namespace property

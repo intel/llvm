@@ -14,9 +14,9 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace property {
 namespace queue {
-class in_order : public detail::SimpleProperty<detail::InOrder> {};
+class in_order : public detail::DataLessProperty<detail::InOrder> {};
 class enable_profiling
-    : public detail::SimpleProperty<detail::QueueEnableProfiling> {};
+    : public detail::DataLessProperty<detail::QueueEnableProfiling> {};
 } // namespace queue
 } // namespace property
 } // namespace sycl
