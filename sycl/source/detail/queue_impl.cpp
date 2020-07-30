@@ -14,6 +14,7 @@
 #include <detail/queue_impl.hpp>
 
 #include <cstring>
+#include <utility>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include "xpti_trace_framework.hpp"
@@ -203,8 +204,8 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   vector_class<event> USMEvents;
   {
     std::lock_guard<mutex_class> Lock(MMutex);
-    Events.swap(MEvents);
-    USMEvents.swap(MUSMEvents);
+    Events = std::move(MEvents);
+    USMEvents = std::move(MUSMEvents);
   }
 
   for (std::weak_ptr<event_impl> &EventImplWeakPtr : Events)

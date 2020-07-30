@@ -23,6 +23,8 @@
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/thread_pool.hpp>
 
+#include <utility>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -31,7 +33,7 @@ using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 using DeviceImplPtr = shared_ptr_class<detail::device_impl>;
 
 /// Sets max number of queues supported by FPGA RT.
-constexpr size_t MaxNumQueues = 256;
+static constexpr size_t MaxNumQueues = 256;
 
 //// Possible CUDA context types supported by PI CUDA backend
 /// TODO: Implement this as a property once there is an extension document
@@ -219,7 +221,7 @@ public:
     exception_list Exceptions;
     {
       std::unique_lock<mutex_class> Lock(MMutex);
-      std::swap(MExceptions, Exceptions);
+      Exceptions = std::move(MExceptions);
     }
     // Unlock the mutex before calling user-provided handler to avoid
     // potential deadlock if the same queue is somehow referenced in the
