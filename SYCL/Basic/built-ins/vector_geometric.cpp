@@ -4,9 +4,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// TODO: ptxas fatal   : Unresolved extern function '_Z11__spirv_DotDv2_fS_'
-// XFAIL: cuda
-
 #include <CL/sycl.hpp>
 
 #include <cassert>
