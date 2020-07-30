@@ -52,7 +52,7 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   sycl::device HostDevice;
   std::shared_ptr<detail::queue_impl> DefaultHostQueue(new detail::queue_impl(
       detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
-      detail::QueueOrder::Ordered, /*PropList=*/{}));
+      /*PropList=*/{}));
 
   std::shared_ptr<cl::sycl::detail::MemObjRecord> Record{
       new cl::sycl::detail::MemObjRecord(DefaultHostQueue->getContextImplPtr(),
