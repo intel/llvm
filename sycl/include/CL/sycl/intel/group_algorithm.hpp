@@ -905,7 +905,10 @@ template <typename Group> void barrier(Group, memory_scope scope) {
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
-  auto MemoryScope = sycl::detail::spirv::getScope(scope);
+  // MemoryScope must be broader than Group scope for correctness
+  auto GroupScope = detail::FenceScope<Group>::value;
+  auto BroadestScope = (scope > GroupScope) ? scope : GroupScope;
+  auto MemoryScope = sycl::detail::spirv::getScope(BroadestScope);
   auto ExecutionScope = sycl::detail::spirv::group_scope<Group>::value;
   __spirv_ControlBarrier(ExecutionScope, MemoryScope,
                          __spv::MemorySemanticsMask::AcquireRelease |
