@@ -100,7 +100,7 @@ public:
 
     MQueues.push_back(pi::cast<RT::PiQueue>(PiQueue));
 
-    RT::PiDevice Device = nullptr;
+    RT::PiDevice Device{};
     const detail::plugin &Plugin = getPlugin();
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piQueueGetInfo>(MQueues[0], PI_QUEUE_INFO_DEVICE,
@@ -220,7 +220,7 @@ public:
 
     exception_list Exceptions;
     {
-      std::unique_lock<mutex_class> Lock(MMutex);
+      std::lock_guard<mutex_class> Lock(MMutex);
       Exceptions = std::move(MExceptions);
     }
     // Unlock the mutex before calling user-provided handler to avoid
@@ -282,9 +282,8 @@ public:
       } else {
         // If the limit of OpenCL queues is going to be exceeded - take the
         // earliest used queue, wait until it finished and then reuse it.
-        // MQueueNumber %= MaxNumQueues;
-        PIQ = &MQueues[MNextQueueID];
-        MNextQueueID = (MNextQueueID + 1) % MaxNumQueues;
+        PIQ = &MQueues[MNextQueueIdx];
+        MNextQueueIdx = (MNextQueueIdx + 1) % MaxNumQueues;
         ReuseQueue = true;
       }
     }
@@ -422,7 +421,7 @@ private:
   /// List of queues created for FPGA device from a single SYCL queue.
   vector_class<RT::PiQueue> MQueues;
   /// Iterator through MQueues.
-  size_t MNextQueueID = 0;
+  size_t MNextQueueIdx = 0;
 
   const bool MHostQueue = false;
   // Assume OOO support by default.

@@ -52,7 +52,7 @@ prepareUSMEvent(const shared_ptr_class<detail::queue_impl> &QueueImpl,
 
 event queue_impl::memset(const shared_ptr_class<detail::queue_impl> &Self,
                          void *Ptr, int Value, size_t Count) {
-  RT::PiEvent NativeEvent = nullptr;
+  RT::PiEvent NativeEvent{};
   MemoryManager::fill_usm(Ptr, Self, Count, Value, /*DepEvents*/ {},
                           NativeEvent);
 
@@ -66,7 +66,7 @@ event queue_impl::memset(const shared_ptr_class<detail::queue_impl> &Self,
 
 event queue_impl::memcpy(const shared_ptr_class<detail::queue_impl> &Self,
                          void *Dest, const void *Src, size_t Count) {
-  RT::PiEvent NativeEvent = nullptr;
+  RT::PiEvent NativeEvent{};
   MemoryManager::copy_usm(Src, Self, Count, Dest, /*DepEvents*/ {},
                           NativeEvent);
 
@@ -86,7 +86,7 @@ event queue_impl::mem_advise(const shared_ptr_class<detail::queue_impl> &Self,
   }
 
   // non-Host device
-  RT::PiEvent NativeEvent = nullptr;
+  RT::PiEvent NativeEvent{};
   const detail::plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(getHandleRef(), Ptr, Length,
                                                    Advice, &NativeEvent);
