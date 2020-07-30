@@ -23,7 +23,7 @@ if (NOT DEFINED L0_LIBRARY OR NOT DEFINED L0_INCLUDE_DIR)
   endif()
   ExternalProject_Add(l0-loader
     GIT_REPOSITORY    https://github.com/oneapi-src/level-zero.git
-    GIT_TAG           origin/master
+    GIT_TAG           v0.91.21
     UPDATE_DISCONNECTED ${SYCL_EP_L0_LOADER_SKIP_AUTO_UPDATE}
     SOURCE_DIR        ${L0_LOADER_SOURCE_DIR}
     BINARY_DIR        "${CMAKE_CURRENT_BINARY_DIR}/l0_loader_build"

@@ -514,21 +514,29 @@ def LLVM_CondBrOp : LLVM_TerminatorOp<"cond_br",
      NoSideEffect]> {
   let arguments = (ins LLVMI1:$condition,
                    Variadic<LLVM_Type>:$trueDestOperands,
-                   Variadic<LLVM_Type>:$falseDestOperands);
+                   Variadic<LLVM_Type>:$falseDestOperands,
+                   OptionalAttr<ElementsAttr>:$branch_weights);
   let successors = (successor AnySuccessor:$trueDest, AnySuccessor:$falseDest);
   let assemblyFormat = [{
-    $condition `,`
+    $condition ( `weights` `(` $branch_weights^ `)` )? `,`
     $trueDest (`(` $trueDestOperands^ `:` type($trueDestOperands) `)`)? `,`
     $falseDest (`(` $falseDestOperands^ `:` type($falseDestOperands) `)`)?
     attr-dict
   }];
 
   let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value condition,"
-    "Block *trueDest, ValueRange trueOperands,"
-    "Block *falseDest, ValueRange falseOperands", [{
-      build(builder, result, condition, trueOperands, falseOperands, trueDest,
-            falseDest);
+     "OpBuilder &builder, OperationState &result, Value condition,"
+     "Block *trueDest, ValueRange trueOperands,"
+     "Block *falseDest, ValueRange falseOperands,"
+     "Optional<std::pair<uint32_t, uint32_t>> weights = {}", [{
+        ElementsAttr weightsAttr;
+        if (weights) {
+          weightsAttr =
+              builder.getI32VectorAttr({static_cast<int32_t>(weights->first),
+                                       static_cast<int32_t>(weights->second)});
+        }
+        build(builder, result, condition, trueOperands, falseOperands, weightsAttr,
+              trueDest, falseDest);
   }]>, OpBuilder<
     "OpBuilder &builder, OperationState &result, Value condition,"
     "Block *trueDest, Block *falseDest, ValueRange falseOperands = {}", [{
@@ -991,6 +999,35 @@ def LLVM_MaskedStoreOp
   let assemblyFormat = "$value `,` $data `,` $mask attr-dict `:` "
     "type($value) `,` type($mask) `into` type($data)";
 }
+
+/// Create a call to Masked Gather intrinsic.
+def LLVM_masked_gather
+    : LLVM_OneResultOp<"intr.masked.gather">,
+      Arguments<(ins LLVM_Type:$ptrs, LLVM_Type:$mask,
+                 Variadic<LLVM_Type>:$pass_thru, I32Attr:$alignment)> {
+  string llvmBuilder = [{
+    $res = $pass_thru.empty() ? builder.CreateMaskedGather(
+      $ptrs, llvm::Align($alignment.getZExtValue()), $mask) :
+      builder.CreateMaskedGather(
+        $ptrs, llvm::Align($alignment.getZExtValue()), $mask, $pass_thru[0]);
+  }];
+  let assemblyFormat =
+    "operands attr-dict `:` functional-type(operands, results)";
+}
+
+/// Create a call to Masked Scatter intrinsic.
+def LLVM_masked_scatter
+    : LLVM_ZeroResultOp<"intr.masked.scatter">,
+      Arguments<(ins LLVM_Type:$value, LLVM_Type:$ptrs, LLVM_Type:$mask,
+                 I32Attr:$alignment)> {
+  string llvmBuilder = [{
+    builder.CreateMaskedScatter(
+      $value, $ptrs, llvm::Align($alignment.getZExtValue()), $mask);
+  }];
+  let assemblyFormat = "$value `,` $ptrs `,` $mask attr-dict `:` "
+    "type($value) `,` type($mask) `into` type($ptrs)";
+}
+
 //
 // Atomic operations.
 //

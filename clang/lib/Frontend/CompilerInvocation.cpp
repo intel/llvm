@@ -816,10 +816,14 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
           Args.getLastArg(OPT_emit_llvm_uselists, OPT_no_emit_llvm_uselists))
     Opts.EmitLLVMUseLists = A->getOption().getID() == OPT_emit_llvm_uselists;
 
+  // ESIMD GPU Back-end requires optimized IR
+  bool IsSyclESIMD = Args.hasFlag(options::OPT_fsycl_esimd,
+                                  options::OPT_fno_sycl_esimd, false);
+
   Opts.DisableLLVMPasses =
       Args.hasArg(OPT_disable_llvm_passes) ||
       (Args.hasArg(OPT_fsycl_is_device) && Triple.isSPIR() &&
-       !Args.hasArg(OPT_fsycl_enable_optimizations));
+       !Args.hasArg(OPT_fsycl_enable_optimizations) && !IsSyclESIMD);
   Opts.DisableLifetimeMarkers = Args.hasArg(OPT_disable_lifetimemarkers);
 
   const llvm::Triple::ArchType DebugEntryValueArchs[] = {
@@ -2028,8 +2032,9 @@ static InputKind ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
     // FIXME: Supporting '<lang>-header-cpp-output' would be useful.
     bool Preprocessed = XValue.consume_back("-cpp-output");
     bool ModuleMap = XValue.consume_back("-module-map");
-    IsHeaderFile =
-        !Preprocessed && !ModuleMap && XValue.consume_back("-header");
+    IsHeaderFile = !Preprocessed && !ModuleMap &&
+                   XValue != "precompiled-header" &&
+                   XValue.consume_back("-header");
 
     // Principal languages.
     DashX = llvm::StringSwitch<InputKind>(XValue)
@@ -2056,7 +2061,7 @@ static InputKind ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
       DashX = llvm::StringSwitch<InputKind>(XValue)
                   .Case("cpp-output", InputKind(Language::C).getPreprocessed())
                   .Case("assembler-with-cpp", Language::Asm)
-                  .Cases("ast", "pcm",
+                  .Cases("ast", "pcm", "precompiled-header",
                          InputKind(Language::Unknown, InputKind::Precompiled))
                   .Case("ir", Language::LLVM_IR)
                   .Default(Language::Unknown);
