@@ -1,10 +1,10 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -fsycl -fsycl-is-device -aux-triple x86_64-unknown-linux-gnu -Wno-sycl-2017-compat -verify -fsyntax-only  %s
+// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -fsycl -fsycl-is-device -aux-triple x86_64-unknown-linux-gnu -verify -fsyntax-only  %s
 
 inline namespace cl {
 namespace sycl {
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   // expected-note@+1 {{called by 'kernel_single_task<AName, (lambda}}
   kernelFunc();
 }

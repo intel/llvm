@@ -4,7 +4,7 @@
 SYCL_EXTERNAL void doesNotReturn() throw() __attribute__((__noreturn__));
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
   kernelFunc();
 }
 

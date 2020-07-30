@@ -3,7 +3,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //
-// XFAIL: level0
+// XFAIL: level_zero
 
 //==---------- reinterpret.cpp --- SYCL buffer reinterpret basic test ------==//
 //

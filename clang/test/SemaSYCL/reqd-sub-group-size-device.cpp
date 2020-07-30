@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -Wno-sycl-2017-compat -verify -DTRIGGER_ERROR %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -DTRIGGER_ERROR %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
 
 [[intel::reqd_sub_group_size(4)]] void foo() {} // expected-note {{conflicting attribute is here}}
 // expected-note@-1 {{conflicting attribute is here}}
@@ -9,30 +9,30 @@ class Functor16 {
 public:
   // expected-warning@+2 {{attribute 'intel_reqd_sub_group_size' is deprecated}}
   // expected-note@+1 {{did you mean to use 'intel::reqd_sub_group_size' instead?}}
-  [[cl::intel_reqd_sub_group_size(16)]] void operator()() const {}
+  [[cl::intel_reqd_sub_group_size(16)]] void operator()() {}
 };
 
 class Functor8 { // expected-error {{conflicting attributes applied to a SYCL kernel}}
 public:
-  [[intel::reqd_sub_group_size(8)]] void operator()() const { // expected-note {{conflicting attribute is here}}
+  [[intel::reqd_sub_group_size(8)]] void operator()() { // expected-note {{conflicting attribute is here}}
     foo();
   }
 };
 
 class Functor4 {
 public:
-  [[intel::reqd_sub_group_size(12)]] void operator()() const {}
+  [[intel::reqd_sub_group_size(12)]] void operator()() {}
 };
 
 class Functor {
 public:
-  void operator()() const {
+  void operator()() {
     foo();
   }
 };
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
   kernelFunc();
 }
 

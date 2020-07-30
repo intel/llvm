@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -Wno-sycl-2017-compat -verify -fsyntax-only %s
-// RUN: %clang_cc1 -triple x86_64-linux-gnu -fsycl -fsycl-is-device -Wno-sycl-2017-compat -fsyntax-only %s
+// RUN: %clang_cc1 -triple spir64 -fsycl -fsycl-is-device -verify -fsyntax-only %s
+// RUN: %clang_cc1 -triple x86_64-linux-gnu -fsycl -fsycl-is-device -fsyntax-only %s
 
 typedef __float128 BIGTY;
 
@@ -63,7 +63,7 @@ void foo2(){};
 __float128 foo(__float128 P) { return P; }
 
 template <typename Name, typename Func>
-__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
   // expected-note@+1 6{{called by 'kernel}}
   kernelFunc();
 }

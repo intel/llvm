@@ -1,10 +1,10 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -verify -Wno-sycl-2017-compat -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -verify -fsyntax-only %s
 
 // This test checks if compiler reports compilation error on an attempt to pass
 // a reference as SYCL kernel parameter.
 
 template <typename Name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
 }
 

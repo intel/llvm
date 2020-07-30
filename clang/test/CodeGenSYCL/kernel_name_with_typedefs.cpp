@@ -4,12 +4,12 @@
 #include "sycl.hpp"
 
 template <typename KernelName, typename KernelType>
-__attribute__((sycl_kernel)) void single_task(const KernelType &kernelFunc) {
+__attribute__((sycl_kernel)) void single_task(KernelType kernelFunc) {
   kernelFunc();
 }
 
 struct dummy_functor {
-  void operator()() const {}
+  void operator()() {}
 };
 
 typedef int int_t;

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown -fsyntax-only -Wno-sycl-2017-compat -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown -fsyntax-only -verify %s
 
 void variadic(int, ...) {}
 namespace NS {
@@ -18,7 +18,7 @@ void foo() {
 void overloaded(int, int) {}
 void overloaded(int, ...) {}
 template <typename, typename Func>
-__attribute__((sycl_kernel)) void task(const Func &KF) {
+__attribute__((sycl_kernel)) void task(Func KF) {
   KF(); // expected-note 2 {{called by 'task}}
 }
 

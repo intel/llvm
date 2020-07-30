@@ -192,13 +192,13 @@ struct get_kernel_name_t<auto_name, Type> {
 };
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 template <typename KernelName = auto_name, typename KernelType>
-ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) {
+ATTR_SYCL_KERNEL void kernel_single_task(KernelType kernelFunc) {
   kernelFunc();
 }
 class handler {
 public:
   template <typename KernelName = auto_name, typename KernelType>
-  void single_task(const KernelType &kernelFunc) {
+  void single_task(KernelType kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_single_task<NameT>(kernelFunc);
