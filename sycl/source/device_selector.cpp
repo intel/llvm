@@ -182,15 +182,15 @@ std::vector<std::string> tokenize(std::string filter, std::string delim) {
     // Erase leading and trailing WS
     Tok = trim_spaces(Tok);
 
-    if (Tok.size() > 0)
+    if (!Tok.empty())
       Tokens.push_back(Tok);
   }
 
-  if (Input.size() > 0)
+  if (!Input.empty())
     Input = trim_spaces(Input);
 
   // Add remainder
-  if (Input.size() > 0)
+  if (!Input.empty())
     Tokens.push_back(Input);
 
   return Tokens;
@@ -273,19 +273,19 @@ int string_selector::operator()(const device &dev) const {
   if (mPlatforms.empty() && mDeviceTypes.empty()) {
     Score = mRanker(dev);
   } else if (!mPlatforms.empty() && mDeviceTypes.empty()) {
-    for (auto Plat : mPlatforms) {
+    for (const auto &Plat : mPlatforms) {
       if (detail::match(PlatformName, Plat))
         Score = mRanker(dev);
     }
   } else if (mPlatforms.empty() && !mDeviceTypes.empty()) {
-    for (auto DT : mDeviceTypes) {
+    for (const auto &DT : mDeviceTypes) {
       if ((detail::match(DT, CPU) && dev.is_cpu()) ||
           (detail::match(DT, GPU) && dev.is_gpu()))
         Score = mRanker(dev);
     }
   } else {
-    for (auto Plat : mPlatforms) {
-      for (auto DT : mDeviceTypes) {
+    for (const auto &Plat : mPlatforms) {
+      for (const auto &DT : mDeviceTypes) {
         if (detail::match(PlatformName, Plat) &&
             ((detail::match(DT, CPU) && dev.is_cpu()) ||
              (detail::match(DT, GPU) && dev.is_gpu())))
