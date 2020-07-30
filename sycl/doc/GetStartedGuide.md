@@ -166,37 +166,37 @@ To run DPC++ applications on Level Zero devices, Level Zero implementation(s)
 must be present in the system. You can find the link to the Level Zero spec in
 the following section [Find More](#find-more).
 
-The Level Zero RT for `GPU`, OpenCL RT for `GPU`, OpenCL RT for `CPU` and TBB runtime
-which are needed to run DPC++ application on Intel `GPU` or Intel `CPU` devices can be
-downloaded using links in
+The Level Zero RT for `GPU`, OpenCL RT for `GPU`, OpenCL RT for `CPU`, FPGA
+emulation RT and TBB runtime which are needed to run DPC++ application
+on Intel `GPU` or Intel `CPU` devices can be downloaded using links in
 [the dependency configuration file](../../buildbot/dependency.conf)
 and installed following the instructions below. The same versions are used in
 PR testing.
 
-Intel OpenCL RT for `CPU` devices can be switched into OpenCL runtime for
-Intel FPGA Emulation. The following parameter should be set in `cl.cfg` file
-(available in directory containing CPU runtime for OpenCL) or environment
-variable with the same name. The following value should be set to switch
-OpenCL device mode:
-
-```bash
-CL_CONFIG_DEVICES = fpga-emu
-```
-
 **Linux**:
 
-1) Extract the archive. For example, for the archive
-`oclcpu_rt_<cpu_version>.tar.gz` you would run the following commands
+1) Extract the archive. For example, for the archives
+`oclcpuexp_<cpu_version>.tar.gz` and `fpgaemu_<fpga_version>.tar.gz` you would
+run the following commands
 
     ```bash
+    # Extract OpenCL FPGA emulation RT
+    mkdir -p /opt/intel/oclfpgaemu_<fpga_version>
+    cd /opt/intel/oclfpgaemu_<fpga_version>
+    tar zxvf fpgaemu_<fpga_version>.tar.gz
+    # Extract OpenCL CPU RT
     mkdir -p /opt/intel/oclcpuexp_<cpu_version>
     cd /opt/intel/oclcpuexp_<cpu_version>
     tar -zxvf oclcpu_rt_<cpu_version>.tar.gz
     ```
 
-2) Create ICD file pointing to the new runtime
+2) Create ICD file pointing to the new runtime (requires root access)
 
     ```bash
+    # OpenCL FPGA emulation RT
+    echo  /opt/intel/oclfpgaemu_<fpga_version>/x64/libintelocl_emu.so >
+      /etc/OpenCL/vendors/intel_fpgaemu.icd
+    # OpenCL CPU RT
     echo /opt/intel/oclcpuexp_<cpu_version>/x64/libintelocl.so >
       /etc/OpenCL/vendors/intel_expcpu.icd
     ```
@@ -213,6 +213,16 @@ CL_CONFIG_DEVICES = fpga-emu
 folder:
 
     ```bash
+    # OpenCL FPGA emulation RT
+    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so
+      /opt/intel/oclfpgaemu_<fpga_version>/x64
+    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so
+      /opt/intel/oclfpgaemu_<fpga_version>/x64
+    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so.2
+      /opt/intel/oclfpgaemu_<fpga_version>/x64
+    ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so.2
+      /opt/intel/oclfpgaemu_<fpga_version>/x64
+    # OpenCL CPU RT
     ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbb.so
       /opt/intel/oclcpuexp_<cpu_version>/x64
     ln -s /opt/intel/tbb_<tbb_version>/tbb/lib/intel64/gcc4.8/libtbbmalloc.so
@@ -223,10 +233,12 @@ folder:
       /opt/intel/oclcpuexp_<cpu_version>/x64
     ```
 
-5) Configure library paths
+5) Configure library paths (requires root access)
 
     ```bash
-    echo /opt/intel/oclcpuexp_<cpu_version>/x64 >
+    echo /opt/intel/oclfpgaemu_<fpga_version>/x64 >
+      /etc/ld.so.conf.d/libintelopenclexp.conf
+    echo /opt/intel/oclcpuexp_<cpu_version>/x64 >>
       /etc/ld.so.conf.d/libintelopenclexp.conf
     ldconfig -f /etc/ld.so.conf.d/libintelopenclexp.conf
     ```
@@ -239,7 +251,8 @@ OpenCL runtime for Intel `GPU` installer may re-write some important
 files or settings and make existing OpenCL runtime for Intel `CPU` runtime
 not working properly.
 
-2) Extract the archive with OpenCL runtime for Intel `CPU` using links in
+2) Extract the archive with OpenCL runtime for Intel `CPU` and/or for Intel
+`FPGA` emulation using links in
 [the dependency configuration file](../../buildbot/dependency.conf).  For
 example, to `c:\oclcpu_rt_<cpu_version>`.
 
@@ -257,6 +270,11 @@ extracted files are in `c:\oclcpu_rt_<cpu_version>\` folder, then type the
 command:
 
     ```bash
+    # Install OpenCL FPGA emulation RT
+    # Answer N to clean previous OCL_ICD_FILENAMES configuration
+    c:\oclfpga_rt_<fpga_version>\install.bat c:\tbb_<tbb_version>\tbb\bin\intel64\vc14
+    # Install OpenCL CPU RT
+    # Answer Y to setup CPU RT side-bi-side with FPGA RT
     c:\oclcpu_rt_<cpu_version>\install.bat c:\tbb_<tbb_version>\tbb\bin\intel64\vc14
     ```
 
