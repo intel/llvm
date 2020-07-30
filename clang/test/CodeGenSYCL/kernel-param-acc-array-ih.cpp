@@ -16,30 +16,26 @@
 // CHECK-NEXT: const char* const kernel_names[] = {
 // CHECK-NEXT:   "_ZTSZ4mainE8kernel_A"
 // CHECK-NEXT: };
-
+//
 // CHECK: static constexpr
-// CHECK-NEXT: const bool kernel_param_used[] = {
-// CHECK-NEXT:  //PARAM_USED_TABLE_BEGIN
-// CHECK-NEXT:  //kernel_name_1
-// CHECK-NEXT:  true, true, true
-// CHECK-NEXT:  //kernel_name_2
-// CHECK-NEXT:  true, true, true
-// CHECK-NEXT:  //PARAM_USED_TABLE_END
-// CHECK-NEXT:  }
-
+// CHECK-NEXT: const bool param_omit_table[] = {
+// CHECK-NEXT:   // OMIT_TABLE_BEGIN
+// CHECK-NEXT:   //--- _ZTSZ4mainE8kernel_A
+// CHECK-NEXT:   false, false, false, false, false, false, false, false,
+// CHECK-NEXT:   // OMIT_TABLE_END
+// CHECK-NEXT:   };
+//
 // CHECK: static constexpr
 // CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {
 // CHECK-NEXT:   //--- _ZTSZ4mainE8kernel_A
-// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 0, kernel_param_used[0] },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 12, kernel_param_used[1] },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 0, param_omit_table[0] | (param_omit_table[1] << 1) | (param_omit_table[2] << 2) | (param_omit_table[3] << 3)},
+// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 12, param_omit_table[4] | (param_omit_table[5] << 1) | (param_omit_table[6] << 2) | (param_omit_table[7] << 3)},
 // CHECK-EMPTY:
 // CHECK-NEXT: };
-
 // CHECK: static constexpr
 // CHECK-NEXT: const unsigned kernel_signature_start[] = {
 // CHECK-NEXT:  0 // _ZTSZ4mainE8kernel_A
 // CHECK-NEXT: };
-
 // CHECK: template <> struct KernelInfo<class kernel_A> {
 
 #include <sycl.hpp>

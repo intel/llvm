@@ -42,8 +42,8 @@ struct kernel_param_desc_t {
   // offset of the captured value of the parameter in the lambda or function
   // object
   int offset;
-  // bool to mark kernel parameters that are used
-  bool kernelParamUsed;
+  // bitfield to mark kernel parameters that will be omitted
+  unsigned char kernel_param_omitted : 1;
 };
 
 // Translates specialization constant type to its name.

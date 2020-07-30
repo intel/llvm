@@ -15,19 +15,17 @@
 // CHECK-NEXT: };
 
 // CHECK: static constexpr
-// CHECK-NEXT:  const bool kernel_param_used[] = {
-// CHECK-NEXT:    //PARAM_USED_TABLE_BEGIN 
-// CHECK-NEXT:    //kernel_name_1   
-// CHECK-NEXT:    true, true, true   
-// CHECK-NEXT:    //kernel_name_2   
-// CHECK-NEXT:    true, true, true 
-// CHECK-NEXT:    //PARAM_USED_TABLE_END 
-// CHECK-NEXT:    } 
+// CHECK-NEXT: const bool param_omit_table[] = {
+// CHECK-NEXT:   // OMIT_TABLE_BEGIN
+// CHECK-NEXT:   //--- _ZTSZ4mainE14wrapped_access
+// CHECK-NEXT:   false, false, false, false,
+// CHECK-NEXT:   // OMIT_TABLE_END
+// CHECK-NEXT:   };
 
 // CHECK: static constexpr
 // CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {
-// CHECK-NEXT: //--- _ZTSZ4mainE14wrapped_access
-// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 0, kernel_param_used[0] },
+// CHECK-NEXT:   //--- _ZTSZ4mainE14wrapped_access
+// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 0, param_omit_table[0] | (param_omit_table[1] << 1) | (param_omit_table[2] << 2) | (param_omit_table[3] << 3)},
 // CHECK-EMPTY:
 // CHECK-NEXT: };
 

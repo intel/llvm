@@ -2,8 +2,8 @@
 // RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl -fsycl-is-device -fsycl-int-header=%t.h %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s --check-prefix=INT-HEADER
 
-// INT-HEADER:{ kernel_param_kind_t::kind_pointer, 8, 0, kernel_param_used[0] },
-// INT-HEADER:{ kernel_param_kind_t::kind_pointer, 8, 8, kernel_param_used[1] },
+// INT-HEADER:{ kernel_param_kind_t::kind_pointer, 8, 0, param_omit_table[0]},
+// INT-HEADER:{ kernel_param_kind_t::kind_pointer, 8, 8, param_omit_table[1]},
 
 //==--usm-int-header.cpp - USM kernel param aspace and int header test -----==//
 //
