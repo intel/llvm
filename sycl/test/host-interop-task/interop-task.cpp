@@ -2,7 +2,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: level0, cuda
+// UNSUPPORTED: level_zero, cuda
 // REQUIRES: opencl
 // REQUIRES: TEMPORARY_DISABLED
 
