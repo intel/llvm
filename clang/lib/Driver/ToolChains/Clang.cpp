@@ -4139,6 +4139,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                      options::OPT_fno_sycl_allow_func_ptr, false)) {
       CmdArgs.push_back("-fsycl-allow-func-ptr");
     }
+    // -fsycl-id-queries-fit-in-int is the default
+    if (Args.hasFlag(options::OPT_fno_sycl_id_queries_fit_in_int,
+                     options::OPT_fsycl_id_queries_fit_in_int, false))
+      CmdArgs.push_back("-fno-sycl-id-queries-fit-in-int");
 
     if (!SYCLStdArg) {
       // The user had not pass SYCL version, thus we'll employ no-sycl-strict

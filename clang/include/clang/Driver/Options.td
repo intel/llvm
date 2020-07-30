@@ -1874,6 +1874,9 @@ def fsycl_device_code_split_EQ : Joined<["-"], "fsycl-device-code-split=">,
 def fsycl_device_code_split : Flag<["-"], "fsycl-device-code-split">, Alias<fsycl_device_code_split_EQ>,
   AliasArgs<["per_source"]>, Flags<[CC1Option, CoreOption]>,
   HelpText<"Perform SYCL device code split in the per_source mode i.e. create a device code module for each source (translation unit)">;
+defm sycl_id_queries_fit_in_int : OptOutFFlag<"sycl-id-queries-fit-in-int",
+  "Assume that SYCL ID queries fit within MAX_INT.", "Do not assume that SYCL "
+  "ID queries fit within MAX_INT.", "", [CoreOption]>;
 def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Use LLVM bitcode instead of SPIR-V in fat objects">;
 def fno_sycl_use_bitcode : Flag<["-"], "fno-sycl-use-bitcode">,

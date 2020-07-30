@@ -2596,6 +2596,8 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
     }
     Opts.SYCLExplicitSIMD = Args.hasArg(options::OPT_fsycl_esimd);
     Opts.EnableDAEInSpirKernels = Args.hasArg(options::OPT_fenable_sycl_dae);
+    if (Args.hasArg(options::OPT_fno_sycl_id_queries_fit_in_int))
+      Opts.SYCLValueFitInMaxInt = false;
   }
 
   Opts.IncludeDefaultHeader = Args.hasArg(OPT_finclude_default_header);
