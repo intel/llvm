@@ -399,7 +399,7 @@ bool program_impl::has_cl_kernel(const string_class &KernelName) const {
 }
 
 RT::PiKernel program_impl::get_pi_kernel(const string_class &KernelName) const {
-  RT::PiKernel Kernel;
+  RT::PiKernel Kernel = nullptr;
 
   if (is_cacheable()) {
     std::tie(Kernel, std::ignore) =
@@ -416,6 +416,11 @@ RT::PiKernel program_impl::get_pi_kernel(const string_class &KernelName) const {
           Err);
     }
     Plugin.checkPiResult(Err);
+
+    // Some PI Plugins (like OpenCL) require this call to enable USM
+    // For others, PI will turn this into a NOP.
+    Plugin.call<PiApiKind::piKernelSetExecInfo>(Kernel, PI_USM_INDIRECT_ACCESS,
+                                                sizeof(pi_bool), &PI_TRUE);
   }
 
   return Kernel;

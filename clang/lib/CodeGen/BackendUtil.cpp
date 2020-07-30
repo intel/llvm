@@ -41,6 +41,7 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Passes/StandardInstrumentations.h"
+#include "llvm/SYCLLowerIR/LowerESIMD.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -75,6 +76,7 @@
 #include "llvm/Transforms/ObjCARC.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVN.h"
+#include "llvm/Transforms/Scalar/LowerMatrixIntrinsics.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/CanonicalizeAliases.h"
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
@@ -785,6 +787,25 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
 
   PMBuilder.populateFunctionPassManager(FPM);
   PMBuilder.populateModulePassManager(MPM);
+
+  // Customize the tail of the module passes list for the ESIMD extension.
+  if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD &&
+      CodeGenOpts.OptimizationLevel != 0) {
+    MPM.add(createESIMDLowerVecArgPass());
+    MPM.add(createESIMDLowerLoadStorePass());
+    MPM.add(createSROAPass());
+    MPM.add(createEarlyCSEPass(true));
+    MPM.add(createInstructionCombiningPass());
+    MPM.add(createDeadCodeEliminationPass());
+    MPM.add(createFunctionInliningPass(
+        CodeGenOpts.OptimizationLevel, CodeGenOpts.OptimizeSize,
+        (!CodeGenOpts.SampleProfileFile.empty() &&
+         CodeGenOpts.PrepareForThinLTO)));
+    MPM.add(createSROAPass());
+    MPM.add(createEarlyCSEPass(true));
+    MPM.add(createInstructionCombiningPass());
+    MPM.add(createDeadCodeEliminationPass());
+  }
 }
 
 static void setCommandLineOpts(const CodeGenOptions &CodeGenOpts) {
@@ -878,6 +899,11 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
   legacy::FunctionPassManager PerFunctionPasses(TheModule);
   PerFunctionPasses.add(
       createTargetTransformInfoWrapperPass(getTargetIRAnalysis()));
+
+  // ESIMD extension always requires lowering of certain IR constructs, such as
+  // ESIMD C++ intrinsics, as the last FE step.
+  if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD)
+    PerModulePasses.add(createSYCLLowerESIMDPass());
 
   CreatePasses(PerModulePasses, PerFunctionPasses);
 
@@ -1161,7 +1187,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
   PTO.Coroutines = LangOpts.Coroutines;
 
   PassInstrumentationCallbacks PIC;
-  StandardInstrumentations SI;
+  StandardInstrumentations SI(CodeGenOpts.DebugPassManager);
   SI.registerCallbacks(PIC);
   PassBuilder PB(TM.get(), PTO, PGOOpt, &PIC);
 
@@ -1380,6 +1406,13 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
     }
 
     if (CodeGenOpts.OptimizationLevel == 0) {
+      // FIXME: the backends do not handle matrix intrinsics currently. Make
+      // sure they are also lowered in O0. A lightweight version of the pass
+      // should run in the backend pipeline on demand.
+      if (LangOpts.MatrixTypes)
+        MPM.addPass(
+            createModuleToFunctionPassAdaptor(LowerMatrixIntrinsicsPass()));
+
       addCoroutinePassesAtO0(MPM, LangOpts, CodeGenOpts);
       addSanitizersAtO0(MPM, TargetTriple, LangOpts, CodeGenOpts);
     }

@@ -9,6 +9,6 @@ __attribute__((opencl_private)) __attribute__((register_num(17))) int vc;
 
 SYCL_EXTERNAL void init_vc(int x) {
   vc = x;
-  // CHECK: store i32 %0, i32* @vc
+  // CHECK: store i32 %{{[0-9a-zA-Z_]+}}, i32* @vc
 }
 // CHECK: attributes #0 = {{.*"VCByteOffset"="17".*"VCVolatile"}}

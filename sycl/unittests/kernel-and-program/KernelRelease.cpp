@@ -72,6 +72,13 @@ static pi_result redefinedKernelGetInfo(pi_kernel kernel,
   return PI_SUCCESS;
 }
 
+pi_result redefinedKernelSetExecInfo(pi_kernel kernel,
+                                     pi_kernel_exec_info param_name,
+                                     size_t param_value_size,
+                                     const void *param_value) {
+  return PI_SUCCESS;
+}
+
 TEST(KernelReleaseTest, GetKernelRelease) {
   platform Plt{default_selector()};
   if (Plt.is_host()) {
@@ -89,6 +96,8 @@ TEST(KernelReleaseTest, GetKernelRelease) {
   Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
   Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
+      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   TestContext.reset(new TestCtx(Ctx));

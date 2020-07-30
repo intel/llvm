@@ -126,7 +126,7 @@ RetT *waitUntilBuilt(KernelProgramCache &Cache,
                      KernelProgramCache::BuildResult<RetT> *BuildResult) {
   // any thread which will find nullptr in cache will wait until the pointer
   // is not null anymore
-  Cache.waitUntilBuilt([BuildResult]() {
+  Cache.waitUntilBuilt(*BuildResult, [BuildResult]() {
     int State = BuildResult->State.load();
 
     return State == BS_Done || State == BS_Failed;
@@ -213,7 +213,7 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
 
     BuildResult->State.store(BS_Done);
 
-    KPCache.notifyAllBuild();
+    KPCache.notifyAllBuild(*BuildResult);
 
     return BuildResult;
   } catch (const exception &Ex) {
@@ -222,13 +222,13 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
 
     BuildResult->State.store(BS_Failed);
 
-    KPCache.notifyAllBuild();
+    KPCache.notifyAllBuild(*BuildResult);
 
     std::rethrow_exception(std::current_exception());
   } catch (...) {
     BuildResult->State.store(BS_Failed);
 
-    KPCache.notifyAllBuild();
+    KPCache.notifyAllBuild(*BuildResult);
 
     std::rethrow_exception(std::current_exception());
   }
@@ -444,13 +444,18 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M, const context &Context,
     Plugin.call<PiApiKind::piKernelCreate>(Program, KernelName.c_str(),
                                            &Result);
 
+    // Some PI Plugins (like OpenCL) require this call to enable USM
+    // For others, PI will turn this into a NOP.
+    Plugin.call<PiApiKind::piKernelSetExecInfo>(Result, PI_USM_INDIRECT_ACCESS,
+                                                sizeof(pi_bool), &PI_TRUE);
+
     return Result;
   };
 
-  auto BuildResult = static_cast<KernelProgramCache::BuildResultKernel *>(
-      getOrBuild<PiKernelT, invalid_object_error>(Cache, KernelName, AcquireF,
-                                                  GetF, BuildF));
-  return std::make_pair(BuildResult->Ptr.load(), &(BuildResult->MKernelMutex));
+  auto BuildResult = getOrBuild<PiKernelT, invalid_object_error>(
+      Cache, KernelName, AcquireF, GetF, BuildF);
+  return std::make_pair(BuildResult->Ptr.load(),
+                        &(BuildResult->MBuildResultMutex));
 }
 
 RT::PiProgram
@@ -796,8 +801,8 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
   // We do not link with other device libraries, because it may fail
   // due to unrecognized SPIRV format of those libraries.
-  if (std::string(LinkOpts).find(std::string("-cmc")) != std::string::npos ||
-      std::string(LinkOpts).find(std::string("-vc-codegen")) !=
+  if (std::string(CompileOpts).find(std::string("-cmc")) != std::string::npos ||
+      std::string(CompileOpts).find(std::string("-vc-codegen")) !=
           std::string::npos)
     LinkDeviceLibs = false;
 

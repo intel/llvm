@@ -93,6 +93,7 @@ Scheduler::GraphBuilder::GraphBuilder() {
 }
 
 static bool markNodeAsVisited(Command *Cmd, std::vector<Command *> &Visited) {
+  assert(Cmd && "Cmd can't be nullptr");
   if (Cmd->MMarks.MVisited)
     return false;
   Cmd->MMarks.MVisited = true;

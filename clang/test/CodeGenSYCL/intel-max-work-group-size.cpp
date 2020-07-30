@@ -2,11 +2,11 @@
 
 class Foo {
 public:
-  [[intelfpga::max_work_group_size(1, 1, 1)]] void operator()() {}
+  [[intelfpga::max_work_group_size(1, 1, 1)]] void operator()() const {}
 };
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 

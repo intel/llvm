@@ -148,7 +148,7 @@ void ivdep_embedded_multiple_dimensions() {
 }
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 }
 

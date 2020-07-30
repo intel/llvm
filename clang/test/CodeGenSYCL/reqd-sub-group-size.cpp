@@ -2,14 +2,14 @@
 
 class Functor16 {
 public:
-  [[cl::intel_reqd_sub_group_size(16)]] void operator()() {}
+  [[cl::intel_reqd_sub_group_size(16)]] void operator()() const {}
 };
 
 [[cl::intel_reqd_sub_group_size(8)]] void foo() {}
 
 class Functor {
 public:
-  void operator()() {
+  void operator()() const {
     foo();
   }
 };
@@ -17,11 +17,11 @@ public:
 template <int SIZE>
 class Functor5 {
 public:
-  [[cl::intel_reqd_sub_group_size(SIZE)]] void operator()() {}
+  [[cl::intel_reqd_sub_group_size(SIZE)]] void operator()() const {}
 };
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 
