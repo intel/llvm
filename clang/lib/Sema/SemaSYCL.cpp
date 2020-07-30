@@ -510,52 +510,25 @@ public:
 
       if (auto *A = FD->getAttr<IntelReqdSubGroupSizeAttr>())
         Attrs.insert(A);
+
       if (auto *A = FD->getAttr<ReqdWorkGroupSizeAttr>())
         Attrs.insert(A);
-      // Allow the following kernel attributes only on lambda functions and
-      // function objects that are called directly from a kernel (i.e. the one
-      // passed to the parallel_for function). For all other cases,
-      // emit a warning and ignore.
-      if (auto *A = FD->getAttr<SYCLIntelKernelArgsRestrictAttr>()) {
-        if (ParentFD == SYCLKernel) {
-          Attrs.insert(A);
-        } else {
-          SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
-          FD->dropAttr<SYCLIntelKernelArgsRestrictAttr>();
-        }
-      }
-      if (auto *A = FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
-        if (ParentFD == SYCLKernel) {
-          Attrs.insert(A);
-        } else {
-          SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
-          FD->dropAttr<SYCLIntelNumSimdWorkItemsAttr>();
-        }
-      }
-      if (auto *A = FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-        if (ParentFD == SYCLKernel) {
-          Attrs.insert(A);
-        } else {
-          SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
-          FD->dropAttr<SYCLIntelMaxWorkGroupSizeAttr>();
-        }
-      }
-      if (auto *A = FD->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-        if (ParentFD == SYCLKernel) {
-          Attrs.insert(A);
-        } else {
-          SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
-          FD->dropAttr<SYCLIntelMaxGlobalWorkDimAttr>();
-        }
-      }
-      if (auto *A = FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
-        if (ParentFD == SYCLKernel) {
-          Attrs.insert(A);
-        } else {
-          SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
-          FD->dropAttr<SYCLIntelNoGlobalWorkOffsetAttr>();
-        }
-      }
+
+      if (auto *A = FD->getAttr<SYCLIntelKernelArgsRestrictAttr>())
+        Attrs.insert(A);
+
+      if (auto *A = FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>())
+        Attrs.insert(A);
+
+      if (auto *A = FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>())
+        Attrs.insert(A);
+
+      if (auto *A = FD->getAttr<SYCLIntelMaxGlobalWorkDimAttr>())
+        Attrs.insert(A);
+
+      if (auto *A = FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>())
+        Attrs.insert(A);
+
       if (auto *A = FD->getAttr<SYCLSimdAttr>())
         Attrs.insert(A);
       // Propagate the explicit SIMD attribute through call graph - it is used
@@ -725,7 +698,38 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
 }
 
 static const CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
-  return (*Caller->param_begin())->getType()->getAsCXXRecordDecl();
+  QualType KernelParamTy = (*Caller->param_begin())->getType();
+  // In SYCL 2020 kernels are now passed by reference.
+  if (KernelParamTy->isReferenceType())
+    return KernelParamTy->getPointeeCXXRecordDecl();
+
+  // SYCL 1.2.1
+  return KernelParamTy->getAsCXXRecordDecl();
+}
+
+static void checkKernelAndCaller(Sema &SemaRef, FunctionDecl *Caller,
+                                 const CXXRecordDecl *KernelObj) {
+  // check captures
+  if (KernelObj->isLambda()) {
+    for (const LambdaCapture &LC : KernelObj->captures())
+      if (LC.capturesThis() && LC.isImplicit())
+        SemaRef.Diag(LC.getLocation(), diag::err_implicit_this_capture);
+  }
+
+  // check that calling kernel conforms to spec
+  assert(Caller->param_size() >= 1 && "missing kernel function argument.");
+  QualType KernelParamTy = (*Caller->param_begin())->getType();
+  if (KernelParamTy->isReferenceType()) {
+    // passing by reference, so emit warning if not using SYCL 2020
+    if (SemaRef.LangOpts.SYCLVersion < 2020)
+      SemaRef.Diag(Caller->getLocation(),
+                   diag::warn_sycl_pass_by_reference_future);
+  } else {
+    // passing by value.  emit warning if using SYCL 2020 or greater
+    if (SemaRef.LangOpts.SYCLVersion > 2017)
+      SemaRef.Diag(Caller->getLocation(),
+                   diag::warn_sycl_pass_by_value_deprecated);
+  }
 }
 
 /// Creates a kernel parameter descriptor
@@ -1940,11 +1944,8 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       constructKernelName(*this, KernelCallerFunc, MC);
   StringRef KernelName(getLangOpts().SYCLUnnamedLambda ? StableName
                                                        : CalculatedName);
-  if (KernelObj->isLambda()) {
-    for (const LambdaCapture &LC : KernelObj->captures())
-      if (LC.capturesThis() && LC.isImplicit())
-        Diag(LC.getLocation(), diag::err_implicit_this_capture);
-  }
+
+  checkKernelAndCaller(*this, KernelCallerFunc, KernelObj);
   SyclKernelFieldChecker checker(*this);
   SyclKernelDeclCreator kernel_decl(
       *this, checker, KernelName, KernelObj->getLocation(),
@@ -2051,6 +2052,38 @@ void Sema::MarkDevice(void) {
               Diag(Attr->getLocation(), diag::note_conflicting_attribute);
               SYCLKernel->setInvalidDecl();
             }
+          } else if (auto *Existing =
+                         SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+            if (Existing->getXDim() < Attr->getXDim() ||
+                Existing->getYDim() < Attr->getYDim() ||
+                Existing->getZDim() < Attr->getZDim()) {
+              Diag(SYCLKernel->getLocation(),
+                   diag::err_conflicting_sycl_kernel_attributes);
+              Diag(Existing->getLocation(), diag::note_conflicting_attribute);
+              Diag(Attr->getLocation(), diag::note_conflicting_attribute);
+              SYCLKernel->setInvalidDecl();
+            } else {
+              SYCLKernel->addAttr(A);
+            }
+          } else {
+            SYCLKernel->addAttr(A);
+          }
+          break;
+        }
+        case attr::Kind::SYCLIntelMaxWorkGroupSize: {
+          auto *Attr = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
+          if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
+            if (Existing->getXDim() > Attr->getXDim() ||
+                Existing->getYDim() > Attr->getYDim() ||
+                Existing->getZDim() > Attr->getZDim()) {
+              Diag(SYCLKernel->getLocation(),
+                   diag::err_conflicting_sycl_kernel_attributes);
+              Diag(Existing->getLocation(), diag::note_conflicting_attribute);
+              Diag(Attr->getLocation(), diag::note_conflicting_attribute);
+              SYCLKernel->setInvalidDecl();
+            } else {
+              SYCLKernel->addAttr(A);
+            }
           } else {
             SYCLKernel->addAttr(A);
           }
@@ -2059,7 +2092,6 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelKernelArgsRestrict:
         case attr::Kind::SYCLIntelNumSimdWorkItems:
         case attr::Kind::SYCLIntelMaxGlobalWorkDim:
-        case attr::Kind::SYCLIntelMaxWorkGroupSize:
         case attr::Kind::SYCLIntelNoGlobalWorkOffset:
         case attr::Kind::SYCLSimd: {
           if ((A->getKind() == attr::Kind::SYCLSimd) && KernelBody &&

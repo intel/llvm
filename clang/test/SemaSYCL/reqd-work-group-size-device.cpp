@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -DTRIGGER_ERROR %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -Wno-sycl-2017-compat -verify -DTRIGGER_ERROR %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
 
 [[cl::reqd_work_group_size(4, 1, 1)]] void f4x1x1() {} // expected-note {{conflicting attribute is here}}
 // expected-note@-1 {{conflicting attribute is here}}
@@ -13,7 +13,7 @@
 
 class Functor16 {
 public:
-  [[cl::reqd_work_group_size(16, 1, 1)]] [[cl::reqd_work_group_size(16, 1, 1)]] void operator()() {}
+  [[cl::reqd_work_group_size(16, 1, 1)]] [[cl::reqd_work_group_size(16, 1, 1)]] void operator()() const {}
 };
 
 #ifdef TRIGGER_ERROR
@@ -21,35 +21,35 @@ class Functor32 {
 public:
   //expected-warning@+2{{attribute 'reqd_work_group_size' is already applied with different parameters}}
   // expected-error@+1{{'reqd_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
-  [[cl::reqd_work_group_size(32, 1, 1)]] [[cl::reqd_work_group_size(1, 1, 32)]] void operator()() {}
+  [[cl::reqd_work_group_size(32, 1, 1)]] [[cl::reqd_work_group_size(1, 1, 32)]] void operator()() const {}
 };
 #endif
 class Functor16x16x16 {
 public:
-  [[cl::reqd_work_group_size(16, 16, 16)]] void operator()() {}
+  [[cl::reqd_work_group_size(16, 16, 16)]] void operator()() const {}
 };
 
 class Functor8 { // expected-error {{conflicting attributes applied to a SYCL kernel}}
 public:
-  [[cl::reqd_work_group_size(1, 1, 8)]] void operator()() { // expected-note {{conflicting attribute is here}}
+  [[cl::reqd_work_group_size(1, 1, 8)]] void operator()() const { // expected-note {{conflicting attribute is here}}
     f4x1x1();
   }
 };
 
 class Functor {
 public:
-  void operator()() {
+  void operator()() const {
     f4x1x1();
   }
 };
 
 class FunctorAttr {
 public:
-  __attribute__((reqd_work_group_size(128, 128, 128))) void operator()() {}
+  __attribute__((reqd_work_group_size(128, 128, 128))) void operator()() const {}
 };
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 
