@@ -62,7 +62,7 @@ Release notes for the commit range ba404be..24726df
   - Added a cache for PI plugins, so subsequent calls for `sycl::device`
     creation should be cheaper [03dd60d]
   - A SYCL program will be aborted now if program linking is requested when
-    using L0 plugin. This is done because L0 doesn't support program linking
+    using Level Zero plugin. This is done because L0 doesn't support program linking
     [d4a5b71]
   - Added a diagnostic on attempt to use `sycl::program::set_spec_constant` when
     the program is already in compiled or linked state [e2e3d3d]

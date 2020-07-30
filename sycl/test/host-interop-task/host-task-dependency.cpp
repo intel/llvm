@@ -4,7 +4,7 @@
 // RUN: %ACC_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t.out 2>&1 %ACC_CHECK_PLACEHOLDER
 //
 // TODO: Behaviour is unstable for level zero on Windows. Enable when fixed.
-// UNSUPPORTED: windows && level0
+// UNSUPPORTED: windows && level_zero
 
 #include <atomic>
 #include <condition_variable>

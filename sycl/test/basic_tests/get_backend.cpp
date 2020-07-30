@@ -3,7 +3,6 @@
 //
 //==----------------- get_backend.cpp ------------------------==//
 // This is a test of get_backend().
-// Also prints handy info about the system.
 // Do not set SYCL_BE.  We do not want the preferred backend.
 //==----------------------------------------------------------==//
 
@@ -16,7 +15,7 @@ using namespace cl::sycl;
 bool check(backend be) {
   switch (be) {
   case backend::opencl:
-  case backend::level0:
+  case backend::level_zero:
   case backend::cuda:
   case backend::host:
     return true;

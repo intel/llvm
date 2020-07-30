@@ -48,6 +48,8 @@ SetVector<StringRef> DWARFYAML::Data::getUsedSectionNames() const {
     SecNames.insert("debug_gnu_pubtypes");
   if (DebugStrOffsets)
     SecNames.insert("debug_str_offsets");
+  if (DebugRnglists)
+    SecNames.insert("debug_rnglists");
   return SecNames;
 }
 
@@ -72,6 +74,7 @@ void MappingTraits<DWARFYAML::Data>::mapping(IO &IO, DWARFYAML::Data &DWARF) {
   IO.mapOptional("debug_line", DWARF.DebugLines);
   IO.mapOptional("debug_addr", DWARF.DebugAddr);
   IO.mapOptional("debug_str_offsets", DWARF.DebugStrOffsets);
+  IO.mapOptional("debug_rnglists", DWARF.DebugRnglists);
   IO.setContext(OldContext);
 }
 
@@ -139,13 +142,13 @@ void MappingTraits<DWARFYAML::PubSection>::mapping(
 }
 
 void MappingTraits<DWARFYAML::Unit>::mapping(IO &IO, DWARFYAML::Unit &Unit) {
-  IO.mapOptional("Format", Unit.Format, dwarf::DWARF32);
-  IO.mapRequired("Length", Unit.Length);
-  IO.mapRequired("Version", Unit.Version);
-  if (Unit.Version >= 5)
+  IO.mapOptional("Format", Unit.FormParams.Format, dwarf::DWARF32);
+  IO.mapOptional("Length", Unit.Length);
+  IO.mapRequired("Version", Unit.FormParams.Version);
+  if (Unit.FormParams.Version >= 5)
     IO.mapRequired("UnitType", Unit.Type);
   IO.mapRequired("AbbrOffset", Unit.AbbrOffset);
-  IO.mapRequired("AddrSize", Unit.AddrSize);
+  IO.mapRequired("AddrSize", Unit.FormParams.AddrSize);
   IO.mapOptional("Entries", Unit.Entries);
 }
 
@@ -231,6 +234,31 @@ void MappingTraits<DWARFYAML::StringOffsetsTable>::mapping(
   IO.mapOptional("Version", StrOffsetsTable.Version, 5);
   IO.mapOptional("Padding", StrOffsetsTable.Padding, 0);
   IO.mapOptional("Offsets", StrOffsetsTable.Offsets);
+}
+
+void MappingTraits<DWARFYAML::RnglistEntry>::mapping(
+    IO &IO, DWARFYAML::RnglistEntry &RnglistEntry) {
+  IO.mapRequired("Operator", RnglistEntry.Operator);
+  IO.mapOptional("Values", RnglistEntry.Values);
+}
+
+template <typename EntryType>
+void MappingTraits<DWARFYAML::ListEntries<EntryType>>::mapping(
+    IO &IO, DWARFYAML::ListEntries<EntryType> &ListEntries) {
+  IO.mapOptional("Entries", ListEntries.Entries);
+}
+
+template <typename EntryType>
+void MappingTraits<DWARFYAML::ListTable<EntryType>>::mapping(
+    IO &IO, DWARFYAML::ListTable<EntryType> &ListTable) {
+  IO.mapOptional("Format", ListTable.Format, dwarf::DWARF32);
+  IO.mapOptional("Length", ListTable.Length);
+  IO.mapOptional("Version", ListTable.Version, 5);
+  IO.mapOptional("AddressSize", ListTable.AddrSize);
+  IO.mapOptional("SegmentSelectorSize", ListTable.SegSelectorSize, 0);
+  IO.mapOptional("OffsetEntryCount", ListTable.OffsetEntryCount);
+  IO.mapOptional("Offsets", ListTable.Offsets);
+  IO.mapOptional("Lists", ListTable.Lists);
 }
 
 void MappingTraits<DWARFYAML::InitialLength>::mapping(

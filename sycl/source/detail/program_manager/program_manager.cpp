@@ -442,6 +442,11 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M, const context &Context,
     Plugin.call<PiApiKind::piKernelCreate>(Program, KernelName.c_str(),
                                            &Result);
 
+    // Some PI Plugins (like OpenCL) require this call to enable USM
+    // For others, PI will turn this into a NOP.
+    Plugin.call<PiApiKind::piKernelSetExecInfo>(Result, PI_USM_INDIRECT_ACCESS,
+                                                sizeof(pi_bool), &PI_TRUE);
+
     return Result;
   };
 
@@ -783,11 +788,11 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
     LinkOpts = LinkOptions.c_str();
   }
 
-  // L0 plugin doesn't support piProgramCompile/piProgramLink commands, program
-  // is built during piProgramCreate.
+  // Level-Zero plugin doesn't support piProgramCompile/piProgramLink commands,
+  // program is built during piProgramCreate.
   // TODO: remove this check as soon as piProgramCompile/piProgramLink will be
-  // implemented in L0 plugin.
-  if (Context->getPlugin().getBackend() == backend::level0) {
+  // implemented in Level-Zero plugin.
+  if (Context->getPlugin().getBackend() == backend::level_zero) {
     LinkDeviceLibs = false;
   }
 

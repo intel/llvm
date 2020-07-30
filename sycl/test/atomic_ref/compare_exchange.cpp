@@ -16,10 +16,10 @@ class compare_exchange_kernel;
 
 template <typename T>
 void compare_exchange_test(queue q, size_t N) {
-  const T initial = std::numeric_limits<T>::max();
+  const T initial = T(N);
   T compare_exchange = initial;
   std::vector<T> output(N);
-  std::fill(output.begin(), output.end(), 0);
+  std::fill(output.begin(), output.end(), T(0));
   {
     buffer<T> compare_exchange_buf(&compare_exchange, 1);
     buffer<T> output_buf(output.data(), output.size());
@@ -27,15 +27,16 @@ void compare_exchange_test(queue q, size_t N) {
     q.submit([&](handler &cgh) {
       auto exc = compare_exchange_buf.template get_access<access::mode::read_write>(cgh);
       auto out = output_buf.template get_access<access::mode::discard_write>(cgh);
-      cgh.parallel_for<compare_exchange_kernel<T>>(range<1>(N), [=](item<1> it) {
-        int gid = it.get_id(0);
+      cgh.parallel_for<compare_exchange_kernel<T>>(range<1>(N), [=](item<1>
+                                                                        it) {
+        size_t gid = it.get_id(0);
         auto atm = atomic_ref<T, intel::memory_order::relaxed, intel::memory_scope::device, access::address_space::global_space>(exc[0]);
-        T result = initial;
+        T result = T(N); // Avoid copying pointer
         bool success = atm.compare_exchange_strong(result, (T)gid);
         if (success) {
           out[gid] = result;
         } else {
-          out[gid] = gid;
+          out[gid] = T(gid);
         }
       });
     });
@@ -45,7 +46,7 @@ void compare_exchange_test(queue q, size_t N) {
   assert(std::count(output.begin(), output.end(), initial) == 1);
 
   // All other values should be the index itself or the sentinel value
-  for (int i = 0; i < N; ++i) {
+  for (size_t i = 0; i < N; ++i) {
     assert(output[i] == T(i) || output[i] == initial);
   }
 }
@@ -59,8 +60,6 @@ int main() {
   }
 
   constexpr int N = 32;
-
-  // TODO: Enable missing tests when supported
   compare_exchange_test<int>(q, N);
   compare_exchange_test<unsigned int>(q, N);
   compare_exchange_test<long>(q, N);
@@ -69,7 +68,7 @@ int main() {
   compare_exchange_test<unsigned long long>(q, N);
   compare_exchange_test<float>(q, N);
   compare_exchange_test<double>(q, N);
-  //compare_exchange_test<char*>(q, N);
+  compare_exchange_test<char *>(q, N);
 
   std::cout << "Test passed." << std::endl;
 }

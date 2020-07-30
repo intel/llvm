@@ -106,6 +106,10 @@ static cl::opt<bool> DupRet(
     cl::desc("Duplicate return instructions into unconditional branches"));
 
 static cl::opt<bool>
+    HoistCommon("simplifycfg-hoist-common", cl::Hidden, cl::init(true),
+                cl::desc("Hoist common instructions up to the parent block"));
+
+static cl::opt<bool>
     SinkCommon("simplifycfg-sink-common", cl::Hidden, cl::init(true),
                cl::desc("Sink common instructions down to the end block"));
 
@@ -2229,6 +2233,12 @@ static bool BlockIsSimpleEnoughToThreadThrough(BasicBlock *BB) {
   for (Instruction &I : BB->instructionsWithoutDebug()) {
     if (Size > MaxSmallBlockSize)
       return false; // Don't clone large BB's.
+
+    // Can't fold blocks that contain noduplicate or convergent calls.
+    if (CallInst *CI = dyn_cast<CallInst>(&I))
+      if (CI->cannotDuplicate() || CI->isConvergent())
+        return false;
+
     // We will delete Phis while threading, so Phis should not be accounted in
     // block's size
     if (!isa<PHINode>(I))
@@ -2268,13 +2278,6 @@ static bool FoldCondBranchOnPHI(BranchInst *BI, const DataLayout &DL,
 
   // Now we know that this block has multiple preds and two succs.
   if (!BlockIsSimpleEnoughToThreadThrough(BB))
-    return false;
-
-  // Can't fold blocks that contain noduplicate or convergent calls.
-  if (any_of(*BB, [](const Instruction &I) {
-        const CallInst *CI = dyn_cast<CallInst>(&I);
-        return CI && (CI->cannotDuplicate() || CI->isConvergent());
-      }))
     return false;
 
   // Okay, this is a simple enough basic block.  See if any phi values are
@@ -6063,8 +6066,9 @@ bool SimplifyCFGOpt::simplifyCondBranch(BranchInst *BI, IRBuilder<> &Builder) {
   // can hoist it up to the branching block.
   if (BI->getSuccessor(0)->getSinglePredecessor()) {
     if (BI->getSuccessor(1)->getSinglePredecessor()) {
-      if (HoistThenElseCodeToIf(BI, TTI))
-        return requestResimplify();
+      if (HoistCommon && Options.HoistCommonInsts)
+        if (HoistThenElseCodeToIf(BI, TTI))
+          return requestResimplify();
     } else {
       // If Successor #1 has multiple preds, we may be able to conditionally
       // execute Successor #0 if it branches to Successor #1.
