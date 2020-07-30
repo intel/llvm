@@ -37,25 +37,25 @@ template <> struct group_scope<::cl::sycl::intel::sub_group> {
 // intrinsics, and should use the fewest broadcasts possible
 // - Loop over 64-bit chunks until remaining bytes < 64-bit
 // - At most one 32-bit, 16-bit and 8-bit chunk left over
-template <typename T, typename ShuffleFunctor>
-void GenericShuffle(const ShuffleFunctor &ShuffleBytes) {
+template <typename T, typename Functor>
+void GenericCall(const Functor &ApplyToBytes) {
   if (sizeof(T) >= sizeof(uint64_t)) {
 #pragma unroll
     for (size_t Offset = 0; Offset < sizeof(T); Offset += sizeof(uint64_t)) {
-      ShuffleBytes(Offset, sizeof(uint64_t));
+      ApplyToBytes(Offset, sizeof(uint64_t));
     }
   }
   if (sizeof(T) % sizeof(uint64_t) >= sizeof(uint32_t)) {
     size_t Offset = sizeof(T) / sizeof(uint64_t) * sizeof(uint64_t);
-    ShuffleBytes(Offset, sizeof(uint32_t));
+    ApplyToBytes(Offset, sizeof(uint32_t));
   }
   if (sizeof(T) % sizeof(uint32_t) >= sizeof(uint16_t)) {
     size_t Offset = sizeof(T) / sizeof(uint32_t) * sizeof(uint32_t);
-    ShuffleBytes(Offset, sizeof(uint16_t));
+    ApplyToBytes(Offset, sizeof(uint16_t));
   }
   if (sizeof(T) % sizeof(uint16_t) >= sizeof(uint8_t)) {
     size_t Offset = sizeof(T) / sizeof(uint16_t) * sizeof(uint16_t);
-    ShuffleBytes(Offset, sizeof(uint8_t));
+    ApplyToBytes(Offset, sizeof(uint8_t));
   }
 }
 
@@ -143,7 +143,7 @@ EnableIfGenericBroadcast<T, IdT> GroupBroadcast(T x, IdT local_id) {
     BroadcastResult = GroupBroadcast<Group>(BroadcastX, local_id);
     detail::memcpy(ResultBytes + Offset, &BroadcastResult, Size);
   };
-  GenericShuffle<T>(BroadcastBytes);
+  GenericCall<T>(BroadcastBytes);
   return Result;
 }
 
@@ -196,7 +196,7 @@ EnableIfGenericBroadcast<T> GroupBroadcast(T x, id<Dimensions> local_id) {
     BroadcastResult = GroupBroadcast<Group>(BroadcastX, local_id);
     detail::memcpy(ResultBytes + Offset, &BroadcastResult, Size);
   };
-  GenericShuffle<T>(BroadcastBytes);
+  GenericCall<T>(BroadcastBytes);
   return Result;
 }
 
@@ -527,7 +527,7 @@ EnableIfGenericShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
     ShuffleResult = SubgroupShuffle(ShuffleX, local_id);
     detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
-  GenericShuffle<T>(ShuffleBytes);
+  GenericCall<T>(ShuffleBytes);
   return Result;
 }
 
@@ -542,7 +542,7 @@ EnableIfGenericShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
     ShuffleResult = SubgroupShuffleXor(ShuffleX, local_id);
     detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
-  GenericShuffle<T>(ShuffleBytes);
+  GenericCall<T>(ShuffleBytes);
   return Result;
 }
 
@@ -559,7 +559,7 @@ EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, T y, id<1> local_id) {
     ShuffleResult = SubgroupShuffleDown(ShuffleX, ShuffleY, local_id);
     detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
-  GenericShuffle<T>(ShuffleBytes);
+  GenericCall<T>(ShuffleBytes);
   return Result;
 }
 
@@ -576,7 +576,7 @@ EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, T y, id<1> local_id) {
     ShuffleResult = SubgroupShuffleUp(ShuffleX, ShuffleY, local_id);
     detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
-  GenericShuffle<T>(ShuffleBytes);
+  GenericCall<T>(ShuffleBytes);
   return Result;
 }
 
