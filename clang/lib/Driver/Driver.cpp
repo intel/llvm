@@ -331,6 +331,48 @@ static Arg *MakeInputArg(DerivedArgList &Args, const OptTable &Opts,
   return A;
 }
 
+// Add SYCL device libraries into device code link proess as default.
+static void addSYCLDeviceLibs(const ToolChain &TC, Driver::InputList &Inputs,
+                                 const OptTable &Opts, DerivedArgList &Args) {
+  enum SYCLDeviceLibType {sycl_devicelib_wrapper, sycl_devicelib_fallback};
+  if (Args.hasArg(options::OPT_c))
+    return;
+  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+    StringRef LibLoc, LibSysUtils;
+    if (TC.getTriple().isWindowsMSVCEnvironment()) {
+      LibLoc = Args.MakeArgString(TC.getDriver().Dir + "/../bin");
+      LibSysUtils = "libsycl-msvc";
+    } else {
+      LibLoc = Args.MakeArgString(TC.getDriver().Dir + "/../lib");
+      LibSysUtils = "libsycl-glibc";
+    }
+    SmallVector<StringRef, 4> sycl_device_wrapper_libs = {
+        LibSysUtils, "libsycl-complex", "libsycl-complex-fp64", "libsycl-cmath",
+        "libsycl-cmath-fp64"};
+    // For AOT compilation, we need to link sycl_device_fallback_libs as default too.
+    SmallVector<StringRef, 4> sycl_device_fallback_libs = {
+        "libsycl-fallback-cassert", "libsycl-fallback-complex", "libsycl-fallback-complex-fp64",
+        "libsycl-fallback-cmath", "libsycl-fallback-cmath-fp64"};
+
+    auto addInputs = [&](SYCLDeviceLibType t) {
+      auto sycl_libs = (t == sycl_devicelib_wrapper) ? sycl_device_wrapper_libs : sycl_device_fallback_libs;
+      for (const StringRef &Lib : sycl_libs) {
+        SmallString<128> LibName(LibLoc);
+        llvm::sys::path::append(LibName, Lib);
+        llvm::sys::path::replace_extension(LibName, ".o");
+        Arg *InputArg = MakeInputArg(Args, Opts, Args.MakeArgString(LibName));
+        Inputs.push_back(std::make_pair(types::TY_Object, InputArg));
+      }
+    };
+    addInputs(sycl_devicelib_wrapper);
+    bool isSpirvAOT = TC.getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
+                      TC.getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen ||
+                      TC.getTriple().getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
+    if (isSpirvAOT)
+      addInputs(sycl_devicelib_fallback);
+  }
+}
+
 DerivedArgList *Driver::TranslateInputArgs(const InputArgList &Args) const {
   const llvm::opt::OptTable &Opts = getOpts();
   DerivedArgList *DAL = new DerivedArgList(Args);
@@ -2545,6 +2587,7 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
           << A->getAsString(Args) << A->getValue();
     }
   }
+  addSYCLDeviceLibs(TC, Inputs, Opts, Args);
   if (CCCIsCPP() && Inputs.empty()) {
     // If called as standalone preprocessor, stdin is processed
     // if no other input is present.
