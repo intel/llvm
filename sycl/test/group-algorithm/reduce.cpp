@@ -13,7 +13,7 @@
 #include <limits>
 #include <numeric>
 using namespace sycl;
-using namespace sycl::intel;
+using namespace sycl::ONEAPI;
 
 template <class BinaryOperation>
 class reduce_kernel;

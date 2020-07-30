@@ -21,7 +21,7 @@ namespace detail {
 __SYCL_EXPORT cl_ulong getDeviceFunctionPointerImpl(device &D, program &P,
                                                     const char *FuncName);
 }
-namespace intel {
+namespace ONEAPI {
 
 // This is a preview extension implementation, intended to provide early
 // access to a feature for review and community feedback.
@@ -83,6 +83,6 @@ device_func_ptr_holder_t get_device_func_ptr(FuncType F, const char *FuncName,
 
   return sycl::detail::getDeviceFunctionPointerImpl(D, P, FuncName);
 }
-} // namespace intel
+} // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

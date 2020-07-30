@@ -35,7 +35,7 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
     auto In = InBuf.template get_access<access::mode::read>(CGH);
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
         Out(OutBuf, CGH);
-    auto Redu = intel::reduction(Out, Identity, BOp);
+    auto Redu = ONEAPI::reduction(Out, Identity, BOp);
 
     range<1> GlobalRange(NWItems);
     range<1> LocalRange(WGSize);
@@ -59,33 +59,33 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
 
 int main() {
   // Check some less standards WG sizes and corner cases first.
-  test<int, 0, intel::plus<int>>(0, 2, 2);
-  test<int, 0, intel::plus<int>>(0, 7, 7);
-  test<int, 0, intel::plus<int>>(0, 9, 18);
-  test<int, 0, intel::plus<int>>(0, 49, 49 * 5);
+  test<int, 0, ONEAPI::plus<int>>(0, 2, 2);
+  test<int, 0, ONEAPI::plus<int>>(0, 7, 7);
+  test<int, 0, ONEAPI::plus<int>>(0, 9, 18);
+  test<int, 0, ONEAPI::plus<int>>(0, 49, 49 * 5);
 
   // Try some power-of-two work-group sizes.
-  test<int, 0, intel::plus<int>>(0, 2, 64);
-  test<int, 0, intel::plus<int>>(0, 4, 64);
-  test<int, 0, intel::plus<int>>(0, 8, 128);
-  test<int, 0, intel::plus<int>>(0, 16, 256);
-  test<int, 0, intel::plus<int>>(0, 32, 256);
-  test<int, 0, intel::plus<int>>(0, 64, 256);
-  test<int, 0, intel::plus<int>>(0, 128, 256);
-  test<int, 0, intel::plus<int>>(0, 256, 256);
+  test<int, 0, ONEAPI::plus<int>>(0, 2, 64);
+  test<int, 0, ONEAPI::plus<int>>(0, 4, 64);
+  test<int, 0, ONEAPI::plus<int>>(0, 8, 128);
+  test<int, 0, ONEAPI::plus<int>>(0, 16, 256);
+  test<int, 0, ONEAPI::plus<int>>(0, 32, 256);
+  test<int, 0, ONEAPI::plus<int>>(0, 64, 256);
+  test<int, 0, ONEAPI::plus<int>>(0, 128, 256);
+  test<int, 0, ONEAPI::plus<int>>(0, 256, 256);
 
   // Check with various operations.
   test<int, 0, std::multiplies<int>>(1, 8, 256);
-  test<int, 0, intel::bit_or<int>>(0, 8, 256);
-  test<int, 0, intel::bit_xor<int>>(0, 8, 256);
-  test<int, 0, intel::bit_and<int>>(~0, 8, 256);
-  test<int, 0, intel::minimum<int>>((std::numeric_limits<int>::max)(), 8, 256);
-  test<int, 0, intel::maximum<int>>((std::numeric_limits<int>::min)(), 8, 256);
+  test<int, 0, ONEAPI::bit_or<int>>(0, 8, 256);
+  test<int, 0, ONEAPI::bit_xor<int>>(0, 8, 256);
+  test<int, 0, ONEAPI::bit_and<int>>(~0, 8, 256);
+  test<int, 0, ONEAPI::minimum<int>>((std::numeric_limits<int>::max)(), 8, 256);
+  test<int, 0, ONEAPI::maximum<int>>((std::numeric_limits<int>::min)(), 8, 256);
 
   // Check with various types.
   test<float, 0, std::multiplies<float>>(1, 8, 256);
-  test<float, 0, intel::minimum<float>>(getMaximumFPValue<float>(), 8, 256);
-  test<float, 0, intel::maximum<float>>(getMinimumFPValue<float>(), 8, 256);
+  test<float, 0, ONEAPI::minimum<float>>(getMaximumFPValue<float>(), 8, 256);
+  test<float, 0, ONEAPI::maximum<float>>(getMinimumFPValue<float>(), 8, 256);
 
   // Check with CUSTOM type.
   test<CustomVec<long long>, 0, CustomVecPlus<long long>>(CustomVec<long long>(0), 8, 256);

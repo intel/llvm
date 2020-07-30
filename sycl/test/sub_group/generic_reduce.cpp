@@ -26,7 +26,7 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
       auto acc = buf.template get_access<access::mode::read_write>(cgh);
       cgh.parallel_for(
           NdRange, [=](nd_item<1> NdItem) {
-            intel::sub_group sg = NdItem.get_sub_group();
+            ONEAPI::sub_group sg = NdItem.get_sub_group();
             if (skip_init) {
               acc[NdItem.get_global_id(0)] =
                   reduce(sg, T(NdItem.get_global_id(0)), op);
@@ -78,8 +78,8 @@ int main() {
   // Test user-defined type
   // Use complex as a proxy for this
   using UDT = std::complex<float>;
-  check_op<UDT>(Queue, UDT(L, L), intel::plus<UDT>(), false, G, L);
-  check_op<UDT>(Queue, UDT(0, 0), intel::plus<UDT>(), true, G, L);
+  check_op<UDT>(Queue, UDT(L, L), ONEAPI::plus<UDT>(), false, G, L);
+  check_op<UDT>(Queue, UDT(0, 0), ONEAPI::plus<UDT>(), true, G, L);
 
   // Test user-defined operator
   auto UDOp = [=](const auto &lhs, const auto &rhs) { return lhs + rhs; };

@@ -9,12 +9,12 @@
 #pragma once
 
 #include <CL/sycl/access/access.hpp>
-#include <CL/sycl/intel/atomic_enums.hpp>
-#include <CL/sycl/intel/atomic_ref.hpp>
+#include <CL/sycl/ONEAPI/atomic_enums.hpp>
+#include <CL/sycl/ONEAPI/atomic_ref.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace intel {
+namespace ONEAPI {
 
 #if __cplusplus > 201402L
 
@@ -123,6 +123,6 @@ atomic_accessor(buffer<DataT, Dimensions, AllocatorT>, handler,
 
 #endif
 
-} // namespace intel
+} // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

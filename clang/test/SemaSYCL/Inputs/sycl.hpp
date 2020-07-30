@@ -208,7 +208,7 @@ public:
   }
 };
 
-namespace experimental {
+namespace ONEAPI {
 
 template <typename T, typename ID = T>
 class spec_constant {};

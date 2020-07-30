@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/intel/reduction.hpp>
+#include <CL/sycl/ONEAPI/reduction.hpp>
 #include <detail/queue_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace intel {
+namespace ONEAPI {
 namespace detail {
 
 // TODO: The algorithm of choosing the work-group size is definitely
@@ -62,6 +62,6 @@ reduGetMaxWGSize(shared_ptr_class<sycl::detail::queue_impl> Queue,
 }
 
 } // namespace detail
-} // namespace intel
+} // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

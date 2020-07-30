@@ -14,7 +14,7 @@
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/exception.hpp>
-#include <CL/sycl/experimental/spec_constant.hpp>
+#include <CL/sycl/ONEAPI/spec_constant.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
@@ -986,7 +986,7 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
       auto LockGuard = Ctx->getKernelProgramCache().acquireCachedPrograms();
       auto It = NativePrograms.find(NativePrg);
       if (It == NativePrograms.end())
-        throw sycl::experimental::spec_const_error(
+        throw sycl::ONEAPI::spec_const_error(
             "spec constant is set in a program w/o a binary image",
             PI_INVALID_OPERATION);
       Img = It->second;

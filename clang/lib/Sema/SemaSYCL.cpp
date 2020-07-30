@@ -2816,7 +2816,7 @@ bool Util::isSyclSpecConstantType(const QualType &Ty) {
   std::array<DeclContextDesc, 4> Scopes = {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "experimental"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "ONEAPI"},
       Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
   return matchQualifiedTypeName(Ty, Scopes);
 }

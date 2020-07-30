@@ -35,7 +35,7 @@ int val = 10;
 int get_value() { return val; }
 
 float foo(
-    const cl::sycl::experimental::spec_constant<float, MyFloatConst> &f32) {
+    const cl::sycl::ONEAPI::spec_constant<float, MyFloatConst> &f32) {
   return f32;
 }
 
@@ -66,10 +66,10 @@ int main(int argc, char **argv) {
   // TODO make this floating point once supported by the compiler
   float goldf = (float)get_value();
 
-  cl::sycl::experimental::spec_constant<int32_t, MyInt32Const> i32 =
+  cl::sycl::ONEAPI::spec_constant<int32_t, MyInt32Const> i32 =
       program1.set_spec_constant<MyInt32Const>(goldi);
 
-  cl::sycl::experimental::spec_constant<float, MyFloatConst> f32 =
+  cl::sycl::ONEAPI::spec_constant<float, MyFloatConst> f32 =
       program2.set_spec_constant<MyFloatConst>(goldf);
 
   program1.build_with_kernel_type<KernelAAAi>();

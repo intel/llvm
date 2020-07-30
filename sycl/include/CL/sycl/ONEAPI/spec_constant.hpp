@@ -1,4 +1,4 @@
-//==----- spec_constant.hpp - SYCL public experimental API header file -----==//
+//==----------- spec_constant.hpp - SYCL public ONEAPI API header file -----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -22,7 +22,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace experimental {
+namespace ONEAPI {
 
 class spec_const_error : public compile_program_error {
   using compile_program_error::compile_program_error;
@@ -56,6 +56,6 @@ public:
   }
 };
 
-} // namespace experimental
+} // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

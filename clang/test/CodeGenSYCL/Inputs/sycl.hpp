@@ -242,7 +242,7 @@ struct get_kernel_name_t<auto_name, Type> {
   using name = Type;
 };
 
-namespace experimental {
+namespace ONEAPI {
 template <typename T, typename ID = T>
 class spec_constant {
 public:
@@ -256,7 +256,7 @@ public:
     return get();
   }
 };
-} // namespace experimental
+} // namespace ONEAPI
 
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 template <typename KernelName = auto_name, typename KernelType>
