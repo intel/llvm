@@ -48,10 +48,12 @@ int main() {
     device d = ds.select_device(info::device_type::host);
     std::cout << "HOST device is found: " << d.is_host() << std::endl;
   }
+#ifdef __linux__
   if (!pis || forcedPIs.find("opencl") != std::string::npos) {
     device d = ds.select_device(info::device_type::accelerator);
     std::cout << "ACC device is found: " << d.is_accelerator() << std::endl;
   }
+#endif
   // If SYCL_FORCE_BE is not set and SYCL_BE is set to PI_LEVEL0,
   // CPU device should not be found by get_devices() but found by
   // select_device().
