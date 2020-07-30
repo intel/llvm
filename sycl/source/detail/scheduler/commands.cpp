@@ -14,7 +14,6 @@
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/detail/stream_impl.hpp>
 #include <CL/sycl/sampler.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
@@ -25,6 +24,7 @@
 #include <detail/sampler_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/stream_impl.hpp>
 
 #include <cassert>
 #include <string>
@@ -1690,11 +1690,6 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
 
   adjustNDRangePerKernel(NDRDesc, Kernel,
                          *(detail::getSyclObjImpl(MQueue->get_device())));
-
-  // Some PI Plugins (like OpenCL) require this call to enable USM
-  // For others, PI will turn this into a NOP.
-  Plugin.call<PiApiKind::piKernelSetExecInfo>(Kernel, PI_USM_INDIRECT_ACCESS,
-                                              sizeof(pi_bool), &PI_TRUE);
 
   // Remember this information before the range dimensions are reversed
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);

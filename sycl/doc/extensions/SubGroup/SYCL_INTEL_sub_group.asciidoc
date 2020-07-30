@@ -68,7 +68,7 @@ Providing a generic group abstraction encapsulating the shared functionality of 
 
 === Attributes
 
-The +[[intel::reqd_sub_group_size(n)]]+ attribute indicates that the kernel must be compiled and executed with a sub-group of size _n_.  The value of _n_ must be set to a sub-group size that is both supported by the device and compatible with all language features used by the kernel, or device compilation will fail.  The set of valid sub-group sizes can be queried as described below.
+The +[[intel::reqd_sub_group_size(n)]]+ attribute indicates that the kernel must be compiled and executed with a sub-group of size _n_.  The value of _n_ must be a compile-time integral constant expression.  The value of _n_ must be set to a sub-group size that is both supported by the device and compatible with all language features used by the kernel, or device compilation will fail.  The set of valid sub-group sizes can be queried as described below.
 
 In addition to device functions, the required sub-group size attribute may also be specified in the definition of a named functor object, as in the example below:
 
@@ -314,6 +314,7 @@ Yes, the four shuffles in this extension are a defining feature of sub-groups.  
 |4|2020-04-21|John Pennycook|*Restore missing barrier function*
 |5|2020-04-21|John Pennycook|*Restore sub-group shuffles as member functions*
 |6|2020-04-22|John Pennycook|*Align with SYCL_INTEL_device_specific_kernel_queries*
+|7|2020-07-13|John Pennycook|*Clarify that reqd_sub_group_size must be a compile-time constant*
 |========================================
 
 //************************************************************************

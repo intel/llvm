@@ -57,8 +57,6 @@ int main() {
   }
 
   constexpr int N = 32;
-
-  // TODO: Enable missing tests when supported
   max_test<int>(q, N);
   max_test<unsigned int>(q, N);
   max_test<long>(q, N);
@@ -67,7 +65,6 @@ int main() {
   max_test<unsigned long long>(q, N);
   max_test<float>(q, N);
   max_test<double>(q, N);
-  //max_test<char*>(q, N);
 
   std::cout << "Test passed." << std::endl;
 }

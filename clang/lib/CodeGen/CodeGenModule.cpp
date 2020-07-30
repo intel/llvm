@@ -3537,16 +3537,14 @@ static void maybeEmitPipeStorageMetadata(const VarDecl *D,
     return;
 
   if (auto *IOAttr = D->getAttr<SYCLIntelPipeIOAttr>()) {
-    llvm::APSInt ID(32);
+    Optional<llvm::APSInt> ID =
+        IOAttr->getID()->getIntegerConstantExpr(D->getASTContext());
     llvm::LLVMContext &Context = CGM.getLLVMContext();
-    bool IsValid =
-        IOAttr->getID()->isIntegerConstantExpr(ID, D->getASTContext());
-    assert(IsValid && "Not an integer constant expression");
-    (void)IsValid;
+    assert(bool(ID) && "Not an integer constant expression");
 
     llvm::Metadata *AttrMDArgs[] = {
         llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
-            llvm::Type::getInt32Ty(Context), ID.getSExtValue()))};
+            llvm::Type::getInt32Ty(Context), ID->getSExtValue()))};
     GV->setMetadata(IOAttr->getSpelling(),
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
@@ -3903,13 +3901,13 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
   }
 
   if (LangOpts.SYCLIsDevice) {
+    if (!D)
+      return LangAS::opencl_global;
     auto *Scope = D->getAttr<SYCLScopeAttr>();
-
     if (Scope && Scope->isWorkGroup())
       return LangAS::opencl_local;
-    if (!D || D->getType().getAddressSpace() == LangAS::Default) {
+    if (D->getType().getAddressSpace() == LangAS::Default)
       return LangAS::opencl_global;
-    }
   }
 
   if (LangOpts.CUDA && LangOpts.CUDAIsDevice) {

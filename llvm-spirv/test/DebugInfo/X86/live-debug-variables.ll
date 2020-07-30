@@ -2,7 +2,8 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
-; RUN: llc -mtriple=x86_64-linux-gnu -filetype=obj -o - %t.ll | llvm-dwarfdump -debug-loc - | FileCheck %s
+; RUN: llc -mtriple=x86_64-linux-gnu -filetype=obj -o - %t.ll | llvm-dwarfdump -name i4 - \
+; RUN:     | FileCheck %s
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
@@ -17,11 +18,11 @@ target triple = "spir64-unknown-unknown"
 ; Generated from:
 ;
 ; extern int foobar(int, int, int, int, int);
-; 
+;
 ; int F(int i1, int i2, int i3, int i4, int i5) {
 ;   return foobar(i1, i2, i3, i4, i5);
 ; }
-; 
+;
 ; int foo(int a, int b, int c, int d, int e) {
 ;   return F(a,b,c,d,e) +
 ;          F(a,b,c,d,e) +
@@ -29,12 +30,13 @@ target triple = "spir64-unknown-unknown"
 ;          F(a,b,c,d,e);
 ; }
 
-; CHECK:      .debug_loc contents:
-; CHECK-NEXT: 0x00000000:
-;   We currently emit an entry for the function prologue, too, which could be optimized away.
-; CHECK:              (0x0000000000000018, 0x0000000000000072): DW_OP_reg3 RBX
-;   We should only have one entry inside the function.
-; CHECK-NOT: :
+; Ignore the abstract entry.
+; CHECK: DW_TAG_formal_parameter
+; Check concrete entry has a single location.
+; CHECK:      DW_TAG_formal_parameter
+; CHECK-NEXT:   DW_AT_location (DW_OP_reg3 RBX)
+; CHECK-NEXT:   DW_AT_abstract_origin
+; CHECK-NOT:  DW_TAG_formal_parameter
 
 declare i32 @foobar(i32, i32, i32, i32, i32)
 
