@@ -73,8 +73,10 @@ public:
   /// thus become dead in the end.
   enum Liveness { Live, MaybeLive };
 
-  DeadArgumentEliminationPass(bool ShouldHackArguments_ = false)
-      : ShouldHackArguments(ShouldHackArguments_) {}
+  DeadArgumentEliminationPass(bool ShouldHackArguments_ = false,
+                              bool CheckSyclKernels = false)
+      : ShouldHackArguments(ShouldHackArguments_),
+        CheckSyclKernels(CheckSyclKernels) {}
 
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
@@ -120,6 +122,10 @@ public:
   /// This allows this pass to do double-duty as the dead arg hacking pass
   /// (used only by bugpoint).
   bool ShouldHackArguments = false;
+
+  /// This allows to eliminate dead arguments in SYCL kernel functions with
+  /// external linkage
+  bool CheckSyclKernels = false;
 
 private:
   Liveness MarkIfNotLive(RetOrArg Use, UseVector &MaybeLiveUses);
