@@ -308,7 +308,7 @@ private:
   ///
   /// \param Stream is a pointer to SYCL stream.
   void addStream(const shared_ptr_class<detail::stream_impl> &Stream) {
-    MSharedPtrStorage.push_back(Stream);
+    MStreamStorage.push_back(Stream);
   }
 
   /// Saves buffers created by handling reduction feature in handler.
@@ -1762,6 +1762,7 @@ private:
   vector_class<vector_class<char>> MArgsStorage;
   vector_class<detail::AccessorImplPtr> MAccStorage;
   vector_class<detail::LocalAccessorImplPtr> MLocalAccStorage;
+  vector_class<shared_ptr_class<detail::stream_impl>> MStreamStorage;
   vector_class<shared_ptr_class<const void>> MSharedPtrStorage;
   /// The list of arguments for the kernel.
   vector_class<detail::ArgDesc> MArgs;
