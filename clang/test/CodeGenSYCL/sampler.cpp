@@ -43,7 +43,7 @@ struct sampler_wrapper {
 };
 
 template <typename KernelName, typename KernelType>
-__attribute__((sycl_kernel)) void kernel_single_task(const KernelType &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(KernelType kernelFunc) {
   kernelFunc();
 }
 

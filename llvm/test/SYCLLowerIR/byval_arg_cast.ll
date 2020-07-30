@@ -20,6 +20,7 @@ define dso_local spir_func void @wombat(%struct.widget* byval(%struct.widget) al
 ; CHECK-LABEL: @wombat(
 ; CHECK-NEXT:  bb:
 ; CHECK-NEXT:    [[TMP0:%.*]] = load i64, i64 addrspace(1)* @__spirv_BuiltInLocalInvocationIndex, align 4
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272)
 ; CHECK-NEXT:    [[CMPZ1:%.*]] = icmp eq i64 [[TMP0]], 0
 ; CHECK-NEXT:    br i1 [[CMPZ1]], label [[LEADER:%.*]], label [[MERGE:%.*]]
 ; CHECK:       leader:
@@ -31,6 +32,7 @@ define dso_local spir_func void @wombat(%struct.widget* byval(%struct.widget) al
 ; CHECK-NEXT:    [[TMP2:%.*]] = bitcast %struct.widget* [[ARG]] to i8*
 ; CHECK-NEXT:    call void @llvm.memcpy.p0i8.p3i8.i64(i8* align 8 [[TMP2]], i8 addrspace(3)* align 16 bitcast (%struct.widget addrspace(3)* @[[SHADOW]] to i8 addrspace(3)*), i64 32, i1 false)
 ; CHECK-NEXT:    [[TMP3:%.*]] = load i64, i64 addrspace(1)* @__spirv_BuiltInLocalInvocationIndex, align 4
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272)
 ; CHECK-NEXT:    [[CMPZ:%.*]] = icmp eq i64 [[TMP3]], 0
 ; CHECK-NEXT:    br i1 [[CMPZ]], label [[WG_LEADER:%.*]], label [[WG_CF:%.*]]
 ; CHECK:       wg_leader:

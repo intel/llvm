@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -verify -Wno-sycl-2017-compat -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -verify -fsyntax-only %s
 
 template <typename functor_t>
 struct functor_wrapper{
@@ -13,7 +13,7 @@ struct S { virtual void foo(); };
 struct T { virtual ~T(); };
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   // expected-no-note@+1
   using DATA_I = int;
   using DATA_S = S;

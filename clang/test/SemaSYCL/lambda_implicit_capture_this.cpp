@@ -1,7 +1,7 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -fsyntax-only -Wno-sycl-2017-compat -verify %s
+// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -fsyntax-only -verify %s
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
   kernelFunc();
 }
 

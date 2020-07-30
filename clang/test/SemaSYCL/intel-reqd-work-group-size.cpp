@@ -1,16 +1,16 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-sycl-2017-compat -fsyntax-only -verify -DTRIGGER_ERROR %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-host -Wno-sycl-2017-compat -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -DTRIGGER_ERROR %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-host -fsyntax-only -verify %s
 
 #ifndef __SYCL_DEVICE_ONLY__
 // expected-no-diagnostics
 class Functor {
 public:
-  [[intel::reqd_work_group_size(4)]] void operator()() const {}
+  [[intel::reqd_work_group_size(4)]] void operator()() {}
 };
 
 template <typename name, typename Func>
-void kernel(const Func &kernelFunc) {
+void kernel(Func kernelFunc) {
   kernelFunc();
 }
 
@@ -32,50 +32,50 @@ void bar() {
 #ifdef TRIGGER_ERROR
 class Functor32 {
 public:
-  [[cl::reqd_work_group_size(32)]] void operator()() const {} // expected-error {{'reqd_work_group_size' attribute requires exactly 3 arguments}}
+  [[cl::reqd_work_group_size(32)]] void operator()() {} // expected-error {{'reqd_work_group_size' attribute requires exactly 3 arguments}}
 };
 class Functor33 {
 public:
-  [[intel::reqd_work_group_size(32, -4)]] void operator()() const {} // expected-error {{'reqd_work_group_size' attribute requires a non-negative integral compile time constant expression}}
+  [[intel::reqd_work_group_size(32, -4)]] void operator()() {} // expected-error {{'reqd_work_group_size' attribute requires a non-negative integral compile time constant expression}}
 };
 #endif // TRIGGER_ERROR
 
 class Functor16 {
 public:
-  [[intel::reqd_work_group_size(16)]] void operator()() const {}
+  [[intel::reqd_work_group_size(16)]] void operator()() {}
 };
 
 class Functor64 {
 public:
-  [[intel::reqd_work_group_size(64, 64)]] void operator()() const {}
+  [[intel::reqd_work_group_size(64, 64)]] void operator()() {}
 };
 
 class Functor16x16x16 {
 public:
-  [[intel::reqd_work_group_size(16, 16, 16)]] void operator()() const {}
+  [[intel::reqd_work_group_size(16, 16, 16)]] void operator()() {}
 };
 
 class Functor8 { // expected-error {{conflicting attributes applied to a SYCL kernel}}
 public:
-  [[intel::reqd_work_group_size(8)]] void operator()() const { // expected-note {{conflicting attribute is here}}
+  [[intel::reqd_work_group_size(8)]] void operator()() { // expected-note {{conflicting attribute is here}}
     f4x1x1();
   }
 };
 
 class Functor {
 public:
-  void operator()() const {
+  void operator()() {
     f4x1x1();
   }
 };
 
 class FunctorAttr {
 public:
-  __attribute__((reqd_work_group_size(128, 128, 128))) void operator()() const {}
+  __attribute__((reqd_work_group_size(128, 128, 128))) void operator()() {}
 };
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
   kernelFunc();
 }
 

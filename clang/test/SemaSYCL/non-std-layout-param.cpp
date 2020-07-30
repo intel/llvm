@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-std-layout-kernel-params -verify -Wno-sycl-2017-compat -fsyntax-only %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-sycl-2017-compat -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-std-layout-kernel-params -verify -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only %s
 
 // This test checks if compiler reports compilation error on an attempt to pass
 // non-standard layout struct object as SYCL kernel parameter.
@@ -15,9 +15,10 @@ struct C : public Base {
 };
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
 }
+
 
 void test() {
   C C0;
@@ -29,7 +30,7 @@ void test() {
 }
 
 struct Kernel {
-  void operator()() const {
+  void operator()() {
     (void) c1;
     (void) c2;
     (void) p;

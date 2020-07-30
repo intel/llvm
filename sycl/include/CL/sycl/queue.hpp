@@ -361,7 +361,7 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(
-      const KernelType &KernelFunc
+      KernelType KernelFunc
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
       ,
       const detail::code_location &CodeLoc = detail::code_location::current()
@@ -384,7 +384,7 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(
-      event DepEvent, const KernelType &KernelFunc
+      event DepEvent, KernelType KernelFunc
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
       ,
       const detail::code_location &CodeLoc = detail::code_location::current()
@@ -409,7 +409,7 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(
-      const vector_class<event> &DepEvents, const KernelType &KernelFunc
+      const vector_class<event> &DepEvents, KernelType KernelFunc
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
       ,
       const detail::code_location &CodeLoc = detail::code_location::current()
@@ -434,7 +434,7 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event parallel_for(
-      range<1> NumWorkItems, const KernelType &KernelFunc
+      range<1> NumWorkItems, KernelType KernelFunc
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
       ,
       const detail::code_location &CodeLoc = detail::code_location::current()
@@ -454,7 +454,7 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event parallel_for(
-      range<2> NumWorkItems, const KernelType &KernelFunc
+      range<2> NumWorkItems, KernelType KernelFunc
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
       ,
       const detail::code_location &CodeLoc = detail::code_location::current()
@@ -474,7 +474,7 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event parallel_for(
-      range<3> NumWorkItems, const KernelType &KernelFunc
+      range<3> NumWorkItems, KernelType KernelFunc
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
       ,
       const detail::code_location &CodeLoc = detail::code_location::current()
@@ -495,7 +495,7 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event parallel_for(
-      range<1> NumWorkItems, event DepEvent, const KernelType &KernelFunc
+      range<1> NumWorkItems, event DepEvent, KernelType KernelFunc
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
       ,
       const detail::code_location &CodeLoc = detail::code_location::current()
@@ -517,7 +517,7 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event parallel_for(
-      range<2> NumWorkItems, event DepEvent, const KernelType &KernelFunc
+      range<2> NumWorkItems, event DepEvent, KernelType KernelFunc
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
       ,
       const detail::code_location &CodeLoc = detail::code_location::current()
@@ -539,7 +539,7 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event parallel_for(
-      range<3> NumWorkItems, event DepEvent, const KernelType &KernelFunc
+      range<3> NumWorkItems, event DepEvent, KernelType KernelFunc
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
       ,
       const detail::code_location &CodeLoc = detail::code_location::current()
@@ -563,7 +563,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   event parallel_for(
       range<1> NumWorkItems, const vector_class<event> &DepEvents,
-      const KernelType &KernelFunc
+      KernelType KernelFunc
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
       ,
       const detail::code_location &CodeLoc = detail::code_location::current()
@@ -587,7 +587,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   event parallel_for(
       range<2> NumWorkItems, const vector_class<event> &DepEvents,
-      const KernelType &KernelFunc
+      KernelType KernelFunc
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
       ,
       const detail::code_location &CodeLoc = detail::code_location::current()
@@ -611,7 +611,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   event parallel_for(
       range<3> NumWorkItems, const vector_class<event> &DepEvents,
-      const KernelType &KernelFunc
+      KernelType KernelFunc
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
       ,
       const detail::code_location &CodeLoc = detail::code_location::current()
@@ -634,8 +634,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(
-      range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-      const KernelType &KernelFunc
+      range<Dims> NumWorkItems, id<Dims> WorkItemOffset, KernelType KernelFunc
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
       ,
       const detail::code_location &CodeLoc = detail::code_location::current()
@@ -664,7 +663,7 @@ public:
             int Dims>
   event parallel_for(
       range<Dims> NumWorkItems, id<Dims> WorkItemOffset, event DepEvent,
-      const KernelType &KernelFunc
+      KernelType KernelFunc
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
       ,
       const detail::code_location &CodeLoc = detail::code_location::current()
@@ -695,7 +694,7 @@ public:
             int Dims>
   event parallel_for(
       range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-      const vector_class<event> &DepEvents, const KernelType &KernelFunc
+      const vector_class<event> &DepEvents, KernelType KernelFunc
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
       ,
       const detail::code_location &CodeLoc = detail::code_location::current()
@@ -723,7 +722,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(
-      nd_range<Dims> ExecutionRange, const KernelType &KernelFunc
+      nd_range<Dims> ExecutionRange, KernelType KernelFunc
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
       ,
       const detail::code_location &CodeLoc = detail::code_location::current()
@@ -751,8 +750,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(
-      nd_range<Dims> ExecutionRange, event DepEvent,
-      const KernelType &KernelFunc
+      nd_range<Dims> ExecutionRange, event DepEvent, KernelType KernelFunc
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
       ,
       const detail::code_location &CodeLoc = detail::code_location::current()
@@ -783,7 +781,7 @@ public:
             int Dims>
   event parallel_for(
       nd_range<Dims> ExecutionRange, const vector_class<event> &DepEvents,
-      const KernelType &KernelFunc
+      KernelType KernelFunc
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
       ,
       const detail::code_location &CodeLoc = detail::code_location::current()
