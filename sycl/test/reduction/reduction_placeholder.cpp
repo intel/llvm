@@ -18,7 +18,8 @@
 
 using namespace cl::sycl;
 
-template <typename SpecializationKernelName, typename T, int Dim, class BinaryOperation>
+template <typename SpecializationKernelName, typename T, int Dim,
+          class BinaryOperation>
 void test(T Identity, size_t WGSize, size_t NWItems) {
   // Initialize.
   T CorrectOut;
@@ -30,9 +31,9 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
 
   (OutBuf.template get_access<access::mode::write>())[0] = Identity;
 
-  auto Out = accessor<T, Dim, access::mode::read_write,
-                      access::target::global_buffer,
-                      access::placeholder::true_t>(OutBuf);
+  auto Out =
+      accessor<T, Dim, access::mode::read_write, access::target::global_buffer,
+               access::placeholder::true_t>(OutBuf);
   // Compute.
   queue Q;
   Q.submit([&](handler &CGH) {
@@ -65,17 +66,21 @@ int main() {
   test<class KernelName_FlDEESAfXYXiBZhnEDQ, int, 0, intel::plus<int>>(0, 8, 8);
 
   // fast atomics
-  test<class KernelName_caKErpdwXzEsGGkr, int, 0, intel::bit_or<int>>(0, 7, 7 * 3);
+  test<class KernelName_caKErpdwXzEsGGkr, int, 0, intel::bit_or<int>>(0, 7,
+                                                                      7 * 3);
   test<class KernelName_YbnKY, int, 1, intel::bit_or<int>>(0, 4, 128);
 
   // fast reduce
-  test<class KernelName_JQuAndqdovQbAHmVLm, float, 1, intel::minimum<float>>(getMaximumFPValue<float>(), 5, 5 * 7);
-  test<class KernelName_MBbbTWwSc, float, 0, intel::maximum<float>>(getMinimumFPValue<float>(), 4, 128);
+  test<class KernelName_JQuAndqdovQbAHmVLm, float, 1, intel::minimum<float>>(
+      getMaximumFPValue<float>(), 5, 5 * 7);
+  test<class KernelName_MBbbTWwSc, float, 0, intel::maximum<float>>(
+      getMinimumFPValue<float>(), 4, 128);
 
   // generic algorithm
   test<class KernelName_WpNdTbTtYt, int, 0, std::multiplies<int>>(1, 7, 7 * 5);
   test<class KernelName_yAwH, int, 1, std::multiplies<int>>(1, 8, 16);
-  test<class KernelName_BNuHxeewzfXATi, CustomVec<short>, 0, CustomVecPlus<short>>(CustomVec<short>(0), 8, 8 * 3);
+  test<class KernelName_BNuHxeewzfXATi, CustomVec<short>, 0,
+       CustomVecPlus<short>>(CustomVec<short>(0), 8, 8 * 3);
 
   std::cout << "Test passed\n";
   return 0;

@@ -35,22 +35,16 @@ void initInputData(buffer<T, 1> &InBuf, T &ExpectedOut, T Identity,
   }
 };
 
-template <typename T>
-struct Vec {
+template <typename T> struct Vec {
   Vec() : X(0), Y(0) {}
   Vec(T X, T Y) : X(X), Y(Y) {}
   Vec(T V) : X(V), Y(V) {}
-  bool operator==(const Vec &P) const {
-    return P.X == X && P.Y == Y;
-  }
-  bool operator!=(const Vec &P) const {
-    return !(*this == P);
-  }
+  bool operator==(const Vec &P) const { return P.X == X && P.Y == Y; }
+  bool operator!=(const Vec &P) const { return !(*this == P); }
   T X;
   T Y;
 };
-template <typename T>
-bool operator==(const Vec<T> &A, const Vec<T> &B) {
+template <typename T> bool operator==(const Vec<T> &A, const Vec<T> &B) {
   return A.X == B.X && A.Y == B.Y;
 }
 template <typename T>
@@ -58,15 +52,13 @@ std::ostream &operator<<(std::ostream &OS, const Vec<T> &P) {
   return OS << "(" << P.X << ", " << P.Y << ")";
 }
 
-template <class T>
-struct VecPlus {
+template <class T> struct VecPlus {
   using P = Vec<T>;
-  P operator()(const P &A, const P &B) const {
-    return P(A.X + B.X, A.Y + B.Y);
-  }
+  P operator()(const P &A, const P &B) const { return P(A.X + B.X, A.Y + B.Y); }
 };
 
-template <typename SpecializationKernelName, typename T, int Dim, class BinaryOperation>
+template <typename SpecializationKernelName, typename T, int Dim,
+          class BinaryOperation>
 void test(T Identity, size_t WGSize, size_t NWItems) {
   buffer<T, 1> InBuf(NWItems);
   buffer<T, 1> OutBuf(1);

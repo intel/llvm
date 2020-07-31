@@ -18,8 +18,7 @@
 #include "helper.hpp"
 #include <CL/sycl.hpp>
 #include <complex>
-template <typename T>
-class pointer_kernel;
+template <typename T> class pointer_kernel;
 
 using namespace cl::sycl;
 
@@ -40,28 +39,29 @@ void check_pointer(queue &Queue, size_t G = 240, size_t L = 60) {
       auto acc_xor = buf_xor.template get_access<access::mode::read_write>(cgh);
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
 
-      cgh.parallel_for<SpecializationKernelName>(NdRange, [=](nd_item<1> NdItem) {
-        intel::sub_group SG = NdItem.get_sub_group();
-        uint32_t wggid = NdItem.get_global_id(0);
-        uint32_t sgid = SG.get_group_id().get(0);
-        if (wggid == 0)
-          sgsizeacc[0] = SG.get_max_local_range()[0];
+      cgh.parallel_for<SpecializationKernelName>(
+          NdRange, [=](nd_item<1> NdItem) {
+            intel::sub_group SG = NdItem.get_sub_group();
+            uint32_t wggid = NdItem.get_global_id(0);
+            uint32_t sgid = SG.get_group_id().get(0);
+            if (wggid == 0)
+              sgsizeacc[0] = SG.get_max_local_range()[0];
 
-        T *ptr = static_cast<T *>(0x0) + wggid;
+            T *ptr = static_cast<T *>(0x0) + wggid;
 
-        /*GID of middle element in every subgroup*/
-        acc[NdItem.get_global_id()] =
-            SG.shuffle(ptr, SG.get_max_local_range()[0] / 2);
+            /*GID of middle element in every subgroup*/
+            acc[NdItem.get_global_id()] =
+                SG.shuffle(ptr, SG.get_max_local_range()[0] / 2);
 
-        /* Save GID-SGID */
-        acc_up[NdItem.get_global_id()] = SG.shuffle_up(ptr, sgid);
+            /* Save GID-SGID */
+            acc_up[NdItem.get_global_id()] = SG.shuffle_up(ptr, sgid);
 
-        /* Save GID+SGID */
-        acc_down[NdItem.get_global_id()] = SG.shuffle_down(ptr, sgid);
+            /* Save GID+SGID */
+            acc_down[NdItem.get_global_id()] = SG.shuffle_down(ptr, sgid);
 
-        /* Save GID XOR SGID */
-        acc_xor[NdItem.get_global_id()] = SG.shuffle_xor(ptr, sgid);
-      });
+            /* Save GID XOR SGID */
+            acc_xor[NdItem.get_global_id()] = SG.shuffle_xor(ptr, sgid);
+          });
     });
     auto acc = buf.template get_access<access::mode::read_write>();
     auto acc_up = buf_up.template get_access<access::mode::read_write>();
@@ -80,21 +80,26 @@ void check_pointer(queue &Queue, size_t G = 240, size_t L = 60) {
       }
 
       /*GID of middle element in every subgroup*/
-      exit_if_not_equal(acc[j], static_cast<T *>(0x0) + (j / L * L + SGid * sg_size + sg_size / 2),
+      exit_if_not_equal(acc[j],
+                        static_cast<T *>(0x0) +
+                            (j / L * L + SGid * sg_size + sg_size / 2),
                         "shuffle");
 
       /* Value GID+SGID for all element except last SGID in SG*/
       if (j % L % sg_size + SGid < sg_size && j % L + SGid < L) {
-        exit_if_not_equal(acc_down[j], static_cast<T *>(0x0) + (j + SGid), "shuffle_down");
+        exit_if_not_equal(acc_down[j], static_cast<T *>(0x0) + (j + SGid),
+                          "shuffle_down");
       }
 
       /* Value GID-SGID for all element except first SGID in SG*/
       if (j % L % sg_size >= SGid) {
-        exit_if_not_equal(acc_up[j], static_cast<T *>(0x0) + (j - SGid), "shuffle_up");
+        exit_if_not_equal(acc_up[j], static_cast<T *>(0x0) + (j - SGid),
+                          "shuffle_up");
       }
 
       /* GID XOR SGID */
-      exit_if_not_equal(acc_xor[j], static_cast<T *>(0x0) + (j ^ SGid), "shuffle_xor");
+      exit_if_not_equal(acc_xor[j], static_cast<T *>(0x0) + (j ^ SGid),
+                        "shuffle_xor");
     }
   } catch (exception e) {
     std::cout << "SYCL exception caught: " << e.what();
@@ -126,28 +131,29 @@ void check_struct(queue &Queue, Generator &Gen, size_t G = 240, size_t L = 60) {
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       auto in = buf_in.template get_access<access::mode::read>(cgh);
 
-      cgh.parallel_for<SpecializationKernelName>(NdRange, [=](nd_item<1> NdItem) {
-        intel::sub_group SG = NdItem.get_sub_group();
-        uint32_t wggid = NdItem.get_global_id(0);
-        uint32_t sgid = SG.get_group_id().get(0);
-        if (wggid == 0)
-          sgsizeacc[0] = SG.get_max_local_range()[0];
+      cgh.parallel_for<SpecializationKernelName>(
+          NdRange, [=](nd_item<1> NdItem) {
+            intel::sub_group SG = NdItem.get_sub_group();
+            uint32_t wggid = NdItem.get_global_id(0);
+            uint32_t sgid = SG.get_group_id().get(0);
+            if (wggid == 0)
+              sgsizeacc[0] = SG.get_max_local_range()[0];
 
-        T val = in[wggid];
+            T val = in[wggid];
 
-        /*GID of middle element in every subgroup*/
-        acc[NdItem.get_global_id()] =
-            SG.shuffle(val, SG.get_max_local_range()[0] / 2);
+            /*GID of middle element in every subgroup*/
+            acc[NdItem.get_global_id()] =
+                SG.shuffle(val, SG.get_max_local_range()[0] / 2);
 
-        /* Save GID-SGID */
-        acc_up[NdItem.get_global_id()] = SG.shuffle_up(val, sgid);
+            /* Save GID-SGID */
+            acc_up[NdItem.get_global_id()] = SG.shuffle_up(val, sgid);
 
-        /* Save GID+SGID */
-        acc_down[NdItem.get_global_id()] = SG.shuffle_down(val, sgid);
+            /* Save GID+SGID */
+            acc_down[NdItem.get_global_id()] = SG.shuffle_down(val, sgid);
 
-        /* Save GID XOR SGID */
-        acc_xor[NdItem.get_global_id()] = SG.shuffle_xor(val, sgid);
-      });
+            /* Save GID XOR SGID */
+            acc_xor[NdItem.get_global_id()] = SG.shuffle_xor(val, sgid);
+          });
     });
     auto acc = buf.template get_access<access::mode::read_write>();
     auto acc_up = buf_up.template get_access<access::mode::read_write>();
@@ -166,8 +172,8 @@ void check_struct(queue &Queue, Generator &Gen, size_t G = 240, size_t L = 60) {
       }
 
       /*GID of middle element in every subgroup*/
-      exit_if_not_equal(acc[j], values[j / L * L + SGid * sg_size + sg_size / 2],
-                        "shuffle");
+      exit_if_not_equal(
+          acc[j], values[j / L * L + SGid * sg_size + sg_size / 2], "shuffle");
 
       /* Value GID+SGID for all element except last SGID in SG*/
       if (j % L % sg_size + SGid < sg_size && j % L + SGid < L) {
@@ -202,12 +208,14 @@ int main() {
   auto ComplexFloatGenerator = [state = std::complex<float>(0, 1)]() mutable {
     return state += std::complex<float>(2, 2);
   };
-  check_struct<class KernelName_zHfIPOLOFsXiZiCvG, std::complex<float>>(Queue, ComplexFloatGenerator);
+  check_struct<class KernelName_zHfIPOLOFsXiZiCvG, std::complex<float>>(
+      Queue, ComplexFloatGenerator);
 
   auto ComplexDoubleGenerator = [state = std::complex<double>(0, 1)]() mutable {
     return state += std::complex<double>(2, 2);
   };
-  check_struct<class KernelName_CjlHUmnuxWtyejZFD, std::complex<double>>(Queue, ComplexDoubleGenerator);
+  check_struct<class KernelName_CjlHUmnuxWtyejZFD, std::complex<double>>(
+      Queue, ComplexDoubleGenerator);
 
   std::cout << "Test passed." << std::endl;
   return 0;

@@ -136,12 +136,16 @@ int main() {
 
 #if __cplusplus >= 201402L
   test<class KernelNamePlusV>(q, input, output, plus<>(), 0);
-  test<class KernelNameMinimumV>(q, input, output, minimum<>(), std::numeric_limits<int>::max());
-  test<class KernelNameMaximumV>(q, input, output, maximum<>(), std::numeric_limits<int>::lowest());
+  test<class KernelNameMinimumV>(q, input, output, minimum<>(),
+                                 std::numeric_limits<int>::max());
+  test<class KernelNameMaximumV>(q, input, output, maximum<>(),
+                                 std::numeric_limits<int>::lowest());
 #endif
   test<class KernelNamePlusI>(q, input, output, plus<int>(), 0);
-  test<class KernelNameMinimumI>(q, input, output, minimum<int>(), std::numeric_limits<int>::max());
-  test<class KernelNameMaximumI>(q, input, output, maximum<int>(), std::numeric_limits<int>::lowest());
+  test<class KernelNameMinimumI>(q, input, output, minimum<int>(),
+                                 std::numeric_limits<int>::max());
+  test<class KernelNameMaximumI>(q, input, output, maximum<int>(),
+                                 std::numeric_limits<int>::lowest());
 
   std::cout << "Test passed." << std::endl;
 }

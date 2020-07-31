@@ -33,10 +33,10 @@ void test_reducer(Reduction &Redu, T Identity, BinaryOperation BOp, T A, T B) {
          "Wrong result of binary operation.");
 }
 
-template <typename... Ts>
-class KernelNameGroup;
+template <typename... Ts> class KernelNameGroup;
 
-template <typename SpecializationKernelName, typename T, int Dim, class BinaryOperation>
+template <typename SpecializationKernelName, typename T, int Dim,
+          class BinaryOperation>
 void testKnown(T Identity, BinaryOperation BOp, T A, T B) {
   buffer<T, 1> ReduBuf(1);
 
@@ -47,8 +47,7 @@ void testKnown(T Identity, BinaryOperation BOp, T A, T B) {
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
         ReduAcc(ReduBuf, CGH);
     auto Redu = intel::reduction(ReduAcc, BOp);
-    assert(Redu.getIdentity() == Identity &&
-           "Failed getIdentity() check().");
+    assert(Redu.getIdentity() == Identity && "Failed getIdentity() check().");
     test_reducer(Redu, A, B);
     test_reducer(Redu, Identity, BOp, A, B);
 
@@ -57,7 +56,8 @@ void testKnown(T Identity, BinaryOperation BOp, T A, T B) {
   });
 }
 
-template <typename SpecializationKernelName, typename T, int Dim, typename KernelName, class BinaryOperation>
+template <typename SpecializationKernelName, typename T, int Dim,
+          class BinaryOperation>
 void testUnknown(T Identity, BinaryOperation BOp, T A, T B) {
   buffer<T, 1> ReduBuf(1);
   queue Q;
@@ -67,8 +67,7 @@ void testUnknown(T Identity, BinaryOperation BOp, T A, T B) {
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
         ReduAcc(ReduBuf, CGH);
     auto Redu = intel::reduction(ReduAcc, Identity, BOp);
-    assert(Redu.getIdentity() == Identity &&
-           "Failed getIdentity() check().");
+    assert(Redu.getIdentity() == Identity && "Failed getIdentity() check().");
     test_reducer(Redu, Identity, BOp, A, B);
 
     // Command group must have at least one task in it. Use an empty one.
@@ -78,36 +77,51 @@ void testUnknown(T Identity, BinaryOperation BOp, T A, T B) {
 
 template <typename SpecializationKernelName, typename T, class BinaryOperation>
 void testBoth(T Identity, BinaryOperation BOp, T A, T B) {
-  testKnown<KernelNameGroup<SpecializationKernelName, class KernelName_SpronAvHpacKFL>, T, 0>(Identity, BOp, A, B);
-  testKnown<KernelNameGroup<SpecializationKernelName, class KernelName_XFxrYatPJlU>, T, 1>(Identity, BOp, A, B);
-  testUnknown<KernelNameGroup<SpecializationKernelName, class KernelName_oUFYMyQSlL>, T, 0, Unknown<T, 0, BinaryOperation>>(Identity, BOp, A, B);
-  testUnknown<KernelNameGroup<SpecializationKernelName, class KernelName_Ndbp>, T, 1, Unknown<T, 1, BinaryOperation>>(Identity, BOp, A, B);
+  testKnown<KernelNameGroup<SpecializationKernelName,
+                            class KernelName_SpronAvHpacKFL>,
+            T, 0>(Identity, BOp, A, B);
+  testKnown<
+      KernelNameGroup<SpecializationKernelName, class KernelName_XFxrYatPJlU>,
+      T, 1>(Identity, BOp, A, B);
+  testUnknown<
+      KernelNameGroup<SpecializationKernelName, class KernelName_oUFYMyQSlL>, T,
+      0>(Identity, BOp, A, B);
+  testUnknown<KernelNameGroup<SpecializationKernelName, class KernelName_Ndbp>,
+              T, 1>(Identity, BOp, A, B);
 }
 
 int main() {
-  testBoth<class KernelName_DpWavJTNjhJtrHmLWt, int>(0, intel::plus<int>(), 1, 7);
+  testBoth<class KernelName_DpWavJTNjhJtrHmLWt, int>(0, intel::plus<int>(), 1,
+                                                     7);
   testBoth<class KernelName_MHRtc, int>(1, std::multiplies<int>(), 1, 7);
-  testBoth<class KernelName_eYhurMyKBZvzctmqwUZ, int>(0, intel::bit_or<int>(), 1, 8);
-  testBoth<class KernelName_DpVPIUBjUMGZEwBFHH, int>(0, intel::bit_xor<int>(), 7, 3);
-  testBoth<class KernelName_vGKFactgrkngMXd, int>(~0, intel::bit_and<int>(), 7, 3);
-  testBoth<class KernelName_GLpknSBxclKWjm, int, intel::minimum<int>((std::numeric_limits<int>::max)(), intel::minimum<int>(), 7, 3);
-  testBoth<class KernelName_EvOaOYQ, int, intel::maximum<int>((std::numeric_limits<int>::min)(), intel::maximum<int>(), 7, 3);
+  testBoth<class KernelName_eYhurMyKBZvzctmqwUZ, int>(0, intel::bit_or<int>(),
+                                                      1, 8);
+  testBoth<class KernelName_DpVPIUBjUMGZEwBFHH, int>(0, intel::bit_xor<int>(),
+                                                     7, 3);
+  testBoth<class KernelName_vGKFactgrkngMXd, int>(~0, intel::bit_and<int>(), 7,
+                                                  3);
+  testBoth<class KernelName_GLpknSBxclKWjm, int>(
+      (std::numeric_limits<int>::max)(), intel::minimum<int>(), 7, 3);
+  testBoth<class KernelName_EvOaOYQ, int>((std::numeric_limits<int>::min)(),
+                                          intel::maximum<int>(), 7, 3);
 
-  testBoth<class KernelName_iFbcoTtPeDtUEK, float>(0, intel::plus<float>(), 1, 7);
-  testBoth<class KernelName_PEMJanstdNezDSXnP, float>(1, std::multiplies<float>(), 1, 7);
-  testBoth<class KernelName_wOEuftXSjCLpoTOMrYHR, float>(getMaximumFPValue<float>(), intel::minimum<float>(), 7, 3);
-  testBoth<class KernelName_HzFCIZQKeV, float>(getMinimumFPValue<float>(), intel::maximum<float>(), 7, 3);
+  testBoth<class KernelName_iFbcoTtPeDtUEK, float>(0, intel::plus<float>(), 1,
+                                                   7);
+  testBoth<class KernelName_PEMJanstdNezDSXnP, float>(
+      1, std::multiplies<float>(), 1, 7);
+  testBoth<class KernelName_wOEuftXSjCLpoTOMrYHR, float>(
+      getMaximumFPValue<float>(), intel::minimum<float>(), 7, 3);
+  testBoth<class KernelName_HzFCIZQKeV, float>(getMinimumFPValue<float>(),
+                                               intel::maximum<float>(), 7, 3);
 
-  testUnknown<class KernelName_sJOZPgFeiALyqwIWnFP, CustomVec<float>, 0,
-              Unknown<CustomVec<float>, 0, CustomVecPlus<float>>>(
+  testUnknown<class KernelName_sJOZPgFeiALyqwIWnFP, CustomVec<float>, 0>(
       CustomVec<float>(0), CustomVecPlus<float>(), CustomVec<float>(1),
       CustomVec<float>(7));
-  testUnknown<class KernelName_jMA, CustomVec<float>, 1,
-              Unknown<CustomVec<float>, 1, CustomVecPlus<float>>>(
+  testUnknown<class KernelName_jMA, CustomVec<float>, 1>(
       CustomVec<float>(0), CustomVecPlus<float>(), CustomVec<float>(1),
       CustomVec<float>(7));
 
-  testUnknown<class KernelName_zhF, int, 0, class BitOrName>(
+  testUnknown<class KernelName_zhF, int, 0>(
       0, [](auto a, auto b) { return a | b; }, 1, 8);
 
   std::cout << "Test passed\n";

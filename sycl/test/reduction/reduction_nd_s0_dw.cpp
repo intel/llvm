@@ -16,7 +16,8 @@
 
 using namespace cl::sycl;
 
-template <typename SpecializationKernelName, typename T, int Dim, class BinaryOperation>
+template <typename SpecializationKernelName, typename T, int Dim,
+          class BinaryOperation>
 void test(T Identity, size_t WGSize, size_t NWItems) {
   buffer<T, 1> InBuf(NWItems);
   buffer<T, 1> OutBuf(1);
@@ -64,8 +65,10 @@ int main() {
   // Try some power-of-two work-group sizes.
   test<class KernelName_BBFqAKecrI, int, 0, intel::plus<int>>(0, 2, 64);
   test<class KernelName_HMUbvvJOFTCETQHk, int, 0, intel::plus<int>>(0, 4, 64);
-  test<class KernelName_JocyLVjSXVPjdkezas, int, 0, intel::plus<int>>(0, 8, 128);
-  test<class KernelName_vXMabsyZtboaYDgkmuW, int, 0, intel::plus<int>>(0, 16, 256);
+  test<class KernelName_JocyLVjSXVPjdkezas, int, 0, intel::plus<int>>(0, 8,
+                                                                      128);
+  test<class KernelName_vXMabsyZtboaYDgkmuW, int, 0, intel::plus<int>>(0, 16,
+                                                                       256);
   test<class KernelName_jmOMSDBPkCezwz, int, 0, intel::plus<int>>(0, 32, 256);
   test<class KernelName_BZD, int, 0, intel::plus<int>>(0, 64, 256);
   test<class KernelName_xAMTrtueBCmu, int, 0, intel::plus<int>>(0, 128, 256);
@@ -76,16 +79,22 @@ int main() {
   test<class KernelName_yxrYAlH, int, 0, intel::bit_or<int>>(0, 8, 256);
   test<class KernelName_bclQP, int, 0, intel::bit_xor<int>>(0, 8, 256);
   test<class KernelName_SEfBIfWrrGb, int, 0, intel::bit_and<int>>(~0, 8, 256);
-  test<class KernelName_dVCBKeW, int, 0, intel::minimum<int>>((std::numeric_limits<int>::max)(), 8, 256);
-  test<class KernelName_kFuGbwFvu, int, 0, intel::maximum<int>>((std::numeric_limits<int>::min)(), 8, 256);
+  test<class KernelName_dVCBKeW, int, 0, intel::minimum<int>>(
+      (std::numeric_limits<int>::max)(), 8, 256);
+  test<class KernelName_kFuGbwFvu, int, 0, intel::maximum<int>>(
+      (std::numeric_limits<int>::min)(), 8, 256);
 
   // Check with various types.
-  test<class KernelName_UjmZVKjKReluws, float, 0, std::multiplies<float>>(1, 8, 256);
-  test<class KernelName_OszhECIDUagcinKGeWO, float, 0, intel::minimum<float>>(getMaximumFPValue<float>(), 8, 256);
-  test<class KernelName_LpCicWZckILZRxZP, float, 0, intel::maximum<float>>(getMinimumFPValue<float>(), 8, 256);
+  test<class KernelName_UjmZVKjKReluws, float, 0, std::multiplies<float>>(1, 8,
+                                                                          256);
+  test<class KernelName_OszhECIDUagcinKGeWO, float, 0, intel::minimum<float>>(
+      getMaximumFPValue<float>(), 8, 256);
+  test<class KernelName_LpCicWZckILZRxZP, float, 0, intel::maximum<float>>(
+      getMinimumFPValue<float>(), 8, 256);
 
   // Check with CUSTOM type.
-  test<class KernelName_puwIibWWpn, CustomVec<long long>, 0, CustomVecPlus<long long>>(CustomVec<long long>(0), 8, 256);
+  test<class KernelName_puwIibWWpn, CustomVec<long long>, 0,
+       CustomVecPlus<long long>>(CustomVec<long long>(0), 8, 256);
 
   std::cout << "Test passed\n";
   return 0;

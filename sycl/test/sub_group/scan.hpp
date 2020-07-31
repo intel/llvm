@@ -10,8 +10,7 @@
 #include <CL/sycl.hpp>
 #include <limits>
 
-template <typename... Ts>
-class sycl_subgr;
+template <typename... Ts> class sycl_subgr;
 
 using namespace cl::sycl;
 
@@ -81,51 +80,75 @@ void check(queue &Queue, size_t G = 120, size_t L = 60) {
     L = 32;
   }
 
-  check_op<sycl_subgr<SpecializationKernelName, class KernelName_UdKabTMplbvM>, T>(Queue, T(L), intel::plus<T>(), false, G, L);
-  check_op<sycl_subgr<SpecializationKernelName, class KernelName_hYvJ>, T>(Queue, T(0), intel::plus<T>(), true, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_UdKabTMplbvM>,
+           T>(Queue, T(L), intel::plus<T>(), false, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_hYvJ>, T>(
+      Queue, T(0), intel::plus<T>(), true, G, L);
 
-  check_op<sycl_subgr<SpecializationKernelName, class KernelName_eozPcciiaOmKkKUEp>, T>(Queue, T(0), intel::minimum<T>(), false, G, L);
+  check_op<
+      sycl_subgr<SpecializationKernelName, class KernelName_eozPcciiaOmKkKUEp>,
+      T>(Queue, T(0), intel::minimum<T>(), false, G, L);
   if (std::is_floating_point<T>::value ||
       std::is_same<T, cl::sycl::half>::value) {
-    check_op<sycl_subgr<SpecializationKernelName, class KernelName_LylCkHSTmrFhMH>, T>(Queue, std::numeric_limits<T>::infinity(), intel::minimum<T>(),
-                                                                                       true, G, L);
+    check_op<
+        sycl_subgr<SpecializationKernelName, class KernelName_LylCkHSTmrFhMH>,
+        T>(Queue, std::numeric_limits<T>::infinity(), intel::minimum<T>(), true,
+           G, L);
   } else {
-    check_op<sycl_subgr<SpecializationKernelName, class KernelName_gYWXQQXGnzJEpaftEQly>, T>(Queue, std::numeric_limits<T>::max(), intel::minimum<T>(), true,
-                                                                                             G, L);
+    check_op<sycl_subgr<SpecializationKernelName,
+                        class KernelName_gYWXQQXGnzJEpaftEQly>,
+             T>(Queue, std::numeric_limits<T>::max(), intel::minimum<T>(), true,
+                G, L);
   }
 
-  check_op<sycl_subgr<SpecializationKernelName, class KernelName_NEgmAHtvPAWDyXPoo>, T>(Queue, T(G), intel::maximum<T>(), false, G, L);
+  check_op<
+      sycl_subgr<SpecializationKernelName, class KernelName_NEgmAHtvPAWDyXPoo>,
+      T>(Queue, T(G), intel::maximum<T>(), false, G, L);
   if (std::is_floating_point<T>::value ||
       std::is_same<T, cl::sycl::half>::value) {
-    check_op<sycl_subgr<SpecializationKernelName, class KernelName_EBNigvpxbxYEyRcl>, T>(Queue, -std::numeric_limits<T>::infinity(), intel::maximum<T>(),
-                                                                                         true, G, L);
+    check_op<
+        sycl_subgr<SpecializationKernelName, class KernelName_EBNigvpxbxYEyRcl>,
+        T>(Queue, -std::numeric_limits<T>::infinity(), intel::maximum<T>(),
+           true, G, L);
   } else {
-    check_op<sycl_subgr<SpecializationKernelName, class KernelName_KayihC>, T>(Queue, std::numeric_limits<T>::min(), intel::maximum<T>(), true,
-                                                                               G, L);
+    check_op<sycl_subgr<SpecializationKernelName, class KernelName_KayihC>, T>(
+        Queue, std::numeric_limits<T>::min(), intel::maximum<T>(), true, G, L);
   }
 
 #if __cplusplus >= 201402L
-  check_op<sycl_subgr<SpecializationKernelName, class KernelName_TPWS>, T>(Queue, T(L), intel::plus<>(), false, G, L);
-  check_op<sycl_subgr<SpecializationKernelName, class KernelName_hWZv>, T>(Queue, T(0), intel::plus<>(), true, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_TPWS>, T>(
+      Queue, T(L), intel::plus<>(), false, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_hWZv>, T>(
+      Queue, T(0), intel::plus<>(), true, G, L);
 
-  check_op<sycl_subgr<SpecializationKernelName, class KernelName_MdoesLriZMCljse>, T>(Queue, T(0), intel::minimum<>(), false, G, L);
+  check_op<
+      sycl_subgr<SpecializationKernelName, class KernelName_MdoesLriZMCljse>,
+      T>(Queue, T(0), intel::minimum<>(), false, G, L);
   if (std::is_floating_point<T>::value ||
       std::is_same<T, cl::sycl::half>::value) {
-    check_op<sycl_subgr<SpecializationKernelName, class KernelName_fgMMknFqTMGts>, T>(Queue, std::numeric_limits<T>::infinity(), intel::minimum<>(),
-                                                                                      true, G, L);
+    check_op<
+        sycl_subgr<SpecializationKernelName, class KernelName_fgMMknFqTMGts>,
+        T>(Queue, std::numeric_limits<T>::infinity(), intel::minimum<>(), true,
+           G, L);
   } else {
-    check_op<sycl_subgr<SpecializationKernelName, class KernelName_FVbXDSctbMnggHMCz>, T>(Queue, std::numeric_limits<T>::max(), intel::minimum<>(), true,
-                                                                                          G, L);
+    check_op<sycl_subgr<SpecializationKernelName,
+                        class KernelName_FVbXDSctbMnggHMCz>,
+             T>(Queue, std::numeric_limits<T>::max(), intel::minimum<>(), true,
+                G, L);
   }
 
-  check_op<sycl_subgr<SpecializationKernelName, class KernelName_zzvRru>, T>(Queue, T(G), intel::maximum<>(), false, G, L);
+  check_op<sycl_subgr<SpecializationKernelName, class KernelName_zzvRru>, T>(
+      Queue, T(G), intel::maximum<>(), false, G, L);
   if (std::is_floating_point<T>::value ||
       std::is_same<T, cl::sycl::half>::value) {
-    check_op<sycl_subgr<SpecializationKernelName, class KernelName_NJh>, T>(Queue, -std::numeric_limits<T>::infinity(), intel::maximum<>(),
-                                                                            true, G, L);
+    check_op<sycl_subgr<SpecializationKernelName, class KernelName_NJh>, T>(
+        Queue, -std::numeric_limits<T>::infinity(), intel::maximum<>(), true, G,
+        L);
   } else {
-    check_op<sycl_subgr<SpecializationKernelName, class KernelName_XjMHvRfLSQerFi>, T>(Queue, std::numeric_limits<T>::min(), intel::maximum<>(), true,
-                                                                                       G, L);
+    check_op<
+        sycl_subgr<SpecializationKernelName, class KernelName_XjMHvRfLSQerFi>,
+        T>(Queue, std::numeric_limits<T>::min(), intel::maximum<>(), true, G,
+           L);
   }
 #endif
 }
