@@ -53,8 +53,9 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
 
   RT::PiDevice parent = nullptr;
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin.call<PiApiKind::piDeviceGetInfo>(
-      MDevice, PI_DEVICE_INFO_PARENT_DEVICE, sizeof(RT::PiDevice), &parent, nullptr);
+  Plugin.call<PiApiKind::piDeviceGetInfo>(MDevice, PI_DEVICE_INFO_PARENT_DEVICE,
+                                          sizeof(RT::PiDevice), &parent,
+                                          nullptr);
 
   MIsRootDevice = (nullptr == parent);
   if (!MIsRootDevice && !InteroperabilityConstructor) {
@@ -181,13 +182,11 @@ device_impl::create_sub_devices(const vector_class<size_t> &Counts) const {
         "Partitioning to subdevices of the host device is not implemented yet",
         PI_INVALID_DEVICE);
 
-  if (!is_partition_supported(
-          info::partition_property::partition_by_counts)) {
+  if (!is_partition_supported(info::partition_property::partition_by_counts)) {
     throw cl::sycl::feature_not_supported();
   }
   static const cl_device_partition_property P[] = {
-      CL_DEVICE_PARTITION_BY_COUNTS, CL_DEVICE_PARTITION_BY_COUNTS_LIST_END,
-      0};
+      CL_DEVICE_PARTITION_BY_COUNTS, CL_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
   vector_class<cl_device_partition_property> Properties(P, P + 3);
   Properties.insert(Properties.begin() + 1, Counts.begin(), Counts.end());
   return create_sub_devices(Properties.data(), Counts.size());
@@ -210,8 +209,7 @@ vector_class<device> device_impl::create_sub_devices(
   const cl_device_partition_property Properties[3] = {
       CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
       (cl_device_partition_property)AffinityDomain, 0};
-  size_t SubDevicesCount =
-      get_info<info::device::partition_max_sub_devices>();
+  size_t SubDevicesCount = get_info<info::device::partition_max_sub_devices>();
   return create_sub_devices(Properties, SubDevicesCount);
 }
 
@@ -220,6 +218,51 @@ pi_native_handle device_impl::getNative() const {
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextDeviceGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
+}
+
+bool device_impl::has(aspect Aspect) const {
+  switch (Aspect) {
+  case aspect::host:
+    return is_host();
+    break;
+  case aspect::cpu:
+    return is_cpu();
+    break;
+  case aspect::gpu:
+    return is_gpu();
+    break;
+  case aspect::accelerator:
+    return is_accelerator();
+    break;
+  case aspect::fp16:
+    return has_extension("cl_khr_fp16");
+    break;
+  case aspect::fp64:
+    return has_extension("cl_khr_fp64");
+    break;
+  case aspect::int64_base_atomics:
+    return has_extension("cl_khr_int64_base_atomics");
+    break;
+  case aspect::int64_extended_atomics:
+    return has_extension("cl_khr_int64_extended_atomics");
+    break;
+  case aspect::image:
+    return get_info<info::device::image_support>();
+    break;
+  case aspect::online_compiler:
+    return get_info<info::device::is_compiler_available>();
+    break;
+  case aspect::online_linker:
+    return get_info<info::device::is_linker_available>();
+    break;
+  case aspect::queue_profiling:
+    return get_info<info::device::queue_profiling>();
+    break;
+  default:
+    throw runtime_error("This device aspect has not been implemented yet.",
+                        PI_INVALID_DEVICE);
+  }
+  return false;
 }
 
 } // namespace detail

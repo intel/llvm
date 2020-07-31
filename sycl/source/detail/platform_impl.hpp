@@ -127,6 +127,16 @@ public:
   /// \return a native handle.
   pi_native_handle getNative() const;
 
+  /// Indicates if all of the SYCL devices on this platform have the
+  /// given feature.
+  ///
+  /// \param Aspect is one of the values in Table 4.20 of the SYCL 2020
+  /// Provisional Spec.
+  ///
+  /// \return true all of the SYCL devices on this platform have the
+  /// given feature.
+  bool has(aspect Aspect) const;
+
 private:
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;
