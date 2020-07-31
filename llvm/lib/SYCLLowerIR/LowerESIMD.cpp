@@ -1180,7 +1180,7 @@ void SYCLLowerESIMDLegacyPass::collectGenXVolatileType(Module &M) {
     if (!PTy)
       continue;
     auto GTy = dyn_cast<StructType>(PTy->getPointerElementType());
-    if (!GTy || !GTy->getName().endswith("cl::sycl::intel::gpu::simd"))
+    if (!GTy || !GTy->getName().endswith("cl::sycl::INTEL::gpu::simd"))
       continue;
     assert(GTy->getNumContainedTypes() == 1);
     auto VTy = GTy->getContainedType(0);

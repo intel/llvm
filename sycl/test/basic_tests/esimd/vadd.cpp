@@ -3,7 +3,7 @@
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/intel/esimd.hpp>
+#include <CL/sycl/INTEL/esimd.hpp>
 #include <iostream>
 
 using namespace cl::sycl;
@@ -74,7 +74,7 @@ int main(void) {
 
       cgh.parallel_for<class Test>(
           Range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
-            using namespace sycl::intel::gpu;
+            using namespace sycl::INTEL::gpu;
             auto pA = accA.get_pointer().get();
             auto pB = accB.get_pointer().get();
             auto pC = accC.get_pointer().get();

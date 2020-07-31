@@ -1,4 +1,4 @@
-//==-------------- fpga_reg.hpp --- SYCL FPGA Reg Extensions ---------------==//
+//==----------- fpga_extensions.hpp --- SYCL FPGA Extensions ---------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,13 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-
+#include <CL/sycl/INTEL/fpga_device_selector.hpp>
+#include <CL/sycl/INTEL/fpga_lsu.hpp>
 #include <CL/sycl/INTEL/fpga_reg.hpp>
-
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace intel {
-template <typename T> T fpga_reg(const T &t) { return INTEL::fpga_reg(t); }
-} // namespace intel
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+#include <CL/sycl/INTEL/pipes.hpp>

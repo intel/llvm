@@ -8,12 +8,28 @@
 
 #pragma once
 
-#include <CL/sycl/INTEL/fpga_reg.hpp>
+#include <CL/sycl/detail/defines.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace intel {
-template <typename T> T fpga_reg(const T &t) { return INTEL::fpga_reg(t); }
-} // namespace intel
+namespace INTEL {
+
+template <typename T> T fpga_reg(const T &t) {
+#if __has_builtin(__builtin_intel_fpga_reg)
+  return __builtin_intel_fpga_reg(t);
+#else
+  return t;
+#endif
+}
+
+} // namespace INTEL
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+// Keep it consistent with FPGA attributes like intelfpga::memory()
+// Currently clang does not support nested namespace for attributes
+namespace intelfpga {
+template <typename T> T fpga_reg(const T &t) {
+  return cl::sycl::INTEL::fpga_reg(t);
+}
+}

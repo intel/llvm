@@ -11,16 +11,16 @@
 #pragma once
 
 #include <CL/sycl/half_type.hpp>
-#include <CL/sycl/intel/esimd/detail/esimd_memory_intrin.hpp>
-#include <CL/sycl/intel/esimd/detail/esimd_types.hpp>
-#include <CL/sycl/intel/esimd/detail/esimd_util.hpp>
-#include <CL/sycl/intel/esimd/esimd.hpp>
-#include <CL/sycl/intel/esimd/esimd_enum.hpp>
+#include <CL/sycl/INTEL/esimd/detail/esimd_memory_intrin.hpp>
+#include <CL/sycl/INTEL/esimd/detail/esimd_types.hpp>
+#include <CL/sycl/INTEL/esimd/detail/esimd_util.hpp>
+#include <CL/sycl/INTEL/esimd/esimd.hpp>
+#include <CL/sycl/INTEL/esimd/esimd_enum.hpp>
 #include <cstdint>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace intel {
+namespace INTEL {
 namespace gpu {
 
 template <int ElemsPerAddr,
@@ -644,6 +644,6 @@ SYCL_EXTERNAL void slm_init(uint32_t size) {}
 
 #endif
 } // namespace gpu
-} // namespace intel
+} // namespace INTEL
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

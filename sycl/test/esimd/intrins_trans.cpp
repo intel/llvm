@@ -6,9 +6,9 @@
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/image_ocl_types.hpp>
-#include <CL/sycl/intel/esimd.hpp>
+#include <CL/sycl/INTEL/esimd.hpp>
 
-using namespace sycl::intel::gpu;
+using namespace sycl::INTEL::gpu;
 
 ESIMD_PRIVATE vector_type_t<int, 32> vc;
 ESIMD_PRIVATE ESIMD_REGISTER(192) simd<int, 16> vg;

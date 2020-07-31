@@ -2,7 +2,7 @@
 // RUN: %clangxx -fsycl -fsycl-explicit-simd -fsycl-device-only -c %s -o %t.bc
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/intel/esimd.hpp>
+#include <CL/sycl/INTEL/esimd.hpp>
 #include <iostream>
 
 int main(void) {
