@@ -1,22 +1,22 @@
-//===---------- pi_level0.hpp - Level Zero Plugin -------------------------===//
+//===------- pi_level_zero.hpp - Level Zero Plugin -------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===----------------------------------------------------------------------===//
+//===-----------------------------------------------------------------===//
 
-/// \defgroup sycl_pi_level0 Level Zero Plugin
+/// \defgroup sycl_pi_level_zero Level Zero Plugin
 /// \ingroup sycl_pi
 
-/// \file pi_level0.hpp
+/// \file pi_level_zero.hpp
 /// Declarations for Level Zero Plugin. It is the interface between the
 /// device-agnostic SYCL runtime layer and underlying Level Zero runtime.
 ///
-/// \ingroup sycl_pi_level0
+/// \ingroup sycl_pi_level_zero
 
-#ifndef PI_LEVEL0_HPP
-#define PI_LEVEL0_HPP
+#ifndef PI_LEVEL_ZERO_HPP
+#define PI_LEVEL_ZERO_HPP
 
 #include <CL/sycl/detail/pi.h>
 #include <atomic>
@@ -51,18 +51,19 @@ template <> uint32_t pi_cast(uint64_t Value) {
 struct _pi_object {
   _pi_object() : RefCount{1} {}
 
-  // L0 doesn't do the reference counting, so we have to do.
+  // Level Zero doesn't do the reference counting, so we have to do.
   // Must be atomic to prevent data race when incrementing/decrementing.
   std::atomic<pi_uint32> RefCount;
 };
 
-// Define the types that are opaque in pi.h in a manner suitabale for L0 plugin
+// Define the types that are opaque in pi.h in a manner suitabale for Level Zero
+// plugin
 
 struct _pi_platform {
   _pi_platform(ze_driver_handle_t Driver) : ZeDriver{Driver} {}
 
-  // L0 lacks the notion of a platform, but there is a driver, which is a
-  // pretty good fit to keep here.
+  // Level Zero lacks the notion of a platform, but there is a driver, which is
+  // a pretty good fit to keep here.
   ze_driver_handle_t ZeDriver;
 
   // Cache versions info from zeDriverGetProperties.
@@ -83,14 +84,14 @@ struct _pi_device : _pi_object {
   // Initialize the entire PI device.
   pi_result initialize();
 
-  // L0 device handle.
+  // Level Zero device handle.
   ze_device_handle_t ZeDevice;
 
   // PI platform to which this device belongs.
   pi_platform Platform;
 
-  // Immediate L0 command list for this device, to be used for initializations.
-  // To be created as:
+  // Immediate Level Zero command list for this device, to be used for
+  // initializations. To be created as:
   // - Immediate command list: So any command appended to it is immediately
   //   offloaded to the device.
   // - Synchronous: So implicit synchronization is made inside the level-zero
@@ -117,7 +118,7 @@ struct _pi_context : _pi_object {
       : Device{Device}, ZeEventPool{nullptr}, NumEventsAvailableInEventPool{},
         NumEventsLiveInEventPool{} {}
 
-  // L0 does not have notion of contexts.
+  // Level Zero does not have notion of contexts.
   // Keep the device here (must be exactly one) to return it when PI context
   // is queried for devices.
   pi_device Device;
@@ -164,7 +165,7 @@ struct _pi_queue : _pi_object {
   _pi_queue(ze_command_queue_handle_t Queue, pi_context Context)
       : ZeCommandQueue{Queue}, Context{Context} {}
 
-  // L0 command queue handle.
+  // Level Zero command queue handle.
   ze_command_queue_handle_t ZeCommandQueue;
 
   // Keeps the PI context to which this queue belongs.
@@ -197,10 +198,10 @@ struct _pi_mem : _pi_object {
 
   // Interface of the _pi_mem object
 
-  // Get the L0 handle of the current memory object
+  // Get the Level Zero handle of the current memory object
   virtual void *getZeHandle() = 0;
 
-  // Get a pointer to the L0 handle of the current memory object
+  // Get a pointer to the Level Zero handle of the current memory object
   virtual void *getZeHandlePtr() = 0;
 
   // Method to get type of the derived object (image or buffer)
@@ -241,7 +242,7 @@ struct _pi_buffer final : _pi_mem {
 
   bool isSubBuffer() const { return SubBuffer.Parent != nullptr; }
 
-  // L0 memory handle is really just a naked pointer.
+  // Level Zero memory handle is really just a naked pointer.
   // It is just convenient to have it char * to simplify offset arithmetics.
   char *ZeMem;
 
@@ -268,7 +269,7 @@ struct _pi_image final : _pi_mem {
   ze_image_desc_t ZeImageDesc;
 #endif // !NDEBUG
 
-  // L0 image handle.
+  // Level Zero image handle.
   ze_image_handle_t ZeImage;
 };
 
@@ -278,14 +279,14 @@ struct _pi_event : _pi_object {
       : ZeEvent{ZeEvent}, ZeEventPool{ZeEventPool}, ZeCommandList{nullptr},
         CommandType{CommandType}, Context{Context}, CommandData{nullptr} {}
 
-  // L0 event handle.
+  // Level Zero event handle.
   ze_event_handle_t ZeEvent;
-  // L0 event pool handle.
+  // Level Zero event pool handle.
   ze_event_pool_handle_t ZeEventPool;
 
-  // L0 command list where the command signaling this event was appended to.
-  // This is currently used to remember/destroy the command list after
-  // all commands in it are completed, i.e. this event signaled.
+  // Level Zero command list where the command signaling this event was appended
+  // to. This is currently used to remember/destroy the command list after all
+  // commands in it are completed, i.e. this event signaled.
   ze_command_list_handle_t ZeCommandList;
 
   // Keeps the command-queue and command associated with the event.
@@ -300,7 +301,7 @@ struct _pi_event : _pi_object {
   // Opaque data to hold any data needed for CommandType.
   void *CommandData;
 
-  // Methods for translating PI events list into L0 events list
+  // Methods for translating PI events list into Level Zero events list
   static ze_event_handle_t *createZeEventList(pi_uint32, const pi_event *);
   static void deleteZeEventList(ze_event_handle_t *);
 };
@@ -311,16 +312,16 @@ struct _pi_program : _pi_object {
       : ZeModuleDesc(ModuleDesc), ZeModule{Module},
         ZeBuildLog{nullptr}, Context{Context} {}
 
-  // L0 module descriptor.
+  // Level Zero module descriptor.
   ze_module_desc_t ZeModuleDesc;
 
-  // L0 module handle.
+  // Level Zero module handle.
   ze_module_handle_t ZeModule;
-  // L0 module specialization constants
+  // Level Zero module specialization constants
   std::mutex ZeSpecConstantsMutex;
   std::unordered_map<uint32_t, uint64_t> ZeSpecConstants;
 
-  // L0 build log.
+  // Level Zero build log.
   ze_module_build_log_handle_t ZeBuildLog;
 
   // Keep the context of the program.
@@ -332,21 +333,21 @@ struct _pi_kernel : _pi_object {
              const char *KernelName)
       : ZeKernel{Kernel}, Program{Program}, KernelName(KernelName) {}
 
-  // L0 function handle.
+  // Level Zero function handle.
   ze_kernel_handle_t ZeKernel;
 
   // Keep the program of the kernel.
   pi_program Program;
 
-  // TODO: remove when bug in the L0 runtime will be fixed.
+  // TODO: remove when bug in the Level Zero runtime will be fixed.
   std::string KernelName;
 };
 
 struct _pi_sampler : _pi_object {
   _pi_sampler(ze_sampler_handle_t Sampler) : ZeSampler{Sampler} {}
 
-  // L0 sampler handle.
+  // Level Zero sampler handle.
   ze_sampler_handle_t ZeSampler;
 };
 
-#endif // PI_LEVEL0_HPP
+#endif // PI_LEVEL_ZERO_HPP

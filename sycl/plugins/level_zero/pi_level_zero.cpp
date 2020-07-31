@@ -1,17 +1,17 @@
-//===----------- pi_level0.cpp - Level Zero Plugin--------------------------==//
+//===-------- pi_level_zero.cpp - Level Zero Plugin --------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===----------------------------------------------------------------------===//
+//===------------------------------------------------------------------===//
 
-/// \file pi_level0.cpp
+/// \file pi_level_zero.cpp
 /// Implementation of Level Zero Plugin.
 ///
-/// \ingroup sycl_pi_level0
+/// \ingroup sycl_pi_level_zero
 
-#include "pi_level0.hpp"
+#include "pi_level_zero.hpp"
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
@@ -26,8 +26,8 @@
 
 namespace {
 
-// Controls L0 calls serialization to w/a L0 driver being not MT ready.
-// Recognized values (can be used as a bit mask):
+// Controls Level Zero calls serialization to w/a Level Zero driver being not MT
+// ready. Recognized values (can be used as a bit mask):
 enum {
   ZeSerializeNone =
       0, // no locking or blocking (except when SYCL RT requested blocking)
@@ -37,10 +37,10 @@ enum {
 };
 static pi_uint32 ZeSerialize = 0;
 
-// This class encapsulates actions taken along with a call to L0 API.
+// This class encapsulates actions taken along with a call to Level Zero API.
 class ZeCall {
 private:
-  // The global mutex that is used for total serialization of L0 calls.
+  // The global mutex that is used for total serialization of Level Zero calls.
   static std::mutex GlobalLock;
 
 public:
@@ -61,7 +61,7 @@ public:
 };
 std::mutex ZeCall::GlobalLock;
 
-// Controls L0 calls tracing in zePrint.
+// Controls Level Zero calls tracing in zePrint.
 static bool ZeDebug = false;
 
 static void zePrint(const char *Format, ...) {
@@ -233,12 +233,12 @@ _pi_context::decrementAliveEventsInPool(ze_event_pool_handle_t ZePool) {
   return ZE_RESULT_SUCCESS;
 }
 
-// Some opencl extensions we know are supported by all Level0 devices.
+// Some opencl extensions we know are supported by all Level Zero devices.
 constexpr char ZE_SUPPORTED_EXTENSIONS[] =
     "cl_khr_il_program cl_khr_subgroups cl_intel_subgroups "
     "cl_intel_subgroups_short cl_intel_required_subgroup_size ";
 
-// Map L0 runtime error code to PI error code
+// Map Level Zero runtime error code to PI error code
 static pi_result mapError(ze_result_t ZeResult) {
   // TODO: these mapping need to be clarified and synced with the PI API return
   // values, which is TBD.
@@ -373,7 +373,7 @@ pi_result _pi_device::initialize() {
 // Crate a new command list to be used in a PI call
 pi_result
 _pi_device::createCommandList(ze_command_list_handle_t *ZeCommandList) {
-  // Create the command list, because in L0 commands are added to
+  // Create the command list, because in Level Zero commands are added to
   // the command lists, and later are then added to the command queue.
   //
   // TODO: Figure out how to lower the overhead of creating a new list
@@ -448,7 +448,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return PI_INVALID_VALUE;
   }
 
-  // This is a good time to initialize L0.
+  // This is a good time to initialize Level Zero.
   // TODO: We can still safely recover if something goes wrong during the init.
   // Implement handling segfault using sigaction.
   // TODO: We should not call zeInit multiples times ever, so
@@ -467,7 +467,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return mapError(ZeResult);
   }
 
-  // L0 does not have concept of Platforms, but L0 driver is the
+  // Level Zero does not have concept of Platforms, but Level Zero driver is the
   // closest match.
   if (Platforms && NumEntries > 0) {
     uint32_t ZeDriverCount = 0;
@@ -533,10 +533,10 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
 
   switch (ParamName) {
   case PI_PLATFORM_INFO_NAME:
-    // TODO: Query L0 driver when relevant info is added there.
+    // TODO: Query Level Zero driver when relevant info is added there.
     return ReturnValue("Intel(R) Level-Zero");
   case PI_PLATFORM_INFO_VENDOR:
-    // TODO: Query L0 driver when relevant info is added there.
+    // TODO: Query Level Zero driver when relevant info is added there.
     return ReturnValue("Intel(R) Corporation");
   case PI_PLATFORM_INFO_EXTENSIONS:
     // Convention adopted from OpenCL:
@@ -547,7 +547,7 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
     //
     // TODO: Check the common extensions supported by all connected devices and
     // return them. For now, hardcoding some extensions we know are supported by
-    // all Level0 devices.
+    // all Level Zero devices.
     return ReturnValue(ZE_SUPPORTED_EXTENSIONS);
   case PI_PLATFORM_INFO_PROFILE:
     // TODO: figure out what this means and how is this used
@@ -575,7 +575,7 @@ pi_result piextPlatformGetNativeHandle(pi_platform Platform,
   assert(NativeHandle);
 
   auto ZeDriver = pi_cast<ze_driver_handle_t *>(NativeHandle);
-  // Extract the L0 driver handle from the given PI platform
+  // Extract the Level Zero driver handle from the given PI platform
   *ZeDriver = Platform->ZeDriver;
   return PI_SUCCESS;
 }
@@ -585,7 +585,7 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   assert(NativeHandle);
   assert(Platform);
 
-  // Create PI platform from the given L0 driver handle.
+  // Create PI platform from the given Level Zero driver handle.
   auto ZeDriver = pi_cast<ze_driver_handle_t>(NativeHandle);
   *Platform = new _pi_platform(ZeDriver);
   return PI_SUCCESS;
@@ -598,7 +598,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   assert(Platform);
   ze_driver_handle_t ZeDriver = Platform->ZeDriver;
 
-  // Get number of devices supporting L0
+  // Get number of devices supporting Level Zero
   uint32_t ZeDeviceCount = 0;
   const bool AskingForGPU = (DeviceType & PI_DEVICE_TYPE_GPU);
   const bool AskingForDefault = (DeviceType == PI_DEVICE_TYPE_DEFAULT);
@@ -718,7 +718,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(PI_DEVICE_TYPE_GPU);
   }
   case PI_DEVICE_INFO_PARENT_DEVICE:
-    // TODO: all L0 devices are parent ?
+    // TODO: all Level Zero devices are parent ?
     return ReturnValue(pi_device{0});
   case PI_DEVICE_INFO_PLATFORM:
     return ReturnValue(Device->Platform);
@@ -729,8 +729,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     //     "Returns a space separated list of extension names (the extension
     // names themselves do not contain any spaces) supported by the device."
     //
-    // TODO: Use proper mechanism to get this information from Level0 after
-    // it is added to Level0.
+    // TODO: Use proper mechanism to get this information from Level Zero after
+    // it is added to Level Zero.
     // Hardcoding the few we know are supported by the current hardware.
     //
     //
@@ -754,7 +754,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // cl_khr_3d_image_writes - Extension to enable writes to 3D image memory
     //   objects.
     //
-    // Hardcoding some extensions we know are supported by all Level0 devices.
+    // Hardcoding some extensions we know are supported by all Level Zero
+    // devices.
     SupportedExtensions += (ZE_SUPPORTED_EXTENSIONS);
     if (ZeDeviceKernelProperties.fp16Supported)
       SupportedExtensions += ("cl_khr_fp16 ");
@@ -784,7 +785,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_uint32{MaxComputeUnits});
   }
   case PI_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
-    // L0 spec defines only three dimensions
+    // Level Zero spec defines only three dimensions
     return ReturnValue(pi_uint32{3});
   case PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE:
     return ReturnValue(
@@ -845,7 +846,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_uint32{Device->RefCount});
   case PI_DEVICE_INFO_PARTITION_PROPERTIES: {
     // It is debatable if SYCL sub-device and partitioning APIs sufficient to
-    // expose Level0 sub-devices?  We start with support of
+    // expose Level Zero sub-devices?  We start with support of
     // "partition_by_affinity_domain" and "numa" but if that doesn't seem to
     // be a good fit we could look at adding a more descriptive partitioning
     // type.
@@ -913,7 +914,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_MEM_BASE_ADDR_ALIGN:
     // SYCL/OpenCL spec is vague on what this means exactly, but seems to
     // be for "alignment requirement (in bits) for sub-buffer offsets."
-    // An OpenCL implementation returns 8*128, but L0 can do just 8,
+    // An OpenCL implementation returns 8*128, but Level Zero can do just 8,
     // meaning unaligned access for values of types larger than 8 bits.
     return ReturnValue(pi_uint32{8});
   case PI_DEVICE_INFO_MAX_SAMPLERS:
@@ -995,24 +996,24 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_uint64{DoubleFPValue});
   }
   case PI_DEVICE_INFO_IMAGE2D_MAX_WIDTH:
-    // Until L0 provides needed info, hardcode default minimum values required
-    // by the SYCL specification.
+    // Until Level Zero provides needed info, hardcode default minimum values
+    // required by the SYCL specification.
     return ReturnValue(size_t{8192});
   case PI_DEVICE_INFO_IMAGE2D_MAX_HEIGHT:
-    // Until L0 provides needed info, hardcode default minimum values required
-    // by the SYCL specification.
+    // Until Level Zero provides needed info, hardcode default minimum values
+    // required by the SYCL specification.
     return ReturnValue(size_t{8192});
   case PI_DEVICE_INFO_IMAGE3D_MAX_WIDTH:
-    // Until L0 provides needed info, hardcode default minimum values required
-    // by the SYCL specification.
+    // Until Level Zero provides needed info, hardcode default minimum values
+    // required by the SYCL specification.
     return ReturnValue(size_t{2048});
   case PI_DEVICE_INFO_IMAGE3D_MAX_HEIGHT:
-    // Until L0 provides needed info, hardcode default minimum values required
-    // by the SYCL specification.
+    // Until Level Zero provides needed info, hardcode default minimum values
+    // required by the SYCL specification.
     return ReturnValue(size_t{2048});
   case PI_DEVICE_INFO_IMAGE3D_MAX_DEPTH:
-    // Until L0 provides needed info, hardcode default minimum values required
-    // by the SYCL specification.
+    // Until Level Zero provides needed info, hardcode default minimum values
+    // required by the SYCL specification.
     return ReturnValue(size_t{2048});
   case PI_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE:
     return ReturnValue(size_t{ZeDeviceImageProperties.maxImageBufferSize});
@@ -1106,7 +1107,7 @@ pi_result piDevicePartition(pi_device Device,
                             const pi_device_partition_property *Properties,
                             pi_uint32 NumDevices, pi_device *OutDevices,
                             pi_uint32 *OutNumDevices) {
-  // Other partitioning ways are not supported by L0
+  // Other partitioning ways are not supported by Level Zero
   if (Properties[0] != PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN ||
       Properties[1] != PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE) {
     return PI_INVALID_VALUE;
@@ -1139,7 +1140,7 @@ pi_result piDevicePartition(pi_device Device,
     auto ZeSubdevices = new ze_device_handle_t[Count];
     ZE_CALL(zeDeviceGetSubDevices(Device->ZeDevice, &Count, ZeSubdevices));
 
-    // Wrap the L0 sub-devices into PI sub-devices, and write them out.
+    // Wrap the Level Zero sub-devices into PI sub-devices, and write them out.
     for (uint32_t I = 0; I < Count; ++I) {
       OutDevices[I] = new _pi_device(ZeSubdevices[I], Device->Platform,
                                      true /* isSubDevice */);
@@ -1183,7 +1184,7 @@ pi_result piextDeviceGetNativeHandle(pi_device Device,
   assert(NativeHandle);
 
   auto ZeDevice = pi_cast<ze_device_handle_t *>(NativeHandle);
-  // Extract the L0 module handle from the given PI device
+  // Extract the Level Zero module handle from the given PI device
   *ZeDevice = Device->ZeDevice;
   return PI_SUCCESS;
 }
@@ -1195,7 +1196,7 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   assert(Device);
   assert(Platform);
 
-  // Create PI device from the given L0 device handle.
+  // Create PI device from the given Level Zero device handle.
   auto ZeDevice = pi_cast<ze_device_handle_t>(NativeHandle);
   *Device = new _pi_device(ZeDevice, Platform);
   return (*Device)->initialize();
@@ -1208,7 +1209,7 @@ pi_result piContextCreate(const pi_context_properties *Properties,
                                             void *UserData),
                           void *UserData, pi_context *RetContext) {
 
-  // L0 does not have notion of contexts.
+  // Level Zero does not have notion of contexts.
   // Return the device handle (only single device is allowed) as a context
   // handle.
   if (NumDevices != 1) {
@@ -1387,7 +1388,7 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
   assert(NativeHandle);
 
   auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
-  // Extract the L0 queue handle from the given PI queue
+  // Extract the Level Zero queue handle from the given PI queue
   *ZeQueue = Queue->ZeCommandQueue;
   return PI_SUCCESS;
 }
@@ -1437,9 +1438,9 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   auto HostPtrOrNull =
       (Flags & PI_MEM_FLAGS_HOST_PTR_USE) ? pi_cast<char *>(HostPtr) : nullptr;
   try {
-    *RetMem = new _pi_buffer(Context->Device->Platform,
-                             pi_cast<char *>(Ptr) /* L0 Memory Handle */,
-                             HostPtrOrNull);
+    *RetMem = new _pi_buffer(
+        Context->Device->Platform,
+        pi_cast<char *>(Ptr) /* Level Zero Memory Handle */, HostPtrOrNull);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1660,8 +1661,8 @@ pi_result piProgramCreate(pi_context Context, const void *IL, size_t Length,
   assert(Context);
   assert(Program);
 
-  // NOTE: the L0 module creation is also building the program, so we are
-  // deferring it until the program is ready to be built in piProgramBuild
+  // NOTE: the Level Zero module creation is also building the program, so we
+  // are deferring it until the program is ready to be built in piProgramBuild
   // and piProgramCompile. Also it is only then we know the build options.
   //
   ze_module_desc_t ZeModuleDesc = {};
@@ -1726,7 +1727,7 @@ pi_result piclProgramCreateWithSource(pi_context Context, pi_uint32 Count,
                                       const size_t *Lengths,
                                       pi_program *RetProgram) {
 
-  zePrint("piclProgramCreateWithSource: not supported in L0\n");
+  zePrint("piclProgramCreateWithSource: not supported in Level Zero\n");
   return PI_INVALID_OPERATION;
 }
 
@@ -1740,7 +1741,7 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
   case PI_PROGRAM_INFO_REFERENCE_COUNT:
     return ReturnValue(pi_uint32{Program->RefCount});
   case PI_PROGRAM_INFO_NUM_DEVICES:
-    // L0 Module is always for a single device.
+    // Level Zero Module is always for a single device.
     return ReturnValue(pi_uint32{1});
   case PI_PROGRAM_INFO_DEVICES:
     return ReturnValue(Program->Context->Device);
@@ -1764,7 +1765,7 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
   case PI_PROGRAM_INFO_KERNEL_NAMES:
     try {
       // There are extra allocations/copying here dictated by the difference
-      // in L0 and PI interfaces.
+      // in Level Zero and PI interfaces.
       uint32_t Count = 0;
       ZE_CALL(zeModuleGetKernelNames(Program->ZeModule, &Count, nullptr));
       char **PNames = new char *[Count];
@@ -1795,7 +1796,9 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
                         const pi_program *InputPrograms,
                         void (*PFnNotify)(pi_program Program, void *UserData),
                         void *UserData, pi_program *RetProgram) {
-  // TODO: L0 does not [yet] support linking so dummy implementation here.
+
+  // TODO: Level Zero does not [yet] support linking so dummy implementation
+  // here.
   assert(NumInputPrograms == 1 && InputPrograms);
   assert(RetProgram);
   *RetProgram = InputPrograms[0];
@@ -1812,7 +1815,7 @@ pi_result piProgramCompile(
   assert(NumInputHeaders == 0);
   assert(!InputHeaders);
 
-  // There is no support foe linking yet in L0 so "compile" actually
+  // There is no support for linking yet in Level Zero so "compile" actually
   // does the "build".
   return piProgramBuild(Program, NumDevices, DeviceList, Options, PFnNotify,
                         UserData);
@@ -1858,6 +1861,7 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   ze_device_handle_t ZeDevice = Program->Context->Device->ZeDevice;
   ZE_CALL(zeModuleCreate(ZeDevice, &Program->ZeModuleDesc, &Program->ZeModule,
                          &Program->ZeBuildLog));
+
   return PI_SUCCESS;
 }
 
@@ -1868,14 +1872,14 @@ pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   if (ParamName == CL_PROGRAM_BINARY_TYPE) {
-    // TODO: is this the only supported binary type in L0?
+    // TODO: is this the only supported binary type in Level Zero?
     // We should probably return CL_PROGRAM_BINARY_TYPE_NONE if asked
     // before the program was compiled.
     return ReturnValue(
         cl_program_binary_type{CL_PROGRAM_BINARY_TYPE_EXECUTABLE});
   }
   if (ParamName == CL_PROGRAM_BUILD_OPTIONS) {
-    // TODO: how to get module build options out of L0?
+    // TODO: how to get module build options out of Level Zero?
     // For the programs that we compiled we can remember the options
     // passed with piProgramCompile/piProgramBuild, but what can we
     // return for programs that were built outside and registered
@@ -1909,7 +1913,7 @@ pi_result piProgramRelease(pi_program Program) {
     delete[] Program->ZeModuleDesc.pInputModule;
     if (Program->ZeBuildLog)
       zeModuleBuildLogDestroy(Program->ZeBuildLog);
-    // TODO: call zeModuleDestroy for non-interop L0 modules
+    // TODO: call zeModuleDestroy for non-interop Level Zero modules
     delete Program;
   }
   return PI_SUCCESS;
@@ -1921,7 +1925,7 @@ pi_result piextProgramGetNativeHandle(pi_program Program,
   assert(NativeHandle);
 
   auto ZeModule = pi_cast<ze_module_handle_t *>(NativeHandle);
-  // Extract the L0 module handle from the given PI program
+  // Extract the Level Zero module handle from the given PI program
   *ZeModule = Program->ZeModule;
   return PI_SUCCESS;
 }
@@ -1935,9 +1939,9 @@ pi_result piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
 
   auto ZeModule = pi_cast<ze_module_handle_t>(NativeHandle);
 
-  // Create PI program from the given L0 module handle.
+  // Create PI program from the given Level Zero module handle.
   //
-  // TODO: We don't have the real L0 module descriptor with
+  // TODO: We don't have the real Level Zero module descriptor with
   // which it was created, but that's only needed for zeModuleCreate,
   // which we don't expect to be called on the interop program.
   //
@@ -2050,9 +2054,9 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
   case PI_KERNEL_INFO_PROGRAM:
     return ReturnValue(pi_program{Kernel->Program});
   case PI_KERNEL_INFO_FUNCTION_NAME:
-    // TODO: Replace with the line in the comment once bug in the L0 driver will
-    // be fixed. Problem is that currently L0 driver truncates name of the
-    // returned kernel if it is longer than 256 symbols.
+    // TODO: Replace with the line in the comment once bug in the Level Zero
+    // driver will be fixed. Problem is that currently Level Zero driver
+    // truncates name of the returned kernel if it is longer than 256 symbols.
     //
     // return ReturnValue(ZeKernelProperties.name);
     return ReturnValue(Kernel->KernelName.c_str());
@@ -2376,7 +2380,7 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   }
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
-    // TODO: Support these when L0 supported is added.
+    // TODO: Support these when Level Zero supported is added.
     return ReturnValue(uint64_t{0});
   default:
     zePrint("piEventGetProfilingInfo: not supported ParamName\n");
@@ -3016,8 +3020,8 @@ piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer, pi_bool BlockingMap,
   ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, NumEventsInWaitList,
                                           ZeEventWaitList));
 
-  // TODO: L0 is missing the memory "mapping" capabilities, so we are left
-  // to doing new memory allocation and a copy (read).
+  // TODO: Level Zero is missing the memory "mapping" capabilities, so we are
+  // left to doing new memory allocation and a copy (read).
   //
   // TODO: check if the input buffer is already allocated in shared
   // memory and thus is accessible from the host as is. Can we get SYCL RT
@@ -3087,8 +3091,8 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   ZE_CALL(zeCommandListAppendWaitOnEvents(ZeCommandList, NumEventsInWaitList,
                                           ZeEventWaitList));
 
-  // TODO: L0 is missing the memory "mapping" capabilities, so we are left
-  // to doing copy (write back to the device).
+  // TODO: Level Zero is missing the memory "mapping" capabilities, so we are
+  // left to doing copy (write back to the device).
   //
   // NOTE: Keep this in sync with the implementation of
   // piEnqueueMemBufferMap/piEnqueueMemImageMap.
@@ -3204,7 +3208,7 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
     const ze_image_region_t ZeSrcRegion =
         getImageRegionHelper(SrcMem, SrcOrigin, Region);
 
-    // TODO: L0 does not support row_pitch/slice_pitch for images yet.
+    // TODO: Level Zero does not support row_pitch/slice_pitch for images yet.
     // Check that SYCL RT did not want pitch larger than default.
 #ifndef NDEBUG
     assert(SrcMem->isImage());
@@ -3229,7 +3233,7 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
     const ze_image_region_t ZeDstRegion =
         getImageRegionHelper(DstMem, DstOrigin, Region);
 
-    // TODO: L0 does not support row_pitch/slice_pitch for images yet.
+    // TODO: Level Zero does not support row_pitch/slice_pitch for images yet.
     // Check that SYCL RT did not want pitch larger than default.
 #ifndef NDEBUG
     assert(DstMem->isImage());
@@ -3360,7 +3364,7 @@ pi_result piMemBufferPartition(pi_mem Buffer, pi_mem_flags Flags,
     *RetMem =
         new _pi_buffer(Buffer->Platform,
                        pi_cast<char *>(Buffer->getZeHandle()) +
-                           Region->origin /* L0 memory handle */,
+                           Region->origin /* Level Zero memory handle */,
                        nullptr /* Host pointer */, Buffer /* Parent buffer */,
                        Region->origin /* Sub-buffer origin */,
                        Region->size /*Sub-buffer size*/);
@@ -3406,7 +3410,7 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
 
   ze_host_mem_alloc_desc_t ZeDesc = {};
   ZeDesc.flags = ZE_HOST_MEM_ALLOC_FLAG_DEFAULT;
-  // TODO: translate PI properties to L0 flags
+  // TODO: translate PI properties to Level Zero flags
   ZE_CALL(zeDriverAllocHostMem(Context->Device->Platform->ZeDriver, &ZeDesc,
                                Size, Alignment, ResultPtr));
 
@@ -3423,7 +3427,7 @@ pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
   // Check that incorrect bits are not set in the properties.
   assert(!Properties || (Properties && !(*Properties & ~PI_MEM_ALLOC_FLAGS)));
 
-  // TODO: translate PI properties to L0 flags
+  // TODO: translate PI properties to Level Zero flags
   ze_device_mem_alloc_desc_t ZeDesc = {};
   ZeDesc.flags = ZE_DEVICE_MEM_ALLOC_FLAG_DEFAULT;
   ZeDesc.ordinal = 0;
@@ -3443,7 +3447,7 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   // Check that incorrect bits are not set in the properties.
   assert(!Properties || (Properties && !(*Properties & ~PI_MEM_ALLOC_FLAGS)));
 
-  // TODO: translate PI properties to L0 flags
+  // TODO: translate PI properties to Level Zero flags
   ze_host_mem_alloc_desc_t ZeHostDesc = {};
   ZeHostDesc.flags = ZE_HOST_MEM_ALLOC_FLAG_DEFAULT;
   ze_device_mem_alloc_desc_t ZeDevDesc = {};
@@ -3555,7 +3559,7 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // TODO: figure out how to translate "flags"
   ZE_CALL(zeCommandListAppendMemoryPrefetch(ZeCommandList, Ptr, Size));
 
-  // TODO: L0 does not have a completion "event" with the prefetch API,
+  // TODO: Level Zero does not have a completion "event" with the prefetch API,
   // so manually add command to signal our event.
   ZE_CALL(zeCommandListAppendSignalEvent(ZeCommandList, ZeEvent));
 
@@ -3638,7 +3642,7 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   ZE_CALL(zeCommandListAppendMemAdvise(
       ZeCommandList, Queue->Context->Device->ZeDevice, Ptr, Length, ZeAdvice));
 
-  // TODO: L0 does not have a completion "event" with the advise API,
+  // TODO: Level Zero does not have a completion "event" with the advise API,
   // so manually add command to signal our event.
   ZE_CALL(zeCommandListAppendSignalEvent(ZeCommandList, ZeEvent));
 
@@ -3699,7 +3703,7 @@ pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
   }
   case PI_MEM_ALLOC_DEVICE: {
     // TODO: this wants pi_device, but we didn't remember it, and cannot
-    // deduct from the L0 device.
+    // deduct from the Level Zero device.
     die("piextUSMGetMemAllocInfo: PI_MEM_ALLOC_DEVICE not implemented");
     break;
   }
@@ -3760,7 +3764,8 @@ pi_result piextProgramSetSpecializationConstant(pi_program Prog,
   // Pass SpecValue pointer. Spec constant value is retrieved
   // by Level-Zero when creating the modul
   //
-  // NOTE: SpecSize is unused in L0, the size is known from SPIR-V by SpecID.
+  // NOTE: SpecSize is unused in Level Zero, the size is known from SPIR-V by
+  // SpecID.
   Prog->ZeSpecConstants[SpecID] = reinterpret_cast<uint64_t>(SpecValue);
 
   return PI_SUCCESS;
