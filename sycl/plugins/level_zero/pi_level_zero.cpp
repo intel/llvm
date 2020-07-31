@@ -452,13 +452,9 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return PI_INVALID_VALUE;
   }
 
-<<<<<<< HEAD:sycl/plugins/level_zero/pi_level_zero.cpp
   static std::vector<pi_platform> piPlatformsCache;
 
   // This is a good time to initialize Level Zero.
-=======
-  // This is a good time to initialize L0.
->>>>>>> [SYCL] Implement Device and Platform cache in L0:sycl/plugins/level_zero/pi_level0.cpp
   // TODO: We can still safely recover if something goes wrong during the init.
   // Implement handling segfault using sigaction.
   // TODO: We should not call zeInit multiples times ever, so
