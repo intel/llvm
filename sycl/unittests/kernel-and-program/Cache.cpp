@@ -93,10 +93,17 @@ static pi_result redefinedKernelGetInfo(pi_kernel kernel,
   return PI_SUCCESS;
 }
 
+static pi_result redefinedKernelSetExecInfo(pi_kernel kernel,
+                                            pi_kernel_exec_info value_name,
+                                            size_t param_value_size,
+                                            const void *param_value) {
+  return PI_SUCCESS;
+}
 TEST(KernelAndProgramCache, ProgramSourceNegativeBuild) {
   platform Plt{default_selector()};
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     std::clog << "This test is only supported on OpenCL devices\n";
+    std::clog << "Current platform is " << Plt.get_info<info::platform::name>();
     return;
   }
 
@@ -108,6 +115,8 @@ TEST(KernelAndProgramCache, ProgramSourceNegativeBuild) {
   Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
   Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
+      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   program Prg{Ctx};
@@ -134,6 +143,8 @@ TEST(KernelAndProgramCache, ProgramSourceNegativeBuildWithOpts) {
   Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
   Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
+      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   program Prg{Ctx};
@@ -161,6 +172,8 @@ TEST(KernelAndProgramCache, ProgramSourceNegativeCompileAndLink) {
   Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
   Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
+      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   program Prg{Ctx};
@@ -189,6 +202,8 @@ TEST(KernelAndProgramCache, ProgramSourceNegativeCompileAndLinkWithOpts) {
   Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
   Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
+      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   program Prg{Ctx};
@@ -215,6 +230,8 @@ TEST(KernelAndProgramCache, ProgramBuildPositive) {
   Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
   Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
+      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   program Prg{Ctx};
@@ -240,6 +257,8 @@ TEST(KernelAndProgramCache, ProgramBuildNegativeBuildOpts) {
   Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
   Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
+      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   program Prg{Ctx};
@@ -265,6 +284,8 @@ TEST(KernelAndProgramCache, ProgramBuildNegativeCompileOpts) {
   Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
   Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
+      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   program Prg{Ctx};
@@ -291,6 +312,8 @@ TEST(KernelAndProgramCache, ProgramBuildNegativeLinkOpts) {
   Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
   Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
+      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   program Prg{Ctx};
@@ -317,6 +340,8 @@ TEST(KernelAndProgramCache, KernelPositive) {
   Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
   Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
+      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
@@ -346,6 +371,8 @@ TEST(KernelAndProgramCache, KernelNegativeBuildOpts) {
   Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
   Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
+      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
@@ -375,6 +402,8 @@ TEST(KernelAndProgramCache, KernelNegativeCompileOpts) {
   Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
   Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
+      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
@@ -405,6 +434,8 @@ TEST(KernelAndProgramCache, KernelNegativeLinkOpts) {
   Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
   Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
+      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
@@ -435,6 +466,8 @@ TEST(KernelAndProgramCache, KernelNegativeLinkedProgs) {
   Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
   Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
+      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
@@ -469,6 +502,8 @@ TEST(KernelAndProgramCache, KernelNegativeSource) {
   Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
   Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
+      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
