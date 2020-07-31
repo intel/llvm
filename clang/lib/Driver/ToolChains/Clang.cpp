@@ -1763,15 +1763,15 @@ void Clang::AddAArch64TargetArgs(const ArgList &Args,
   if (Arg *A = Args.getLastArg(options::OPT_msve_vector_bits_EQ)) {
     StringRef Val = A->getValue();
     const Driver &D = getToolChain().getDriver();
-    if (!Val.equals("128") && !Val.equals("256") && !Val.equals("512") &&
-        !Val.equals("1024") && !Val.equals("2048")) {
+    if (Val.equals("128") || Val.equals("256") || Val.equals("512") ||
+        Val.equals("1024") || Val.equals("2048"))
+      CmdArgs.push_back(
+          Args.MakeArgString(llvm::Twine("-msve-vector-bits=") + Val));
+    // Silently drop requests for vector-length agnostic code as it's implied.
+    else if (!Val.equals("scalable"))
       // Handle the unsupported values passed to msve-vector-bits.
       D.Diag(diag::err_drv_unsupported_option_argument)
           << A->getOption().getName() << Val;
-    } else if (A->getOption().matches(options::OPT_msve_vector_bits_EQ)) {
-      CmdArgs.push_back(
-          Args.MakeArgString(llvm::Twine("-msve-vector-bits=") + Val));
-    }
   }
 }
 
@@ -5774,6 +5774,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasFlag(options::OPT_fpch_instantiate_templates,
                    options::OPT_fno_pch_instantiate_templates, false))
     CmdArgs.push_back("-fpch-instantiate-templates");
+  if (Args.hasFlag(options::OPT_fpch_codegen, options::OPT_fno_pch_codegen,
+                   false))
+    CmdArgs.push_back("-fmodules-codegen");
+  if (Args.hasFlag(options::OPT_fpch_debuginfo, options::OPT_fno_pch_debuginfo,
+                   false))
+    CmdArgs.push_back("-fmodules-debuginfo");
 
   Args.AddLastArg(CmdArgs, options::OPT_fexperimental_new_pass_manager,
                   options::OPT_fno_experimental_new_pass_manager);
@@ -7658,6 +7664,8 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   if (getToolChain().getTriple().isSYCLDeviceEnvironment()) {
     TranslatorArgs.push_back("-spirv-max-version=1.1");
     std::string ExtArg("-spirv-ext=+all");
+    if (C.getArgs().hasArg(options::OPT_fsycl_esimd))
+      TranslatorArgs.push_back("-spirv-allow-unknown-intrinsics");
     // Disable SPV_INTEL_usm_storage_classes by default since it adds new
     // storage classes that represent global_device and global_host address
     // spaces, which are not supported for all targets. With the extension

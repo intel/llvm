@@ -16,10 +16,10 @@ class load_kernel;
 
 template <typename T>
 void load_test(queue q, size_t N) {
-  T initial = 42;
+  T initial = T(42);
   T load = initial;
   std::vector<T> output(N);
-  std::fill(output.begin(), output.end(), 0);
+  std::fill(output.begin(), output.end(), T(0));
   {
     buffer<T> load_buf(&load, 1);
     buffer<T> output_buf(output.data(), output.size());
@@ -28,7 +28,7 @@ void load_test(queue q, size_t N) {
       auto ld = load_buf.template get_access<access::mode::read_write>(cgh);
       auto out = output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for<load_kernel<T>>(range<1>(N), [=](item<1> it) {
-        int gid = it.get_id(0);
+        size_t gid = it.get_id(0);
         auto atm = atomic_ref<T, intel::memory_order::relaxed, intel::memory_scope::device, access::address_space::global_space>(ld[0]);
         out[gid] = atm.load();
       });
@@ -49,8 +49,6 @@ int main() {
   }
 
   constexpr int N = 32;
-
-  // TODO: Enable missing tests when supported
   load_test<int>(q, N);
   load_test<unsigned int>(q, N);
   load_test<long>(q, N);
@@ -59,7 +57,7 @@ int main() {
   load_test<unsigned long long>(q, N);
   load_test<float>(q, N);
   load_test<double>(q, N);
-  //load_test<char*>(q, N);
+  load_test<char *>(q, N);
 
   std::cout << "Test passed." << std::endl;
 }

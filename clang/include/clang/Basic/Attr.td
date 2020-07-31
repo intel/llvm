@@ -1288,7 +1288,9 @@ def LoopUnrollHint : InheritableAttr {
 }
 
 def IntelReqdSubGroupSize: InheritableAttr {
-  let Spellings = [GNU<"intel_reqd_sub_group_size">, CXX11<"cl", "intel_reqd_sub_group_size">];
+  let Spellings = [GNU<"intel_reqd_sub_group_size">,
+                   CXX11<"cl", "intel_reqd_sub_group_size">,
+                   CXX11<"intel", "reqd_sub_group_size">];
   let Args = [ExprArgument<"SubGroupSize">];
   let Subjects = SubjectList<[Function, CXXMethod], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
@@ -2024,8 +2026,10 @@ def NeonVectorType : TypeAttr {
 
 def ArmSveVectorBits : TypeAttr {
   let Spellings = [GNU<"arm_sve_vector_bits">];
-  let Args = [IntArgument<"NumBits">];
+  let Subjects = SubjectList<[TypedefName], ErrorDiag>;
+  let Args = [UnsignedArgument<"NumBits">];
   let Documentation = [ArmSveVectorBitsDocs];
+  let PragmaAttributeSupport = 0;
 }
 
 def ArmMveStrictPolymorphism : TypeAttr, TargetSpecificAttr<TargetARM> {

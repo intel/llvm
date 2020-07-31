@@ -12,6 +12,7 @@
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
+#include <CL/sycl/property_list.hpp>
 #include <CL/sycl/range.hpp>
 
 #include <memory>
@@ -71,6 +72,7 @@ public:
                                  bool HostPtrReadOnly, size_t Size,
                                  const EventImplPtr &InteropEvent,
                                  const ContextImplPtr &InteropContext,
+                                 const sycl::property_list &PropsList,
                                  RT::PiEvent &OutEventToWait);
 
   // Allocates images in specified context taking into account situations such
@@ -80,7 +82,8 @@ public:
       ContextImplPtr TargetContext, SYCLMemObjI *MemObj, void *UserPtr,
       bool HostPtrReadOnly, size_t Size, const RT::PiMemImageDesc &Desc,
       const RT::PiMemImageFormat &Format, const EventImplPtr &InteropEvent,
-      const ContextImplPtr &InteropContext, RT::PiEvent &OutEventToWait);
+      const ContextImplPtr &InteropContext,
+      const sycl::property_list &PropsList, RT::PiEvent &OutEventToWait);
 
   // Releases memory object(buffer or image). TargetContext should be device
   // one(not host).
@@ -88,21 +91,25 @@ public:
                             void *MemAllocation, void *UserPtr);
 
   static void *allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
-                                  bool HostPtrReadOnly, size_t Size);
+                                  bool HostPtrReadOnly, size_t Size,
+                                  const sycl::property_list &PropsList);
 
   static void *allocateInteropMemObject(ContextImplPtr TargetContext,
                                         void *UserPtr,
                                         const EventImplPtr &InteropEvent,
                                         const ContextImplPtr &InteropContext,
+                                        const sycl::property_list &PropsList,
                                         RT::PiEvent &OutEventToWait);
 
   static void *allocateImageObject(ContextImplPtr TargetContext, void *UserPtr,
                                    bool HostPtrReadOnly,
                                    const RT::PiMemImageDesc &Desc,
-                                   const RT::PiMemImageFormat &Format);
+                                   const RT::PiMemImageFormat &Format,
+                                   const sycl::property_list &PropsList);
 
   static void *allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
-                                    bool HostPtrReadOnly, const size_t Size);
+                                    bool HostPtrReadOnly, const size_t Size,
+                                    const sycl::property_list &PropsList);
 
   // Copies memory between: host and device, host and host,
   // device and device if memory objects bound to the one context.

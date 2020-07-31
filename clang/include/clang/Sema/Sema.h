@@ -730,7 +730,7 @@ public:
   PragmaStack<StringLiteral *> CodeSegStack;
 
   // This stack tracks the current state of Sema.CurFPFeatures.
-  PragmaStack<unsigned> FpPragmaStack;
+  PragmaStack<FPOptionsOverride::storage_type> FpPragmaStack;
   FPOptionsOverride CurFPFeatureOverrides() {
     FPOptionsOverride result;
     if (!FpPragmaStack.hasValue()) {
@@ -1548,12 +1548,12 @@ public:
       S.CurFPFeatures = OldFPFeaturesState;
       S.FpPragmaStack.CurrentValue = OldOverrides;
     }
-    unsigned getOverrides() { return OldOverrides; }
+    FPOptionsOverride::storage_type getOverrides() { return OldOverrides; }
 
   private:
     Sema& S;
     FPOptions OldFPFeaturesState;
-    unsigned OldOverrides;
+    FPOptionsOverride::storage_type OldOverrides;
   };
 
   void addImplicitTypedef(StringRef Name, QualType T);
@@ -2151,7 +2151,10 @@ public:
   bool RequireCompleteSizedType(SourceLocation Loc, QualType T, unsigned DiagID,
                                 const Ts &... Args) {
     SizelessTypeDiagnoser<Ts...> Diagnoser(DiagID, Args...);
-    return RequireCompleteType(Loc, T, CompleteTypeKind::Normal, Diagnoser);
+    CompleteTypeKind Kind = CompleteTypeKind::Normal;
+    if (T->isVLST())
+      Kind = CompleteTypeKind::AcceptSizeless;
+    return RequireCompleteType(Loc, T, Kind, Diagnoser);
   }
 
   void completeExprArrayBound(Expr *E);
@@ -2169,7 +2172,10 @@ public:
   bool RequireCompleteSizedExprType(Expr *E, unsigned DiagID,
                                     const Ts &... Args) {
     SizelessTypeDiagnoser<Ts...> Diagnoser(DiagID, Args...);
-    return RequireCompleteExprType(E, CompleteTypeKind::Normal, Diagnoser);
+    CompleteTypeKind Kind = CompleteTypeKind::Normal;
+    if (E->getType()->isVLST())
+      Kind = CompleteTypeKind::AcceptSizeless;
+    return RequireCompleteExprType(E, Kind, Diagnoser);
   }
 
   bool RequireLiteralType(SourceLocation Loc, QualType T,
@@ -12345,6 +12351,7 @@ private:
   bool SemaBuiltinVAStartARMMicrosoft(CallExpr *Call);
   bool SemaBuiltinUnorderedCompare(CallExpr *TheCall);
   bool SemaBuiltinFPClassification(CallExpr *TheCall, unsigned NumArgs);
+  bool SemaBuiltinComplex(CallExpr *TheCall);
   bool SemaBuiltinVSX(CallExpr *TheCall);
   bool SemaBuiltinOSLogFormat(CallExpr *TheCall);
 
@@ -12742,6 +12749,7 @@ public:
   void checkSYCLDeviceVarDecl(VarDecl *Var);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void MarkDevice();
+  void MarkSyclSimd();
 
   /// Creates a DeviceDiagBuilder that emits the diagnostic if the current
   /// context is "used as device code".
@@ -12865,16 +12873,16 @@ FPGALoopAttrT *Sema::BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
     return nullptr;
 
   if (E && !E->isInstantiationDependent()) {
-    llvm::APSInt ArgVal(32);
+    Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(getASTContext());
 
-    if (!E->isIntegerConstantExpr(ArgVal, getASTContext())) {
+    if (!ArgVal) {
       Diag(E->getExprLoc(), diag::err_attribute_argument_type)
           << A.getAttrName() << AANT_ArgumentIntegerConstant
           << E->getSourceRange();
       return nullptr;
     }
 
-    int Val = ArgVal.getSExtValue();
+    int Val = ArgVal->getSExtValue();
 
     if (A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGAII ||
         A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGALoopCoalesce) {

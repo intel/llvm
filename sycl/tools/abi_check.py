@@ -91,11 +91,16 @@ def check_symbols(ref_path, target_path):
     correct_return = True
     if missing_symbols:
       correct_return = False
+      print(("There are missing symbols in the new library. It is a breaking "
+      "change. Refer to sycl/doc/ABIPolicyGuide.md for further instructions. "
+      "Do not forget to update ABI version according to the policy."))
       print('The following symbols are missing from the new object file:\n')
       print("\n".join(missing_symbols))
 
     if new_symbols:
       correct_return = False
+      print(("There are new symbols in the new library. It is a non-breaking "
+      "change. Refer to sycl/doc/ABIPolicyGuide.md for further instructions."))
       print('The following symbols are new to the object file:\n')
       print("\n".join(new_symbols))
 

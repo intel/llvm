@@ -2853,7 +2853,8 @@ def err_attribute_bad_sve_vector_size : Error<
   "invalid SVE vector size '%0', must match value set by "
   "'-msve-vector-bits' ('%1')">;
 def err_attribute_arm_feature_sve_bits_unsupported : Error<
-  "%0 is not supported when '-msve-vector-bits=<bits>' is not specified">;
+  "%0 is only supported when '-msve-vector-bits=<bits>' is specified with a "
+  "value of 128, 256, 512, 1024 or 2048.">;
 def err_attribute_requires_positive_integer : Error<
   "%0 attribute requires a %select{positive|non-negative}1 "
   "integral compile time constant expression">;
@@ -7326,6 +7327,8 @@ let CategoryName = "Lambda Issue" in {
     "here">;
   def note_var_explicitly_captured_here : Note<"variable %0 is"
     "%select{| explicitly}1 captured here">;
+  def err_implicit_this_capture : Error<
+    "implicit capture of 'this' is not allowed for kernel functions">;
 
   // C++14 lambda init-captures.
   def warn_cxx11_compat_init_capture : Warning<
@@ -8188,6 +8191,10 @@ def warn_cast_pointer_from_sel : Warning<
 def warn_function_def_in_objc_container : Warning<
   "function definition inside an Objective-C container is deprecated">,
   InGroup<FunctionDefInObjCContainer>;
+def err_typecheck_call_requires_real_fp : Error<
+  "argument type %0 is not a real floating point type">;
+def err_typecheck_call_different_arg_types : Error<
+  "arguments are of different types%diff{ ($ vs $)|}0,1">;
 
 def warn_cast_calling_conv : Warning<
   "cast between incompatible calling conventions '%0' and '%1'; "
@@ -10977,6 +10984,9 @@ def warn_sycl_implicit_decl
               "declaration for a kernel type name; your program may not "
               "be portable">,
       InGroup<SyclStrict>, DefaultIgnore;
+def warn_sycl_restrict_recursion
+    : Warning<"SYCL kernel cannot call a recursive function">,
+      InGroup<SyclStrict>, DefaultError;
 def err_ivdep_duplicate_arg : Error<
   "duplicate argument to 'ivdep'. attribute requires one or both of a safelen "
   "and array">;
@@ -10988,6 +10998,11 @@ def err_ivdep_declrefexpr_arg : Error<
 def warn_ivdep_redundant : Warning <"ignoring redundant Intel FPGA loop "
   "attribute 'ivdep': safelen %select{INF|%1}0 >= safelen %select{INF|%3}2">,
   InGroup<IgnoredAttributes>;
+def warn_attribute_spelling_deprecated : Warning<
+  "attribute %0 is deprecated">,
+  InGroup<DeprecatedAttributes>;
+def note_spelling_suggestion : Note<
+  "did you mean to use %0 instead?">;
 
 // errors of expect.with.probability
 def err_probability_not_constant_float : Error<

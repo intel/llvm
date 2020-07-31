@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/accessor.hpp>
+#include <CL/sycl/handler.hpp>
 #include <CL/sycl/intel/group_algorithm.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -16,6 +17,11 @@ namespace sycl {
 namespace intel {
 
 namespace detail {
+
+__SYCL_EXPORT size_t reduGetMaxWGSize(shared_ptr_class<queue_impl> Queue,
+                                      size_t LocalMemBytesPerWorkItem);
+__SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
+                                       size_t &NWorkGroups);
 
 using cl::sycl::detail::bool_constant;
 using cl::sycl::detail::enable_if_t;
@@ -141,11 +147,9 @@ using IsKnownIdentityOp =
 template <typename T, class BinaryOperation, typename Subst = void>
 class reducer {
 public:
-  reducer(const T &Identity) : MValue(Identity), MIdentity(Identity) {}
-  void combine(const T &Partial) {
-    BinaryOperation BOp;
-    MValue = BOp(MValue, Partial);
-  }
+  reducer(const T &Identity, BinaryOperation BOp)
+      : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
+  void combine(const T &Partial) { MValue = MBinaryOp(MValue, Partial); }
 
   T getIdentity() const { return MIdentity; }
 
@@ -153,6 +157,7 @@ public:
 
 private:
   const T MIdentity;
+  BinaryOperation MBinaryOp;
 };
 
 /// Specialization of the generic class 'reducer'. It is used for reductions
@@ -177,7 +182,7 @@ class reducer<T, BinaryOperation,
               enable_if_t<IsKnownIdentityOp<T, BinaryOperation>::value>> {
 public:
   reducer() : MValue(getIdentity()) {}
-  reducer(const T &) : MValue(getIdentity()) {}
+  reducer(const T &, BinaryOperation) : MValue(getIdentity()) {}
 
   void combine(const T &Partial) {
     BinaryOperation BOp;
@@ -399,7 +404,7 @@ public:
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
-  reduction_impl(accessor_type &Acc, const T &Identity)
+  reduction_impl(accessor_type &Acc, const T &Identity, BinaryOperation)
       : MAcc(shared_ptr_class<accessor_type>(shared_ptr_class<accessor_type>{},
                                              &Acc)),
         MIdentity(getIdentity()) {
@@ -425,10 +430,10 @@ public:
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<!IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
-  reduction_impl(accessor_type &Acc, const T &Identity)
+  reduction_impl(accessor_type &Acc, const T &Identity, BinaryOperation BOp)
       : MAcc(shared_ptr_class<accessor_type>(shared_ptr_class<accessor_type>{},
                                              &Acc)),
-        MIdentity(Identity) {
+        MIdentity(Identity), MBinaryOp(BOp) {
     assert(Acc.get_count() == 1 &&
            "Only scalar/1-element reductions are supported now.");
   }
@@ -450,7 +455,7 @@ public:
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
-  reduction_impl(T *VarPtr, const T &Identity)
+  reduction_impl(T *VarPtr, const T &Identity, BinaryOperation)
       : MIdentity(Identity), MUSMPointer(VarPtr) {
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
@@ -472,8 +477,8 @@ public:
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<!IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
-  reduction_impl(T *VarPtr, const T &Identity)
-      : MIdentity(Identity), MUSMPointer(VarPtr) {}
+  reduction_impl(T *VarPtr, const T &Identity, BinaryOperation BOp)
+      : MIdentity(Identity), MUSMPointer(VarPtr), MBinaryOp(BOp) {}
 
   /// Associates reduction accessor with the given handler and saves reduction
   /// buffer so that it is alive until the command group finishes the work.
@@ -557,6 +562,9 @@ public:
     return OutPtr;
   }
 
+  /// Returns the binary operation associated with the reduction.
+  BinaryOperation getBinaryOperation() const { return MBinaryOp; }
+
 private:
   /// Identity of the BinaryOperation.
   /// The result of BinaryOperation(X, MIdentity) is equal to X for any X.
@@ -570,6 +578,8 @@ private:
   /// USM pointer referencing the memory to where the result of the reduction
   /// must be written. Applicable/used only for USM reductions.
   T *MUSMPointer = nullptr;
+
+  BinaryOperation MBinaryOp;
 };
 
 /// These are the forward declaration for the classes that help to create
@@ -788,9 +798,10 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
   typename Reduction::result_type ReduIdentity = Redu.getIdentity();
   using Name = typename get_reduction_main_kernel_name_t<
       KernelName, KernelType, Reduction::is_usm, UniformPow2WG, OutputT>::name;
+  auto BOp = Redu.getBinaryOperation();
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     // Call user's functions. Reducer.MValue gets initialized there.
-    typename Reduction::reducer_type Reducer(ReduIdentity);
+    typename Reduction::reducer_type Reducer(ReduIdentity, BOp);
     KernelFunc(NDIt, Reducer);
 
     size_t WGSize = NDIt.get_local_range().size();
@@ -805,7 +816,6 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
     // Tree-reduction: reduce the local array LocalReds[:] to LocalReds[0]
     // LocalReds[WGSize] accumulates last/odd elements when the step
     // of tree-reduction loop is not even.
-    typename Reduction::binary_operation BOp;
     size_t PrevStep = WGSize;
     for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
       if (LID < CurStep)
@@ -867,19 +877,19 @@ reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 /// of work-groups. At the end of each work-groups the partial sum is written
 /// to a global buffer.
 ///
-/// Briefly: aux kernel, intel:reduce(), reproducible results,FP + ADD/MIN/MAX
-template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          bool UniformWG, typename InputT, typename OutputT>
+/// Briefly: aux kernel, intel:reduce(), reproducible results, FP + ADD/MIN/MAX
+template <typename KernelName, typename KernelType, bool UniformWG,
+          class Reduction, typename InputT, typename OutputT>
 enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
-reduAuxCGFuncImpl(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
-                  Reduction &, InputT In, OutputT Out) {
-  size_t NWorkGroups = Range.get_group_range().size();
-  bool IsUpdateOfUserVar =
-      Reduction::accessor_mode == access::mode::read_write && NWorkGroups == 1;
-
+reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
+                  size_t WGSize, Reduction &, InputT In, OutputT Out) {
   using Name = typename get_reduction_aux_kernel_name_t<
       KernelName, KernelType, Reduction::is_usm, UniformWG, OutputT>::name;
-  CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+
+  bool IsUpdateOfUserVar =
+      Reduction::accessor_mode == access::mode::read_write && NWorkGroups == 1;
+  nd_range<1> Range{range<1>(NWorkItems), range<1>(WGSize)};
+  CGH.parallel_for<Name>(Range, [=](nd_item<1> NDIt) {
     typename Reduction::binary_operation BOp;
     size_t WGID = NDIt.get_group_linear_id();
     size_t GID = NDIt.get_global_linear_id();
@@ -903,14 +913,11 @@ reduAuxCGFuncImpl(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
 /// to a global buffer.
 ///
 /// Briefly: aux kernel, tree-reduction, CUSTOM types/ops.
-template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          bool UniformPow2WG, typename InputT, typename OutputT>
+template <typename KernelName, typename KernelType, bool UniformPow2WG,
+          class Reduction, typename InputT, typename OutputT>
 enable_if_t<!Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
-reduAuxCGFuncImpl(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
-                  Reduction &Redu, InputT In, OutputT Out) {
-  size_t WGSize = Range.get_local_range().size();
-  size_t NWorkGroups = Range.get_group_range().size();
-
+reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
+                  size_t WGSize, Reduction &Redu, InputT In, OutputT Out) {
   bool IsUpdateOfUserVar =
       Reduction::accessor_mode == access::mode::read_write && NWorkGroups == 1;
 
@@ -922,9 +929,11 @@ reduAuxCGFuncImpl(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
   auto LocalReds = Redu.getReadWriteLocalAcc(NumLocalElements, CGH);
 
   auto ReduIdentity = Redu.getIdentity();
+  auto BOp = Redu.getBinaryOperation();
   using Name = typename get_reduction_aux_kernel_name_t<
       KernelName, KernelType, Reduction::is_usm, UniformPow2WG, OutputT>::name;
-  CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+  nd_range<1> Range{range<1>(NWorkItems), range<1>(WGSize)};
+  CGH.parallel_for<Name>(Range, [=](nd_item<1> NDIt) {
     size_t WGSize = NDIt.get_local_range().size();
     size_t LID = NDIt.get_local_linear_id();
     size_t GID = NDIt.get_global_linear_id();
@@ -939,7 +948,6 @@ reduAuxCGFuncImpl(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
     // Tree-reduction: reduce the local array LocalReds[:] to LocalReds[0]
     // LocalReds[WGSize] accumulates last/odd elements when the step
     // of tree-reduction loop is not even.
-    typename Reduction::binary_operation BOp;
     size_t PrevStep = WGSize;
     for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
       if (LID < CurStep)
@@ -962,12 +970,22 @@ reduAuxCGFuncImpl(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
   });
 }
 
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<!Reduction::has_fast_atomics>
-reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
+/// Implements a command group function that enqueues a kernel that does one
+/// iteration of reduction of elements in each of work-groups.
+/// At the end of each work-group the partial sum is written to a global buffer.
+/// The function returns the number of the newly generated partial sums.
+template <typename KernelName, typename KernelType, class Reduction>
+enable_if_t<!Reduction::has_fast_atomics, size_t>
+reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
               Reduction &Redu) {
-  size_t WGSize = Range.get_local_range().size();
-  size_t NWorkGroups = Range.get_group_range().size();
+
+  size_t NWorkGroups;
+  size_t WGSize = reduComputeWGSize(NWorkItems, MaxWGSize, NWorkGroups);
+
+  // The last kernel DOES write to user's accessor passed to reduction.
+  // Associate it with handler manually.
+  if (NWorkGroups == 1 && !Reduction::is_usm)
+    Redu.associateWithHandler(CGH);
 
   // The last work-group may be not fully loaded with work, or the work group
   // size may be not power of two. Those two cases considered inefficient
@@ -981,20 +999,21 @@ reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
   auto In = Redu.getReadAccToPreviousPartialReds(CGH);
   if (Reduction::is_usm && NWorkGroups == 1) {
     if (HasUniformWG)
-      reduAuxCGFuncImpl<KernelName, KernelType, Dims, Reduction, true>(
-          CGH, Range, NWorkItems, Redu, In, Redu.getUSMPointer());
+      reduAuxCGFuncImpl<KernelName, KernelType, true>(
+          CGH, NWorkItems, NWorkGroups, WGSize, Redu, In, Redu.getUSMPointer());
     else
-      reduAuxCGFuncImpl<KernelName, KernelType, Dims, Reduction, false>(
-          CGH, Range, NWorkItems, Redu, In, Redu.getUSMPointer());
+      reduAuxCGFuncImpl<KernelName, KernelType, false>(
+          CGH, NWorkItems, NWorkGroups, WGSize, Redu, In, Redu.getUSMPointer());
   } else {
     auto Out = Redu.getWriteAccForPartialReds(NWorkGroups, CGH);
     if (HasUniformWG)
-      reduAuxCGFuncImpl<KernelName, KernelType, Dims, Reduction, true>(
-          CGH, Range, NWorkItems, Redu, In, Out);
+      reduAuxCGFuncImpl<KernelName, KernelType, true>(
+          CGH, NWorkItems, NWorkGroups, WGSize, Redu, In, Out);
     else
-      reduAuxCGFuncImpl<KernelName, KernelType, Dims, Reduction, false>(
-          CGH, Range, NWorkItems, Redu, In, Out);
+      reduAuxCGFuncImpl<KernelName, KernelType, false>(
+          CGH, NWorkItems, NWorkGroups, WGSize, Redu, In, Out);
   }
+  return NWorkGroups;
 }
 
 } // namespace detail
@@ -1007,10 +1026,10 @@ template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
           access::placeholder IsPH>
 detail::reduction_impl<T, BinaryOperation, Dims, false, AccMode, IsPH>
 reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
-          const T &Identity, BinaryOperation) {
+          const T &Identity, BinaryOperation BOp) {
   // The Combiner argument was needed only to define the BinaryOperation param.
   return detail::reduction_impl<T, BinaryOperation, Dims, false, AccMode, IsPH>(
-      Acc, Identity);
+      Acc, Identity, BOp);
 }
 
 /// Creates and returns an object implementing the reduction functionality.
@@ -1035,9 +1054,10 @@ reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
 /// \param Identity, and the binary operation used in the reduction.
 template <typename T, class BinaryOperation>
 detail::reduction_impl<T, BinaryOperation, 0, true, access::mode::read_write>
-reduction(T *VarPtr, const T &Identity, BinaryOperation) {
+reduction(T *VarPtr, const T &Identity, BinaryOperation BOp) {
   return detail::reduction_impl<T, BinaryOperation, 0, true,
-                                access::mode::read_write>(VarPtr, Identity);
+                                access::mode::read_write>(VarPtr, Identity,
+                                                          BOp);
 }
 
 /// Creates and returns an object implementing the reduction functionality.

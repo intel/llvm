@@ -314,11 +314,7 @@ static void reportConflictingAttrs(Sema &S, FunctionDecl *F, const Attr *A1,
 
 /// Returns the signed constant integer value represented by given expression
 static int64_t getIntExprValue(const Expr *E, ASTContext &Ctx) {
-  llvm::APSInt Val(32);
-  bool IsValid = E->isIntegerConstantExpr(Val, Ctx);
-  assert(IsValid && "expression must be constant integer");
-  (void)IsValid;
-  return Val.getSExtValue();
+  return E->getIntegerConstantExpr(Ctx)->getSExtValue();
 }
 
 class MarkDeviceFunction : public RecursiveASTVisitor<MarkDeviceFunction> {
@@ -354,8 +350,7 @@ public:
       // all functions used by kernel have already been parsed and have
       // definitions.
       if (RecursiveSet.count(Callee) && !ConstexprDepth) {
-        SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
-            << Sema::KernelCallRecursiveFunction;
+        SemaRef.Diag(e->getExprLoc(), diag::warn_sycl_restrict_recursion);
         SemaRef.Diag(Callee->getSourceRange().getBegin(),
                      diag::note_sycl_recursive_function_declared_here)
             << Sema::KernelCallRecursiveFunction;
@@ -515,52 +510,25 @@ public:
 
       if (auto *A = FD->getAttr<IntelReqdSubGroupSizeAttr>())
         Attrs.insert(A);
+
       if (auto *A = FD->getAttr<ReqdWorkGroupSizeAttr>())
         Attrs.insert(A);
-      // Allow the following kernel attributes only on lambda functions and
-      // function objects that are called directly from a kernel (i.e. the one
-      // passed to the parallel_for function). For all other cases,
-      // emit a warning and ignore.
-      if (auto *A = FD->getAttr<SYCLIntelKernelArgsRestrictAttr>()) {
-        if (ParentFD == SYCLKernel) {
-          Attrs.insert(A);
-        } else {
-          SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
-          FD->dropAttr<SYCLIntelKernelArgsRestrictAttr>();
-        }
-      }
-      if (auto *A = FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
-        if (ParentFD == SYCLKernel) {
-          Attrs.insert(A);
-        } else {
-          SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
-          FD->dropAttr<SYCLIntelNumSimdWorkItemsAttr>();
-        }
-      }
-      if (auto *A = FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-        if (ParentFD == SYCLKernel) {
-          Attrs.insert(A);
-        } else {
-          SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
-          FD->dropAttr<SYCLIntelMaxWorkGroupSizeAttr>();
-        }
-      }
-      if (auto *A = FD->getAttr<SYCLIntelMaxGlobalWorkDimAttr>()) {
-        if (ParentFD == SYCLKernel) {
-          Attrs.insert(A);
-        } else {
-          SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
-          FD->dropAttr<SYCLIntelMaxGlobalWorkDimAttr>();
-        }
-      }
-      if (auto *A = FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>()) {
-        if (ParentFD == SYCLKernel) {
-          Attrs.insert(A);
-        } else {
-          SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
-          FD->dropAttr<SYCLIntelNoGlobalWorkOffsetAttr>();
-        }
-      }
+
+      if (auto *A = FD->getAttr<SYCLIntelKernelArgsRestrictAttr>())
+        Attrs.insert(A);
+
+      if (auto *A = FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>())
+        Attrs.insert(A);
+
+      if (auto *A = FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>())
+        Attrs.insert(A);
+
+      if (auto *A = FD->getAttr<SYCLIntelMaxGlobalWorkDimAttr>())
+        Attrs.insert(A);
+
+      if (auto *A = FD->getAttr<SYCLIntelNoGlobalWorkOffsetAttr>())
+        Attrs.insert(A);
+
       if (auto *A = FD->getAttr<SYCLSimdAttr>())
         Attrs.insert(A);
       // Propagate the explicit SIMD attribute through call graph - it is used
@@ -729,7 +697,7 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
       .Default(InvokeUnknown);
 }
 
-static CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
+static const CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
   return (*Caller->param_begin())->getType()->getAsCXXRecordDecl();
 }
 
@@ -878,12 +846,12 @@ public:
   }
 
   template <typename ParentTy, typename... Handlers>
-  void VisitRecord(CXXRecordDecl *Owner, ParentTy &Parent,
-                   CXXRecordDecl *Wrapper, Handlers &... handlers);
+  void VisitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
+                   const CXXRecordDecl *Wrapper, Handlers &... handlers);
 
   template <typename... Handlers>
-  void VisitRecordHelper(CXXRecordDecl *Owner,
-                         clang::CXXRecordDecl::base_class_range Range,
+  void VisitRecordHelper(const CXXRecordDecl *Owner,
+                         clang::CXXRecordDecl::base_class_const_range Range,
                          Handlers &... handlers) {
     for (const auto &Base : Range) {
       (void)std::initializer_list<int>{
@@ -906,15 +874,15 @@ public:
   }
 
   template <typename... Handlers>
-  void VisitRecordHelper(CXXRecordDecl *Owner,
-                         clang::RecordDecl::field_range Range,
+  void VisitRecordHelper(const CXXRecordDecl *Owner,
+                         RecordDecl::field_range Range,
                          Handlers &... handlers) {
     VisitRecordFields(Owner, handlers...);
   }
 
   // FIXME: Can this be refactored/handled some other way?
   template <typename ParentTy, typename... Handlers>
-  void VisitStreamRecord(CXXRecordDecl *Owner, ParentTy &Parent,
+  void VisitStreamRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
                          CXXRecordDecl *Wrapper, Handlers &... handlers) {
     (void)std::initializer_list<int>{
         (handlers.enterStruct(Owner, Parent), 0)...};
@@ -933,14 +901,15 @@ public:
   }
 
   template <typename... Handlers>
-  void VisitRecordBases(CXXRecordDecl *KernelFunctor, Handlers &... handlers) {
+  void VisitRecordBases(const CXXRecordDecl *KernelFunctor,
+                        Handlers &... handlers) {
     VisitRecordHelper(KernelFunctor, KernelFunctor->bases(), handlers...);
   }
 
   // A visitor function that dispatches to functions as defined in
   // SyclKernelFieldHandler for the purposes of kernel generation.
   template <typename... Handlers>
-  void VisitRecordFields(CXXRecordDecl *Owner, Handlers &... handlers) {
+  void VisitRecordFields(const CXXRecordDecl *Owner, Handlers &... handlers) {
 
     for (const auto Field : Owner->fields()) {
       (void)std::initializer_list<int>{
@@ -987,8 +956,8 @@ public:
 // type (which doesn't exist in cases where it is a FieldDecl in the
 // 'root'), and Wrapper is the current struct being unwrapped.
 template <typename ParentTy, typename... Handlers>
-void KernelObjVisitor::VisitRecord(CXXRecordDecl *Owner, ParentTy &Parent,
-                                   CXXRecordDecl *Wrapper,
+void KernelObjVisitor::VisitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
+                                   const CXXRecordDecl *Wrapper,
                                    Handlers &... handlers) {
   (void)std::initializer_list<int>{(handlers.enterStruct(Owner, Parent), 0)...};
   VisitRecordHelper(Wrapper, Wrapper->bases(), handlers...);
@@ -1357,7 +1326,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   llvm::SmallVector<Expr *, 16> InitExprs;
   VarDecl *KernelObjClone;
   InitializedEntity VarEntity;
-  CXXRecordDecl *KernelObj;
+  const CXXRecordDecl *KernelObj;
   llvm::SmallVector<Expr *, 16> MemberExprBases;
   uint64_t ArrayIndex;
   FunctionDecl *KernelCallerFunc;
@@ -1514,7 +1483,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     // [kernel_obj or wrapper object].accessor.__init(_ValueType*,
     // range<int>, range<int>, id<int>)
     CXXMemberCallExpr *Call = CXXMemberCallExpr::Create(
-        SemaRef.Context, MethodME, ParamStmts, ResultTy, VK, SourceLocation());
+        SemaRef.Context, MethodME, ParamStmts, ResultTy, VK, SourceLocation(),
+        FPOptionsOverride());
     if (MethodName == FinalizeMethodName)
       FinalizeStmts.push_back(Call);
     else
@@ -1524,7 +1494,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   // FIXME Avoid creation of kernel obj clone.
   // See https://github.com/intel/llvm/issues/1544 for details.
   static VarDecl *createKernelObjClone(ASTContext &Ctx, DeclContext *DC,
-                                       CXXRecordDecl *KernelObj) {
+                                       const CXXRecordDecl *KernelObj) {
     TypeSourceInfo *TSInfo =
         KernelObj->isLambda() ? KernelObj->getLambdaTypeInfo() : nullptr;
     VarDecl *VD = VarDecl::Create(
@@ -1572,7 +1542,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
 public:
   SyclKernelBodyCreator(Sema &S, SyclKernelDeclCreator &DC,
-                        CXXRecordDecl *KernelObj,
+                        const CXXRecordDecl *KernelObj,
                         FunctionDecl *KernelCallerFunc)
       : SyclKernelFieldHandler(S), DeclCreator(DC),
         KernelObjClone(createKernelObjClone(S.getASTContext(),
@@ -1934,7 +1904,7 @@ public:
 void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
                                  MangleContext &MC) {
   // The first argument to the KernelCallerFunc is the lambda object.
-  CXXRecordDecl *KernelObj = getKernelObjectType(KernelCallerFunc);
+  const CXXRecordDecl *KernelObj = getKernelObjectType(KernelCallerFunc);
   assert(KernelObj && "invalid kernel caller");
 
   // Calculate both names, since Integration headers need both.
@@ -1943,6 +1913,11 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       constructKernelName(*this, KernelCallerFunc, MC);
   StringRef KernelName(getLangOpts().SYCLUnnamedLambda ? StableName
                                                        : CalculatedName);
+  if (KernelObj->isLambda()) {
+    for (const LambdaCapture &LC : KernelObj->captures())
+      if (LC.capturesThis() && LC.isImplicit())
+        Diag(LC.getLocation(), diag::err_implicit_this_capture);
+  }
   SyclKernelFieldChecker checker(*this);
   SyclKernelDeclCreator kernel_decl(
       *this, checker, KernelName, KernelObj->getLocation(),
@@ -1963,6 +1938,27 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   ConstructingOpenCLKernel = false;
 }
 
+// This function marks all the callees of explicit SIMD kernel
+// with !sycl_explicit_simd. We want to have different semantics
+// for functions that are called from SYCL and E-SIMD contexts.
+// Later, functions marked with !sycl_explicit_simd will be cloned
+// to maintain two different semantics.
+void Sema::MarkSyclSimd() {
+  for (Decl *D : syclDeviceDecls())
+    if (auto SYCLKernel = dyn_cast<FunctionDecl>(D))
+      if (SYCLKernel->hasAttr<SYCLSimdAttr>()) {
+        MarkDeviceFunction Marker(*this);
+        Marker.SYCLCG.addToCallGraph(getASTContext().getTranslationUnitDecl());
+        llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;
+        Marker.CollectKernelSet(SYCLKernel, SYCLKernel, VisitedSet);
+        for (const auto &elt : Marker.KernelSet) {
+          if (FunctionDecl *Def = elt->getDefinition())
+            if (!Def->hasAttr<SYCLSimdAttr>())
+              Def->addAttr(SYCLSimdAttr::CreateImplicit(getASTContext()));
+        }
+      }
+}
+
 void Sema::MarkDevice(void) {
   // Create the call graph so we can detect recursion and check the validity
   // of new operator overrides. Add the kernel function itself in case
@@ -1973,7 +1969,8 @@ void Sema::MarkDevice(void) {
   // Iterate through SYCL_EXTERNAL functions and add them to the device decls.
   for (const auto &entry : *Marker.SYCLCG.getRoot()) {
     if (auto *FD = dyn_cast<FunctionDecl>(entry.Callee->getDecl())) {
-      if (FD->hasAttr<SYCLDeviceAttr>() && !FD->hasAttr<SYCLKernelAttr>())
+      if (FD->hasAttr<SYCLDeviceAttr>() && !FD->hasAttr<SYCLKernelAttr>() &&
+          FD->hasBody())
         addSyclDeviceDecl(FD);
     }
   }
@@ -2027,6 +2024,38 @@ void Sema::MarkDevice(void) {
               Diag(Attr->getLocation(), diag::note_conflicting_attribute);
               SYCLKernel->setInvalidDecl();
             }
+          } else if (auto *Existing =
+                         SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+            if (Existing->getXDim() < Attr->getXDim() ||
+                Existing->getYDim() < Attr->getYDim() ||
+                Existing->getZDim() < Attr->getZDim()) {
+              Diag(SYCLKernel->getLocation(),
+                   diag::err_conflicting_sycl_kernel_attributes);
+              Diag(Existing->getLocation(), diag::note_conflicting_attribute);
+              Diag(Attr->getLocation(), diag::note_conflicting_attribute);
+              SYCLKernel->setInvalidDecl();
+            } else {
+              SYCLKernel->addAttr(A);
+            }
+          } else {
+            SYCLKernel->addAttr(A);
+          }
+          break;
+        }
+        case attr::Kind::SYCLIntelMaxWorkGroupSize: {
+          auto *Attr = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
+          if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
+            if (Existing->getXDim() > Attr->getXDim() ||
+                Existing->getYDim() > Attr->getYDim() ||
+                Existing->getZDim() > Attr->getZDim()) {
+              Diag(SYCLKernel->getLocation(),
+                   diag::err_conflicting_sycl_kernel_attributes);
+              Diag(Existing->getLocation(), diag::note_conflicting_attribute);
+              Diag(Attr->getLocation(), diag::note_conflicting_attribute);
+              SYCLKernel->setInvalidDecl();
+            } else {
+              SYCLKernel->addAttr(A);
+            }
           } else {
             SYCLKernel->addAttr(A);
           }
@@ -2035,10 +2064,9 @@ void Sema::MarkDevice(void) {
         case attr::Kind::SYCLIntelKernelArgsRestrict:
         case attr::Kind::SYCLIntelNumSimdWorkItems:
         case attr::Kind::SYCLIntelMaxGlobalWorkDim:
-        case attr::Kind::SYCLIntelMaxWorkGroupSize:
         case attr::Kind::SYCLIntelNoGlobalWorkOffset:
         case attr::Kind::SYCLSimd: {
-          if ((A->getKind() == attr::Kind::SYCLSimd) &&
+          if ((A->getKind() == attr::Kind::SYCLSimd) && KernelBody &&
               !KernelBody->getAttr<SYCLSimdAttr>()) {
             // Usual kernel can't call ESIMD functions.
             Diag(KernelBody->getLocation(),

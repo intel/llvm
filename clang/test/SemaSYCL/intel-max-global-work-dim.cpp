@@ -20,8 +20,7 @@ void foo() {
 
 #else // __SYCL_DEVICE_ONLY__
 
-[[intelfpga::max_global_work_dim(2)]] // expected-warning{{'max_global_work_dim' attribute ignored}}
-void func_ignore() {}
+[[intelfpga::max_global_work_dim(2)]] void func_do_not_ignore() {}
 
 struct FuncObj {
   [[intelfpga::max_global_work_dim(1)]]
@@ -68,9 +67,9 @@ int main() {
       []() [[intelfpga::max_global_work_dim(2)]] {});
 
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
-  // CHECK-NOT:   SYCLIntelMaxGlobalWorkDimAttr {{.*}}
+  // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
   kernel<class test_kernel3>(
-      []() {func_ignore();});
+      []() { func_do_not_ignore(); });
 
   kernel<class test_kernel4>(
       TRIFuncObjGood1());

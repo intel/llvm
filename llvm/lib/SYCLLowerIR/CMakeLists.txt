@@ -7,7 +7,7 @@ if (NOT TARGET LLVMGenXIntrinsics)
     include(FetchContent)
     FetchContent_Declare(vc-intrinsics
       GIT_REPOSITORY https://github.com/intel/vc-intrinsics.git
-      GIT_TAG        cce6e48c28eb850d7dadd30841c0d95f009bbca1
+      GIT_TAG        5e35898100ebe3747ea50c91b05e679757b25703
     )
     FetchContent_MakeAvailable(vc-intrinsics)
     FetchContent_GetProperties(vc-intrinsics)
@@ -28,10 +28,14 @@ if (NOT TARGET LLVMGenXIntrinsics)
   )
 endif()
 
+set_property(GLOBAL PROPERTY LLVMGenXIntrinsics_SOURCE_PROP ${LLVMGenXIntrinsics_SOURCE_DIR})
+set_property(GLOBAL PROPERTY LLVMGenXIntrinsics_BINARY_PROP ${LLVMGenXIntrinsics_BINARY_DIR})
+
 add_llvm_component_library(LLVMSYCLLowerIR
   LowerWGScope.cpp
   LowerESIMD.cpp
   LowerESIMDVLoadVStore.cpp
+  LowerESIMDVecArg.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR

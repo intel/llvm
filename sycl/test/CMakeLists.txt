@@ -81,17 +81,17 @@ add_lit_testsuite(check-sycl-opencl "Running the SYCL regression tests for OpenC
   )
 set_target_properties(check-sycl-opencl PROPERTIES FOLDER "SYCL tests")
 
-add_lit_testsuite(check-sycl-level0 "Running the SYCL regression tests for Level Zero"
+add_lit_testsuite(check-sycl-level-zero "Running the SYCL regression tests for Level Zero"
   ${CMAKE_CURRENT_BINARY_DIR}
   ARGS ${RT_TEST_ARGS}
-  PARAMS "SYCL_BE=PI_LEVEL0"
+  PARAMS "SYCL_BE=PI_LEVEL_ZERO"
   DEPENDS ${SYCL_TEST_DEPS}
   EXCLUDE_FROM_CHECK_ALL
   )
-set_target_properties(check-sycl-level0 PROPERTIES FOLDER "SYCL tests")
+set_target_properties(check-sycl-level-zero PROPERTIES FOLDER "SYCL tests")
 
 add_custom_target(check-sycl)
-add_dependencies(check-sycl check-sycl-opencl check-sycl-level0)
+add_dependencies(check-sycl check-sycl-opencl check-sycl-level-zero)
 set_target_properties(check-sycl PROPERTIES FOLDER "SYCL tests")
 
 if(SYCL_BUILD_PI_CUDA)
