@@ -527,13 +527,6 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
     BM->addEntryPoint(ExecutionModelKernel, BF->getId());
   else if (F->getLinkage() != GlobalValue::InternalLinkage)
     BF->setLinkageType(transLinkageType(F));
-
-  // Translate OpenCL/SYCL buffer_location metadata if it's attached to the
-  // translated function declaration
-  MDNode *BufferLocation = nullptr;
-  if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fpga_buffer_location))
-    BufferLocation = ((*F).getMetadata("kernel_arg_buffer_location"));
-
   auto Attrs = F->getAttributes();
 
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
@@ -559,15 +552,6 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
       BA->addDecorate(DecorationMaxByteOffset,
                       Attrs.getAttribute(ArgNo + 1, Attribute::Dereferenceable)
                           .getDereferenceableBytes());
-    if (BufferLocation && I->getType()->isPointerTy()) {
-      // Order of integer numbers in MD node follows the order of function
-      // parameters on which we shall attach the appropriate decoration. Add
-      // decoration only if MD value is not negative.
-      BM->addCapability(CapabilityFPGABufferLocationINTEL);
-      int LocID = getMDOperandAsInt(BufferLocation, ArgNo);
-      if (LocID >= 0)
-        BA->addDecorate(DecorationBufferLocationINTEL, LocID);
-    }
   }
   if (Attrs.hasAttribute(AttributeList::ReturnIndex, Attribute::ZExt))
     BF->addDecorate(DecorationFuncParamAttr, FunctionParameterAttributeZext);

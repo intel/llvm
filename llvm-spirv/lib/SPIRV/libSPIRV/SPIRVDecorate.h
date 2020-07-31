@@ -164,8 +164,6 @@ public:
       return getSet(ExtensionID::SPV_INTEL_function_pointers);
     case DecorationIOPipeStorageINTEL:
       return getSet(ExtensionID::SPV_INTEL_io_pipes);
-    case DecorationBufferLocationINTEL:
-      return getSet(ExtensionID::SPV_INTEL_fpga_buffer_location);
     default:
       return SPIRVExtSet();
     }
@@ -269,8 +267,6 @@ public:
       return getSet(ExtensionID::SPV_INTEL_fpga_memory_accesses);
     case DecorationIOPipeStorageINTEL:
       return getSet(ExtensionID::SPV_INTEL_io_pipes);
-    case DecorationBufferLocationINTEL:
-      return getSet(ExtensionID::SPV_INTEL_fpga_buffer_location);
     default:
       return SPIRVExtSet();
     }
