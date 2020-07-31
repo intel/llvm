@@ -1084,6 +1084,51 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
     return false;
   }
 
+  void checkPropertyListType(TemplateArgument PropList, SourceLocation Loc) {
+    if (PropList.getKind() != TemplateArgument::ArgKind::Type) {
+      SemaRef.Diag(Loc,
+                   diag::err_sycl_invalid_accessor_property_template_param);
+      return;
+    }
+    QualType PropListTy = PropList.getAsType();
+    if (!Util::isPropertyListType(PropListTy)) {
+      SemaRef.Diag(Loc,
+                   diag::err_sycl_invalid_accessor_property_template_param);
+      return;
+    }
+    const auto *PropListDecl =
+        cast<ClassTemplateSpecializationDecl>(PropListTy->getAsRecordDecl());
+    const auto TemplArg = PropListDecl->getTemplateArgs()[0];
+    if (TemplArg.getKind() != TemplateArgument::ArgKind::Pack) {
+      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_template_param)
+          << "property_list" << /*parameter pack*/ 0;
+      return;
+    }
+    for (TemplateArgument::pack_iterator Prop = TemplArg.pack_begin();
+         Prop != TemplArg.pack_end(); ++Prop) {
+      QualType PropTy = Prop->getAsType();
+      if (Util::isSyclBufferLocationType(PropTy))
+        checkBufferLocationType(PropTy, Loc);
+    }
+  }
+
+  void checkBufferLocationType(QualType PropTy, SourceLocation Loc) {
+    const auto *PropDecl =
+        cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
+    const auto BufferLoc = PropDecl->getTemplateArgs()[0];
+    if (BufferLoc.getKind() != TemplateArgument::ArgKind::Integral) {
+      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_template_param)
+          << "buffer_location" << /*non-negative integer*/ 2;
+      return;
+    }
+    int LocationID = static_cast<int>(BufferLoc.getAsIntegral().getExtValue());
+    if (LocationID < 0) {
+      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_template_param)
+          << "buffer_location" << /*non-negative integer*/ 2;
+      return;
+    }
+  }
+
   void checkAccessorType(QualType Ty, SourceRange Loc) {
     assert(Util::isSyclAccessorType(Ty) &&
            "Should only be called on SYCL accessor types.");
@@ -1095,6 +1140,8 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
       TemplateArgument TA = TAL.get(0);
       const QualType TemplateArgTy = TA.getAsType();
 
+      if (TAL.size() > 5)
+        checkPropertyListType(TAL.get(5), Loc.getBegin());
       llvm::DenseSet<QualType> Visited;
       checkSYCLType(SemaRef, TemplateArgTy, Loc, Visited);
     }
@@ -1188,26 +1235,10 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     if (AccTy->getTemplateArgs().size() < 6)
       return;
     const auto PropList = cast<TemplateArgument>(AccTy->getTemplateArgs()[5]);
-    if (PropList.getKind() != TemplateArgument::ArgKind::Type) {
-      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_template_param)
-          << "accessor's 5th" << /*type*/ 1;
-      return;
-    }
     QualType PropListTy = PropList.getAsType();
-    if (!Util::isPropertyListType(PropListTy)) {
-      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_template_param)
-          << "accessor's 5th" << /*property_list*/ 3;
-      return;
-    }
-
     const auto *PropListDecl =
         cast<ClassTemplateSpecializationDecl>(PropListTy->getAsRecordDecl());
     const auto TemplArg = PropListDecl->getTemplateArgs()[0];
-    if (TemplArg.getKind() != TemplateArgument::ArgKind::Pack) {
-      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_template_param)
-          << "property_list" << /*parameter pack*/ 0;
-      return;
-    }
     // Move through TemplateArgs list of a property list and search for
     // properties. If found - apply the appropriate attribute to ParmVarDecl.
     for (TemplateArgument::pack_iterator Prop = TemplArg.pack_begin();
@@ -1233,17 +1264,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     const auto *PropDecl =
         cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
     const auto BufferLoc = PropDecl->getTemplateArgs()[0];
-    if (BufferLoc.getKind() != TemplateArgument::ArgKind::Integral) {
-      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_template_param)
-          << "buffer_location" << /*non-negative integer*/ 2;
-      return;
-    }
     int LocationID = static_cast<int>(BufferLoc.getAsIntegral().getExtValue());
-    if (LocationID < 0) {
-      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_template_param)
-          << "buffer_location" << /*non-negative integer*/ 2;
-      return;
-    }
     Param->addAttr(
         SYCLIntelBufferLocationAttr::CreateImplicit(Ctx, LocationID));
   }
@@ -1262,15 +1283,12 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     // Don't do -1 here because we count on this to be the first parameter added
     // (if any).
     size_t ParamIndex = Params.size();
-    ParmVarDecl **ParamIt = InitMethod->parameters().begin();
-    if (*ParamIt) {
-      addParam(FD, (*ParamIt)->getType().getCanonicalType());
-      if (isAccessorType)
+    for (const ParmVarDecl *Param : InitMethod->parameters()) {
+      QualType ParamTy = Param->getType();
+      addParam(FD, ParamTy.getCanonicalType());
+      if (ParamTy.getTypePtr()->isPointerType() && isAccessorType)
         handleAccessorPropertyList(Params.back(), RecordDecl,
                                    FD->getLocation());
-      ++ParamIt;
-      for (; ParamIt != InitMethod->parameters().end(); ++ParamIt)
-        addParam(FD, (*ParamIt)->getType().getCanonicalType());
     }
     LastParamIndex = ParamIndex;
     return true;
@@ -1341,13 +1359,11 @@ public:
     // Don't do -1 here because we count on this to be the first parameter added
     // (if any).
     size_t ParamIndex = Params.size();
-    ParmVarDecl **ParamIt = InitMethod->parameters().begin();
-    if (*ParamIt) {
-      addParam(BS, (*ParamIt)->getType().getCanonicalType());
-      handleAccessorPropertyList(Params.back(), RecordDecl, BS.getBeginLoc());
-      ++ParamIt;
-      for (; ParamIt != InitMethod->parameters().end(); ++ParamIt)
-        addParam(BS, (*ParamIt)->getType().getCanonicalType());
+    for (const ParmVarDecl *Param : InitMethod->parameters()) {
+      QualType ParamTy = Param->getType();
+      addParam(BS, ParamTy.getCanonicalType());
+      if (ParamTy.getTypePtr()->isPointerType())
+        handleAccessorPropertyList(Params.back(), RecordDecl, BS.getBeginLoc());
     }
     LastParamIndex = ParamIndex;
     return true;

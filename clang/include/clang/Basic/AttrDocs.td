@@ -2007,7 +2007,9 @@ the number of kernel parameters. The metadata contains an integer that is set
 according to the values passed through the ``accessor`` property
 ``buffer_location``. These values are mapped to the actual locations of the
 global buffers (such as DDR, QDR, etc) and applied to pointer kernel parameters.
-The default value is -1.
+Number of metadata arguments is the same as a number of kernel parameters, so
+any parameter that isn't an ``accessor`` with ``buffer_location`` property is
+annotated by '-1' in the metadata node.
   }];
 }
 
