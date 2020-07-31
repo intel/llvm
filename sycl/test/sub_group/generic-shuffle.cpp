@@ -18,8 +18,7 @@
 #include "helper.hpp"
 #include <CL/sycl.hpp>
 #include <complex>
-template <typename T>
-class pointer_kernel;
+template <typename T> class pointer_kernel;
 
 using namespace cl::sycl;
 
@@ -59,8 +58,9 @@ void check_pointer(queue &Queue, size_t G = 240, size_t L = 60) {
         /* Save GID+SGID */
         acc_down[NdItem.get_global_id()] = SG.shuffle_down(ptr, sgid);
 
-        /* Save GID XOR SGID */
-        acc_xor[NdItem.get_global_id()] = SG.shuffle_xor(ptr, sgid);
+        /* Save GID with SGLID = ( SGLID XOR SGID ) % SGMaxSize */
+        acc_xor[NdItem.get_global_id()] =
+            SG.shuffle_xor(ptr, sgid % SG.get_max_local_range()[0]);
       });
     });
     auto acc = buf.template get_access<access::mode::read_write>();
@@ -71,30 +71,44 @@ void check_pointer(queue &Queue, size_t G = 240, size_t L = 60) {
 
     size_t sg_size = sgsizeacc[0];
     int SGid = 0;
+    int SGLid = 0;
+    int SGBeginGid = 0;
     for (int j = 0; j < G; j++) {
       if (j % L % sg_size == 0) {
         SGid++;
+        SGLid = 0;
+        SGBeginGid = j;
       }
       if (j % L == 0) {
         SGid = 0;
+        SGLid = 0;
+        SGBeginGid = j;
       }
 
       /*GID of middle element in every subgroup*/
-      exit_if_not_equal(acc[j], static_cast<T *>(0x0) + (j / L * L + SGid * sg_size + sg_size / 2),
+      exit_if_not_equal(acc[j],
+                        static_cast<T *>(0x0) +
+                            (j / L * L + SGid * sg_size + sg_size / 2),
                         "shuffle");
 
       /* Value GID+SGID for all element except last SGID in SG*/
       if (j % L % sg_size + SGid < sg_size && j % L + SGid < L) {
-        exit_if_not_equal(acc_down[j], static_cast<T *>(0x0) + (j + SGid), "shuffle_down");
+        exit_if_not_equal(acc_down[j], static_cast<T *>(0x0) + (j + SGid),
+                          "shuffle_down");
       }
 
       /* Value GID-SGID for all element except first SGID in SG*/
       if (j % L % sg_size >= SGid) {
-        exit_if_not_equal(acc_up[j], static_cast<T *>(0x0) + (j - SGid), "shuffle_up");
+        exit_if_not_equal(acc_up[j], static_cast<T *>(0x0) + (j - SGid),
+                          "shuffle_up");
       }
 
-      /* GID XOR SGID */
-      exit_if_not_equal(acc_xor[j], static_cast<T *>(0x0) + (j ^ SGid), "shuffle_xor");
+      /* Value GID with SGLID = ( SGLID XOR SGID ) % SGMaxSize */
+      exit_if_not_equal(acc_xor[j],
+                        static_cast<T *>(0x0) +
+                            (SGBeginGid + (SGLid ^ (SGid % sg_size))),
+                        "shuffle_xor");
+      SGLid++;
     }
   } catch (exception e) {
     std::cout << "SYCL exception caught: " << e.what();
@@ -145,8 +159,9 @@ void check_struct(queue &Queue, Generator &Gen, size_t G = 240, size_t L = 60) {
         /* Save GID+SGID */
         acc_down[NdItem.get_global_id()] = SG.shuffle_down(val, sgid);
 
-        /* Save GID XOR SGID */
-        acc_xor[NdItem.get_global_id()] = SG.shuffle_xor(val, sgid);
+        /* Save GID with SGLID = ( SGLID XOR SGID ) % SGMaxSize */
+        acc_xor[NdItem.get_global_id()] =
+            SG.shuffle_xor(val, sgid % SG.get_max_local_range()[0]);
       });
     });
     auto acc = buf.template get_access<access::mode::read_write>();
@@ -157,17 +172,23 @@ void check_struct(queue &Queue, Generator &Gen, size_t G = 240, size_t L = 60) {
 
     size_t sg_size = sgsizeacc[0];
     int SGid = 0;
+    int SGLid = 0;
+    int SGBeginGid = 0;
     for (int j = 0; j < G; j++) {
       if (j % L % sg_size == 0) {
         SGid++;
+        SGLid = 0;
+        SGBeginGid = j;
       }
       if (j % L == 0) {
         SGid = 0;
+        SGLid = 0;
+        SGBeginGid = j;
       }
 
       /*GID of middle element in every subgroup*/
-      exit_if_not_equal(acc[j], values[j / L * L + SGid * sg_size + sg_size / 2],
-                        "shuffle");
+      exit_if_not_equal(
+          acc[j], values[j / L * L + SGid * sg_size + sg_size / 2], "shuffle");
 
       /* Value GID+SGID for all element except last SGID in SG*/
       if (j % L % sg_size + SGid < sg_size && j % L + SGid < L) {
@@ -179,8 +200,11 @@ void check_struct(queue &Queue, Generator &Gen, size_t G = 240, size_t L = 60) {
         exit_if_not_equal(acc_up[j], values[j - SGid], "shuffle_up");
       }
 
-      /* GID XOR SGID */
-      exit_if_not_equal(acc_xor[j], values[j ^ SGid], "shuffle_xor");
+      /* Value GID with SGLID = ( SGLID XOR SGID ) % SGMaxSize */
+      exit_if_not_equal(acc_xor[j],
+                        values[SGBeginGid + (SGLid ^ (SGid % sg_size))],
+                        "shuffle_xor");
+      SGLid++;
     }
   } catch (exception e) {
     std::cout << "SYCL exception caught: " << e.what();
