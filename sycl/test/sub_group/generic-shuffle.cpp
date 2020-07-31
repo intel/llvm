@@ -59,8 +59,9 @@ void check_pointer(queue &Queue, size_t G = 240, size_t L = 60) {
             /* Save GID+SGID */
             acc_down[NdItem.get_global_id()] = SG.shuffle_down(ptr, sgid);
 
-            /* Save GID XOR SGID */
-            acc_xor[NdItem.get_global_id()] = SG.shuffle_xor(ptr, sgid);
+            /* Save GID with SGLID = ( SGLID XOR SGID ) % SGMaxSize */
+            acc_xor[NdItem.get_global_id()] =
+                SG.shuffle_xor(ptr, sgid % SG.get_max_local_range()[0]);
           });
     });
     auto acc = buf.template get_access<access::mode::read_write>();
@@ -71,12 +72,18 @@ void check_pointer(queue &Queue, size_t G = 240, size_t L = 60) {
 
     size_t sg_size = sgsizeacc[0];
     int SGid = 0;
+    int SGLid = 0;
+    int SGBeginGid = 0;
     for (int j = 0; j < G; j++) {
       if (j % L % sg_size == 0) {
         SGid++;
+        SGLid = 0;
+        SGBeginGid = j;
       }
       if (j % L == 0) {
         SGid = 0;
+        SGLid = 0;
+        SGBeginGid = j;
       }
 
       /*GID of middle element in every subgroup*/
@@ -97,9 +104,12 @@ void check_pointer(queue &Queue, size_t G = 240, size_t L = 60) {
                           "shuffle_up");
       }
 
-      /* GID XOR SGID */
-      exit_if_not_equal(acc_xor[j], static_cast<T *>(0x0) + (j ^ SGid),
+      /* Value GID with SGLID = ( SGLID XOR SGID ) % SGMaxSize */
+      exit_if_not_equal(acc_xor[j],
+                        static_cast<T *>(0x0) +
+                            (SGBeginGid + (SGLid ^ (SGid % sg_size))),
                         "shuffle_xor");
+      SGLid++;
     }
   } catch (exception e) {
     std::cout << "SYCL exception caught: " << e.what();
@@ -151,8 +161,9 @@ void check_struct(queue &Queue, Generator &Gen, size_t G = 240, size_t L = 60) {
             /* Save GID+SGID */
             acc_down[NdItem.get_global_id()] = SG.shuffle_down(val, sgid);
 
-            /* Save GID XOR SGID */
-            acc_xor[NdItem.get_global_id()] = SG.shuffle_xor(val, sgid);
+            /* Save GID with SGLID = ( SGLID XOR SGID ) % SGMaxSize */
+            acc_xor[NdItem.get_global_id()] =
+                SG.shuffle_xor(val, sgid % SG.get_max_local_range()[0]);
           });
     });
     auto acc = buf.template get_access<access::mode::read_write>();
@@ -163,12 +174,18 @@ void check_struct(queue &Queue, Generator &Gen, size_t G = 240, size_t L = 60) {
 
     size_t sg_size = sgsizeacc[0];
     int SGid = 0;
+    int SGLid = 0;
+    int SGBeginGid = 0;
     for (int j = 0; j < G; j++) {
       if (j % L % sg_size == 0) {
         SGid++;
+        SGLid = 0;
+        SGBeginGid = j;
       }
       if (j % L == 0) {
         SGid = 0;
+        SGLid = 0;
+        SGBeginGid = j;
       }
 
       /*GID of middle element in every subgroup*/
@@ -185,8 +202,11 @@ void check_struct(queue &Queue, Generator &Gen, size_t G = 240, size_t L = 60) {
         exit_if_not_equal(acc_up[j], values[j - SGid], "shuffle_up");
       }
 
-      /* GID XOR SGID */
-      exit_if_not_equal(acc_xor[j], values[j ^ SGid], "shuffle_xor");
+      /* Value GID with SGLID = ( SGLID XOR SGID ) % SGMaxSize */
+      exit_if_not_equal(acc_xor[j],
+                        values[SGBeginGid + (SGLid ^ (SGid % sg_size))],
+                        "shuffle_xor");
+      SGLid++;
     }
   } catch (exception e) {
     std::cout << "SYCL exception caught: " << e.what();
