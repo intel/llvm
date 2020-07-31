@@ -27,10 +27,12 @@ int main() {
       assert(prg.get_state() == cl::sycl::program_state::none);
       prg.build_with_kernel_type<class BuiltKernel>();
       assert(prg.get_state() == cl::sycl::program_state::linked);
-      cl::sycl::vector_class<cl::sycl::vector_class<char>> binaries = prg.get_binaries();
+      cl::sycl::vector_class<cl::sycl::vector_class<char>> binaries =
+          prg.get_binaries();
       assert(prg.has_kernel<class BuiltKernel>());
       cl::sycl::kernel krn = prg.get_kernel<class BuiltKernel>();
-      cl::sycl::string_class name = krn.get_info<cl::sycl::info::kernel::function_name>();
+      cl::sycl::string_class name =
+          krn.get_info<cl::sycl::info::kernel::function_name>();
       assert(prg.has_kernel(name));
 
       q.submit([&](cl::sycl::handler &cgh) {
@@ -53,15 +55,18 @@ int main() {
       assert(prg.get_state() == cl::sycl::program_state::compiled);
       prg.link();
       assert(prg.get_state() == cl::sycl::program_state::linked);
-      cl::sycl::vector_class<cl::sycl::vector_class<char>> binaries = prg.get_binaries();
+      cl::sycl::vector_class<cl::sycl::vector_class<char>> binaries =
+          prg.get_binaries();
       assert(prg.has_kernel<class CompiledKernel>());
       cl::sycl::kernel krn = prg.get_kernel<class CompiledKernel>();
-      cl::sycl::string_class name = krn.get_info<cl::sycl::info::kernel::function_name>();
+      cl::sycl::string_class name =
+          krn.get_info<cl::sycl::info::kernel::function_name>();
       assert(prg.has_kernel(name));
 
       q.submit([&](cl::sycl::handler &cgh) {
         auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
-        cgh.single_task<class CompiledKernel>(krn, [=]() { acc[0] = acc[0] + 1; });
+        cgh.single_task<class CompiledKernel>(krn,
+                                              [=]() { acc[0] = acc[0] + 1; });
       });
     }
     assert(data == 1);
