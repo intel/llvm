@@ -5,9 +5,14 @@
 using namespace llvm;
 using namespace WebAssembly;
 
-template <> bool ConcreteSortRegion<MachineLoop>::isLoop() const {
+namespace llvm {
+namespace WebAssembly {
+template <>
+bool ConcreteSortRegion<MachineLoop>::isLoop() const {
   return true;
 }
+} // end namespace WebAssembly
+} // end namespace llvm
 
 const SortRegion *SortRegionInfo::getRegionFor(const MachineBasicBlock *MBB) {
   const auto *ML = MLI.getLoopFor(MBB);

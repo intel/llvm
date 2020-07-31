@@ -90,7 +90,7 @@ private:
     }
     unsigned Sent = 0;
     unsigned FailedToSend = 0;
-    Index->lookup(*Req, [&](const auto &Item) {
+    Index->lookup(*Req, [&](const clangd::Symbol &Item) {
       auto SerializedItem = ProtobufMarshaller->toProtobuf(Item);
       if (!SerializedItem) {
         ++FailedToSend;
@@ -121,7 +121,7 @@ private:
     }
     unsigned Sent = 0;
     unsigned FailedToSend = 0;
-    bool HasMore = Index->fuzzyFind(*Req, [&](const auto &Item) {
+    bool HasMore = Index->fuzzyFind(*Req, [&](const clangd::Symbol &Item) {
       auto SerializedItem = ProtobufMarshaller->toProtobuf(Item);
       if (!SerializedItem) {
         ++FailedToSend;
@@ -150,7 +150,7 @@ private:
     }
     unsigned Sent = 0;
     unsigned FailedToSend = 0;
-    bool HasMore = Index->refs(*Req, [&](const auto &Item) {
+    bool HasMore = Index->refs(*Req, [&](const clangd::Ref &Item) {
       auto SerializedItem = ProtobufMarshaller->toProtobuf(Item);
       if (!SerializedItem) {
         ++FailedToSend;
@@ -163,6 +163,38 @@ private:
     });
     RefsReply LastMessage;
     LastMessage.set_final_result(HasMore);
+    Reply->Write(LastMessage);
+    SPAN_ATTACH(Tracer, "Sent", Sent);
+    SPAN_ATTACH(Tracer, "Failed to send", FailedToSend);
+    return grpc::Status::OK;
+  }
+
+  grpc::Status Relations(grpc::ServerContext *Context,
+                         const RelationsRequest *Request,
+                         grpc::ServerWriter<RelationsReply> *Reply) override {
+    trace::Span Tracer(RelationsRequest::descriptor()->name());
+    auto Req = ProtobufMarshaller->fromProtobuf(Request);
+    if (!Req) {
+      elog("Can not parse RelationsRequest from protobuf: {0}",
+           Req.takeError());
+      return grpc::Status::CANCELLED;
+    }
+    unsigned Sent = 0;
+    unsigned FailedToSend = 0;
+    Index->relations(
+        *Req, [&](const SymbolID &Subject, const clangd::Symbol &Object) {
+          auto SerializedItem = ProtobufMarshaller->toProtobuf(Subject, Object);
+          if (!SerializedItem) {
+            ++FailedToSend;
+            return;
+          }
+          RelationsReply NextMessage;
+          *NextMessage.mutable_stream_result() = *SerializedItem;
+          Reply->Write(NextMessage);
+          ++Sent;
+        });
+    RelationsReply LastMessage;
+    LastMessage.set_final_result(true);
     Reply->Write(LastMessage);
     SPAN_ATTACH(Tracer, "Sent", Sent);
     SPAN_ATTACH(Tracer, "Failed to send", FailedToSend);
