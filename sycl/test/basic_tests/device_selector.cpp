@@ -8,11 +8,9 @@
 
 #include <iostream>
 
-using namespace cl::sycl;
-
-class RejectEverything : public device_selector {
+class RejectEverything : public sycl::device_selector {
 public:
-  int operator()(const device &Device) const final {
+  int operator()(const sycl::device &Device) const final {
     // Negative value means that a device must not be selected
     return -1;
   }
@@ -22,7 +20,7 @@ int main() {
   RejectEverything Selector;
   try {
     sycl::device Device(Selector);
-  } catch (runtime_error &E) {
+  } catch (sycl::runtime_error &E) {
     return 0;
   }
   std::cerr << "Error. A device is found." << std::endl;

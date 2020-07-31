@@ -40,9 +40,7 @@ device device_selector::select_device(info::device_type deviceType,
   // return if a requested deviceType is found
   if (deviceType != info::device_type::all) {
     if (deviceType == info::device_type::host) {
-      vector_class<device> devices;
-      devices.resize(1);
-      return devices[0];
+      return device{};
     }
 
     const vector_class<detail::plugin> &plugins = RT::initialize();
@@ -72,7 +70,9 @@ device device_selector::select_device(info::device_type deviceType,
     }
   }
 
-  // return a device that has the highest score according to heuristic
+  // failed to find the requested device type if deviceType is specified.
+  // So, return a best match device that has the highest score according to
+  // heuristic
   vector_class<device> devices = device::get_devices(deviceType);
   int score = REJECT_DEVICE_SCORE;
   const device *res = nullptr;

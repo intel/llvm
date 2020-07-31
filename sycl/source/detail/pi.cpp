@@ -221,20 +221,20 @@ bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
   // to be loaded. Note that SYCL_BE=PI_LEVEL0 prevents from other OCL CPU
   // devices to be discovered.
 
-  const char *envVal = std::getenv("SYCL_FORCE_PI");
-  std::string forcedPIs;
-  if (envVal) {
-    forcedPIs = envVal;
-    std::transform(forcedPIs.begin(), forcedPIs.end(), forcedPIs.begin(),
+  const char *EnvVal = std::getenv("SYCL_FORCE_PI");
+  std::string ForcedPIs;
+  if (EnvVal) {
+    ForcedPIs = EnvVal;
+    std::transform(ForcedPIs.begin(), ForcedPIs.end(), ForcedPIs.begin(),
                    ::tolower);
   }
-  if (!envVal || forcedPIs.find("opencl") != std::string::npos) {
+  if (!EnvVal || ForcedPIs.find("opencl") != std::string::npos) {
     PluginNames.emplace_back(OPENCL_PLUGIN_NAME, backend::opencl);
   }
-  if (!envVal || forcedPIs.find("level0") != std::string::npos) {
-    PluginNames.emplace_back(LEVEL_ZERO_PLUGIN_NAME, backend::level0);
+  if (!EnvVal || ForcedPIs.find("level0") != std::string::npos) {
+    PluginNames.emplace_back(LEVEL_ZERO_PLUGIN_NAME, backend::level_zero);
   }
-  if (!envVal || forcedPIs.find("cuda") != std::string::npos) {
+  if (!EnvVal || ForcedPIs.find("cuda") != std::string::npos) {
     PluginNames.emplace_back(CUDA_PLUGIN_NAME, backend::cuda);
   }
   return true;

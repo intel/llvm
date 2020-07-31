@@ -7,6 +7,9 @@
 // RUN: env SYCL_DEVICE_TYPE=GPU SYCL_BE=%sycl_be %t.out
 // RUN: env SYCL_DEVICE_TYPE=CPU SYCL_BE=%sycl_be %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST SYCL_BE=%sycl_be %t.out
+// RUN: env SYCL_FORCE_PI=level0 SYCL_BE=%sycl_be %t.out
+// RUN: env SYCL_FORCE_PI=opencl %t.out
+// RUN: env SYCL_FORCE_PI=cuda %t.out
 //
 // Checks that only designated plugins are loaded when SYCL_FORCE_PI is set.
 // Checks that all different device types can be acquired from select_device()
@@ -30,7 +33,7 @@ int main() {
   }
   default_selector ds;
   if (!pis || forcedPIs.find("level0") != std::string::npos) {
-    device d = ds.select_device(info::device_type::gpu, backend::level0);
+    device d = ds.select_device(info::device_type::gpu, backend::level_zero);
     std::cout << "Level-zero GPU Device is found: " << std::boolalpha
               << d.is_gpu() << std::endl;
   }
@@ -60,7 +63,7 @@ int main() {
   if (!pis && forcedBE == "PI_LEVEL0") {
     auto devices = device::get_devices(info::device_type::cpu);
     assert(devices.size() == 0 &&
-           "Error: CPU device is found when SYCL_FORCED_PI=PI_LEVEL0");
+           "Error: CPU device is found when SYCL_BE=PI_LEVEL0");
     device d = ds.select_device(info::device_type::cpu);
     assert(d.is_cpu() && "Error: CPU device is not found by select_device.");
   }
