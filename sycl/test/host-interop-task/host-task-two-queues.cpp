@@ -4,7 +4,7 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //
 // TODO: Flaky fail on Level Zero that is why mark as unsupported temporarily.
-// UNSUPPORTED: level0
+// UNSUPPORTED: level_zero
 
 #include <CL/sycl.hpp>
 #include <vector>

@@ -12,18 +12,12 @@
 
 #include "DwarfCompileUnit.h"
 #include "AddressPool.h"
-#include "DwarfDebug.h"
 #include "DwarfExpression.h"
-#include "DwarfUnit.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringRef.h"
-#include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/CodeGen/DIE.h"
-#include "llvm/CodeGen/LexicalScopes.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineOperand.h"
@@ -32,22 +26,16 @@
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugInfo.h"
-#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/MC/MCSection.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/MCSymbolWasm.h"
 #include "llvm/MC/MachineLocation.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
-#include <algorithm>
-#include <cassert>
-#include <cstdint>
 #include <iterator>
-#include <memory>
 #include <string>
 #include <utility>
 
@@ -117,7 +105,7 @@ unsigned DwarfCompileUnit::getOrCreateSourceID(const DIFile *File) {
     return Asm->OutStreamer->emitDwarfFileDirective(0, "", "", None, None,
                                                     CUID);
   return Asm->OutStreamer->emitDwarfFileDirective(
-      0, File->getDirectory(), File->getFilename(), getMD5AsBytes(File),
+      0, File->getDirectory(), File->getFilename(), DD->getMD5AsBytes(File),
       File->getSource(), CUID);
 }
 
@@ -803,6 +791,10 @@ static SmallVector<const DIVariable *, 2> dependencies(DbgVariable *Var) {
     return Result;
   if (auto *DLVar = Array->getDataLocation())
     Result.push_back(DLVar);
+  if (auto *AsVar = Array->getAssociated())
+    Result.push_back(AsVar);
+  if (auto *AlVar = Array->getAllocated())
+    Result.push_back(AlVar);
   for (auto *El : Array->getElements()) {
     if (auto *Subrange = dyn_cast<DISubrange>(El)) {
       if (auto Count = Subrange->getCount())

@@ -147,11 +147,9 @@ using IsKnownIdentityOp =
 template <typename T, class BinaryOperation, typename Subst = void>
 class reducer {
 public:
-  reducer(const T &Identity) : MValue(Identity), MIdentity(Identity) {}
-  void combine(const T &Partial) {
-    BinaryOperation BOp;
-    MValue = BOp(MValue, Partial);
-  }
+  reducer(const T &Identity, BinaryOperation BOp)
+      : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
+  void combine(const T &Partial) { MValue = MBinaryOp(MValue, Partial); }
 
   T getIdentity() const { return MIdentity; }
 
@@ -159,6 +157,7 @@ public:
 
 private:
   const T MIdentity;
+  BinaryOperation MBinaryOp;
 };
 
 /// Specialization of the generic class 'reducer'. It is used for reductions
@@ -183,7 +182,7 @@ class reducer<T, BinaryOperation,
               enable_if_t<IsKnownIdentityOp<T, BinaryOperation>::value>> {
 public:
   reducer() : MValue(getIdentity()) {}
-  reducer(const T &) : MValue(getIdentity()) {}
+  reducer(const T &, BinaryOperation) : MValue(getIdentity()) {}
 
   void combine(const T &Partial) {
     BinaryOperation BOp;
@@ -405,7 +404,7 @@ public:
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
-  reduction_impl(accessor_type &Acc, const T &Identity)
+  reduction_impl(accessor_type &Acc, const T &Identity, BinaryOperation)
       : MAcc(shared_ptr_class<accessor_type>(shared_ptr_class<accessor_type>{},
                                              &Acc)),
         MIdentity(getIdentity()) {
@@ -431,10 +430,10 @@ public:
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<!IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
-  reduction_impl(accessor_type &Acc, const T &Identity)
+  reduction_impl(accessor_type &Acc, const T &Identity, BinaryOperation BOp)
       : MAcc(shared_ptr_class<accessor_type>(shared_ptr_class<accessor_type>{},
                                              &Acc)),
-        MIdentity(Identity) {
+        MIdentity(Identity), MBinaryOp(BOp) {
     assert(Acc.get_count() == 1 &&
            "Only scalar/1-element reductions are supported now.");
   }
@@ -456,7 +455,7 @@ public:
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
-  reduction_impl(T *VarPtr, const T &Identity)
+  reduction_impl(T *VarPtr, const T &Identity, BinaryOperation)
       : MIdentity(Identity), MUSMPointer(VarPtr) {
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
@@ -478,8 +477,8 @@ public:
   template <
       typename _T = T, class _BinaryOperation = BinaryOperation,
       enable_if_t<!IsKnownIdentityOp<_T, _BinaryOperation>::value> * = nullptr>
-  reduction_impl(T *VarPtr, const T &Identity)
-      : MIdentity(Identity), MUSMPointer(VarPtr) {}
+  reduction_impl(T *VarPtr, const T &Identity, BinaryOperation BOp)
+      : MIdentity(Identity), MUSMPointer(VarPtr), MBinaryOp(BOp) {}
 
   /// Associates reduction accessor with the given handler and saves reduction
   /// buffer so that it is alive until the command group finishes the work.
@@ -563,6 +562,9 @@ public:
     return OutPtr;
   }
 
+  /// Returns the binary operation associated with the reduction.
+  BinaryOperation getBinaryOperation() const { return MBinaryOp; }
+
 private:
   /// Identity of the BinaryOperation.
   /// The result of BinaryOperation(X, MIdentity) is equal to X for any X.
@@ -576,6 +578,8 @@ private:
   /// USM pointer referencing the memory to where the result of the reduction
   /// must be written. Applicable/used only for USM reductions.
   T *MUSMPointer = nullptr;
+
+  BinaryOperation MBinaryOp;
 };
 
 /// These are the forward declaration for the classes that help to create
@@ -794,9 +798,10 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
   typename Reduction::result_type ReduIdentity = Redu.getIdentity();
   using Name = typename get_reduction_main_kernel_name_t<
       KernelName, KernelType, Reduction::is_usm, UniformPow2WG, OutputT>::name;
+  auto BOp = Redu.getBinaryOperation();
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     // Call user's functions. Reducer.MValue gets initialized there.
-    typename Reduction::reducer_type Reducer(ReduIdentity);
+    typename Reduction::reducer_type Reducer(ReduIdentity, BOp);
     KernelFunc(NDIt, Reducer);
 
     size_t WGSize = NDIt.get_local_range().size();
@@ -811,7 +816,6 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
     // Tree-reduction: reduce the local array LocalReds[:] to LocalReds[0]
     // LocalReds[WGSize] accumulates last/odd elements when the step
     // of tree-reduction loop is not even.
-    typename Reduction::binary_operation BOp;
     size_t PrevStep = WGSize;
     for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
       if (LID < CurStep)
@@ -925,6 +929,7 @@ reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
   auto LocalReds = Redu.getReadWriteLocalAcc(NumLocalElements, CGH);
 
   auto ReduIdentity = Redu.getIdentity();
+  auto BOp = Redu.getBinaryOperation();
   using Name = typename get_reduction_aux_kernel_name_t<
       KernelName, KernelType, Reduction::is_usm, UniformPow2WG, OutputT>::name;
   nd_range<1> Range{range<1>(NWorkItems), range<1>(WGSize)};
@@ -943,7 +948,6 @@ reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
     // Tree-reduction: reduce the local array LocalReds[:] to LocalReds[0]
     // LocalReds[WGSize] accumulates last/odd elements when the step
     // of tree-reduction loop is not even.
-    typename Reduction::binary_operation BOp;
     size_t PrevStep = WGSize;
     for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
       if (LID < CurStep)
@@ -1022,10 +1026,10 @@ template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
           access::placeholder IsPH>
 detail::reduction_impl<T, BinaryOperation, Dims, false, AccMode, IsPH>
 reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
-          const T &Identity, BinaryOperation) {
+          const T &Identity, BinaryOperation BOp) {
   // The Combiner argument was needed only to define the BinaryOperation param.
   return detail::reduction_impl<T, BinaryOperation, Dims, false, AccMode, IsPH>(
-      Acc, Identity);
+      Acc, Identity, BOp);
 }
 
 /// Creates and returns an object implementing the reduction functionality.
@@ -1050,9 +1054,10 @@ reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
 /// \param Identity, and the binary operation used in the reduction.
 template <typename T, class BinaryOperation>
 detail::reduction_impl<T, BinaryOperation, 0, true, access::mode::read_write>
-reduction(T *VarPtr, const T &Identity, BinaryOperation) {
+reduction(T *VarPtr, const T &Identity, BinaryOperation BOp) {
   return detail::reduction_impl<T, BinaryOperation, 0, true,
-                                access::mode::read_write>(VarPtr, Identity);
+                                access::mode::read_write>(VarPtr, Identity,
+                                                          BOp);
 }
 
 /// Creates and returns an object implementing the reduction functionality.

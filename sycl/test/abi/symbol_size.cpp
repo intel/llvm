@@ -54,12 +54,12 @@ int main() {
   check_size<gpu_selector, 8>();
 #ifdef _MSC_VER
   check_size<handler, 552>();
-  check_size<detail::buffer_impl, 288>();
-  check_size<detail::image_impl<1>, 344>();
+  check_size<detail::buffer_impl, 216>();
+  check_size<detail::image_impl<1>, 272>();
 #else
   check_size<handler, 560>();
-  check_size<detail::buffer_impl, 256>();
-  check_size<detail::image_impl<1>, 312>();
+  check_size<detail::buffer_impl, 184>();
+  check_size<detail::image_impl<1>, 240>();
 #endif
   check_size<image<1>, 16>();
   check_size<kernel, 16>();

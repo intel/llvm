@@ -14,13 +14,13 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace level0 {
+namespace level_zero {
 using namespace detail;
 
 //----------------------------------------------------------------------------
-// Implementation of level0::make<platform>
+// Implementation of level_zero::make<platform>
 __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle) {
-  const auto &Plugin = pi::getPlugin<backend::level0>();
+  const auto &Plugin = pi::getPlugin<backend::level_zero>();
   // Create PI platform first.
   pi::PiPlatform PiPlatform;
   Plugin.call<PiApiKind::piextPlatformCreateWithNativeHandle>(NativeHandle,
@@ -32,10 +32,10 @@ __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle) {
 }
 
 //----------------------------------------------------------------------------
-// Implementation of level0::make<device>
+// Implementation of level_zero::make<device>
 __SYCL_EXPORT device make_device(const platform &Platform,
                                  pi_native_handle NativeHandle) {
-  const auto &Plugin = pi::getPlugin<backend::level0>();
+  const auto &Plugin = pi::getPlugin<backend::level_zero>();
   const auto &PlatformImpl = getSyclObjImpl(Platform);
   // Create PI device first.
   pi::PiDevice PiDevice;
@@ -47,7 +47,7 @@ __SYCL_EXPORT device make_device(const platform &Platform,
 }
 
 //----------------------------------------------------------------------------
-// Implementation of level0::make<program>
+// Implementation of level_zero::make<program>
 __SYCL_EXPORT program make_program(const context &Context,
                                    pi_native_handle NativeHandle) {
   // Construct the SYCL program from native program.
@@ -58,10 +58,10 @@ __SYCL_EXPORT program make_program(const context &Context,
 }
 
 //----------------------------------------------------------------------------
-// Implementation of level0::make<queue>
+// Implementation of level_zero::make<queue>
 __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle NativeHandle) {
-  const auto &Plugin = pi::getPlugin<backend::level0>();
+  const auto &Plugin = pi::getPlugin<backend::level_zero>();
   const auto &ContextImpl = getSyclObjImpl(Context);
   // Create PI queue first.
   pi::PiQueue PiQueue;
@@ -72,6 +72,6 @@ __SYCL_EXPORT queue make_queue(const context &Context,
       PiQueue, ContextImpl, ContextImpl->get_async_handler()));
 }
 
-} // namespace level0
+} // namespace level_zero
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
