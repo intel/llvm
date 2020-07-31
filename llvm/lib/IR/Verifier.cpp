@@ -1035,6 +1035,16 @@ void Verifier::visitDICompositeType(const DICompositeType &N) {
     AssertDI(N.getTag() == dwarf::DW_TAG_array_type,
              "dataLocation can only appear in array type");
   }
+
+  if (N.getRawAssociated()) {
+    AssertDI(N.getTag() == dwarf::DW_TAG_array_type,
+             "associated can only appear in array type");
+  }
+
+  if (N.getRawAllocated()) {
+    AssertDI(N.getTag() == dwarf::DW_TAG_array_type,
+             "allocated can only appear in array type");
+  }
 }
 
 void Verifier::visitDISubroutineType(const DISubroutineType &N) {
@@ -1652,9 +1662,10 @@ void Verifier::verifyParameterAttrs(AttributeSet Attrs, Type *Ty,
   AttrCount += Attrs.hasAttribute(Attribute::StructRet) ||
                Attrs.hasAttribute(Attribute::InReg);
   AttrCount += Attrs.hasAttribute(Attribute::Nest);
+  AttrCount += Attrs.hasAttribute(Attribute::ByRef);
   Assert(AttrCount <= 1,
          "Attributes 'byval', 'inalloca', 'preallocated', 'inreg', 'nest', "
-         "and 'sret' are incompatible!",
+         "'byref', and 'sret' are incompatible!",
          V);
 
   Assert(!(Attrs.hasAttribute(Attribute::InAlloca) &&
@@ -1720,9 +1731,10 @@ void Verifier::verifyParameterAttrs(AttributeSet Attrs, Type *Ty,
     SmallPtrSet<Type*, 4> Visited;
     if (!PTy->getElementType()->isSized(&Visited)) {
       Assert(!Attrs.hasAttribute(Attribute::ByVal) &&
-                 !Attrs.hasAttribute(Attribute::InAlloca) &&
-                 !Attrs.hasAttribute(Attribute::Preallocated),
-             "Attributes 'byval', 'inalloca', and 'preallocated' do not "
+             !Attrs.hasAttribute(Attribute::ByRef) &&
+             !Attrs.hasAttribute(Attribute::InAlloca) &&
+             !Attrs.hasAttribute(Attribute::Preallocated),
+             "Attributes 'byval', 'byref', 'inalloca', and 'preallocated' do not "
              "support unsized types!",
              V);
     }
@@ -1731,9 +1743,17 @@ void Verifier::verifyParameterAttrs(AttributeSet Attrs, Type *Ty,
              "Attribute 'swifterror' only applies to parameters "
              "with pointer to pointer type!",
              V);
+
+    if (Attrs.hasAttribute(Attribute::ByRef)) {
+      Assert(Attrs.getByRefType() == PTy->getElementType(),
+             "Attribute 'byref' type does not match parameter!", V);
+    }
   } else {
     Assert(!Attrs.hasAttribute(Attribute::ByVal),
            "Attribute 'byval' only applies to parameters with pointer type!",
+           V);
+    Assert(!Attrs.hasAttribute(Attribute::ByRef),
+           "Attribute 'byref' only applies to parameters with pointer type!",
            V);
     Assert(!Attrs.hasAttribute(Attribute::SwiftError),
            "Attribute 'swifterror' only applies to parameters "
@@ -1765,10 +1785,11 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
           !RetAttrs.hasAttribute(Attribute::Returned) &&
           !RetAttrs.hasAttribute(Attribute::InAlloca) &&
           !RetAttrs.hasAttribute(Attribute::Preallocated) &&
+          !RetAttrs.hasAttribute(Attribute::ByRef) &&
           !RetAttrs.hasAttribute(Attribute::SwiftSelf) &&
           !RetAttrs.hasAttribute(Attribute::SwiftError)),
-         "Attributes 'byval', 'inalloca', 'preallocated', 'nest', 'sret', "
-         "'nocapture', 'nofree', "
+         "Attributes 'byval', 'inalloca', 'preallocated', 'byref', "
+         "'nest', 'sret', 'nocapture', 'nofree', "
          "'returned', 'swiftself', and 'swifterror' do not apply to return "
          "values!",
          V);
@@ -2292,6 +2313,28 @@ void Verifier::visitFunction(const Function &F) {
   case CallingConv::AMDGPU_CS:
     Assert(!F.hasStructRetAttr(),
            "Calling convention does not allow sret", &F);
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL) {
+      const unsigned StackAS = DL.getAllocaAddrSpace();
+      unsigned i = 0;
+      for (const Argument &Arg : F.args()) {
+        Assert(!Attrs.hasParamAttribute(i, Attribute::ByVal),
+               "Calling convention disallows byval", &F);
+        Assert(!Attrs.hasParamAttribute(i, Attribute::Preallocated),
+               "Calling convention disallows preallocated", &F);
+        Assert(!Attrs.hasParamAttribute(i, Attribute::InAlloca),
+               "Calling convention disallows inalloca", &F);
+
+        if (Attrs.hasParamAttribute(i, Attribute::ByRef)) {
+          // FIXME: Should also disallow LDS and GDS, but we don't have the enum
+          // value here.
+          Assert(Arg.getType()->getPointerAddressSpace() != StackAS,
+                 "Calling convention disallows stack byref", &F);
+        }
+
+        ++i;
+      }
+    }
+
     LLVM_FALLTHROUGH;
   case CallingConv::Fast:
   case CallingConv::Cold:
@@ -3174,17 +3217,19 @@ static bool isTypeCongruent(Type *L, Type *R) {
 
 static AttrBuilder getParameterABIAttributes(int I, AttributeList Attrs) {
   static const Attribute::AttrKind ABIAttrs[] = {
-      Attribute::StructRet,   Attribute::ByVal,     Attribute::InAlloca,
-      Attribute::InReg,       Attribute::SwiftSelf, Attribute::SwiftError,
-      Attribute::Preallocated};
+      Attribute::StructRet,    Attribute::ByVal,     Attribute::InAlloca,
+      Attribute::InReg,        Attribute::SwiftSelf, Attribute::SwiftError,
+      Attribute::Preallocated, Attribute::ByRef};
   AttrBuilder Copy;
   for (auto AK : ABIAttrs) {
     if (Attrs.hasParamAttribute(I, AK))
       Copy.addAttribute(AK);
   }
-  // `align` is ABI-affecting only in combination with `byval`.
+
+  // `align` is ABI-affecting only in combination with `byval` or `byref`.
   if (Attrs.hasParamAttribute(I, Attribute::Alignment) &&
-      Attrs.hasParamAttribute(I, Attribute::ByVal))
+      (Attrs.hasParamAttribute(I, Attribute::ByVal) ||
+       Attrs.hasParamAttribute(I, Attribute::ByRef)))
     Copy.addAlignmentAttr(Attrs.getParamAlignment(I));
   return Copy;
 }
@@ -4449,32 +4494,21 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
       Assert(Elem.Tag->getKey() == "ignore" ||
                  Attribute::isExistingAttribute(Elem.Tag->getKey()),
              "tags must be valid attribute names");
+      Assert(Elem.End - Elem.Begin <= 2, "to many arguments");
       Attribute::AttrKind Kind =
           Attribute::getAttrKindFromName(Elem.Tag->getKey());
-      unsigned ArgCount = Elem.End - Elem.Begin;
-      if (Kind == Attribute::Alignment) {
-        Assert(ArgCount <= 3 && ArgCount >= 2,
-               "alignment assumptions should have 2 or 3 arguments");
-        Assert(Call.getOperand(Elem.Begin)->getType()->isPointerTy(),
-               "first argument should be a pointer");
-        Assert(Call.getOperand(Elem.Begin + 1)->getType()->isIntegerTy(),
-               "second argument should be an integer");
-        if (ArgCount == 3)
-          Assert(Call.getOperand(Elem.Begin + 2)->getType()->isIntegerTy(),
-                 "third argument should be an integer if present");
-        return;
-      }
-      Assert(ArgCount <= 2, "to many arguments");
       if (Kind == Attribute::None)
         break;
       if (Attribute::doesAttrKindHaveArgument(Kind)) {
-        Assert(ArgCount == 2, "this attribute should have 2 arguments");
+        Assert(Elem.End - Elem.Begin == 2,
+               "this attribute should have 2 arguments");
         Assert(isa<ConstantInt>(Call.getOperand(Elem.Begin + 1)),
                "the second argument should be a constant integral value");
       } else if (isFuncOnlyAttr(Kind)) {
-        Assert((ArgCount) == 0, "this attribute has no argument");
+        Assert((Elem.End - Elem.Begin) == 0, "this attribute has no argument");
       } else if (!isFuncOrArgAttr(Kind)) {
-        Assert((ArgCount) == 1, "this attribute should have one argument");
+        Assert((Elem.End - Elem.Begin) == 1,
+               "this attribute should have one argument");
       }
     }
     break;
@@ -4577,6 +4611,9 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
                "llvm.call.preallocated.alloc arg index must be between 0 and "
                "corresponding "
                "llvm.call.preallocated.setup's argument count");
+      } else if (Fn && Fn->getIntrinsicID() ==
+                           Intrinsic::call_preallocated_teardown) {
+        // nothing to do
       } else {
         Assert(!FoundCall, "Can have at most one call corresponding to a "
                            "llvm.call.preallocated.setup");
@@ -4623,6 +4660,14 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
     Assert(Call.hasFnAttr(Attribute::Preallocated),
            "llvm.call.preallocated.arg must be called with a \"preallocated\" "
            "call site attribute");
+    break;
+  }
+  case Intrinsic::call_preallocated_teardown: {
+    auto *Token = dyn_cast<CallBase>(Call.getArgOperand(0));
+    Assert(Token && Token->getCalledFunction()->getIntrinsicID() ==
+                        Intrinsic::call_preallocated_setup,
+           "llvm.call.preallocated.teardown token argument must be a "
+           "llvm.call.preallocated.setup");
     break;
   }
   case Intrinsic::gcroot:
@@ -5006,36 +5051,73 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
   case Intrinsic::matrix_transpose:
   case Intrinsic::matrix_column_major_load:
   case Intrinsic::matrix_column_major_store: {
+    Function *IF = Call.getCalledFunction();
+    ConstantInt *Stride = nullptr;
     ConstantInt *NumRows;
     ConstantInt *NumColumns;
-    VectorType *TypeToCheck;
+    VectorType *ResultTy;
+    Type *Op0ElemTy = nullptr;
+    Type *Op1ElemTy = nullptr;
     switch (ID) {
     case Intrinsic::matrix_multiply:
       NumRows = cast<ConstantInt>(Call.getArgOperand(2));
       NumColumns = cast<ConstantInt>(Call.getArgOperand(4));
-      TypeToCheck = cast<VectorType>(Call.getType());
+      ResultTy = cast<VectorType>(Call.getType());
+      Op0ElemTy =
+          cast<VectorType>(Call.getArgOperand(0)->getType())->getElementType();
+      Op1ElemTy =
+          cast<VectorType>(Call.getArgOperand(1)->getType())->getElementType();
       break;
     case Intrinsic::matrix_transpose:
       NumRows = cast<ConstantInt>(Call.getArgOperand(1));
       NumColumns = cast<ConstantInt>(Call.getArgOperand(2));
-      TypeToCheck = cast<VectorType>(Call.getType());
+      ResultTy = cast<VectorType>(Call.getType());
+      Op0ElemTy =
+          cast<VectorType>(Call.getArgOperand(0)->getType())->getElementType();
       break;
     case Intrinsic::matrix_column_major_load:
+      Stride = dyn_cast<ConstantInt>(Call.getArgOperand(1));
       NumRows = cast<ConstantInt>(Call.getArgOperand(3));
       NumColumns = cast<ConstantInt>(Call.getArgOperand(4));
-      TypeToCheck = cast<VectorType>(Call.getType());
+      ResultTy = cast<VectorType>(Call.getType());
+      Op0ElemTy =
+          cast<PointerType>(Call.getArgOperand(0)->getType())->getElementType();
       break;
     case Intrinsic::matrix_column_major_store:
+      Stride = dyn_cast<ConstantInt>(Call.getArgOperand(2));
       NumRows = cast<ConstantInt>(Call.getArgOperand(4));
       NumColumns = cast<ConstantInt>(Call.getArgOperand(5));
-      TypeToCheck = cast<VectorType>(Call.getArgOperand(0)->getType());
+      ResultTy = cast<VectorType>(Call.getArgOperand(0)->getType());
+      Op0ElemTy =
+          cast<VectorType>(Call.getArgOperand(0)->getType())->getElementType();
+      Op1ElemTy =
+          cast<PointerType>(Call.getArgOperand(1)->getType())->getElementType();
       break;
     default:
       llvm_unreachable("unexpected intrinsic");
     }
-    Assert(TypeToCheck->getNumElements() ==
+
+    Assert(ResultTy->getElementType()->isIntegerTy() ||
+           ResultTy->getElementType()->isFloatingPointTy(),
+           "Result type must be an integer or floating-point type!", IF);
+
+    Assert(ResultTy->getElementType() == Op0ElemTy,
+           "Vector element type mismatch of the result and first operand "
+           "vector!", IF);
+
+    if (Op1ElemTy)
+      Assert(ResultTy->getElementType() == Op1ElemTy,
+             "Vector element type mismatch of the result and second operand "
+             "vector!", IF);
+
+    Assert(ResultTy->getNumElements() ==
                NumRows->getZExtValue() * NumColumns->getZExtValue(),
-           "result of a matrix operation does not fit in the returned vector");
+           "Result of a matrix operation does not fit in the returned vector!");
+
+    if (Stride)
+      Assert(Stride->getZExtValue() >= NumRows->getZExtValue(),
+             "Stride must be greater or equal than the number of rows!", IF);
+
     break;
   }
   };

@@ -183,7 +183,8 @@ def ForOp : SCF_Op<"for",
 
 def IfOp : SCF_Op<"if",
       [DeclareOpInterfaceMethods<RegionBranchOpInterface>,
-       SingleBlockImplicitTerminator<"YieldOp">, RecursiveSideEffects]> {
+       SingleBlockImplicitTerminator<"YieldOp">, RecursiveSideEffects,
+       NoRegionArguments]> {
   let summary = "if-then-else operation";
   let description = [{
     The `scf.if` operation represents an if-then-else construct for
@@ -417,7 +418,8 @@ def ReduceReturnOp :
   let assemblyFormat = "$result attr-dict `:` type($result)";
 }
 
-def YieldOp : SCF_Op<"yield", [NoSideEffect, ReturnLike, Terminator]> {
+def YieldOp : SCF_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
+                               ParentOneOf<["IfOp, ForOp", "ParallelOp"]>]> {
   let summary = "loop yield and termination operation";
   let description = [{
     "scf.yield" yields an SSA value from the SCF dialect op region and
@@ -436,5 +438,8 @@ def YieldOp : SCF_Op<"yield", [NoSideEffect, ReturnLike, Terminator]> {
     OpBuilder<"OpBuilder &builder, OperationState &result",
               [{ /* nothing to do */ }]>
   ];
+  // Override default verifier (defined in SCF_Op), no custom verification
+  // needed.
+  let verifier = ?;
 }
 #endif // MLIR_DIALECT_SCF_SCFOPS

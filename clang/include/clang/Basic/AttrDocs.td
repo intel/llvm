@@ -3472,9 +3472,10 @@ code. See `cl_intel_required_subgroup_size
 for details.
 
 SYCL documentation:
-The [[cl::intel_reqd_sub_group_size(n)]] attribute indicates that the kernel
-must be compiled and executed with a sub-group of size n. The value of n must be
-set to a sub-group size supported by the device, or device compilation will fail.
+The [[cl::intel_reqd_sub_group_size(n)]] and [[intel::reqd_sub_group_size(n)]]
+attribute indicates that the kernel must be compiled and executed with a
+sub-group of size n. The value of n must be set to a sub-group size supported
+by the device, or device compilation will fail.
 
 In addition to device functions, the required sub-group size attribute may also
 be specified in the definition of a named functor object and lambda functions,
@@ -3492,6 +3493,19 @@ as in the examples below:
 
   kernel<class kernel_name>(
   []() [[cl::intel_reqd_sub_group_size(n)]] {
+       /* kernel code */
+  });
+
+  class Functor
+  {
+      [[intel::reqd_sub_group_size(16)]] void operator()(item<1> item)
+      {
+          /* kernel code */
+      }
+  }
+
+  kernel<class kernel_name>(
+  []() [[intel::reqd_sub_group_size(n)]] {
        /* kernel code */
   });
 
@@ -5327,6 +5341,43 @@ close the handle. It is also assumed to require an open handle to work with.
 
   zx_status_t zx_handle_close(zx_handle_t handle [[clang::release_handle]]);
   }];
+}
+
+def ArmSveVectorBitsDocs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+The ``arm_sve_vector_bits(N)`` attribute is defined by the Arm C Language
+Extensions (ACLE) for SVE. It is used to define fixed-length (VLST) variants of
+sizeless types (VLAT).
+
+For example:
+
+.. code-block:: c
+
+  #include <arm_sve.h>
+
+  #if __ARM_FEATURE_SVE_BITS==512
+  typedef svint32_t fixed_svint32_t __attribute__((arm_sve_vector_bits(512)));
+  #endif
+
+Creates a type ``fixed_svint32_t`` that is a fixed-length variant of
+``svint32_t`` that contains exactly 512-bits. Unlike ``svint32_t``, this type
+can be used in globals, structs, unions, and arrays, all of which are
+unsupported for sizeless types.
+
+The attribute can be attached to a single SVE vector (such as ``svint32_t``) or
+to the SVE predicate type ``svbool_t``, this excludes tuple types such as
+``svint32x4_t``. The behavior of the attribute is undefined unless
+``N==__ARM_FEATURE_SVE_BITS``, the implementation defined feature macro that is
+enabled under the ``-msve-vector-bits`` flag.
+
+NOTE: This feature is currently WIP, the ``-msve-vector-bits=`` flag defines
+the ``__ARM_FEATURE_SVE_BITS_EXPERIMENTAL`` macro. This feature is complete
+when experimental is dropped.
+
+For more information See `Arm C Language Extensions for SVE
+<https://developer.arm.com/documentation/100987/latest>`_ for more information.
+}];
 }
 
 def ArmMveStrictPolymorphismDocs : Documentation {

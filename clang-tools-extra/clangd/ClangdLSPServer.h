@@ -87,6 +87,8 @@ private:
   // otherwise.
   void onDocumentSymbol(const DocumentSymbolParams &,
                         Callback<llvm::json::Value>);
+  void onFoldingRange(const FoldingRangeParams &,
+                      Callback<std::vector<FoldingRange>>);
   void onCodeAction(const CodeActionParams &, Callback<llvm::json::Value>);
   void onCompletion(const CompletionParams &, Callback<CompletionList>);
   void onSignatureHelp(const TextDocumentPositionParams &,
@@ -121,8 +123,8 @@ private:
   void onDocumentLink(const DocumentLinkParams &,
                       Callback<std::vector<DocumentLink>>);
   void onSemanticTokens(const SemanticTokensParams &, Callback<SemanticTokens>);
-  void onSemanticTokensEdits(const SemanticTokensEditsParams &,
-                             Callback<SemanticTokensOrEdits>);
+  void onSemanticTokensDelta(const SemanticTokensDeltaParams &,
+                             Callback<SemanticTokensOrDelta>);
 
   std::vector<Fix> getFixes(StringRef File, const clangd::Diagnostic &D);
 

@@ -224,8 +224,7 @@ def GPU_GPUFuncOp : GPU_Op<"func", [HasParent<"GPUModuleOp">,
     ///  - the argument/result attributes may need an update: if the new type
     ///  has less parameters we drop the extra attributes, if there are more
     ///  parameters they won't have any attributes.
-    // TODO(b/146349912): consider removing this function thanks to rewrite
-    // patterns.
+    // TODO: consider removing this function thanks to rewrite patterns.
     void setType(FunctionType newType);
 
     /// Returns the number of buffers located in the workgroup memory.
@@ -238,7 +237,7 @@ def GPU_GPUFuncOp : GPU_Op<"func", [HasParent<"GPUModuleOp">,
     /// the workgroup memory
     ArrayRef<BlockArgument> getWorkgroupAttributions() {
       auto begin =
-          std::next(getBody().front().args_begin(), getType().getNumInputs());
+          std::next(getBody().args_begin(), getType().getNumInputs());
       auto end = std::next(begin, getNumWorkgroupAttributions());
       return {begin, end};
     }
@@ -249,7 +248,7 @@ def GPU_GPUFuncOp : GPU_Op<"func", [HasParent<"GPUModuleOp">,
 
     /// Returns the number of buffers located in the private memory.
     unsigned getNumPrivateAttributions() {
-      return getBody().front().getNumArguments() - getType().getNumInputs() -
+      return getBody().getNumArguments() - getType().getNumInputs() -
           getNumWorkgroupAttributions();
     }
  
@@ -259,9 +258,9 @@ def GPU_GPUFuncOp : GPU_Op<"func", [HasParent<"GPUModuleOp">,
       // Buffers on the private memory always come after buffers on the workgroup
       // memory.
       auto begin =
-          std::next(getBody().front().args_begin(),
+          std::next(getBody().args_begin(),
                     getType().getNumInputs() + getNumWorkgroupAttributions());
-      return {begin, getBody().front().args_end()};
+      return {begin, getBody().args_end()};
     }
 
     /// Adds a new block argument that corresponds to buffers located in

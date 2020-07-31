@@ -11,11 +11,11 @@
 
 using namespace cl::sycl;
 
-constexpr size_t c_num_items = 100;
+constexpr size_t c_num_items = 10;
 range<1> num_items{c_num_items}; // range<1>(num_items)
 
 // Change if tests are added/removed
-static int testCount = 1;
+static int testCount = 2;
 static int passCount;
 
 template <typename T>
@@ -84,6 +84,36 @@ bool test_accessor_array_in_struct(queue &myQueue) {
   return verify_1D("Accessor array in struct", c_num_items, output, ref);
 }
 
+template <typename T>
+struct S {
+  T a[c_num_items];
+};
+bool test_templated_array_in_struct(queue &myQueue) {
+  std::array<int, c_num_items> output;
+  std::array<int, c_num_items> ref;
+  init(ref, 3, 3);
+
+  auto out_buffer = buffer<int, 1>(output.data(), num_items);
+
+  S<int> sint;
+  S<long long> sll;
+  init(sint.a, 1, 1);
+  init(sll.a, 2, 2);
+
+  myQueue.submit([&](handler &cgh) {
+    using Accessor =
+        accessor<int, 1, access::mode::read_write, access::target::global_buffer>;
+    auto output_accessor = out_buffer.get_access<access::mode::write>(cgh);
+
+    cgh.parallel_for<class templated_array_in_struct>(num_items, [=](cl::sycl::id<1> index) {
+      output_accessor[index] = sint.a[index] + sll.a[index];
+    });
+  });
+  const auto HostAccessor = out_buffer.get_access<cl::sycl::access::mode::read>();
+
+  return verify_1D("Templated array in struct", c_num_items, output, ref);
+}
+
 bool run_tests() {
   queue Q([](exception_list L) {
     for (auto ep : L) {
@@ -101,6 +131,9 @@ bool run_tests() {
 
   passCount = 0;
   if (test_accessor_array_in_struct(Q)) {
+    ++passCount;
+  }
+  if (test_templated_array_in_struct(Q)) {
     ++passCount;
   }
 

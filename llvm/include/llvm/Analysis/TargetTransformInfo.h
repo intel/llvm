@@ -42,6 +42,7 @@ class CallBase;
 class ExtractElementInst;
 class Function;
 class GlobalValue;
+class InstCombiner;
 class IntrinsicInst;
 class LoadInst;
 class LoopAccessInfo;
@@ -56,6 +57,7 @@ class TargetLibraryInfo;
 class Type;
 class User;
 class Value;
+struct KnownBits;
 template <typename T> class Optional;
 
 /// Information about a load/store intrinsic defined by the target.
@@ -450,11 +452,6 @@ public:
     /// transformation will select an unrolling factor based on the current cost
     /// threshold and other factors.
     unsigned Count;
-    /// A forced peeling factor (the number of bodied of the original loop
-    /// that should be peeled off before the loop body). When set to 0, the
-    /// unrolling transformation will select a peeling factor based on profile
-    /// information and other factors.
-    unsigned PeelCount;
     /// Default unroll count for loops with run-time trip count.
     unsigned DefaultUnrollRuntimeCount;
     // Set the maximum unrolling factor. The unrolling factor may be selected
@@ -488,19 +485,10 @@ public:
     bool Force;
     /// Allow using trip count upper bound to unroll loops.
     bool UpperBound;
-    /// Allow peeling off loop iterations.
-    bool AllowPeeling;
-    /// Allow peeling off loop iterations for loop nests.
-    bool AllowLoopNestsPeeling;
     /// Allow unrolling of all the iterations of the runtime loop remainder.
     bool UnrollRemainder;
     /// Allow unroll and jam. Used to enable unroll and jam for the target.
     bool UnrollAndJam;
-    /// Allow peeling basing on profile. Uses to enable peeling off all
-    /// iterations basing on provided profile.
-    /// If the value is true the peeling cost model can decide to peel only
-    /// some iterations and in this case it will set this to false.
-    bool PeelProfiledIterations;
     /// Threshold for unroll and jam, for inner loop size. The 'Threshold'
     /// value above is used during unroll and jam for the outer loop size.
     /// This value is used in the same manner to limit the size of the inner
@@ -534,6 +522,51 @@ public:
   /// intrinsic is supported.
   bool emitGetActiveLaneMask() const;
 
+  // Parameters that control the loop peeling transformation
+  struct PeelingPreferences {
+    /// A forced peeling factor (the number of bodied of the original loop
+    /// that should be peeled off before the loop body). When set to 0, the
+    /// a peeling factor based on profile information and other factors.
+    unsigned PeelCount;
+    /// Allow peeling off loop iterations.
+    bool AllowPeeling;
+    /// Allow peeling off loop iterations for loop nests.
+    bool AllowLoopNestsPeeling;
+    /// Allow peeling basing on profile. Uses to enable peeling off all
+    /// iterations basing on provided profile.
+    /// If the value is true the peeling cost model can decide to peel only
+    /// some iterations and in this case it will set this to false.
+    bool PeelProfiledIterations;
+  };
+
+  /// Get target-customized preferences for the generic loop peeling
+  /// transformation. The caller will initialize \p PP with the current
+  /// target-independent defaults with information from \p L and \p SE.
+  void getPeelingPreferences(Loop *L, ScalarEvolution &SE,
+                             PeelingPreferences &PP) const;
+
+  /// Targets can implement their own combinations for target-specific
+  /// intrinsics. This function will be called from the InstCombine pass every
+  /// time a target-specific intrinsic is encountered.
+  ///
+  /// \returns None to not do anything target specific or a value that will be
+  /// returned from the InstCombiner. It is possible to return null and stop
+  /// further processing of the intrinsic by returning nullptr.
+  Optional<Instruction *> instCombineIntrinsic(InstCombiner &IC,
+                                               IntrinsicInst &II) const;
+  /// Can be used to implement target-specific instruction combining.
+  /// \see instCombineIntrinsic
+  Optional<Value *>
+  simplifyDemandedUseBitsIntrinsic(InstCombiner &IC, IntrinsicInst &II,
+                                   APInt DemandedMask, KnownBits &Known,
+                                   bool &KnownBitsComputed) const;
+  /// Can be used to implement target-specific instruction combining.
+  /// \see instCombineIntrinsic
+  Optional<Value *> simplifyDemandedVectorEltsIntrinsic(
+      InstCombiner &IC, IntrinsicInst &II, APInt DemandedElts, APInt &UndefElts,
+      APInt &UndefElts2, APInt &UndefElts3,
+      std::function<void(Instruction *, unsigned, APInt, APInt &)>
+          SimplifyAndSetOp) const;
   /// @}
 
   /// \name Scalar Target Information
@@ -1282,6 +1315,8 @@ public:
   virtual bool isLoweredToCall(const Function *F) = 0;
   virtual void getUnrollingPreferences(Loop *L, ScalarEvolution &,
                                        UnrollingPreferences &UP) = 0;
+  virtual void getPeelingPreferences(Loop *L, ScalarEvolution &SE,
+                                     PeelingPreferences &PP) = 0;
   virtual bool isHardwareLoopProfitable(Loop *L, ScalarEvolution &SE,
                                         AssumptionCache &AC,
                                         TargetLibraryInfo *LibInfo,
@@ -1291,6 +1326,17 @@ public:
                               AssumptionCache &AC, TargetLibraryInfo *TLI,
                               DominatorTree *DT, const LoopAccessInfo *LAI) = 0;
   virtual bool emitGetActiveLaneMask() = 0;
+  virtual Optional<Instruction *> instCombineIntrinsic(InstCombiner &IC,
+                                                       IntrinsicInst &II) = 0;
+  virtual Optional<Value *>
+  simplifyDemandedUseBitsIntrinsic(InstCombiner &IC, IntrinsicInst &II,
+                                   APInt DemandedMask, KnownBits &Known,
+                                   bool &KnownBitsComputed) = 0;
+  virtual Optional<Value *> simplifyDemandedVectorEltsIntrinsic(
+      InstCombiner &IC, IntrinsicInst &II, APInt DemandedElts, APInt &UndefElts,
+      APInt &UndefElts2, APInt &UndefElts3,
+      std::function<void(Instruction *, unsigned, APInt, APInt &)>
+          SimplifyAndSetOp) = 0;
   virtual bool isLegalAddImmediate(int64_t Imm) = 0;
   virtual bool isLegalICmpImmediate(int64_t Imm) = 0;
   virtual bool isLegalAddressingMode(Type *Ty, GlobalValue *BaseGV,
@@ -1560,6 +1606,10 @@ public:
                                UnrollingPreferences &UP) override {
     return Impl.getUnrollingPreferences(L, SE, UP);
   }
+  void getPeelingPreferences(Loop *L, ScalarEvolution &SE,
+                             PeelingPreferences &PP) override {
+    return Impl.getPeelingPreferences(L, SE, PP);
+  }
   bool isHardwareLoopProfitable(Loop *L, ScalarEvolution &SE,
                                 AssumptionCache &AC, TargetLibraryInfo *LibInfo,
                                 HardwareLoopInfo &HWLoopInfo) override {
@@ -1573,6 +1623,26 @@ public:
   }
   bool emitGetActiveLaneMask() override {
     return Impl.emitGetActiveLaneMask();
+  }
+  Optional<Instruction *> instCombineIntrinsic(InstCombiner &IC,
+                                               IntrinsicInst &II) override {
+    return Impl.instCombineIntrinsic(IC, II);
+  }
+  Optional<Value *>
+  simplifyDemandedUseBitsIntrinsic(InstCombiner &IC, IntrinsicInst &II,
+                                   APInt DemandedMask, KnownBits &Known,
+                                   bool &KnownBitsComputed) override {
+    return Impl.simplifyDemandedUseBitsIntrinsic(IC, II, DemandedMask, Known,
+                                                 KnownBitsComputed);
+  }
+  Optional<Value *> simplifyDemandedVectorEltsIntrinsic(
+      InstCombiner &IC, IntrinsicInst &II, APInt DemandedElts, APInt &UndefElts,
+      APInt &UndefElts2, APInt &UndefElts3,
+      std::function<void(Instruction *, unsigned, APInt, APInt &)>
+          SimplifyAndSetOp) override {
+    return Impl.simplifyDemandedVectorEltsIntrinsic(
+        IC, II, DemandedElts, UndefElts, UndefElts2, UndefElts3,
+        SimplifyAndSetOp);
   }
   bool isLegalAddImmediate(int64_t Imm) override {
     return Impl.isLegalAddImmediate(Imm);

@@ -514,7 +514,7 @@ public:
           return;
         }
 
-        if (data.GetByteSize() < m_variable_sp->GetType()->GetByteSize()) {
+        if (data.GetByteSize() < m_variable_sp->GetType()->GetByteSize(scope)) {
           if (data.GetByteSize() == 0 &&
               !m_variable_sp->LocationExpression().IsValid()) {
             err.SetErrorStringWithFormat("the variable '%s' has no location, "
@@ -525,7 +525,7 @@ public:
                 "size of variable %s (%" PRIu64
                 ") is larger than the ValueObject's size (%" PRIu64 ")",
                 m_variable_sp->GetName().AsCString(),
-                m_variable_sp->GetType()->GetByteSize().getValueOr(0),
+                m_variable_sp->GetType()->GetByteSize(scope).getValueOr(0),
                 data.GetByteSize());
           }
           return;
@@ -785,7 +785,9 @@ public:
 
       const lldb::addr_t load_addr = process_address + m_offset;
 
-      ExecutionContextScope *exe_scope = map.GetBestExecutionContextScope();
+      ExecutionContextScope *exe_scope = frame_sp.get();
+      if (!exe_scope)
+        exe_scope = map.GetBestExecutionContextScope();
 
       llvm::Optional<uint64_t> byte_size = m_type.GetByteSize(exe_scope);
       if (!byte_size) {
@@ -795,7 +797,7 @@ public:
 
       llvm::Optional<size_t> opt_bit_align = m_type.GetTypeBitAlign(exe_scope);
       if (!opt_bit_align) {
-        err.SetErrorStringWithFormat("can't get the type alignment");
+        err.SetErrorString("can't get the type alignment");
         return;
       }
 
@@ -835,7 +837,9 @@ public:
                      lldb::addr_t frame_bottom, Status &err) override {
     err.Clear();
 
-    ExecutionContextScope *exe_scope = map.GetBestExecutionContextScope();
+    ExecutionContextScope *exe_scope = frame_sp.get();
+    if (!exe_scope)
+      exe_scope = map.GetBestExecutionContextScope();
 
     if (!exe_scope) {
       err.SetErrorString("Couldn't dematerialize a result variable: invalid "
@@ -1061,7 +1065,9 @@ public:
 
     const Address sym_address = m_symbol.GetAddress();
 
-    ExecutionContextScope *exe_scope = map.GetBestExecutionContextScope();
+    ExecutionContextScope *exe_scope = frame_sp.get();
+    if (!exe_scope)
+      exe_scope = map.GetBestExecutionContextScope();
 
     lldb::TargetSP target_sp;
 
@@ -1342,7 +1348,6 @@ Materializer::DematerializerSP
 Materializer::Materialize(lldb::StackFrameSP &frame_sp, IRMemoryMap &map,
                           lldb::addr_t process_address, Status &error) {
   ExecutionContextScope *exe_scope = frame_sp.get();
-
   if (!exe_scope)
     exe_scope = map.GetBestExecutionContextScope();
 
@@ -1393,7 +1398,9 @@ void Materializer::Dematerializer::Dematerialize(Status &error,
   if (thread_sp)
     frame_sp = thread_sp->GetFrameWithStackID(m_stack_id);
 
-  ExecutionContextScope *exe_scope = m_map->GetBestExecutionContextScope();
+  ExecutionContextScope *exe_scope = frame_sp.get();
+  if (!exe_scope)
+    exe_scope = m_map->GetBestExecutionContextScope();
 
   if (!IsValid()) {
     error.SetErrorToGenericError();

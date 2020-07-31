@@ -8,7 +8,7 @@ endif()
 # Setup Project
 #===============================================================================
 
-cmake_minimum_required(VERSION 3.4.3)
+cmake_minimum_required(VERSION 3.13.4)
 
 if(POLICY CMP0042)
   cmake_policy(SET CMP0042 NEW) # Set MACOSX_RPATH=YES by default
@@ -137,6 +137,8 @@ option(LIBCXXABI_HERMETIC_STATIC_LIBRARY
 
 set(LIBCXXABI_TEST_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/test/lit.site.cfg.in" CACHE STRING
     "The Lit testing configuration to use when running the tests.")
+set(LIBCXXABI_TEST_PARAMS "" CACHE STRING
+    "A list of parameters to run the Lit test suite with.")
 
 #===============================================================================
 # Configure System
@@ -149,12 +151,8 @@ set(CMAKE_MODULE_PATH
   ${CMAKE_MODULE_PATH}
   )
 
-set(LIBCXXABI_COMPILER    ${CMAKE_CXX_COMPILER})
 set(LIBCXXABI_SOURCE_DIR  ${CMAKE_CURRENT_SOURCE_DIR})
 set(LIBCXXABI_BINARY_DIR  ${CMAKE_CURRENT_BINARY_DIR})
-
-string(REGEX MATCH "[0-9]+\\.[0-9]+(\\.[0-9]+)?" CLANG_VERSION
-       ${PACKAGE_VERSION})
 
 if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
   set(LIBCXXABI_LIBRARY_DIR ${LLVM_LIBRARY_OUTPUT_INTDIR}/${LLVM_DEFAULT_TARGET_TRIPLE}/c++)
@@ -285,6 +283,8 @@ add_compile_flags_if_supported(-Wunused-variable)
 add_compile_flags_if_supported(-Wwrite-strings)
 add_compile_flags_if_supported(-Wundef)
 
+add_compile_flags_if_supported(-Wno-suggest-override)
+
 if (LIBCXXABI_ENABLE_WERROR)
   add_compile_flags_if_supported(-Werror)
   add_compile_flags_if_supported(-WX)
@@ -307,7 +307,6 @@ if (LIBCXXABI_ENABLE_EXCEPTIONS)
   # Do we really need to be run through the C compiler ?
   add_c_compile_flags_if_supported(-funwind-tables)
 else()
-  add_definitions(-D_LIBCXXABI_NO_EXCEPTIONS)
   add_compile_flags_if_supported(-fno-exceptions)
   add_compile_flags_if_supported(-EHs-)
   add_compile_flags_if_supported(-EHa-)

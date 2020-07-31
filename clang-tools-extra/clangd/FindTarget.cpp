@@ -58,7 +58,33 @@ nodeToString(const ast_type_traits::DynTypedNode &N) {
   return S;
 }
 
-// Given a dependent type and a member name, heuristically resolve the
+// Helper function for getMembersReferencedViaDependentName()
+// which takes a possibly-dependent type `T` and heuristically
+// resolves it to a CXXRecordDecl in which we can try name lookup.
+CXXRecordDecl *resolveTypeToRecordDecl(const Type *T) {
+  assert(T);
+
+  if (const auto *RT = T->getAs<RecordType>())
+    return dyn_cast<CXXRecordDecl>(RT->getDecl());
+
+  if (const auto *ICNT = T->getAs<InjectedClassNameType>())
+    T = ICNT->getInjectedSpecializationType().getTypePtrOrNull();
+  if (!T)
+    return nullptr;
+
+  const auto *TST = T->getAs<TemplateSpecializationType>();
+  if (!TST)
+    return nullptr;
+
+  const ClassTemplateDecl *TD = dyn_cast_or_null<ClassTemplateDecl>(
+      TST->getTemplateName().getAsTemplateDecl());
+  if (!TD)
+    return nullptr;
+
+  return TD->getTemplatedDecl();
+}
+
+// Given a tag-decl type and a member name, heuristically resolve the
 // name to one or more declarations.
 // The current heuristic is simply to look up the name in the primary
 // template. This is a heuristic because the template could potentially
@@ -82,25 +108,17 @@ std::vector<const NamedDecl *> getMembersReferencedViaDependentName(
         ET->getDecl()->lookup(NameFactory(ET->getDecl()->getASTContext()));
     return {Result.begin(), Result.end()};
   }
-  if (auto *ICNT = T->getAs<InjectedClassNameType>()) {
-    T = ICNT->getInjectedSpecializationType().getTypePtrOrNull();
+  if (auto *RD = resolveTypeToRecordDecl(T)) {
+    if (!RD->hasDefinition())
+      return {};
+    RD = RD->getDefinition();
+    DeclarationName Name = NameFactory(RD->getASTContext());
+    return RD->lookupDependentName(Name, [=](const NamedDecl *D) {
+      return IsNonstaticMember ? D->isCXXInstanceMember()
+                               : !D->isCXXInstanceMember();
+    });
   }
-  auto *TST = T->getAs<TemplateSpecializationType>();
-  if (!TST)
-    return {};
-  const ClassTemplateDecl *TD = dyn_cast_or_null<ClassTemplateDecl>(
-      TST->getTemplateName().getAsTemplateDecl());
-  if (!TD)
-    return {};
-  CXXRecordDecl *RD = TD->getTemplatedDecl();
-  if (!RD->hasDefinition())
-    return {};
-  RD = RD->getDefinition();
-  DeclarationName Name = NameFactory(RD->getASTContext());
-  return RD->lookupDependentName(Name, [=](const NamedDecl *D) {
-    return IsNonstaticMember ? D->isCXXInstanceMember()
-                             : !D->isCXXInstanceMember();
-  });
+  return {};
 }
 
 // Given the type T of a dependent expression that appears of the LHS of a "->",
@@ -142,6 +160,72 @@ const Type *getPointeeType(const Type *T) {
   if (FirstArg.getKind() != TemplateArgument::Type)
     return nullptr;
   return FirstArg.getAsType().getTypePtrOrNull();
+}
+
+// Forward declaration, needed as this function is mutually recursive
+// with resolveDependentExprToDecls.
+const Type *resolveDependentExprToType(const Expr *E);
+
+// Try to heuristically resolve a dependent expression `E` to one
+// or more declarations that it likely references.
+std::vector<const NamedDecl *> resolveDependentExprToDecls(const Expr *E) {
+  assert(E->isTypeDependent());
+  if (const auto *ME = dyn_cast<CXXDependentScopeMemberExpr>(E)) {
+    const Type *BaseType = ME->getBaseType().getTypePtrOrNull();
+    if (ME->isArrow()) {
+      BaseType = getPointeeType(BaseType);
+    }
+    if (!BaseType)
+      return {};
+    if (const auto *BT = BaseType->getAs<BuiltinType>()) {
+      // If BaseType is the type of a dependent expression, it's just
+      // represented as BultinType::Dependent which gives us no information. We
+      // can get further by analyzing the depedent expression.
+      Expr *Base = ME->isImplicitAccess() ? nullptr : ME->getBase();
+      if (Base && BT->getKind() == BuiltinType::Dependent) {
+        BaseType = resolveDependentExprToType(Base);
+      }
+    }
+    return getMembersReferencedViaDependentName(
+        BaseType, [ME](ASTContext &) { return ME->getMember(); },
+        /*IsNonstaticMember=*/true);
+  }
+  if (const auto *RE = dyn_cast<DependentScopeDeclRefExpr>(E)) {
+    return getMembersReferencedViaDependentName(
+        RE->getQualifier()->getAsType(),
+        [RE](ASTContext &) { return RE->getDeclName(); },
+        /*IsNonstaticMember=*/false);
+  }
+  if (const auto *CE = dyn_cast<CallExpr>(E)) {
+    const auto *CalleeType = resolveDependentExprToType(CE->getCallee());
+    if (!CalleeType)
+      return {};
+    if (const auto *FnTypePtr = CalleeType->getAs<PointerType>())
+      CalleeType = FnTypePtr->getPointeeType().getTypePtr();
+    if (const FunctionType *FnType = CalleeType->getAs<FunctionType>()) {
+      if (const auto *D =
+              resolveTypeToRecordDecl(FnType->getReturnType().getTypePtr())) {
+        return {D};
+      }
+    }
+  }
+  if (const auto *ME = dyn_cast<MemberExpr>(E)) {
+    return {ME->getMemberDecl()};
+  }
+  return {};
+}
+
+// Try to heuristically resolve the type of a dependent expression `E`.
+const Type *resolveDependentExprToType(const Expr *E) {
+  std::vector<const NamedDecl *> Decls = resolveDependentExprToDecls(E);
+  if (Decls.size() != 1) // Names an overload set -- just bail.
+    return nullptr;
+  if (const auto *TD = dyn_cast<TypeDecl>(Decls[0])) {
+    return TD->getTypeForDecl();
+  } else if (const auto *VD = dyn_cast<ValueDecl>(Decls[0])) {
+    return VD->getType().getTypePtrOrNull();
+  }
+  return nullptr;
 }
 
 const NamedDecl *getTemplatePattern(const NamedDecl *D) {
@@ -203,9 +287,8 @@ const NamedDecl *getTemplatePattern(const NamedDecl *D) {
 //    and both are lossy. We must know upfront what the caller ultimately wants.
 //
 // FIXME: improve common dependent scope using name lookup in primary templates.
-// e.g. template<typename T> int foo() { return std::vector<T>().size(); }
-// formally size() is unresolved, but the primary template is a good guess.
-// This affects:
+// We currently handle DependentScopeDeclRefExpr and
+// CXXDependentScopeMemberExpr, but some other constructs remain to be handled:
 //  - DependentTemplateSpecializationType,
 //  - DependentNameType
 //  - UnresolvedUsingValueDecl
@@ -270,6 +353,8 @@ public:
       // Record the underlying decl instead, if allowed.
       D = USD->getTargetDecl();
       Flags |= Rel::Underlying; // continue with the underlying decl.
+    } else if (const auto *DG = dyn_cast<CXXDeductionGuideDecl>(D)) {
+      D = DG->getDeducedTemplate();
     }
 
     if (const Decl *Pat = getTemplatePattern(D)) {
@@ -341,21 +426,12 @@ public:
       }
       void
       VisitCXXDependentScopeMemberExpr(const CXXDependentScopeMemberExpr *E) {
-        const Type *BaseType = E->getBaseType().getTypePtrOrNull();
-        if (E->isArrow()) {
-          BaseType = getPointeeType(BaseType);
-        }
-        for (const NamedDecl *D : getMembersReferencedViaDependentName(
-                 BaseType, [E](ASTContext &) { return E->getMember(); },
-                 /*IsNonstaticMember=*/true)) {
+        for (const NamedDecl *D : resolveDependentExprToDecls(E)) {
           Outer.add(D, Flags);
         }
       }
       void VisitDependentScopeDeclRefExpr(const DependentScopeDeclRefExpr *E) {
-        for (const NamedDecl *D : getMembersReferencedViaDependentName(
-                 E->getQualifier()->getAsType(),
-                 [E](ASTContext &) { return E->getDeclName(); },
-                 /*IsNonstaticMember=*/false)) {
+        for (const NamedDecl *D : resolveDependentExprToDecls(E)) {
           Outer.add(D, Flags);
         }
       }
@@ -635,6 +711,15 @@ llvm::SmallVector<ReferenceLoc, 2> refInDecl(const Decl *D) {
                                   ND->getLocation(),
                                   /*IsDecl=*/true,
                                   {ND}});
+    }
+
+    void VisitCXXDeductionGuideDecl(const CXXDeductionGuideDecl *DG) {
+      // The class template name in a deduction guide targets the class
+      // template.
+      Refs.push_back(ReferenceLoc{DG->getQualifierLoc(),
+                                  DG->getNameInfo().getLoc(),
+                                  /*IsDecl=*/false,
+                                  {DG->getDeducedTemplate()}});
     }
   };
 

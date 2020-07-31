@@ -300,20 +300,18 @@ void Sema::ActOnPragmaPack(SourceLocation PragmaLoc, PragmaMsStackAction Action,
   // If specified then alignment must be a "small" power of two.
   unsigned AlignmentVal = 0;
   if (Alignment) {
-    llvm::APSInt Val;
+    Optional<llvm::APSInt> Val;
 
     // pack(0) is like pack(), which just works out since that is what
     // we use 0 for in PackAttr.
-    if (Alignment->isTypeDependent() ||
-        Alignment->isValueDependent() ||
-        !Alignment->isIntegerConstantExpr(Val, Context) ||
-        !(Val == 0 || Val.isPowerOf2()) ||
-        Val.getZExtValue() > 16) {
+    if (Alignment->isTypeDependent() || Alignment->isValueDependent() ||
+        !(Val = Alignment->getIntegerConstantExpr(Context)) ||
+        !(*Val == 0 || Val->isPowerOf2()) || Val->getZExtValue() > 16) {
       Diag(PragmaLoc, diag::warn_pragma_pack_invalid_alignment);
       return; // Ignore
     }
 
-    AlignmentVal = (unsigned) Val.getZExtValue();
+    AlignmentVal = (unsigned)Val->getZExtValue();
   }
   if (Action == Sema::PSK_Show) {
     // Show the current alignment, making sure to show the right value
@@ -492,44 +490,6 @@ void Sema::ActOnPragmaMSVtorDisp(PragmaMsStackAction Action,
     Diag(PragmaLoc, diag::warn_pragma_pop_failed) << "vtordisp"
                                                   << "stack empty";
   VtorDispStack.Act(PragmaLoc, Action, StringRef(), Mode);
-}
-
-template<typename ValueType>
-void Sema::PragmaStack<ValueType>::Act(SourceLocation PragmaLocation,
-                                       PragmaMsStackAction Action,
-                                       llvm::StringRef StackSlotLabel,
-                                       ValueType Value) {
-  if (Action == PSK_Reset) {
-    CurrentValue = DefaultValue;
-    CurrentPragmaLocation = PragmaLocation;
-    return;
-  }
-  if (Action & PSK_Push)
-    Stack.emplace_back(StackSlotLabel, CurrentValue, CurrentPragmaLocation,
-                       PragmaLocation);
-  else if (Action & PSK_Pop) {
-    if (!StackSlotLabel.empty()) {
-      // If we've got a label, try to find it and jump there.
-      auto I = llvm::find_if(llvm::reverse(Stack), [&](const Slot &x) {
-        return x.StackSlotLabel == StackSlotLabel;
-      });
-      // If we found the label so pop from there.
-      if (I != Stack.rend()) {
-        CurrentValue = I->Value;
-        CurrentPragmaLocation = I->PragmaLocation;
-        Stack.erase(std::prev(I.base()), Stack.end());
-      }
-    } else if (!Stack.empty()) {
-      // We do not have a label, just pop the last entry.
-      CurrentValue = Stack.back().Value;
-      CurrentPragmaLocation = Stack.back().PragmaLocation;
-      Stack.pop_back();
-    }
-  }
-  if (Action & PSK_Set) {
-    CurrentValue = Value;
-    CurrentPragmaLocation = PragmaLocation;
-  }
 }
 
 bool Sema::UnifySection(StringRef SectionName,

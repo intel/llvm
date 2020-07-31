@@ -57,11 +57,11 @@ bool trace(TraceLevel level);
 
 #ifdef SYCL_RT_OS_WINDOWS
 #define OPENCL_PLUGIN_NAME "pi_opencl.dll"
-#define LEVEL0_PLUGIN_NAME "pi_level0.dll"
+#define LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
 #define CUDA_PLUGIN_NAME "pi_cuda.dll"
 #else
 #define OPENCL_PLUGIN_NAME "libpi_opencl.so"
-#define LEVEL0_PLUGIN_NAME "libpi_level0.so"
+#define LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.so"
 #define CUDA_PLUGIN_NAME "libpi_cuda.so"
 #endif
 
@@ -250,6 +250,7 @@ public:
     ConstIterator begin() const { return ConstIterator(Begin); }
     ConstIterator end() const { return ConstIterator(End); }
     friend class DeviceBinaryImage;
+    bool isAvailable() const { return !(Begin == nullptr); }
 
   private:
     PropertyRange() : Begin(nullptr), End(nullptr) {}
@@ -298,6 +299,7 @@ public:
   /// name of the property is the specializaion constant symbolic ID and the
   /// value is 32-bit unsigned integer ID.
   const PropertyRange &getSpecConstants() const { return SpecConstIDMap; }
+  const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
   virtual ~DeviceBinaryImage() {}
 
 protected:
@@ -307,6 +309,7 @@ protected:
   pi_device_binary Bin;
   pi::PiDeviceBinaryType Format = PI_DEVICE_BINARY_TYPE_NONE;
   DeviceBinaryImage::PropertyRange SpecConstIDMap;
+  DeviceBinaryImage::PropertyRange DeviceLibReqMask;
 };
 
 /// Tries to determine the device binary image foramat. Returns

@@ -25,6 +25,8 @@
 
 using namespace llvm;
 
+#define DEBUG_TYPE "dwarfdebug"
+
 void DwarfExpression::emitConstu(uint64_t Value) {
   if (Value < 32)
     emitOp(dwarf::DW_OP_lit0 + Value);
@@ -219,6 +221,36 @@ void DwarfExpression::addUnsignedConstant(const APInt &Value) {
   }
 }
 
+void DwarfExpression::addConstantFP(const APFloat &Value) {
+  assert(isImplicitLocation() || isUnknownLocation());
+  APInt RawBytes = Value.bitcastToAPInt();
+  int NumBytes = RawBytes.getBitWidth() / 8;
+  const char *Data = (const char *)RawBytes.getRawData();
+  emitOp(dwarf::DW_OP_implicit_value);
+  if (NumBytes == 4 /*float*/ || NumBytes == 8 /*double*/) {
+    emitUnsigned(NumBytes /*Size of the block in bytes*/);
+    for (int i = 0; i < NumBytes; ++i)
+      emitData1(Data[i]);
+    return;
+  }
+  if (NumBytes == 10 /*long double*/) {
+    // long double IEEE representation uses 80 bits(10 bytes).
+    // 6 bytes are padded to make it 128 bits(16 bytes) due to
+    // addressing restrictions.
+    emitUnsigned(16 /*Size of the block in bytes*/);
+    // Emit the block of bytes.
+    for (int i = 0; i < NumBytes; ++i)
+      emitData1(Data[i]);
+    // Emit the rest as padding bytes.
+    for (int i = 0; i < 16 - NumBytes; ++i)
+      emitData1(0);
+    return;
+  }
+  LLVM_DEBUG(
+      dbgs() << "Skipped DW_OP_implicit_value creation for ConstantFP of size: "
+             << RawBytes.getBitWidth() << " bits\n");
+}
+
 bool DwarfExpression::addMachineRegExpression(const TargetRegisterInfo &TRI,
                                               DIExpressionCursor &ExprCursor,
                                               unsigned MachineReg,
@@ -237,8 +269,17 @@ bool DwarfExpression::addMachineRegExpression(const TargetRegisterInfo &TRI,
   // If the register can only be described by a complex expression (i.e.,
   // multiple subregisters) it doesn't safely compose with another complex
   // expression. For example, it is not possible to apply a DW_OP_deref
-  // operation to multiple DW_OP_pieces.
-  if (HasComplexExpression && DwarfRegs.size() > 1) {
+  // operation to multiple DW_OP_pieces, since composite location descriptions
+  // do not push anything on the DWARF stack.
+  //
+  // DW_OP_entry_value operations can only hold a DWARF expression or a
+  // register location description, so we can't emit a single entry value
+  // covering a composite location description. In the future we may want to
+  // emit entry value operations for each register location in the composite
+  // location, but until that is supported do not emit anything.
+  if ((HasComplexExpression || IsEmittingEntryValue) && DwarfRegs.size() > 1) {
+    if (IsEmittingEntryValue)
+      cancelEntryValue();
     DwarfRegs.clear();
     LocationKind = Unknown;
     return false;
@@ -349,7 +390,6 @@ void DwarfExpression::beginEntryValueExpression(
   assert(Op->getArg(0) == 1 &&
          "Can currently only emit entry values covering a single operation");
 
-  emitOp(CU.getDwarf5OrGNULocationAtom(dwarf::DW_OP_entry_value));
   IsEmittingEntryValue = true;
   enableTemporaryBuffer();
 }
@@ -358,12 +398,26 @@ void DwarfExpression::finalizeEntryValue() {
   assert(IsEmittingEntryValue && "Entry value not open?");
   disableTemporaryBuffer();
 
+  emitOp(CU.getDwarf5OrGNULocationAtom(dwarf::DW_OP_entry_value));
+
   // Emit the entry value's size operand.
   unsigned Size = getTemporaryBufferSize();
   emitUnsigned(Size);
 
   // Emit the entry value's DWARF block operand.
   commitTemporaryBuffer();
+
+  IsEmittingEntryValue = false;
+}
+
+void DwarfExpression::cancelEntryValue() {
+  assert(IsEmittingEntryValue && "Entry value not open?");
+  disableTemporaryBuffer();
+
+  // The temporary buffer can't be emptied, so for now just assert that nothing
+  // has been emitted to it.
+  assert(getTemporaryBufferSize() == 0 &&
+         "Began emitting entry value block before cancelling entry value");
 
   IsEmittingEntryValue = false;
 }
@@ -401,6 +455,10 @@ static bool isMemoryLocation(DIExpressionCursor ExprCursor) {
 
 void DwarfExpression::addExpression(DIExpressionCursor &&ExprCursor,
                                     unsigned FragmentOffsetInBits) {
+  // Entry values can currently only cover the initial register location,
+  // and not any other parts of the following DWARF expression.
+  assert(!IsEmittingEntryValue && "Can't emit entry value around expression");
+
   // If we need to mask out a subregister, do it now, unless the next
   // operation would emit an OpPiece anyway.
   auto N = ExprCursor.peek();

@@ -209,6 +209,9 @@ protected:
   const char *Data32bitsDirective;
   const char *Data64bitsDirective;
 
+  /// True if data directives support signed values
+  bool SupportsSignedData = true;
+
   /// If non-null, a directive that is used to emit a word which should be
   /// relocated as a 64-bit GP-relative offset, e.g. .gpdword on Mips.  Defaults
   /// to nullptr.
@@ -343,10 +346,6 @@ protected:
   /// protected visibility.  Defaults to MCSA_Protected
   MCSymbolAttr ProtectedVisibilityAttr = MCSA_Protected;
 
-  // This attribute is used to indicate symbols such as commons on AIX may have
-  // a storage mapping class embedded in the name.
-  bool SymbolsHaveSMC = false;
-
   //===--- Dwarf Emission Directives -----------------------------------===//
 
   /// True if target supports emission of debugging information.  Defaults to
@@ -440,6 +439,7 @@ public:
   const char *getData16bitsDirective() const { return Data16bitsDirective; }
   const char *getData32bitsDirective() const { return Data32bitsDirective; }
   const char *getData64bitsDirective() const { return Data64bitsDirective; }
+  bool supportsSignedData() const { return SupportsSignedData; }
   const char *getGPRel64Directive() const { return GPRel64Directive; }
   const char *getGPRel32Directive() const { return GPRel32Directive; }
   const char *getDTPRel64Directive() const { return DTPRel64Directive; }
@@ -605,8 +605,6 @@ public:
   MCSymbolAttr getProtectedVisibilityAttr() const {
     return ProtectedVisibilityAttr;
   }
-
-  bool getSymbolsHaveSMC() const { return SymbolsHaveSMC; }
 
   bool doesSupportDebugInformation() const { return SupportsDebugInformation; }
 

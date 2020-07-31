@@ -271,6 +271,8 @@ void ASTStmtReader::VisitWhileStmt(WhileStmt *S) {
     S->setConditionVariable(Record.getContext(), readDeclAs<VarDecl>());
 
   S->setWhileLoc(readSourceLocation());
+  S->setLParenLoc(readSourceLocation());
+  S->setRParenLoc(readSourceLocation());
 }
 
 void ASTStmtReader::VisitDoStmt(DoStmt *S) {
@@ -937,7 +939,9 @@ void ASTStmtReader::VisitOMPArraySectionExpr(OMPArraySectionExpr *E) {
   E->setBase(Record.readSubExpr());
   E->setLowerBound(Record.readSubExpr());
   E->setLength(Record.readSubExpr());
-  E->setColonLoc(readSourceLocation());
+  E->setStride(Record.readSubExpr());
+  E->setColonLocFirst(readSourceLocation());
+  E->setColonLocSecond(readSourceLocation());
   E->setRBracketLoc(readSourceLocation());
 }
 
@@ -987,12 +991,15 @@ void ASTStmtReader::VisitOMPIteratorExpr(OMPIteratorExpr *E) {
 void ASTStmtReader::VisitCallExpr(CallExpr *E) {
   VisitExpr(E);
   unsigned NumArgs = Record.readInt();
+  bool HasFPFeatures = Record.readInt();
   assert((NumArgs == E->getNumArgs()) && "Wrong NumArgs!");
   E->setRParenLoc(readSourceLocation());
   E->setCallee(Record.readSubExpr());
   for (unsigned I = 0; I != NumArgs; ++I)
     E->setArg(I, Record.readSubExpr());
   E->setADLCallKind(static_cast<CallExpr::ADLCallKind>(Record.readInt()));
+  if (HasFPFeatures)
+    E->setStoredFPFeatures(FPOptionsOverride(Record.readInt()));
 }
 
 void ASTStmtReader::VisitCXXMemberCallExpr(CXXMemberCallExpr *E) {
@@ -1658,7 +1665,6 @@ void ASTStmtReader::VisitCXXOperatorCallExpr(CXXOperatorCallExpr *E) {
   VisitCallExpr(E);
   E->CXXOperatorCallExprBits.OperatorKind = Record.readInt();
   E->Range = Record.readSourceRange();
-  E->setFPFeatures(FPOptionsOverride(Record.readInt()));
 }
 
 void ASTStmtReader::VisitCXXRewrittenBinaryOperator(
@@ -1715,12 +1721,12 @@ void ASTStmtReader::VisitLambdaExpr(LambdaExpr *E) {
 
   // Read capture initializers.
   for (LambdaExpr::capture_init_iterator C = E->capture_init_begin(),
-                                      CEnd = E->capture_init_end();
+                                         CEnd = E->capture_init_end();
        C != CEnd; ++C)
     *C = Record.readSubExpr();
 
-  // Ok, not one past the end.
-  E->getStoredStmts()[NumCaptures] = Record.readSubStmt();
+  // The body will be lazily deserialized when needed from the call operator
+  // declaration.
 }
 
 void
@@ -2973,7 +2979,8 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case EXPR_CALL:
       S = CallExpr::CreateEmpty(
-          Context, /*NumArgs=*/Record[ASTStmtReader::NumExprFields], Empty);
+          Context, /*NumArgs=*/Record[ASTStmtReader::NumExprFields],
+          /*HasFPFeatures=*/Record[ASTStmtReader::NumExprFields + 1], Empty);
       break;
 
     case EXPR_RECOVERY:
@@ -3581,12 +3588,14 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case EXPR_CXX_OPERATOR_CALL:
       S = CXXOperatorCallExpr::CreateEmpty(
-          Context, /*NumArgs=*/Record[ASTStmtReader::NumExprFields], Empty);
+          Context, /*NumArgs=*/Record[ASTStmtReader::NumExprFields],
+          /*HasFPFeatures=*/Record[ASTStmtReader::NumExprFields + 1], Empty);
       break;
 
     case EXPR_CXX_MEMBER_CALL:
       S = CXXMemberCallExpr::CreateEmpty(
-          Context, /*NumArgs=*/Record[ASTStmtReader::NumExprFields], Empty);
+          Context, /*NumArgs=*/Record[ASTStmtReader::NumExprFields],
+          /*HasFPFeatures=*/Record[ASTStmtReader::NumExprFields + 1], Empty);
       break;
 
     case EXPR_CXX_REWRITTEN_BINARY_OPERATOR:
@@ -3644,7 +3653,8 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case EXPR_USER_DEFINED_LITERAL:
       S = UserDefinedLiteral::CreateEmpty(
-          Context, /*NumArgs=*/Record[ASTStmtReader::NumExprFields], Empty);
+          Context, /*NumArgs=*/Record[ASTStmtReader::NumExprFields],
+          /*HasFPFeatures=*/Record[ASTStmtReader::NumExprFields + 1], Empty);
       break;
 
     case EXPR_CXX_STD_INITIALIZER_LIST:
@@ -3827,7 +3837,8 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case EXPR_CUDA_KERNEL_CALL:
       S = CUDAKernelCallExpr::CreateEmpty(
-          Context, /*NumArgs=*/Record[ASTStmtReader::NumExprFields], Empty);
+          Context, /*NumArgs=*/Record[ASTStmtReader::NumExprFields],
+          /*HasFPFeatures=*/Record[ASTStmtReader::NumExprFields + 1], Empty);
       break;
 
     case EXPR_ASTYPE:

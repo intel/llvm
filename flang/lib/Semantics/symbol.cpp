@@ -111,6 +111,9 @@ llvm::raw_ostream &operator<<(
     }
   }
   os << (sep == '(' ? "()" : ")");
+  if (x.stmtFunction_) {
+    os << " -> " << x.stmtFunction_->AsFortran();
+  }
   return os;
 }
 
@@ -150,9 +153,6 @@ UseErrorDetails &UseErrorDetails::add_occurrence(
   return *this;
 }
 
-GenericDetails::GenericDetails(const SymbolVector &specificProcs)
-    : specificProcs_{specificProcs} {}
-
 void GenericDetails::AddSpecificProc(
     const Symbol &proc, SourceName bindingName) {
   specificProcs_.push_back(proc);
@@ -186,6 +186,8 @@ Symbol *GenericDetails::CheckSpecific() {
 }
 
 void GenericDetails::CopyFrom(const GenericDetails &from) {
+  CHECK(specificProcs_.size() == bindingNames_.size());
+  CHECK(from.specificProcs_.size() == from.bindingNames_.size());
   if (from.specific_) {
     CHECK(!specific_ || specific_ == from.specific_);
     specific_ = from.specific_;
@@ -194,11 +196,13 @@ void GenericDetails::CopyFrom(const GenericDetails &from) {
     CHECK(!derivedType_ || derivedType_ == from.derivedType_);
     derivedType_ = from.derivedType_;
   }
-  for (const Symbol &symbol : from.specificProcs_) {
+  for (std::size_t i{0}; i < from.specificProcs_.size(); ++i) {
     if (std::find_if(specificProcs_.begin(), specificProcs_.end(),
-            [&](const Symbol &mySymbol) { return &mySymbol == &symbol; }) ==
-        specificProcs_.end()) {
-      specificProcs_.push_back(symbol);
+            [&](const Symbol &mySymbol) {
+              return &mySymbol == &*from.specificProcs_[i];
+            }) == specificProcs_.end()) {
+      specificProcs_.push_back(from.specificProcs_[i]);
+      bindingNames_.push_back(from.bindingNames_[i]);
     }
   }
 }

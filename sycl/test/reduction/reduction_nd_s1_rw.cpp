@@ -84,7 +84,7 @@ int main() {
 
   // Check with various types.
   test<class KernelName_BkpSVeNxs, float, 1, std::multiplies<float>>(1, 8, 256);
-  test<class KernelName_tDQManTv, float, 1, intel::minimum<float>>(getMaximumFPValue<float>(), 8, 256);
+  test<class KernelName_tDQManTv, float, 1, intel::minimum<float>>(getMaximumFPValue<float>(), 1, 16);
   test<class KernelName_lDQXQiJveKkXxjBIZ, float, 1, intel::maximum<float>>(getMinimumFPValue<float>(), 8, 256);
 
   // Check with CUSTOM type.

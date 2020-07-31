@@ -1765,7 +1765,7 @@ static std::string scalarConstantToHexString(const Constant *C) {
   } else {
     unsigned NumElements;
     if (auto *VTy = dyn_cast<VectorType>(Ty))
-      NumElements = VTy->getNumElements();
+      NumElements = cast<FixedVectorType>(VTy)->getNumElements();
     else
       NumElements = Ty->getArrayNumElements();
     std::string HexString;
@@ -2125,9 +2125,11 @@ const MCExpr *TargetLoweringObjectFileXCOFF::lowerRelativeReference(
   report_fatal_error("XCOFF not yet implemented.");
 }
 
-XCOFF::StorageClass TargetLoweringObjectFileXCOFF::getStorageClassForGlobal(
-    const GlobalObject *GO) {
-  switch (GO->getLinkage()) {
+XCOFF::StorageClass
+TargetLoweringObjectFileXCOFF::getStorageClassForGlobal(const GlobalValue *GV) {
+  assert(!isa<GlobalIFunc>(GV) && "GlobalIFunc is not supported on AIX.");
+
+  switch (GV->getLinkage()) {
   case GlobalValue::InternalLinkage:
   case GlobalValue::PrivateLinkage:
     return XCOFF::C_HIDEXT;
@@ -2149,10 +2151,16 @@ XCOFF::StorageClass TargetLoweringObjectFileXCOFF::getStorageClassForGlobal(
 }
 
 MCSymbol *TargetLoweringObjectFileXCOFF::getFunctionEntryPointSymbol(
-    const Function *F, const TargetMachine &TM) const {
+    const GlobalValue *Func, const TargetMachine &TM) const {
+  assert(
+      (isa<Function>(Func) ||
+       (isa<GlobalAlias>(Func) &&
+        isa_and_nonnull<Function>(cast<GlobalAlias>(Func)->getBaseObject()))) &&
+      "Func must be a function or an alias which has a function as base "
+      "object.");
   SmallString<128> NameStr;
   NameStr.push_back('.');
-  getNameWithPrefix(NameStr, F, TM);
+  getNameWithPrefix(NameStr, Func, TM);
   return getContext().getOrCreateSymbol(NameStr);
 }
 
@@ -2168,6 +2176,6 @@ MCSection *TargetLoweringObjectFileXCOFF::getSectionForFunctionDescriptor(
 MCSection *TargetLoweringObjectFileXCOFF::getSectionForTOCEntry(
     const MCSymbol *Sym) const {
   return getContext().getXCOFFSection(
-      cast<MCSymbolXCOFF>(Sym)->getUnqualifiedName(), XCOFF::XMC_TC,
+      cast<MCSymbolXCOFF>(Sym)->getSymbolTableName(), XCOFF::XMC_TC,
       XCOFF::XTY_SD, XCOFF::C_HIDEXT, SectionKind::getData());
 }

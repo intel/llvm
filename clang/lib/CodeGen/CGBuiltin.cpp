@@ -219,8 +219,9 @@ static RValue EmitBinaryAtomicPost(CodeGenFunction &CGF,
       Kind, Args[0], Args[1], llvm::AtomicOrdering::SequentiallyConsistent);
   Result = CGF.Builder.CreateBinOp(Op, Result, Args[1]);
   if (Invert)
-    Result = CGF.Builder.CreateBinOp(llvm::Instruction::Xor, Result,
-                                     llvm::ConstantInt::get(IntType, -1));
+    Result =
+        CGF.Builder.CreateBinOp(llvm::Instruction::Xor, Result,
+                                llvm::ConstantInt::getAllOnesValue(IntType));
   Result = EmitFromInt(CGF, Result, T, ValueType);
   return RValue::get(Result);
 }
@@ -1976,6 +1977,11 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     Value *CmpResult = Builder.CreateICmpSLT(ArgValue, Zero, "abscond");
     Value *Result = Builder.CreateSelect(CmpResult, NegOp, ArgValue, "abs");
     return RValue::get(Result);
+  }
+  case Builtin::BI__builtin_complex: {
+    Value *Real = EmitScalarExpr(E->getArg(0));
+    Value *Imag = EmitScalarExpr(E->getArg(1));
+    return RValue::getComplex({Real, Imag});
   }
   case Builtin::BI__builtin_conj:
   case Builtin::BI__builtin_conjf:
@@ -4424,11 +4430,9 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
       } else {
         // If this is required to be a constant, constant fold it so that we
         // know that the generated intrinsic gets a ConstantInt.
-        llvm::APSInt Result;
-        bool IsConst = E->getArg(i)->isIntegerConstantExpr(Result,getContext());
-        assert(IsConst && "Constant arg isn't actually constant?");
-        (void)IsConst;
-        ArgValue = llvm::ConstantInt::get(getLLVMContext(), Result);
+        ArgValue = llvm::ConstantInt::get(
+            getLLVMContext(),
+            *E->getArg(i)->getIntegerConstantExpr(getContext()));
       }
 
       // If the intrinsic arg type is different from the builtin arg type
@@ -5601,13 +5605,14 @@ Value *CodeGenFunction::EmitCommonNeonBuiltinExpr(
     SmallVectorImpl<llvm::Value *> &Ops, Address PtrOp0, Address PtrOp1,
     llvm::Triple::ArchType Arch) {
   // Get the last argument, which specifies the vector type.
-  llvm::APSInt NeonTypeConst;
   const Expr *Arg = E->getArg(E->getNumArgs() - 1);
-  if (!Arg->isIntegerConstantExpr(NeonTypeConst, getContext()))
+  Optional<llvm::APSInt> NeonTypeConst =
+      Arg->getIntegerConstantExpr(getContext());
+  if (!NeonTypeConst)
     return nullptr;
 
   // Determine the type of this overloaded NEON intrinsic.
-  NeonTypeFlags Type(NeonTypeConst.getZExtValue());
+  NeonTypeFlags Type(NeonTypeConst->getZExtValue());
   bool Usgn = Type.isUnsigned();
   bool Quad = Type.isQuad();
   const bool HasLegalHalfType = getTarget().hasLegalHalfType();
@@ -6366,6 +6371,12 @@ Value *CodeGenFunction::GetValueForARMHint(unsigned BuiltinID) {
                             llvm::ConstantInt::get(Int32Ty, Value));
 }
 
+enum SpecialRegisterAccessKind {
+  NormalRead,
+  VolatileRead,
+  Write,
+};
+
 // Generates the IR for the read/write special register builtin,
 // ValueType is the type of the value that is to be written or read,
 // RegisterType is the type of the register being written to or read from.
@@ -6373,7 +6384,7 @@ static Value *EmitSpecialRegisterBuiltin(CodeGenFunction &CGF,
                                          const CallExpr *E,
                                          llvm::Type *RegisterType,
                                          llvm::Type *ValueType,
-                                         bool IsRead,
+                                         SpecialRegisterAccessKind AccessKind,
                                          StringRef SysReg = "") {
   // write and register intrinsics only support 32 and 64 bit operations.
   assert((RegisterType->isIntegerTy(32) || RegisterType->isIntegerTy(64))
@@ -6398,8 +6409,12 @@ static Value *EmitSpecialRegisterBuiltin(CodeGenFunction &CGF,
   assert(!(RegisterType->isIntegerTy(32) && ValueType->isIntegerTy(64))
             && "Can't fit 64-bit value in 32-bit register");
 
-  if (IsRead) {
-    llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::read_register, Types);
+  if (AccessKind != Write) {
+    assert(AccessKind == NormalRead || AccessKind == VolatileRead);
+    llvm::Function *F = CGM.getIntrinsic(
+        AccessKind == VolatileRead ? llvm::Intrinsic::read_volatile_register
+                                   : llvm::Intrinsic::read_register,
+        Types);
     llvm::Value *Call = Builder.CreateCall(F, Metadata);
 
     if (MixedTypes)
@@ -6778,9 +6793,11 @@ Value *CodeGenFunction::EmitARMBuiltinExpr(unsigned BuiltinID,
       BuiltinID == ARM::BI__builtin_arm_wsr64 ||
       BuiltinID == ARM::BI__builtin_arm_wsrp) {
 
-    bool IsRead = BuiltinID == ARM::BI__builtin_arm_rsr ||
-                  BuiltinID == ARM::BI__builtin_arm_rsr64 ||
-                  BuiltinID == ARM::BI__builtin_arm_rsrp;
+    SpecialRegisterAccessKind AccessKind = Write;
+    if (BuiltinID == ARM::BI__builtin_arm_rsr ||
+        BuiltinID == ARM::BI__builtin_arm_rsr64 ||
+        BuiltinID == ARM::BI__builtin_arm_rsrp)
+      AccessKind = VolatileRead;
 
     bool IsPointerBuiltin = BuiltinID == ARM::BI__builtin_arm_rsrp ||
                             BuiltinID == ARM::BI__builtin_arm_wsrp;
@@ -6799,7 +6816,8 @@ Value *CodeGenFunction::EmitARMBuiltinExpr(unsigned BuiltinID,
       ValueType = RegisterType = Int32Ty;
     }
 
-    return EmitSpecialRegisterBuiltin(*this, E, RegisterType, ValueType, IsRead);
+    return EmitSpecialRegisterBuiltin(*this, E, RegisterType, ValueType,
+                                      AccessKind);
   }
 
   // Deal with MVE builtins
@@ -6890,10 +6908,9 @@ Value *CodeGenFunction::EmitARMBuiltinExpr(unsigned BuiltinID,
     } else {
       // If this is required to be a constant, constant fold it so that we know
       // that the generated intrinsic gets a ConstantInt.
-      llvm::APSInt Result;
-      bool IsConst = E->getArg(i)->isIntegerConstantExpr(Result, getContext());
-      assert(IsConst && "Constant arg isn't actually constant?"); (void)IsConst;
-      Ops.push_back(llvm::ConstantInt::get(getLLVMContext(), Result));
+      Ops.push_back(llvm::ConstantInt::get(
+          getLLVMContext(),
+          *E->getArg(i)->getIntegerConstantExpr(getContext())));
     }
   }
 
@@ -7104,9 +7121,9 @@ Value *CodeGenFunction::EmitARMBuiltinExpr(unsigned BuiltinID,
 
   // Get the last argument, which specifies the vector type.
   assert(HasExtraArg);
-  llvm::APSInt Result;
   const Expr *Arg = E->getArg(E->getNumArgs()-1);
-  if (!Arg->isIntegerConstantExpr(Result, getContext()))
+  Optional<llvm::APSInt> Result = Arg->getIntegerConstantExpr(getContext());
+  if (!Result)
     return nullptr;
 
   if (BuiltinID == ARM::BI__builtin_arm_vcvtr_f ||
@@ -7119,7 +7136,7 @@ Value *CodeGenFunction::EmitARMBuiltinExpr(unsigned BuiltinID,
       Ty = DoubleTy;
 
     // Determine whether this is an unsigned conversion or not.
-    bool usgn = Result.getZExtValue() == 1;
+    bool usgn = Result->getZExtValue() == 1;
     unsigned Int = usgn ? Intrinsic::arm_vcvtru : Intrinsic::arm_vcvtr;
 
     // Call the appropriate intrinsic.
@@ -7128,7 +7145,7 @@ Value *CodeGenFunction::EmitARMBuiltinExpr(unsigned BuiltinID,
   }
 
   // Determine the type of this overloaded NEON intrinsic.
-  NeonTypeFlags Type(Result.getZExtValue());
+  NeonTypeFlags Type = Result->getZExtValue();
   bool usgn = Type.isUnsigned();
   bool rightShift = false;
 
@@ -7272,11 +7289,7 @@ Value *CodeGenFunction::EmitARMBuiltinExpr(unsigned BuiltinID,
 
 template<typename Integer>
 static Integer GetIntegerConstantValue(const Expr *E, ASTContext &Context) {
-  llvm::APSInt IntVal;
-  bool IsConst = E->isIntegerConstantExpr(IntVal, Context);
-  assert(IsConst && "Sema should have checked this was a constant");
-  (void)IsConst;
-  return IntVal.getExtValue();
+  return E->getIntegerConstantExpr(Context)->getExtValue();
 }
 
 static llvm::Value *SignOrZeroExtend(CGBuilderTy &Builder, llvm::Value *V,
@@ -7549,13 +7562,13 @@ static Value *EmitAArch64TblBuiltinExpr(CodeGenFunction &CGF, unsigned BuiltinID
   assert(E->getNumArgs() >= 3);
 
   // Get the last argument, which specifies the vector type.
-  llvm::APSInt Result;
   const Expr *Arg = E->getArg(E->getNumArgs() - 1);
-  if (!Arg->isIntegerConstantExpr(Result, CGF.getContext()))
+  Optional<llvm::APSInt> Result = Arg->getIntegerConstantExpr(CGF.getContext());
+  if (!Result)
     return nullptr;
 
   // Determine the type of this overloaded NEON intrinsic.
-  NeonTypeFlags Type(Result.getZExtValue());
+  NeonTypeFlags Type = Result->getZExtValue();
   llvm::VectorType *Ty = GetNeonType(&CGF, Type);
   if (!Ty)
     return nullptr;
@@ -8232,15 +8245,15 @@ Value *CodeGenFunction::EmitAArch64SVEBuiltinExpr(unsigned BuiltinID,
     else {
       // If this is required to be a constant, constant fold it so that we know
       // that the generated intrinsic gets a ConstantInt.
-      llvm::APSInt Result;
-      if (!E->getArg(i)->isIntegerConstantExpr(Result, getContext()))
-        llvm_unreachable("Expected argument to be a constant");
+      Optional<llvm::APSInt> Result =
+          E->getArg(i)->getIntegerConstantExpr(getContext());
+      assert(Result && "Expected argument to be a constant");
 
       // Immediates for SVE llvm intrinsics are always 32bit.  We can safely
       // truncate because the immediate has been range checked and no valid
       // immediate requires more than a handful of bits.
-      Result = Result.extOrTrunc(32);
-      Ops.push_back(llvm::ConstantInt::get(getLLVMContext(), Result));
+      *Result = Result->extOrTrunc(32);
+      Ops.push_back(llvm::ConstantInt::get(getLLVMContext(), *Result));
     }
   }
 
@@ -8839,9 +8852,11 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
       BuiltinID == AArch64::BI__builtin_arm_wsr64 ||
       BuiltinID == AArch64::BI__builtin_arm_wsrp) {
 
-    bool IsRead = BuiltinID == AArch64::BI__builtin_arm_rsr ||
-                  BuiltinID == AArch64::BI__builtin_arm_rsr64 ||
-                  BuiltinID == AArch64::BI__builtin_arm_rsrp;
+    SpecialRegisterAccessKind AccessKind = Write;
+    if (BuiltinID == AArch64::BI__builtin_arm_rsr ||
+        BuiltinID == AArch64::BI__builtin_arm_rsr64 ||
+        BuiltinID == AArch64::BI__builtin_arm_rsrp)
+      AccessKind = VolatileRead;
 
     bool IsPointerBuiltin = BuiltinID == AArch64::BI__builtin_arm_rsrp ||
                             BuiltinID == AArch64::BI__builtin_arm_wsrp;
@@ -8859,7 +8874,8 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
       ValueType = Int32Ty;
     }
 
-    return EmitSpecialRegisterBuiltin(*this, E, RegisterType, ValueType, IsRead);
+    return EmitSpecialRegisterBuiltin(*this, E, RegisterType, ValueType,
+                                      AccessKind);
   }
 
   if (BuiltinID == AArch64::BI_ReadStatusReg ||
@@ -8941,11 +8957,9 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
     } else {
       // If this is required to be a constant, constant fold it so that we know
       // that the generated intrinsic gets a ConstantInt.
-      llvm::APSInt Result;
-      bool IsConst = E->getArg(i)->isIntegerConstantExpr(Result, getContext());
-      assert(IsConst && "Constant arg isn't actually constant?");
-      (void)IsConst;
-      Ops.push_back(llvm::ConstantInt::get(getLLVMContext(), Result));
+      Ops.push_back(llvm::ConstantInt::get(
+          getLLVMContext(),
+          *E->getArg(i)->getIntegerConstantExpr(getContext())));
     }
   }
 
@@ -8960,12 +8974,11 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
     return Result;
   }
 
-  llvm::APSInt Result;
   const Expr *Arg = E->getArg(E->getNumArgs()-1);
   NeonTypeFlags Type(0);
-  if (Arg->isIntegerConstantExpr(Result, getContext()))
+  if (Optional<llvm::APSInt> Result = Arg->getIntegerConstantExpr(getContext()))
     // Determine the type of this overloaded NEON intrinsic.
-    Type = NeonTypeFlags(Result.getZExtValue());
+    Type = NeonTypeFlags(Result->getZExtValue());
 
   bool usgn = Type.isUnsigned();
   bool quad = Type.isQuad();
@@ -11660,11 +11673,11 @@ Value *CodeGenFunction::EmitX86CpuIs(StringRef CPUStr) {
   std::tie(Index, Value) = StringSwitch<std::pair<unsigned, unsigned>>(CPUStr)
 #define X86_VENDOR(ENUM, STRING)                                               \
   .Case(STRING, {0u, static_cast<unsigned>(llvm::X86::ENUM)})
-#define X86_CPU_TYPE_COMPAT_ALIAS(ENUM, ALIAS)             \
+#define X86_CPU_TYPE_ALIAS(ENUM, ALIAS)                                        \
   .Case(ALIAS, {1u, static_cast<unsigned>(llvm::X86::ENUM)})
-#define X86_CPU_TYPE_COMPAT(ARCHNAME, ENUM, STR)                               \
+#define X86_CPU_TYPE(ENUM, STR)                                                \
   .Case(STR, {1u, static_cast<unsigned>(llvm::X86::ENUM)})
-#define X86_CPU_SUBTYPE_COMPAT(ARCHNAME, ENUM, STR)                            \
+#define X86_CPU_SUBTYPE(ENUM, STR)                                             \
   .Case(STR, {2u, static_cast<unsigned>(llvm::X86::ENUM)})
 #include "llvm/Support/X86TargetParser.def"
                                .Default({0, 0});
@@ -11694,7 +11707,7 @@ CodeGenFunction::GetX86CpuSupportsMask(ArrayRef<StringRef> FeatureStrs) {
   for (const StringRef &FeatureStr : FeatureStrs) {
     unsigned Feature =
         StringSwitch<unsigned>(FeatureStr)
-#define X86_FEATURE_COMPAT(ENUM, STR) .Case(STR, llvm::X86::ENUM)
+#define X86_FEATURE_COMPAT(ENUM, STR) .Case(STR, llvm::X86::FEATURE_##ENUM)
 #include "llvm/Support/X86TargetParser.def"
         ;
     FeaturesMask |= (1ULL << Feature);
@@ -11796,10 +11809,8 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
 
     // If this is required to be a constant, constant fold it so that we know
     // that the generated intrinsic gets a ConstantInt.
-    llvm::APSInt Result;
-    bool IsConst = E->getArg(i)->isIntegerConstantExpr(Result, getContext());
-    assert(IsConst && "Constant arg isn't actually constant?"); (void)IsConst;
-    Ops.push_back(llvm::ConstantInt::get(getLLVMContext(), Result));
+    Ops.push_back(llvm::ConstantInt::get(
+        getLLVMContext(), *E->getArg(i)->getIntegerConstantExpr(getContext())));
   }
 
   // These exist so that the builtin that takes an immediate can be bounds
@@ -14802,7 +14813,7 @@ Value *CodeGenFunction::EmitAMDGPUBuiltinExpr(unsigned BuiltinID,
   }
   case AMDGPU::BI__builtin_amdgcn_read_exec: {
     CallInst *CI = cast<CallInst>(
-      EmitSpecialRegisterBuiltin(*this, E, Int64Ty, Int64Ty, true, "exec"));
+      EmitSpecialRegisterBuiltin(*this, E, Int64Ty, Int64Ty, NormalRead, "exec"));
     CI->setConvergent();
     return CI;
   }
@@ -14811,7 +14822,7 @@ Value *CodeGenFunction::EmitAMDGPUBuiltinExpr(unsigned BuiltinID,
     StringRef RegName = BuiltinID == AMDGPU::BI__builtin_amdgcn_read_exec_lo ?
       "exec_lo" : "exec_hi";
     CallInst *CI = cast<CallInst>(
-      EmitSpecialRegisterBuiltin(*this, E, Int32Ty, Int32Ty, true, RegName));
+      EmitSpecialRegisterBuiltin(*this, E, Int32Ty, Int32Ty, NormalRead, RegName));
     CI->setConvergent();
     return CI;
   }
@@ -15078,11 +15089,8 @@ Value *CodeGenFunction::EmitSystemZBuiltinExpr(unsigned BuiltinID,
     llvm::Type *ResultType = ConvertType(E->getType());
     Value *X = EmitScalarExpr(E->getArg(0));
     // Constant-fold the M4 and M5 mask arguments.
-    llvm::APSInt M4, M5;
-    bool IsConstM4 = E->getArg(1)->isIntegerConstantExpr(M4, getContext());
-    bool IsConstM5 = E->getArg(2)->isIntegerConstantExpr(M5, getContext());
-    assert(IsConstM4 && IsConstM5 && "Constant arg isn't actually constant?");
-    (void)IsConstM4; (void)IsConstM5;
+    llvm::APSInt M4 = *E->getArg(1)->getIntegerConstantExpr(getContext());
+    llvm::APSInt M5 = *E->getArg(2)->getIntegerConstantExpr(getContext());
     // Check whether this instance can be represented via a LLVM standard
     // intrinsic.  We only support some combinations of M4 and M5.
     Intrinsic::ID ID = Intrinsic::not_intrinsic;
@@ -15137,10 +15145,7 @@ Value *CodeGenFunction::EmitSystemZBuiltinExpr(unsigned BuiltinID,
     Value *X = EmitScalarExpr(E->getArg(0));
     Value *Y = EmitScalarExpr(E->getArg(1));
     // Constant-fold the M4 mask argument.
-    llvm::APSInt M4;
-    bool IsConstM4 = E->getArg(2)->isIntegerConstantExpr(M4, getContext());
-    assert(IsConstM4 && "Constant arg isn't actually constant?");
-    (void)IsConstM4;
+    llvm::APSInt M4 = *E->getArg(2)->getIntegerConstantExpr(getContext());
     // Check whether this instance can be represented via a LLVM standard
     // intrinsic.  We only support some values of M4.
     Intrinsic::ID ID = Intrinsic::not_intrinsic;
@@ -15174,10 +15179,7 @@ Value *CodeGenFunction::EmitSystemZBuiltinExpr(unsigned BuiltinID,
     Value *X = EmitScalarExpr(E->getArg(0));
     Value *Y = EmitScalarExpr(E->getArg(1));
     // Constant-fold the M4 mask argument.
-    llvm::APSInt M4;
-    bool IsConstM4 = E->getArg(2)->isIntegerConstantExpr(M4, getContext());
-    assert(IsConstM4 && "Constant arg isn't actually constant?");
-    (void)IsConstM4;
+    llvm::APSInt M4 = *E->getArg(2)->getIntegerConstantExpr(getContext());
     // Check whether this instance can be represented via a LLVM standard
     // intrinsic.  We only support some values of M4.
     Intrinsic::ID ID = Intrinsic::not_intrinsic;
@@ -15844,10 +15846,11 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     Address Dst = EmitPointerWithAlignment(E->getArg(0));
     Value *Src = EmitScalarExpr(E->getArg(1));
     Value *Ldm = EmitScalarExpr(E->getArg(2));
-    llvm::APSInt isColMajorArg;
-    if (!E->getArg(3)->isIntegerConstantExpr(isColMajorArg, getContext()))
+    Optional<llvm::APSInt> isColMajorArg =
+        E->getArg(3)->getIntegerConstantExpr(getContext());
+    if (!isColMajorArg)
       return nullptr;
-    bool isColMajor = isColMajorArg.getSExtValue();
+    bool isColMajor = isColMajorArg->getSExtValue();
     NVPTXMmaLdstInfo II = getNVPTXMmaLdstInfo(BuiltinID);
     unsigned IID = isColMajor ? II.IID_col : II.IID_row;
     if (IID == 0)
@@ -15888,10 +15891,11 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     Value *Dst = EmitScalarExpr(E->getArg(0));
     Address Src = EmitPointerWithAlignment(E->getArg(1));
     Value *Ldm = EmitScalarExpr(E->getArg(2));
-    llvm::APSInt isColMajorArg;
-    if (!E->getArg(3)->isIntegerConstantExpr(isColMajorArg, getContext()))
+    Optional<llvm::APSInt> isColMajorArg =
+        E->getArg(3)->getIntegerConstantExpr(getContext());
+    if (!isColMajorArg)
       return nullptr;
-    bool isColMajor = isColMajorArg.getSExtValue();
+    bool isColMajor = isColMajorArg->getSExtValue();
     NVPTXMmaLdstInfo II = getNVPTXMmaLdstInfo(BuiltinID);
     unsigned IID = isColMajor ? II.IID_col : II.IID_row;
     if (IID == 0)
@@ -15938,16 +15942,20 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     Address SrcA = EmitPointerWithAlignment(E->getArg(1));
     Address SrcB = EmitPointerWithAlignment(E->getArg(2));
     Address SrcC = EmitPointerWithAlignment(E->getArg(3));
-    llvm::APSInt LayoutArg;
-    if (!E->getArg(4)->isIntegerConstantExpr(LayoutArg, getContext()))
+    Optional<llvm::APSInt> LayoutArg =
+        E->getArg(4)->getIntegerConstantExpr(getContext());
+    if (!LayoutArg)
       return nullptr;
-    int Layout = LayoutArg.getSExtValue();
+    int Layout = LayoutArg->getSExtValue();
     if (Layout < 0 || Layout > 3)
       return nullptr;
     llvm::APSInt SatfArg;
     if (BuiltinID == NVPTX::BI__bmma_m8n8k128_mma_xor_popc_b1)
       SatfArg = 0;  // .b1 does not have satf argument.
-    else if (!E->getArg(5)->isIntegerConstantExpr(SatfArg, getContext()))
+    else if (Optional<llvm::APSInt> OptSatfArg =
+                 E->getArg(5)->getIntegerConstantExpr(getContext()))
+      SatfArg = *OptSatfArg;
+    else
       return nullptr;
     bool Satf = SatfArg.getSExtValue();
     NVPTXMmaInfo MI = getNVPTXMmaInfo(BuiltinID);
@@ -16106,30 +16114,6 @@ Value *CodeGenFunction::EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
     };
     Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_memory_grow, ResultType);
     return Builder.CreateCall(Callee, Args);
-  }
-  case WebAssembly::BI__builtin_wasm_memory_init: {
-    llvm::APSInt SegConst;
-    if (!E->getArg(0)->isIntegerConstantExpr(SegConst, getContext()))
-      llvm_unreachable("Constant arg isn't actually constant?");
-    llvm::APSInt MemConst;
-    if (!E->getArg(1)->isIntegerConstantExpr(MemConst, getContext()))
-      llvm_unreachable("Constant arg isn't actually constant?");
-    if (!MemConst.isNullValue())
-      ErrorUnsupported(E, "non-zero memory index");
-    Value *Args[] = {llvm::ConstantInt::get(getLLVMContext(), SegConst),
-                     llvm::ConstantInt::get(getLLVMContext(), MemConst),
-                     EmitScalarExpr(E->getArg(2)), EmitScalarExpr(E->getArg(3)),
-                     EmitScalarExpr(E->getArg(4))};
-    Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_memory_init);
-    return Builder.CreateCall(Callee, Args);
-  }
-  case WebAssembly::BI__builtin_wasm_data_drop: {
-    llvm::APSInt SegConst;
-    if (!E->getArg(0)->isIntegerConstantExpr(SegConst, getContext()))
-      llvm_unreachable("Constant arg isn't actually constant?");
-    Value *Arg = llvm::ConstantInt::get(getLLVMContext(), SegConst);
-    Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_data_drop);
-    return Builder.CreateCall(Callee, {Arg});
   }
   case WebAssembly::BI__builtin_wasm_tls_size: {
     llvm::Type *ResultType = ConvertType(E->getType());
@@ -16300,9 +16284,8 @@ Value *CodeGenFunction::EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
   case WebAssembly::BI__builtin_wasm_extract_lane_i64x2:
   case WebAssembly::BI__builtin_wasm_extract_lane_f32x4:
   case WebAssembly::BI__builtin_wasm_extract_lane_f64x2: {
-    llvm::APSInt LaneConst;
-    if (!E->getArg(1)->isIntegerConstantExpr(LaneConst, getContext()))
-      llvm_unreachable("Constant arg isn't actually constant?");
+    llvm::APSInt LaneConst =
+        *E->getArg(1)->getIntegerConstantExpr(getContext());
     Value *Vec = EmitScalarExpr(E->getArg(0));
     Value *Lane = llvm::ConstantInt::get(getLLVMContext(), LaneConst);
     Value *Extract = Builder.CreateExtractElement(Vec, Lane);
@@ -16328,9 +16311,8 @@ Value *CodeGenFunction::EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
   case WebAssembly::BI__builtin_wasm_replace_lane_i64x2:
   case WebAssembly::BI__builtin_wasm_replace_lane_f32x4:
   case WebAssembly::BI__builtin_wasm_replace_lane_f64x2: {
-    llvm::APSInt LaneConst;
-    if (!E->getArg(1)->isIntegerConstantExpr(LaneConst, getContext()))
-      llvm_unreachable("Constant arg isn't actually constant?");
+    llvm::APSInt LaneConst =
+        *E->getArg(1)->getIntegerConstantExpr(getContext());
     Value *Vec = EmitScalarExpr(E->getArg(0));
     Value *Lane = llvm::ConstantInt::get(getLLVMContext(), LaneConst);
     Value *Val = EmitScalarExpr(E->getArg(2));
@@ -16592,10 +16574,10 @@ Value *CodeGenFunction::EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
     Ops[OpIdx++] = EmitScalarExpr(E->getArg(0));
     Ops[OpIdx++] = EmitScalarExpr(E->getArg(1));
     while (OpIdx < 18) {
-      llvm::APSInt LaneConst;
-      if (!E->getArg(OpIdx)->isIntegerConstantExpr(LaneConst, getContext()))
-        llvm_unreachable("Constant arg isn't actually constant?");
-      Ops[OpIdx++] = llvm::ConstantInt::get(getLLVMContext(), LaneConst);
+      Optional<llvm::APSInt> LaneConst =
+          E->getArg(OpIdx)->getIntegerConstantExpr(getContext());
+      assert(LaneConst && "Constant arg isn't actually constant?");
+      Ops[OpIdx++] = llvm::ConstantInt::get(getLLVMContext(), *LaneConst);
     }
     Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_shuffle);
     return Builder.CreateCall(Callee, Ops);
@@ -16900,15 +16882,15 @@ RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
   SmallString<256> AnnotStr;
   llvm::raw_svector_ostream Out(AnnotStr);
 
-  llvm::APSInt Params;
-  bool IsConst = E->getArg(1)->isIntegerConstantExpr(Params, getContext());
-  assert(IsConst && "Constant arg isn't actually constant?"); (void)IsConst;
-  Out << "{params:" << Params.toString(10) << "}";
+  Optional<llvm::APSInt> Params =
+      E->getArg(1)->getIntegerConstantExpr(getContext());
+  assert(Params.hasValue() && "Constant arg isn't actually constant?");
+  Out << "{params:" << Params->toString(10) << "}";
 
-  llvm::APSInt CacheSize;
-  IsConst = E->getArg(2)->isIntegerConstantExpr(CacheSize, getContext());
-  assert(IsConst && "Constant arg isn't actually constant?"); (void)IsConst;
-  Out << "{cache-size:" << CacheSize.toString(10) << "}";
+  Optional<llvm::APSInt> CacheSize =
+      E->getArg(2)->getIntegerConstantExpr(getContext());
+  assert(CacheSize.hasValue() && "Constant arg isn't actually constant?");
+  Out << "{cache-size:" << CacheSize->toString(10) << "}";
 
   llvm::Value *Ann = EmitAnnotationCall(F, PtrVal, AnnotStr, SourceLocation());
 

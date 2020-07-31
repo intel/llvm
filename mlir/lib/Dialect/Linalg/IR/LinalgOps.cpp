@@ -72,15 +72,15 @@ static LogicalResult foldMemRefCast(Operation *op) {
 
 void GenericOp::build(
     OpBuilder &builder, OperationState &result, ArrayRef<Type> resultTypes,
-    ValueRange args, int64_t inputCount, int64_t outputCount,
+    ValueRange args, int64_t argsIn, int64_t argsOut,
     ArrayRef<AffineMap> indexingMaps, ArrayRef<StringRef> iteratorTypes,
     function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild) {
-  build(builder, result, resultTypes, args,
-        builder.getI64IntegerAttr(inputCount),
-        builder.getI64IntegerAttr(outputCount),
+  build(builder, result, resultTypes, args, builder.getI64IntegerAttr(argsIn),
+        builder.getI64IntegerAttr(argsOut),
         builder.getAffineMapArrayAttr(indexingMaps),
         builder.getStrArrayAttr(iteratorTypes),
-        /*doc=*/nullptr, /*library_call=*/nullptr);
+        /*doc=*/nullptr, /*library_call=*/nullptr,
+        /*symbol_source=*/nullptr);
   if (!bodyBuild)
     return;
 
@@ -96,16 +96,16 @@ void GenericOp::build(
 
 void IndexedGenericOp::build(
     OpBuilder &builder, OperationState &result, ArrayRef<Type> resultTypes,
-    ValueRange args, int64_t inputCount, int64_t outputCount,
+    ValueRange args, int64_t argsIn, int64_t argsOut,
     ArrayRef<AffineMap> indexingMaps, ArrayRef<StringRef> iteratorTypes,
     function_ref<void(OpBuilder &, Location, ValueRange, ValueRange)>
         bodyBuild) {
-  build(builder, result, resultTypes, args,
-        builder.getI64IntegerAttr(inputCount),
-        builder.getI64IntegerAttr(outputCount),
+  build(builder, result, resultTypes, args, builder.getI64IntegerAttr(argsIn),
+        builder.getI64IntegerAttr(argsOut),
         builder.getAffineMapArrayAttr(indexingMaps),
         builder.getStrArrayAttr(iteratorTypes),
-        /*doc=*/nullptr, /*library_call=*/nullptr);
+        /*doc=*/nullptr, /*library_call=*/nullptr,
+        /*symbol_source=*/nullptr);
   if (!bodyBuild)
     return;
 
@@ -259,6 +259,15 @@ static LogicalResult verifyGenericOp(GenericOpType op) {
   if (failed(BlockArgsVerifier<GenericOpType>::verify(op, region.front())))
     return failure();
 
+  auto attr = op.template getAttrOfType<IntegerAttr>("symbol_source");
+  int64_t targetRank = 0;
+  if (attr) {
+    unsigned index = attr.getInt();
+    if (index >= op.getNumOperands())
+      return op.emitOpError("symbol_source index out of range");
+    targetRank = op.getShapedType(index).getRank();
+  }
+
   SmallVector<AffineMap, 4> indexingMaps;
   indexingMaps.reserve(op.indexing_maps().size());
   for (auto en : llvm::enumerate(op.indexing_maps())) {
@@ -268,9 +277,9 @@ static LogicalResult verifyGenericOp(GenericOpType op) {
     auto view = (idx < nInputViews) ? op.getInputShapedType(idx)
                                     : op.getOutputShapedType(idx - nInputViews);
 
-    if (m.getNumSymbols() != 0)
-      return op.emitOpError("expected indexing_map #")
-             << idx << " to have no symbols";
+    if (m.getNumSymbols() != targetRank)
+      return op.emitOpError("expected the number of symbols in indexing_map #")
+             << idx << " to match target rank";
 
     if (m.getNumDims() != nLoops)
       return op.emitOpError("expected indexing_map #")
@@ -283,8 +292,8 @@ static LogicalResult verifyGenericOp(GenericOpType op) {
   }
 
   auto concatMap = concatAffineMaps(indexingMaps);
-  auto aggregateMap = inversePermutation(concatMap);
-  if (!aggregateMap)
+  // TODO: Bound inference for maps with symbols
+  if (!concatMap.getNumSymbols() && !inversePermutation(concatMap))
     return op.emitOpError("expected the concatenation of maps in indexing_map "
                           "to be invertible");
 
@@ -447,7 +456,7 @@ static bool isReshapableDimBand(unsigned dim, unsigned extent,
     // proper symbol in the AffineExpr of a stride.
     if (ShapedType::isDynamic(sizes[dim + 1]))
       return false;
-    // TODO(ntv) Refine this by passing the proper nDims and nSymbols so we can
+    // TODO: Refine this by passing the proper nDims and nSymbols so we can
     // simplify on the fly and catch more reshapable cases.
     if (strides[idx] != strides[idx + 1] * sizes[idx + 1])
       return false;
@@ -520,7 +529,7 @@ computeReshapeCollapsedType(MemRefType type,
 
 /// Helper functions assert Attribute of the proper type in attr and returns the
 /// corresponding vector.
-/// TODO(rridle,ntv) this should be evolved into a generic
+/// TODO: this should be evolved into a generic
 /// `getRangeOfType<AffineMap>(ArrayAttr attrs)` that does not copy.
 static SmallVector<AffineMap, 4> getAffineMaps(ArrayAttr attrs) {
   return llvm::to_vector<8>(llvm::map_range(
@@ -590,6 +599,8 @@ void mlir::linalg::ReshapeOp::build(OpBuilder &b, OperationState &result,
   result.addAttribute(ReshapeOp::getReassociationAttrName(),
                       b.getAffineMapArrayAttr(maps));
 }
+
+Value mlir::linalg::ReshapeOp::getViewSource() { return src(); }
 
 // Common verifier for reshape-like types. Fills `expandedType` and
 // `collapsedType` with the proper `src` or `result` type.
@@ -713,7 +724,7 @@ static LogicalResult verify(TensorReshapeOp op) {
   if (failed(verifyReshapeLikeTypes(op, expandedType, collapsedType)))
     return failure();
   auto maps = getAffineMaps(op.reassociation());
-  // TODO(ntv): expanding a ? with a non-constant is under-specified. Error
+  // TODO: expanding a ? with a non-constant is under-specified. Error
   // out.
   RankedTensorType expectedType =
       computeTensorReshapeCollapsedType(expandedType, maps);
@@ -744,7 +755,7 @@ void mlir::linalg::SliceOp::build(OpBuilder &b, OperationState &result,
   (void)res;
 
   unsigned rank = memRefType.getRank();
-  // TODO(ntv): propagate static size and stride information when available.
+  // TODO: propagate static size and stride information when available.
   SmallVector<int64_t, 4> sizes(rank, -1); // -1 encodes dynamic size.
   result.addTypes({MemRefType::Builder(memRefType)
                        .setShape(sizes)
@@ -984,6 +995,8 @@ static LogicalResult verify(ConvOp op) {
     return op.emitOpError("expects memref elemental types to match");
   if (oType.getRank() != iType.getRank() || oType.getRank() != fType.getRank())
     return op.emitOpError("expects memref ranks to match");
+  if (oType.getRank() <= 2)
+    return op.emitOpError("expects memref ranks to be greater than 2");
   if (auto strides = op.strides()) {
     if (failed(
             verifyStrideOrDilation(op, strides->getValue(), /*isStride=*/true)))
@@ -1075,7 +1088,7 @@ mlir::linalg::weightedPoolingInputIndex(PoolingOp op,
   SmallVector<AffineExpr, 4> res;
   res.reserve(outputDims.size());
   for (unsigned i = 0, e = outputDims.size(); i < e; ++i) {
-    // TODO(ntv): add a level of indirection to linalg.generic.
+    // TODO: add a level of indirection to linalg.generic.
     auto expr = op.getStride(i) * outputDims[i] +
                 op.getDilation(i) * windowDims[i] - op.getLowPad(i);
     res.push_back(expr);
@@ -1137,7 +1150,7 @@ std::string mlir::linalg::generateLibraryCallName(Operation *op) {
   return ss.str();
 }
 
-// TODO(ntv, rriddle): Consider making all this boilerplate easy to autogenerate
+// TODO: Consider making all this boilerplate easy to autogenerate
 // with Tablegen. This seems a desirable property in the context of OpInterfaces
 // where a Linalg "named" op **isa** LinalgOp.
 LogicalResult ConvOp::fold(ArrayRef<Attribute>,

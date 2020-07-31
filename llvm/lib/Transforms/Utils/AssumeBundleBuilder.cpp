@@ -6,9 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define DEBUG_TYPE "assume-builder"
+
 #include "llvm/Transforms/Utils/AssumeBundleBuilder.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/MapVector.h"
+#include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AssumeBundleQueries.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/ValueTracking.h"
@@ -19,6 +22,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/DebugCounter.h"
 #include "llvm/Transforms/Utils/Local.h"
 
 using namespace llvm;
@@ -32,6 +36,16 @@ cl::opt<bool> EnableKnowledgeRetention(
     "enable-knowledge-retention", cl::init(false), cl::Hidden,
     cl::desc(
         "enable preservation of attributes throughout code transformation"));
+
+STATISTIC(NumAssumeBuilt, "Number of assume built by the assume builder");
+STATISTIC(NumBundlesInAssumes, "Total number of Bundles in the assume built");
+STATISTIC(NumAssumesMerged,
+          "Number of assume merged by the assume simplify pass");
+STATISTIC(NumAssumesRemoved,
+          "Number of assume removed by the assume simplify pass");
+
+DEBUG_COUNTER(BuildAssumeCounter, "assume-builder-counter",
+              "Controls which assumes gets created");
 
 namespace {
 
@@ -204,6 +218,8 @@ struct AssumeBuilderState {
   IntrinsicInst *build() {
     if (AssumedKnowledgeMap.empty())
       return nullptr;
+    if (!DebugCounter::shouldExecute(BuildAssumeCounter))
+      return nullptr;
     Function *FnAssume = Intrinsic::getDeclaration(M, Intrinsic::assume);
     LLVMContext &C = M->getContext();
     SmallVector<OperandBundleDef, 8> OpBundle;
@@ -220,7 +236,9 @@ struct AssumeBuilderState {
       OpBundle.push_back(OperandBundleDefT<Value *>(
           std::string(Attribute::getNameFromAttrKind(MapElem.first.second)),
           Args));
+      NumBundlesInAssumes++;
     }
+    NumAssumeBuilt++;
     return cast<IntrinsicInst>(CallInst::Create(
         FnAssume, ArrayRef<Value *>({ConstantInt::getTrue(C)}), OpBundle));
   }
@@ -328,6 +346,10 @@ struct AssumeSimplify {
           (!ForceCleanup && !isAssumeWithEmptyBundle(*Assume)))
         continue;
       MadeChange = true;
+      if (ForceCleanup)
+        NumAssumesMerged++;
+      else
+        NumAssumesRemoved++;
       Assume->eraseFromParent();
     }
     CleanupToDo.clear();
@@ -525,14 +547,16 @@ public:
   bool runOnFunction(Function &F) override {
     if (skipFunction(F) || !EnableKnowledgeRetention)
       return false;
-    DominatorTreeWrapperPass *DT =
-        getAnalysisIfAvailable<DominatorTreeWrapperPass>();
     AssumptionCache &AC =
         getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
-    return simplifyAssumes(F, &AC, DT ? &DT->getDomTree() : nullptr);
+    DominatorTreeWrapperPass *DTWP =
+        getAnalysisIfAvailable<DominatorTreeWrapperPass>();
+    return simplifyAssumes(F, &AC, DTWP ? &DTWP->getDomTree() : nullptr);
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequired<AssumptionCacheTracker>();
+
     AU.setPreservesAll();
   }
 };
@@ -542,7 +566,6 @@ char AssumeSimplifyPassLegacyPass::ID = 0;
 
 INITIALIZE_PASS_BEGIN(AssumeSimplifyPassLegacyPass, "assume-simplify",
                       "Assume Simplify", false, false)
-INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
 INITIALIZE_PASS_END(AssumeSimplifyPassLegacyPass, "assume-simplify",
                     "Assume Simplify", false, false)
@@ -553,9 +576,43 @@ FunctionPass *llvm::createAssumeSimplifyPass() {
 
 PreservedAnalyses AssumeBuilderPass::run(Function &F,
                                          FunctionAnalysisManager &AM) {
-  AssumptionCache* AC = AM.getCachedResult<AssumptionAnalysis>(F);
+  AssumptionCache *AC = &AM.getResult<AssumptionAnalysis>(F);
   DominatorTree* DT = AM.getCachedResult<DominatorTreeAnalysis>(F);
   for (Instruction &I : instructions(F))
     salvageKnowledge(&I, AC, DT);
   return PreservedAnalyses::all();
 }
+
+namespace {
+class AssumeBuilderPassLegacyPass : public FunctionPass {
+public:
+  static char ID;
+
+  AssumeBuilderPassLegacyPass() : FunctionPass(ID) {
+    initializeAssumeBuilderPassLegacyPassPass(*PassRegistry::getPassRegistry());
+  }
+  bool runOnFunction(Function &F) override {
+    AssumptionCache &AC =
+        getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
+    DominatorTreeWrapperPass *DTWP =
+        getAnalysisIfAvailable<DominatorTreeWrapperPass>();
+    for (Instruction &I : instructions(F))
+      salvageKnowledge(&I, &AC, DTWP ? &DTWP->getDomTree() : nullptr);
+    return true;
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequired<AssumptionCacheTracker>();
+
+    AU.setPreservesAll();
+  }
+};
+} // namespace
+
+char AssumeBuilderPassLegacyPass::ID = 0;
+
+INITIALIZE_PASS_BEGIN(AssumeBuilderPassLegacyPass, "assume-builder",
+                      "Assume Builder", false, false)
+INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
+INITIALIZE_PASS_END(AssumeBuilderPassLegacyPass, "assume-builder",
+                    "Assume Builder", false, false)

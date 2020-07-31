@@ -111,6 +111,7 @@ int main() {
   test<class KernelName_slumazIfW, float, 0, intel::maximum<>>(getMinimumFPValue<float>(), 7, 7 * 5);
   test<class KernelName_XtRLKzVaIuL, signed char, 0, intel::plus<>>(0, 7, 49);
   test<class KernelName_adpasoZLtoLyZcczwrkV, unsigned char, 1, std::multiplies<>>(1, 4, 16);
+  test<class KernelName_BZDXCHzCBhBb, unsigned short, 0, intel::plus<>>(0, 1, 512 + 32);
 #endif // __cplusplus >= 201402L
 
   std::cout << "Test passed\n";

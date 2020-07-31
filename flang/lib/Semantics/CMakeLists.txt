@@ -2,8 +2,10 @@
 add_flang_library(FortranSemantics
   assignment.cpp
   attr.cpp
+  canonicalize-acc.cpp
   canonicalize-do.cpp
   canonicalize-omp.cpp
+  check-acc-structure.cpp
   check-allocate.cpp
   check-arithmeticif.cpp
   check-call.cpp
@@ -39,10 +41,16 @@ add_flang_library(FortranSemantics
   type.cpp
   unparse-with-symbols.cpp
 
+  DEPENDS
+  omp_gen
+
   LINK_LIBS
   FortranCommon
+  FortranParser
   FortranEvaluate
 
   LINK_COMPONENTS
   Support
+  FrontendOpenMP
+  FrontendOpenACC
 )

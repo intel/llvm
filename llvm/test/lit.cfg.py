@@ -22,7 +22,7 @@ config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
 # suffixes: A list of file extensions to treat as test files. This is overriden
 # by individual lit.local.cfg files in the test subdirectories.
-config.suffixes = ['.ll', '.c', '.cxx', '.test', '.txt', '.s', '.mir']
+config.suffixes = ['.ll', '.c', '.test', '.txt', '.s', '.mir', '.yaml']
 
 # excludes: A list of directories to exclude from the testsuite. The 'Inputs'
 # subdirectories contain auxiliary inputs for various tests in their parent
@@ -130,6 +130,7 @@ config.substitutions.append(
 config.llvm_locstats_used = os.path.exists(llvm_locstats_tool)
 
 tools = [
+    ToolSubst('%extract', FindTool('extract')),
     ToolSubst('%lli', FindTool('lli'), post='.', extra_args=lli_args),
     ToolSubst('%llc_dwarf', FindTool('llc'), extra_args=llc_args),
     ToolSubst('%go', config.go_executable, unresolved='ignore'),
@@ -221,6 +222,9 @@ if not config.build_shared_libs and not config.link_llvm_dylib:
 
 if config.have_tf_aot:
     config.available_features.add("have_tf_aot")
+
+if config.have_tf_api:
+    config.available_features.add("have_tf_api")
 
 def have_cxx_shared_library():
     readobj_exe = lit.util.which('llvm-readobj', config.llvm_tools_dir)

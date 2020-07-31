@@ -168,6 +168,27 @@ static void addOCLKernelArgumentMetadata(
   Fn->setMetadata(MDName, MDNode::get(*Context, ValueVec));
 }
 
+static void addBufferLocationMetadata(
+    LLVMContext *Context, SPIRVFunction *BF, llvm::Function *Fn,
+    std::function<Metadata *(SPIRVFunctionParameter *)> Func) {
+  std::vector<Metadata *> ValueVec;
+  bool DecorationFound = false;
+  BF->foreachArgument([&](SPIRVFunctionParameter *Arg) {
+    if (Arg->getType()->isTypePointer() &&
+        Arg->hasDecorate(DecorationBufferLocationINTEL)) {
+      DecorationFound = true;
+      ValueVec.push_back(Func(Arg));
+    } else {
+      llvm::Metadata *DefaultNode = ConstantAsMetadata::get(
+          ConstantInt::get(Type::getInt32Ty(*Context), -1));
+      ValueVec.push_back(DefaultNode);
+    }
+  });
+  if (DecorationFound)
+    Fn->setMetadata("kernel_arg_buffer_location",
+                    MDNode::get(*Context, ValueVec));
+}
+
 Value *SPIRVToLLVM::getTranslatedValue(SPIRVValue *BV) {
   auto Loc = ValueMap.find(BV);
   if (Loc != ValueMap.end())
@@ -243,11 +264,30 @@ Value *SPIRVToLLVM::mapFunction(SPIRVFunction *BF, Function *F) {
 
 // Variable like GlobalInvolcationId[x] -> get_global_id(x).
 // Variable like WorkDim -> get_work_dim().
+// Replace the following pattern:
+// %a = addrspacecast i32 addrspace(1)* @__spirv_BuiltInSubgroupMaxSize to
+// i32 addrspace(4)*
+// %b = load i32, i32 addrspace(4)* %a, align 4
+// %c = load i32, i32 addrspace(4)* %a, align 4
+// With:
+// %b = call spir_func i32 @_Z22get_max_sub_group_sizev()
+// %c = call spir_func i32 @_Z22get_max_sub_group_sizev()
+
+// And replace the following pattern:
+// %a = addrspacecast <3 x i64> addrspace(1)* @__spirv_BuiltInWorkgroupId to
+// <3 x i64> addrspace(4)*
+// %b = load <3 x i64>, <3 x i64> addrspace(4)* %a, align 32
+// %c = extractelement <3 x i64> %b, i32 idx
+// %d = extractelement <3 x i64> %b, i32 idx
+// With:
+// %c = call spir_func i64 @_Z12get_group_idj(idx)
+// %d = call spir_func i64 @_Z12get_group_idj(idx)
 bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
                                               SPIRVBuiltinVariableKind Kind) {
   std::string FuncName = SPIRSPIRVBuiltinVariableMap::rmap(Kind);
-  std::string MangledName;
   Type *ReturnTy = GV->getType()->getPointerElementType();
+  // Some SPIR-V builtin variables are translated to a function with an index
+  // argument.
   bool HasIndexArg =
       ReturnTy->isVectorTy() &&
       !(BuiltInSubgroupEqMask <= Kind && Kind <= BuiltInSubgroupLtMask);
@@ -256,6 +296,7 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
   std::vector<Type *> ArgTy;
   if (HasIndexArg)
     ArgTy.push_back(Type::getInt32Ty(*Context));
+  std::string MangledName;
   mangleOpenClBuiltin(FuncName, ArgTy, MangledName);
   Function *Func = M->getFunction(MangledName);
   if (!Func) {
@@ -265,48 +306,70 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
     Func->addFnAttr(Attribute::NoUnwind);
     Func->addFnAttr(Attribute::ReadNone);
   }
-  std::vector<Instruction *> Deletes;
-  std::vector<Instruction *> Uses;
-  for (auto UI = GV->user_begin(), UE = GV->user_end(); UI != UE; ++UI) {
-    LoadInst *LD = nullptr;
-    AddrSpaceCastInst *ASCast = dyn_cast<AddrSpaceCastInst>(*UI);
-    if (ASCast) {
-      LD = cast<LoadInst>(*ASCast->user_begin());
-    } else {
-      LD = cast<LoadInst>(*UI);
-    }
-    if (!HasIndexArg) {
-      Uses.push_back(LD);
-      Deletes.push_back(LD);
-      if (ASCast)
-        Deletes.push_back(ASCast);
-      continue;
-    }
-    for (auto LDUI = LD->user_begin(), LDUE = LD->user_end(); LDUI != LDUE;
-         ++LDUI) {
-      assert(isa<ExtractElementInst>(*LDUI) && "Unsupported use");
-      auto EEI = dyn_cast<ExtractElementInst>(*LDUI);
-      Uses.push_back(EEI);
-      Deletes.push_back(EEI);
-    }
-    Deletes.push_back(LD);
-    if (ASCast)
-      Deletes.push_back(ASCast);
-  }
-  for (auto &I : Uses) {
-    std::vector<Value *> Arg;
-    if (auto EEI = dyn_cast<ExtractElementInst>(I))
-      Arg.push_back(EEI->getIndexOperand());
+
+  // Collect instructions in these containers to remove them later.
+  std::vector<Instruction *> Extracts;
+  std::vector<Instruction *> Loads;
+  std::vector<Instruction *> Casts;
+
+  auto Replace = [&](std::vector<Value *> Arg, Instruction *I) {
     auto Call = CallInst::Create(Func, Arg, "", I);
     Call->takeName(I);
     setAttrByCalledFunc(Call);
     SPIRVDBG(dbgs() << "[transOCLBuiltinFromVariable] " << *I << " -> " << *Call
                     << '\n';)
     I->replaceAllUsesWith(Call);
+  };
+
+  // If HasIndexArg is true, we are going over users of the Load instruction,
+  // which are expected to be ExtractElement instructions. The result of the
+  // ExtractElement instructions is considered as a usage of the GV and should
+  // be replaced with Func.
+  // If HasIndexArg is false, the result of the Load instruction is the value
+  // which should be replaced with the Func.
+  auto FindAndReplace = [&](LoadInst *LD) {
+    Loads.push_back(LD);
+    if (HasIndexArg) {
+      for (auto *LoadUser : LD->users()) {
+        if (auto *Extract = dyn_cast<ExtractElementInst>(LoadUser)) {
+          Extracts.push_back(Extract);
+          Replace({Extract->getIndexOperand()}, Extract);
+        }
+      }
+    } else {
+      Replace({}, LD);
+    }
+  };
+
+  // Go over the GV users, find Load and ExtractElement instructions and
+  // replace them with the corresponding function call.
+  for (auto *UI : GV->users()) {
+    // There might or might not be an addrspacecast instruction.
+    if (auto *ASCast = dyn_cast<AddrSpaceCastInst>(UI)) {
+      Casts.push_back(ASCast);
+      for (auto *CastUser : ASCast->users()) {
+        if (auto *LD = dyn_cast<LoadInst>(CastUser)) {
+          FindAndReplace(LD);
+        }
+      }
+    } else if (auto *LD = dyn_cast<LoadInst>(UI)) {
+      FindAndReplace(LD);
+    } else {
+      llvm_unreachable("Unexpected pattern!");
+    }
   }
-  for (auto &I : Deletes) {
-    I->eraseFromParent();
-  }
+
+  auto Erase = [](std::vector<Instruction *> &ToErase) {
+    for (Instruction *I : ToErase) {
+      assert(I->hasNUses(0));
+      I->eraseFromParent();
+    }
+  };
+  // Order of erasing is important.
+  Erase(Extracts);
+  Erase(Loads);
+  Erase(Casts);
+
   return true;
 }
 
@@ -1680,6 +1743,13 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     StoreInst *SI = nullptr;
     auto *Src = transValue(BS->getSrc(), F, BB);
     auto *Dst = transValue(BS->getDst(), F, BB);
+    // An intrinsic call may have been generated for the source variable.
+    if (Use *SingleUse = Src->getSingleUndroppableUse()) {
+      if (auto *II = dyn_cast<IntrinsicInst>(SingleUse->getUser())) {
+        // Overwrite the future store operand with the intrinsic call result.
+        Src = II;
+      }
+    }
     bool isVolatile = BS->SPIRVMemoryAccess::isVolatile();
     uint64_t AlignValue = BS->SPIRVMemoryAccess::getAlignment();
     if (0 == AlignValue)
@@ -3046,6 +3116,26 @@ void generateIntelFPGAAnnotation(const SPIRVEntry *E,
     Out << "{force_pow2_depth:" << Result << '}';
   if (E->hasDecorate(DecorationUserSemantic))
     Out << E->getDecorationStringLiteral(DecorationUserSemantic).front();
+
+  unsigned LSUParamsBitmask = 0;
+  llvm::SmallString<32> AdditionalParamsStr;
+  llvm::raw_svector_ostream ParamsOut(AdditionalParamsStr);
+  if (E->hasDecorate(DecorationBurstCoalesceINTEL, 0))
+    LSUParamsBitmask |= IntelFPGAMemoryAccessesVal::BurstCoalesce;
+  if (E->hasDecorate(DecorationCacheSizeINTEL, 0, &Result)) {
+    LSUParamsBitmask |= IntelFPGAMemoryAccessesVal::CacheSizeFlag;
+    ParamsOut << "{cache-size:" << Result << "}";
+  }
+  if (E->hasDecorate(DecorationDontStaticallyCoalesceINTEL, 0))
+    LSUParamsBitmask |= IntelFPGAMemoryAccessesVal::DontStaticallyCoalesce;
+  if (E->hasDecorate(DecorationPrefetchINTEL, 0, &Result)) {
+    LSUParamsBitmask |= IntelFPGAMemoryAccessesVal::PrefetchFlag;
+    // TODO: Enable prefetch size backwards translation
+    // once it is supported
+  }
+  if (LSUParamsBitmask == 0)
+    return;
+  Out << "{params:" << LSUParamsBitmask << "}" << AdditionalParamsStr;
 }
 
 void generateIntelFPGAAnnotationForStructMember(
@@ -3104,13 +3194,14 @@ void generateIntelFPGAAnnotationForStructMember(
 }
 
 void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
-  if (!BV->isVariable())
+  if (!BV->isVariable() && !BV->isInst())
     return;
 
-  if (auto AL = dyn_cast<AllocaInst>(V)) {
-    IRBuilder<> Builder(AL->getParent());
+  if (auto *Inst = dyn_cast<Instruction>(V)) {
+    auto *AL = dyn_cast<AllocaInst>(Inst);
+    Type *AllocatedTy = AL ? AL->getAllocatedType() : Inst->getType();
 
-    SPIRVType *ST = BV->getType()->getPointerElementType();
+    IRBuilder<> Builder(Inst->getParent());
 
     Type *Int8PtrTyPrivate = Type::getInt8PtrTy(*Context, SPIRAS_Private);
     IntegerType *Int32Ty = IntegerType::get(*Context, 32);
@@ -3118,7 +3209,8 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
     Value *UndefInt8Ptr = UndefValue::get(Int8PtrTyPrivate);
     Value *UndefInt32 = UndefValue::get(Int32Ty);
 
-    if (ST->isTypeStruct()) {
+    if (AL && BV->getType()->getPointerElementType()->isTypeStruct()) {
+      auto *ST = BV->getType()->getPointerElementType();
       SPIRVTypeStruct *STS = static_cast<SPIRVTypeStruct *>(ST);
 
       for (SPIRVWord I = 0; I < STS->getMemberCount(); ++I) {
@@ -3127,8 +3219,7 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
         if (!AnnotStr.empty()) {
           auto *GS = Builder.CreateGlobalStringPtr(AnnotStr);
 
-          auto GEP = Builder.CreateConstInBoundsGEP2_32(AL->getAllocatedType(),
-                                                        AL, 0, I);
+          auto GEP = Builder.CreateConstInBoundsGEP2_32(AllocatedTy, AL, 0, I);
 
           Type *IntTy = GEP->getType()->getPointerElementType()->isIntegerTy()
                             ? GEP->getType()
@@ -3151,13 +3242,18 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
     if (!AnnotStr.empty()) {
       auto *GS = Builder.CreateGlobalStringPtr(AnnotStr);
 
-      auto AnnotationFn =
-          llvm::Intrinsic::getDeclaration(M, Intrinsic::var_annotation);
+      Value *BaseInst =
+          AL ? Builder.CreateBitCast(V, Int8PtrTyPrivate, V->getName()) : Inst;
 
-      llvm::Value *Args[] = {
-          Builder.CreateBitCast(V, Int8PtrTyPrivate, V->getName()),
-          Builder.CreateBitCast(GS, Int8PtrTyPrivate), UndefInt8Ptr,
-          UndefInt32};
+      auto AnnotationFn =
+          AL // Static memory attributes if true
+              ? llvm::Intrinsic::getDeclaration(M, Intrinsic::var_annotation)
+              : llvm::Intrinsic::getDeclaration(M, Intrinsic::ptr_annotation,
+                                                AllocatedTy);
+
+      llvm::Value *Args[] = {BaseInst,
+                             Builder.CreateBitCast(GS, Int8PtrTyPrivate),
+                             UndefInt8Ptr, UndefInt32};
       Builder.CreateCall(AnnotationFn, Args);
     }
   } else if (auto *GV = dyn_cast<GlobalVariable>(V)) {
@@ -3444,6 +3540,15 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
                                                         Arg->getName());
                                  });
   }
+  // Generate metadata for kernel_arg_buffer_location
+  addBufferLocationMetadata(Context, BF, F, [=](SPIRVFunctionParameter *Arg) {
+    auto Literals = Arg->getDecorationLiterals(DecorationBufferLocationINTEL);
+    assert(Literals.size() == 1 &&
+           "BufferLocationINTEL decoration shall have 1 ID literal");
+
+    return ConstantAsMetadata::get(
+        ConstantInt::get(Type::getInt32Ty(*Context), Literals[0]));
+  });
   return true;
 }
 
@@ -3460,6 +3565,10 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
     return true;
   F->addFnAttr(kVCMetadata::VCFunction);
 
+  SPIRVWord SIMTMode = 0;
+  if (BF->hasDecorate(DecorationSIMTCallINTEL, 0, &SIMTMode))
+    F->addFnAttr(kVCMetadata::VCSIMTCall, std::to_string(SIMTMode));
+
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
        ++I) {
     auto ArgNo = I->getArgNo();
@@ -3468,6 +3577,18 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
     if (BA->hasDecorate(DecorationFuncParamIOKind, 0, &Kind)) {
       Attribute Attr = Attribute::get(*Context, kVCMetadata::VCArgumentIOKind,
                                       std::to_string(Kind));
+      F->addAttribute(ArgNo + 1, Attr);
+    }
+    if (BA->hasDecorate(DecorationFuncParamKindINTEL, 0, &Kind)) {
+      Attribute Attr = Attribute::get(*Context, kVCMetadata::VCArgumentKind,
+                                      std::to_string(Kind));
+      F->addAttribute(ArgNo + 1, Attr);
+    }
+    if (BA->hasDecorate(DecorationFuncParamDescINTEL)) {
+      auto Desc =
+          BA->getDecorationStringLiteral(DecorationFuncParamDescINTEL).front();
+      Attribute Attr =
+          Attribute::get(*Context, kVCMetadata::VCArgumentDesc, Desc);
       F->addAttribute(ArgNo + 1, Attr);
     }
   }

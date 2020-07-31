@@ -108,7 +108,7 @@ struct WasmDataSegment {
   MCSectionWasm *Section;
   StringRef Name;
   uint32_t InitFlags;
-  uint32_t Offset;
+  uint64_t Offset;
   uint32_t Alignment;
   uint32_t LinkerFlags;
   SmallVector<char, 4> Data;
@@ -326,7 +326,7 @@ private:
   void writeValueType(wasm::ValType Ty) { W.OS << static_cast<char>(Ty); }
 
   void writeTypeSection(ArrayRef<WasmSignature> Signatures);
-  void writeImportSection(ArrayRef<wasm::WasmImport> Imports, uint32_t DataSize,
+  void writeImportSection(ArrayRef<wasm::WasmImport> Imports, uint64_t DataSize,
                           uint32_t NumElements);
   void writeFunctionSection(ArrayRef<WasmFunction> Functions);
   void writeExportSection(ArrayRef<wasm::WasmExport> Exports);
@@ -556,7 +556,9 @@ WasmObjectWriter::getProvisionalValue(const WasmRelocationEntry &RelEntry,
   switch (RelEntry.Type) {
   case wasm::R_WASM_TABLE_INDEX_REL_SLEB:
   case wasm::R_WASM_TABLE_INDEX_SLEB:
-  case wasm::R_WASM_TABLE_INDEX_I32: {
+  case wasm::R_WASM_TABLE_INDEX_SLEB64:
+  case wasm::R_WASM_TABLE_INDEX_I32:
+  case wasm::R_WASM_TABLE_INDEX_I64: {
     // Provisional value is table address of the resolved symbol itself
     const MCSymbolWasm *Base =
         cast<MCSymbolWasm>(Layout.getBaseSymbol(*RelEntry.Symbol));
@@ -688,6 +690,7 @@ void WasmObjectWriter::applyRelocations(
     case wasm::R_WASM_GLOBAL_INDEX_I32:
       patchI32(Stream, Value, Offset);
       break;
+    case wasm::R_WASM_TABLE_INDEX_I64:
     case wasm::R_WASM_MEMORY_ADDR_I64:
       patchI64(Stream, Value, Offset);
       break;
@@ -697,6 +700,7 @@ void WasmObjectWriter::applyRelocations(
     case wasm::R_WASM_MEMORY_ADDR_REL_SLEB:
       writePatchableSLEB<5>(Stream, Value, Offset);
       break;
+    case wasm::R_WASM_TABLE_INDEX_SLEB64:
     case wasm::R_WASM_MEMORY_ADDR_SLEB64:
     case wasm::R_WASM_MEMORY_ADDR_REL_SLEB64:
       writePatchableSLEB<10>(Stream, Value, Offset);
@@ -730,12 +734,12 @@ void WasmObjectWriter::writeTypeSection(ArrayRef<WasmSignature> Signatures) {
 }
 
 void WasmObjectWriter::writeImportSection(ArrayRef<wasm::WasmImport> Imports,
-                                          uint32_t DataSize,
+                                          uint64_t DataSize,
                                           uint32_t NumElements) {
   if (Imports.empty())
     return;
 
-  uint32_t NumPages = (DataSize + wasm::WasmPageSize - 1) / wasm::WasmPageSize;
+  uint64_t NumPages = (DataSize + wasm::WasmPageSize - 1) / wasm::WasmPageSize;
 
   SectionBookkeeping Section;
   startSection(Section, wasm::WASM_SEC_IMPORT);
@@ -755,8 +759,8 @@ void WasmObjectWriter::writeImportSection(ArrayRef<wasm::WasmImport> Imports,
       W.OS << char(Import.Global.Mutable ? 1 : 0);
       break;
     case wasm::WASM_EXTERNAL_MEMORY:
-      encodeULEB128(0, W.OS);        // flags
-      encodeULEB128(NumPages, W.OS); // initial
+      encodeULEB128(Import.Memory.Flags, W.OS);
+      encodeULEB128(NumPages, W.OS);  // initial
       break;
     case wasm::WASM_EXTERNAL_TABLE:
       W.OS << char(Import.Table.ElemType);
@@ -935,7 +939,9 @@ uint32_t WasmObjectWriter::writeDataSection(const MCAsmLayout &Layout) {
     if (Segment.InitFlags & wasm::WASM_SEGMENT_HAS_MEMINDEX)
       encodeULEB128(0, W.OS); // memory index
     if ((Segment.InitFlags & wasm::WASM_SEGMENT_IS_PASSIVE) == 0) {
-      W.OS << char(wasm::WASM_OPCODE_I32_CONST);
+      W.OS << char(Segment.Offset > std::numeric_limits<int32_t>().max()
+                     ? wasm::WASM_OPCODE_I64_CONST
+                     : wasm::WASM_OPCODE_I32_CONST);
       encodeSLEB128(Segment.Offset, W.OS); // offset
       W.OS << char(wasm::WASM_OPCODE_END);
     }
@@ -1187,7 +1193,7 @@ uint64_t WasmObjectWriter::writeObject(MCAssembler &Asm,
   SmallVector<wasm::WasmSymbolInfo, 4> SymbolInfos;
   SmallVector<std::pair<uint16_t, uint32_t>, 2> InitFuncs;
   std::map<StringRef, std::vector<WasmComdatEntry>> Comdats;
-  uint32_t DataSize = 0;
+  uint64_t DataSize = 0;
 
   // For now, always emit the memory import, since loads and stores are not
   // valid without it. In the future, we could perhaps be more clever and omit
@@ -1196,6 +1202,8 @@ uint64_t WasmObjectWriter::writeObject(MCAssembler &Asm,
   MemImport.Module = "env";
   MemImport.Field = "__linear_memory";
   MemImport.Kind = wasm::WASM_EXTERNAL_MEMORY;
+  MemImport.Memory.Flags = is64Bit() ? wasm::WASM_LIMITS_FLAG_IS_64
+                                     : wasm::WASM_LIMITS_FLAG_NONE;
   Imports.push_back(MemImport);
 
   // For now, always emit the table section, since indirect calls are not
@@ -1595,7 +1603,9 @@ uint64_t WasmObjectWriter::writeObject(MCAssembler &Asm,
       // purely to make the object file's provisional values readable, and is
       // ignored by the linker, which re-calculates the relocations itself.
       if (Rel.Type != wasm::R_WASM_TABLE_INDEX_I32 &&
+          Rel.Type != wasm::R_WASM_TABLE_INDEX_I64 &&
           Rel.Type != wasm::R_WASM_TABLE_INDEX_SLEB &&
+          Rel.Type != wasm::R_WASM_TABLE_INDEX_SLEB64 &&
           Rel.Type != wasm::R_WASM_TABLE_INDEX_REL_SLEB)
         return;
       assert(Rel.Symbol->isFunction());

@@ -1530,6 +1530,10 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::SanitizeMemTag;
   case bitc::ATTR_KIND_PREALLOCATED:
     return Attribute::Preallocated;
+  case bitc::ATTR_KIND_NOUNDEF:
+    return Attribute::NoUndef;
+  case bitc::ATTR_KIND_BYREF:
+    return Attribute::ByRef;
   }
 }
 
@@ -1647,6 +1651,8 @@ Error BitcodeReader::parseAttributeGroupBlock() {
             return Err;
           if (Kind == Attribute::ByVal) {
             B.addByValAttr(HasType ? getTypeByID(Record[++i]) : nullptr);
+          } else if (Kind == Attribute::ByRef) {
+            B.addByRefAttr(getTypeByID(Record[++i]));
           } else if (Kind == Attribute::Preallocated) {
             B.addPreallocatedAttr(getTypeByID(Record[++i]));
           }
@@ -2335,6 +2341,7 @@ Error BitcodeReader::parseConstants() {
     uint64_t Op0Idx;
     uint64_t Op1Idx;
     uint64_t Op2Idx;
+    unsigned CstNo;
   };
   std::vector<DelayedShufTy> DelayedShuffles;
   while (true) {
@@ -2348,9 +2355,6 @@ Error BitcodeReader::parseConstants() {
     case BitstreamEntry::Error:
       return error("Malformed block");
     case BitstreamEntry::EndBlock:
-      if (NextCstNo != ValueList.size())
-        return error("Invalid constant reference");
-
       // Once all the constants have been read, go through and resolve forward
       // references.
       //
@@ -2363,6 +2367,7 @@ Error BitcodeReader::parseConstants() {
         uint64_t Op0Idx = DelayedShuffle.Op0Idx;
         uint64_t Op1Idx = DelayedShuffle.Op1Idx;
         uint64_t Op2Idx = DelayedShuffle.Op2Idx;
+        uint64_t CstNo = DelayedShuffle.CstNo;
         Constant *Op0 = ValueList.getConstantFwdRef(Op0Idx, OpTy);
         Constant *Op1 = ValueList.getConstantFwdRef(Op1Idx, OpTy);
         Type *ShufTy =
@@ -2373,9 +2378,12 @@ Error BitcodeReader::parseConstants() {
         SmallVector<int, 16> Mask;
         ShuffleVectorInst::getShuffleMask(Op2, Mask);
         Value *V = ConstantExpr::getShuffleVector(Op0, Op1, Mask);
-        ValueList.assignValue(V, NextCstNo, DelayedShuffle.CurFullTy);
-        ++NextCstNo;
+        ValueList.assignValue(V, CstNo, DelayedShuffle.CurFullTy);
       }
+
+      if (NextCstNo != ValueList.size())
+        return error("Invalid constant reference");
+
       ValueList.resolveConstantForwardRefs();
       return Error::success();
     case BitstreamEntry::Record:
@@ -2735,7 +2743,8 @@ Error BitcodeReader::parseConstants() {
       if (Record.size() < 3 || !OpTy)
         return error("Invalid record");
       DelayedShuffles.push_back(
-          {OpTy, OpTy, CurFullTy, Record[0], Record[1], Record[2]});
+          {OpTy, OpTy, CurFullTy, Record[0], Record[1], Record[2], NextCstNo});
+      ++NextCstNo;
       continue;
     }
     case bitc::CST_CODE_CE_SHUFVEC_EX: { // [opty, opval, opval, opval]
@@ -2745,7 +2754,8 @@ Error BitcodeReader::parseConstants() {
       if (Record.size() < 4 || !RTy || !OpTy)
         return error("Invalid record");
       DelayedShuffles.push_back(
-          {OpTy, RTy, CurFullTy, Record[1], Record[2], Record[3]});
+          {OpTy, RTy, CurFullTy, Record[1], Record[2], Record[3], NextCstNo});
+      ++NextCstNo;
       continue;
     }
     case bitc::CST_CODE_CE_CMP: {     // CE_CMP: [opty, opval, opval, pred]
@@ -2959,12 +2969,15 @@ Error BitcodeReader::materializeMetadata() {
   }
 
   // Upgrade "Linker Options" module flag to "llvm.linker.options" module-level
-  // metadata.
-  if (Metadata *Val = TheModule->getModuleFlag("Linker Options")) {
-    NamedMDNode *LinkerOpts =
-        TheModule->getOrInsertNamedMetadata("llvm.linker.options");
-    for (const MDOperand &MDOptions : cast<MDNode>(Val)->operands())
-      LinkerOpts->addOperand(cast<MDNode>(MDOptions));
+  // metadata. Only upgrade if the new option doesn't exist to avoid upgrade
+  // multiple times.
+  if (!TheModule->getNamedMetadata("llvm.linker.options")) {
+    if (Metadata *Val = TheModule->getModuleFlag("Linker Options")) {
+      NamedMDNode *LinkerOpts =
+          TheModule->getOrInsertNamedMetadata("llvm.linker.options");
+      for (const MDOperand &MDOptions : cast<MDNode>(Val)->operands())
+        LinkerOpts->addOperand(cast<MDNode>(MDOptions));
+    }
   }
 
   DeferredMetadataInfo.clear();
@@ -5016,8 +5029,10 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       else
         FailureOrdering = getDecodedOrdering(Record[OpNum + 3]);
 
-      I = new AtomicCmpXchgInst(Ptr, Cmp, New, SuccessOrdering, FailureOrdering,
-                                SSID);
+      Align Alignment(
+          TheModule->getDataLayout().getTypeStoreSize(Cmp->getType()));
+      I = new AtomicCmpXchgInst(Ptr, Cmp, New, Alignment, SuccessOrdering,
+                                FailureOrdering, SSID);
       FullTy = StructType::get(Context, {FullTy, Type::getInt1Ty(Context)});
       cast<AtomicCmpXchgInst>(I)->setVolatile(Record[OpNum]);
 
@@ -5054,7 +5069,9 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
           Ordering == AtomicOrdering::Unordered)
         return error("Invalid record");
       SyncScope::ID SSID = getDecodedSyncScopeID(Record[OpNum + 3]);
-      I = new AtomicRMWInst(Operation, Ptr, Val, Ordering, SSID);
+      Align Alignment(
+          TheModule->getDataLayout().getTypeStoreSize(Val->getType()));
+      I = new AtomicRMWInst(Operation, Ptr, Val, Alignment, Ordering, SSID);
       FullTy = getPointerElementFlatType(FullTy);
       cast<AtomicRMWInst>(I)->setVolatile(Record[OpNum+1]);
       InstructionList.push_back(I);
@@ -5377,6 +5394,36 @@ Error BitcodeReader::materialize(GlobalValue *GV) {
         continue;
       MDLoader->setStripTBAA(true);
       stripTBAA(F->getParent());
+    }
+  }
+
+  // "Upgrade" older incorrect branch weights by dropping them.
+  for (auto &I : instructions(F)) {
+    if (auto *MD = I.getMetadata(LLVMContext::MD_prof)) {
+      if (MD->getOperand(0) != nullptr && isa<MDString>(MD->getOperand(0))) {
+        MDString *MDS = cast<MDString>(MD->getOperand(0));
+        StringRef ProfName = MDS->getString();
+        // Check consistency of !prof branch_weights metadata.
+        if (!ProfName.equals("branch_weights"))
+          continue;
+        unsigned ExpectedNumOperands = 0;
+        if (BranchInst *BI = dyn_cast<BranchInst>(&I))
+          ExpectedNumOperands = BI->getNumSuccessors();
+        else if (SwitchInst *SI = dyn_cast<SwitchInst>(&I))
+          ExpectedNumOperands = SI->getNumSuccessors();
+        else if (isa<CallInst>(&I))
+          ExpectedNumOperands = 1;
+        else if (IndirectBrInst *IBI = dyn_cast<IndirectBrInst>(&I))
+          ExpectedNumOperands = IBI->getNumDestinations();
+        else if (isa<SelectInst>(&I))
+          ExpectedNumOperands = 2;
+        else
+          continue; // ignore and continue.
+
+        // If branch weight doesn't match, just strip branch weight.
+        if (MD->getNumOperands() != 1 + ExpectedNumOperands)
+          I.setMetadata(LLVMContext::MD_prof, nullptr);
+      }
     }
   }
 

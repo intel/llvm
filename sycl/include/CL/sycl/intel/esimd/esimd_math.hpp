@@ -1884,7 +1884,7 @@ T1 esimd_reduce(simd<T1, SZ> v) {
   if constexpr (isPowerOf2) {
     return esimd_reduce_single<T0, T1, SZ, OpType>(v);
   } else {
-    constexpr unsigned N1 = 1u << __esimd::log2(SZ);
+    constexpr unsigned N1 = 1u << __esimd::log2<SZ>();
     constexpr unsigned N2 = SZ - N1;
 
     simd<T1, N1> v1 = v.template select<N1, 1>(0);

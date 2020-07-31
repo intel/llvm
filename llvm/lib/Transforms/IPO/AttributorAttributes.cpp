@@ -2468,7 +2468,7 @@ struct AANoAliasCallSiteArgument final : AANoAliasImpl {
         const auto &ReachabilityAA =
             A.getAAFor<AAReachability>(*this, IRPosition::function(*ScopeFn));
 
-        if (!ReachabilityAA.isAssumedReachable(UserI, getCtxI()))
+        if (!ReachabilityAA.isAssumedReachable(A, *UserI, *getCtxI()))
           return true;
 
         if (auto *CB = dyn_cast<CallBase>(UserI)) {
@@ -4669,6 +4669,30 @@ struct AAValueSimplifyCallSiteReturned : AAValueSimplifyReturned {
 struct AAValueSimplifyCallSiteArgument : AAValueSimplifyFloating {
   AAValueSimplifyCallSiteArgument(const IRPosition &IRP, Attributor &A)
       : AAValueSimplifyFloating(IRP, A) {}
+
+  /// See AbstractAttribute::manifest(...).
+  ChangeStatus manifest(Attributor &A) override {
+    ChangeStatus Changed = ChangeStatus::UNCHANGED;
+
+    if (SimplifiedAssociatedValue.hasValue() &&
+        !SimplifiedAssociatedValue.getValue())
+      return Changed;
+
+    Value &V = getAssociatedValue();
+    auto *C = SimplifiedAssociatedValue.hasValue()
+                  ? dyn_cast<Constant>(SimplifiedAssociatedValue.getValue())
+                  : UndefValue::get(V.getType());
+    if (C) {
+      Use &U = cast<CallBase>(&getAnchorValue())->getArgOperandUse(getArgNo());
+      // We can replace the AssociatedValue with the constant.
+      if (&V != C && V.getType() == C->getType()) {
+        if (A.changeUseAfterManifest(U, *C))
+          Changed = ChangeStatus::CHANGED;
+      }
+    }
+
+    return Changed | AAValueSimplify::manifest(A);
+  }
 
   void trackStatistics() const override {
     STATS_DECLTRACK_CSARG_ATTR(value_simplify)

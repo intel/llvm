@@ -35,7 +35,7 @@ struct FoldCandidate {
     int FrameIndexToFold;
   };
   int ShrinkOpcode;
-  unsigned char UseOpNo;
+  unsigned UseOpNo;
   MachineOperand::MachineOperandType Kind;
   bool Commuted;
 
@@ -282,6 +282,9 @@ static bool updateOperand(FoldCandidate &Fold,
   assert(!Fold.needsShrink() && "not handled");
 
   if (Fold.isImm()) {
+    // FIXME: ChangeToImmediate should probably clear the subreg flags. It's
+    // reinterpreted as TargetFlags.
+    Old.setSubReg(0);
     Old.ChangeToImmediate(Fold.ImmToFold);
     return true;
   }
@@ -396,9 +399,9 @@ static bool tryAddToFoldList(SmallVectorImpl<FoldCandidate> &FoldList,
       return false;
 
     if (!TII->isOperandLegal(*MI, CommuteOpNo, OpToFold)) {
-      if ((Opc == AMDGPU::V_ADD_I32_e64 ||
-           Opc == AMDGPU::V_SUB_I32_e64 ||
-           Opc == AMDGPU::V_SUBREV_I32_e64) && // FIXME
+      if ((Opc == AMDGPU::V_ADD_CO_U32_e64 ||
+           Opc == AMDGPU::V_SUB_CO_U32_e64 ||
+           Opc == AMDGPU::V_SUBREV_CO_U32_e64) && // FIXME
           (OpToFold->isImm() || OpToFold->isFI() || OpToFold->isGlobal())) {
         MachineRegisterInfo &MRI = MI->getParent()->getParent()->getRegInfo();
 
@@ -659,6 +662,11 @@ void SIFoldOperands::foldOperand(
           Use = MRI->use_begin(DestReg), E = MRI->use_end();
           Use != E; Use = NextUse) {
           NextUse = std::next(Use);
+
+          // There's no point trying to fold into an implicit operand.
+          if (Use->isImplicit())
+            continue;
+
           FoldCandidate FC = FoldCandidate(Use->getParent(),
            Use.getOperandNo(), &UseMI->getOperand(1));
           CopyUses.push_back(FC);

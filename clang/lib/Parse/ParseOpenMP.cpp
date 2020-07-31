@@ -1441,7 +1441,7 @@ bool Parser::parseOMPDeclareVariantMatchClause(SourceLocation Loc,
 /// Parsing of simple OpenMP clauses like 'default' or 'proc_bind'.
 ///
 ///    default-clause:
-///         'default' '(' 'none' | 'shared' ')
+///         'default' '(' 'none' | 'shared'  | 'firstprivate' ')
 ///
 ///    proc_bind-clause:
 ///         'proc_bind' '(' 'master' | 'close' | 'spread' ')
@@ -1473,7 +1473,8 @@ parseOpenMPSimpleClause(Parser &P, OpenMPClauseKind Kind) {
     return llvm::None;
 
   unsigned Type = getOpenMPSimpleClauseType(
-      Kind, Tok.isAnnotation() ? "" : P.getPreprocessor().getSpelling(Tok));
+      Kind, Tok.isAnnotation() ? "" : P.getPreprocessor().getSpelling(Tok),
+      P.getLangOpts().OpenMP);
   SourceLocation TypeLoc = Tok.getLocation();
   if (Tok.isNot(tok::r_paren) && Tok.isNot(tok::comma) &&
       Tok.isNot(tok::annot_pragma_openmp_end))
@@ -2009,6 +2010,8 @@ Parser::DeclGroupPtrTy Parser::ParseOpenMPDeclarativeDirectiveWithExtDecl(
     Diag(Tok, diag::err_omp_unexpected_directive)
         << 1 << getOpenMPDirectiveName(DKind);
     break;
+  default:
+    break;
   }
   while (Tok.isNot(tok::annot_pragma_openmp_end))
     ConsumeAnyToken();
@@ -2358,6 +2361,7 @@ Parser::ParseOpenMPDeclarativeOrExecutableDirective(ParsedStmtContext StmtCtx) {
     SkipUntil(tok::annot_pragma_openmp_end);
     break;
   case OMPD_unknown:
+  default:
     Diag(Tok, diag::err_omp_unknown_directive);
     SkipUntil(tok::annot_pragma_openmp_end);
     break;
@@ -2495,6 +2499,7 @@ OMPClause *Parser::ParseOpenMPUsesAllocatorClause(OpenMPDirectiveKind DKind) {
 ///
 OMPClause *Parser::ParseOpenMPClause(OpenMPDirectiveKind DKind,
                                      OpenMPClauseKind CKind, bool FirstClause) {
+  OMPClauseKind = CKind;
   OMPClause *Clause = nullptr;
   bool ErrorFound = false;
   bool WrongDirective = false;
@@ -2681,6 +2686,8 @@ OMPClause *Parser::ParseOpenMPClause(OpenMPDirectiveKind DKind,
           << getOpenMPClauseName(CKind) << getOpenMPDirectiveName(DKind);
     SkipUntil(tok::comma, tok::annot_pragma_openmp_end, StopBeforeMatch);
     break;
+  default:
+    break;
   }
   return ErrorFound ? nullptr : Clause;
 }
@@ -2766,7 +2773,7 @@ OMPClause *Parser::ParseOpenMPSingleExprClause(OpenMPClauseKind Kind,
 /// Parsing of simple OpenMP clauses like 'default' or 'proc_bind'.
 ///
 ///    default-clause:
-///         'default' '(' 'none' | 'shared' ')'
+///         'default' '(' 'none' | 'shared' | 'firstprivate' ')'
 ///
 ///    proc_bind-clause:
 ///         'proc_bind' '(' 'master' | 'close' | 'spread' ')'
@@ -2779,6 +2786,14 @@ OMPClause *Parser::ParseOpenMPSimpleClause(OpenMPClauseKind Kind,
   llvm::Optional<SimpleClauseData> Val = parseOpenMPSimpleClause(*this, Kind);
   if (!Val || ParseOnly)
     return nullptr;
+  if (getLangOpts().OpenMP < 51 && Kind == OMPC_default &&
+      static_cast<DefaultKind>(Val.getValue().Type) ==
+          OMP_DEFAULT_firstprivate) {
+    Diag(Val.getValue().LOpen, diag::err_omp_invalid_dsa)
+        << getOpenMPClauseName(OMPC_firstprivate)
+        << getOpenMPClauseName(OMPC_default) << "5.1";
+    return nullptr;
+  }
   return Actions.ActOnOpenMPSimpleClause(
       Kind, Val.getValue().Type, Val.getValue().TypeLoc, Val.getValue().LOpen,
       Val.getValue().Loc, Val.getValue().RLoc);
@@ -2857,7 +2872,8 @@ OMPClause *Parser::ParseOpenMPSingleExprWithArgClause(OpenMPDirectiveKind DKind,
     Arg[Modifier2] = OMPC_SCHEDULE_MODIFIER_unknown;
     Arg[ScheduleKind] = OMPC_SCHEDULE_unknown;
     unsigned KindModifier = getOpenMPSimpleClauseType(
-        Kind, Tok.isAnnotation() ? "" : PP.getSpelling(Tok));
+        Kind, Tok.isAnnotation() ? "" : PP.getSpelling(Tok),
+        getLangOpts().OpenMP);
     if (KindModifier > OMPC_SCHEDULE_unknown) {
       // Parse 'modifier'
       Arg[Modifier1] = KindModifier;
@@ -2869,7 +2885,8 @@ OMPClause *Parser::ParseOpenMPSingleExprWithArgClause(OpenMPDirectiveKind DKind,
         // Parse ',' 'modifier'
         ConsumeAnyToken();
         KindModifier = getOpenMPSimpleClauseType(
-            Kind, Tok.isAnnotation() ? "" : PP.getSpelling(Tok));
+            Kind, Tok.isAnnotation() ? "" : PP.getSpelling(Tok),
+            getLangOpts().OpenMP);
         Arg[Modifier2] = KindModifier > OMPC_SCHEDULE_unknown
                              ? KindModifier
                              : (unsigned)OMPC_SCHEDULE_unknown;
@@ -2884,7 +2901,8 @@ OMPClause *Parser::ParseOpenMPSingleExprWithArgClause(OpenMPDirectiveKind DKind,
       else
         Diag(Tok, diag::warn_pragma_expected_colon) << "schedule modifier";
       KindModifier = getOpenMPSimpleClauseType(
-          Kind, Tok.isAnnotation() ? "" : PP.getSpelling(Tok));
+          Kind, Tok.isAnnotation() ? "" : PP.getSpelling(Tok),
+          getLangOpts().OpenMP);
     }
     Arg[ScheduleKind] = KindModifier;
     KLoc[ScheduleKind] = Tok.getLocation();
@@ -2898,7 +2916,8 @@ OMPClause *Parser::ParseOpenMPSingleExprWithArgClause(OpenMPDirectiveKind DKind,
       DelimLoc = ConsumeAnyToken();
   } else if (Kind == OMPC_dist_schedule) {
     Arg.push_back(getOpenMPSimpleClauseType(
-        Kind, Tok.isAnnotation() ? "" : PP.getSpelling(Tok)));
+        Kind, Tok.isAnnotation() ? "" : PP.getSpelling(Tok),
+        getLangOpts().OpenMP));
     KLoc.push_back(Tok.getLocation());
     if (Tok.isNot(tok::r_paren) && Tok.isNot(tok::comma) &&
         Tok.isNot(tok::annot_pragma_openmp_end))
@@ -2908,7 +2927,8 @@ OMPClause *Parser::ParseOpenMPSingleExprWithArgClause(OpenMPDirectiveKind DKind,
   } else if (Kind == OMPC_defaultmap) {
     // Get a defaultmap modifier
     unsigned Modifier = getOpenMPSimpleClauseType(
-        Kind, Tok.isAnnotation() ? "" : PP.getSpelling(Tok));
+        Kind, Tok.isAnnotation() ? "" : PP.getSpelling(Tok),
+        getLangOpts().OpenMP);
     // Set defaultmap modifier to unknown if it is either scalar, aggregate, or
     // pointer
     if (Modifier < OMPC_DEFAULTMAP_MODIFIER_unknown)
@@ -2926,7 +2946,8 @@ OMPClause *Parser::ParseOpenMPSingleExprWithArgClause(OpenMPDirectiveKind DKind,
         Diag(Tok, diag::warn_pragma_expected_colon) << "defaultmap modifier";
       // Get a defaultmap kind
       Arg.push_back(getOpenMPSimpleClauseType(
-          Kind, Tok.isAnnotation() ? "" : PP.getSpelling(Tok)));
+          Kind, Tok.isAnnotation() ? "" : PP.getSpelling(Tok),
+          getLangOpts().OpenMP));
       KLoc.push_back(Tok.getLocation());
       if (Tok.isNot(tok::r_paren) && Tok.isNot(tok::comma) &&
           Tok.isNot(tok::annot_pragma_openmp_end))
@@ -2941,7 +2962,8 @@ OMPClause *Parser::ParseOpenMPSingleExprWithArgClause(OpenMPDirectiveKind DKind,
         NextToken().is(tok::colon)) {
       // Parse optional <device modifier> ':'
       Arg.push_back(getOpenMPSimpleClauseType(
-          Kind, Tok.isAnnotation() ? "" : PP.getSpelling(Tok)));
+          Kind, Tok.isAnnotation() ? "" : PP.getSpelling(Tok),
+          getLangOpts().OpenMP));
       KLoc.push_back(Tok.getLocation());
       ConsumeAnyToken();
       // Parse ':'
@@ -3043,14 +3065,16 @@ static bool ParseReductionId(Parser &P, CXXScopeSpec &ReductionIdScopeSpec,
 }
 
 /// Checks if the token is a valid map-type-modifier.
+/// FIXME: It will return an OpenMPMapClauseKind if that's what it parses.
 static OpenMPMapModifierKind isMapModifier(Parser &P) {
   Token Tok = P.getCurToken();
   if (!Tok.is(tok::identifier))
     return OMPC_MAP_MODIFIER_unknown;
 
   Preprocessor &PP = P.getPreprocessor();
-  OpenMPMapModifierKind TypeModifier = static_cast<OpenMPMapModifierKind>(
-      getOpenMPSimpleClauseType(OMPC_map, PP.getSpelling(Tok)));
+  OpenMPMapModifierKind TypeModifier =
+      static_cast<OpenMPMapModifierKind>(getOpenMPSimpleClauseType(
+          OMPC_map, PP.getSpelling(Tok), P.getLangOpts().OpenMP));
   return TypeModifier;
 }
 
@@ -3085,12 +3109,14 @@ bool Parser::parseMapperModifier(OpenMPVarListDataTy &Data) {
 
 /// Parse map-type-modifiers in map clause.
 /// map([ [map-type-modifier[,] [map-type-modifier[,] ...] map-type : ] list)
-/// where, map-type-modifier ::= always | close | mapper(mapper-identifier)
+/// where, map-type-modifier ::= always | close | mapper(mapper-identifier) |
+/// present
 bool Parser::parseMapTypeModifiers(OpenMPVarListDataTy &Data) {
   while (getCurToken().isNot(tok::colon)) {
     OpenMPMapModifierKind TypeModifier = isMapModifier(*this);
     if (TypeModifier == OMPC_MAP_MODIFIER_always ||
-        TypeModifier == OMPC_MAP_MODIFIER_close) {
+        TypeModifier == OMPC_MAP_MODIFIER_close ||
+        TypeModifier == OMPC_MAP_MODIFIER_present) {
       Data.MapTypeModifiers.push_back(TypeModifier);
       Data.MapTypeModifiersLoc.push_back(Tok.getLocation());
       ConsumeToken();
@@ -3112,7 +3138,8 @@ bool Parser::parseMapTypeModifiers(OpenMPVarListDataTy &Data) {
       // Potential map-type token as it is followed by a colon.
       if (PP.LookAhead(0).is(tok::colon))
         return false;
-      Diag(Tok, diag::err_omp_unknown_map_type_modifier);
+      Diag(Tok, diag::err_omp_unknown_map_type_modifier)
+          << (getLangOpts().OpenMP >= 51 ? 1 : 0);
       ConsumeToken();
     }
     if (getCurToken().is(tok::comma))
@@ -3122,14 +3149,16 @@ bool Parser::parseMapTypeModifiers(OpenMPVarListDataTy &Data) {
 }
 
 /// Checks if the token is a valid map-type.
+/// FIXME: It will return an OpenMPMapModifierKind if that's what it parses.
 static OpenMPMapClauseKind isMapType(Parser &P) {
   Token Tok = P.getCurToken();
   // The map-type token can be either an identifier or the C++ delete keyword.
   if (!Tok.isOneOf(tok::identifier, tok::kw_delete))
     return OMPC_MAP_unknown;
   Preprocessor &PP = P.getPreprocessor();
-  OpenMPMapClauseKind MapType = static_cast<OpenMPMapClauseKind>(
-      getOpenMPSimpleClauseType(OMPC_map, PP.getSpelling(Tok)));
+  OpenMPMapClauseKind MapType =
+      static_cast<OpenMPMapClauseKind>(getOpenMPSimpleClauseType(
+          OMPC_map, PP.getSpelling(Tok), P.getLangOpts().OpenMP));
   return MapType;
 }
 
@@ -3283,7 +3312,8 @@ bool Parser::ParseOpenMPVarList(OpenMPDirectiveKind DKind,
         (Tok.is(tok::identifier) || Tok.is(tok::kw_default)) &&
         NextToken().is(tok::comma)) {
       // Parse optional reduction modifier.
-      Data.ExtraModifier = getOpenMPSimpleClauseType(Kind, PP.getSpelling(Tok));
+      Data.ExtraModifier = getOpenMPSimpleClauseType(Kind, PP.getSpelling(Tok),
+                                                     getLangOpts().OpenMP);
       Data.ExtraModifierLoc = Tok.getLocation();
       ConsumeToken();
       assert(Tok.is(tok::comma) && "Expected comma.");
@@ -3328,7 +3358,8 @@ bool Parser::ParseOpenMPVarList(OpenMPDirectiveKind DKind,
     // Handle dependency type for depend clause.
     ColonProtectionRAIIObject ColonRAII(*this);
     Data.ExtraModifier = getOpenMPSimpleClauseType(
-        Kind, Tok.is(tok::identifier) ? PP.getSpelling(Tok) : "");
+        Kind, Tok.is(tok::identifier) ? PP.getSpelling(Tok) : "",
+        getLangOpts().OpenMP);
     Data.ExtraModifierLoc = Tok.getLocation();
     if (Data.ExtraModifier == OMPC_DEPEND_unknown) {
       SkipUntil(tok::colon, tok::r_paren, tok::annot_pragma_openmp_end,
@@ -3353,7 +3384,8 @@ bool Parser::ParseOpenMPVarList(OpenMPDirectiveKind DKind,
     // Try to parse modifier if any.
     Data.ExtraModifier = OMPC_LINEAR_val;
     if (Tok.is(tok::identifier) && PP.LookAhead(0).is(tok::l_paren)) {
-      Data.ExtraModifier = getOpenMPSimpleClauseType(Kind, PP.getSpelling(Tok));
+      Data.ExtraModifier = getOpenMPSimpleClauseType(Kind, PP.getSpelling(Tok),
+                                                     getLangOpts().OpenMP);
       Data.ExtraModifierLoc = ConsumeToken();
       LinearT.consumeOpen();
       NeedRParenForLinear = true;
@@ -3366,7 +3398,8 @@ bool Parser::ParseOpenMPVarList(OpenMPDirectiveKind DKind,
     if ((getLangOpts().OpenMP >= 50 && !isOpenMPDistributeDirective(DKind) &&
          !isOpenMPTaskLoopDirective(DKind)) &&
         Tok.is(tok::identifier) && PP.LookAhead(0).is(tok::colon)) {
-      Data.ExtraModifier = getOpenMPSimpleClauseType(Kind, PP.getSpelling(Tok));
+      Data.ExtraModifier = getOpenMPSimpleClauseType(Kind, PP.getSpelling(Tok),
+                                                     getLangOpts().OpenMP);
       Data.ExtraModifierLoc = Tok.getLocation();
       ConsumeToken();
       assert(Tok.is(tok::colon) && "Expected colon.");
@@ -3411,13 +3444,15 @@ bool Parser::ParseOpenMPVarList(OpenMPDirectiveKind DKind,
     if (Tok.is(tok::identifier)) {
       bool IsMapperModifier = false;
       if (Kind == OMPC_to) {
-        auto Modifier = static_cast<OpenMPToModifierKind>(
-            getOpenMPSimpleClauseType(Kind, PP.getSpelling(Tok)));
+        auto Modifier =
+            static_cast<OpenMPToModifierKind>(getOpenMPSimpleClauseType(
+                Kind, PP.getSpelling(Tok), getLangOpts().OpenMP));
         if (Modifier == OMPC_TO_MODIFIER_mapper)
           IsMapperModifier = true;
       } else {
-        auto Modifier = static_cast<OpenMPFromModifierKind>(
-            getOpenMPSimpleClauseType(Kind, PP.getSpelling(Tok)));
+        auto Modifier =
+            static_cast<OpenMPFromModifierKind>(getOpenMPSimpleClauseType(
+                Kind, PP.getSpelling(Tok), getLangOpts().OpenMP));
         if (Modifier == OMPC_FROM_MODIFIER_mapper)
           IsMapperModifier = true;
       }

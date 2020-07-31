@@ -192,11 +192,18 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
 #endif
 
-  std::lock_guard<mutex_class> Guard(MMutex);
-  for (std::weak_ptr<event_impl> &EventImplWeakPtr : MEvents) {
-    if (std::shared_ptr<event_impl> EventImplPtr = EventImplWeakPtr.lock())
-      EventImplPtr->wait(EventImplPtr);
+  std::vector<std::shared_ptr<event_impl>> Events;
+  {
+    std::lock_guard<mutex_class> Guard(MMutex);
+    for (std::weak_ptr<event_impl> &EventImplWeakPtr : MEvents)
+      if (std::shared_ptr<event_impl> EventImplPtr = EventImplWeakPtr.lock())
+        Events.push_back(EventImplPtr);
   }
+
+  for (std::shared_ptr<event_impl> &Event : Events) {
+    Event->wait(Event);
+  }
+
   for (event &Event : MUSMEvents) {
     Event.wait();
   }

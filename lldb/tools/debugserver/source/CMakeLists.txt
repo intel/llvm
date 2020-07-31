@@ -41,7 +41,7 @@ function(get_debugserver_codesign_identity result)
     return()
   endif()
 
-  message(WARNING "Development code sign identiy not found: 'lldb_codesign' ${not_found_help}")
+  message(WARNING "Development code sign identity not found: 'lldb_codesign' ${not_found_help}")
 
   # LLVM pendant: fallback if available
   if(LLVM_CODESIGNING_IDENTITY)
@@ -129,7 +129,7 @@ if(LLDB_USE_ENTITLEMENTS)
   endif()
 endif()
 
-if($ENV{SDKROOT} MATCHES ".Internal.sdk$")
+if(${CMAKE_OSX_SYSROOT} MATCHES ".Internal.sdk$")
   message(STATUS "LLDB debugserver energy support is enabled")
   add_definitions(-DLLDB_ENERGY)
   set(ENERGY_LIBRARY -lpmenergy -lpmsample)

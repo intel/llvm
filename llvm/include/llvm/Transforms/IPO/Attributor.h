@@ -715,6 +715,21 @@ struct InformationCache {
   /// Return the map conaining all the knowledge we have from `llvm.assume`s.
   const RetainedKnowledgeMap &getKnowledgeMap() const { return KnowledgeMap; }
 
+  /// Return if \p To is potentially reachable form \p From or not
+  /// If the same query was answered, return cached result
+  bool getPotentiallyReachable(const Instruction &From, const Instruction &To) {
+    auto KeyPair = std::make_pair(&From, &To);
+    auto Iter = PotentiallyReachableMap.find(KeyPair);
+    if (Iter != PotentiallyReachableMap.end())
+      return Iter->second;
+    const Function &F = *From.getFunction();
+    bool Result = isPotentiallyReachable(
+        &From, &To, nullptr, AG.getAnalysis<DominatorTreeAnalysis>(F),
+        AG.getAnalysis<LoopAnalysis>(F));
+    PotentiallyReachableMap.insert(std::make_pair(KeyPair, Result));
+    return Result;
+  }
+
 private:
   struct FunctionInfo {
     ~FunctionInfo();
@@ -773,6 +788,10 @@ private:
 
   /// Set of inlineable functions
   SmallPtrSet<const Function *, 8> InlineableFunctions;
+
+  /// A map for caching results of queries for isPotentiallyReachable
+  DenseMap<std::pair<const Instruction *, const Instruction *>, bool>
+      PotentiallyReachableMap;
 
   /// Give the Attributor access to the members so
   /// Attributor::identifyDefaultAbstractAttributes(...) can initialize them.
@@ -891,6 +910,13 @@ struct Attributor {
     // No matching attribute found, create one.
     // Use the static create method.
     auto &AA = AAType::createForPosition(IRP, *this);
+
+    // If we are currenty seeding attributes, enforce seeding rules.
+    if (SeedingPeriod && !shouldSeedAttribute(AA)) {
+      AA.getState().indicatePessimisticFixpoint();
+      return AA;
+    }
+
     registerAA(AA);
 
     // For now we ignore naked and optnone functions.
@@ -918,7 +944,14 @@ struct Attributor {
       return AA;
     }
 
+    // Allow seeded attributes to declare dependencies.
+    // Remember the seeding state.
+    bool OldSeedingPeriod = SeedingPeriod;
+    SeedingPeriod = false;
+
     updateAA(AA);
+
+    SeedingPeriod = OldSeedingPeriod;
 
     if (TrackDependence && AA.getState().isValidState())
       recordDependence(AA, const_cast<AbstractAttribute &>(*QueryingAA),
@@ -1034,6 +1067,14 @@ struct Attributor {
            "Only local linkage is assumed dead initially.");
 
     identifyDefaultAbstractAttributes(const_cast<Function &>(F));
+  }
+
+  /// Helper function to remove callsite.
+  void removeCallSite(CallInst *CI) {
+    if (!CI)
+      return;
+
+    CGUpdater.removeCallSite(*CI);
   }
 
   /// Record that \p U is to be replaces with \p NV after information was
@@ -1337,6 +1378,10 @@ private:
   ChangeStatus
   rewriteFunctionSignatures(SmallPtrSetImpl<Function *> &ModifiedFns);
 
+  /// Check if the Attribute \p AA should be seeded.
+  /// See getOrCreateAAFor.
+  bool shouldSeedAttribute(AbstractAttribute &AA);
+
   /// The set of all abstract attributes.
   ///{
   using AAVector = SmallVector<AbstractAttribute *, 64>;
@@ -1401,6 +1446,10 @@ private:
 
   /// Invoke instructions with at least a single dead successor block.
   SmallVector<WeakVH, 16> InvokeWithDeadSuccessor;
+
+  /// Wheather attributes are being `seeded`, always false after ::run function
+  /// gets called \see getOrCreateAAFor.
+  bool SeedingPeriod = true;
 
   /// Functions, blocks, and instructions we delete after manifest is done.
   ///
@@ -2014,6 +2063,12 @@ struct AbstractAttribute : public IRPosition {
 
   /// This function should return the "summarized" assumed state as string.
   virtual const std::string getAsStr() const = 0;
+
+  /// This function should return the name of the AbstractAttribute
+  virtual const std::string getName() const = 0;
+
+  /// This function should return the address of the ID of the AbstractAttribute
+  virtual const char *getIdAddr() const = 0;
   ///}
 
   /// Allow the Attributor access to the protected methods.
@@ -2128,6 +2183,18 @@ struct AAReturnedValues
   static AAReturnedValues &createForPosition(const IRPosition &IRP,
                                              Attributor &A);
 
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AAReturnedValues"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is
+  /// AAReturnedValues
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
+
   /// Unique ID (due to the unique address)
   static const char ID;
 };
@@ -2146,6 +2213,17 @@ struct AANoUnwind
   /// Create an abstract attribute view for the position \p IRP.
   static AANoUnwind &createForPosition(const IRPosition &IRP, Attributor &A);
 
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AANoUnwind"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is AANoUnwind
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
+
   /// Unique ID (due to the unique address)
   static const char ID;
 };
@@ -2163,6 +2241,17 @@ struct AANoSync
 
   /// Create an abstract attribute view for the position \p IRP.
   static AANoSync &createForPosition(const IRPosition &IRP, Attributor &A);
+
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AANoSync"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is AANoSync
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
 
   /// Unique ID (due to the unique address)
   static const char ID;
@@ -2183,6 +2272,17 @@ struct AANonNull
   /// Create an abstract attribute view for the position \p IRP.
   static AANonNull &createForPosition(const IRPosition &IRP, Attributor &A);
 
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AANonNull"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is AANonNull
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
+
   /// Unique ID (due to the unique address)
   static const char ID;
 };
@@ -2202,6 +2302,17 @@ struct AANoRecurse
   /// Create an abstract attribute view for the position \p IRP.
   static AANoRecurse &createForPosition(const IRPosition &IRP, Attributor &A);
 
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AANoRecurse"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is AANoRecurse
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
+
   /// Unique ID (due to the unique address)
   static const char ID;
 };
@@ -2220,6 +2331,17 @@ struct AAWillReturn
 
   /// Create an abstract attribute view for the position \p IRP.
   static AAWillReturn &createForPosition(const IRPosition &IRP, Attributor &A);
+
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AAWillReturn"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is AAWillReturn
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
 
   /// Unique ID (due to the unique address)
   static const char ID;
@@ -2247,6 +2369,18 @@ struct AAUndefinedBehavior
   static AAUndefinedBehavior &createForPosition(const IRPosition &IRP,
                                                 Attributor &A);
 
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AAUndefinedBehavior"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is
+  /// AAUndefineBehavior
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
+
   /// Unique ID (due to the unique address)
   static const char ID;
 };
@@ -2259,21 +2393,34 @@ struct AAReachability : public StateWrapper<BooleanState, AbstractAttribute> {
   /// Returns true if 'From' instruction is assumed to reach, 'To' instruction.
   /// Users should provide two positions they are interested in, and the class
   /// determines (and caches) reachability.
-  bool isAssumedReachable(const Instruction *From,
-                          const Instruction *To) const {
-    return isPotentiallyReachable(From, To);
+  bool isAssumedReachable(Attributor &A, const Instruction &From,
+                          const Instruction &To) const {
+    return A.getInfoCache().getPotentiallyReachable(From, To);
   }
 
   /// Returns true if 'From' instruction is known to reach, 'To' instruction.
   /// Users should provide two positions they are interested in, and the class
   /// determines (and caches) reachability.
-  bool isKnownReachable(const Instruction *From, const Instruction *To) const {
-    return isPotentiallyReachable(From, To);
+  bool isKnownReachable(Attributor &A, const Instruction &From,
+                        const Instruction &To) const {
+    return A.getInfoCache().getPotentiallyReachable(From, To);
   }
 
   /// Create an abstract attribute view for the position \p IRP.
   static AAReachability &createForPosition(const IRPosition &IRP,
                                            Attributor &A);
+
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AAReachability"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is
+  /// AAReachability
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
 
   /// Unique ID (due to the unique address)
   static const char ID;
@@ -2294,6 +2441,17 @@ struct AANoAlias
   /// Create an abstract attribute view for the position \p IRP.
   static AANoAlias &createForPosition(const IRPosition &IRP, Attributor &A);
 
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AANoAlias"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is AANoAlias
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
+
   /// Unique ID (due to the unique address)
   static const char ID;
 };
@@ -2313,6 +2471,17 @@ struct AANoFree
   /// Create an abstract attribute view for the position \p IRP.
   static AANoFree &createForPosition(const IRPosition &IRP, Attributor &A);
 
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AANoFree"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is AANoFree
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
+
   /// Unique ID (due to the unique address)
   static const char ID;
 };
@@ -2331,6 +2500,17 @@ struct AANoReturn
 
   /// Create an abstract attribute view for the position \p IRP.
   static AANoReturn &createForPosition(const IRPosition &IRP, Attributor &A);
+
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AANoReturn"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is AANoReturn
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
 
   /// Unique ID (due to the unique address)
   static const char ID;
@@ -2384,6 +2564,17 @@ public:
   /// Determine if \p F might catch asynchronous exceptions.
   static bool mayCatchAsynchronousExceptions(const Function &F) {
     return F.hasPersonalityFn() && !canSimplifyInvokeNoUnwind(&F);
+  }
+
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AAIsDead"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is AAIsDead
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
   }
 
   /// Unique ID (due to the unique address)
@@ -2576,6 +2767,18 @@ struct AADereferenceable
   static AADereferenceable &createForPosition(const IRPosition &IRP,
                                               Attributor &A);
 
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AADereferenceable"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is
+  /// AADereferenceable
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
+
   /// Unique ID (due to the unique address)
   static const char ID;
 };
@@ -2593,6 +2796,17 @@ struct AAAlign : public IRAttribute<
 
   /// Return known alignment.
   unsigned getKnownAlign() const { return getKnown(); }
+
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AAAlign"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is AAAlign
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
 
   /// Create an abstract attribute view for the position \p IRP.
   static AAAlign &createForPosition(const IRPosition &IRP, Attributor &A);
@@ -2648,6 +2862,17 @@ struct AANoCapture
   /// Create an abstract attribute view for the position \p IRP.
   static AANoCapture &createForPosition(const IRPosition &IRP, Attributor &A);
 
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AANoCapture"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is AANoCapture
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
+
   /// Unique ID (due to the unique address)
   static const char ID;
 };
@@ -2666,6 +2891,18 @@ struct AAValueSimplify : public StateWrapper<BooleanState, AbstractAttribute> {
   static AAValueSimplify &createForPosition(const IRPosition &IRP,
                                             Attributor &A);
 
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AAValueSimplify"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is
+  /// AAValueSimplify
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
+
   /// Unique ID (due to the unique address)
   static const char ID;
 };
@@ -2682,6 +2919,17 @@ struct AAHeapToStack : public StateWrapper<BooleanState, AbstractAttribute> {
 
   /// Create an abstract attribute view for the position \p IRP.
   static AAHeapToStack &createForPosition(const IRPosition &IRP, Attributor &A);
+
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AAHeapToStack"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is AAHeapToStack
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
 
   /// Unique ID (due to the unique address)
   static const char ID;
@@ -2715,6 +2963,18 @@ struct AAPrivatizablePtr
   /// Create an abstract attribute view for the position \p IRP.
   static AAPrivatizablePtr &createForPosition(const IRPosition &IRP,
                                               Attributor &A);
+
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AAPrivatizablePtr"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is
+  /// AAPricatizablePtr
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
 
   /// Unique ID (due to the unique address)
   static const char ID;
@@ -2766,6 +3026,18 @@ struct AAMemoryBehavior
   /// Create an abstract attribute view for the position \p IRP.
   static AAMemoryBehavior &createForPosition(const IRPosition &IRP,
                                              Attributor &A);
+
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AAMemoryBehavior"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is
+  /// AAMemoryBehavior
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
 
   /// Unique ID (due to the unique address)
   static const char ID;
@@ -2925,6 +3197,18 @@ struct AAMemoryLocation
     return getMemoryLocationsAsStr(getAssumedNotAccessedLocation());
   }
 
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AAMemoryLocation"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is
+  /// AAMemoryLocation
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
+
   /// Unique ID (due to the unique address)
   static const char ID;
 };
@@ -2968,6 +3252,18 @@ struct AAValueConstantRange
     if (RangeV.isEmptySet())
       return llvm::None;
     return nullptr;
+  }
+
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AAValueConstantRange"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is
+  /// AAValueConstantRange
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
   }
 
   /// Unique ID (due to the unique address)

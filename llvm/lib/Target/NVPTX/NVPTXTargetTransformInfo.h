@@ -48,6 +48,9 @@ public:
     return AddressSpace::ADDRESS_SPACE_GENERIC;
   }
 
+  Optional<Instruction *> instCombineIntrinsic(InstCombiner &IC,
+                                               IntrinsicInst &II) const;
+
   // Loads and stores can be vectorized if the alignment is at least as big as
   // the load/store we want to vectorize.
   bool isLegalToVectorizeLoadChain(unsigned ChainSizeInBytes, Align Alignment,
@@ -95,6 +98,10 @@ public:
 
   void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
                                TTI::UnrollingPreferences &UP);
+
+  void getPeelingPreferences(Loop *L, ScalarEvolution &SE,
+                             TTI::PeelingPreferences &PP);
+
   bool hasVolatileVariant(Instruction *I, unsigned AddrSpace) {
     // Volatile loads/stores are only supported for shared and global address
     // spaces, or for generic AS that maps to them.

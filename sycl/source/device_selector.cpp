@@ -19,13 +19,13 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 // Utility function to check if device is of the preferred backend.
-// Currently preference is given to the level0 backend.
+// Currently preference is given to the level_zero backend.
 static bool isDeviceOfPreferredSyclBe(const device &Device) {
   if (Device.is_host())
     return false;
 
   return detail::getSyclObjImpl(Device)->getPlugin().getBackend() ==
-         backend::level0;
+         backend::level_zero;
 }
 
 device device_selector::select_device() const {
@@ -37,14 +37,14 @@ device device_selector::select_device() const {
     int dev_score = (*this)(dev);
 
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
-      string_class PlatformVersion = dev.get_info<info::device::platform>()
-                                         .get_info<info::platform::version>();
+      string_class PlatformName = dev.get_info<info::device::platform>()
+                                      .get_info<info::platform::name>();
       string_class DeviceName = dev.get_info<info::device::name>();
       std::cout << "SYCL_PI_TRACE[all]: "
-                << "select_device(): -> score = " << score
-                << ((score < 0) ? "(REJECTED)" : " ") << std::endl
+                << "select_device(): -> score = " << dev_score
+                << ((dev_score < 0) ? " (REJECTED)" : "") << std::endl
                 << "SYCL_PI_TRACE[all]: "
-                << "  platform: " << PlatformVersion << std::endl
+                << "  platform: " << PlatformName << std::endl
                 << "SYCL_PI_TRACE[all]: "
                 << "  device: " << DeviceName << std::endl;
     }
@@ -67,13 +67,13 @@ device device_selector::select_device() const {
 
   if (res != nullptr) {
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC)) {
-      string_class PlatformVersion = res->get_info<info::device::platform>()
-                                         .get_info<info::platform::version>();
+      string_class PlatformName = res->get_info<info::device::platform>()
+                                      .get_info<info::platform::name>();
       string_class DeviceName = res->get_info<info::device::name>();
       std::cout << "SYCL_PI_TRACE[all]: "
                 << "Selected device ->" << std::endl
                 << "SYCL_PI_TRACE[all]: "
-                << "  platform: " << PlatformVersion << std::endl
+                << "  platform: " << PlatformName << std::endl
                 << "SYCL_PI_TRACE[all]: "
                 << "  device: " << DeviceName << std::endl;
     }

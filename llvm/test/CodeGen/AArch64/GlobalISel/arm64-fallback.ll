@@ -103,7 +103,7 @@ define fp128 @test_quad_dump() {
   ret fp128 0xL00000000000000004000000000000000
 }
 
-; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: %2:_(p0) = G_EXTRACT_VECTOR_ELT %0:_(<2 x p0>), %3:_(s64) (in function: vector_of_pointers_extractelement)
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: %2:_(p0) = G_EXTRACT_VECTOR_ELT %{{[0-9]+}}:_(<2 x p0>), %{{[0-9]+}}:_(s64) (in function: vector_of_pointers_extractelement)
 ; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for vector_of_pointers_extractelement
 ; FALLBACK-WITH-REPORT-OUT-LABEL: vector_of_pointers_extractelement:
 @var = global <2 x i16*> zeroinitializer
@@ -136,7 +136,7 @@ end:
   br label %block
 }
 
-; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: %3:_(s96) = G_ADD %2:_, %2:_ (in function: nonpow2_add_narrowing)
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: %{{[0-9]+}}:_(s96) = G_ADD %{{[0-9]+}}:_, %{{[0-9]+}}:_ (in function: nonpow2_add_narrowing)
 ; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for nonpow2_add_narrowing
 ; FALLBACK-WITH-REPORT-OUT-LABEL: nonpow2_add_narrowing:
 define void @nonpow2_add_narrowing() {
@@ -147,7 +147,7 @@ define void @nonpow2_add_narrowing() {
   ret void
 }
 
-; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: %5:_(s96) = G_INSERT %18:_, %16:_(s32), 64 (in function: nonpow2_or_narrowing)
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: %{{[0-9]+}}:_(s96) = G_INSERT %{{[0-9]+}}:_, %{{[0-9]+}}:_(s32), 64 (in function: nonpow2_or_narrowing)
 ; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for nonpow2_or_narrowing
 ; FALLBACK-WITH-REPORT-OUT-LABEL: nonpow2_or_narrowing:
 define void @nonpow2_or_narrowing() {
@@ -172,7 +172,7 @@ define void @nonpow2_load_narrowing() {
 ; Currently can't handle vector lengths that aren't an exact multiple of
 ; natively supported vector lengths. Test that the fall-back works for those.
 ; FALLBACK-WITH-REPORT-ERR-G_IMPLICIT_DEF-LEGALIZABLE: (FIXME: this is what is expected once we can legalize non-pow-of-2 G_IMPLICIT_DEF) remark: <unknown>:0:0: unable to legalize instruction: %1:_(<7 x s64>) = G_ADD %0, %0 (in function: nonpow2_vector_add_fewerelements
-; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: %2:_(s64) = G_EXTRACT_VECTOR_ELT %1:_(<7 x s64>), %3:_(s64) (in function: nonpow2_vector_add_fewerelements)
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to legalize instruction: %{{[0-9]+}}:_(s64) = G_EXTRACT_VECTOR_ELT %{{[0-9]+}}:_(<7 x s64>), %{{[0-9]+}}:_(s64) (in function: nonpow2_vector_add_fewerelements)
 ; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for nonpow2_vector_add_fewerelements
 ; FALLBACK-WITH-REPORT-OUT-LABEL: nonpow2_vector_add_fewerelements:
 define void @nonpow2_vector_add_fewerelements() {
@@ -220,19 +220,38 @@ entry:
   ret void
 }
 
-; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to lower arguments{{.*}}scalable_arg
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to lower function{{.*}}scalable_arg
 ; FALLBACK-WITH-REPORT-OUT-LABEL: scalable_arg
 define <vscale x 16 x i8> @scalable_arg(<vscale x 16 x i1> %pred, i8* %addr) #1 {
   %res = call <vscale x 16 x i8> @llvm.aarch64.sve.ld1.nxv16i8(<vscale x 16 x i1> %pred, i8* %addr)
   ret <vscale x 16 x i8> %res
 }
 
-; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to translate instruction{{.*}}scalable_call
-; FALLBACK-WITH-REPORT-OUT-LABEL: scalable_call
-define <vscale x 16 x i8> @scalable_call(i8* %addr) #1 {
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to lower function{{.*}}scalable_ret
+; FALLBACK-WITH-REPORT-OUT-LABEL: scalable_ret
+define <vscale x 16 x i8> @scalable_ret(i8* %addr) #1 {
   %pred = call <vscale x 16 x i1> @llvm.aarch64.sve.ptrue.nxv16i1(i32 0)
   %res = call <vscale x 16 x i8> @llvm.aarch64.sve.ld1.nxv16i8(<vscale x 16 x i1> %pred, i8* %addr)
   ret <vscale x 16 x i8> %res
+}
+
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to translate instruction{{.*}}scalable_call
+; FALLBACK-WITH-REPORT-OUT-LABEL: scalable_call
+define i8 @scalable_call(i8* %addr) #1 {
+  %pred = call <vscale x 16 x i1> @llvm.aarch64.sve.ptrue.nxv16i1(i32 0)
+  %vec = call <vscale x 16 x i8> @llvm.aarch64.sve.ld1.nxv16i8(<vscale x 16 x i1> %pred, i8* %addr)
+  %res = extractelement <vscale x 16 x i8> %vec, i32 0
+  ret i8 %res
+}
+
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to translate instruction{{.*}}asm_indirect_output
+; FALLBACK-WITH-REPORT-OUT-LABEL: asm_indirect_output
+define void @asm_indirect_output() {
+entry:
+  %ap = alloca i8*, align 8
+  %0 = load i8*, i8** %ap, align 8
+  call void asm sideeffect "", "=*r|m,0,~{memory}"(i8** %ap, i8* %0)
+  ret void
 }
 
 attributes #1 = { "target-features"="+sve" }

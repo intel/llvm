@@ -782,11 +782,7 @@ public:
 
   /// Create an assume intrinsic call that allows the optimizer to
   /// assume that the provided condition will be true.
-  ///
-  /// The optional argument \p OpBundles specifies operand bundles that are
-  /// added to the call instruction.
-  CallInst *CreateAssumption(Value *Cond,
-                             ArrayRef<OperandBundleDef> OpBundles = llvm::None);
+  CallInst *CreateAssumption(Value *Cond);
 
   /// Create a call to the experimental.gc.statepoint intrinsic to
   /// start a new statepoint sequence.
@@ -1737,19 +1733,21 @@ public:
     return Insert(new FenceInst(Context, Ordering, SSID), Name);
   }
 
-  AtomicCmpXchgInst *
-  CreateAtomicCmpXchg(Value *Ptr, Value *Cmp, Value *New,
-                      AtomicOrdering SuccessOrdering,
-                      AtomicOrdering FailureOrdering,
-                      SyncScope::ID SSID = SyncScope::System) {
-    return Insert(new AtomicCmpXchgInst(Ptr, Cmp, New, SuccessOrdering,
-                                        FailureOrdering, SSID));
+  AtomicCmpXchgInst *CreateAtomicCmpXchg(
+      Value *Ptr, Value *Cmp, Value *New, AtomicOrdering SuccessOrdering,
+      AtomicOrdering FailureOrdering, SyncScope::ID SSID = SyncScope::System) {
+    const DataLayout &DL = BB->getModule()->getDataLayout();
+    Align Alignment(DL.getTypeStoreSize(New->getType()));
+    return Insert(new AtomicCmpXchgInst(
+        Ptr, Cmp, New, Alignment, SuccessOrdering, FailureOrdering, SSID));
   }
 
   AtomicRMWInst *CreateAtomicRMW(AtomicRMWInst::BinOp Op, Value *Ptr, Value *Val,
                                  AtomicOrdering Ordering,
                                  SyncScope::ID SSID = SyncScope::System) {
-    return Insert(new AtomicRMWInst(Op, Ptr, Val, Ordering, SSID));
+    const DataLayout &DL = BB->getModule()->getDataLayout();
+    Align Alignment(DL.getTypeStoreSize(Val->getType()));
+    return Insert(new AtomicRMWInst(Op, Ptr, Val, Alignment, Ordering, SSID));
   }
 
   Value *CreateGEP(Value *Ptr, ArrayRef<Value *> IdxList,
@@ -2504,11 +2502,13 @@ public:
 
 private:
   /// Helper function that creates an assume intrinsic call that
-  /// represents an alignment assumption on the provided pointer \p PtrValue
-  /// with offset \p OffsetValue and alignment value \p AlignValue.
+  /// represents an alignment assumption on the provided Ptr, Mask, Type
+  /// and Offset. It may be sometimes useful to do some other logic
+  /// based on this alignment check, thus it can be stored into 'TheCheck'.
   CallInst *CreateAlignmentAssumptionHelper(const DataLayout &DL,
-                                            Value *PtrValue, Value *AlignValue,
-                                            Value *OffsetValue);
+                                            Value *PtrValue, Value *Mask,
+                                            Type *IntPtrTy, Value *OffsetValue,
+                                            Value **TheCheck);
 
 public:
   /// Create an assume intrinsic call that represents an alignment
@@ -2517,9 +2517,13 @@ public:
   /// An optional offset can be provided, and if it is provided, the offset
   /// must be subtracted from the provided pointer to get the pointer with the
   /// specified alignment.
+  ///
+  /// It may be sometimes useful to do some other logic
+  /// based on this alignment check, thus it can be stored into 'TheCheck'.
   CallInst *CreateAlignmentAssumption(const DataLayout &DL, Value *PtrValue,
                                       unsigned Alignment,
-                                      Value *OffsetValue = nullptr);
+                                      Value *OffsetValue = nullptr,
+                                      Value **TheCheck = nullptr);
 
   /// Create an assume intrinsic call that represents an alignment
   /// assumption on the provided pointer.
@@ -2528,11 +2532,15 @@ public:
   /// must be subtracted from the provided pointer to get the pointer with the
   /// specified alignment.
   ///
+  /// It may be sometimes useful to do some other logic
+  /// based on this alignment check, thus it can be stored into 'TheCheck'.
+  ///
   /// This overload handles the condition where the Alignment is dependent
   /// on an existing value rather than a static value.
   CallInst *CreateAlignmentAssumption(const DataLayout &DL, Value *PtrValue,
                                       Value *Alignment,
-                                      Value *OffsetValue = nullptr);
+                                      Value *OffsetValue = nullptr,
+                                      Value **TheCheck = nullptr);
 };
 
 /// This provides a uniform API for creating instructions and inserting

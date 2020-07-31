@@ -1353,7 +1353,7 @@ bool ScalarEvolution::proveNoWrapByVaryingStart(const SCEV *Start,
 static APInt extractConstantWithoutWrapping(ScalarEvolution &SE,
                                             const SCEVConstant *ConstantTerm,
                                             const SCEVAddExpr *WholeAddExpr) {
-  const APInt C = ConstantTerm->getAPInt();
+  const APInt &C = ConstantTerm->getAPInt();
   const unsigned BitWidth = C.getBitWidth();
   // Find number of trailing zeros of (x + y + ...) w/o the C first:
   uint32_t TZ = BitWidth;
@@ -3317,10 +3317,7 @@ ScalarEvolution::getGEPExpr(GEPOperator *GEP,
   }
 
   // Add the total offset from all the GEP indices to the base.
-  auto *GEPExpr = getAddExpr(BaseExpr, TotalOffset, Wrap);
-  assert(BaseExpr->getType() == GEPExpr->getType() &&
-         "GEP should not change type mid-flight.");
-  return GEPExpr;
+  return getAddExpr(BaseExpr, TotalOffset, Wrap);
 }
 
 std::tuple<SCEV *, FoldingSetNodeID, void *>
@@ -6301,6 +6298,20 @@ const SCEV *ScalarEvolution::createSCEV(Value *V) {
     // BitCasts are no-op casts so we just eliminate the cast.
     if (isSCEVable(U->getType()) && isSCEVable(U->getOperand(0)->getType()))
       return getSCEV(U->getOperand(0));
+    break;
+
+  case Instruction::SDiv:
+    // If both operands are non-negative, this is just an udiv.
+    if (isKnownNonNegative(getSCEV(U->getOperand(0))) &&
+        isKnownNonNegative(getSCEV(U->getOperand(1))))
+      return getUDivExpr(getSCEV(U->getOperand(0)), getSCEV(U->getOperand(1)));
+    break;
+
+  case Instruction::SRem:
+    // If both operands are non-negative, this is just an urem.
+    if (isKnownNonNegative(getSCEV(U->getOperand(0))) &&
+        isKnownNonNegative(getSCEV(U->getOperand(1))))
+      return getURemExpr(getSCEV(U->getOperand(0)), getSCEV(U->getOperand(1)));
     break;
 
   // It's tempting to handle inttoptr and ptrtoint as no-ops, however this can
@@ -11923,6 +11934,11 @@ ScalarEvolutionVerifierPass::run(Function &F, FunctionAnalysisManager &AM) {
 
 PreservedAnalyses
 ScalarEvolutionPrinterPass::run(Function &F, FunctionAnalysisManager &AM) {
+  // For compatibility with opt's -analyze feature under legacy pass manager
+  // which was not ported to NPM. This keeps tests using
+  // update_analyze_test_checks.py working.
+  OS << "Printing analysis 'Scalar Evolution Analysis' for function '"
+     << F.getName() << "':\n";
   AM.getResult<ScalarEvolutionAnalysis>(F).print(OS);
   return PreservedAnalyses::all();
 }

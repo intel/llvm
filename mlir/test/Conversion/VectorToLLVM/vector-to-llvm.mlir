@@ -172,29 +172,25 @@ func @broadcast_stretch_in_middle(%arg0: vector<4x1x2xf32>) -> vector<4x3x2xf32>
 // CHECK-SAME:  %[[A:.*]]: !llvm<"[4 x [1 x <2 x float>]]">)
 // CHECK:       %[[T0:.*]] = llvm.mlir.constant(dense<0.000000e+00> : vector<4x3x2xf32>) : !llvm<"[4 x [3 x <2 x float>]]">
 // CHECK:       %[[T1:.*]] = llvm.mlir.constant(dense<0.000000e+00> : vector<3x2xf32>) : !llvm<"[3 x <2 x float>]">
-// CHECK:       %[[T2:.*]] = llvm.extractvalue %[[A]][0] : !llvm<"[4 x [1 x <2 x float>]]">
-// CHECK:       %[[T3:.*]] = llvm.extractvalue %[[T2]][0] : !llvm<"[1 x <2 x float>]">
-// CHECK:       %[[T4:.*]] = llvm.insertvalue %[[T3]], %[[T1]][0] : !llvm<"[3 x <2 x float>]">
-// CHECK:       %[[T5:.*]] = llvm.insertvalue %[[T3]], %[[T4]][1] : !llvm<"[3 x <2 x float>]">
-// CHECK:       %[[T6:.*]] = llvm.insertvalue %[[T3]], %[[T5]][2] : !llvm<"[3 x <2 x float>]">
+// CHECK:       %[[T2:.*]] = llvm.extractvalue %[[A]][0, 0] : !llvm<"[4 x [1 x <2 x float>]]">
+// CHECK:       %[[T4:.*]] = llvm.insertvalue %[[T2]], %[[T1]][0] : !llvm<"[3 x <2 x float>]">
+// CHECK:       %[[T5:.*]] = llvm.insertvalue %[[T2]], %[[T4]][1] : !llvm<"[3 x <2 x float>]">
+// CHECK:       %[[T6:.*]] = llvm.insertvalue %[[T2]], %[[T5]][2] : !llvm<"[3 x <2 x float>]">
 // CHECK:       %[[T7:.*]] = llvm.insertvalue %[[T6]], %[[T0]][0] : !llvm<"[4 x [3 x <2 x float>]]">
-// CHECK:       %[[T8:.*]] = llvm.extractvalue %[[A]][1] : !llvm<"[4 x [1 x <2 x float>]]">
-// CHECK:       %[[T9:.*]] = llvm.extractvalue %[[T8]][0] : !llvm<"[1 x <2 x float>]">
-// CHECK:       %[[T10:.*]] = llvm.insertvalue %[[T9]], %[[T1]][0] : !llvm<"[3 x <2 x float>]">
-// CHECK:       %[[T11:.*]] = llvm.insertvalue %[[T9]], %[[T10]][1] : !llvm<"[3 x <2 x float>]">
-// CHECK:       %[[T12:.*]] = llvm.insertvalue %[[T9]], %[[T11]][2] : !llvm<"[3 x <2 x float>]">
+// CHECK:       %[[T8:.*]] = llvm.extractvalue %[[A]][1, 0] : !llvm<"[4 x [1 x <2 x float>]]">
+// CHECK:       %[[T10:.*]] = llvm.insertvalue %[[T8]], %[[T1]][0] : !llvm<"[3 x <2 x float>]">
+// CHECK:       %[[T11:.*]] = llvm.insertvalue %[[T8]], %[[T10]][1] : !llvm<"[3 x <2 x float>]">
+// CHECK:       %[[T12:.*]] = llvm.insertvalue %[[T8]], %[[T11]][2] : !llvm<"[3 x <2 x float>]">
 // CHECK:       %[[T13:.*]] = llvm.insertvalue %[[T12]], %[[T7]][1] : !llvm<"[4 x [3 x <2 x float>]]">
-// CHECK:       %[[T14:.*]] = llvm.extractvalue %[[A]][2] : !llvm<"[4 x [1 x <2 x float>]]">
-// CHECK:       %[[T15:.*]] = llvm.extractvalue %[[T14]][0] : !llvm<"[1 x <2 x float>]">
-// CHECK:       %[[T16:.*]] = llvm.insertvalue %[[T15]], %[[T1]][0] : !llvm<"[3 x <2 x float>]">
-// CHECK:       %[[T17:.*]] = llvm.insertvalue %[[T15]], %[[T16]][1] : !llvm<"[3 x <2 x float>]">
-// CHECK:       %[[T18:.*]] = llvm.insertvalue %[[T15]], %[[T17]][2] : !llvm<"[3 x <2 x float>]">
+// CHECK:       %[[T14:.*]] = llvm.extractvalue %[[A]][2, 0] : !llvm<"[4 x [1 x <2 x float>]]">
+// CHECK:       %[[T16:.*]] = llvm.insertvalue %[[T14]], %[[T1]][0] : !llvm<"[3 x <2 x float>]">
+// CHECK:       %[[T17:.*]] = llvm.insertvalue %[[T14]], %[[T16]][1] : !llvm<"[3 x <2 x float>]">
+// CHECK:       %[[T18:.*]] = llvm.insertvalue %[[T14]], %[[T17]][2] : !llvm<"[3 x <2 x float>]">
 // CHECK:       %[[T19:.*]] = llvm.insertvalue %[[T18]], %[[T13]][2] : !llvm<"[4 x [3 x <2 x float>]]">
-// CHECK:       %[[T20:.*]] = llvm.extractvalue %[[A]][3] : !llvm<"[4 x [1 x <2 x float>]]">
-// CHECK:       %[[T21:.*]] = llvm.extractvalue %[[T20]][0] : !llvm<"[1 x <2 x float>]">
-// CHECK:       %[[T22:.*]] = llvm.insertvalue %[[T21]], %[[T1]][0] : !llvm<"[3 x <2 x float>]">
-// CHECK:       %[[T23:.*]] = llvm.insertvalue %[[T21]], %[[T22]][1] : !llvm<"[3 x <2 x float>]">
-// CHECK:       %[[T24:.*]] = llvm.insertvalue %[[T21]], %[[T23]][2] : !llvm<"[3 x <2 x float>]">
+// CHECK:       %[[T20:.*]] = llvm.extractvalue %[[A]][3, 0] : !llvm<"[4 x [1 x <2 x float>]]">
+// CHECK:       %[[T22:.*]] = llvm.insertvalue %[[T20]], %[[T1]][0] : !llvm<"[3 x <2 x float>]">
+// CHECK:       %[[T23:.*]] = llvm.insertvalue %[[T20]], %[[T22]][1] : !llvm<"[3 x <2 x float>]">
+// CHECK:       %[[T24:.*]] = llvm.insertvalue %[[T20]], %[[T23]][2] : !llvm<"[3 x <2 x float>]">
 // CHECK:       %[[T25:.*]] = llvm.insertvalue %[[T24]], %[[T19]][3] : !llvm<"[4 x [3 x <2 x float>]]">
 // CHECK:       llvm.return %[[T25]] : !llvm<"[4 x [3 x <2 x float>]]">
 
@@ -240,7 +236,7 @@ func @outerproduct_add(%arg0: vector<2xf32>, %arg1: vector<3xf32>, %arg2: vector
 //      CHECK: %[[T5:.*]] = llvm.insertelement %[[T2]], %[[T3]][%[[T4]] : !llvm.i32] : !llvm<"<3 x float>">
 //      CHECK: %[[T6:.*]] = llvm.shufflevector %[[T5]], %[[T3]] [0 : i32, 0 : i32, 0 : i32] : !llvm<"<3 x float>">, !llvm<"<3 x float>">
 //      CHECK: %[[T7:.*]] = llvm.extractvalue %[[C]][0] : !llvm<"[2 x <3 x float>]">
-//      CHECK: %[[T8:.*]] = "llvm.intr.fma"(%[[T6]], %[[B]], %[[T7]]) : (!llvm<"<3 x float>">, !llvm<"<3 x float>">, !llvm<"<3 x float>">)
+//      CHECK: %[[T8:.*]] = "llvm.intr.fmuladd"(%[[T6]], %[[B]], %[[T7]]) : (!llvm<"<3 x float>">, !llvm<"<3 x float>">, !llvm<"<3 x float>">)
 //      CHECK: %[[T9:.*]] = llvm.insertvalue %[[T8]], %[[T0]][0] : !llvm<"[2 x <3 x float>]">
 //      CHECK: %[[T10:.*]] = llvm.mlir.constant(1 : i64) : !llvm.i64
 //      CHECK: %[[T11:.*]] = llvm.extractelement %[[A]][%[[T10]] : !llvm.i64] : !llvm<"<2 x float>">
@@ -249,7 +245,7 @@ func @outerproduct_add(%arg0: vector<2xf32>, %arg1: vector<3xf32>, %arg2: vector
 //      CHECK: %[[T14:.*]] = llvm.insertelement %[[T11]], %[[T12]][%[[T13]] : !llvm.i32] : !llvm<"<3 x float>">
 //      CHECK: %[[T15:.*]] = llvm.shufflevector %[[T14]], %[[T12]] [0 : i32, 0 : i32, 0 : i32] : !llvm<"<3 x float>">, !llvm<"<3 x float>">
 //      CHECK: %[[T16:.*]] = llvm.extractvalue %[[C]][1] : !llvm<"[2 x <3 x float>]">
-//      CHECK: %[[T17:.*]] = "llvm.intr.fma"(%[[T15]], %[[B]], %[[T16]]) : (!llvm<"<3 x float>">, !llvm<"<3 x float>">, !llvm<"<3 x float>">)
+//      CHECK: %[[T17:.*]] = "llvm.intr.fmuladd"(%[[T15]], %[[B]], %[[T16]]) : (!llvm<"<3 x float>">, !llvm<"<3 x float>">, !llvm<"<3 x float>">)
 //      CHECK: %[[T18:.*]] = llvm.insertvalue %[[T17]], %[[T9]][1] : !llvm<"[2 x <3 x float>]">
 //      CHECK: llvm.return %[[T18]] : !llvm<"[2 x <3 x float>]">
 
@@ -630,7 +626,7 @@ func @insert_strided_slice3(%arg0: vector<2x4xf32>, %arg1: vector<16x4x8xf32>) -
 // CHECK-SAME: %[[B:.*]]: !llvm<"[16 x [4 x <8 x float>]]">)
 //      CHECK: %[[s0:.*]] = llvm.extractvalue %[[B]][0] : !llvm<"[16 x [4 x <8 x float>]]">
 //      CHECK: %[[s1:.*]] = llvm.extractvalue %[[A]][0] : !llvm<"[2 x <4 x float>]">
-//      CHECK: %[[s2:.*]] = llvm.extractvalue %[[s0]][0] : !llvm<"[4 x <8 x float>]">
+//      CHECK: %[[s2:.*]] = llvm.extractvalue %[[B]][0, 0] : !llvm<"[16 x [4 x <8 x float>]]">
 //      CHECK: %[[s3:.*]] = llvm.mlir.constant(0 : index) : !llvm.i64
 //      CHECK: %[[s4:.*]] = llvm.extractelement %[[s1]][%[[s3]] : !llvm.i64] : !llvm<"<4 x float>">
 //      CHECK: %[[s5:.*]] = llvm.mlir.constant(2 : index) : !llvm.i64
@@ -649,7 +645,7 @@ func @insert_strided_slice3(%arg0: vector<2x4xf32>, %arg1: vector<16x4x8xf32>) -
 //      CHECK: %[[s18:.*]] = llvm.insertelement %[[s16]], %[[s14]][%[[s17]] : !llvm.i64] : !llvm<"<8 x float>">
 //      CHECK: %[[s19:.*]] = llvm.insertvalue %[[s18]], %[[s0]][0] : !llvm<"[4 x <8 x float>]">
 //      CHECK: %[[s20:.*]] = llvm.extractvalue %[[A]][1] : !llvm<"[2 x <4 x float>]">
-//      CHECK: %[[s21:.*]] = llvm.extractvalue %[[s0]][1] : !llvm<"[4 x <8 x float>]">
+//      CHECK: %[[s21:.*]] = llvm.extractvalue %[[B]][0, 1] : !llvm<"[16 x [4 x <8 x float>]]">
 //      CHECK: %[[s22:.*]] = llvm.mlir.constant(0 : index) : !llvm.i64
 //      CHECK: %[[s23:.*]] = llvm.extractelement %[[s20]][%[[s22]] : !llvm.i64] : !llvm<"<4 x float>">
 //      CHECK: %[[s24:.*]] = llvm.mlir.constant(2 : index) : !llvm.i64
@@ -692,20 +688,20 @@ func @extract_strides(%arg0: vector<3x3xf32>) -> vector<1x1xf32> {
 //  CHECK-SAME: %[[A:.*]]: !llvm<"<8 x float>">, %[[B:.*]]: !llvm<"[2 x <4 x float>]">)
 //  CHECK-SAME: -> !llvm<"{ <8 x float>, [2 x <4 x float>] }"> {
 func @vector_fma(%a: vector<8xf32>, %b: vector<2x4xf32>) -> (vector<8xf32>, vector<2x4xf32>) {
-  //         CHECK: "llvm.intr.fma"(%[[A]], %[[A]], %[[A]]) :
+  //         CHECK: "llvm.intr.fmuladd"(%[[A]], %[[A]], %[[A]]) :
   //    CHECK-SAME:   (!llvm<"<8 x float>">, !llvm<"<8 x float>">, !llvm<"<8 x float>">) -> !llvm<"<8 x float>">
   %0 = vector.fma %a, %a, %a : vector<8xf32>
 
   //       CHECK: %[[b00:.*]] = llvm.extractvalue %[[B]][0] : !llvm<"[2 x <4 x float>]">
   //       CHECK: %[[b01:.*]] = llvm.extractvalue %[[B]][0] : !llvm<"[2 x <4 x float>]">
   //       CHECK: %[[b02:.*]] = llvm.extractvalue %[[B]][0] : !llvm<"[2 x <4 x float>]">
-  //       CHECK: %[[B0:.*]] = "llvm.intr.fma"(%[[b00]], %[[b01]], %[[b02]]) :
+  //       CHECK: %[[B0:.*]] = "llvm.intr.fmuladd"(%[[b00]], %[[b01]], %[[b02]]) :
   //  CHECK-SAME: (!llvm<"<4 x float>">, !llvm<"<4 x float>">, !llvm<"<4 x float>">) -> !llvm<"<4 x float>">
   //       CHECK: llvm.insertvalue %[[B0]], {{.*}}[0] : !llvm<"[2 x <4 x float>]">
   //       CHECK: %[[b10:.*]] = llvm.extractvalue %[[B]][1] : !llvm<"[2 x <4 x float>]">
   //       CHECK: %[[b11:.*]] = llvm.extractvalue %[[B]][1] : !llvm<"[2 x <4 x float>]">
   //       CHECK: %[[b12:.*]] = llvm.extractvalue %[[B]][1] : !llvm<"[2 x <4 x float>]">
-  //       CHECK: %[[B1:.*]] = "llvm.intr.fma"(%[[b10]], %[[b11]], %[[b12]]) :
+  //       CHECK: %[[B1:.*]] = "llvm.intr.fmuladd"(%[[b10]], %[[b11]], %[[b12]]) :
   //  CHECK-SAME: (!llvm<"<4 x float>">, !llvm<"<4 x float>">, !llvm<"<4 x float>">) -> !llvm<"<4 x float>">
   //       CHECK: llvm.insertvalue %[[B1]], {{.*}}[1] : !llvm<"[2 x <4 x float>]">
   %1 = vector.fma %b, %b, %b : vector<2x4xf32>
@@ -939,7 +935,7 @@ func @transfer_read_1d_not_masked(%A : memref<?xf32>, %base: index) -> vector<17
 //  CHECK-SAME: !llvm<"float*"> to !llvm<"<17 x float>*">
 //
 // 2. Rewrite as a load.
-//       CHECK: %[[loaded:.*]] = llvm.load %[[vecPtr]] : !llvm<"<17 x float>*">
+//       CHECK: %[[loaded:.*]] = llvm.load %[[vecPtr]] {alignment = 4 : i64} : !llvm<"<17 x float>*">
 
 func @genbool_1d() -> vector<8xi1> {
   %0 = vector.constant_mask [4] : vector<8xi1>
@@ -973,3 +969,23 @@ func @flat_transpose(%arg0: vector<16xf32>) -> vector<16xf32> {
 // CHECK-SAME:      {columns = 4 : i32, rows = 4 : i32} :
 // CHECK-SAME:      !llvm<"<16 x float>"> into !llvm<"<16 x float>">
 // CHECK:       llvm.return %[[T]] : !llvm<"<16 x float>">
+
+func @gather_op(%arg0: memref<?xf32>, %arg1: vector<3xi32>, %arg2: vector<3xi1>, %arg3: vector<3xf32>) -> vector<3xf32> {
+  %0 = vector.gather %arg0, %arg1, %arg2, %arg3 : (memref<?xf32>, vector<3xi32>, vector<3xi1>, vector<3xf32>) -> vector<3xf32>
+  return %0 : vector<3xf32>
+}
+
+// CHECK-LABEL: func @gather_op
+// CHECK: %[[P:.*]] = llvm.getelementptr {{.*}}[%{{.*}}] : (!llvm<"float*">, !llvm<"<3 x i32>">) -> !llvm<"<3 x float*>">
+// CHECK: %[[G:.*]] = llvm.intr.masked.gather %[[P]], %{{.*}}, %{{.*}} {alignment = 4 : i32} : (!llvm<"<3 x float*>">, !llvm<"<3 x i1>">, !llvm<"<3 x float>">) -> !llvm<"<3 x float>">
+// CHECK: llvm.return %[[G]] : !llvm<"<3 x float>">
+
+func @scatter_op(%arg0: memref<?xf32>, %arg1: vector<3xi32>, %arg2: vector<3xi1>, %arg3: vector<3xf32>) {
+  vector.scatter %arg0, %arg1, %arg2, %arg3 : vector<3xi32>, vector<3xi1>, vector<3xf32> into memref<?xf32>
+  return
+}
+
+// CHECK-LABEL: func @scatter_op
+// CHECK: %[[P:.*]] = llvm.getelementptr {{.*}}[%{{.*}}] : (!llvm<"float*">, !llvm<"<3 x i32>">) -> !llvm<"<3 x float*>">
+// CHECK: llvm.intr.masked.scatter %{{.*}}, %[[P]], %{{.*}} {alignment = 4 : i32} : !llvm<"<3 x float>">, !llvm<"<3 x i1>"> into !llvm<"<3 x float*>">
+// CHECK: llvm.return
