@@ -1,49 +1,19 @@
-// TODO enable on WIndows
+// TODO enable on Windows
 // REQUIRES: linux
 // REQUIRES: gpu
-// RUN: %clangxx-esimd -fsycl %s -o %t.out
+// RUN: %clangxx-esimd -fsycl %s -I%S/.. -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out %S/linear_in.bmp %S/linear_gold_hw.bmp
 // RUN: %ESIMD_RUN_PLACEHOLDER %t.out %S/linear_in.bmp %S/linear_gold_hw.bmp
 
 #include "bitmap_helpers.h"
+#include "esimd_test_utils.hpp"
+
 #include <CL/sycl.hpp>
 #include <CL/sycl/intel/esimd.hpp>
 #include <array>
 #include <iostream>
 
 using namespace cl::sycl;
-
-class ESIMDSelector : public device_selector {
-  // Require GPU device unless HOST is requested in SYCL_DEVICE_TYPE env
-  virtual int operator()(const device &device) const {
-    if (const char *dev_type = getenv("SYCL_DEVICE_TYPE")) {
-      if (!strcmp(dev_type, "GPU"))
-        return device.is_gpu() ? 1000 : -1;
-      if (!strcmp(dev_type, "HOST"))
-        return device.is_host() ? 1000 : -1;
-      std::cerr << "Supported 'SYCL_DEVICE_TYPE' env var values are 'GPU' and "
-                   "'HOST', '"
-                << dev_type << "' is not.\n";
-      return -1;
-    }
-    // If "SYCL_DEVICE_TYPE" not defined, only allow gpu device
-    return device.is_gpu() ? 1000 : -1;
-  }
-};
-
-auto exception_handler = [](exception_list l) {
-  for (auto ep : l) {
-    try {
-      std::rethrow_exception(ep);
-    } catch (cl::sycl::exception &e0) {
-      std::cout << "sycl::exception: " << e0.what() << std::endl;
-    } catch (std::exception &e) {
-      std::cout << "std::exception: " << e.what() << std::endl;
-    } catch (...) {
-      std::cout << "generic exception\n";
-    }
-  }
-};
 
 int main(int argc, char *argv[]) {
   if (argc != 3) {
@@ -97,7 +67,7 @@ int main(int argc, char *argv[]) {
     // Number of workitems in a workgroup
     cl::sycl::range<2> LocalRange{1, 1};
 
-    queue q(ESIMDSelector{}, exception_handler);
+    queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
 
     auto dev = q.get_device();
     auto ctxt = q.get_context();

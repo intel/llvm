@@ -1,4 +1,4 @@
-// TODO enable on WIndows
+// TODO enable on Windows
 // REQUIRES: linux
 // REQUIRES: gpu
 // RUN: %clangxx-esimd -fsycl -D_CRT_SECURE_NO_WARNINGS=1 %s -o %t.out
@@ -6,44 +6,14 @@
 
 // This test checks that accessor-based memory accesses work correctly in ESIMD.
 
+#include "esimd_test_utils.hpp"
+
 #include <CL/sycl.hpp>
 #include <CL/sycl/intel/esimd.hpp>
 
 #include <iostream>
 
 using namespace cl::sycl;
-
-class ESIMDSelector : public device_selector {
-  // Require GPU device unless HOST is requested in SYCL_DEVICE_TYPE env
-  virtual int operator()(const device &device) const {
-    if (const char *dev_type = getenv("SYCL_DEVICE_TYPE")) {
-      if (!strcmp(dev_type, "GPU"))
-        return device.is_gpu() ? 1000 : -1;
-      if (!strcmp(dev_type, "HOST"))
-        return device.is_host() ? 1000 : -1;
-      std::cerr << "Supported 'SYCL_DEVICE_TYPE' env var values are 'GPU' and "
-                   "'HOST', '"
-                << dev_type << "' is not.\n";
-      return -1;
-    }
-    // If "SYCL_DEVICE_TYPE" not defined, only allow gpu device
-    return device.is_gpu() ? 1000 : -1;
-  }
-};
-
-auto exception_handler = [](exception_list l) {
-  for (auto ep : l) {
-    try {
-      std::rethrow_exception(ep);
-    } catch (cl::sycl::exception &e0) {
-      std::cout << "sycl::exception: " << e0.what() << std::endl;
-    } catch (std::exception &e) {
-      std::cout << "std::exception: " << e.what() << std::endl;
-    } catch (...) {
-      std::cout << "generic exception\n";
-    }
-  }
-};
 
 constexpr unsigned int VL = 1024 * 128;
 
@@ -59,7 +29,7 @@ int main() {
   }
 
   try {
-    queue q(ESIMDSelector{}, exception_handler);
+    queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
 
     buffer<Ty, 1> buf0(data0, range<1>(VL));
     buffer<Ty, 1> buf1(data1, range<1>(VL));

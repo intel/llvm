@@ -1,9 +1,11 @@
-// TODO enable on WIndows
+// TODO enable on Windows
 // REQUIRES: linux
 // REQUIRES: gpu
 // RUN: %clangxx-esimd -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %ESIMD_RUN_PLACEHOLDER %t.out
+
+#include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/intel/esimd.hpp>
@@ -316,8 +318,8 @@ ESIMD_INLINE void transpose16(int *buf, int MZ, int block_col, int block_row) {
 }
 
 bool runTest(unsigned MZ, unsigned block_size) {
-  MyDeviceSelector sel;
-  queue q(sel, property::queue::enable_profiling{});
+  queue q(esimd_test::ESIMDSelector{}, createESIMDExceptionHandler(),
+          property::queue::enable_profiling{});
   auto dev = q.get_device();
   auto ctxt = q.get_context();
   int *M = static_cast<int *>(malloc_shared(MZ * MZ * sizeof(int), dev, ctxt));

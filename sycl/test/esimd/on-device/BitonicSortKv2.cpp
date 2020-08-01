@@ -1,9 +1,11 @@
-// TODO enable on WIndows
+// TODO enable on Windows
 // REQUIRES: linux
 // REQUIRES: gpu
 // RUN: %clangxx-esimd -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %ESIMD_RUN_PLACEHOLDER %t.out
+
+#include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/intel/esimd.hpp>
@@ -423,46 +425,6 @@ static double report_time(const string &msg, event e0, event en) {
   return elapsed;
 }
 
-// This is the class provided to SYCL runtime by the application to decide
-// on which device to run, or whether to run at all.
-// When selecting a device, SYCL runtime first takes (1) a selector provided by
-// the program or a default one and (2) the set of all available devices. Then
-// it passes each device to the '()' operator of the selector. Device, for
-// which '()' returned the highest number, is selected. If a negative number
-// was returned for all devices, then the selection process will cause an
-// exception.
-class ESIMDSelector : public device_selector {
-  // Require GPU device unless HOST is requested in SYCL_DEVICE_TYPE env
-  virtual int operator()(const device &device) const {
-    if (const char *dev_type = getenv("SYCL_DEVICE_TYPE")) {
-      if (!strcmp(dev_type, "GPU"))
-        return device.is_gpu() ? 1000 : -1;
-      if (!strcmp(dev_type, "HOST"))
-        return device.is_host() ? 1000 : -1;
-      std::cerr << "Supported 'SYCL_DEVICE_TYPE' env var values are 'GPU' and "
-                   "'HOST', '"
-                << dev_type << "' is not.\n";
-      return -1;
-    }
-    // If "SYCL_DEVICE_TYPE" not defined, only allow gpu device
-    return device.is_gpu() ? 1000 : -1;
-  }
-};
-
-auto exception_handler = [](exception_list l) {
-  for (auto ep : l) {
-    try {
-      std::rethrow_exception(ep);
-    } catch (cl::sycl::exception &e0) {
-      std::cout << "sycl::exception: " << e0.what() << std::endl;
-    } catch (std::exception &e) {
-      std::cout << "std::exception: " << e.what() << std::endl;
-    } catch (...) {
-      std::cout << "generic exception\n";
-    }
-  }
-};
-
 struct BitonicSort {
   enum {
     base_sort_size_ = 256,
@@ -618,7 +580,7 @@ int main(int argc, char *argv[]) {
   int size = 1 << LOG2_ELEMENTS;
   cout << "BitonicSort (" << size << ") Start..." << std::endl;
 
-  queue q(ESIMDSelector{}, exception_handler,
+  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
           property::queue::enable_profiling{});
 
   BitonicSort bitonicSort;

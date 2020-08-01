@@ -1,8 +1,10 @@
-// TODO enable on WIndows
+// TODO enable on Windows
 // REQUIRES: linux
 // REQUIRES: gpu
 // RUN: %clangxx-esimd -fsycl %s -o %t.out
 // RUN: %ESIMD_RUN_PLACEHOLDER %t.out
+
+#include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/intel/esimd.hpp>
@@ -98,40 +100,6 @@ static double report_time(const string &msg, event e) {
   // cerr << msg << elapsed << " msecs" << std::endl;
   return elapsed;
 }
-
-// This is the class provided to SYCL runtime by the application to decide
-// on which device to run, or whether to run at all.
-// When selecting a device, SYCL runtime first takes (1) a selector provided by
-// the program or a default one and (2) the set of all available devices. Then
-// it passes each device to the '()' operator of the selector. Device, for
-// which '()' returned the highest number, is selected. If a negative number
-// was returned for all devices, then the selection process will cause an
-// exception.
-class MyDeviceSelector : public cl::sycl::device_selector {
-public:
-  MyDeviceSelector() {}
-
-  // This is the function which gives a "rating" to devices.
-  virtual int operator()(const cl::sycl::device &device) const override {
-    // The template parameter to device.get_info can be a variety of properties
-    // defined by the SYCL spec's cl::sycl::info:: enum. Properties may have
-    // different types. Here we query name which is a string.
-    const std::string name = device.get_info<cl::sycl::info::device::name>();
-    std::cout << "Trying device: " << name << "..." << std::endl;
-    std::cout << "  Vendor: "
-              << device.get_info<cl::sycl::info::device::vendor>() << std::endl;
-    if (device.is_gpu())
-      return 500;
-    if (device.is_accelerator())
-      return 400;
-    if (device.is_cpu())
-      return 300;
-    if (device.is_host())
-      return 100;
-
-    return -1;
-  }
-};
 
 // This represents the register file that kernels operate on.
 // The max size we need is for 3 16x16 matrices
@@ -309,8 +277,8 @@ ESIMD_INLINE void transpose16(int *buf, int MZ, int block_col, int block_row) {
 }
 
 bool runTest(unsigned MZ, unsigned block_size) {
-  MyDeviceSelector sel;
-  queue q(sel, property::queue::enable_profiling{});
+  queue q(esimd_test::ESIMDSelector{}, createESIMDExceptionHandler(),
+          property::queue::enable_profiling{});
   auto dev = q.get_device();
   auto ctxt = q.get_context();
   int *M = static_cast<int *>(malloc_shared(MZ * MZ * sizeof(int), dev, ctxt));
