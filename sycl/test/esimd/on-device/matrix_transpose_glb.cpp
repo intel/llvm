@@ -284,7 +284,8 @@ ESIMD_INLINE void transpose16(int *buf, int MZ, int block_col, int block_row) {
 }
 
 bool runTest(unsigned MZ, unsigned block_size) {
-  queue q(esimd_test::ESIMDSelector{}, esimd_test::createESIMDExceptionHandler(), property::queue::enable_profiling{});
+  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
+          property::queue::enable_profiling{});
   auto dev = q.get_device();
   auto ctxt = q.get_context();
   int *M = static_cast<int *>(malloc_shared(MZ * MZ * sizeof(int), dev, ctxt));
