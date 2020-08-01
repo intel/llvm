@@ -214,9 +214,32 @@ bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
   // search is done for libpi_opencl.so/pi_opencl.dll file in LD_LIBRARY_PATH
   // env only.
   //
-  PluginNames.emplace_back(OPENCL_PLUGIN_NAME, backend::opencl);
-  PluginNames.emplace_back(LEVEL_ZERO_PLUGIN_NAME, backend::level_zero);
-  PluginNames.emplace_back(CUDA_PLUGIN_NAME, backend::cuda);
+  std::vector<triple> *Triples = SYCLConfig<SYCL_DEVICE_TRIPLE>::get();
+  bool OpenclFound = false;
+  bool LevelZeroFound = false;
+  bool CudaFound = false;
+  if (!Triples || Triples->size() == 0) {
+    PluginNames.emplace_back(OPENCL_PLUGIN_NAME, backend::opencl);
+    PluginNames.emplace_back(LEVEL_ZERO_PLUGIN_NAME, backend::level_zero);
+    PluginNames.emplace_back(CUDA_PLUGIN_NAME, backend::cuda);
+  } else {
+    for (triple Trp : *Triples) {
+      std::cout << "Triple=" << Trp << std::endl;
+      if (!OpenclFound && Trp.Backend == backend::opencl) {
+        std::cout << "loading opencl plugin" << std::endl;
+        PluginNames.emplace_back(OPENCL_PLUGIN_NAME, backend::opencl);
+        OpenclFound = true;
+      } else if (!LevelZeroFound && Trp.Backend == backend::level_zero) {
+        std::cout << "loading level_zero plugin" << std::endl;
+        PluginNames.emplace_back(LEVEL_ZERO_PLUGIN_NAME, backend::level_zero);
+        LevelZeroFound = true;
+      } else if (!CudaFound && Trp.Backend == backend::cuda) {
+        std::cout << "loading cuda plugin" << std::endl;
+        PluginNames.emplace_back(CUDA_PLUGIN_NAME, backend::cuda);
+        CudaFound = true;
+      }
+    }
+  }
   return true;
 }
 
