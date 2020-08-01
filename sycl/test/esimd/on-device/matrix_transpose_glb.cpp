@@ -1,3 +1,10 @@
+//==--------------- matrix_transpose_glb.cpp  - DPC++ ESIMD on-device test -==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 // TODO enable on Windows
 // REQUIRES: linux
 // REQUIRES: gpu
@@ -277,8 +284,7 @@ ESIMD_INLINE void transpose16(int *buf, int MZ, int block_col, int block_row) {
 }
 
 bool runTest(unsigned MZ, unsigned block_size) {
-  queue q(esimd_test::ESIMDSelector{}, createESIMDExceptionHandler(),
-          property::queue::enable_profiling{});
+  queue q(esimd_test::ESIMDSelector{}, esimd_test::createESIMDExceptionHandler(), property::queue::enable_profiling{});
   auto dev = q.get_device();
   auto ctxt = q.get_context();
   int *M = static_cast<int *>(malloc_shared(MZ * MZ * sizeof(int), dev, ctxt));

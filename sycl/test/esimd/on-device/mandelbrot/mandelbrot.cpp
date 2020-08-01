@@ -1,3 +1,10 @@
+//==---------------- mandelbrot.cpp  - DPC++ ESIMD on-device test ----------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 // TODO enable on Windows
 // REQUIRES: linux
 // REQUIRES: gpu
@@ -91,7 +98,7 @@ int main(int argc, char *argv[]) {
     // Number of workitems in a workgroup
     cl::sycl::range<2> LocalRange{1, 1};
 
-    queue q(esimd_test::ESIMDSelector{}, createESIMDExceptionHandler());
+    queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
 
     auto dev = q.get_device();
     auto ctxt = q.get_context();
@@ -130,7 +137,7 @@ int main(int argc, char *argv[]) {
   fclose(dumpfile);
 
   bool passed = true;
-  if (!esimd_test_utils::cmp_binary_files<unsigned char>(out_file, argv[2],
+  if (!esimd_test::cmp_binary_files<unsigned char>(out_file, argv[2],
                                                          0)) {
     std::cerr << out_file << " does not match the reference file " << argv[2]
               << std::endl;
