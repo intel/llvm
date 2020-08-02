@@ -5952,9 +5952,8 @@ InputInfo Driver::BuildJobsForActionNoCache(
                                              AtTopLevel, MultipleArchs,
                                              OffloadingPrefix),
                        BaseInput);
-    if (JobForPreprocessToStdout) {
+    if (JobForPreprocessToStdout)
       ResultForPreprocessToStdout = InputInfo(A, "-", BaseInput);
-    }
   }
 
   if (CCCPrintBindings && !CCGenDiagnostics) {
