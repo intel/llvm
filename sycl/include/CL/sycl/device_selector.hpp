@@ -8,7 +8,9 @@
 
 #pragma once
 
+#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/info/info_desc.hpp>
 
 // 4.6.1 Device selection class
 
@@ -32,8 +34,12 @@ protected:
 public:
   virtual ~device_selector() = default;
 
-  device select_device() const;
-
+  // deviceType is an optional parameter to set the desired device
+  // info::device_type::all means a heuristic is used to select a device with
+  // highest score
+  device select_device(info::device_type deviceType = info::device_type::all,
+                       backend be = backend::opencl, unsigned deviceNum = 0) const;
+  
   virtual int operator()(const device &device) const = 0;
 };
 

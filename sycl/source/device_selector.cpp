@@ -28,7 +28,46 @@ static bool isDeviceOfPreferredSyclBe(const device &Device) {
          backend::level_zero;
 }
 
-device device_selector::select_device() const {
+// return a device with the requested deviceType, backend, deviceNum
+// if no such device is found, heuristic is used to select a device.
+// 'deviceType' is the desired device type
+//   info::device_type::all means it relies on the heuristic to select a device
+// 'be' is a specific desired backend choice when multiple backends can support
+//   the device type.
+// 'deviceNum' is the index in the vector of devices returned from
+//    sycl::platform::get_devices().
+device device_selector::select_device(info::device_type deviceType,
+                                      backend be, unsigned deviceNum) const {
+  // return if a requested deviceType is found
+  if (deviceType != info::device_type::all) {
+    if (deviceType == info::device_type::host) {
+      return device{};
+    }
+
+    const vector_class<detail::plugin> &plugins = RT::initialize();
+    for (unsigned int i = 0; i < plugins.size(); i++) {
+      pi_uint32 numPlatforms = 0;
+      plugins[i].call<detail::PiApiKind::piPlatformsGet>(0, nullptr,
+                                                         &numPlatforms);
+      if (numPlatforms) {
+        vector_class<RT::PiPlatform> piPlatforms(numPlatforms);
+        plugins[i].call<detail::PiApiKind::piPlatformsGet>(
+            numPlatforms, piPlatforms.data(), nullptr);
+        for (const auto &piPlatform : piPlatforms) {
+          platform pltf = detail::createSyclObjFromImpl<platform>(
+              std::make_shared<detail::platform_impl>(piPlatform, plugins[i]));
+          if (!pltf.is_host() && be == pltf.get_backend()) {
+            vector_class<device> devices = pltf.get_devices(deviceType);
+	    if (devices.size()>0) {
+	      assert(deviceNum < devices.size());
+	      return devices[deviceNum];
+	    }
+          }
+        }
+      }
+    }
+  }
+
   vector_class<device> devices = device::get_devices();
   int score = REJECT_DEVICE_SCORE;
   const device *res = nullptr;
@@ -66,9 +105,9 @@ device device_selector::select_device() const {
   }
 
   if (res != nullptr) {
+    string_class PlatformName = res->get_info<info::device::platform>()
+      .get_info<info::platform::name>();
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC)) {
-      string_class PlatformName = res->get_info<info::device::platform>()
-                                      .get_info<info::platform::name>();
       string_class DeviceName = res->get_info<info::device::name>();
       std::cout << "SYCL_PI_TRACE[all]: "
                 << "Selected device ->" << std::endl
@@ -76,6 +115,12 @@ device device_selector::select_device() const {
                 << "  platform: " << PlatformName << std::endl
                 << "SYCL_PI_TRACE[all]: "
                 << "  device: " << DeviceName << std::endl;
+    }
+    if (deviceType != info::device_type::all) {
+      std::cout
+          << "WARNING: Requested device with backend & deviceNum is not found";
+      std::cout << std::endl
+		<< PlatformName << " is chosen based on a heuristic.\n";
     }
     return *res;
   }
