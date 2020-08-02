@@ -1821,7 +1821,7 @@ public:
                         getNumOpenCLParams(AccTy));
     return true;
   }
- 
+
   bool handleSyclSamplerType(FieldDecl *FD, QualType FieldTy) final {
     const auto *SamplerTy = FieldTy->getAsCXXRecordDecl();
     assert(SamplerTy && "Sampler type must be a C++ record type");
@@ -2705,7 +2705,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   for (const KernelDesc &K : KernelDescs) {
     O << "  //--- " << K.Name << "\n";
     O << "  ";
-    for (const KernelParamDesc &P : K.Params) 
+    for (const KernelParamDesc &P : K.Params)
       for (unsigned J = 0; J < P.NumOpenCLParams; J++)
         O << "false, ";
     O << "\n";
