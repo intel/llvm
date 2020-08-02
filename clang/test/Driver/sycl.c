@@ -90,5 +90,5 @@
 // RUN: %clang_cl -### -fsycl -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=NO_ID_QUERIES
 // RUN: %clang -### -fsycl-device-only -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=NO_ID_QUERIES
 // RUN: %clang_cl -### -fsycl-device-only -fno-sycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=NO_ID_QUERIES
+// ID_QUERIES: "-fsycl-id-queries-fit-in-int"
 // NO_ID_QUERIES: "-fno-sycl-id-queries-fit-in-int"
-// ID_QUERIES-NOT: "-fno-sycl-id-queries-fit-in-int"
