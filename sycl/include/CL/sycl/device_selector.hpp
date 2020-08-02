@@ -38,8 +38,9 @@ public:
   // info::device_type::all means a heuristic is used to select a device with
   // highest score
   device select_device(info::device_type deviceType = info::device_type::all,
-                       backend be = backend::opencl, unsigned deviceNum = 0) const;
-  
+                       backend be = backend::opencl,
+                       unsigned deviceNum = 0) const;
+
   virtual int operator()(const device &device) const = 0;
 };
 

@@ -36,8 +36,8 @@ static bool isDeviceOfPreferredSyclBe(const device &Device) {
 //   the device type.
 // 'deviceNum' is the index in the vector of devices returned from
 //    sycl::platform::get_devices().
-device device_selector::select_device(info::device_type deviceType,
-                                      backend be, unsigned deviceNum) const {
+device device_selector::select_device(info::device_type deviceType, backend be,
+                                      unsigned deviceNum) const {
   // return if a requested deviceType is found
   if (deviceType != info::device_type::all) {
     if (deviceType == info::device_type::host) {
@@ -58,10 +58,10 @@ device device_selector::select_device(info::device_type deviceType,
               std::make_shared<detail::platform_impl>(piPlatform, plugins[i]));
           if (!pltf.is_host() && be == pltf.get_backend()) {
             vector_class<device> devices = pltf.get_devices(deviceType);
-	    if (devices.size()>0) {
-	      assert(deviceNum < devices.size());
-	      return devices[deviceNum];
-	    }
+            if (devices.size() > 0) {
+              assert(deviceNum < devices.size());
+              return devices[deviceNum];
+            }
           }
         }
       }
@@ -106,7 +106,7 @@ device device_selector::select_device(info::device_type deviceType,
 
   if (res != nullptr) {
     string_class PlatformName = res->get_info<info::device::platform>()
-      .get_info<info::platform::name>();
+                                    .get_info<info::platform::name>();
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC)) {
       string_class DeviceName = res->get_info<info::device::name>();
       std::cout << "SYCL_PI_TRACE[all]: "
@@ -120,7 +120,7 @@ device device_selector::select_device(info::device_type deviceType,
       std::cout
           << "WARNING: Requested device with backend & deviceNum is not found";
       std::cout << std::endl
-		<< PlatformName << " is chosen based on a heuristic.\n";
+                << PlatformName << " is chosen based on a heuristic.\n";
     }
     return *res;
   }
