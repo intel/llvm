@@ -5754,7 +5754,7 @@ InputInfo Driver::BuildJobsForActionNoCache(
   // Check if we are in sub-work for preprocessing for host side. If so we will
   // add another job to print information to terminal later.
   if (!AtTopLevel && A->getKind() == Action::PreprocessJobClass &&
-      !C.getJobs().empty())
+      C.getJobs().size() == 1)
     JobForPreprocessToStdout = true;
 
   // Always use the first input as the base input.
