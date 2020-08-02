@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -D__SYCL_ID_QUERIES_FIT_IN_INT__=1 %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-id-queries-fit-in-int %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 
 #include <CL/sycl.hpp>
