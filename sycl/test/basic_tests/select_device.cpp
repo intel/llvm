@@ -5,8 +5,9 @@
 // UN: env SYCL_DEVICE_TRIPLE=*:opencl %t.out
 // UN: env SYCL_DEVICE_TRIPLE=*:opencl,gpu:level0 %t.out
 //
-// Checks that only designated plugins are loaded when SYCL_DEVICE_TRIPLE is set.
-// Checks that all different device types can be acquired from select_device()
+// Checks that only designated plugins are loaded when SYCL_DEVICE_TRIPLE is
+// set. Checks that all different device types can be acquired from
+// select_device()
 // UNSUPPORTED: windows
 
 #include <CL/sycl.hpp>
@@ -55,8 +56,9 @@ int main() {
       forcedPIs.find("cpu") == std::string::npos &&
       forcedPIs.find("*") == std::string::npos) {
     auto devices = device::get_devices(info::device_type::gpu);
-    assert(devices.size() == 0 &&
-           "Error: CPU device is found when SYCL_DEVICE_TRIPLE contains level0");
+    assert(
+        devices.size() == 0 &&
+        "Error: CPU device is found when SYCL_DEVICE_TRIPLE contains level0");
     device d = ds.select_device(info::device_type::gpu, backend::level_zero);
     assert(d.is_gpu() && "Error: GPU device is not found by select_device.");
   }
