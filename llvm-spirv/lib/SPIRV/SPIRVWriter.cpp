@@ -563,10 +563,11 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
       // Order of integer numbers in MD node follows the order of function
       // parameters on which we shall attach the appropriate decoration. Add
       // decoration only if MD value is not negative.
-      BM->addCapability(CapabilityFPGABufferLocationINTEL);
       int LocID = getMDOperandAsInt(BufferLocation, ArgNo);
-      if (LocID >= 0)
+      if (LocID >= 0) {
+        BM->addCapability(CapabilityFPGABufferLocationINTEL);
         BA->addDecorate(DecorationBufferLocationINTEL, LocID);
+      }
     }
   }
   if (Attrs.hasAttribute(AttributeList::ReturnIndex, Attribute::ZExt))
