@@ -19,6 +19,7 @@ Contributors
 - Mariusz Merecki, Intel
 - Aleksander Us, Intel
 - Konstantin Vladimirov, Intel
+- Rudenko Nikita, Intel
 
 
 
@@ -42,23 +43,25 @@ Version
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2020-04-24
-| Revision           | 2
+| Last Modified Date | 2020-08-03
+| Revision           | 3
 |========================================
 
 Dependencies
 ------------
 
 This extension is written against the SPIR-V Specification,
-Version 1.5, Revision 2, Unified
+Version 1.5, Revision 3, Unified
 
 This extension requires SPIR-V 1.0.
 
 Overview
 --------
 
-This extension adds execution modes with round to positive infinity and round to negative infinity default rounding.
-Execution modes specifying compliance with floating-point arithmetic (IEEE 754) standard are introduced as well.
+This extension adds new execution modes and decorations to control floating-point computations.
+This extension adds execution modes with round to positive infinity and round to negative infinity default rounding
+and execution modes specifying compliance with floating-point arithmetic (IEEE 754) standard.
+This extension adds new decorations that can be applied to a function to control floating-point computations inside the function.
 
 
 Extension Name
@@ -71,7 +74,7 @@ To use this extension within a SPIR-V module, the following
 OpExtension "SPV_INTEL_float_controls2"
 ----
 
-Modifications to the SPIR-V Specification, Version 1.5, Revision 2, Unified
+Modifications to the SPIR-V Specification, Version 1.5, Revision 3, Unified
 ---------------------------------------------------------------------------
 
 Modify Section 3.6, Execution Mode, add the following rows to the Execution Mode table:
@@ -79,54 +82,115 @@ Modify Section 3.6, Execution Mode, add the following rows to the Execution Mode
 --
 [cols="1,20,10,10",options="header",width = "80%"]
 |====
-  2+^| Execution Mode  | Enabling Capabilities | Extra Operands
+  2+^| Execution Mode  | Extra Operands | Enabling Capabilities
 | 5620 | *RoundingModeRTPINTEL* +
 The default rounding mode for floating-point arithmetic and conversions instructions must be round to positive infinity.
 If an instruction is decorated with *FPRoundingMode* or defines a rounding mode in its description, that rounding mode is applied and *RoundingModeRTPINTEL* is ignored.
 Only affects instructions operating on a floating-point type whose component width is _Target Width_.
 
 _Target Width_ is an unsigned 32-bit integer.
-| *RoundToInfinityINTEL* | <<Literal, 'Literal'>>  _Target Width_
+| <<Literal, 'Literal'>>  _Target Width_ | *RoundToInfinityINTEL*
 | 5621 | *RoundingModeRTNINTEL* +
 The default rounding mode for floating-point arithmetic and conversions instructions must be round to negative infinity.
 If an instruction is decorated with *FPRoundingMode* or defines a rounding mode in its description, that rounding mode is applied and *RoundingModeRTNINTEL* is ignored.
 Only affects instructions operating on a floating-point type whose component width is _Target Width_.
 
 _Target Width_ is an unsigned 32-bit integer.
-| *RoundToInfinityINTEL* | <<Literal, 'Literal'>> _Target Width_
-| 5622 | *FloatingPointModeALTINTEL* +
+| <<Literal, 'Literal'>> _Target Width_ | *RoundToInfinityINTEL*
+  | 5622 | *FloatingPointModeALTINTEL* +
 The default floating-point operation mode for floating-point arithmetic and conversions instructions must be the Alternative Floating-Point Mode as specified by the client API.
 Only affects instructions operating on a floating-point type whose component width is _Target Width_.
 
 _Target Width_ is an unsigned 32-bit integer.
-| *FloatingPointModeINTEL* | <<Literal, 'Literal'>> _Target Width_
+| <<Literal, 'Literal'>> _Target Width_ | *FloatingPointModeINTEL*
 | 5623 | *FloatingPointModeIEEEINTEL* +
 The default floating-point operation mode for floating-point arithmetic and conversions instructions must be the IEEE 754 Mode as specified by the client API.
 Only affects instructions operating on a floating-point type whose component width is _Target Width_.
 
 _Target Width_ is an unsigned 32-bit integer.
-| *FloatingPointModeINTEL* | <<Literal, 'Literal'>> _Target Width_
+| <<Literal, 'Literal'>> _Target Width_ | *FloatingPointModeINTEL*
+|====
+--
+Modify Section 3 Binary form, add new sub-sections after 3.16 FP Rounding Mode:
+--
+[[FP_Denorm_Mode]]*3.17. FP Denorm Mode*
+
+Denormalized values handling mode.
+
+[cols="^.^1,15,15",options="header",width = "50%"]
+|====
+2+^.^| FP Denorm Mode | Enabling Capabilities
+| 0x0 | *Preserve* +
+Denormalized values must be preserved. |
+| 0x1 | *FlushToZero* +
+Denormalized values must be flushed to zero. |
+|====
+[[FP_Operation_Mode]]*3.18. FP Operation Mode*
+
+Floating-point operation mode.
+
+[cols="^.^1,15,15",options="header",width = "50%"]
+|====
+2+^.^| FP Operation Mode | Enabling Capabilities
+| 0x0 | *IEEE* +
+Floating-point operation mode is IEEE 754 Mode. |
+| 0x1 | *ALT* +
+Floating-point operation mode is Alternative Mode. |
 |====
 --
 
+Modify Section 3.20, Decoration, add the following rows to the Decoration table:
+
+--
+[cols="1,20,5,5,10",options="header",width = "80%"]
+|====
+  2+^| Decoration  2+| Extra Operands | Enabling Capabilities
+| 5822 | *FunctionRoundingModeINTEL* +
+Apply to a function to overwrite the default rounding mode for all floating-point arithmetic and conversion instructions inside the function.
+Only affects instructions operating on a floating-point type whose component width is _Target Width_.
+
+_Target Width_ is an unsigned 32-bit integer.
+|<<Literal, 'Literal'>> +
+_Target Width_|<<FP_Rounding_Mode, 'FP Rounding Mode'>> +
+_FP Rounding Mode_| *FunctionFloatControlINTEL*
+| 5823 | *FunctionDenormModeINTEL* +
+Apply to a function to overwrite the default mode of handling denormalized values for all floating-point arithmetic and conversion instructions inside the function.
+Only affects instructions operating on a floating-point type whose component width is _Target Width_.
+
+_Target Width_ is an unsigned 32-bit integer.
+|<<Literal, 'Literal'>> +
+_Target Width_|<<FP_Denorm_Mode, 'FP Denorm Mode'>> +
+_FP Denorm Mode_| *FunctionFloatControlINTEL*
+| 6080 | *FunctionFloatingPointModeINTEL* +
+Apply to a function to overwrite the default floating-point operation mode for all floating-point arithmetic and conversion instructions inside the function.
+Only affects instructions operating on a floating-point type whose component width is _Target Width_.
+
+_Target Width_ is an unsigned 32-bit integer.
+|<<Literal, 'Literal'>> +
+_Target Width_|<<FP_Operation_Mode, 'FP_Operation_Mode'>> +
+ _FP Operation Mode_| *FunctionFloatControlINTEL*
+|====
+
 Modify Section 3.31, Capability, add the following rows the 'Capability' table:
 --
-[cols="1,20,10,10",options="header",width = "80%"]
+[cols="1,20,10",options="header",width = "80%"]
 |====
-  2+^| Capability      |     Implicitly Declares    | Enabled by Extension
+  2+^| Capability      |     Implicitly Declares
 | 5582 | *RoundToInfinityINTEL* +
 Module uses *RoundingModeRTNINTEL* or *RoundingModeRTPINTEL* execution modes.
-|| *SPV_INTEL_float_controls2*
+|
 | 5583 | *FloatingPointModeINTEL* +
 Module uses *FloatingPointModeIEEEINTEL* or *FloatingPointModeALTINTEL* execution modes.
-|| *SPV_INTEL_float_controls2*
+|
+| 5821 | *FunctionFloatControlINTEL* +
+Module uses *FunctionRoundingModeINTEL*, *FunctionDenormModeINTEL* or *FunctionFloatingPointModeINTEL* decorations.
+|
 |====
 --
 
 Issues
 ------
-
-
+--
 
 Revision History
 ----------------
@@ -138,4 +202,5 @@ Revision History
 |Rev|Date|Author|Changes
 |1|2020-04-17|Mariusz Merecki|Initial revision
 |2|2020-04-24|Mariusz Merecki|Assigned token numbers to *RoundToInfinityINTEL* and *FloatingPointModeINTEL*
+|3|2020-08-03|Mariusz Merecki|Rebased to SPIR-V Version 1.5, Revision 3, Unified. Added *FunctionFloatControlINTEL* capability and *FunctionRoundingModeINTEL*, *FunctionDenormModeINTEL*, *FunctionFloatingPointModeINTEL* decorations
 |========================================
