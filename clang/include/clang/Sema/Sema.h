@@ -359,7 +359,7 @@ private:
     int Info = 0;
     // Offset of the captured parameter value in the lambda or function object.
     unsigned Offset = 0;
-    // NumOpenCLParams to capture number of parameters in Accessor/Sampler init
+    // NumOpenCLParams to capture number of parameters in Accessor __init
     // method.
     unsigned NumOpenCLParams = 1;
   };
