@@ -21,7 +21,7 @@ int main() {
       });
 }
 
-// CHECK: FunctionDecl {{.*}}kernel_sc 'void ()'
+// CHECK: FunctionDecl {{.*}}kernel_sc{{.*}} 'void ()'
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}'
 // CHECK-NEXT: InitListExpr {{.*}}'(lambda at {{.*}}'
 // CHECK-NEXT: CXXConstructExpr {{.*}}'cl::sycl::experimental::spec_constant<char, class MyInt32Const>':'cl::sycl::experimental::spec_constant<char, MyInt32Const>'
