@@ -40,12 +40,12 @@ float foo(
 }
 
 struct SCWrapper {
-    SCWrapper(cl::sycl::program &p)
-        : SC1(p.set_spec_constant<class sc_name1, int>(4)),
-          SC2(p.set_spec_constant<class sc_name2, int>(2)) {}
+  SCWrapper(cl::sycl::program &p)
+      : SC1(p.set_spec_constant<class sc_name1, int>(4)),
+        SC2(p.set_spec_constant<class sc_name2, int>(2)) {}
 
-    cl::sycl::experimental::spec_constant<int, class sc_name1> SC1;
-    cl::sycl::experimental::spec_constant<int, class sc_name2> SC2;
+  cl::sycl::experimental::spec_constant<int, class sc_name1> SC1;
+  cl::sycl::experimental::spec_constant<int, class sc_name2> SC2;
 };
 
 int main(int argc, char **argv) {
@@ -120,9 +120,7 @@ int main(int argc, char **argv) {
       auto accw = bufw.get_access<cl::sycl::access::mode::write>(cgh);
       cgh.single_task<KernelWrappedSC>(
           program3.get_kernel<KernelWrappedSC>(),
-          [=]() {
-            accw[0] = W.SC1.get() + W.SC2.get();
-          });
+          [=]() { accw[0] = W.SC1.get() + W.SC2.get(); });
     });
   } catch (cl::sycl::exception &e) {
     std::cout << "*** Exception caught: " << e.what() << "\n";

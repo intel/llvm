@@ -5,11 +5,10 @@
 
 #include <sycl.hpp>
 
-struct SpecConstantsWrapper{
-    cl::sycl::experimental::spec_constant<int, class sc_name1> SC1;
-    cl::sycl::experimental::spec_constant<int, class sc_name2> SC2;
+struct SpecConstantsWrapper {
+  cl::sycl::experimental::spec_constant<int, class sc_name1> SC1;
+  cl::sycl::experimental::spec_constant<int, class sc_name2> SC2;
 };
-
 
 int main() {
   cl::sycl::experimental::spec_constant<char, class MyInt32Const> SC;

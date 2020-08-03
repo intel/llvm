@@ -34,6 +34,7 @@ private:
 #ifdef __SYCL_DEVICE_ONLY__
 public:
   spec_constant() {}
+
 private:
 #else
   spec_constant(T Cst) : Val(Cst) {}
