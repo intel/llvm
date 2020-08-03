@@ -46,7 +46,8 @@ void testId(T Identity, size_t WGSize, size_t NWItems) {
     range<1> LocalRange(WGSize);
     nd_range<1> NDRange(GlobalRange, LocalRange);
     CGH.parallel_for<SomeIdClass<T, Dim, BinaryOperation>>(
-        NDRange, ONEAPI::reduction(Out, Identity, BOp), [=](nd_item<1> NDIt, auto &Sum) {
+        NDRange, ONEAPI::reduction(Out, Identity, BOp),
+        [=](nd_item<1> NDIt, auto &Sum) {
           Sum.combine(In[NDIt.get_global_linear_id()]);
         });
   });

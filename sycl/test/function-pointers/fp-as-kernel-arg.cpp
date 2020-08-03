@@ -54,10 +54,10 @@ int main() {
     auto AccB = BufB.template get_access<cl::sycl::access::mode::read>(CGH);
     CGH.parallel_for<class K>(
         KE, cl::sycl::range<1>(Size), [=](cl::sycl::id<1> Index) {
-      auto Fptr =
-          cl::sycl::ONEAPI::to_device_func_ptr<decltype(add)>(FptrStorage);
-      AccA[Index] = Fptr(AccA[Index], AccB[Index]);
-    });
+          auto Fptr =
+              cl::sycl::ONEAPI::to_device_func_ptr<decltype(add)>(FptrStorage);
+          AccA[Index] = Fptr(AccA[Index], AccB[Index]);
+        });
   });
 
   auto HostAcc = BufA.get_access<cl::sycl::access::mode::read>();

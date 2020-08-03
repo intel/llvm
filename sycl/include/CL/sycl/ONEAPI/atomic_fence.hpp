@@ -9,8 +9,8 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
-#include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/ONEAPI/atomic_enums.hpp>
+#include <CL/sycl/detail/spirv.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <atomic>

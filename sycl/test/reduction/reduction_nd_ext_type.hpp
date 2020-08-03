@@ -66,13 +66,17 @@ int runTests(const string_class &ExtensionName) {
   test<T, 1, access::mode::read_write, std::multiplies<T>>(0, 4, 4);
   test<T, 0, access::mode::discard_write, ONEAPI::plus<T>>(0, 4, 64);
 
-  test<T, 0, access::mode::read_write, ONEAPI::minimum<T>>(getMaximumFPValue<T>(), 7, 7);
-  test<T, 1, access::mode::discard_write, ONEAPI::maximum<T>>(getMinimumFPValue<T>(), 7, 7 * 5);
+  test<T, 0, access::mode::read_write, ONEAPI::minimum<T>>(
+      getMaximumFPValue<T>(), 7, 7);
+  test<T, 1, access::mode::discard_write, ONEAPI::maximum<T>>(
+      getMinimumFPValue<T>(), 7, 7 * 5);
 
 #if __cplusplus >= 201402L
   test<T, 1, access::mode::read_write, ONEAPI::plus<>>(1, 3, 3 * 5);
-  test<T, 1, access::mode::discard_write, ONEAPI::minimum<>>(getMaximumFPValue<T>(), 3, 3);
-  test<T, 0, access::mode::discard_write, ONEAPI::maximum<>>(getMinimumFPValue<T>(), 3, 3);
+  test<T, 1, access::mode::discard_write, ONEAPI::minimum<>>(
+      getMaximumFPValue<T>(), 3, 3);
+  test<T, 0, access::mode::discard_write, ONEAPI::maximum<>>(
+      getMinimumFPValue<T>(), 3, 3);
 #endif // __cplusplus >= 201402L
 
   std::cout << "Test passed\n";

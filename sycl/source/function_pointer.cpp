@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/device_impl.hpp>
 #include <CL/sycl/ONEAPI/function_pointer.hpp>
+#include <detail/device_impl.hpp>
 #include <detail/program_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {

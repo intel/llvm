@@ -7,7 +7,8 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 // RUNx: env SYCL_DEVICE_TYPE=HOST %t.out
-// TODO: Enable the test for HOST when it supports ONEAPI::reduce() and barrier()
+// TODO: Enable the test for HOST when it supports ONEAPI::reduce() and
+// barrier()
 
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // with reductions initialized with USM var.
@@ -113,7 +114,8 @@ int main() {
   testUSM<int, 1, ONEAPI::bit_or<int>>(0, 4, 128);
 
   // fast reduce
-  testUSM<float, 1, ONEAPI::minimum<float>>(getMaximumFPValue<float>(), 5, 5 * 7);
+  testUSM<float, 1, ONEAPI::minimum<float>>(getMaximumFPValue<float>(), 5,
+                                            5 * 7);
   testUSM<float, 0, ONEAPI::maximum<float>>(getMinimumFPValue<float>(), 4, 128);
 
   // generic algorithm

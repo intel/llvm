@@ -24,19 +24,18 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
     Queue.submit([&](handler &cgh) {
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       auto acc = buf.template get_access<access::mode::read_write>(cgh);
-      cgh.parallel_for(
-          NdRange, [=](nd_item<1> NdItem) {
-            ONEAPI::sub_group sg = NdItem.get_sub_group();
-            if (skip_init) {
-              acc[NdItem.get_global_id(0)] =
-                  reduce(sg, T(NdItem.get_global_id(0)), op);
-            } else {
-              acc[NdItem.get_global_id(0)] =
-                  reduce(sg, T(NdItem.get_global_id(0)), init, op);
-            }
-            if (NdItem.get_global_id(0) == 0)
-              sgsizeacc[0] = sg.get_max_local_range()[0];
-          });
+      cgh.parallel_for(NdRange, [=](nd_item<1> NdItem) {
+        ONEAPI::sub_group sg = NdItem.get_sub_group();
+        if (skip_init) {
+          acc[NdItem.get_global_id(0)] =
+              reduce(sg, T(NdItem.get_global_id(0)), op);
+        } else {
+          acc[NdItem.get_global_id(0)] =
+              reduce(sg, T(NdItem.get_global_id(0)), init, op);
+        }
+        if (NdItem.get_global_id(0) == 0)
+          sgsizeacc[0] = sg.get_max_local_range()[0];
+      });
     });
     auto acc = buf.template get_access<access::mode::read_write>();
     auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>();

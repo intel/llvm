@@ -93,8 +93,10 @@ int main() {
   testBoth<int>(0, ONEAPI::bit_or<int>(), 1, 8);
   testBoth<int>(0, ONEAPI::bit_xor<int>(), 7, 3);
   testBoth<int>(~0, ONEAPI::bit_and<int>(), 7, 3);
-  testBoth<int>((std::numeric_limits<int>::max)(), ONEAPI::minimum<int>(), 7, 3);
-  testBoth<int>((std::numeric_limits<int>::min)(), ONEAPI::maximum<int>(), 7, 3);
+  testBoth<int>((std::numeric_limits<int>::max)(), ONEAPI::minimum<int>(), 7,
+                3);
+  testBoth<int>((std::numeric_limits<int>::min)(), ONEAPI::maximum<int>(), 7,
+                3);
 
   testBoth<float>(0, ONEAPI::plus<float>(), 1, 7);
   testBoth<float>(1, std::multiplies<float>(), 1, 7);

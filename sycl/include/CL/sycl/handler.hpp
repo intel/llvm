@@ -1004,7 +1004,7 @@ public:
                       Reduction::has_fast_atomics && !Reduction::is_usm>
   parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
     ONEAPI::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
-                                          Redu.getUserAccessor());
+                                           Redu.getUserAccessor());
   }
 
   /// Implements parallel_for() accepting nd_range and 1 reduction variable
@@ -1017,7 +1017,7 @@ public:
                       Reduction::has_fast_atomics && Reduction::is_usm>
   parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
     ONEAPI::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
-                                          Redu.getUSMPointer());
+                                           Redu.getUSMPointer());
   }
 
   /// Implements parallel_for() accepting nd_range and 1 reduction variable
@@ -1038,7 +1038,7 @@ public:
     shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     auto RWAcc = Redu.getReadWriteScalarAcc(*this);
     ONEAPI::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
-                                          RWAcc);
+                                           RWAcc);
     this->finalize();
 
     // Copy from RWAcc to user's reduction accessor.

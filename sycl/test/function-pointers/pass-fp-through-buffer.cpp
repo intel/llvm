@@ -69,11 +69,11 @@ int main() {
           DispatchTable.template get_access<cl::sycl::access::mode::read>(CGH);
       CGH.parallel_for<class K>(
           KE, cl::sycl::range<1>(Size), [=](cl::sycl::id<1> Index) {
-        auto FP =
-            cl::sycl::ONEAPI::to_device_func_ptr<int(int, int)>(AccDT[Mode]);
+            auto FP = cl::sycl::ONEAPI::to_device_func_ptr<int(int, int)>(
+                AccDT[Mode]);
 
-        AccA[Index] = FP(AccA[Index], AccB[Index]);
-      });
+            AccA[Index] = FP(AccA[Index], AccB[Index]);
+          });
     });
 
     auto HostAcc = bufA.get_access<cl::sycl::access::mode::read>();

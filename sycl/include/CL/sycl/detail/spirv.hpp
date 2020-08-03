@@ -10,9 +10,9 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
+#include <CL/sycl/ONEAPI/atomic_enums.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/ONEAPI/atomic_enums.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 __SYCL_INLINE_NAMESPACE(cl) {

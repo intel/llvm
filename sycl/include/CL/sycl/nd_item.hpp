@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
+#include <CL/sycl/ONEAPI/sub_group.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/helpers.hpp>
@@ -16,7 +17,6 @@
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/item.hpp>
 #include <CL/sycl/nd_range.hpp>
-#include <CL/sycl/ONEAPI/sub_group.hpp>
 #include <CL/sycl/range.hpp>
 
 #include <cstddef>

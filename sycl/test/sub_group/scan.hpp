@@ -90,18 +90,18 @@ void check(queue &Queue, size_t G = 120, size_t L = 60) {
     check_op<T>(Queue, std::numeric_limits<T>::infinity(), ONEAPI::minimum<T>(),
                 true, G, L);
   } else {
-    check_op<T>(Queue, std::numeric_limits<T>::max(), ONEAPI::minimum<T>(), true,
-                G, L);
+    check_op<T>(Queue, std::numeric_limits<T>::max(), ONEAPI::minimum<T>(),
+                true, G, L);
   }
 
   check_op<T>(Queue, T(G), ONEAPI::maximum<T>(), false, G, L);
   if (std::is_floating_point<T>::value ||
       std::is_same<T, cl::sycl::half>::value) {
-    check_op<T>(Queue, -std::numeric_limits<T>::infinity(), ONEAPI::maximum<T>(),
-                true, G, L);
+    check_op<T>(Queue, -std::numeric_limits<T>::infinity(),
+                ONEAPI::maximum<T>(), true, G, L);
   } else {
-    check_op<T>(Queue, std::numeric_limits<T>::min(), ONEAPI::maximum<T>(), true,
-                G, L);
+    check_op<T>(Queue, std::numeric_limits<T>::min(), ONEAPI::maximum<T>(),
+                true, G, L);
   }
 
 #if __cplusplus >= 201402L
