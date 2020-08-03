@@ -1098,14 +1098,24 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
     }
     const auto *PropListDecl =
         cast<ClassTemplateSpecializationDecl>(PropListTy->getAsRecordDecl());
+    if (PropListDecl->getTemplateArgs().size() != 1) {
+      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_param_number)
+          << "property_list";
+      return;
+    }
     const auto TemplArg = PropListDecl->getTemplateArgs()[0];
     if (TemplArg.getKind() != TemplateArgument::ArgKind::Pack) {
       SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_template_param)
-          << "property_list" << /*parameter pack*/ 0;
+          << /*property_list*/ 0 << /*parameter pack*/ 0;
       return;
     }
     for (TemplateArgument::pack_iterator Prop = TemplArg.pack_begin();
          Prop != TemplArg.pack_end(); ++Prop) {
+      if (Prop->getKind() != TemplateArgument::ArgKind::Type) {
+        SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_template_param)
+            << /*property_list pack argument*/ 1 << /*type*/ 1;
+        return;
+      }
       QualType PropTy = Prop->getAsType();
       if (Util::isSyclBufferLocationType(PropTy))
         checkBufferLocationType(PropTy, Loc);
@@ -1114,17 +1124,22 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
 
   void checkBufferLocationType(QualType PropTy, SourceLocation Loc) {
     const auto *PropDecl =
-        cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
+        dyn_cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
+    if (PropDecl->getTemplateArgs().size() != 1) {
+      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_param_number)
+          << "buffer_location";
+      return;
+    }
     const auto BufferLoc = PropDecl->getTemplateArgs()[0];
     if (BufferLoc.getKind() != TemplateArgument::ArgKind::Integral) {
       SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_template_param)
-          << "buffer_location" << /*non-negative integer*/ 2;
+          << /*buffer_location*/ 2 << /*non-negative integer*/ 2;
       return;
     }
     int LocationID = static_cast<int>(BufferLoc.getAsIntegral().getExtValue());
     if (LocationID < 0) {
       SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_template_param)
-          << "buffer_location" << /*non-negative integer*/ 2;
+          << /*buffer_location*/ 2 << /*non-negative integer*/ 2;
       return;
     }
   }
