@@ -1,4 +1,4 @@
-; RUN: echo 'static constexpr const bool param_omit_table[] = {' >> %t-int_header.h
+; RUN: echo 'static constexpr const bool param_omit_table[] = {' > %t-int_header.h
 ; RUN: echo '    // NegativeSpirKernel' >> %t-int_header.h
 ; RUN: echo '    false, false,' >> %t-int_header.h
 ; RUN: echo '};' >> %t-int_header.h
