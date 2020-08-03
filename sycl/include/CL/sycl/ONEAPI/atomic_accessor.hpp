@@ -11,6 +11,7 @@
 #include <CL/sycl/ONEAPI/atomic_enums.hpp>
 #include <CL/sycl/ONEAPI/atomic_ref.hpp>
 #include <CL/sycl/access/access.hpp>
+#include <CL/sycl/accessor.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

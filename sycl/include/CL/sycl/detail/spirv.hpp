@@ -12,7 +12,9 @@
 #include <CL/__spirv/spirv_vars.hpp>
 #include <CL/sycl/ONEAPI/atomic_enums.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
+#include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
+#include <CL/sycl/id.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -107,7 +109,7 @@ using EnableIfGenericBroadcast = detail::enable_if_t<
 // Work-group supports any integral type
 // Sub-group currently supports only uint32_t
 template <typename Group> struct GroupId { using type = size_t; };
-template <> struct GroupId<::cl::sycl::intel::sub_group> {
+template <> struct GroupId<::cl::sycl::ONEAPI::sub_group> {
   using type = uint32_t;
 };
 template <typename Group, typename T, typename IdT>

@@ -15,6 +15,7 @@
 #include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/group.hpp>
+#include <CL/sycl/nd_item.hpp>
 
 #ifndef __DISABLE_SYCL_ONEAPI_GROUP_ALGORITHMS__
 __SYCL_INLINE_NAMESPACE(cl) {

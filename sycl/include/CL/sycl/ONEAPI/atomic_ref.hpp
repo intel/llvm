@@ -13,7 +13,7 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/helpers.hpp>
+#include <CL/sycl/detail/spirv.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <atomic>
