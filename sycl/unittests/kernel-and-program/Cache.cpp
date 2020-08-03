@@ -101,33 +101,35 @@ static pi_result redefinedKernelSetExecInfo(pi_kernel kernel,
 }
 
 class KernelAndProgramCacheTest : public ::testing::Test {
-  public:
+public:
   KernelAndProgramCacheTest() : Plt{default_selector()} {}
 
-  protected:
+protected:
   void SetUp() override {
     if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
       std::clog << "This test is only supported on OpenCL devices\n";
-      std::clog << "Current platform is " << Plt.get_info<info::platform::name>();
+      std::clog << "Current platform is "
+                << Plt.get_info<info::platform::name>();
       return;
     }
 
     Mock = std::make_unique<unittest::PiMock>(Plt);
 
-  Mock->redefine<detail::PiApiKind::piclProgramCreateWithSource>(
-      redefinedProgramCreateWithSource);
-  Mock->redefine<detail::PiApiKind::piProgramCompile>(redefinedProgramCompile);
-  Mock->redefine<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
-  Mock->redefine<detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
-  Mock->redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock->redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock->redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
-  Mock->redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-  Mock->redefine<detail::PiApiKind::piKernelSetExecInfo>(
-      redefinedKernelSetExecInfo);
+    Mock->redefine<detail::PiApiKind::piclProgramCreateWithSource>(
+        redefinedProgramCreateWithSource);
+    Mock->redefine<detail::PiApiKind::piProgramCompile>(
+        redefinedProgramCompile);
+    Mock->redefine<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
+    Mock->redefine<detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
+    Mock->redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
+    Mock->redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
+    Mock->redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
+    Mock->redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+    Mock->redefine<detail::PiApiKind::piKernelSetExecInfo>(
+        redefinedKernelSetExecInfo);
   }
 
-  protected:
+protected:
   platform Plt;
   std::unique_ptr<unittest::PiMock> Mock;
 };
