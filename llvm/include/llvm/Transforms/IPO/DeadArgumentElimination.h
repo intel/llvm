@@ -74,9 +74,9 @@ public:
   enum Liveness { Live, MaybeLive };
 
   DeadArgumentEliminationPass(bool ShouldHackArguments_ = false,
-                              bool CheckSyclKernels = false)
+                              bool CheckSyclKernels_ = false)
       : ShouldHackArguments(ShouldHackArguments_),
-        CheckSyclKernels(CheckSyclKernels) {}
+        CheckSyclKernels(CheckSyclKernels_) {}
 
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
