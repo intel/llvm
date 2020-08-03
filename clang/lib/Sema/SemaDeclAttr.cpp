@@ -7188,8 +7188,8 @@ static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   const FunctionTemplateDecl *FT = FD->getDescribedFunctionTemplate();
   assert(FT && "Function template is expected");
 
-  // Function template must have at least two template parameters to be
-  // able to generate OpenCL SYCL kernels.
+  // Function template must have at least two template parameters so it
+  // can be used in OpenCL kernel generation.
   const TemplateParameterList *TL = FT->getTemplateParameters();
   if (S.LangOpts.SYCLIsDevice && TL->size() < 2) {
     S.Diag(FT->getLocation(), diag::warn_sycl_kernel_num_of_template_params);
