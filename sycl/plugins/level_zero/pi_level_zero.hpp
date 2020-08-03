@@ -66,6 +66,8 @@ struct _pi_platform {
   // a pretty good fit to keep here.
   ze_driver_handle_t ZeDriver;
 
+  ze_context_handle_t ZeContext;
+
   // Cache versions info from zeDriverGetProperties.
   std::string ZeDriverVersion;
   std::string ZeDriverApiVersion;
@@ -80,6 +82,8 @@ struct _pi_device : _pi_object {
     // NOTE: one must additionally call initialize() to complete
     // PI device creation.
   }
+
+  uint32_t ZeComputeQueueGroupIndex;
 
   // Initialize the entire PI device.
   pi_result initialize();
