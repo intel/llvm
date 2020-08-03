@@ -99,24 +99,44 @@ static pi_result redefinedKernelSetExecInfo(pi_kernel kernel,
                                             const void *param_value) {
   return PI_SUCCESS;
 }
-TEST(KernelAndProgramCache, ProgramSourceNegativeBuild) {
-  platform Plt{default_selector()};
-  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    std::clog << "This test is only supported on OpenCL devices\n";
-    std::clog << "Current platform is " << Plt.get_info<info::platform::name>();
-    return;
+
+class KernelAndProgramCacheTest : public ::testing::Test {
+  public:
+  KernelAndProgramCacheTest() : Plt{default_selector()} {}
+
+  protected:
+  void SetUp() override {
+    if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+      std::clog << "This test is only supported on OpenCL devices\n";
+      std::clog << "Current platform is " << Plt.get_info<info::platform::name>();
+      return;
+    }
+
+    Mock = std::make_unique<unittest::PiMock>(Plt);
+
+  Mock->redefine<detail::PiApiKind::piclProgramCreateWithSource>(
+      redefinedProgramCreateWithSource);
+  Mock->redefine<detail::PiApiKind::piProgramCompile>(redefinedProgramCompile);
+  Mock->redefine<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
+  Mock->redefine<detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
+  Mock->redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
+  Mock->redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
+  Mock->redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
+  Mock->redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+  Mock->redefine<detail::PiApiKind::piKernelSetExecInfo>(
+      redefinedKernelSetExecInfo);
   }
 
-  unittest::PiMock Mock(Plt);
-  Mock.redefine<detail::PiApiKind::piclProgramCreateWithSource>(
-      redefinedProgramCreateWithSource);
-  Mock.redefine<detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
-  Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
-  Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
-      redefinedKernelSetExecInfo);
+  protected:
+  platform Plt;
+  std::unique_ptr<unittest::PiMock> Mock;
+};
+
+// Check that programs built from source are not cached.
+TEST_F(KernelAndProgramCacheTest, ProgramSourceNegativeBuild) {
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    return;
+  }
 
   context Ctx{Plt};
   program Prg{Ctx};
@@ -128,23 +148,11 @@ TEST(KernelAndProgramCache, ProgramSourceNegativeBuild) {
   EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for source programs";
 }
 
-TEST(KernelAndProgramCache, ProgramSourceNegativeBuildWithOpts) {
-  platform Plt{default_selector()};
+// Check that programs built from source with options are not cached.
+TEST_F(KernelAndProgramCacheTest, ProgramSourceNegativeBuildWithOpts) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
-
-  unittest::PiMock Mock(Plt);
-  Mock.redefine<detail::PiApiKind::piclProgramCreateWithSource>(
-      redefinedProgramCreateWithSource);
-  Mock.redefine<detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
-  Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
-  Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
-      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   program Prg{Ctx};
@@ -156,24 +164,11 @@ TEST(KernelAndProgramCache, ProgramSourceNegativeBuildWithOpts) {
   EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for source programs";
 }
 
-TEST(KernelAndProgramCache, ProgramSourceNegativeCompileAndLink) {
-  platform Plt{default_selector()};
+// Check that programs compiled and linked from source are not cached.
+TEST_F(KernelAndProgramCacheTest, ProgramSourceNegativeCompileAndLink) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
-
-  unittest::PiMock Mock(Plt);
-  Mock.redefine<detail::PiApiKind::piclProgramCreateWithSource>(
-      redefinedProgramCreateWithSource);
-  Mock.redefine<detail::PiApiKind::piProgramCompile>(redefinedProgramCompile);
-  Mock.redefine<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
-  Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
-  Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
-      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   program Prg{Ctx};
@@ -186,24 +181,12 @@ TEST(KernelAndProgramCache, ProgramSourceNegativeCompileAndLink) {
   EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for source programs";
 }
 
-TEST(KernelAndProgramCache, ProgramSourceNegativeCompileAndLinkWithOpts) {
-  platform Plt{default_selector()};
+// Check that programs compiled and linked from source with options are not
+// cached.
+TEST_F(KernelAndProgramCacheTest, ProgramSourceNegativeCompileAndLinkWithOpts) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
-
-  unittest::PiMock Mock(Plt);
-  Mock.redefine<detail::PiApiKind::piclProgramCreateWithSource>(
-      redefinedProgramCreateWithSource);
-  Mock.redefine<detail::PiApiKind::piProgramCompile>(redefinedProgramCompile);
-  Mock.redefine<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
-  Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
-  Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
-      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   program Prg{Ctx};
@@ -216,22 +199,11 @@ TEST(KernelAndProgramCache, ProgramSourceNegativeCompileAndLinkWithOpts) {
   EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for source programs";
 }
 
-TEST(KernelAndProgramCache, ProgramBuildPositive) {
-  platform Plt{default_selector()};
+// Check that probrams built without options are cached.
+TEST_F(KernelAndProgramCacheTest, ProgramBuildPositive) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
-
-  unittest::PiMock Mock(Plt);
-  Mock.redefine<detail::PiApiKind::piProgramCompile>(redefinedProgramCompile);
-  Mock.redefine<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
-  Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
-  Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
-      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   program Prg{Ctx};
@@ -243,22 +215,11 @@ TEST(KernelAndProgramCache, ProgramBuildPositive) {
   EXPECT_EQ(Cache.size(), 1) << "Expect non-empty cache for programs";
 }
 
-TEST(KernelAndProgramCache, ProgramBuildNegativeBuildOpts) {
-  platform Plt{default_selector()};
+// Check that probrams built with options are not cached.
+TEST_F(KernelAndProgramCacheTest, ProgramBuildNegativeBuildOpts) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
-
-  unittest::PiMock Mock(Plt);
-  Mock.redefine<detail::PiApiKind::piProgramCompile>(redefinedProgramCompile);
-  Mock.redefine<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
-  Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
-  Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
-      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   program Prg{Ctx};
@@ -270,22 +231,11 @@ TEST(KernelAndProgramCache, ProgramBuildNegativeBuildOpts) {
   EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for programs";
 }
 
-TEST(KernelAndProgramCache, ProgramBuildNegativeCompileOpts) {
-  platform Plt{default_selector()};
+// Check that programs built with compile options are not cached.
+TEST_F(KernelAndProgramCacheTest, ProgramBuildNegativeCompileOpts) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
-
-  unittest::PiMock Mock(Plt);
-  Mock.redefine<detail::PiApiKind::piProgramCompile>(redefinedProgramCompile);
-  Mock.redefine<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
-  Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
-  Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
-      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   program Prg{Ctx};
@@ -298,22 +248,11 @@ TEST(KernelAndProgramCache, ProgramBuildNegativeCompileOpts) {
   EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for programs";
 }
 
-TEST(KernelAndProgramCache, ProgramBuildNegativeLinkOpts) {
-  platform Plt{default_selector()};
+// Check that programs built with link options are not cached.
+TEST_F(KernelAndProgramCacheTest, ProgramBuildNegativeLinkOpts) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
-
-  unittest::PiMock Mock(Plt);
-  Mock.redefine<detail::PiApiKind::piProgramCompile>(redefinedProgramCompile);
-  Mock.redefine<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
-  Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
-  Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
-      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   program Prg{Ctx};
@@ -326,22 +265,11 @@ TEST(KernelAndProgramCache, ProgramBuildNegativeLinkOpts) {
   EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for programs";
 }
 
-TEST(KernelAndProgramCache, KernelPositive) {
-  platform Plt{default_selector()};
+// Check that kernels built without options are cached.
+TEST_F(KernelAndProgramCacheTest, KernelPositive) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
-
-  unittest::PiMock Mock(Plt);
-  Mock.redefine<detail::PiApiKind::piProgramCompile>(redefinedProgramCompile);
-  Mock.redefine<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
-  Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
-  Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
-      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
@@ -357,22 +285,11 @@ TEST(KernelAndProgramCache, KernelPositive) {
   EXPECT_EQ(Cache.size(), 1) << "Expect non-empty cache for kernels";
 }
 
-TEST(KernelAndProgramCache, KernelNegativeBuildOpts) {
-  platform Plt{default_selector()};
+// Check that kernels built with options are not cached.
+TEST_F(KernelAndProgramCacheTest, KernelNegativeBuildOpts) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
-
-  unittest::PiMock Mock(Plt);
-  Mock.redefine<detail::PiApiKind::piProgramCompile>(redefinedProgramCompile);
-  Mock.redefine<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
-  Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
-  Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
-      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
@@ -388,22 +305,11 @@ TEST(KernelAndProgramCache, KernelNegativeBuildOpts) {
   EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for kernels";
 }
 
-TEST(KernelAndProgramCache, KernelNegativeCompileOpts) {
-  platform Plt{default_selector()};
+// Check that kernels built with compile options are not cached.
+TEST_F(KernelAndProgramCacheTest, KernelNegativeCompileOpts) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
-
-  unittest::PiMock Mock(Plt);
-  Mock.redefine<detail::PiApiKind::piProgramCompile>(redefinedProgramCompile);
-  Mock.redefine<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
-  Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
-  Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
-      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
@@ -420,22 +326,11 @@ TEST(KernelAndProgramCache, KernelNegativeCompileOpts) {
   EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for kernels";
 }
 
-TEST(KernelAndProgramCache, KernelNegativeLinkOpts) {
-  platform Plt{default_selector()};
+// Check that kernels built with link options are not cached.
+TEST_F(KernelAndProgramCacheTest, KernelNegativeLinkOpts) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
-
-  unittest::PiMock Mock(Plt);
-  Mock.redefine<detail::PiApiKind::piProgramCompile>(redefinedProgramCompile);
-  Mock.redefine<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
-  Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
-  Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
-      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
@@ -452,22 +347,12 @@ TEST(KernelAndProgramCache, KernelNegativeLinkOpts) {
   EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for kernels";
 }
 
-TEST(KernelAndProgramCache, KernelNegativeLinkedProgs) {
-  platform Plt{default_selector()};
+// Check that kernels are not cached if program is created from multiple
+// programs.
+TEST_F(KernelAndProgramCacheTest, KernelNegativeLinkedProgs) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
-
-  unittest::PiMock Mock(Plt);
-  Mock.redefine<detail::PiApiKind::piProgramCompile>(redefinedProgramCompile);
-  Mock.redefine<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
-  Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
-  Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
-      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
@@ -487,23 +372,11 @@ TEST(KernelAndProgramCache, KernelNegativeLinkedProgs) {
   EXPECT_EQ(Cache.size(), 0) << "Expect empty cache for kernels";
 }
 
-TEST(KernelAndProgramCache, KernelNegativeSource) {
-  platform Plt{default_selector()};
+// Check that kernels created from source are not cached.
+TEST_F(KernelAndProgramCacheTest, KernelNegativeSource) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    std::clog << "This test is only supported on OpenCL devices\n";
     return;
   }
-
-  unittest::PiMock Mock(Plt);
-  Mock.redefine<detail::PiApiKind::piclProgramCreateWithSource>(
-      redefinedProgramCreateWithSource);
-  Mock.redefine<detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
-  Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
-  Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-  Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
-      redefinedKernelSetExecInfo);
 
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
