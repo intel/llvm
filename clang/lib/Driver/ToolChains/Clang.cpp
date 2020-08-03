@@ -4139,9 +4139,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                      options::OPT_fno_sycl_allow_func_ptr, false)) {
       CmdArgs.push_back("-fsycl-allow-func-ptr");
     }
-    if (Arg *A = Args.getLastArg(options::OPT_fsycl_id_queries_fit_in_int,
-                                 options::OPT_fno_sycl_id_queries_fit_in_int))
-      A->render(Args, CmdArgs);
 
     if (!SYCLStdArg) {
       // The user had not pass SYCL version, thus we'll employ no-sycl-strict
@@ -4149,6 +4146,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // along with marking the same function with explicit SYCL_EXTERNAL
       CmdArgs.push_back("-Wno-sycl-strict");
     }
+  }
+  if (IsSYCL || UseSYCLTriple) {
+    // Set options for both host and device
+    if (Arg *A = Args.getLastArg(options::OPT_fsycl_id_queries_fit_in_int,
+                                 options::OPT_fno_sycl_id_queries_fit_in_int))
+      A->render(Args, CmdArgs);
   }
 
   if (IsSYCL) {
