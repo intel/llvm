@@ -16,6 +16,8 @@
 
 using namespace cl::sycl;
 
+// platform::has() calls device::has() for each device on the platform.
+
 int main() {
   bool failed = false;
   int pltIdx = 0;
@@ -64,57 +66,6 @@ int main() {
     if (plt.has(aspect::queue_profiling)) {
       std::cout << "  queue profiling" << std::endl;
     }
-
-    int devIdx = 0;
-    for (const auto &dev : plt.get_devices()) {
-      devIdx++;
-      if (dev.has(aspect::host)) {
-        if ((!dev.has(aspect::image)) || (!dev.has(aspect::online_compiler)) ||
-            (!dev.has(aspect::online_linker)) ||
-            (!dev.has(aspect::queue_profiling))) {
-          failed = true;
-          std::cout << "Failed: device #" << devIdx << " type: host"
-                    << std::endl;
-        }
-      } else if (dev.has(aspect::cpu)) {
-        if ((!dev.has(aspect::fp64)) ||
-            (!dev.has(aspect::int64_base_atomics)) ||
-            (!dev.has(aspect::int64_extended_atomics)) ||
-            (!dev.has(aspect::image)) || (!dev.has(aspect::online_compiler)) ||
-            (!dev.has(aspect::online_linker)) ||
-            (!dev.has(aspect::queue_profiling))) {
-          failed = true;
-          std::cout << "Failed: device #" << devIdx << " type: cpu"
-                    << std::endl;
-        }
-      } else if (dev.has(aspect::gpu)) {
-        if ((!dev.has(aspect::fp16)) || (!dev.has(aspect::fp64)) ||
-            (!dev.has(aspect::int64_base_atomics)) ||
-            (!dev.has(aspect::int64_extended_atomics)) ||
-            (!dev.has(aspect::image)) || (!dev.has(aspect::online_compiler)) ||
-            (!dev.has(aspect::online_linker)) ||
-            (!dev.has(aspect::queue_profiling))) {
-          failed = true;
-          std::cout << "Failed: device #" << devIdx << " type: gpu"
-                    << std::endl;
-        }
-      } else if (dev.has(aspect::accelerator)) {
-        if ((!dev.has(aspect::online_compiler)) ||
-            (!dev.has(aspect::online_linker)) ||
-            (!dev.has(aspect::queue_profiling))) {
-          failed = true;
-          std::cout << "Failed: device #" << devIdx << " type: gpu"
-                    << std::endl;
-        }
-      } else {
-        failed = true;
-        std::cout << "Failed: device #" << devIdx << " type: unknown"
-                  << std::endl;
-      }
-    }
-  }
-  if (failed) {
-    return 1;
   }
   std::cout << "Passed." << std::endl;
   return 0;
