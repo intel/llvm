@@ -20,7 +20,7 @@ private:
 
 public:
   platform_selector(const std::string &platform_name)
-      : device_platform_name(platform_name){}
+      : device_platform_name(platform_name) {}
 
   int operator()(const device &device) const override {
     const platform &pf = device.get_platform();
