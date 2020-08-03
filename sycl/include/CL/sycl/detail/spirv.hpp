@@ -231,7 +231,8 @@ getMemorySemanticsMask(ONEAPI::memory_order Order) {
       __spv::MemorySemanticsMask::CrossWorkgroupMemory);
 }
 
-static inline constexpr __spv::Scope::Flag getScope(ONEAPI::memory_scope Scope) {
+static inline constexpr __spv::Scope::Flag
+getScope(ONEAPI::memory_scope Scope) {
   switch (Scope) {
   case ONEAPI::memory_scope::work_item:
     return __spv::Scope::Invocation;

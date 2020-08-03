@@ -1,4 +1,4 @@
-//==----- atomic_ref.hpp - SYCL_ONEAPI_extended_atomics atomic_ref ----------==//
+//==----- atomic_ref.hpp - SYCL_ONEAPI_extended_atomics atomic_ref ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

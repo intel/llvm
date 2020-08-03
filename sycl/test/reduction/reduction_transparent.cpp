@@ -7,7 +7,8 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 
 // RUNx: env SYCL_DEVICE_TYPE=HOST %t.out
-// TODO: Enable the test for HOST when it supports ONEAPI::reduce() and barrier()
+// TODO: Enable the test for HOST when it supports ONEAPI::reduce() and
+// barrier()
 
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // where func is a transparent functor.
