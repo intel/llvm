@@ -1774,7 +1774,8 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
       ArgTy = CAT->getElementType();
     Size = SemaRef.getASTContext().getTypeSizeInChars(ArgTy).getQuantity();
     Header.addParamDesc(Kind, static_cast<unsigned>(Size),
-                        static_cast<unsigned>(CurOffset), 1);
+                        static_cast<unsigned>(CurOffset),
+                        /*NumOpenCLParams=*/1);
   }
 
 public:
@@ -1785,14 +1786,11 @@ public:
     Header.startKernel(Name, NameType, StableName, KernelObj->getLocation());
   }
 
-  unsigned getNumOpenCLParams(const CXXRecordDecl *SamplerOrAccessorTy) {
-    assert(SamplerOrAccessorTy &&
-           "Sampler/Accessor type must be a C++ record type");
-    CXXMethodDecl *InitMethod =
-        getMethodByName(SamplerOrAccessorTy, InitMethodName);
-    assert(InitMethod && "sampler/accessor must have __init method");
-    unsigned NumOpenCLParams;
-    return NumOpenCLParams = InitMethod->param_size();
+  unsigned getNumOpenCLParams(const CXXRecordDecl *AccessorTy) {
+    assert(AccessorTy && "Accessor type must be a C++ record type");
+    CXXMethodDecl *InitMethod = getMethodByName(AccessorTy, InitMethodName);
+    assert(InitMethod && "accessor must have __init method");
+    return InitMethod->param_size();
   }
 
   bool handleSyclAccessorType(const CXXBaseSpecifier &BC,
@@ -2726,14 +2724,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       O << "  { kernel_param_kind_t::" << TyStr << ", ";
       O << P.Info << ", " << P.Offset << ", ";
       O << "param_omit_table[" << CurIndex << "]";
-      for (unsigned X = 1; X < P.NumOpenCLParams; X++) {
-        ++CurIndex;
-        if (X < P.NumOpenCLParams)
-          O << " | ";
-        O << "(param_omit_table[" << CurIndex << "]"
-          << " << " << X << ")";
-      }
       ++CurIndex;
+      for (unsigned X = 1; X < P.NumOpenCLParams; X++) {
+        O << " | (param_omit_table[" << CurIndex << "] << " << X << ")";
+        ++CurIndex;
+      }
       O << "}";
       O << ",\n";
     }

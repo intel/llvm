@@ -43,7 +43,7 @@ struct kernel_param_desc_t {
   // object
   int offset;
   // bitfield to mark kernel parameters that will be omitted
-  unsigned char kernel_param_omitted : 1;
+  unsigned char kernel_param_omitted;
 };
 
 // Translates specialization constant type to its name.
