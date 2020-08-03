@@ -28,7 +28,7 @@
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/nd_range.hpp>
 #include <CL/sycl/ONEAPI/atomic.hpp>
-#include <CL/sycl/ONEAPI/builtins.hpp>
+#include <CL/sycl/ONEAPI/experimental/builtins.hpp>
 #include <CL/sycl/ONEAPI/function_pointer.hpp>
 #include <CL/sycl/ONEAPI/group_algorithm.hpp>
 #include <CL/sycl/ONEAPI/reduction.hpp>
