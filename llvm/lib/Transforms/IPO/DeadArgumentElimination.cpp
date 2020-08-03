@@ -84,14 +84,14 @@ namespace {
       if (skipModule(M))
         return false;
       DeadArgumentEliminationPass DAEP(ShouldHackArguments(),
-                                       CheckSyclKernels());
+                                       CheckSpirKernels());
       ModuleAnalysisManager DummyMAM;
       PreservedAnalyses PA = DAEP.run(M, DummyMAM);
       return !PA.areAllPreserved();
     }
 
     virtual bool ShouldHackArguments() const { return false; }
-    virtual bool CheckSyclKernels() const { return false; }
+    virtual bool CheckSpirKernels() const { return false; }
   };
 
 } // end anonymous namespace
@@ -111,7 +111,7 @@ namespace {
     DAH() : DAE(ID) {}
 
     bool ShouldHackArguments() const override { return true; }
-    bool CheckSyclKernels() const override { return false; }
+    bool CheckSpirKernels() const override { return false; }
   };
 
 } // end anonymous namespace
@@ -124,7 +124,7 @@ INITIALIZE_PASS(DAH, "deadarghaX0r",
 
 namespace {
 
-/// DAESYCL - DeadArgumentElimination pass for SYCL kernel functions even
+/// DAESYCL - DeadArgumentElimination pass for SPIR kernel functions even
 ///           if they are external.
 struct DAESYCL : public DAE {
   static char ID;
@@ -134,19 +134,21 @@ struct DAESYCL : public DAE {
   }
 
   StringRef getPassName() const override {
-    return "Dead Argument Elimination for SYCL kernels";
+    return "Dead Argument Elimination for SPIR kernels in SYCL environment";
   }
 
   bool ShouldHackArguments() const override { return false; }
-  bool CheckSyclKernels() const override { return true; }
+  bool CheckSpirKernels() const override { return true; }
 };
 
 } // end anonymous namespace
 
 char DAESYCL::ID = 0;
 
-INITIALIZE_PASS(DAESYCL, "deadargelim-sycl",
-                "Dead Argument Elimination for SYCL kernels", false, false)
+INITIALIZE_PASS(
+    DAESYCL, "deadargelim-sycl",
+    "Dead Argument Elimination for SPIR kernels in SYCL environment", false,
+    false)
 
 /// createDeadArgEliminationPass - This pass removes arguments from functions
 /// which are not used by the body of the function.
@@ -573,12 +575,12 @@ void DeadArgumentEliminationPass::SurveyFunction(const Function &F) {
   }
 
   // We can't modify arguments if the function is not local
-  // but we can do so for SYCL kernel function.
-  bool FuncIsSyclKernel =
-      CheckSyclKernels &&
+  // but we can do so for SPIR kernel function in SYCL environment.
+  bool FuncIsSpirKernel =
+      CheckSpirKernels &&
       StringRef(F.getParent()->getTargetTriple()).contains("sycldevice") &&
       F.getCallingConv() == CallingConv::SPIR_KERNEL;
-  bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSyclKernel;
+  bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSpirKernel;
   if (FuncIsLive && (!ShouldHackArguments || F.isIntrinsic())) {
     MarkLive(F);
     return;
@@ -768,10 +770,10 @@ void DeadArgumentEliminationPass::PropagateLiveness(const RetOrArg &RA) {
 //     false, false,
 //     // OMIT_TABLE_END
 //   };
-//   TODO: batch changes to multiple SYCL kernels and do one bulk update.
+//   TODO: batch changes to multiple SPIR kernels and do one bulk update.
 constexpr StringLiteral OMIT_TABLE_BEGIN("// OMIT_TABLE_BEGIN");
 constexpr StringLiteral OMIT_TABLE_END("// OMIT_TABLE_END");
-static void updateIntegrationHeader(StringRef SyclKernelName,
+static void updateIntegrationHeader(StringRef SpirKernelName,
                                     const ArrayRef<bool> &ArgAlive) {
   ErrorOr<std::unique_ptr<MemoryBuffer>> IntHeaderBuffer =
       MemoryBuffer::getFile(IntegrationHeaderFileName);
@@ -796,14 +798,14 @@ static void updateIntegrationHeader(StringRef SyclKernelName,
 
   StringRef OmitArgTable = IntHeader.slice(BeginRegionPos, EndRegionPos);
 
-  // 2. Find the line that corresponds to the SYCL kernel
-  if (!OmitArgTable.contains(SyclKernelName))
+  // 2. Find the line that corresponds to the SPIR kernel
+  if (!OmitArgTable.contains(SpirKernelName))
     report_fatal_error(
         "Argument table not found in integration header for function '" +
-        SyclKernelName + "'");
+        SpirKernelName + "'");
 
   size_t BeginLinePos =
-      OmitArgTable.find(SyclKernelName) + SyclKernelName.size();
+      OmitArgTable.find(SpirKernelName) + SpirKernelName.size();
   size_t EndLinePos = OmitArgTable.find("//", BeginLinePos);
 
   StringRef OmitArgLine = OmitArgTable.slice(BeginLinePos, EndLinePos);
@@ -873,7 +875,7 @@ bool DeadArgumentEliminationPass::RemoveDeadStuffFromFunction(Function *F) {
     }
   }
 
-  if (CheckSyclKernels)
+  if (CheckSpirKernels)
     updateIntegrationHeader(F->getName(), ArgAlive);
 
   // Find out the new return value.
@@ -1193,7 +1195,7 @@ PreservedAnalyses DeadArgumentEliminationPass::run(Module &M,
                                                    ModuleAnalysisManager &) {
   // Integration header file must be provided for
   // DAE to work on SPIR kernels.
-  if (CheckSyclKernels && !IntegrationHeaderFileName.getNumOccurrences())
+  if (CheckSpirKernels && !IntegrationHeaderFileName.getNumOccurrences())
     return PreservedAnalyses::all();
 
   bool Changed = false;

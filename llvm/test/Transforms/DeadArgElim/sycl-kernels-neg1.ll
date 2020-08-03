@@ -4,8 +4,8 @@
 
 target triple = "spir64-unknown-unknown-sycldevice"
 
-define weak_odr spir_kernel void @NegativeSyclKernel(float %arg1, float %arg2) {
-; CHECK-LABEL: define {{[^@]+}}@NegativeSyclKernel
+define weak_odr spir_kernel void @NegativeSpirKernel(float %arg1, float %arg2) {
+; CHECK-LABEL: define {{[^@]+}}@NegativeSpirKernel
 ; CHECK-SAME: (float [[ARG1:%.*]], float [[ARG2:%.*]])
 ; CHECK-NEXT:    call void @foo(float [[ARG1]])
 ; CHECK-NEXT:    ret void

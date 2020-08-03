@@ -2,9 +2,9 @@
 ; RUN: echo 'some code we want to preserve' >> %t-int_header.h
 ; RUN: echo 'static constexpr const bool param_omit_table[] = {' >> %t-int_header.h
 ; RUN: echo '  // OMIT_TABLE_BEGIN' >> %t-int_header.h
-; RUN: echo '    // SyclKernel1' >> %t-int_header.h
+; RUN: echo '    // SpirKernel1' >> %t-int_header.h
 ; RUN: echo '    false, false,' >> %t-int_header.h
-; RUN: echo '    // SyclKernel2' >> %t-int_header.h
+; RUN: echo '    // SpirKernel2' >> %t-int_header.h
 ; RUN: echo '    false, false,' >> %t-int_header.h
 ; RUN: echo '  // OMIT_TABLE_END' >> %t-int_header.h
 ; RUN: echo '};' >> %t-int_header.h
@@ -18,13 +18,13 @@
 
 target triple = "spir64-unknown-unknown-sycldevice"
 
-define weak_odr spir_kernel void @SyclKernel1(float %arg1, float %arg2) {
-; CHECK-LABEL: define {{[^@]+}}@SyclKernel1
+define weak_odr spir_kernel void @SpirKernel1(float %arg1, float %arg2) {
+; CHECK-LABEL: define {{[^@]+}}@SpirKernel1
 ; CHECK-SAME: (float [[ARG1:%.*]], float [[ARG2:%.*]])
 ; CHECK-NEXT:    call void @foo(float [[ARG1]])
 ; CHECK-NEXT:    ret void
 ;
-; CHECK-SYCL-LABEL: define {{[^@]+}}@SyclKernel1
+; CHECK-SYCL-LABEL: define {{[^@]+}}@SpirKernel1
 ; CHECK-SYCL-SAME: (float [[ARG1:%.*]])
 ; CHECK-SYCL-NEXT:    call void @foo(float [[ARG1]])
 ; CHECK-SYCL-NEXT:    ret void
@@ -33,13 +33,13 @@ define weak_odr spir_kernel void @SyclKernel1(float %arg1, float %arg2) {
   ret void
 }
 
-define weak_odr spir_kernel void @SyclKernel2(float %arg1, float %arg2) {
-; CHECK-LABEL: define {{[^@]+}}@SyclKernel2
+define weak_odr spir_kernel void @SpirKernel2(float %arg1, float %arg2) {
+; CHECK-LABEL: define {{[^@]+}}@SpirKernel2
 ; CHECK-SAME: (float [[ARG1:%.*]], float [[ARG2:%.*]])
 ; CHECK-NEXT:    call void @foo(float [[ARG2]])
 ; CHECK-NEXT:    ret void
 ;
-; CHECK-SYCL-LABEL: define {{[^@]+}}@SyclKernel2
+; CHECK-SYCL-LABEL: define {{[^@]+}}@SpirKernel2
 ; CHECK-SYCL-SAME: (float [[ARG2:%.*]])
 ; CHECK-SYCL-NEXT:    call void @foo(float [[ARG2]])
 ; CHECK-SYCL-NEXT:    ret void
@@ -51,9 +51,9 @@ define weak_odr spir_kernel void @SyclKernel2(float %arg1, float %arg2) {
 ; CHECK-INT-HEADER: some code we want to preserve
 ; CHECK-INT-HEADER: static constexpr const bool param_omit_table[] = {
 ; CHECK-INT-HEADER:   // OMIT_TABLE_BEGIN
-; CHECK-INT-HEADER:     // SyclKernel1
+; CHECK-INT-HEADER:     // SpirKernel1
 ; CHECK-INT-HEADER:     false, true,
-; CHECK-INT-HEADER:     // SyclKernel2
+; CHECK-INT-HEADER:     // SpirKernel2
 ; CHECK-INT-HEADER:     true, false,
 ; CHECK-INT-HEADER:   // OMIT_TABLE_END
 ; CHECK-INT-HEADER: };
