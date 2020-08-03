@@ -32,10 +32,11 @@ int main(int argc, char **argv) {
     }
   });
 
-  std::cout << "Running on " << q.get_device().get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << q.get_device().get_info<info::device::name>()
+            << "\n";
   cl::sycl::program prog(q.get_context());
 
-  cl::sycl::experimental::spec_constant<int32_t, MyInt32Const> i32 =
+  cl::sycl::ONEAPI::experimental::spec_constant<int32_t, MyInt32Const> i32 =
       prog.set_spec_constant<MyInt32Const>(10);
 
   prog.build_with_kernel_type<Kernel>();
@@ -46,11 +47,8 @@ int main(int argc, char **argv) {
 
     q.submit([&](cl::sycl::handler &cgh) {
       auto acc = buf.get_access<cl::sycl::access::mode::write>(cgh);
-      cgh.single_task<Kernel>(
-          prog.get_kernel<Kernel>(),
-          [=]() {
-            acc[0] = i32.get();
-          });
+      cgh.single_task<Kernel>(prog.get_kernel<Kernel>(),
+                              [=]() { acc[0] = i32.get(); });
     });
   }
   bool passed = true;
