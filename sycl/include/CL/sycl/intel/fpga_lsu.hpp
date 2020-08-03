@@ -23,7 +23,8 @@ template <bool B> using burst_coalesce = INTEL::burst_coalesce<B>;
 template <bool B> using prefetch = INTEL::prefetch<B>;
 template <bool B> using statically_coalesce = INTEL::statically_coalesce<B>;
 
-template <class... mem_access_params> using lsu = INTEL::lsu<mem_access_params...>;
+template <class... mem_access_params>
+using lsu = INTEL::lsu<mem_access_params...>;
 } // namespace intel
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -32,4 +32,4 @@ namespace intelfpga {
 template <typename T> T fpga_reg(const T &t) {
   return cl::sycl::INTEL::fpga_reg(t);
 }
-}
+} // namespace intelfpga

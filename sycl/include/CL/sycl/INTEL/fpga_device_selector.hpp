@@ -39,12 +39,12 @@ static constexpr auto HARDWARE_PLATFORM_NAME =
 
 class fpga_selector : public platform_selector {
 public:
-  fpga_selector() : platform_selector(HARDWARE_PLATFORM_NAME){}
+  fpga_selector() : platform_selector(HARDWARE_PLATFORM_NAME) {}
 };
 
 class fpga_emulator_selector : public platform_selector {
 public:
-  fpga_emulator_selector() : platform_selector(EMULATION_PLATFORM_NAME){}
+  fpga_emulator_selector() : platform_selector(EMULATION_PLATFORM_NAME) {}
 };
 
 } // namespace INTEL

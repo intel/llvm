@@ -10,11 +10,11 @@
 
 #pragma once
 
+#include <CL/sycl/INTEL/esimd/detail/esimd_region.hpp>
+#include <CL/sycl/INTEL/esimd/esimd_enum.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp> // to define C++14,17 extensions
 #include <CL/sycl/half_type.hpp>
-#include <CL/sycl/INTEL/esimd/detail/esimd_region.hpp>
-#include <CL/sycl/INTEL/esimd/esimd_enum.hpp>
 #include <cstdint>
 #include <type_traits>
 

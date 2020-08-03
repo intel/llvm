@@ -24,7 +24,7 @@ public:
   static dataT read(bool &Success) {
 #ifdef __SYCL_DEVICE_ONLY__
     RPipeTy<dataT> RPipe =
-      __spirv_CreatePipeFromPipeStorage_read<dataT>(&m_Storage);
+        __spirv_CreatePipeFromPipeStorage_read<dataT>(&m_Storage);
     dataT TempData;
     Success = !static_cast<bool>(
         __spirv_ReadPipe(RPipe, &TempData, m_Size, m_Alignment));
@@ -40,7 +40,7 @@ public:
   static void write(const dataT &Data, bool &Success) {
 #ifdef __SYCL_DEVICE_ONLY__
     WPipeTy<dataT> WPipe =
-      __spirv_CreatePipeFromPipeStorage_write<dataT>(&m_Storage);
+        __spirv_CreatePipeFromPipeStorage_write<dataT>(&m_Storage);
     Success = !static_cast<bool>(
         __spirv_WritePipe(WPipe, &Data, m_Size, m_Alignment));
 #else
@@ -56,7 +56,7 @@ public:
   static dataT read() {
 #ifdef __SYCL_DEVICE_ONLY__
     RPipeTy<dataT> RPipe =
-      __spirv_CreatePipeFromPipeStorage_read<dataT>(&m_Storage);
+        __spirv_CreatePipeFromPipeStorage_read<dataT>(&m_Storage);
     dataT TempData;
     __spirv_ReadPipeBlockingINTEL(RPipe, &TempData, m_Size, m_Alignment);
     return TempData;
@@ -70,7 +70,7 @@ public:
   static void write(const dataT &Data) {
 #ifdef __SYCL_DEVICE_ONLY__
     WPipeTy<dataT> WPipe =
-      __spirv_CreatePipeFromPipeStorage_write<dataT>(&m_Storage);
+        __spirv_CreatePipeFromPipeStorage_write<dataT>(&m_Storage);
     __spirv_WritePipeBlockingINTEL(WPipe, &Data, m_Size, m_Alignment);
 #else
     (void)Data;
