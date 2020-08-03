@@ -145,17 +145,17 @@ public:
   queue(cl_command_queue ClQueue, const context &SyclContext,
         const async_handler &AsyncHandler = {});
 
-  queue(const queue &rhs) = default;
+  queue(const queue &RHS) = default;
 
-  queue(queue &&rhs) = default;
+  queue(queue &&RHS) = default;
 
-  queue &operator=(const queue &rhs) = default;
+  queue &operator=(const queue &RHS) = default;
 
-  queue &operator=(queue &&rhs) = default;
+  queue &operator=(queue &&RHS) = default;
 
-  bool operator==(const queue &rhs) const { return impl == rhs.impl; }
+  bool operator==(const queue &RHS) const { return impl == RHS.impl; }
 
-  bool operator!=(const queue &rhs) const { return !(*this == rhs); }
+  bool operator!=(const queue &RHS) const { return !(*this == RHS); }
 
   /// \return a valid instance of OpenCL queue, which is retained before being
   /// returned.
@@ -317,7 +317,7 @@ public:
   /// \return a copy of the property of type PropertyT that the queue was
   /// constructed with. If the queue was not constructed with the PropertyT
   /// property, an invalid_object_error SYCL exception.
-  template <typename propertyT> propertyT get_property() const;
+  template <typename PropertyT> PropertyT get_property() const;
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   ///
@@ -900,10 +900,10 @@ private:
 
 namespace std {
 template <> struct hash<cl::sycl::queue> {
-  size_t operator()(const cl::sycl::queue &q) const {
+  size_t operator()(const cl::sycl::queue &Q) const {
     return std::hash<
         cl::sycl::shared_ptr_class<cl::sycl::detail::queue_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(q));
+        cl::sycl::detail::getSyclObjImpl(Q));
   }
 };
 } // namespace std
