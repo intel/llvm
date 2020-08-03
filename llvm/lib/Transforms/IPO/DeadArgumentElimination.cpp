@@ -773,11 +773,6 @@ constexpr StringLiteral OMIT_TABLE_BEGIN("// OMIT_TABLE_BEGIN");
 constexpr StringLiteral OMIT_TABLE_END("// OMIT_TABLE_END");
 static void updateIntegrationHeader(StringRef SyclKernelName,
                                     const ArrayRef<bool> &ArgAlive) {
-  // TODO: Enable asserts once the driver will provide the option.
-  if (!IntegrationHeaderFileName.getNumOccurrences())
-    return;
-  // assert(IntegrationHeaderFileName.hasArgStr() &&
-  //       "Integration header file not specified!");
   ErrorOr<std::unique_ptr<MemoryBuffer>> IntHeaderBuffer =
       MemoryBuffer::getFile(IntegrationHeaderFileName);
 
@@ -1196,6 +1191,11 @@ bool DeadArgumentEliminationPass::RemoveDeadStuffFromFunction(Function *F) {
 
 PreservedAnalyses DeadArgumentEliminationPass::run(Module &M,
                                                    ModuleAnalysisManager &) {
+  // Integration header file must be provided for
+  // DAE to work on SPIR kernels.
+  if (CheckSyclKernels && !IntegrationHeaderFileName.getNumOccurrences())
+    return PreservedAnalyses::all();
+
   bool Changed = false;
 
   // First pass: Do a simple check to see if any functions can have their "..."
