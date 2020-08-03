@@ -333,8 +333,8 @@ static Arg *MakeInputArg(DerivedArgList &Args, const OptTable &Opts,
 
 // Add SYCL device libraries into device code link proess as default.
 static void addSYCLDeviceLibs(const ToolChain &TC, Driver::InputList &Inputs,
-                                 const OptTable &Opts, DerivedArgList &Args) {
-  enum SYCLDeviceLibType {sycl_devicelib_wrapper, sycl_devicelib_fallback};
+                              const OptTable &Opts, DerivedArgList &Args) {
+  enum SYCLDeviceLibType { sycl_devicelib_wrapper, sycl_devicelib_fallback };
   if (Args.hasArg(options::OPT_c))
     return;
   if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
@@ -349,13 +349,17 @@ static void addSYCLDeviceLibs(const ToolChain &TC, Driver::InputList &Inputs,
     SmallVector<StringRef, 4> sycl_device_wrapper_libs = {
         LibSysUtils, "libsycl-complex", "libsycl-complex-fp64", "libsycl-cmath",
         "libsycl-cmath-fp64"};
-    // For AOT compilation, we need to link sycl_device_fallback_libs as default too.
+    // For AOT compilation, we need to link sycl_device_fallback_libs as default
+    // too.
     SmallVector<StringRef, 4> sycl_device_fallback_libs = {
-        "libsycl-fallback-cassert", "libsycl-fallback-complex", "libsycl-fallback-complex-fp64",
-        "libsycl-fallback-cmath", "libsycl-fallback-cmath-fp64"};
+        "libsycl-fallback-cassert", "libsycl-fallback-complex",
+        "libsycl-fallback-complex-fp64", "libsycl-fallback-cmath",
+        "libsycl-fallback-cmath-fp64"};
 
     auto addInputs = [&](SYCLDeviceLibType t) {
-      auto sycl_libs = (t == sycl_devicelib_wrapper) ? sycl_device_wrapper_libs : sycl_device_fallback_libs;
+      auto sycl_libs = (t == sycl_devicelib_wrapper)
+                           ? sycl_device_wrapper_libs
+                           : sycl_device_fallback_libs;
       for (const StringRef &Lib : sycl_libs) {
         SmallString<128> LibName(LibLoc);
         llvm::sys::path::append(LibName, Lib);
@@ -365,12 +369,22 @@ static void addSYCLDeviceLibs(const ToolChain &TC, Driver::InputList &Inputs,
       }
     };
     addInputs(sycl_devicelib_wrapper);
-    bool isSpirvAOT = TC.getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
-                      TC.getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen ||
-                      TC.getTriple().getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
-    if (isSpirvAOT)
-      addInputs(sycl_devicelib_fallback);
+    addInputs(sycl_devicelib_fallback);
   }
+}
+
+
+static bool isFallbackDeviceLibsInputAction(const Action *OffloadAct) {
+  auto IT = *(OffloadAct->input_begin());
+  if (dyn_cast<InputAction>(IT)) {
+    StringRef InputObjPath =
+        dyn_cast<InputAction>(IT)->getInputArg().getValue();
+    StringRef InputObjFileName = llvm::sys::path::filename(InputObjPath);
+    if (InputObjFileName.startswith("libsycl-fallback-") &&
+        InputObjFileName.endswith(".o"))
+      return true;
+  }
+  return false;
 }
 
 DerivedArgList *Driver::TranslateInputArgs(const InputArgList &Args) const {
@@ -3839,7 +3853,6 @@ class OffloadingActionBuilder final {
 
       unsigned I = 0;
       for (auto &LI : DeviceLinkerInputs) {
-
         auto TripleIt = llvm::find_if(SYCLTripleList, [&](auto &SYCLTriple) {
           return SYCLTriple == (*TC)->getTriple();
         });
@@ -3909,12 +3922,22 @@ class OffloadingActionBuilder final {
         }
         ActionList DeviceLibObjects;
         ActionList LinkObjects;
+        auto TT = SYCLTripleList[I];
+        bool isSpirvAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
+                          TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
+                          TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
         for (const auto &Input : LI) {
           // FPGA aoco does not go through the link, everything else does.
           if (Input->getType() == types::TY_FPGA_AOCO)
             DeviceLibObjects.push_back(Input);
-          else
+          else {
+            if (!isSpirvAOT &&
+                Input->getKind() == Action::OffloadUnbundlingJobClass &&
+                Input->size() == 1 && isFallbackDeviceLibsInputAction(Input)) {
+              continue;
+            }
             LinkObjects.push_back(Input);
+          }
         }
         // The linkage actions subgraph leading to the offload wrapper.
         // [cond] Means incoming/outgoing dependence is created only when cond
@@ -3982,10 +4005,6 @@ class OffloadingActionBuilder final {
           D.Diag(diag::err_drv_unsupported_opt_for_target)
               << OptName << (*TC)->getTriple().str();
         }
-        auto TT = SYCLTripleList[I];
-        bool isSpirvAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
-                          TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
-                          TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
         // reflects whether current target is ahead-of-time and can't support
         // runtime setting of specialization constants
         bool isAOT = isNVPTX || isSpirvAOT;
