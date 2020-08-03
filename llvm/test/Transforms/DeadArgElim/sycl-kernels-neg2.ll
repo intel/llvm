@@ -1,6 +1,5 @@
-; RUN: rm -rf %t && mkdir -p %t
-; RUN: touch %t/int_header.h
-; RUN: not --crash opt < %s -deadargelim-sycl -S -integr-header-file %t/bad_file.h
+; RUN: touch %t-int_header.h
+; RUN: not --crash opt < %s -deadargelim-sycl -S -integr-header-file %t-bad_file.h
 
 ; Path to the integration header is wrong.
 
