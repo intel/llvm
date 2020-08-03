@@ -215,6 +215,11 @@ ModulePass *createPreprocessMetadata();
 /// ostream.
 ModulePass *createSPIRVWriterPass(std::ostream &Str);
 
+/// Create and return a pass that writes the module to the specified
+/// ostream.
+ModulePass *createSPIRVWriterPass(std::ostream &Str,
+                                  const SPIRV::TranslatorOpts &Opts);
+
 } // namespace llvm
 
 #endif // SPIRV_H

@@ -1377,6 +1377,7 @@ void CodeGenFunction::EmitOMPReductionClauseInit(
     case OMPD_begin_declare_variant:
     case OMPD_end_declare_variant:
     case OMPD_unknown:
+    default:
       llvm_unreachable("Enexpected directive with task reductions.");
     }
 
@@ -1568,8 +1569,7 @@ static void emitEmptyBoundParameters(CodeGenFunction &,
 Address CodeGenFunction::OMPBuilderCBHelpers::getAddressOfLocalVariable(
     CodeGenFunction &CGF, const VarDecl *VD) {
   CodeGenModule &CGM = CGF.CGM;
-  auto OMPBuilder = CGM.getOpenMPIRBuilder();
-  assert(OMPBuilder && "OMPIRBuilder does not exist!");
+  auto &OMPBuilder = CGM.getOpenMPRuntime().getOMPBuilder();
 
   if (!VD)
     return Address::invalid();
@@ -1606,11 +1606,11 @@ Address CodeGenFunction::OMPBuilderCBHelpers::getAddressOfLocalVariable(
     Allocator = CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(Allocator,
                                                                 CGM.VoidPtrTy);
 
-  llvm::Value *Addr = OMPBuilder->CreateOMPAlloc(
+  llvm::Value *Addr = OMPBuilder.CreateOMPAlloc(
       CGF.Builder, Size, Allocator,
       getNameWithSeparators({CVD->getName(), ".void.addr"}, ".", "."));
   llvm::CallInst *FreeCI =
-      OMPBuilder->CreateOMPFree(CGF.Builder, Addr, Allocator);
+      OMPBuilder.CreateOMPFree(CGF.Builder, Addr, Allocator);
 
   CGF.EHStack.pushCleanup<OMPAllocateCleanupTy>(NormalAndEHCleanup, FreeCI);
   Addr = CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(
@@ -1628,8 +1628,7 @@ Address CodeGenFunction::OMPBuilderCBHelpers::getAddrOfThreadPrivate(
       CGM.getContext().getTargetInfo().isTLSSupported())
     return VDAddr;
 
-  llvm::OpenMPIRBuilder *OMPBuilder = CGM.getOpenMPIRBuilder();
-  assert(OMPBuilder && "OpenMPIRBuilder is not initialized or used.");
+  llvm::OpenMPIRBuilder &OMPBuilder = CGM.getOpenMPRuntime().getOMPBuilder();
 
   llvm::Type *VarTy = VDAddr.getElementType();
   llvm::Value *Data =
@@ -1639,7 +1638,7 @@ Address CodeGenFunction::OMPBuilderCBHelpers::getAddrOfThreadPrivate(
   llvm::Twine CacheName = Twine(CGM.getMangledName(VD)).concat(Suffix);
 
   llvm::CallInst *ThreadPrivateCacheCall =
-      OMPBuilder->CreateCachedThreadPrivate(CGF.Builder, Data, Size, CacheName);
+      OMPBuilder.CreateCachedThreadPrivate(CGF.Builder, Data, Size, CacheName);
 
   return Address(ThreadPrivateCacheCall, VDAddr.getAlignment());
 }
@@ -1656,7 +1655,8 @@ std::string CodeGenFunction::OMPBuilderCBHelpers::getNameWithSeparators(
   return OS.str().str();
 }
 void CodeGenFunction::EmitOMPParallelDirective(const OMPParallelDirective &S) {
-  if (llvm::OpenMPIRBuilder *OMPBuilder = CGM.getOpenMPIRBuilder()) {
+  if (CGM.getLangOpts().OpenMPIRBuilder) {
+    llvm::OpenMPIRBuilder &OMPBuilder = CGM.getOpenMPRuntime().getOMPBuilder();
     // Check if we have any if clause associated with the directive.
     llvm::Value *IfCond = nullptr;
     if (const auto *C = S.getSingleClause<OMPIfClause>())
@@ -1707,9 +1707,9 @@ void CodeGenFunction::EmitOMPParallelDirective(const OMPParallelDirective &S) {
 
     CGCapturedStmtInfo CGSI(*CS, CR_OpenMP);
     CodeGenFunction::CGCapturedStmtRAII CapInfoRAII(*this, &CGSI);
-    Builder.restoreIP(OMPBuilder->CreateParallel(Builder, BodyGenCB, PrivCB,
-                                                 FiniCB, IfCond, NumThreads,
-                                                 ProcBind, S.hasCancel()));
+    Builder.restoreIP(OMPBuilder.CreateParallel(Builder, BodyGenCB, PrivCB,
+                                                FiniCB, IfCond, NumThreads,
+                                                ProcBind, S.hasCancel()));
     return;
   }
 
@@ -3614,7 +3614,8 @@ static void emitMaster(CodeGenFunction &CGF, const OMPExecutableDirective &S) {
 }
 
 void CodeGenFunction::EmitOMPMasterDirective(const OMPMasterDirective &S) {
-  if (llvm::OpenMPIRBuilder *OMPBuilder = CGM.getOpenMPIRBuilder()) {
+  if (CGM.getLangOpts().OpenMPIRBuilder) {
+    llvm::OpenMPIRBuilder &OMPBuilder = CGM.getOpenMPRuntime().getOMPBuilder();
     using InsertPointTy = llvm::OpenMPIRBuilder::InsertPointTy;
 
     const CapturedStmt *CS = S.getInnermostCapturedStmt();
@@ -3634,7 +3635,7 @@ void CodeGenFunction::EmitOMPMasterDirective(const OMPMasterDirective &S) {
 
     CGCapturedStmtInfo CGSI(*CS, CR_OpenMP);
     CodeGenFunction::CGCapturedStmtRAII CapInfoRAII(*this, &CGSI);
-    Builder.restoreIP(OMPBuilder->CreateMaster(Builder, BodyGenCB, FiniCB));
+    Builder.restoreIP(OMPBuilder.CreateMaster(Builder, BodyGenCB, FiniCB));
 
     return;
   }
@@ -3643,7 +3644,8 @@ void CodeGenFunction::EmitOMPMasterDirective(const OMPMasterDirective &S) {
 }
 
 void CodeGenFunction::EmitOMPCriticalDirective(const OMPCriticalDirective &S) {
-  if (llvm::OpenMPIRBuilder *OMPBuilder = CGM.getOpenMPIRBuilder()) {
+  if (CGM.getLangOpts().OpenMPIRBuilder) {
+    llvm::OpenMPIRBuilder &OMPBuilder = CGM.getOpenMPRuntime().getOMPBuilder();
     using InsertPointTy = llvm::OpenMPIRBuilder::InsertPointTy;
 
     const CapturedStmt *CS = S.getInnermostCapturedStmt();
@@ -3674,7 +3676,7 @@ void CodeGenFunction::EmitOMPCriticalDirective(const OMPCriticalDirective &S) {
 
     CGCapturedStmtInfo CGSI(*CS, CR_OpenMP);
     CodeGenFunction::CGCapturedStmtRAII CapInfoRAII(*this, &CGSI);
-    Builder.restoreIP(OMPBuilder->CreateCritical(
+    Builder.restoreIP(OMPBuilder.CreateCritical(
         Builder, BodyGenCB, FiniCB, S.getDirectiveName().getAsString(),
         HintInst));
 
@@ -4109,29 +4111,34 @@ void CodeGenFunction::EmitOMPTargetTaskBasedDirective(
   VarDecl *BPVD = nullptr;
   VarDecl *PVD = nullptr;
   VarDecl *SVD = nullptr;
+  VarDecl *MVD = nullptr;
   if (InputInfo.NumberOfTargetItems > 0) {
     auto *CD = CapturedDecl::Create(
         getContext(), getContext().getTranslationUnitDecl(), /*NumParams=*/0);
     llvm::APInt ArrSize(/*numBits=*/32, InputInfo.NumberOfTargetItems);
-    QualType BaseAndPointersType = getContext().getConstantArrayType(
+    QualType BaseAndPointerAndMapperType = getContext().getConstantArrayType(
         getContext().VoidPtrTy, ArrSize, nullptr, ArrayType::Normal,
         /*IndexTypeQuals=*/0);
     BPVD = createImplicitFirstprivateForType(
-        getContext(), Data, BaseAndPointersType, CD, S.getBeginLoc());
+        getContext(), Data, BaseAndPointerAndMapperType, CD, S.getBeginLoc());
     PVD = createImplicitFirstprivateForType(
-        getContext(), Data, BaseAndPointersType, CD, S.getBeginLoc());
+        getContext(), Data, BaseAndPointerAndMapperType, CD, S.getBeginLoc());
     QualType SizesType = getContext().getConstantArrayType(
         getContext().getIntTypeForBitwidth(/*DestWidth=*/64, /*Signed=*/1),
         ArrSize, nullptr, ArrayType::Normal,
         /*IndexTypeQuals=*/0);
     SVD = createImplicitFirstprivateForType(getContext(), Data, SizesType, CD,
                                             S.getBeginLoc());
+    MVD = createImplicitFirstprivateForType(
+        getContext(), Data, BaseAndPointerAndMapperType, CD, S.getBeginLoc());
     TargetScope.addPrivate(
         BPVD, [&InputInfo]() { return InputInfo.BasePointersArray; });
     TargetScope.addPrivate(PVD,
                            [&InputInfo]() { return InputInfo.PointersArray; });
     TargetScope.addPrivate(SVD,
                            [&InputInfo]() { return InputInfo.SizesArray; });
+    TargetScope.addPrivate(MVD,
+                           [&InputInfo]() { return InputInfo.MappersArray; });
   }
   (void)TargetScope.Privatize();
   // Build list of dependences.
@@ -4140,7 +4147,7 @@ void CodeGenFunction::EmitOMPTargetTaskBasedDirective(
         Data.Dependences.emplace_back(C->getDependencyKind(), C->getModifier());
     DD.DepExprs.append(C->varlist_begin(), C->varlist_end());
   }
-  auto &&CodeGen = [&Data, &S, CS, &BodyGen, BPVD, PVD, SVD,
+  auto &&CodeGen = [&Data, &S, CS, &BodyGen, BPVD, PVD, SVD, MVD,
                     &InputInfo](CodeGenFunction &CGF, PrePostActionTy &Action) {
     // Set proper addresses for generated private copies.
     OMPPrivateScope Scope(CGF);
@@ -4181,6 +4188,8 @@ void CodeGenFunction::EmitOMPTargetTaskBasedDirective(
           CGF.GetAddrOfLocalVar(PVD), /*Index=*/0);
       InputInfo.SizesArray = CGF.Builder.CreateConstArrayGEP(
           CGF.GetAddrOfLocalVar(SVD), /*Index=*/0);
+      InputInfo.MappersArray = CGF.Builder.CreateConstArrayGEP(
+          CGF.GetAddrOfLocalVar(MVD), /*Index=*/0);
     }
 
     Action.Enter(CGF);
@@ -5302,6 +5311,7 @@ static void emitOMPAtomicExpr(CodeGenFunction &CGF, OpenMPClauseKind Kind,
   case OMPC_exclusive:
   case OMPC_uses_allocators:
   case OMPC_affinity:
+  default:
     llvm_unreachable("Clause is not allowed in 'omp atomic'.");
   }
 }
@@ -5874,7 +5884,8 @@ void CodeGenFunction::EmitOMPCancelDirective(const OMPCancelDirective &S) {
       break;
     }
   }
-  if (llvm::OpenMPIRBuilder *OMPBuilder = CGM.getOpenMPIRBuilder()) {
+  if (CGM.getLangOpts().OpenMPIRBuilder) {
+    llvm::OpenMPIRBuilder &OMPBuilder = CGM.getOpenMPRuntime().getOMPBuilder();
     // TODO: This check is necessary as we only generate `omp parallel` through
     // the OpenMPIRBuilder for now.
     if (S.getCancelRegion() == OMPD_parallel) {
@@ -5883,7 +5894,7 @@ void CodeGenFunction::EmitOMPCancelDirective(const OMPCancelDirective &S) {
         IfCondition = EmitScalarExpr(IfCond,
                                      /*IgnoreResultAssign=*/true);
       return Builder.restoreIP(
-          OMPBuilder->CreateCancel(Builder, IfCondition, S.getCancelRegion()));
+          OMPBuilder.CreateCancel(Builder, IfCondition, S.getCancelRegion()));
     }
   }
 
@@ -6073,6 +6084,7 @@ void CodeGenFunction::EmitOMPTargetDataDirective(
         (void)PrivateScope.Privatize();
         RCG(CGF);
       } else {
+        OMPLexicalScope Scope(CGF, S, OMPD_unknown);
         RCG(CGF);
       }
     };

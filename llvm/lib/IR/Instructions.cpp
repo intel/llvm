@@ -53,7 +53,7 @@ Optional<uint64_t>
 AllocaInst::getAllocationSizeInBits(const DataLayout &DL) const {
   uint64_t Size = DL.getTypeAllocSizeInBits(getAllocatedType());
   if (isArrayAllocation()) {
-    auto C = dyn_cast<ConstantInt>(getArraySize());
+    auto *C = dyn_cast<ConstantInt>(getArraySize());
     if (!C)
       return None;
     Size *= C->getZExtValue();
@@ -246,6 +246,20 @@ void LandingPadInst::addClause(Constant *Val) {
 //===----------------------------------------------------------------------===//
 //                        CallBase Implementation
 //===----------------------------------------------------------------------===//
+
+CallBase *CallBase::Create(CallBase *CB, ArrayRef<OperandBundleDef> Bundles,
+                           Instruction *InsertPt) {
+  switch (CB->getOpcode()) {
+  case Instruction::Call:
+    return CallInst::Create(cast<CallInst>(CB), Bundles, InsertPt);
+  case Instruction::Invoke:
+    return InvokeInst::Create(cast<InvokeInst>(CB), Bundles, InsertPt);
+  case Instruction::CallBr:
+    return CallBrInst::Create(cast<CallBrInst>(CB), Bundles, InsertPt);
+  default:
+    llvm_unreachable("Unknown CallBase sub-class!");
+  }
+}
 
 Function *CallBase::getCaller() { return getParent()->getParent(); }
 
@@ -960,7 +974,8 @@ CleanupReturnInst::CleanupReturnInst(const CleanupReturnInst &CRI)
                   OperandTraits<CleanupReturnInst>::op_end(this) -
                       CRI.getNumOperands(),
                   CRI.getNumOperands()) {
-  setInstructionSubclassData(CRI.getSubclassDataFromInstruction());
+  setSubclassData<Instruction::OpaqueField>(
+      CRI.getSubclassData<Instruction::OpaqueField>());
   Op<0>() = CRI.Op<0>();
   if (CRI.hasUnwindDest())
     Op<1>() = CRI.Op<1>();
@@ -968,7 +983,7 @@ CleanupReturnInst::CleanupReturnInst(const CleanupReturnInst &CRI)
 
 void CleanupReturnInst::init(Value *CleanupPad, BasicBlock *UnwindBB) {
   if (UnwindBB)
-    setInstructionSubclassData(getSubclassDataFromInstruction() | 1);
+    setSubclassData<UnwindDestField>(true);
 
   Op<0>() = CleanupPad;
   if (UnwindBB)
@@ -1072,7 +1087,7 @@ void CatchSwitchInst::init(Value *ParentPad, BasicBlock *UnwindDest,
 
   Op<0>() = ParentPad;
   if (UnwindDest) {
-    setInstructionSubclassData(getSubclassDataFromInstruction() | 1);
+    setSubclassData<UnwindDestField>(true);
     setUnwindDest(UnwindDest);
   }
 }
@@ -1247,11 +1262,15 @@ static Value *getAISize(LLVMContext &Context, Value *Amt) {
 }
 
 static Align computeAllocaDefaultAlign(Type *Ty, BasicBlock *BB) {
+  assert(BB && "Insertion BB cannot be null when alignment not provided!");
+  assert(BB->getParent() &&
+         "BB must be in a Function when alignment not provided!");
   const DataLayout &DL = BB->getModule()->getDataLayout();
   return DL.getPrefTypeAlign(Ty);
 }
 
 static Align computeAllocaDefaultAlign(Type *Ty, Instruction *I) {
+  assert(I && "Insertion position cannot be null when alignment not provided!");
   return computeAllocaDefaultAlign(Ty, I->getParent());
 }
 
@@ -1296,13 +1315,6 @@ AllocaInst::AllocaInst(Type *Ty, unsigned AddrSpace, Value *ArraySize,
   setName(Name);
 }
 
-void AllocaInst::setAlignment(Align Align) {
-  assert(Align <= MaximumAlignment &&
-         "Alignment is greater than MaximumAlignment!");
-  setInstructionSubclassData((getSubclassDataFromInstruction() & ~31) |
-                             encode(Align));
-  assert(getAlignment() == Align.value() && "Alignment representation error!");
-}
 
 bool AllocaInst::isArrayAllocation() const {
   if (ConstantInt *CI = dyn_cast<ConstantInt>(getOperand(0)))
@@ -1334,11 +1346,15 @@ void LoadInst::AssertOK() {
 }
 
 static Align computeLoadStoreDefaultAlign(Type *Ty, BasicBlock *BB) {
+  assert(BB && "Insertion BB cannot be null when alignment not provided!");
+  assert(BB->getParent() &&
+         "BB must be in a Function when alignment not provided!");
   const DataLayout &DL = BB->getModule()->getDataLayout();
   return DL.getABITypeAlign(Ty);
 }
 
 static Align computeLoadStoreDefaultAlign(Type *Ty, Instruction *I) {
+  assert(I && "Insertion position cannot be null when alignment not provided!");
   return computeLoadStoreDefaultAlign(Ty, I->getParent());
 }
 
@@ -1392,14 +1408,6 @@ LoadInst::LoadInst(Type *Ty, Value *Ptr, const Twine &Name, bool isVolatile,
   setAtomic(Order, SSID);
   AssertOK();
   setName(Name);
-}
-
-void LoadInst::setAlignment(Align Align) {
-  assert(Align <= MaximumAlignment &&
-         "Alignment is greater than MaximumAlignment!");
-  setInstructionSubclassData((getSubclassDataFromInstruction() & ~(31 << 1)) |
-                             (encode(Align) << 1));
-  assert(getAlign() == Align && "Alignment representation error!");
 }
 
 //===----------------------------------------------------------------------===//
@@ -1473,20 +1481,13 @@ StoreInst::StoreInst(Value *val, Value *addr, bool isVolatile, Align Align,
   AssertOK();
 }
 
-void StoreInst::setAlignment(Align Alignment) {
-  assert(Alignment <= MaximumAlignment &&
-         "Alignment is greater than MaximumAlignment!");
-  setInstructionSubclassData((getSubclassDataFromInstruction() & ~(31 << 1)) |
-                             (encode(Alignment) << 1));
-  assert(getAlign() == Alignment && "Alignment representation error!");
-}
 
 //===----------------------------------------------------------------------===//
 //                       AtomicCmpXchgInst Implementation
 //===----------------------------------------------------------------------===//
 
 void AtomicCmpXchgInst::Init(Value *Ptr, Value *Cmp, Value *NewVal,
-                             AtomicOrdering SuccessOrdering,
+                             Align Alignment, AtomicOrdering SuccessOrdering,
                              AtomicOrdering FailureOrdering,
                              SyncScope::ID SSID) {
   Op<0>() = Ptr;
@@ -1495,6 +1496,7 @@ void AtomicCmpXchgInst::Init(Value *Ptr, Value *Cmp, Value *NewVal,
   setSuccessOrdering(SuccessOrdering);
   setFailureOrdering(FailureOrdering);
   setSyncScopeID(SSID);
+  setAlignment(Alignment);
 
   assert(getOperand(0) && getOperand(1) && getOperand(2) &&
          "All operands must be non-null!");
@@ -1519,6 +1521,7 @@ void AtomicCmpXchgInst::Init(Value *Ptr, Value *Cmp, Value *NewVal,
 }
 
 AtomicCmpXchgInst::AtomicCmpXchgInst(Value *Ptr, Value *Cmp, Value *NewVal,
+                                     Align Alignment,
                                      AtomicOrdering SuccessOrdering,
                                      AtomicOrdering FailureOrdering,
                                      SyncScope::ID SSID,
@@ -1527,10 +1530,11 @@ AtomicCmpXchgInst::AtomicCmpXchgInst(Value *Ptr, Value *Cmp, Value *NewVal,
           StructType::get(Cmp->getType(), Type::getInt1Ty(Cmp->getContext())),
           AtomicCmpXchg, OperandTraits<AtomicCmpXchgInst>::op_begin(this),
           OperandTraits<AtomicCmpXchgInst>::operands(this), InsertBefore) {
-  Init(Ptr, Cmp, NewVal, SuccessOrdering, FailureOrdering, SSID);
+  Init(Ptr, Cmp, NewVal, Alignment, SuccessOrdering, FailureOrdering, SSID);
 }
 
 AtomicCmpXchgInst::AtomicCmpXchgInst(Value *Ptr, Value *Cmp, Value *NewVal,
+                                     Align Alignment,
                                      AtomicOrdering SuccessOrdering,
                                      AtomicOrdering FailureOrdering,
                                      SyncScope::ID SSID,
@@ -1539,7 +1543,7 @@ AtomicCmpXchgInst::AtomicCmpXchgInst(Value *Ptr, Value *Cmp, Value *NewVal,
           StructType::get(Cmp->getType(), Type::getInt1Ty(Cmp->getContext())),
           AtomicCmpXchg, OperandTraits<AtomicCmpXchgInst>::op_begin(this),
           OperandTraits<AtomicCmpXchgInst>::operands(this), InsertAtEnd) {
-  Init(Ptr, Cmp, NewVal, SuccessOrdering, FailureOrdering, SSID);
+  Init(Ptr, Cmp, NewVal, Alignment, SuccessOrdering, FailureOrdering, SSID);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1547,13 +1551,14 @@ AtomicCmpXchgInst::AtomicCmpXchgInst(Value *Ptr, Value *Cmp, Value *NewVal,
 //===----------------------------------------------------------------------===//
 
 void AtomicRMWInst::Init(BinOp Operation, Value *Ptr, Value *Val,
-                         AtomicOrdering Ordering,
+                         Align Alignment, AtomicOrdering Ordering,
                          SyncScope::ID SSID) {
   Op<0>() = Ptr;
   Op<1>() = Val;
   setOperation(Operation);
   setOrdering(Ordering);
   setSyncScopeID(SSID);
+  setAlignment(Alignment);
 
   assert(getOperand(0) && getOperand(1) &&
          "All operands must be non-null!");
@@ -1567,25 +1572,21 @@ void AtomicRMWInst::Init(BinOp Operation, Value *Ptr, Value *Val,
 }
 
 AtomicRMWInst::AtomicRMWInst(BinOp Operation, Value *Ptr, Value *Val,
-                             AtomicOrdering Ordering,
-                             SyncScope::ID SSID,
-                             Instruction *InsertBefore)
-  : Instruction(Val->getType(), AtomicRMW,
-                OperandTraits<AtomicRMWInst>::op_begin(this),
-                OperandTraits<AtomicRMWInst>::operands(this),
-                InsertBefore) {
-  Init(Operation, Ptr, Val, Ordering, SSID);
+                             Align Alignment, AtomicOrdering Ordering,
+                             SyncScope::ID SSID, Instruction *InsertBefore)
+    : Instruction(Val->getType(), AtomicRMW,
+                  OperandTraits<AtomicRMWInst>::op_begin(this),
+                  OperandTraits<AtomicRMWInst>::operands(this), InsertBefore) {
+  Init(Operation, Ptr, Val, Alignment, Ordering, SSID);
 }
 
 AtomicRMWInst::AtomicRMWInst(BinOp Operation, Value *Ptr, Value *Val,
-                             AtomicOrdering Ordering,
-                             SyncScope::ID SSID,
-                             BasicBlock *InsertAtEnd)
-  : Instruction(Val->getType(), AtomicRMW,
-                OperandTraits<AtomicRMWInst>::op_begin(this),
-                OperandTraits<AtomicRMWInst>::operands(this),
-                InsertAtEnd) {
-  Init(Operation, Ptr, Val, Ordering, SSID);
+                             Align Alignment, AtomicOrdering Ordering,
+                             SyncScope::ID SSID, BasicBlock *InsertAtEnd)
+    : Instruction(Val->getType(), AtomicRMW,
+                  OperandTraits<AtomicRMWInst>::op_begin(this),
+                  OperandTraits<AtomicRMWInst>::operands(this), InsertAtEnd) {
+  Init(Operation, Ptr, Val, Alignment, Ordering, SSID);
 }
 
 StringRef AtomicRMWInst::getOperationName(BinOp Op) {
@@ -1668,29 +1669,29 @@ GetElementPtrInst::GetElementPtrInst(const GetElementPtrInst &GEPI)
 }
 
 Type *GetElementPtrInst::getTypeAtIndex(Type *Ty, Value *Idx) {
-  if (auto Struct = dyn_cast<StructType>(Ty)) {
+  if (auto *Struct = dyn_cast<StructType>(Ty)) {
     if (!Struct->indexValid(Idx))
       return nullptr;
     return Struct->getTypeAtIndex(Idx);
   }
   if (!Idx->getType()->isIntOrIntVectorTy())
     return nullptr;
-  if (auto Array = dyn_cast<ArrayType>(Ty))
+  if (auto *Array = dyn_cast<ArrayType>(Ty))
     return Array->getElementType();
-  if (auto Vector = dyn_cast<VectorType>(Ty))
+  if (auto *Vector = dyn_cast<VectorType>(Ty))
     return Vector->getElementType();
   return nullptr;
 }
 
 Type *GetElementPtrInst::getTypeAtIndex(Type *Ty, uint64_t Idx) {
-  if (auto Struct = dyn_cast<StructType>(Ty)) {
+  if (auto *Struct = dyn_cast<StructType>(Ty)) {
     if (Idx >= Struct->getNumElements())
       return nullptr;
     return Struct->getElementType(Idx);
   }
-  if (auto Array = dyn_cast<ArrayType>(Ty))
+  if (auto *Array = dyn_cast<ArrayType>(Ty))
     return Array->getElementType();
-  if (auto Vector = dyn_cast<VectorType>(Ty))
+  if (auto *Vector = dyn_cast<VectorType>(Ty))
     return Vector->getElementType();
   return nullptr;
 }
@@ -4275,10 +4276,9 @@ StoreInst *StoreInst::cloneImpl() const {
 }
 
 AtomicCmpXchgInst *AtomicCmpXchgInst::cloneImpl() const {
-  AtomicCmpXchgInst *Result =
-    new AtomicCmpXchgInst(getOperand(0), getOperand(1), getOperand(2),
-                          getSuccessOrdering(), getFailureOrdering(),
-                          getSyncScopeID());
+  AtomicCmpXchgInst *Result = new AtomicCmpXchgInst(
+      getOperand(0), getOperand(1), getOperand(2), getAlign(),
+      getSuccessOrdering(), getFailureOrdering(), getSyncScopeID());
   Result->setVolatile(isVolatile());
   Result->setWeak(isWeak());
   return Result;
@@ -4286,8 +4286,8 @@ AtomicCmpXchgInst *AtomicCmpXchgInst::cloneImpl() const {
 
 AtomicRMWInst *AtomicRMWInst::cloneImpl() const {
   AtomicRMWInst *Result =
-    new AtomicRMWInst(getOperation(), getOperand(0), getOperand(1),
-                      getOrdering(), getSyncScopeID());
+      new AtomicRMWInst(getOperation(), getOperand(0), getOperand(1),
+                        getAlign(), getOrdering(), getSyncScopeID());
   Result->setVolatile(isVolatile());
   return Result;
 }

@@ -187,7 +187,7 @@ func @outerproduct_num_operands(%arg0: f32) {
 // -----
 
 func @outerproduct_non_vector_operand(%arg0: f32) {
-  // expected-error@+1 {{expected 2 vector types}}
+  // expected-error@+1 {{expected vector type for operand #1}}
   %1 = vector.outerproduct %arg0, %arg0 : f32, f32
 }
 
@@ -224,6 +224,27 @@ func @outerproduct_operand_1_dim_generic(%arg0: vector<4xf32>, %arg1: vector<8xf
 func @outerproduct_operand_2_dim_generic(%arg0: vector<4xf32>, %arg1: vector<8xf32>) {
   // expected-error@+1 {{expected #2 operand dim to match result dim #2}}
   %1 = "vector.outerproduct" (%arg0, %arg1) : (vector<4xf32>, vector<8xf32>) -> (vector<4x16xf32>)
+}
+
+// -----
+
+func @outerproduct_axpy_operand(%arg0: vector<4x8xf32>, %arg1: f32) {
+  // expected-error@+1 {{expected 1-d vector for operand #1}}
+  %1 = vector.outerproduct %arg0, %arg1 : vector<4x8xf32>, f32
+}
+
+// -----
+
+func @outerproduct_axpy_result_generic(%arg0: vector<4xf32>, %arg1: f32) {
+  // expected-error@+1 {{expected 1-d vector result}}
+  %1 = "vector.outerproduct" (%arg0, %arg1) : (vector<4xf32>, f32) -> (vector<4x8xf32>)
+}
+
+// -----
+
+func @outerproduct_axpy_operand_dim_generic(%arg0: vector<8xf32>, %arg1: f32) {
+  // expected-error@+1 {{expected #1 operand dim to match result dim #1}}
+  %1 = "vector.outerproduct" (%arg0, %arg1) : (vector<8xf32>, f32) -> (vector<16xf32>)
 }
 
 // -----
@@ -1155,4 +1176,67 @@ func @flat_transpose_type_mismatch(%arg0: vector<16xf32>) {
 func @type_cast_layout(%arg0: memref<4x3xf32, affine_map<(d0, d1)[s0, s1, s2] -> (d0 * s0 + d1 * s1 + s2)>>) {
   // expected-error@+1 {{expects operand to be a memref with no layout}}
   %0 = vector.type_cast %arg0: memref<4x3xf32, affine_map<(d0, d1)[s0, s1, s2] -> (d0 * s0 + d1 * s1 + s2)>> to memref<vector<4x3xf32>>
+}
+
+// -----
+
+func @gather_base_type_mismatch(%base: memref<?xf64>, %indices: vector<16xi32>, %mask: vector<16xi1>) {
+  // expected-error@+1 {{'vector.gather' op base and result element type should match}}
+  %0 = vector.gather %base, %indices, %mask : (memref<?xf64>, vector<16xi32>, vector<16xi1>) -> vector<16xf32>
+}
+
+// -----
+
+func @gather_rank_mismatch(%base: memref<?xf32>, %indices: vector<16xi32>, %mask: vector<16xi1>) {
+  // expected-error@+1 {{'vector.gather' op result #0 must be  of ranks 1, but got 'vector<2x16xf32>'}}
+  %0 = vector.gather %base, %indices, %mask : (memref<?xf32>, vector<16xi32>, vector<16xi1>) -> vector<2x16xf32>
+}
+
+// -----
+
+func @gather_dim_indices_mismatch(%base: memref<?xf32>, %indices: vector<17xi32>, %mask: vector<16xi1>) {
+  // expected-error@+1 {{'vector.gather' op expected result dim to match indices dim}}
+  %0 = vector.gather %base, %indices, %mask : (memref<?xf32>, vector<17xi32>, vector<16xi1>) -> vector<16xf32>
+}
+
+// -----
+
+func @gather_dim_mask_mismatch(%base: memref<?xf32>, %indices: vector<16xi32>, %mask: vector<17xi1>) {
+  // expected-error@+1 {{'vector.gather' op expected result dim to match mask dim}}
+  %0 = vector.gather %base, %indices, %mask : (memref<?xf32>, vector<16xi32>, vector<17xi1>) -> vector<16xf32>
+}
+
+// -----
+
+func @gather_pass_thru_type_mismatch(%base: memref<?xf32>, %indices: vector<16xi32>, %mask: vector<16xi1>, %pass_thru: vector<16xf64>) {
+  // expected-error@+1 {{'vector.gather' op expected pass_thru of same type as result type}}
+  %0 = vector.gather %base, %indices, %mask, %pass_thru : (memref<?xf32>, vector<16xi32>, vector<16xi1>, vector<16xf64>) -> vector<16xf32>
+}
+
+// -----
+
+func @scatter_base_type_mismatch(%base: memref<?xf64>, %indices: vector<16xi32>, %mask: vector<16xi1>, %value: vector<16xf32>) {
+  // expected-error@+1 {{'vector.scatter' op base and value element type should match}}
+  vector.scatter %base, %indices, %mask, %value : vector<16xi32>, vector<16xi1>, vector<16xf32> into memref<?xf64>
+}
+
+// -----
+
+func @scatter_rank_mismatch(%base: memref<?xf32>, %indices: vector<16xi32>, %mask: vector<16xi1>, %value: vector<2x16xf32>) {
+  // expected-error@+1 {{'vector.scatter' op operand #3 must be  of ranks 1, but got 'vector<2x16xf32>'}}
+  vector.scatter %base, %indices, %mask, %value : vector<16xi32>, vector<16xi1>, vector<2x16xf32> into memref<?xf32>
+}
+
+// -----
+
+func @scatter_dim_indices_mismatch(%base: memref<?xf32>, %indices: vector<17xi32>, %mask: vector<16xi1>, %value: vector<16xf32>) {
+  // expected-error@+1 {{'vector.scatter' op expected value dim to match indices dim}}
+  vector.scatter %base, %indices, %mask, %value : vector<17xi32>, vector<16xi1>, vector<16xf32> into memref<?xf32>
+}
+
+// -----
+
+func @scatter_dim_mask_mismatch(%base: memref<?xf32>, %indices: vector<16xi32>, %mask: vector<17xi1>, %value: vector<16xf32>) {
+  // expected-error@+1 {{'vector.scatter' op expected value dim to match mask dim}}
+  vector.scatter %base, %indices, %mask, %value : vector<16xi32>, vector<17xi1>, vector<16xf32> into memref<?xf32>
 }

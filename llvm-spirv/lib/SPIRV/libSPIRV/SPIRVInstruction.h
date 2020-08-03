@@ -538,15 +538,9 @@ protected:
     SPIRVInstruction::validate();
     if (getSrc()->isForward() || getDst()->isForward())
       return;
-#ifndef NDEBUG
-    if (getValueType(PtrId)->getPointerElementType() != getValueType(ValId)) {
-      assert(getValueType(PtrId)
-                     ->getPointerElementType()
-                     ->getPointerStorageClass() ==
-                 getValueType(ValId)->getPointerStorageClass() &&
-             "Inconsistent operand types");
-    }
-#endif // NDEBUG
+    assert(getValueType(PtrId)->getPointerElementType() ==
+               getValueType(ValId) &&
+           "Inconsistent operand types");
   }
 
 private:

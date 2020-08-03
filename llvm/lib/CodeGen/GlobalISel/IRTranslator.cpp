@@ -232,12 +232,8 @@ int IRTranslator::getOrCreateFrameIndex(const AllocaInst &AI) {
   // Always allocate at least one byte.
   Size = std::max<uint64_t>(Size, 1u);
 
-  unsigned Alignment = AI.getAlignment();
-  if (!Alignment)
-    Alignment = DL->getABITypeAlignment(AI.getAllocatedType());
-
   int &FI = FrameIndices[&AI];
-  FI = MF->getFrameInfo().CreateStackObject(Size, Alignment, false, &AI);
+  FI = MF->getFrameInfo().CreateStackObject(Size, AI.getAlign(), false, &AI);
   return FI;
 }
 
@@ -1063,7 +1059,7 @@ bool IRTranslator::translateGetElementPtr(const User &U,
   // splat vector.
   unsigned VectorWidth = 0;
   if (auto *VT = dyn_cast<VectorType>(U.getType()))
-    VectorWidth = VT->getNumElements();
+    VectorWidth = cast<FixedVectorType>(VT)->getNumElements();
 
   // We might need to splat the base pointer into a vector if the offsets
   // are vectors.
@@ -1268,6 +1264,8 @@ unsigned IRTranslator::getSimpleIntrinsicOpcode(Intrinsic::ID ID) {
       return TargetOpcode::G_FNEARBYINT;
     case Intrinsic::pow:
       return TargetOpcode::G_FPOW;
+    case Intrinsic::powi:
+      return TargetOpcode::G_FPOWI;
     case Intrinsic::rint:
       return TargetOpcode::G_FRINT;
     case Intrinsic::round:
@@ -1488,6 +1486,14 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
     return translateBinaryOp(TargetOpcode::G_USUBSAT, CI, MIRBuilder);
   case Intrinsic::ssub_sat:
     return translateBinaryOp(TargetOpcode::G_SSUBSAT, CI, MIRBuilder);
+  case Intrinsic::umin:
+    return translateBinaryOp(TargetOpcode::G_UMIN, CI, MIRBuilder);
+  case Intrinsic::umax:
+    return translateBinaryOp(TargetOpcode::G_UMAX, CI, MIRBuilder);
+  case Intrinsic::smin:
+    return translateBinaryOp(TargetOpcode::G_SMIN, CI, MIRBuilder);
+  case Intrinsic::smax:
+    return translateBinaryOp(TargetOpcode::G_SMAX, CI, MIRBuilder);
   case Intrinsic::fmuladd: {
     const TargetMachine &TM = MF->getTarget();
     const TargetLowering &TLI = *MF->getSubtarget().getTargetLowering();
@@ -1602,6 +1608,7 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
   case Intrinsic::sideeffect:
     // Discard annotate attributes, assumptions, and artificial side-effects.
     return true;
+  case Intrinsic::read_volatile_register:
   case Intrinsic::read_register: {
     Value *Arg = CI.getArgOperand(0);
     MIRBuilder
@@ -1942,7 +1949,7 @@ bool IRTranslator::translateVAArg(const User &U, MachineIRBuilder &MIRBuilder) {
   // anyway but that's not guaranteed.
   MIRBuilder.buildInstr(TargetOpcode::G_VAARG, {getOrCreateVReg(U)},
                         {getOrCreateVReg(*U.getOperand(0)),
-                         uint64_t(DL->getABITypeAlignment(U.getType()))});
+                         DL->getABITypeAlign(U.getType()).value()});
   return true;
 }
 
@@ -1950,7 +1957,7 @@ bool IRTranslator::translateInsertElement(const User &U,
                                           MachineIRBuilder &MIRBuilder) {
   // If it is a <1 x Ty> vector, use the scalar as it is
   // not a legal vector type in LLT.
-  if (cast<VectorType>(U.getType())->getNumElements() == 1)
+  if (cast<FixedVectorType>(U.getType())->getNumElements() == 1)
     return translateCopy(U, *U.getOperand(1), MIRBuilder);
 
   Register Res = getOrCreateVReg(U);
@@ -1965,7 +1972,7 @@ bool IRTranslator::translateExtractElement(const User &U,
                                            MachineIRBuilder &MIRBuilder) {
   // If it is a <1 x Ty> vector, use the scalar as it is
   // not a legal vector type in LLT.
-  if (cast<VectorType>(U.getOperand(0)->getType())->getNumElements() == 1)
+  if (cast<FixedVectorType>(U.getOperand(0)->getType())->getNumElements() == 1)
     return translateCopy(U, *U.getOperand(0), MIRBuilder);
 
   Register Res = getOrCreateVReg(U);
@@ -2388,10 +2395,18 @@ bool IRTranslator::runOnMachineFunction(MachineFunction &CurMF) {
   // Make our arguments/constants entry block fallthrough to the IR entry block.
   EntryBB->addSuccessor(&getMBB(F.front()));
 
+  if (CLI->fallBackToDAGISel(F)) {
+    OptimizationRemarkMissed R("gisel-irtranslator", "GISelFailure",
+                               F.getSubprogram(), &F.getEntryBlock());
+    R << "unable to lower function: " << ore::NV("Prototype", F.getType());
+    reportTranslationError(*MF, *TPC, *ORE, R);
+    return false;
+  }
+
   // Lower the actual args into this basic block.
   SmallVector<ArrayRef<Register>, 8> VRegArgs;
   for (const Argument &Arg: F.args()) {
-    if (DL->getTypeStoreSize(Arg.getType()) == 0)
+    if (DL->getTypeStoreSize(Arg.getType()).isZero())
       continue; // Don't handle zero sized types.
     ArrayRef<Register> VRegs = getOrCreateVRegs(Arg);
     VRegArgs.push_back(VRegs);

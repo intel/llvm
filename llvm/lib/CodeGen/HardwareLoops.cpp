@@ -245,13 +245,16 @@ bool HardwareLoops::runOnFunction(Function &F) {
 // converted and the parent loop doesn't support containing a hardware loop.
 bool HardwareLoops::TryConvertLoop(Loop *L) {
   // Process nested loops first.
-  for (Loop::iterator I = L->begin(), E = L->end(); I != E; ++I) {
-    if (TryConvertLoop(*I)) {
-      reportHWLoopFailure("nested hardware-loops not supported", "HWLoopNested",
-                          ORE, L);
-      return true; // Stop search.
-    }
+  bool AnyChanged = false;
+  for (Loop *SL : *L)
+    AnyChanged |= TryConvertLoop(SL);
+  if (AnyChanged) {
+    reportHWLoopFailure("nested hardware-loops not supported", "HWLoopNested",
+                        ORE, L);
+    return true; // Stop search.
   }
+
+  LLVM_DEBUG(dbgs() << "HWLoops: Loop " << L->getHeader()->getName() << "\n");
 
   HardwareLoopInfo HWLoopInfo(L);
   if (!HWLoopInfo.canAnalyze(*LI)) {
@@ -399,8 +402,15 @@ Value *HardwareLoop::InitLoopCount() {
 
   BasicBlock *BB = L->getLoopPreheader();
   if (UseLoopGuard && BB->getSinglePredecessor() &&
-      cast<BranchInst>(BB->getTerminator())->isUnconditional())
-    BB = BB->getSinglePredecessor();
+      cast<BranchInst>(BB->getTerminator())->isUnconditional()) {
+    BasicBlock *Predecessor = BB->getSinglePredecessor();
+    // If it's not safe to create a while loop then don't force it and create a
+    // do-while loop instead
+    if (!isSafeToExpandAt(ExitCount, Predecessor->getTerminator(), SE))
+        UseLoopGuard = false;
+    else
+        BB = Predecessor;
+  }
 
   if (!isSafeToExpandAt(ExitCount, BB->getTerminator(), SE)) {
     LLVM_DEBUG(dbgs() << "- Bailing, unsafe to expand ExitCount "

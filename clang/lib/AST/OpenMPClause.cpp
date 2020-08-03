@@ -51,6 +51,8 @@ OMPClause::child_range OMPClause::used_children() {
   case OMPC_match:
   case OMPC_unknown:
     break;
+  default:
+    break;
   }
   llvm_unreachable("unknown OMPClause");
 }
@@ -154,6 +156,8 @@ const OMPClauseWithPreInit *OMPClauseWithPreInit::get(const OMPClause *C) {
   case OMPC_uses_allocators:
   case OMPC_affinity:
     break;
+  default:
+    break;
   }
 
   return nullptr;
@@ -245,6 +249,8 @@ const OMPClauseWithPostUpdate *OMPClauseWithPostUpdate::get(const OMPClause *C) 
   case OMPC_exclusive:
   case OMPC_uses_allocators:
   case OMPC_affinity:
+    break;
+  default:
     break;
   }
 
@@ -2121,21 +2127,21 @@ void OMPTraitInfo::getAsVariantMatchInfo(ASTContext &ASTCtx,
                    TraitProperty::user_condition_unknown &&
                "Ill-formed user condition, expected unknown trait property!");
 
-        llvm::APSInt CondVal;
-        if (Selector.ScoreOrCondition->isIntegerConstantExpr(CondVal, ASTCtx))
-          VMI.addTrait(CondVal.isNullValue()
-                          ? TraitProperty::user_condition_false
-                          : TraitProperty::user_condition_true);
+        if (Optional<APSInt> CondVal =
+                Selector.ScoreOrCondition->getIntegerConstantExpr(ASTCtx))
+          VMI.addTrait(CondVal->isNullValue()
+                           ? TraitProperty::user_condition_false
+                           : TraitProperty::user_condition_true);
         else
           VMI.addTrait(TraitProperty::user_condition_false);
         continue;
       }
 
-      llvm::APSInt Score;
+      Optional<llvm::APSInt> Score;
       llvm::APInt *ScorePtr = nullptr;
       if (Selector.ScoreOrCondition) {
-        if (Selector.ScoreOrCondition->isIntegerConstantExpr(Score, ASTCtx))
-          ScorePtr = &Score;
+        if ((Score = Selector.ScoreOrCondition->getIntegerConstantExpr(ASTCtx)))
+          ScorePtr = &*Score;
         else
           VMI.addTrait(TraitProperty::user_condition_false);
       }

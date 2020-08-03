@@ -325,7 +325,7 @@ class DwarfDebug : public DebugHandlerBase {
   const MachineFunction *CurFn = nullptr;
 
   /// If nonnull, stores the CU in which the previous subprogram was contained.
-  const DwarfCompileUnit *PrevCU;
+  const DwarfCompileUnit *PrevCU = nullptr;
 
   /// As an optimization, there is no need to emit an entry in the directory
   /// table for the same directory as DW_AT_comp_dir.
@@ -592,8 +592,10 @@ class DwarfDebug : public DebugHandlerBase {
   /// function that describe the same variable. If the resulting 
   /// list has only one entry that is valid for entire variable's
   /// scope return true.
-  bool buildLocationList(SmallVectorImpl<DebugLocEntry> &DebugLoc,
-                         const DbgValueHistoryMap::Entries &Entries);
+  bool buildLocationList(
+      SmallVectorImpl<DebugLocEntry> &DebugLoc,
+      const DbgValueHistoryMap::Entries &Entries,
+      DenseSet<const MachineBasicBlock *> &VeryLargeBlocks);
 
   /// Collect variable information from the side table maintained by MF.
   void collectVariableInfoFromMFTable(DwarfCompileUnit &TheCU,
@@ -782,6 +784,10 @@ public:
   static void emitDebugLocValue(const AsmPrinter &AP, const DIBasicType *BT,
                                 const DbgValueLoc &Value,
                                 DwarfExpression &DwarfExpr);
+
+  /// If the \p File has an MD5 checksum, return it as an MD5Result
+  /// allocated in the MCContext.
+  Optional<MD5::MD5Result> getMD5AsBytes(const DIFile *File) const;
 };
 
 } // end namespace llvm

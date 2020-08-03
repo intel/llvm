@@ -278,6 +278,7 @@ public:
     bool IsSRet : 1;
     bool IsNest : 1;
     bool IsByVal : 1;
+    bool IsByRef : 1;
     bool IsInAlloca : 1;
     bool IsPreallocated : 1;
     bool IsReturned : 1;
@@ -290,7 +291,7 @@ public:
 
     ArgListEntry()
         : IsSExt(false), IsZExt(false), IsInReg(false), IsSRet(false),
-          IsNest(false), IsByVal(false), IsInAlloca(false),
+          IsNest(false), IsByVal(false), IsByRef(false), IsInAlloca(false),
           IsPreallocated(false), IsReturned(false), IsSwiftSelf(false),
           IsSwiftError(false), IsCFGuardTarget(false) {}
 
@@ -1472,7 +1473,7 @@ public:
   /// type has the alignment requirement of another type.
   virtual Align getABIAlignmentForCallingConv(Type *ArgTy,
                                               DataLayout DL) const {
-    return Align(DL.getABITypeAlignment(ArgTy));
+    return DL.getABITypeAlign(ArgTy);
   }
 
   /// If true, then instruction selection should seek to shrink the FP constant
@@ -1594,7 +1595,7 @@ public:
   /// (as defined by the target).
   bool allowsMemoryAccessForAlignment(
       LLVMContext &Context, const DataLayout &DL, EVT VT,
-      unsigned AddrSpace = 0, unsigned Alignment = 1,
+      unsigned AddrSpace = 0, Align Alignment = Align(1),
       MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
       bool *Fast = nullptr) const;
 
@@ -1613,7 +1614,7 @@ public:
   /// target).
   virtual bool
   allowsMemoryAccess(LLVMContext &Context, const DataLayout &DL, EVT VT,
-                     unsigned AddrSpace = 0, unsigned Alignment = 1,
+                     unsigned AddrSpace = 0, Align Alignment = Align(1),
                      MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
                      bool *Fast = nullptr) const;
 
@@ -2572,7 +2573,7 @@ public:
   /// this information should not be provided because it will generate more
   /// loads.
   virtual bool hasPairedLoad(EVT /*LoadedType*/,
-                             unsigned & /*RequiredAlignment*/) const {
+                             Align & /*RequiredAlignment*/) const {
     return false;
   }
 

@@ -355,7 +355,7 @@ checkDeducedTemplateArguments(ASTContext &Context,
       TemplateArgument Merged = checkDeducedTemplateArguments(
           Context, DeducedTemplateArgument(*XA, X.wasDeducedFromArrayBound()),
           DeducedTemplateArgument(*YA, Y.wasDeducedFromArrayBound()));
-      if (Merged.isNull())
+      if (Merged.isNull() && !(XA->isNull() && YA->isNull()))
         return DeducedTemplateArgument();
       NewPack.push_back(Merged);
     }
@@ -2100,24 +2100,23 @@ DeduceTemplateArgumentsByTypeMatch(Sema &S,
             const auto *ArgConstMatrix = dyn_cast<ConstantMatrixType>(Arg);
             const auto *ArgDepMatrix = dyn_cast<DependentSizedMatrixType>(Arg);
             if (!ParamExpr->isValueDependent()) {
-              llvm::APSInt ParamConst(
-                  S.Context.getTypeSize(S.Context.getSizeType()));
-              if (!ParamExpr->isIntegerConstantExpr(ParamConst, S.Context))
+              Optional<llvm::APSInt> ParamConst =
+                  ParamExpr->getIntegerConstantExpr(S.Context);
+              if (!ParamConst)
                 return Sema::TDK_NonDeducedMismatch;
 
               if (ArgConstMatrix) {
-                if ((ArgConstMatrix->*GetArgDimension)() == ParamConst)
+                if ((ArgConstMatrix->*GetArgDimension)() == *ParamConst)
                   return Sema::TDK_Success;
                 return Sema::TDK_NonDeducedMismatch;
               }
 
               Expr *ArgExpr = (ArgDepMatrix->*GetArgDimensionExpr)();
-              llvm::APSInt ArgConst(
-                  S.Context.getTypeSize(S.Context.getSizeType()));
-              if (!ArgExpr->isValueDependent() &&
-                  ArgExpr->isIntegerConstantExpr(ArgConst, S.Context) &&
-                  ArgConst == ParamConst)
-                return Sema::TDK_Success;
+              if (!ArgExpr->isValueDependent())
+                if (Optional<llvm::APSInt> ArgConst =
+                        ArgExpr->getIntegerConstantExpr(S.Context))
+                  if (*ArgConst == *ParamConst)
+                    return Sema::TDK_Success;
               return Sema::TDK_NonDeducedMismatch;
             }
 
@@ -3041,8 +3040,13 @@ Sema::DeduceTemplateArguments(ClassTemplatePartialSpecializationDecl *Partial,
   if (Trap.hasErrorOccurred())
     return Sema::TDK_SubstitutionFailure;
 
-  return ::FinishTemplateArgumentDeduction(
-      *this, Partial, /*IsPartialOrdering=*/false, TemplateArgs, Deduced, Info);
+  TemplateDeductionResult Result;
+  runWithSufficientStackSpace(Info.getLocation(), [&] {
+    Result = ::FinishTemplateArgumentDeduction(*this, Partial,
+                                               /*IsPartialOrdering=*/false,
+                                               TemplateArgs, Deduced, Info);
+  });
+  return Result;
 }
 
 /// Perform template argument deduction to determine whether
@@ -3082,8 +3086,13 @@ Sema::DeduceTemplateArguments(VarTemplatePartialSpecializationDecl *Partial,
   if (Trap.hasErrorOccurred())
     return Sema::TDK_SubstitutionFailure;
 
-  return ::FinishTemplateArgumentDeduction(
-      *this, Partial, /*IsPartialOrdering=*/false, TemplateArgs, Deduced, Info);
+  TemplateDeductionResult Result;
+  runWithSufficientStackSpace(Info.getLocation(), [&] {
+    Result = ::FinishTemplateArgumentDeduction(*this, Partial,
+                                               /*IsPartialOrdering=*/false,
+                                               TemplateArgs, Deduced, Info);
+  });
+  return Result;
 }
 
 /// Determine whether the given type T is a simple-template-id type.
@@ -4032,13 +4041,12 @@ Sema::TemplateDeductionResult Sema::DeduceTemplateArguments(
   SmallVector<QualType, 8> ParamTypes;
   unsigned NumExplicitlySpecified = 0;
   if (ExplicitTemplateArgs) {
-    TemplateDeductionResult Result =
-      SubstituteExplicitTemplateArguments(FunctionTemplate,
-                                          *ExplicitTemplateArgs,
-                                          Deduced,
-                                          ParamTypes,
-                                          nullptr,
-                                          Info);
+    TemplateDeductionResult Result;
+    runWithSufficientStackSpace(Info.getLocation(), [&] {
+      Result = SubstituteExplicitTemplateArguments(
+          FunctionTemplate, *ExplicitTemplateArgs, Deduced, ParamTypes, nullptr,
+          Info);
+    });
     if (Result)
       return Result;
 
@@ -4140,12 +4148,16 @@ Sema::TemplateDeductionResult Sema::DeduceTemplateArguments(
   // that is needed when the accessibility of template arguments is checked.
   DeclContext *CallingCtx = CurContext;
 
-  return FinishTemplateArgumentDeduction(
-      FunctionTemplate, Deduced, NumExplicitlySpecified, Specialization, Info,
-      &OriginalCallArgs, PartialOverloading, [&, CallingCtx]() {
-        ContextRAII SavedContext(*this, CallingCtx);
-        return CheckNonDependent(ParamTypesForArgChecking);
-      });
+  TemplateDeductionResult Result;
+  runWithSufficientStackSpace(Info.getLocation(), [&] {
+    Result = FinishTemplateArgumentDeduction(
+        FunctionTemplate, Deduced, NumExplicitlySpecified, Specialization, Info,
+        &OriginalCallArgs, PartialOverloading, [&, CallingCtx]() {
+          ContextRAII SavedContext(*this, CallingCtx);
+          return CheckNonDependent(ParamTypesForArgChecking);
+        });
+  });
+  return Result;
 }
 
 QualType Sema::adjustCCAndNoReturn(QualType ArgFunctionType,
@@ -4231,11 +4243,13 @@ Sema::TemplateDeductionResult Sema::DeduceTemplateArguments(
   unsigned NumExplicitlySpecified = 0;
   SmallVector<QualType, 4> ParamTypes;
   if (ExplicitTemplateArgs) {
-    if (TemplateDeductionResult Result
-          = SubstituteExplicitTemplateArguments(FunctionTemplate,
-                                                *ExplicitTemplateArgs,
-                                                Deduced, ParamTypes,
-                                                &FunctionType, Info))
+    TemplateDeductionResult Result;
+    runWithSufficientStackSpace(Info.getLocation(), [&] {
+      Result = SubstituteExplicitTemplateArguments(
+          FunctionTemplate, *ExplicitTemplateArgs, Deduced, ParamTypes,
+          &FunctionType, Info);
+    });
+    if (Result)
       return Result;
 
     NumExplicitlySpecified = Deduced.size();
@@ -4277,10 +4291,13 @@ Sema::TemplateDeductionResult Sema::DeduceTemplateArguments(
       return Result;
   }
 
-  if (TemplateDeductionResult Result
-        = FinishTemplateArgumentDeduction(FunctionTemplate, Deduced,
-                                          NumExplicitlySpecified,
-                                          Specialization, Info))
+  TemplateDeductionResult Result;
+  runWithSufficientStackSpace(Info.getLocation(), [&] {
+    Result = FinishTemplateArgumentDeduction(FunctionTemplate, Deduced,
+                                             NumExplicitlySpecified,
+                                             Specialization, Info);
+  });
+  if (Result)
     return Result;
 
   // If the function has a deduced return type, deduce it now, so we can check
@@ -4437,9 +4454,11 @@ Sema::DeduceTemplateArguments(FunctionTemplateDecl *ConversionTemplate,
   LocalInstantiationScope InstScope(*this);
   // Finish template argument deduction.
   FunctionDecl *ConversionSpecialized = nullptr;
-  TemplateDeductionResult Result
-      = FinishTemplateArgumentDeduction(ConversionTemplate, Deduced, 0,
-                                        ConversionSpecialized, Info);
+  TemplateDeductionResult Result;
+  runWithSufficientStackSpace(Info.getLocation(), [&] {
+    Result = FinishTemplateArgumentDeduction(ConversionTemplate, Deduced, 0,
+                                             ConversionSpecialized, Info);
+  });
   Specialization = cast_or_null<CXXConversionDecl>(ConversionSpecialized);
   return Result;
 }
@@ -5379,14 +5398,15 @@ static bool isAtLeastAsSpecializedAs(Sema &S, QualType T1, QualType T2,
   Sema::InstantiatingTemplate Inst(S, Info.getLocation(), P2, DeducedArgs,
                                    Info);
   auto *TST1 = T1->castAs<TemplateSpecializationType>();
-  if (FinishTemplateArgumentDeduction(
-          S, P2, /*IsPartialOrdering=*/true,
-          TemplateArgumentList(TemplateArgumentList::OnStack,
-                               TST1->template_arguments()),
-          Deduced, Info))
-    return false;
-
-  return true;
+  bool AtLeastAsSpecialized;
+  S.runWithSufficientStackSpace(Info.getLocation(), [&] {
+    AtLeastAsSpecialized = !FinishTemplateArgumentDeduction(
+        S, P2, /*IsPartialOrdering=*/true,
+        TemplateArgumentList(TemplateArgumentList::OnStack,
+                             TST1->template_arguments()),
+        Deduced, Info);
+  });
+  return AtLeastAsSpecialized;
 }
 
 /// Returns the more specialized class template partial specialization

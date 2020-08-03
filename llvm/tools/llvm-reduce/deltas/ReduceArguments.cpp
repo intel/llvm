@@ -42,7 +42,8 @@ static void replaceFunctionCalls(Function &OldF, Function &NewF,
 /// accordingly. It also removes allocations of out-of-chunk arguments.
 static void extractArgumentsFromModule(std::vector<Chunk> ChunksToKeep,
                                        Module *Program) {
-  int I = 0, ArgCount = 0;
+  Oracle O(ChunksToKeep);
+
   std::set<Argument *> ArgsToKeep;
   std::vector<Function *> Funcs;
   // Get inside-chunk arguments, as well as their parent function
@@ -50,17 +51,13 @@ static void extractArgumentsFromModule(std::vector<Chunk> ChunksToKeep,
     if (!F.isDeclaration()) {
       Funcs.push_back(&F);
       for (auto &A : F.args())
-        if (I < (int)ChunksToKeep.size()) {
-          if (ChunksToKeep[I].contains(++ArgCount))
-            ArgsToKeep.insert(&A);
-          if (ChunksToKeep[I].end == ArgCount)
-            ++I;
-        }
+        if (O.shouldKeep())
+          ArgsToKeep.insert(&A);
     }
 
   for (auto *F : Funcs) {
     ValueToValueMapTy VMap;
-    std::vector<Instruction *> InstToDelete;
+    std::vector<WeakVH> InstToDelete;
     for (auto &A : F->args())
       if (!ArgsToKeep.count(&A)) {
         // By adding undesired arguments to the VMap, CloneFunction will remove
@@ -70,10 +67,14 @@ static void extractArgumentsFromModule(std::vector<Chunk> ChunksToKeep,
           if (auto *I = dyn_cast<Instruction>(*&U))
             InstToDelete.push_back(I);
       }
-    // Delete any instruction that uses the argument
-    for (auto *I : InstToDelete) {
+    // Delete any (unique) instruction that uses the argument
+    for (Value *V : InstToDelete) {
+      if (!V)
+        continue;
+      auto *I = cast<Instruction>(V);
       I->replaceAllUsesWith(UndefValue::get(I->getType()));
-      I->eraseFromParent();
+      if (!I->isTerminator())
+        I->eraseFromParent();
     }
 
     // No arguments to reduce
@@ -81,10 +82,9 @@ static void extractArgumentsFromModule(std::vector<Chunk> ChunksToKeep,
       continue;
 
     std::set<int> ArgIndexesToKeep;
-    int ArgI = 0;
-    for (auto &Arg : F->args())
-      if (ArgsToKeep.count(&Arg))
-        ArgIndexesToKeep.insert(++ArgI);
+    for (auto &Arg : enumerate(F->args()))
+      if (ArgsToKeep.count(&Arg.value()))
+        ArgIndexesToKeep.insert(Arg.index());
 
     auto *ClonedFunc = CloneFunction(F, VMap);
     // In order to preserve function order, we move Clone after old Function

@@ -44,7 +44,7 @@
 #include "ToolChains/SYCL.h"
 #include "ToolChains/Solaris.h"
 #include "ToolChains/TCE.h"
-#include "ToolChains/VE.h"
+#include "ToolChains/VEToolchain.h"
 #include "ToolChains/WebAssembly.h"
 #include "ToolChains/XCore.h"
 #include "clang/Basic/Version.h"
@@ -493,6 +493,26 @@ static llvm::Triple computeTargetTriple(const Driver &D,
   if (Target.getArch() == llvm::Triple::tce ||
       Target.getOS() == llvm::Triple::Minix)
     return Target;
+
+  // On AIX, the env OBJECT_MODE may affect the resulting arch variant.
+  if (Target.isOSAIX()) {
+    if (Optional<std::string> ObjectModeValue =
+            llvm::sys::Process::GetEnv("OBJECT_MODE")) {
+      StringRef ObjectMode = *ObjectModeValue;
+      llvm::Triple::ArchType AT = llvm::Triple::UnknownArch;
+
+      if (ObjectMode.equals("64")) {
+        AT = Target.get64BitArchVariant().getArch();
+      } else if (ObjectMode.equals("32")) {
+        AT = Target.get32BitArchVariant().getArch();
+      } else {
+        D.Diag(diag::err_drv_invalid_object_mode) << ObjectMode;
+      }
+
+      if (AT != llvm::Triple::UnknownArch && AT != Target.getArch())
+        Target.setArch(AT);
+    }
+  }
 
   // Handle pseudo-target flags '-m64', '-mx32', '-m32' and '-m16'.
   Arg *A = Args.getLastArg(options::OPT_m64, options::OPT_mx32,
@@ -1137,17 +1157,6 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   // FIXME: Handle environment options which affect driver behavior, somewhere
   // (client?). GCC_EXEC_PREFIX, LPATH, CC_PRINT_OPTIONS.
 
-  if (Optional<std::string> CompilerPathValue =
-          llvm::sys::Process::GetEnv("COMPILER_PATH")) {
-    StringRef CompilerPath = *CompilerPathValue;
-    while (!CompilerPath.empty()) {
-      std::pair<StringRef, StringRef> Split =
-          CompilerPath.split(llvm::sys::EnvPathSeparator);
-      PrefixDirs.push_back(std::string(Split.first));
-      CompilerPath = Split.second;
-    }
-  }
-
   // We look for the driver mode option early, because the mode can affect
   // how other options are parsed.
   ParseDriverMode(ClangExecutable, ArgList.slice(1));
@@ -1275,6 +1284,16 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   for (const Arg *A : Args.filtered(options::OPT_B)) {
     A->claim();
     PrefixDirs.push_back(A->getValue(0));
+  }
+  if (Optional<std::string> CompilerPathValue =
+          llvm::sys::Process::GetEnv("COMPILER_PATH")) {
+    StringRef CompilerPath = *CompilerPathValue;
+    while (!CompilerPath.empty()) {
+      std::pair<StringRef, StringRef> Split =
+          CompilerPath.split(llvm::sys::EnvPathSeparator);
+      PrefixDirs.push_back(std::string(Split.first));
+      CompilerPath = Split.second;
+    }
   }
   if (const Arg *A = Args.getLastArg(options::OPT__sysroot_EQ))
     SysRoot = A->getValue();
@@ -1988,6 +2007,13 @@ bool Driver::HandleImmediateArgs(const Compilation &C) {
   if (C.getArgs().hasArg(options::OPT_print_search_dirs)) {
     llvm::outs() << "programs: =";
     bool separator = false;
+    // Print -B and COMPILER_PATH.
+    for (const std::string &Path : PrefixDirs) {
+      if (separator)
+        llvm::outs() << llvm::sys::EnvPathSeparator;
+      llvm::outs() << Path;
+      separator = true;
+    }
     for (const std::string &Path : TC.getProgramPaths()) {
       if (separator)
         llvm::outs() << llvm::sys::EnvPathSeparator;
@@ -5714,6 +5740,7 @@ InputInfo Driver::BuildJobsForActionNoCache(
 
   // Only use pipes when there is exactly one input.
   InputInfoList InputInfos;
+  bool JobForPreprocessToStdout = false;
   for (const Action *Input : Inputs) {
     // Treat dsymutil and verify sub-jobs as being at the top-level too, they
     // shouldn't get temporary output names.
@@ -5724,6 +5751,11 @@ InputInfo Driver::BuildJobsForActionNoCache(
         C, Input, TC, BoundArch, SubJobAtTopLevel, MultipleArchs, LinkingOutput,
         CachedResults, A->getOffloadingDeviceKind()));
   }
+  // Check if we are in sub-work for preprocessing for host side. If so we will
+  // add another job to print information to terminal later.
+  if (!AtTopLevel && A->getKind() == Action::PreprocessJobClass &&
+      C.getJobs().size() == 1)
+    JobForPreprocessToStdout = true;
 
   // Always use the first input as the base input.
   const char *BaseInput = InputInfos[0].getBaseInput();
@@ -5758,6 +5790,7 @@ InputInfo Driver::BuildJobsForActionNoCache(
 
   // Determine the place to write output to, if any.
   InputInfo Result;
+  InputInfo ResultForPreprocessToStdout;
   InputInfoList UnbundlingResults;
   if (auto *UA = dyn_cast<OffloadUnbundlingJobAction>(JA)) {
     // If we have an unbundling job, we need to create results for all the
@@ -5919,6 +5952,8 @@ InputInfo Driver::BuildJobsForActionNoCache(
                                              AtTopLevel, MultipleArchs,
                                              OffloadingPrefix),
                        BaseInput);
+    if (JobForPreprocessToStdout)
+      ResultForPreprocessToStdout = InputInfo(A, "-", BaseInput);
   }
 
   if (CCCPrintBindings && !CCGenDiagnostics) {
@@ -5941,12 +5976,19 @@ InputInfo Driver::BuildJobsForActionNoCache(
       llvm::errs() << "] \n";
     }
   } else {
-    if (UnbundlingResults.empty())
+    if (UnbundlingResults.empty()) {
       T->ConstructJob(
           C, *JA, Result, InputInfos,
           C.getArgsForToolChain(TC, BoundArch, JA->getOffloadingDeviceKind()),
           LinkingOutput);
-    else
+      // Add another job to print information to terminal for host side.
+      if (JobForPreprocessToStdout) {
+        T->ConstructJob(
+            C, *JA, ResultForPreprocessToStdout, InputInfos,
+            C.getArgsForToolChain(TC, BoundArch, JA->getOffloadingDeviceKind()),
+            LinkingOutput);
+      }
+    } else
       T->ConstructJobMultipleOutputs(
           C, *JA, UnbundlingResults, InputInfos,
           C.getArgsForToolChain(TC, BoundArch, JA->getOffloadingDeviceKind()),
@@ -6277,8 +6319,7 @@ void Driver::generatePrefixedToolNames(
     Names.emplace_back((DefaultTargetTriple + "-" + Tool).str());
 }
 
-static bool ScanDirForExecutable(SmallString<128> &Dir,
-                                 const std::string &Name) {
+static bool ScanDirForExecutable(SmallString<128> &Dir, StringRef Name) {
   llvm::sys::path::append(Dir, Name);
   if (llvm::sys::fs::can_execute(Twine(Dir)))
     return true;
@@ -6295,9 +6336,8 @@ std::string Driver::GetProgramPath(StringRef Name, const ToolChain &TC) const {
   for (const auto &PrefixDir : PrefixDirs) {
     if (llvm::sys::fs::is_directory(PrefixDir)) {
       SmallString<128> P(PrefixDir);
-      for (const auto &TargetSpecificExecutable : TargetSpecificExecutables)
-        if (ScanDirForExecutable(P, TargetSpecificExecutable))
-          return std::string(P.str());
+      if (ScanDirForExecutable(P, Name))
+        return std::string(P.str());
     } else {
       SmallString<128> P((PrefixDir + Name).str());
       if (llvm::sys::fs::can_execute(Twine(P)))

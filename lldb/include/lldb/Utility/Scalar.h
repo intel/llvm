@@ -9,14 +9,15 @@
 #ifndef LLDB_UTILITY_SCALAR_H
 #define LLDB_UTILITY_SCALAR_H
 
+#include "lldb/Utility/LLDBAssert.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/lldb-enumerations.h"
 #include "lldb/lldb-private-types.h"
-#include "lldb/Utility/LLDBAssert.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 
 namespace lldb_private {
 class DataExtractor;
@@ -89,7 +90,7 @@ public:
                 llvm::APInt(BITWIDTH_INT128, NUM_OF_WORDS_INT128,
                             (reinterpret_cast<type128 *>(&v))->x)) {}
   Scalar(llvm::APInt v) : m_type(), m_float(static_cast<float>(0)) {
-    m_integer = llvm::APInt(v);
+    m_integer = llvm::APInt(std::move(v));
     m_type = GetBestTypeForBitSize(m_integer.getBitWidth(), true);
   }
   // Scalar(const RegisterValue& reg_value);
@@ -125,7 +126,7 @@ public:
     m_integer.clearAllBits();
   }
 
-  const char *GetTypeAsCString() const;
+  const char *GetTypeAsCString() const { return GetValueTypeAsCString(m_type); }
 
   void GetValue(Stream *s, bool show_type) const;
 
@@ -217,7 +218,7 @@ public:
   Status SetValueFromCString(const char *s, lldb::Encoding encoding,
                              size_t byte_size);
 
-  Status SetValueFromData(DataExtractor &data, lldb::Encoding encoding,
+  Status SetValueFromData(const DataExtractor &data, lldb::Encoding encoding,
                           size_t byte_size);
 
   static bool UIntValueIsValidForSize(uint64_t uval64, size_t total_byte_size) {
@@ -267,8 +268,7 @@ protected:
   llvm::APInt m_integer;
   llvm::APFloat m_float;
 
-  template <typename T> T GetAsSigned(T fail_value) const;
-  template <typename T> T GetAsUnsigned(T fail_value) const;
+  template <typename T> T GetAs(T fail_value) const;
 
 private:
   friend const Scalar operator+(const Scalar &lhs, const Scalar &rhs);

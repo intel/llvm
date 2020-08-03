@@ -322,6 +322,9 @@ void visualstudio::Linker::constructMSVCLibCommand(Compilation &C,
     }
     CmdArgs.push_back(II.getFilename());
   }
+  if (Args.hasArg(options::OPT_fsycl_link_EQ) &&
+      Args.hasArg(options::OPT_fintelfpga))
+    CmdArgs.push_back("/IGNORE:4221");
   CmdArgs.push_back(
       C.getArgs().MakeArgString(Twine("-OUT:") + Output.getFilename()));
 
@@ -864,6 +867,7 @@ void MSVCToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
 
 void MSVCToolChain::printVerboseInfo(raw_ostream &OS) const {
   CudaInstallation.print(OS);
+  RocmInstallation.print(OS);
 }
 
 // Windows SDKs and VC Toolchains group their contents into subdirectories based

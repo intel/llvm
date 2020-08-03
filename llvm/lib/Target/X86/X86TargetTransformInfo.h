@@ -22,6 +22,8 @@
 
 namespace llvm {
 
+class InstCombiner;
+
 class X86TTIImpl : public BasicTTIImplBase<X86TTIImpl> {
   typedef BasicTTIImplBase<X86TTIImpl> BaseT;
   typedef TargetTransformInfo TTI;
@@ -105,9 +107,9 @@ public:
   /// \name Cache TTI Implementation
   /// @{
   llvm::Optional<unsigned> getCacheSize(
-    TargetTransformInfo::CacheLevel Level) const;
+    TargetTransformInfo::CacheLevel Level) const override;
   llvm::Optional<unsigned> getCacheAssociativity(
-    TargetTransformInfo::CacheLevel Level) const;
+    TargetTransformInfo::CacheLevel Level) const override;
   /// @}
 
   /// \name Vector TTI Implementations
@@ -150,6 +152,18 @@ public:
                              const Instruction *I);
   int getAddressComputationCost(Type *PtrTy, ScalarEvolution *SE,
                                 const SCEV *Ptr);
+
+  Optional<Instruction *> instCombineIntrinsic(InstCombiner &IC,
+                                               IntrinsicInst &II) const;
+  Optional<Value *>
+  simplifyDemandedUseBitsIntrinsic(InstCombiner &IC, IntrinsicInst &II,
+                                   APInt DemandedMask, KnownBits &Known,
+                                   bool &KnownBitsComputed) const;
+  Optional<Value *> simplifyDemandedVectorEltsIntrinsic(
+      InstCombiner &IC, IntrinsicInst &II, APInt DemandedElts, APInt &UndefElts,
+      APInt &UndefElts2, APInt &UndefElts3,
+      std::function<void(Instruction *, unsigned, APInt, APInt &)>
+          SimplifyAndSetOp) const;
 
   unsigned getAtomicMemIntrinsicMaxElementSize() const;
 

@@ -120,6 +120,8 @@ public:
   int getExtractWithExtendCost(unsigned Opcode, Type *Dst, VectorType *VecTy,
                                unsigned Index);
 
+  unsigned getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind);
+
   int getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index);
 
   int getArithmeticInstrCost(
@@ -151,16 +153,19 @@ public:
   void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
                                TTI::UnrollingPreferences &UP);
 
+  void getPeelingPreferences(Loop *L, ScalarEvolution &SE,
+                             TTI::PeelingPreferences &PP);
+
   Value *getOrCreateResultFromMemIntrinsic(IntrinsicInst *Inst,
                                            Type *ExpectedType);
 
   bool getTgtMemIntrinsic(IntrinsicInst *Inst, MemIntrinsicInfo &Info);
 
   bool isLegalMaskedLoadStore(Type *DataType, Align Alignment) {
-    if (!isa<VectorType>(DataType) || !ST->hasSVE())
+    if (!isa<ScalableVectorType>(DataType) || !ST->hasSVE())
       return false;
 
-    Type *Ty = cast<VectorType>(DataType)->getElementType();
+    Type *Ty = cast<ScalableVectorType>(DataType)->getElementType();
     if (Ty->isBFloatTy() || Ty->isHalfTy() ||
         Ty->isFloatTy() || Ty->isDoubleTy())
       return true;
@@ -189,7 +194,8 @@ public:
     // the element type fits into a register and the number of elements is a
     // power of 2 > 1.
     if (auto *DataTypeVTy = dyn_cast<VectorType>(DataType)) {
-      unsigned NumElements = DataTypeVTy->getNumElements();
+      unsigned NumElements =
+          cast<FixedVectorType>(DataTypeVTy)->getNumElements();
       unsigned EltSize = DataTypeVTy->getElementType()->getScalarSizeInBits();
       return NumElements > 1 && isPowerOf2_64(NumElements) && EltSize >= 8 &&
              EltSize <= 128 && isPowerOf2_64(EltSize);

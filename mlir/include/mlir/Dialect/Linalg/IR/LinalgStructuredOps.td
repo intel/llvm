@@ -17,6 +17,7 @@
 include "mlir/Dialect/Affine/IR/AffineOpsBase.td"
 include "mlir/Dialect/Linalg/IR/LinalgBase.td"
 include "mlir/Dialect/Linalg/IR/LinalgStructuredOpsInterface.td"
+include "mlir/Interfaces/CopyOpInterface.td"
 
 // The Linalg `NInputs` trait provides the API for ops that are known
 // to have a specified number of inputs, all passed as operands.
@@ -56,7 +57,11 @@ class LinalgStructured_Op<string mnemonic, list<OpTrait> props>
 //===----------------------------------------------------------------------===//
 // At the moment these are not declarative and require a bunch of C++ code.
 // In the future, these should be migrated to a declarative specification.
-def CopyOp : LinalgStructured_Op<"copy", [NInputs<1>, NOutputs<1>]> {
+def CopyOp : LinalgStructured_Op<"copy", [
+    CopyOpInterface,
+    NInputs<1>,
+    NOutputs<1>
+  ]> {
   let description = [{
     Copies the data in the input view into the output view.
 
@@ -114,8 +119,8 @@ def CopyOp : LinalgStructured_Op<"copy", [NInputs<1>, NOutputs<1>]> {
     OptionalAttr<AffineMapAttr>:$inputPermutation,
     OptionalAttr<AffineMapAttr>:$outputPermutation);
 
-  // TODO(ntv) this should go away once the usage of OptionalAttr triggers
-  // emission of builders with default arguments left unspecified.
+  // TODO: this should go away once the usage of OptionalAttr triggers emission
+  // of builders with default arguments left unspecified.
   let builders = [OpBuilder<
     "OpBuilder &builder, OperationState &result, Value input, Value output", [{
     return build(
@@ -141,6 +146,9 @@ def CopyOp : LinalgStructured_Op<"copy", [NInputs<1>, NOutputs<1>]> {
           extractOrIdentityMap(maybeInputMap, inputRank, context),
           extractOrIdentityMap(maybeOutputMap, outputRank, context)};
     }
+
+    Value getSource() { return input();}
+    Value getTarget() { return output(); }
   }];
   let verifier = [{ return ::verify(*this); }];
 
@@ -297,8 +305,8 @@ def ConvOp : PoolingBase_Op<"conv", [NInputs<2>, NOutputs<1>]> {
                    OptionalAttr<I64ElementsAttr>:$padding);
 
   let extraClassDeclaration = commonUtils # [{
-    // TODO(ntv) extend to support more than 1 dimensions and potentially
-    // grouping too.
+    // TODO: extend to support more than 1 dimensions and potentially grouping
+    // too.
     unsigned getNumBatchDimensions() { return 1; }
 
     unsigned getNumInputFeatureDimensions() { return 1; }
@@ -477,7 +485,9 @@ class GenericOpBase<string mnemonic> : LinalgStructuredBase_Op<mnemonic,
                    AffineMapArrayAttr:$indexing_maps,
                    ArrayAttr:$iterator_types,
                    OptionalAttr<StrAttr>:$doc,
-                   OptionalAttr<StrAttr>:$library_call);
+                   OptionalAttr<StrAttr>:$library_call,
+                   Confined<OptionalAttr<I64Attr>,
+                     [IntMinValue<0>]>:$symbol_source);
   let results = (outs Variadic<AnyRankedTensor>:$output_tensors);
   let regions = (region AnyRegion:$region);
   let extraClassDeclaration = [{
@@ -485,7 +495,7 @@ class GenericOpBase<string mnemonic> : LinalgStructuredBase_Op<mnemonic,
       return SmallVector<StringRef, 8>{
         getArgsInAttrName(), getArgsOutAttrName(), getDocAttrName(),
         getIndexingMapsAttrName(), getLibraryCallAttrName(),
-        getIteratorTypesAttrName()
+        getIteratorTypesAttrName(), getSymbolSourceAttrName()
       };
     }
 
@@ -500,12 +510,18 @@ class GenericOpBase<string mnemonic> : LinalgStructuredBase_Op<mnemonic,
     llvm::Optional<SmallVector<StringRef, 8>> referenceIterators() {
       llvm_unreachable(
         "No such thing as reference iterator types for a generic op.");
-     }
+    }
 
     llvm::Optional<SmallVector<AffineMap, 8>> referenceIndexingMaps() {
       llvm_unreachable(
         "No such thing as reference indexing maps for a generic op.");
-     }
+    }
+
+    llvm::Optional<unsigned> getSymbolSource() {
+      auto ss = symbol_source();
+      return ss.hasValue() ?
+        llvm::Optional<unsigned>(ss.getValue().getLimitedValue()) : llvm::None;
+    }
   }];
 
   let printer = [{ return ::print(p, *this); }];
@@ -541,6 +557,10 @@ def GenericOp : GenericOpBase<"generic"> {
         Each element of the list represents and iterator of one of the following
         types:
           parallel, reduction, window
+      - symbol_source: index of the operand whose dimensions will be propagated
+        as symbols to the indexing maps. When specified the number of symbols
+        in each of the indexing maps has to be either 0 or the rank of the
+        specified operand.
 
     Example:
     Defining a #matmul_trait attribute in MLIR can be done as follows:
@@ -554,7 +574,8 @@ def GenericOp : GenericOpBase<"generic"> {
         doc = "C(m, n) += A(m, k) * B(k, n)",
         indexing_maps = #matmul_accesses,
         library_call = "linalg_matmul",
-        n_views = [2, 1],
+        args_in = 2,
+        args_out = 1,
         iterator_types = ["parallel", "parallel", "reduction"]
       }
       ```
@@ -621,12 +642,41 @@ def GenericOp : GenericOpBase<"generic"> {
     escape naturally. Still, transformations and rewrites that take advantage of
     tensor SSA values are expected to be useful and will be added in the near
     future.
+
+    Example of 1D convolution with symbols:
+    ```mlir
+    #conv_1d_accesses = [
+      affine_map<(m, n)[dimN] -> (m + n - dimN floordiv 2)>, // in
+      affine_map<(m, n)[dimN] -> (n)>, // filter
+      affine_map<(m, n)[dimN] -> (m)> // out
+    ]
+
+    #conv_1d_trait = {
+      doc = "O(m) += I(m + n - size(n) floordiv 2) * K(n)",
+      indexing_maps = #conv_1d_accesses,
+      library_call  = "linalg_conv_1d",
+      iterator_types = ["parallel", "parallel"],
+      symbol_source = 1
+    }
+
+    linalg.generic #conv_1d_trait %in, %filter, %out {
+      ^bb0(%a: f32, %b: f32, %c: f32) :
+        %d = mulf %a, %b : f32
+        %e = addf %c, %d : f32
+        linalg.yield %e : f32
+    } : memref<?xf32>,
+        memref<?xf32>,
+        memref<?xf32>
+    ```
+    where symbol s0 will be substituted with `dim %filter, %c0` i.e. the first
+    and only dimension of the second operand as specified by the symbol_source
+    attribute.
   }];
 
   let builders = [
     OpBuilder<
       "OpBuilder &builder, OperationState &result, ArrayRef<Type> resultTypes, "
-      "ValueRange args, int64_t inputCount, int64_t outputCount, "
+      "ValueRange args, int64_t argsIn, int64_t argsOut, "
       "ArrayRef<AffineMap> indexingMaps, ArrayRef<StringRef> iteratorTypes, "
       "function_ref<void(OpBuilder &, Location, ValueRange)> = nullptr">
   ];
@@ -681,7 +731,8 @@ def IndexedGenericOp : GenericOpBase<"indexed_generic"> {
       doc = "C(m, n) += A(m, k) * B(k, n)",
       indexing_maps = #matmul_accesses,
       library_call = "linalg_matmul",
-      n_views = [2, 1],
+      args_in = 2,
+      args_out = 1,
       iterator_types = ["parallel", "parallel", "reduction"]
     }
     ```
@@ -760,7 +811,7 @@ def IndexedGenericOp : GenericOpBase<"indexed_generic"> {
   let builders = [
     OpBuilder<
       "OpBuilder &builder, OperationState &result, ArrayRef<Type> resultTypes, "
-      "ValueRange args, int64_t inputCount, int64_t outputCount, "
+      "ValueRange args, int64_t argsIn, int64_t argsOut, "
       "ArrayRef<AffineMap> indexingMaps, ArrayRef<StringRef> iteratorTypes, "
       "function_ref<void(OpBuilder &, Location, ValueRange, ValueRange)> "
       "= nullptr">

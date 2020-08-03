@@ -38,6 +38,16 @@ class ScalarEvolution;
 class Type;
 class Value;
 
+namespace TailPredication {
+  enum Mode {
+    Disabled = 0,
+    EnabledNoReductions,
+    Enabled,
+    ForceEnabledNoReductions,
+    ForceEnabled
+  };
+}
+
 class ARMTTIImpl : public BasicTTIImplBase<ARMTTIImpl> {
   using BaseT = BasicTTIImplBase<ARMTTIImpl>;
   using TTI = TargetTransformInfo;
@@ -102,6 +112,9 @@ public:
   bool isFPVectorizationPotentiallyUnsafe() {
     return !ST->isTargetDarwin() && !ST->hasMVEFloatOps();
   }
+
+  Optional<Instruction *> instCombineIntrinsic(InstCombiner &IC,
+                                               IntrinsicInst &II) const;
 
   /// \name Scalar TTI Implementations
   /// @{
@@ -251,6 +264,8 @@ public:
 
   bool emitGetActiveLaneMask() const;
 
+  void getPeelingPreferences(Loop *L, ScalarEvolution &SE,
+                             TTI::PeelingPreferences &PP);
   bool shouldBuildLookupTablesForConstant(Constant *C) const {
     // In the ROPI and RWPI relocation models we can't have pointers to global
     // variables or functions in constant data, so don't convert switches to

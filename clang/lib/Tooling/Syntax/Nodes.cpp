@@ -18,6 +18,8 @@ llvm::raw_ostream &syntax::operator<<(llvm::raw_ostream &OS, NodeKind K) {
     return OS << "TranslationUnit";
   case NodeKind::UnknownExpression:
     return OS << "UnknownExpression";
+  case NodeKind::ParenExpression:
+    return OS << "ParenExpression";
   case NodeKind::IntegerLiteralExpression:
     return OS << "IntegerLiteralExpression";
   case NodeKind::CharacterLiteralExpression:
@@ -30,6 +32,14 @@ llvm::raw_ostream &syntax::operator<<(llvm::raw_ostream &OS, NodeKind K) {
     return OS << "BoolLiteralExpression";
   case NodeKind::CxxNullPtrExpression:
     return OS << "CxxNullPtrExpression";
+  case NodeKind::IntegerUserDefinedLiteralExpression:
+    return OS << "IntegerUserDefinedLiteralExpression";
+  case NodeKind::FloatUserDefinedLiteralExpression:
+    return OS << "FloatUserDefinedLiteralExpression";
+  case NodeKind::CharUserDefinedLiteralExpression:
+    return OS << "CharUserDefinedLiteralExpression";
+  case NodeKind::StringUserDefinedLiteralExpression:
+    return OS << "StringUserDefinedLiteralExpression";
   case NodeKind::PrefixUnaryOperatorExpression:
     return OS << "PrefixUnaryOperatorExpression";
   case NodeKind::PostfixUnaryOperatorExpression:
@@ -180,6 +190,8 @@ llvm::raw_ostream &syntax::operator<<(llvm::raw_ostream &OS, NodeRole R) {
     return OS << "IdExpression_qualifier";
   case syntax::NodeRole::NestedNameSpecifier_specifier:
     return OS << "NestedNameSpecifier_specifier";
+  case syntax::NodeRole::ParenExpression_subExpression:
+    return OS << "ParenExpression_subExpression";
   }
   llvm_unreachable("invalid role");
 }
@@ -201,6 +213,21 @@ syntax::NestedNameSpecifier *syntax::IdExpression::qualifier() {
 syntax::UnqualifiedId *syntax::IdExpression::unqualifiedId() {
   return llvm::cast_or_null<syntax::UnqualifiedId>(
       findChild(syntax::NodeRole::IdExpression_id));
+}
+
+syntax::Leaf *syntax::ParenExpression::openParen() {
+  return llvm::cast_or_null<syntax::Leaf>(
+      findChild(syntax::NodeRole::OpenParen));
+}
+
+syntax::Expression *syntax::ParenExpression::subExpression() {
+  return llvm::cast_or_null<syntax::Expression>(
+      findChild(syntax::NodeRole::ParenExpression_subExpression));
+}
+
+syntax::Leaf *syntax::ParenExpression::closeParen() {
+  return llvm::cast_or_null<syntax::Leaf>(
+      findChild(syntax::NodeRole::CloseParen));
 }
 
 syntax::Leaf *syntax::IntegerLiteralExpression::literalToken() {
@@ -229,6 +256,11 @@ syntax::Leaf *syntax::BoolLiteralExpression::literalToken() {
 }
 
 syntax::Leaf *syntax::CxxNullPtrExpression::nullPtrKeyword() {
+  return llvm::cast_or_null<syntax::Leaf>(
+      findChild(syntax::NodeRole::LiteralToken));
+}
+
+syntax::Leaf *syntax::UserDefinedLiteralExpression::literalToken() {
   return llvm::cast_or_null<syntax::Leaf>(
       findChild(syntax::NodeRole::LiteralToken));
 }

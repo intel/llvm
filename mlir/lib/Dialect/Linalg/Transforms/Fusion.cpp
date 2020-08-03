@@ -279,12 +279,12 @@ bool mlir::linalg::isFusableInto(const LinalgDependenceGraph &graph,
     return false;
   }
   if (auto convOp = dyn_cast<linalg::ConvOp>(producer.getOperation())) {
-    // TODO(ntv): add a level of indirection to linalg.generic.
+    // TODO: add a level of indirection to linalg.generic.
     if (convOp.padding())
       return false;
   }
   if (auto convOp = dyn_cast<linalg::ConvOp>(consumer.getOperation())) {
-    // TODO(ntv): add a level of indirection to linalg.generic.
+    // TODO: add a level of indirection to linalg.generic.
     if (convOp.padding())
       return false;
   }
@@ -403,7 +403,7 @@ static void fuseLinalgOpsGreedily(FuncOp f) {
       linalgOps.push_back(op);
   });
 
-  // TODO(pifon, ntv): LinalgDependenceGraph should be able to update itself.
+  // TODO: LinalgDependenceGraph should be able to update itself.
   // The current naive and expensive reconstruction of the graph should be
   // removed.
   for (auto *op : llvm::reverse(linalgOps)) {
@@ -510,7 +510,8 @@ struct FuseGenericOpsOnTensors {
                   rewriter.getArrayAttr(fusedIndexMaps),
                   consumer.iterator_types(),
                   /*doc=*/nullptr,
-                  /*library_call=*/nullptr)
+                  /*library_call=*/nullptr,
+                  /*symbol_source=*/nullptr)
               .getOperation();
     } else {
       fusedOp =
@@ -524,7 +525,8 @@ struct FuseGenericOpsOnTensors {
                   rewriter.getArrayAttr(fusedIndexMaps),
                   consumer.iterator_types(),
                   /*doc=*/nullptr,
-                  /*library_call=*/nullptr)
+                  /*library_call=*/nullptr,
+                  /*symbol_source=*/nullptr)
               .getOperation();
     }
 
@@ -787,7 +789,8 @@ template <typename LinalgOpTy> struct FuseTensorReshapeOpAsProducer {
         rewriter.getI64IntegerAttr(consumer.getNumResults()),
         rewriter.getArrayAttr(indexMapAttrs), consumer.iterator_types(),
         /*doc=*/nullptr,
-        /*library_call=*/nullptr);
+        /*library_call=*/nullptr,
+        /*symbol_source=*/nullptr);
     auto &fusedRegion = fusedOp.region();
     rewriter.cloneRegionBefore(consumer.region(), fusedRegion,
                                fusedRegion.begin());
@@ -843,7 +846,8 @@ template <typename LinalgOpTy> struct FuseTensorReshapeOpAsConsumer {
         rewriter.getI64IntegerAttr(1), rewriter.getArrayAttr(indexMapAttrs),
         producer.iterator_types(),
         /*doc=*/nullptr,
-        /*library_call=*/nullptr);
+        /*library_call=*/nullptr,
+        /*symbol_source=*/nullptr);
     auto &fusedRegion = fusedOp.region();
     rewriter.cloneRegionBefore(producer.region(), fusedRegion,
                                fusedRegion.begin());
@@ -893,7 +897,8 @@ template <typename LinalgOpTy> struct FuseConstantOpAsProducer {
         rewriter.getAffineMapArrayAttr(fusedIndexMaps),
         consumer.iterator_types(),
         /*doc=*/nullptr,
-        /*library_call=*/nullptr);
+        /*library_call=*/nullptr,
+        /*symbol_source=*/nullptr);
 
     // Map the block argument corresponding to the replaced argument with the
     // scalar constant.

@@ -251,6 +251,7 @@ static void loadInput(const WeightedFile &Input, SymbolRemapper *Remapper,
         Filename);
     return;
   }
+  WC->Writer.setInstrEntryBBEnabled(Reader->instrEntryBBEnabled());
 
   for (auto &I : *Reader) {
     if (Remapper)
@@ -289,6 +290,22 @@ static void mergeWriterContexts(WriterContext *Dst, WriterContext *Src) {
     if (firstTime)
       warn(toString(make_error<InstrProfError>(IPE)));
   });
+}
+
+static void writeInstrProfile(StringRef OutputFilename,
+                              ProfileFormat OutputFormat,
+                              InstrProfWriter &Writer) {
+  std::error_code EC;
+  raw_fd_ostream Output(OutputFilename.data(), EC, sys::fs::OF_None);
+  if (EC)
+    exitWithErrorCode(EC, OutputFilename);
+
+  if (OutputFormat == PF_Text) {
+    if (Error E = Writer.writeText(Output))
+      exitWithError(std::move(E));
+  } else {
+    Writer.write(Output);
+  }
 }
 
 static void mergeInstrProfile(const WeightedFileVector &Inputs,
@@ -366,18 +383,7 @@ static void mergeInstrProfile(const WeightedFileVector &Inputs,
       (NumErrors > 0 && FailMode == failIfAnyAreInvalid))
     exitWithError("No profiles could be merged.");
 
-  std::error_code EC;
-  raw_fd_ostream Output(OutputFilename.data(), EC, sys::fs::OF_None);
-  if (EC)
-    exitWithErrorCode(EC, OutputFilename);
-
-  InstrProfWriter &Writer = Contexts[0]->Writer;
-  if (OutputFormat == PF_Text) {
-    if (Error E = Writer.writeText(Output))
-      exitWithError(std::move(E));
-  } else {
-    Writer.write(Output);
-  }
+  writeInstrProfile(OutputFilename, OutputFormat, Contexts[0]->Writer);
 }
 
 /// Make a copy of the given function samples with all symbol names remapped
@@ -972,8 +978,11 @@ static int showInstrProfile(const std::string &Filename, bool ShowCounts,
   if (TextFormat)
     return 0;
   std::unique_ptr<ProfileSummary> PS(Builder.getSummary());
-  OS << "Instrumentation level: "
-     << (Reader->isIRLevelProfile() ? "IR" : "Front-end") << "\n";
+  bool IsIR = Reader->isIRLevelProfile();
+  OS << "Instrumentation level: " << (IsIR ? "IR" : "Front-end");
+  if (IsIR)
+    OS << "  entry_first = " << Reader->instrEntryBBEnabled();
+  OS << "\n";
   if (ShowAllFunctions || !ShowFunction.empty())
     OS << "Functions shown: " << ShownFunctions << "\n";
   OS << "Total functions: " << PS->getNumFunctions() << "\n";

@@ -244,7 +244,6 @@ const MCSection *AsmPrinter::getCurrentSection() const {
 void AsmPrinter::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   MachineFunctionPass::getAnalysisUsage(AU);
-  AU.addRequired<MachineModuleInfoWrapperPass>();
   AU.addRequired<MachineOptimizationRemarkEmitterPass>();
   AU.addRequired<GCModuleInfo>();
 }
@@ -306,14 +305,14 @@ bool AsmPrinter::doInitialization(Module &M) {
   }
 
   if (MAI->doesSupportDebugInformation()) {
-    bool EmitCodeView = MMI->getModule()->getCodeViewFlag();
+    bool EmitCodeView = M.getCodeViewFlag();
     if (EmitCodeView && TM.getTargetTriple().isOSWindows()) {
       Handlers.emplace_back(std::make_unique<CodeViewDebug>(this),
                             DbgTimerName, DbgTimerDescription,
                             CodeViewLineTablesGroupName,
                             CodeViewLineTablesGroupDescription);
     }
-    if (!EmitCodeView || MMI->getModule()->getDwarfVersion()) {
+    if (!EmitCodeView || M.getDwarfVersion()) {
       DD = new DwarfDebug(this, &M);
       DD->beginModule();
       Handlers.emplace_back(std::unique_ptr<DwarfDebug>(DD), DbgTimerName,
@@ -376,8 +375,7 @@ bool AsmPrinter::doInitialization(Module &M) {
                           DWARFGroupDescription);
 
   // Emit tables for any value of cfguard flag (i.e. cfguard=1 or cfguard=2).
-  if (mdconst::extract_or_null<ConstantInt>(
-          MMI->getModule()->getModuleFlag("cfguard")))
+  if (mdconst::extract_or_null<ConstantInt>(M.getModuleFlag("cfguard")))
     Handlers.emplace_back(std::make_unique<WinCFGuard>(this), CFGuardName,
                           CFGuardDescription, DWARFGroupName,
                           DWARFGroupDescription);
@@ -684,8 +682,7 @@ void AsmPrinter::emitFunctionHeader() {
   if (!MAI->hasVisibilityOnlyWithLinkage())
     emitVisibility(CurrentFnSym, F.getVisibility());
 
-  if (MAI->needsFunctionDescriptors() &&
-      F.getLinkage() != GlobalValue::InternalLinkage)
+  if (MAI->needsFunctionDescriptors())
     emitLinkage(&F, CurrentFnDescSym);
 
   emitLinkage(&F, CurrentFnSym);
@@ -1051,9 +1048,9 @@ void AsmPrinter::emitStackSizeSection(const MachineFunction &MF) {
   OutStreamer->PopSection();
 }
 
-static bool needFuncLabelsForEHOrDebugInfo(const MachineFunction &MF,
-                                           MachineModuleInfo *MMI) {
-  if (!MF.getLandingPads().empty() || MF.hasEHFunclets() || MMI->hasDebugInfo())
+static bool needFuncLabelsForEHOrDebugInfo(const MachineFunction &MF) {
+  MachineModuleInfo &MMI = MF.getMMI();
+  if (!MF.getLandingPads().empty() || MF.hasEHFunclets() || MMI.hasDebugInfo())
     return true;
 
   // We might emit an EH table that uses function begin and end labels even if
@@ -1209,6 +1206,8 @@ void AsmPrinter::emitFunctionBody() {
       if (!MBB.sameSection(&MF->front())) {
         if (MAI->hasDotTypeDotSizeDirective())
           emitELFSizeDirective(CurrentSectionBeginSym);
+        MBBSectionRanges[MBB.getSectionIDNum()] =
+            MBBSectionRange{CurrentSectionBeginSym, CurrentBBEnd};
       }
     }
     emitBasicBlockEnd(MBB);
@@ -1261,7 +1260,7 @@ void AsmPrinter::emitFunctionBody() {
   // Emit target-specific gunk after the function body.
   emitFunctionBodyEnd();
 
-  if (needFuncLabelsForEHOrDebugInfo(*MF, MMI) ||
+  if (needFuncLabelsForEHOrDebugInfo(*MF) ||
       MAI->hasDotTypeDotSizeDirective()) {
     // Create a symbol for the end of function.
     CurrentFnEnd = createTempSymbol("func_end");
@@ -1285,6 +1284,8 @@ void AsmPrinter::emitFunctionBody() {
     HI.Handler->markFunctionEnd();
   }
 
+  MBBSectionRanges[MF->front().getSectionIDNum()] =
+      MBBSectionRange{CurrentFnBegin, CurrentFnEnd};
 
   // Print out jump tables referenced by the function.
   emitJumpTableInfo();
@@ -1389,16 +1390,7 @@ void AsmPrinter::emitGlobalGOTEquivs() {
 void AsmPrinter::emitGlobalIndirectSymbol(Module &M,
                                           const GlobalIndirectSymbol& GIS) {
   MCSymbol *Name = getSymbol(&GIS);
-
-  if (GIS.hasExternalLinkage() || !MAI->getWeakRefDirective())
-    OutStreamer->emitSymbolAttribute(Name, MCSA_Global);
-  else if (GIS.hasWeakLinkage() || GIS.hasLinkOnceLinkage())
-    OutStreamer->emitSymbolAttribute(Name, MCSA_WeakReference);
-  else
-    assert(GIS.hasLocalLinkage() && "Invalid alias or ifunc linkage");
-
   bool IsFunction = GIS.getValueType()->isFunctionTy();
-
   // Treat bitcasts of functions as functions also. This is important at least
   // on WebAssembly where object and function addresses can't alias each other.
   if (!IsFunction)
@@ -1406,6 +1398,30 @@ void AsmPrinter::emitGlobalIndirectSymbol(Module &M,
       if (CE->getOpcode() == Instruction::BitCast)
         IsFunction =
           CE->getOperand(0)->getType()->getPointerElementType()->isFunctionTy();
+
+  // AIX's assembly directive `.set` is not usable for aliasing purpose,
+  // so AIX has to use the extra-label-at-definition strategy. At this
+  // point, all the extra label is emitted, we just have to emit linkage for
+  // those labels.
+  if (TM.getTargetTriple().isOSBinFormatXCOFF()) {
+    assert(!isa<GlobalIFunc>(GIS) && "IFunc is not supported on AIX.");
+    assert(MAI->hasVisibilityOnlyWithLinkage() &&
+           "Visibility should be handled with emitLinkage() on AIX.");
+    emitLinkage(&GIS, Name);
+    // If it's a function, also emit linkage for aliases of function entry
+    // point.
+    if (IsFunction)
+      emitLinkage(&GIS,
+                  getObjFileLowering().getFunctionEntryPointSymbol(&GIS, TM));
+    return;
+  }
+
+  if (GIS.hasExternalLinkage() || !MAI->getWeakRefDirective())
+    OutStreamer->emitSymbolAttribute(Name, MCSA_Global);
+  else if (GIS.hasWeakLinkage() || GIS.hasLinkOnceLinkage())
+    OutStreamer->emitSymbolAttribute(Name, MCSA_WeakReference);
+  else
+    assert(GIS.hasLocalLinkage() && "Invalid alias or ifunc linkage");
 
   // Set the symbol type to function if the alias has a function type.
   // This affects codegen when the aliasee is not a function.
@@ -1784,12 +1800,13 @@ void AsmPrinter::SetupMachineFunction(MachineFunction &MF) {
   CurrentFnSymForSize = CurrentFnSym;
   CurrentFnBegin = nullptr;
   CurrentSectionBeginSym = nullptr;
+  MBBSectionRanges.clear();
   CurExceptionSym = nullptr;
   bool NeedsLocalForSize = MAI->needsLocalForSize();
   if (F.hasFnAttribute("patchable-function-entry") ||
       F.hasFnAttribute("function-instrument") ||
       F.hasFnAttribute("xray-instruction-threshold") ||
-      needFuncLabelsForEHOrDebugInfo(MF, MMI) || NeedsLocalForSize ||
+      needFuncLabelsForEHOrDebugInfo(MF) || NeedsLocalForSize ||
       MF.getTarget().Options.EmitStackSizeSection) {
     CurrentFnBegin = createTempSymbol("func_begin");
     if (NeedsLocalForSize)
@@ -3065,18 +3082,30 @@ void AsmPrinter::emitBasicBlockStart(const MachineBasicBlock &MBB) {
     if (isVerbose() && MBB.hasLabelMustBeEmitted()) {
       OutStreamer->AddComment("Label of block must be emitted");
     }
+    auto *BBSymbol = MBB.getSymbol();
     // Switch to a new section if this basic block must begin a section.
     if (MBB.isBeginSection()) {
       OutStreamer->SwitchSection(
           getObjFileLowering().getSectionForMachineBasicBlock(MF->getFunction(),
                                                               MBB, TM));
-      CurrentSectionBeginSym = MBB.getSymbol();
+      CurrentSectionBeginSym = BBSymbol;
     }
-    OutStreamer->emitLabel(MBB.getSymbol());
+    OutStreamer->emitLabel(BBSymbol);
+    // With BB sections, each basic block must handle CFI information on its own
+    // if it begins a section.
+    if (MBB.isBeginSection())
+      for (const HandlerInfo &HI : Handlers)
+        HI.Handler->beginBasicBlock(MBB);
   }
 }
 
-void AsmPrinter::emitBasicBlockEnd(const MachineBasicBlock &MBB) {}
+void AsmPrinter::emitBasicBlockEnd(const MachineBasicBlock &MBB) {
+  // Check if CFI information needs to be updated for this MBB with basic block
+  // sections.
+  if (MBB.isEndSection())
+    for (const HandlerInfo &HI : Handlers)
+      HI.Handler->endBasicBlock(MBB);
+}
 
 void AsmPrinter::emitVisibility(MCSymbol *Sym, unsigned Visibility,
                                 bool IsDefinition) const {

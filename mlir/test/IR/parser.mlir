@@ -670,19 +670,21 @@ func @densetensorattr() -> () {
 // CHECK: "fooi67"() {bar = dense<{{\[\[\[}}-5, 4, 6, 2]]]> : vector<1x1x4xi67>} : () -> ()
   "fooi67"(){bar = dense<[[[-5, 4, 6, 2]]]> : vector<1x1x4xi67>} : () -> ()
 
-// CHECK: "foo2"() {bar = dense<[]> : tensor<0xi32>} : () -> ()
-  "foo2"(){bar = dense<[]> : tensor<0xi32>} : () -> ()
-// CHECK: "foo2"() {bar = dense<{{\[\[}}]]> : tensor<1x0xi32>} : () -> ()
-  "foo2"(){bar = dense<[[]]> : tensor<1x0xi32>} : () -> ()
+// CHECK: "foo2"() {bar = dense<> : tensor<0xi32>} : () -> ()
+  "foo2"(){bar = dense<> : tensor<0xi32>} : () -> ()
+// CHECK: "foo2"() {bar = dense<> : tensor<1x0xi32>} : () -> ()
+  "foo2"(){bar = dense<> : tensor<1x0xi32>} : () -> ()
+// CHECK: dense<> : tensor<0x512x512xi32>
+  "foo2"(){bar = dense<> : tensor<0x512x512xi32>} : () -> ()
 // CHECK: "foo3"() {bar = dense<{{\[\[\[}}5, -6, 1, 2]], {{\[\[}}7, 8, 3, 4]]]> : tensor<2x1x4xi32>} : () -> ()
   "foo3"(){bar = dense<[[[5, -6, 1, 2]], [[7, 8, 3, 4]]]> : tensor<2x1x4xi32>} : () -> ()
 
 // CHECK: "float1"() {bar = dense<5.000000e+00> : tensor<1x1x1xf32>} : () -> ()
   "float1"(){bar = dense<[[[5.0]]]> : tensor<1x1x1xf32>} : () -> ()
-// CHECK: "float2"() {bar = dense<[]> : tensor<0xf32>} : () -> ()
-  "float2"(){bar = dense<[]> : tensor<0xf32>} : () -> ()
-// CHECK: "float2"() {bar = dense<{{\[\[}}]]> : tensor<1x0xf32>} : () -> ()
-  "float2"(){bar = dense<[[]]> : tensor<1x0xf32>} : () -> ()
+// CHECK: "float2"() {bar = dense<> : tensor<0xf32>} : () -> ()
+  "float2"(){bar = dense<> : tensor<0xf32>} : () -> ()
+// CHECK: "float2"() {bar = dense<> : tensor<1x0xf32>} : () -> ()
+  "float2"(){bar = dense<> : tensor<1x0xf32>} : () -> ()
 
 // CHECK: "bfloat16"() {bar = dense<{{\[\[\[}}-5.000000e+00, 6.000000e+00, 1.000000e+00, 2.000000e+00]], {{\[\[}}7.000000e+00, -8.000000e+00, 3.000000e+00, 4.000000e+00]]]> : tensor<2x1x4xbf16>} : () -> ()
   "bfloat16"(){bar = dense<[[[-5.0, 6.0, 1.0, 2.0]], [[7.0, -8.0, 3.0, 4.0]]]> : tensor<2x1x4xbf16>} : () -> ()
@@ -752,27 +754,27 @@ func @sparsetensorattr() -> () {
   "fooi8"(){bar = sparse<0, -2> : tensor<1x1x1xi8>} : () -> ()
 // CHECK: "fooi16"() {bar = sparse<{{\[\[}}1, 1, 0], {{\[}}0, 1, 0], {{\[}}0, 0, 1]], {{\[}}2, -1, 5]> : tensor<2x2x2xi16>} : () -> ()
   "fooi16"(){bar = sparse<[[1, 1, 0], [0, 1, 0], [0, 0, 1]], [2, -1, 5]> : tensor<2x2x2xi16>} : () -> ()
-// CHECK: "fooi32"() {bar = sparse<{{\[}}], {{\[}}]> : tensor<1x1xi32>} : () -> ()
-  "fooi32"(){bar = sparse<[], []> : tensor<1x1xi32>} : () -> ()
+// CHECK: "fooi32"() {bar = sparse<> : tensor<1x1xi32>} : () -> ()
+  "fooi32"(){bar = sparse<> : tensor<1x1xi32>} : () -> ()
 // CHECK: "fooi64"() {bar = sparse<0, -1> : tensor<1xi64>} : () -> ()
   "fooi64"(){bar = sparse<[[0]], [-1]> : tensor<1xi64>} : () -> ()
-// CHECK: "foo2"() {bar = sparse<{{\[}}], {{\[}}]> : tensor<0xi32>} : () -> ()
-  "foo2"(){bar = sparse<[], []> : tensor<0xi32>} : () -> ()
-// CHECK: "foo3"() {bar = sparse<{{\[}}], {{\[}}]> : tensor<i32>} : () -> ()
-  "foo3"(){bar = sparse<[], []> : tensor<i32>} : () -> ()
+// CHECK: "foo2"() {bar = sparse<> : tensor<0xi32>} : () -> ()
+  "foo2"(){bar = sparse<> : tensor<0xi32>} : () -> ()
+// CHECK: "foo3"() {bar = sparse<> : tensor<i32>} : () -> ()
+  "foo3"(){bar = sparse<> : tensor<i32>} : () -> ()
 
 // CHECK: "foof16"() {bar = sparse<0, -2.000000e+00> : tensor<1x1x1xf16>} : () -> ()
   "foof16"(){bar = sparse<0, -2.0> : tensor<1x1x1xf16>} : () -> ()
 // CHECK: "foobf16"() {bar = sparse<{{\[\[}}1, 1, 0], {{\[}}0, 1, 0], {{\[}}0, 0, 1]], {{\[}}2.000000e+00, -1.000000e+00, 5.000000e+00]> : tensor<2x2x2xbf16>} : () -> ()
   "foobf16"(){bar = sparse<[[1, 1, 0], [0, 1, 0], [0, 0, 1]], [2.0, -1.0, 5.0]> : tensor<2x2x2xbf16>} : () -> ()
-// CHECK: "foof32"() {bar = sparse<{{\[}}], {{\[}}]> : tensor<1x0x1xf32>} : () -> ()
-  "foof32"(){bar = sparse<[], []> : tensor<1x0x1xf32>} : () -> ()
+// CHECK: "foof32"() {bar = sparse<> : tensor<1x0x1xf32>} : () -> ()
+  "foof32"(){bar = sparse<> : tensor<1x0x1xf32>} : () -> ()
 // CHECK:  "foof64"() {bar = sparse<0, -1.000000e+00> : tensor<1xf64>} : () -> ()
   "foof64"(){bar = sparse<[[0]], [-1.0]> : tensor<1xf64>} : () -> ()
-// CHECK: "foof320"() {bar = sparse<{{\[}}], {{\[}}]> : tensor<0xf32>} : () -> ()
-  "foof320"(){bar = sparse<[], []> : tensor<0xf32>} : () -> ()
-// CHECK: "foof321"() {bar = sparse<{{\[}}], {{\[}}]> : tensor<f32>} : () -> ()
-  "foof321"(){bar = sparse<[], []> : tensor<f32>} : () -> ()
+// CHECK: "foof320"() {bar = sparse<> : tensor<0xf32>} : () -> ()
+  "foof320"(){bar = sparse<> : tensor<0xf32>} : () -> ()
+// CHECK: "foof321"() {bar = sparse<> : tensor<f32>} : () -> ()
+  "foof321"(){bar = sparse<> : tensor<f32>} : () -> ()
 
 // CHECK: "foostr"() {bar = sparse<0, "foo"> : tensor<1x1x1x!unknown<"">>} : () -> ()
   "foostr"(){bar = sparse<0, "foo"> : tensor<1x1x1x!unknown<"">>} : () -> ()
@@ -789,8 +791,8 @@ func @sparsevectorattr() -> () {
   "fooi8"(){bar = sparse<0, -2> : vector<1x1x1xi8>} : () -> ()
 // CHECK: "fooi16"() {bar = sparse<{{\[\[}}1, 1, 0], {{\[}}0, 1, 0], {{\[}}0, 0, 1]], {{\[}}2, -1, 5]> : vector<2x2x2xi16>} : () -> ()
   "fooi16"(){bar = sparse<[[1, 1, 0], [0, 1, 0], [0, 0, 1]], [2, -1, 5]> : vector<2x2x2xi16>} : () -> ()
-// CHECK: "fooi32"() {bar = sparse<{{\[}}], {{\[}}]> : vector<1x1xi32>} : () -> ()
-  "fooi32"(){bar = sparse<[], []> : vector<1x1xi32>} : () -> ()
+// CHECK: "fooi32"() {bar = sparse<> : vector<1x1xi32>} : () -> ()
+  "fooi32"(){bar = sparse<> : vector<1x1xi32>} : () -> ()
 // CHECK: "fooi64"() {bar = sparse<0, -1> : vector<1xi64>} : () -> ()
   "fooi64"(){bar = sparse<[[0]], [-1]> : vector<1xi64>} : () -> ()
 
@@ -840,12 +842,12 @@ func @verbose_if(%N: index) {
   "affine.if"(%c, %N, %c) ({
     // CHECK-NEXT: "add"
     %y = "add"(%c, %N) : (index, index) -> index
-    "affine.terminator"() : () -> ()
+    "affine.yield"() : () -> ()
     // CHECK-NEXT: } else {
   }, { // The else region.
     // CHECK-NEXT: "add"
     %z = "add"(%c, %c) : (index, index) -> index
-    "affine.terminator"() : () -> ()
+    "affine.yield"() : () -> ()
   })
   { condition = #set0 } : (index, index, index) -> ()
   return
@@ -1242,16 +1244,131 @@ func @pretty_names() {
   return
 }
 
+// CHECK-LABEL: func @unreachable_dominance_violation_ok
 func @unreachable_dominance_violation_ok() -> i1 {
-  %c = constant false       // CHECK: [[VAL:%.*]] = constant false
-  return %c : i1    // CHECK:   return [[VAL]] : i1
-^bb1:         // CHECK: ^bb1:   // no predecessors
+// CHECK:   [[VAL:%.*]] = constant false
+// CHECK:   return [[VAL]] : i1
+// CHECK: ^bb1:   // no predecessors
+// CHECK:   [[VAL2:%.*]]:3 = "bar"([[VAL3:%.*]]) : (i64) -> (i1, i1, i1)
+// CHECK:   br ^bb3
+// CHECK: ^bb2:   // pred: ^bb2
+// CHECK:   br ^bb2
+// CHECK: ^bb3:   // pred: ^bb1
+// CHECK:   [[VAL3]] = "foo"() : () -> i64
+// CHECK:   return [[VAL2]]#1 : i1
+// CHECK: }
+  %c = constant false
+  return %c : i1
+^bb1:
   // %1 is not dominated by it's definition, but block is not reachable.
-  %2:3 = "bar"(%1) : (i64) -> (i1,i1,i1) // CHECK: [[VAL2:%.*]]:3 = "bar"([[VAL3:%.*]]) : (i64) -> (i1, i1, i1)
-  br ^bb4     // CHECK:   br ^bb3
-^bb2:         // CHECK: ^bb2:   // pred: ^bb2
-  br ^bb2     // CHECK:   br ^bb2
-^bb4:         // CHECK: ^bb3:   // pred: ^bb1
-  %1 = "foo"() : ()->i64 // CHECK: [[VAL3]] = "foo"() : () -> i64
-  return %2#1 : i1 // CHECK: return [[VAL2]]#1 : i1
-}            // CHECK: }
+  %2:3 = "bar"(%1) : (i64) -> (i1,i1,i1)
+  br ^bb3
+^bb2:
+  br ^bb2
+^bb3:
+  %1 = "foo"() : ()->i64
+  return %2#1 : i1
+}
+
+// CHECK-LABEL: func @graph_region_in_hierarchy_ok
+func @graph_region_in_hierarchy_ok() -> i64 {
+// CHECK:   br ^bb2
+// CHECK: ^bb1:
+// CHECK:   test.graph_region {
+// CHECK:     [[VAL2:%.*]]:3 = "bar"([[VAL3:%.*]]) : (i64) -> (i1, i1, i1)
+// CHECK:   }
+// CHECK:   br ^bb3
+// CHECK: ^bb2:   // pred: ^bb0
+// CHECK:   [[VAL3]] = "foo"() : () -> i64
+// CHECK:   br ^bb1
+// CHECK: ^bb3:   // pred: ^bb1
+// CHECK:   return [[VAL3]] : i64
+// CHECK: }
+  br ^bb2
+^bb1:
+  test.graph_region {
+    // %1 is well-defined here, since bb2 dominates bb1.
+    %2:3 = "bar"(%1) : (i64) -> (i1,i1,i1)
+  }
+  br ^bb4
+^bb2:
+  %1 = "foo"() : ()->i64
+  br ^bb1
+^bb4:
+  return %1 : i64
+}
+
+// CHECK-LABEL: func @graph_region_kind
+func @graph_region_kind() -> () {
+// CHECK: [[VAL2:%.*]]:3 = "bar"([[VAL3:%.*]]) : (i64) -> (i1, i1, i1)
+// CHECK: [[VAL3]] = "baz"([[VAL2]]#0) : (i1) -> i64
+  test.graph_region {
+    // %1 OK here in in graph region.
+    %2:3 = "bar"(%1) : (i64) -> (i1,i1,i1)
+    %1 = "baz"(%2#0) : (i1) -> (i64)
+  }
+  return
+}
+
+// CHECK-LABEL: func @graph_region_inside_ssacfg_region
+func @graph_region_inside_ssacfg_region() -> () {
+// CHECK: "test.ssacfg_region"
+// CHECK:   [[VAL3:%.*]] = "baz"() : () -> i64
+// CHECK:   test.graph_region {
+// CHECK:     [[VAL2:%.*]]:3 = "bar"([[VAL3]]) : (i64) -> (i1, i1, i1)
+// CHECK:   }
+// CHECK:   [[VAL4:.*]] = "baz"() : () -> i64
+  "test.ssacfg_region"() ({
+    %1 = "baz"() : () -> (i64)
+    test.graph_region {
+      %2:3 = "bar"(%1) : (i64) -> (i1,i1,i1)
+    }
+    %3 = "baz"() : () -> (i64)
+  }) : () -> ()
+  return
+}
+
+// CHECK-LABEL: func @graph_region_in_graph_region_ok
+func @graph_region_in_graph_region_ok() -> () {
+// CHECK: test.graph_region {
+// CHECK:   test.graph_region {
+// CHECK:     [[VAL2:%.*]]:3 = "bar"([[VAL3:%.*]]) : (i64) -> (i1, i1, i1)
+// CHECK:   }
+// CHECK:   [[VAL3]] = "foo"() : () -> i64
+// CHECK: }
+test.graph_region {
+    test.graph_region {
+    // %1 is well-defined here since defined in graph region
+      %2:3 = "bar"(%1) : (i64) -> (i1,i1,i1)
+    }
+    %1 = "foo"() : ()->i64
+    "test.terminator"() : ()->()
+  }
+  return
+}
+
+// CHECK: test.graph_region {
+test.graph_region {
+// CHECK:   [[VAL1:%.*]] = "op1"([[VAL3:%.*]]) : (i32) -> i32
+// CHECK:   [[VAL2:%.*]] = "test.ssacfg_region"([[VAL1]], [[VAL2]], [[VAL3]], [[VAL4:%.*]]) ( {
+// CHECK:     [[VAL5:%.*]] = "op2"([[VAL1]], [[VAL2]], [[VAL3]], [[VAL4]]) : (i32, i32, i32, i32) -> i32
+// CHECK:   }) : (i32, i32, i32, i32) -> i32
+// CHECK:   [[VAL3]] = "op2"([[VAL1]], [[VAL4]]) : (i32, i32) -> i32
+// CHECK:   [[VAL4]] = "op3"([[VAL1]]) : (i32) -> i32
+  %1 = "op1"(%3) : (i32) -> (i32)
+  %2 = "test.ssacfg_region"(%1, %2, %3, %4) ({
+    %5 = "op2"(%1, %2, %3, %4) :
+	 (i32, i32, i32, i32) -> (i32)
+  }) : (i32, i32, i32, i32) -> (i32)
+  %3 = "op2"(%1, %4) : (i32, i32) -> (i32)
+  %4 = "op3"(%1) : (i32) -> (i32)
+}
+
+// CHECK: "unregistered_func_might_have_graph_region"() ( {
+// CHECK: [[VAL1:%.*]] = "foo"([[VAL1]], [[VAL2:%.*]]) : (i64, i64) -> i64
+// CHECK: [[VAL2]] = "bar"([[VAL1]])
+"unregistered_func_might_have_graph_region"() ( {
+  %1 = "foo"(%1, %2) : (i64, i64) -> i64
+  %2 = "bar"(%1) : (i64) -> i64
+  "unregistered_terminator"() : () -> ()
+}) {sym_name = "unregistered_op_dominance_violation_ok", type = () -> i1} : () -> ()

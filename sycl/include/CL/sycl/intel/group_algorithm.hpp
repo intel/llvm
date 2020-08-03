@@ -77,20 +77,6 @@ template <> inline id<3> linear_id_to_id(range<3> r, size_t linear_id) {
   return result;
 }
 
-template <typename T> struct is_group : std::false_type {};
-
-template <int Dimensions>
-struct is_group<group<Dimensions>> : std::true_type {};
-
-template <typename T> struct is_sub_group : std::false_type {};
-
-template <> struct is_sub_group<intel::sub_group> : std::true_type {};
-
-template <typename T>
-struct is_generic_group
-    : std::integral_constant<bool,
-                             is_group<T>::value || is_sub_group<T>::value> {};
-
 template <typename T, class BinaryOperation> struct identity {};
 
 template <typename T, typename V> struct identity<T, intel::plus<V>> {
@@ -103,6 +89,17 @@ template <typename T, typename V> struct identity<T, intel::minimum<V>> {
 
 template <typename T, typename V> struct identity<T, intel::maximum<V>> {
   static constexpr T value = std::numeric_limits<T>::lowest();
+};
+
+template <typename T>
+using native_op_list =
+    type_list<intel::plus<T>, intel::bit_or<T>, intel::bit_xor<T>,
+              intel::bit_and<T>, intel::maximum<T>, intel::minimum<T>>;
+
+template <typename T, typename BinaryOperation> struct is_native_op {
+  static constexpr bool value =
+      is_contained<BinaryOperation, native_op_list<T>>::value ||
+      is_contained<BinaryOperation, native_op_list<void>>::value;
 };
 
 template <typename Group, typename Ptr, class Function>
@@ -128,6 +125,7 @@ Function for_each(Group g, Ptr first, Ptr last, Function f) {
 
 namespace intel {
 
+// EnableIf shorthands for algorithms that depend only on type
 template <typename T>
 using EnableIfIsScalarArithmetic = cl::sycl::detail::enable_if_t<
     cl::sycl::detail::is_scalar_arithmetic<T>::value, T>;
@@ -139,6 +137,34 @@ using EnableIfIsVectorArithmetic = cl::sycl::detail::enable_if_t<
 template <typename Ptr, typename T>
 using EnableIfIsPointer =
     cl::sycl::detail::enable_if_t<cl::sycl::detail::is_pointer<Ptr>::value, T>;
+
+template <typename T>
+using EnableIfIsTriviallyCopyable = cl::sycl::detail::enable_if_t<
+    std::is_trivially_copyable<T>::value &&
+        !cl::sycl::detail::is_vector_arithmetic<T>::value,
+    T>;
+
+// EnableIf shorthands for algorithms that depend on type and an operator
+template <typename T, typename BinaryOperation>
+using EnableIfIsScalarArithmeticNativeOp = cl::sycl::detail::enable_if_t<
+    cl::sycl::detail::is_scalar_arithmetic<T>::value &&
+        cl::sycl::detail::is_native_op<T, BinaryOperation>::value,
+    T>;
+
+template <typename T, typename BinaryOperation>
+using EnableIfIsVectorArithmeticNativeOp = cl::sycl::detail::enable_if_t<
+    cl::sycl::detail::is_vector_arithmetic<T>::value &&
+        cl::sycl::detail::is_native_op<T, BinaryOperation>::value,
+    T>;
+
+// TODO: Lift TriviallyCopyable restriction eventually
+template <typename T, typename BinaryOperation>
+using EnableIfIsNonNativeOp = cl::sycl::detail::enable_if_t<
+    (!cl::sycl::detail::is_scalar_arithmetic<T>::value &&
+     !cl::sycl::detail::is_vector_arithmetic<T>::value &&
+     std::is_trivially_copyable<T>::value) ||
+        !cl::sycl::detail::is_native_op<T, BinaryOperation>::value,
+    T>;
 
 template <typename Group> bool all_of(Group, bool pred) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
@@ -266,8 +292,8 @@ EnableIfIsPointer<Ptr, bool> none_of(Group g, Ptr first, Ptr last,
 }
 
 template <typename Group, typename T>
-EnableIfIsScalarArithmetic<T> broadcast(Group, T x,
-                                        typename Group::id_type local_id) {
+EnableIfIsTriviallyCopyable<T> broadcast(Group, T x,
+                                         typename Group::id_type local_id) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
@@ -303,7 +329,7 @@ EnableIfIsVectorArithmetic<T> broadcast(Group g, T x,
 }
 
 template <typename Group, typename T>
-EnableIfIsScalarArithmetic<T>
+EnableIfIsTriviallyCopyable<T>
 broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
@@ -343,7 +369,7 @@ broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 }
 
 template <typename Group, typename T>
-EnableIfIsScalarArithmetic<T> broadcast(Group g, T x) {
+EnableIfIsTriviallyCopyable<T> broadcast(Group g, T x) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
@@ -377,7 +403,8 @@ EnableIfIsVectorArithmetic<T> broadcast(Group g, T x) {
 }
 
 template <typename Group, typename T, class BinaryOperation>
-EnableIfIsScalarArithmetic<T> reduce(Group, T x, BinaryOperation binary_op) {
+EnableIfIsScalarArithmeticNativeOp<T, BinaryOperation>
+reduce(Group, T x, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
@@ -398,7 +425,8 @@ EnableIfIsScalarArithmetic<T> reduce(Group, T x, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename T, class BinaryOperation>
-EnableIfIsVectorArithmetic<T> reduce(Group g, T x, BinaryOperation binary_op) {
+EnableIfIsVectorArithmeticNativeOp<T, BinaryOperation>
+reduce(Group g, T x, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
@@ -416,9 +444,25 @@ EnableIfIsVectorArithmetic<T> reduce(Group g, T x, BinaryOperation binary_op) {
   return result;
 }
 
+template <typename Group, typename T, class BinaryOperation>
+EnableIfIsNonNativeOp<T, BinaryOperation> reduce(Group g, T x,
+                                                 BinaryOperation op) {
+  static_assert(sycl::detail::is_sub_group<Group>::value,
+                "reduce algorithm with user-defined types and operators"
+                "only supports intel::sub_group class.");
+  T result = x;
+  for (int mask = 1; mask < g.get_max_local_range()[0]; mask *= 2) {
+    T tmp = g.shuffle_xor(result, id<1>(mask));
+    if ((g.get_local_id()[0] ^ mask) < g.get_local_range()[0]) {
+      result = op(result, tmp);
+    }
+  }
+  return g.shuffle(result, 0);
+}
+
 template <typename Group, typename V, typename T, class BinaryOperation>
-EnableIfIsScalarArithmetic<T> reduce(Group g, V x, T init,
-                                     BinaryOperation binary_op) {
+EnableIfIsScalarArithmeticNativeOp<T, BinaryOperation>
+reduce(Group g, V x, T init, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
@@ -438,8 +482,8 @@ EnableIfIsScalarArithmetic<T> reduce(Group g, V x, T init,
 }
 
 template <typename Group, typename V, typename T, class BinaryOperation>
-EnableIfIsVectorArithmetic<T> reduce(Group g, V x, T init,
-                                     BinaryOperation binary_op) {
+EnableIfIsVectorArithmeticNativeOp<T, BinaryOperation>
+reduce(Group g, V x, T init, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
@@ -461,6 +505,22 @@ EnableIfIsVectorArithmetic<T> reduce(Group g, V x, T init,
   throw runtime_error("Group algorithms are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
+}
+
+template <typename Group, typename V, typename T, class BinaryOperation>
+EnableIfIsNonNativeOp<T, BinaryOperation> reduce(Group g, V x, T init,
+                                                 BinaryOperation op) {
+  static_assert(sycl::detail::is_sub_group<Group>::value,
+                "reduce algorithm with user-defined types and operators"
+                "only supports intel::sub_group class.");
+  T result = x;
+  for (int mask = 1; mask < g.get_max_local_range()[0]; mask *= 2) {
+    T tmp = g.shuffle_xor(result, id<1>(mask));
+    if ((g.get_local_id()[0] ^ mask) < g.get_local_range()[0]) {
+      result = op(result, tmp);
+    }
+  }
+  return g.shuffle(op(init, result), 0);
 }
 
 template <typename Group, typename Ptr, class BinaryOperation>
@@ -523,8 +583,8 @@ EnableIfIsPointer<Ptr, T> reduce(Group g, Ptr first, Ptr last, T init,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-EnableIfIsScalarArithmetic<T> exclusive_scan(Group, T x,
-                                             BinaryOperation binary_op) {
+EnableIfIsScalarArithmeticNativeOp<T, BinaryOperation>
+exclusive_scan(Group, T x, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
@@ -544,8 +604,8 @@ EnableIfIsScalarArithmetic<T> exclusive_scan(Group, T x,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-EnableIfIsVectorArithmetic<T> exclusive_scan(Group g, T x,
-                                             BinaryOperation binary_op) {
+EnableIfIsVectorArithmeticNativeOp<T, BinaryOperation>
+exclusive_scan(Group g, T x, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
@@ -564,8 +624,8 @@ EnableIfIsVectorArithmetic<T> exclusive_scan(Group g, T x,
 }
 
 template <typename Group, typename V, typename T, class BinaryOperation>
-EnableIfIsVectorArithmetic<T> exclusive_scan(Group g, V x, T init,
-                                             BinaryOperation binary_op) {
+EnableIfIsVectorArithmeticNativeOp<T, BinaryOperation>
+exclusive_scan(Group g, V x, T init, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
@@ -584,8 +644,8 @@ EnableIfIsVectorArithmetic<T> exclusive_scan(Group g, V x, T init,
 }
 
 template <typename Group, typename V, typename T, class BinaryOperation>
-EnableIfIsScalarArithmetic<T> exclusive_scan(Group g, V x, T init,
-                                             BinaryOperation binary_op) {
+EnableIfIsScalarArithmeticNativeOp<T, BinaryOperation>
+exclusive_scan(Group g, V x, T init, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
@@ -677,8 +737,8 @@ EnableIfIsPointer<InPtr, OutPtr> exclusive_scan(Group g, InPtr first,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-EnableIfIsVectorArithmetic<T> inclusive_scan(Group g, T x,
-                                             BinaryOperation binary_op) {
+EnableIfIsVectorArithmeticNativeOp<T, BinaryOperation>
+inclusive_scan(Group g, T x, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
@@ -697,8 +757,8 @@ EnableIfIsVectorArithmetic<T> inclusive_scan(Group g, T x,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-EnableIfIsScalarArithmetic<T> inclusive_scan(Group, T x,
-                                             BinaryOperation binary_op) {
+EnableIfIsScalarArithmeticNativeOp<T, BinaryOperation>
+inclusive_scan(Group, T x, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
@@ -718,7 +778,7 @@ EnableIfIsScalarArithmetic<T> inclusive_scan(Group, T x,
 }
 
 template <typename Group, typename V, class BinaryOperation, typename T>
-EnableIfIsScalarArithmetic<T>
+EnableIfIsScalarArithmeticNativeOp<T, BinaryOperation>
 inclusive_scan(Group g, V x, BinaryOperation binary_op, T init) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
@@ -741,7 +801,7 @@ inclusive_scan(Group g, V x, BinaryOperation binary_op, T init) {
 }
 
 template <typename Group, typename V, class BinaryOperation, typename T>
-EnableIfIsVectorArithmetic<T>
+EnableIfIsVectorArithmeticNativeOp<T, BinaryOperation>
 inclusive_scan(Group g, V x, BinaryOperation binary_op, T init) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "

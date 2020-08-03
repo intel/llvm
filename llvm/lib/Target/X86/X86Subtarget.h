@@ -50,7 +50,6 @@ enum class Style {
 } // end namespace PICStyles
 
 class X86Subtarget final : public X86GenSubtargetInfo {
-public:
   // NOTE: Do not add anything new to this list. Coarse, CPU name based flags
   // are not a good idea. We should be migrating away from these.
   enum X86ProcFamilyEnum {
@@ -59,7 +58,6 @@ public:
     IntelSLM
   };
 
-protected:
   enum X86SSEEnum {
     NoSSE, SSE1, SSE2, SSE3, SSSE3, SSE41, SSE42, AVX, AVX2, AVX512F
   };
@@ -191,8 +189,8 @@ protected:
   /// Processor has RDSEED instructions.
   bool HasRDSEED = false;
 
-  /// Processor has LAHF/SAHF instructions.
-  bool HasLAHFSAHF = false;
+  /// Processor has LAHF/SAHF instructions in 64-bit mode.
+  bool HasLAHFSAHF64 = false;
 
   /// Processor has MONITORX/MWAITX instructions.
   bool HasMWAITX = false;
@@ -366,9 +364,6 @@ protected:
   /// Processor has AVX-512 vp2intersect instructions
   bool HasVP2INTERSECT = false;
 
-  /// Deprecated flag for MPX instructions.
-  bool DeprecatedHasMPX = false;
-
   /// Processor supports CET SHSTK - Control-Flow Enforcement Technology
   /// using Shadow Stack
   bool HasSHSTK = false;
@@ -403,6 +398,11 @@ protected:
   /// Processor supports TSXLDTRK instruction
   bool HasTSXLDTRK = false;
 
+  /// Processor has AMX support
+  bool HasAMXTILE = false;
+  bool HasAMXBF16 = false;
+  bool HasAMXINT8 = false;
+
   /// Processor has a single uop BEXTR implementation.
   bool HasFastBEXTR = false;
 
@@ -436,6 +436,9 @@ protected:
   /// preceded by an LFENCE. Also decompose RET instructions into a
   /// POP+LFENCE+JMP sequence.
   bool UseLVIControlFlowIntegrity = false;
+
+  /// Enable Speculative Execution Side Effect Suppression
+  bool UseSpeculativeExecutionSideEffectSuppression = false;
 
   /// Insert LFENCE instructions to prevent data speculatively injected into
   /// loads from being used maliciously.
@@ -663,7 +666,7 @@ public:
     return hasSSE1() || (hasPRFCHW() && !has3DNow()) || hasPREFETCHWT1();
   }
   bool hasRDSEED() const { return HasRDSEED; }
-  bool hasLAHFSAHF() const { return HasLAHFSAHF; }
+  bool hasLAHFSAHF() const { return HasLAHFSAHF64 || !is64Bit(); }
   bool hasMWAITX() const { return HasMWAITX; }
   bool hasCLZERO() const { return HasCLZERO; }
   bool hasCLDEMOTE() const { return HasCLDEMOTE; }
@@ -735,6 +738,9 @@ public:
   bool useRetpolineIndirectBranches() const {
     return UseRetpolineIndirectBranches;
   }
+  bool hasAMXTILE() const { return HasAMXTILE; }
+  bool hasAMXBF16() const { return HasAMXBF16; }
+  bool hasAMXINT8() const { return HasAMXINT8; }
   bool useRetpolineExternalThunk() const { return UseRetpolineExternalThunk; }
 
   // These are generic getters that OR together all of the thunk types
@@ -751,6 +757,9 @@ public:
   bool useGLMDivSqrtCosts() const { return UseGLMDivSqrtCosts; }
   bool useLVIControlFlowIntegrity() const { return UseLVIControlFlowIntegrity; }
   bool useLVILoadHardening() const { return UseLVILoadHardening; }
+  bool useSpeculativeExecutionSideEffectSuppression() const {
+    return UseSpeculativeExecutionSideEffectSuppression;
+  }
 
   unsigned getPreferVectorWidth() const { return PreferVectorWidth; }
   unsigned getRequiredVectorWidth() const { return RequiredVectorWidth; }

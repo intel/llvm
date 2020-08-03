@@ -1718,6 +1718,8 @@ const char *ARMTargetLowering::getTargetNodeName(unsigned Opcode) const {
   case ARMISD::VMULLu:        return "ARMISD::VMULLu";
   case ARMISD::VADDVs:        return "ARMISD::VADDVs";
   case ARMISD::VADDVu:        return "ARMISD::VADDVu";
+  case ARMISD::VADDVps:       return "ARMISD::VADDVps";
+  case ARMISD::VADDVpu:       return "ARMISD::VADDVpu";
   case ARMISD::VADDLVs:       return "ARMISD::VADDLVs";
   case ARMISD::VADDLVu:       return "ARMISD::VADDLVu";
   case ARMISD::VADDLVAs:      return "ARMISD::VADDLVAs";
@@ -1728,10 +1730,16 @@ const char *ARMTargetLowering::getTargetNodeName(unsigned Opcode) const {
   case ARMISD::VADDLVApu:     return "ARMISD::VADDLVApu";
   case ARMISD::VMLAVs:        return "ARMISD::VMLAVs";
   case ARMISD::VMLAVu:        return "ARMISD::VMLAVu";
+  case ARMISD::VMLAVps:       return "ARMISD::VMLAVps";
+  case ARMISD::VMLAVpu:       return "ARMISD::VMLAVpu";
   case ARMISD::VMLALVs:       return "ARMISD::VMLALVs";
   case ARMISD::VMLALVu:       return "ARMISD::VMLALVu";
+  case ARMISD::VMLALVps:      return "ARMISD::VMLALVps";
+  case ARMISD::VMLALVpu:      return "ARMISD::VMLALVpu";
   case ARMISD::VMLALVAs:      return "ARMISD::VMLALVAs";
   case ARMISD::VMLALVAu:      return "ARMISD::VMLALVAu";
+  case ARMISD::VMLALVAps:     return "ARMISD::VMLALVAps";
+  case ARMISD::VMLALVApu:     return "ARMISD::VMLALVApu";
   case ARMISD::UMAAL:         return "ARMISD::UMAAL";
   case ARMISD::UMLAL:         return "ARMISD::UMLAL";
   case ARMISD::SMLAL:         return "ARMISD::SMLAL";
@@ -1755,7 +1763,7 @@ const char *ARMTargetLowering::getTargetNodeName(unsigned Opcode) const {
   case ARMISD::BFI:           return "ARMISD::BFI";
   case ARMISD::VORRIMM:       return "ARMISD::VORRIMM";
   case ARMISD::VBICIMM:       return "ARMISD::VBICIMM";
-  case ARMISD::VBSL:          return "ARMISD::VBSL";
+  case ARMISD::VBSP:          return "ARMISD::VBSP";
   case ARMISD::MEMCPY:        return "ARMISD::MEMCPY";
   case ARMISD::VLD1DUP:       return "ARMISD::VLD1DUP";
   case ARMISD::VLD2DUP:       return "ARMISD::VLD2DUP";
@@ -9196,7 +9204,7 @@ SDValue ARMTargetLowering::LowerFSINCOS(SDValue Op, SelectionDAG &DAG) const {
   if (ShouldUseSRet) {
     // Create stack object for sret.
     const uint64_t ByteSize = DL.getTypeAllocSize(RetTy);
-    const unsigned StackAlign = DL.getPrefTypeAlignment(RetTy);
+    const Align StackAlign = DL.getPrefTypeAlign(RetTy);
     int FrameIdx = MFI.CreateStackObject(ByteSize, StackAlign, false);
     SRet = DAG.getFrameIndex(FrameIdx, TLI.getPointerTy(DL));
 
@@ -12259,6 +12267,14 @@ static SDValue PerformADDVecReduce(SDNode *N,
     return M;
   if (SDValue M = MakeVecReduce(ARMISD::VMLALVu, ARMISD::VMLALVAu, N1, N0))
     return M;
+  if (SDValue M = MakeVecReduce(ARMISD::VMLALVps, ARMISD::VMLALVAps, N0, N1))
+    return M;
+  if (SDValue M = MakeVecReduce(ARMISD::VMLALVpu, ARMISD::VMLALVApu, N0, N1))
+    return M;
+  if (SDValue M = MakeVecReduce(ARMISD::VMLALVps, ARMISD::VMLALVAps, N1, N0))
+    return M;
+  if (SDValue M = MakeVecReduce(ARMISD::VMLALVpu, ARMISD::VMLALVApu, N1, N0))
+    return M;
   return SDValue();
 }
 
@@ -13153,7 +13169,7 @@ static SDValue PerformORCombine(SDNode *N,
                 // Canonicalize the vector type to make instruction selection
                 // simpler.
                 EVT CanonicalVT = VT.is128BitVector() ? MVT::v4i32 : MVT::v2i32;
-                SDValue Result = DAG.getNode(ARMISD::VBSL, dl, CanonicalVT,
+                SDValue Result = DAG.getNode(ARMISD::VBSP, dl, CanonicalVT,
                                              N0->getOperand(1),
                                              N0->getOperand(0),
                                              N1->getOperand(0));
@@ -14729,12 +14745,46 @@ static SDValue PerformVECREDUCE_ADDCombine(SDNode *N, SelectionDAG &DAG,
       return A;
     return SDValue();
   };
+  auto IsPredVADDV = [&](MVT RetTy, unsigned ExtendCode,
+                         ArrayRef<MVT> ExtTypes, SDValue &Mask) {
+    if (ResVT != RetTy || N0->getOpcode() != ISD::VSELECT ||
+        !ISD::isBuildVectorAllZeros(N0->getOperand(2).getNode()))
+      return SDValue();
+    Mask = N0->getOperand(0);
+    SDValue Ext = N0->getOperand(1);
+    if (Ext->getOpcode() != ExtendCode)
+      return SDValue();
+    SDValue A = Ext->getOperand(0);
+    if (llvm::any_of(ExtTypes, [&A](MVT Ty) { return A.getValueType() == Ty; }))
+      return A;
+    return SDValue();
+  };
   auto IsVMLAV = [&](MVT RetTy, unsigned ExtendCode, ArrayRef<MVT> ExtTypes,
                      SDValue &A, SDValue &B) {
     if (ResVT != RetTy || N0->getOpcode() != ISD::MUL)
       return false;
     SDValue ExtA = N0->getOperand(0);
     SDValue ExtB = N0->getOperand(1);
+    if (ExtA->getOpcode() != ExtendCode && ExtB->getOpcode() != ExtendCode)
+      return false;
+    A = ExtA->getOperand(0);
+    B = ExtB->getOperand(0);
+    if (A.getValueType() == B.getValueType() &&
+        llvm::any_of(ExtTypes, [&A](MVT Ty) { return A.getValueType() == Ty; }))
+      return true;
+    return false;
+  };
+  auto IsPredVMLAV = [&](MVT RetTy, unsigned ExtendCode, ArrayRef<MVT> ExtTypes,
+                     SDValue &A, SDValue &B, SDValue &Mask) {
+    if (ResVT != RetTy || N0->getOpcode() != ISD::VSELECT ||
+        !ISD::isBuildVectorAllZeros(N0->getOperand(2).getNode()))
+      return false;
+    Mask = N0->getOperand(0);
+    SDValue Mul = N0->getOperand(1);
+    if (Mul->getOpcode() != ISD::MUL)
+      return false;
+    SDValue ExtA = Mul->getOperand(0);
+    SDValue ExtB = Mul->getOperand(1);
     if (ExtA->getOpcode() != ExtendCode && ExtB->getOpcode() != ExtendCode)
       return false;
     A = ExtA->getOperand(0);
@@ -14759,6 +14809,16 @@ static SDValue PerformVECREDUCE_ADDCombine(SDNode *N, SelectionDAG &DAG,
   if (SDValue A = IsVADDV(MVT::i64, ISD::ZERO_EXTEND, {MVT::v4i32}))
     return Create64bitNode(ARMISD::VADDLVu, {A});
 
+  SDValue Mask;
+  if (SDValue A = IsPredVADDV(MVT::i32, ISD::SIGN_EXTEND, {MVT::v8i16, MVT::v16i8}, Mask))
+    return DAG.getNode(ARMISD::VADDVps, dl, ResVT, A, Mask);
+  if (SDValue A = IsPredVADDV(MVT::i32, ISD::ZERO_EXTEND, {MVT::v8i16, MVT::v16i8}, Mask))
+    return DAG.getNode(ARMISD::VADDVpu, dl, ResVT, A, Mask);
+  if (SDValue A = IsPredVADDV(MVT::i64, ISD::SIGN_EXTEND, {MVT::v4i32}, Mask))
+    return Create64bitNode(ARMISD::VADDLVps, {A, Mask});
+  if (SDValue A = IsPredVADDV(MVT::i64, ISD::ZERO_EXTEND, {MVT::v4i32}, Mask))
+    return Create64bitNode(ARMISD::VADDLVpu, {A, Mask});
+
   SDValue A, B;
   if (IsVMLAV(MVT::i32, ISD::SIGN_EXTEND, {MVT::v8i16, MVT::v16i8}, A, B))
     return DAG.getNode(ARMISD::VMLAVs, dl, ResVT, A, B);
@@ -14768,6 +14828,15 @@ static SDValue PerformVECREDUCE_ADDCombine(SDNode *N, SelectionDAG &DAG,
     return Create64bitNode(ARMISD::VMLALVs, {A, B});
   if (IsVMLAV(MVT::i64, ISD::ZERO_EXTEND, {MVT::v8i16, MVT::v4i32}, A, B))
     return Create64bitNode(ARMISD::VMLALVu, {A, B});
+
+  if (IsPredVMLAV(MVT::i32, ISD::SIGN_EXTEND, {MVT::v8i16, MVT::v16i8}, A, B, Mask))
+    return DAG.getNode(ARMISD::VMLAVps, dl, ResVT, A, B, Mask);
+  if (IsPredVMLAV(MVT::i32, ISD::ZERO_EXTEND, {MVT::v8i16, MVT::v16i8}, A, B, Mask))
+    return DAG.getNode(ARMISD::VMLAVpu, dl, ResVT, A, B, Mask);
+  if (IsPredVMLAV(MVT::i64, ISD::SIGN_EXTEND, {MVT::v8i16, MVT::v4i32}, A, B, Mask))
+    return Create64bitNode(ARMISD::VMLALVps, {A, B, Mask});
+  if (IsPredVMLAV(MVT::i64, ISD::ZERO_EXTEND, {MVT::v8i16, MVT::v4i32}, A, B, Mask))
+    return Create64bitNode(ARMISD::VMLALVpu, {A, B, Mask});
   return SDValue();
 }
 
@@ -16827,7 +16896,7 @@ static bool getT2IndexedAddressParts(SDNode *Ptr, EVT VT,
   return false;
 }
 
-static bool getMVEIndexedAddressParts(SDNode *Ptr, EVT VT, unsigned Align,
+static bool getMVEIndexedAddressParts(SDNode *Ptr, EVT VT, Align Alignment,
                                       bool isSEXTLoad, bool IsMasked, bool isLE,
                                       SDValue &Base, SDValue &Offset,
                                       bool &isInc, SelectionDAG &DAG) {
@@ -16862,16 +16931,16 @@ static bool getMVEIndexedAddressParts(SDNode *Ptr, EVT VT, unsigned Align,
   // (in BE/masked) type.
   Base = Ptr->getOperand(0);
   if (VT == MVT::v4i16) {
-    if (Align >= 2 && IsInRange(RHSC, 0x80, 2))
+    if (Alignment >= 2 && IsInRange(RHSC, 0x80, 2))
       return true;
   } else if (VT == MVT::v4i8 || VT == MVT::v8i8) {
     if (IsInRange(RHSC, 0x80, 1))
       return true;
-  } else if (Align >= 4 &&
+  } else if (Alignment >= 4 &&
              (CanChangeType || VT == MVT::v4i32 || VT == MVT::v4f32) &&
              IsInRange(RHSC, 0x80, 4))
     return true;
-  else if (Align >= 2 &&
+  else if (Alignment >= 2 &&
            (CanChangeType || VT == MVT::v8i16 || VT == MVT::v8f16) &&
            IsInRange(RHSC, 0x80, 2))
     return true;
@@ -16893,28 +16962,28 @@ ARMTargetLowering::getPreIndexedAddressParts(SDNode *N, SDValue &Base,
 
   EVT VT;
   SDValue Ptr;
-  unsigned Align;
+  Align Alignment;
   bool isSEXTLoad = false;
   bool IsMasked = false;
   if (LoadSDNode *LD = dyn_cast<LoadSDNode>(N)) {
     Ptr = LD->getBasePtr();
     VT = LD->getMemoryVT();
-    Align = LD->getAlignment();
+    Alignment = LD->getAlign();
     isSEXTLoad = LD->getExtensionType() == ISD::SEXTLOAD;
   } else if (StoreSDNode *ST = dyn_cast<StoreSDNode>(N)) {
     Ptr = ST->getBasePtr();
     VT = ST->getMemoryVT();
-    Align = ST->getAlignment();
+    Alignment = ST->getAlign();
   } else if (MaskedLoadSDNode *LD = dyn_cast<MaskedLoadSDNode>(N)) {
     Ptr = LD->getBasePtr();
     VT = LD->getMemoryVT();
-    Align = LD->getAlignment();
+    Alignment = LD->getAlign();
     isSEXTLoad = LD->getExtensionType() == ISD::SEXTLOAD;
     IsMasked = true;
   } else if (MaskedStoreSDNode *ST = dyn_cast<MaskedStoreSDNode>(N)) {
     Ptr = ST->getBasePtr();
     VT = ST->getMemoryVT();
-    Align = ST->getAlignment();
+    Alignment = ST->getAlign();
     IsMasked = true;
   } else
     return false;
@@ -16923,9 +16992,9 @@ ARMTargetLowering::getPreIndexedAddressParts(SDNode *N, SDValue &Base,
   bool isLegal = false;
   if (VT.isVector())
     isLegal = Subtarget->hasMVEIntegerOps() &&
-              getMVEIndexedAddressParts(Ptr.getNode(), VT, Align, isSEXTLoad,
-                                        IsMasked, Subtarget->isLittle(), Base,
-                                        Offset, isInc, DAG);
+              getMVEIndexedAddressParts(
+                  Ptr.getNode(), VT, Alignment, isSEXTLoad, IsMasked,
+                  Subtarget->isLittle(), Base, Offset, isInc, DAG);
   else {
     if (Subtarget->isThumb2())
       isLegal = getT2IndexedAddressParts(Ptr.getNode(), VT, isSEXTLoad, Base,
@@ -16951,31 +17020,31 @@ bool ARMTargetLowering::getPostIndexedAddressParts(SDNode *N, SDNode *Op,
                                                    SelectionDAG &DAG) const {
   EVT VT;
   SDValue Ptr;
-  unsigned Align;
+  Align Alignment;
   bool isSEXTLoad = false, isNonExt;
   bool IsMasked = false;
   if (LoadSDNode *LD = dyn_cast<LoadSDNode>(N)) {
     VT = LD->getMemoryVT();
     Ptr = LD->getBasePtr();
-    Align = LD->getAlignment();
+    Alignment = LD->getAlign();
     isSEXTLoad = LD->getExtensionType() == ISD::SEXTLOAD;
     isNonExt = LD->getExtensionType() == ISD::NON_EXTLOAD;
   } else if (StoreSDNode *ST = dyn_cast<StoreSDNode>(N)) {
     VT = ST->getMemoryVT();
     Ptr = ST->getBasePtr();
-    Align = ST->getAlignment();
+    Alignment = ST->getAlign();
     isNonExt = !ST->isTruncatingStore();
   } else if (MaskedLoadSDNode *LD = dyn_cast<MaskedLoadSDNode>(N)) {
     VT = LD->getMemoryVT();
     Ptr = LD->getBasePtr();
-    Align = LD->getAlignment();
+    Alignment = LD->getAlign();
     isSEXTLoad = LD->getExtensionType() == ISD::SEXTLOAD;
     isNonExt = LD->getExtensionType() == ISD::NON_EXTLOAD;
     IsMasked = true;
   } else if (MaskedStoreSDNode *ST = dyn_cast<MaskedStoreSDNode>(N)) {
     VT = ST->getMemoryVT();
     Ptr = ST->getBasePtr();
-    Align = ST->getAlignment();
+    Alignment = ST->getAlign();
     isNonExt = !ST->isTruncatingStore();
     IsMasked = true;
   } else
@@ -17001,7 +17070,7 @@ bool ARMTargetLowering::getPostIndexedAddressParts(SDNode *N, SDNode *Op,
   bool isLegal = false;
   if (VT.isVector())
     isLegal = Subtarget->hasMVEIntegerOps() &&
-              getMVEIndexedAddressParts(Op, VT, Align, isSEXTLoad, IsMasked,
+              getMVEIndexedAddressParts(Op, VT, Alignment, isSEXTLoad, IsMasked,
                                         Subtarget->isLittle(), Base, Offset,
                                         isInc, DAG);
   else {
@@ -17758,13 +17827,15 @@ ARMTargetLowering::LowerDYNAMIC_STACKALLOC(SDValue Op, SelectionDAG &DAG) const 
 
   if (DAG.getMachineFunction().getFunction().hasFnAttribute(
           "no-stack-arg-probe")) {
-    unsigned Align = cast<ConstantSDNode>(Op.getOperand(2))->getZExtValue();
+    MaybeAlign Align =
+        cast<ConstantSDNode>(Op.getOperand(2))->getMaybeAlignValue();
     SDValue SP = DAG.getCopyFromReg(Chain, DL, ARM::SP, MVT::i32);
     Chain = SP.getValue(1);
     SP = DAG.getNode(ISD::SUB, DL, MVT::i32, SP, Size);
     if (Align)
-      SP = DAG.getNode(ISD::AND, DL, MVT::i32, SP.getValue(0),
-                       DAG.getConstant(-(uint64_t)Align, DL, MVT::i32));
+      SP =
+          DAG.getNode(ISD::AND, DL, MVT::i32, SP.getValue(0),
+                      DAG.getConstant(-(uint64_t)Align->value(), DL, MVT::i32));
     Chain = DAG.getCopyToReg(Chain, DL, ARM::SP, SP);
     SDValue Ops[2] = { SP, Chain };
     return DAG.getMergeValues(Ops, DL);
@@ -17968,7 +18039,7 @@ bool ARMTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.ptrVal = I.getArgOperand(0);
     Info.offset = 0;
     Value *AlignArg = I.getArgOperand(I.getNumArgOperands() - 1);
-    Info.align = MaybeAlign(cast<ConstantInt>(AlignArg)->getZExtValue());
+    Info.align = cast<ConstantInt>(AlignArg)->getMaybeAlignValue();
     // volatile loads with NEON intrinsics not supported
     Info.flags = MachineMemOperand::MOLoad;
     return true;
@@ -18009,7 +18080,7 @@ bool ARMTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.ptrVal = I.getArgOperand(0);
     Info.offset = 0;
     Value *AlignArg = I.getArgOperand(I.getNumArgOperands() - 1);
-    Info.align = MaybeAlign(cast<ConstantInt>(AlignArg)->getZExtValue());
+    Info.align = cast<ConstantInt>(AlignArg)->getMaybeAlignValue();
     // volatile stores with NEON intrinsics not supported
     Info.flags = MachineMemOperand::MOStore;
     return true;
@@ -18837,7 +18908,7 @@ static bool isHomogeneousAggregate(Type *Ty, HABaseType &Base,
 /// Return the correct alignment for the current calling convention.
 Align ARMTargetLowering::getABIAlignmentForCallingConv(Type *ArgTy,
                                                        DataLayout DL) const {
-  const Align ABITypeAlign(DL.getABITypeAlignment(ArgTy));
+  const Align ABITypeAlign = DL.getABITypeAlign(ArgTy);
   if (!ArgTy->isVectorTy())
     return ABITypeAlign;
 

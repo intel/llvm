@@ -147,7 +147,7 @@ public:
     return std::string(ss.GetString());
   }
 
-  bool AssignToMatchType(lldb_private::Scalar &scalar, uint64_t u64value,
+  bool AssignToMatchType(lldb_private::Scalar &scalar, llvm::APInt value,
                          Type *type) {
     size_t type_size = m_target_data.getTypeStoreSize(type);
 
@@ -157,7 +157,7 @@ public:
     if (type_size != 1)
       type_size = PowerOf2Ceil(type_size);
 
-    scalar = llvm::APInt(type_size*8, u64value);
+    scalar = value.zextOrTrunc(type_size * 8);
     return true;
   }
 
@@ -171,8 +171,7 @@ public:
       if (!ResolveConstantValue(value_apint, constant))
         return false;
 
-      return AssignToMatchType(scalar, value_apint.getLimitedValue(),
-                               value->getType());
+      return AssignToMatchType(scalar, value_apint, value->getType());
     }
 
     lldb::addr_t process_address = ResolveValue(value, module);
@@ -190,13 +189,14 @@ public:
     lldb::offset_t offset = 0;
     if (value_size <= 8) {
       uint64_t u64value = value_extractor.GetMaxU64(&offset, value_size);
-      return AssignToMatchType(scalar, u64value, value->getType());
+      return AssignToMatchType(scalar, llvm::APInt(64, u64value),
+                               value->getType());
     }
 
     return false;
   }
 
-  bool AssignValue(const Value *value, lldb_private::Scalar &scalar,
+  bool AssignValue(const Value *value, lldb_private::Scalar scalar,
                    Module &module) {
     lldb::addr_t process_address = ResolveValue(value, module);
 
@@ -205,7 +205,9 @@ public:
 
     lldb_private::Scalar cast_scalar;
 
-    if (!AssignToMatchType(cast_scalar, scalar.ULongLong(), value->getType()))
+    scalar.MakeUnsigned();
+    if (!AssignToMatchType(cast_scalar, scalar.UInt128(llvm::APInt()),
+                           value->getType()))
       return false;
 
     size_t value_byte_size = m_target_data.getTypeStoreSize(value->getType());
@@ -1354,14 +1356,14 @@ bool IRInterpreter::Interpret(llvm::Module &module, llvm::Function &function,
       // Check we can actually get a thread
       if (exe_ctx.GetThreadPtr() == nullptr) {
         error.SetErrorToGenericError();
-        error.SetErrorStringWithFormat("unable to acquire thread");
+        error.SetErrorString("unable to acquire thread");
         return false;
       }
 
       // Make sure we have a valid process
       if (!exe_ctx.GetProcessPtr()) {
         error.SetErrorToGenericError();
-        error.SetErrorStringWithFormat("unable to get the process");
+        error.SetErrorString("unable to get the process");
         return false;
       }
 
@@ -1402,7 +1404,7 @@ bool IRInterpreter::Interpret(llvm::Module &module, llvm::Function &function,
       static lldb_private::ABI::CallArgument rawArgs[16];
       if (numArgs >= 16) {
         error.SetErrorToGenericError();
-        error.SetErrorStringWithFormat("function takes too many arguments");
+        error.SetErrorString("function takes too many arguments");
         return false;
       }
 
@@ -1488,7 +1490,7 @@ bool IRInterpreter::Interpret(llvm::Module &module, llvm::Function &function,
       // Check that the thread plan completed successfully
       if (res != lldb::ExpressionResults::eExpressionCompleted) {
         error.SetErrorToGenericError();
-        error.SetErrorStringWithFormat("ThreadPlanCallFunctionUsingABI failed");
+        error.SetErrorString("ThreadPlanCallFunctionUsingABI failed");
         return false;
       }
 
@@ -1509,7 +1511,7 @@ bool IRInterpreter::Interpret(llvm::Module &module, llvm::Function &function,
         // Check if the return value is valid
         if (vobj == nullptr || !retVal) {
           error.SetErrorToGenericError();
-          error.SetErrorStringWithFormat("unable to get the return value");
+          error.SetErrorString("unable to get the return value");
           return false;
         }
 
