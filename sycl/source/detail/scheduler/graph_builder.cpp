@@ -289,7 +289,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
     // Since no alloca command for the sub buffer requirement was found in the
     // current context, need to find a parent alloca command for it (it must be
     // there)
-    auto IsSuitableAlloca = [Record, Req](AllocaCommandBase *AllocaCmd) {
+    auto IsSuitableAlloca = [Record](AllocaCommandBase *AllocaCmd) {
       bool Res = sameCtx(AllocaCmd->getQueue()->getContextImplPtr(),
                          Record->MCurContext) &&
                  // Looking for a parent buffer alloca command
@@ -455,7 +455,7 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req) {
 Command *Scheduler::GraphBuilder::addCGUpdateHost(
     std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr HostQueue) {
 
-  CGUpdateHost *UpdateHost = (CGUpdateHost *)CommandGroup.get();
+  auto UpdateHost = static_cast<CGUpdateHost *>(CommandGroup.get());
   Requirement *Req = UpdateHost->getReqToUpdate();
 
   MemObjRecord *Record = getOrInsertMemObjRecord(HostQueue, Req);

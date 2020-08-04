@@ -28,7 +28,6 @@
 #include <CL/sycl/sampler.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <algorithm>
 #include <functional>
 #include <limits>
 #include <memory>
@@ -250,7 +249,7 @@ private:
                             typename std::remove_reference<T>::type>::type>
   F *storePlainArg(T &&Arg) {
     MArgsStorage.emplace_back(sizeof(T));
-    F *Storage = (F *)MArgsStorage.back().data();
+    auto Storage = reinterpret_cast<F *>(MArgsStorage.back().data());
     *Storage = Arg;
     return Storage;
   }
@@ -308,8 +307,8 @@ private:
   /// Streams are then forwarded to command group and flushed in the scheduler.
   ///
   /// \param Stream is a pointer to SYCL stream.
-  void addStream(shared_ptr_class<detail::stream_impl> Stream) {
-    MStreamStorage.push_back(std::move(Stream));
+  void addStream(const shared_ptr_class<detail::stream_impl> &Stream) {
+    MStreamStorage.push_back(Stream);
   }
 
   /// Saves buffers created by handling reduction feature in handler.
@@ -318,8 +317,8 @@ private:
   /// The 'MSharedPtrStorage' suits that need.
   ///
   /// @param ReduObj is a pointer to object that must be stored.
-  void addReduction(shared_ptr_class<const void> ReduObj) {
-    MSharedPtrStorage.push_back(std::move(ReduObj));
+  void addReduction(const shared_ptr_class<const void> &ReduObj) {
+    MSharedPtrStorage.push_back(ReduObj);
   }
 
   ~handler() = default;
@@ -327,19 +326,7 @@ private:
   bool is_host() { return MIsHost; }
 
   void associateWithHandler(detail::AccessorBaseHost *AccBase,
-                            access::target AccTarget) {
-    detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
-    detail::Requirement *Req = AccImpl.get();
-    // Add accessor to the list of requirements.
-    MRequirements.push_back(Req);
-    // Store copy of the accessor.
-    MAccStorage.push_back(std::move(AccImpl));
-    // Add an accessor to the handler list of associated accessors.
-    // For associated accessors index does not means nothing.
-    MAssociatedAccesors.emplace_back(detail::kernel_param_kind_t::kind_accessor,
-                                     Req, static_cast<int>(AccTarget),
-                                     /*index*/ 0);
-  }
+                            access::target AccTarget);
 
   // Recursively calls itself until arguments pack is fully processed.
   // The version for regular(standard layout) argument.
@@ -387,7 +374,7 @@ private:
   }
 
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
-    void *StoredArg = (void *)storePlainArg(Arg);
+    auto StoredArg = static_cast<void *>(storePlainArg(Arg));
 
     if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
       MArgs.emplace_back(detail::kernel_param_kind_t::kind_pointer, StoredArg,
@@ -399,7 +386,7 @@ private:
   }
 
   void setArgHelper(int ArgIndex, sampler &&Arg) {
-    void *StoredArg = (void *)storePlainArg(Arg);
+    auto StoredArg = static_cast<void *>(storePlainArg(Arg));
     MArgs.emplace_back(detail::kernel_param_kind_t::kind_sampler, StoredArg,
                        sizeof(sampler), ArgIndex);
   }
@@ -791,8 +778,8 @@ public:
   /// Registers event dependencies on this command group.
   ///
   /// \param Events is a vector of valid SYCL events to wait on.
-  void depends_on(vector_class<event> Events) {
-    for (event &Event : Events) {
+  void depends_on(const vector_class<event> &Events) {
+    for (const event &Event : Events) {
       MEvents.push_back(detail::getSyclObjImpl(Event));
     }
   }
@@ -1572,8 +1559,8 @@ public:
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
     MRequirements.push_back(AccImpl.get());
-    MSrcPtr = (void *)AccImpl.get();
-    MDstPtr = (void *)Dst;
+    MSrcPtr = static_cast<void *>(AccImpl.get());
+    MDstPtr = static_cast<void *>(Dst);
     // Store copy of accessor to the local storage to make sure it is alive
     // until we finish
     MAccStorage.push_back(std::move(AccImpl));
@@ -1679,7 +1666,7 @@ public:
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
-    MDstPtr = (void *)AccImpl.get();
+    MDstPtr = static_cast<void *>(AccImpl.get());
     MRequirements.push_back(AccImpl.get());
     MAccStorage.push_back(std::move(AccImpl));
   }
@@ -1708,12 +1695,12 @@ public:
       detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
       detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
-      MDstPtr = (void *)AccImpl.get();
+      MDstPtr = static_cast<void *>(AccImpl.get());
       MRequirements.push_back(AccImpl.get());
       MAccStorage.push_back(std::move(AccImpl));
 
       MPattern.resize(sizeof(T));
-      T *PatternPtr = (T *)MPattern.data();
+      auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
       *PatternPtr = Pattern;
     } else {
 
@@ -1741,14 +1728,7 @@ public:
   ///
   /// \param WaitList is a vector of valid SYCL events that need to complete
   /// before barrier command can be executed.
-  void barrier(const vector_class<event> &WaitList) {
-    throwIfActionIsCreated();
-    MCGType = detail::CG::BARRIER_WAITLIST;
-    MEventsWaitWithBarrier.resize(WaitList.size());
-    std::transform(
-        WaitList.begin(), WaitList.end(), MEventsWaitWithBarrier.begin(),
-        [](const event &Event) { return detail::getSyclObjImpl(Event); });
-  }
+  void barrier(const vector_class<event> &WaitList);
 
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
@@ -1756,26 +1736,14 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Src is a USM pointer to the source memory.
   /// \param Count is a number of bytes to copy.
-  void memcpy(void *Dest, const void *Src, size_t Count) {
-    throwIfActionIsCreated();
-    MSrcPtr = const_cast<void *>(Src);
-    MDstPtr = Dest;
-    MLength = Count;
-    MCGType = detail::CG::COPY_USM;
-  }
+  void memcpy(void *Dest, const void *Src, size_t Count);
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   ///
   /// \param Dest is a USM pointer to the memory to fill.
   /// \param Value is a value to be set. Value is cast as an unsigned char.
   /// \param Count is a number of bytes to fill.
-  void memset(void *Dest, int Value, size_t Count) {
-    throwIfActionIsCreated();
-    MDstPtr = Dest;
-    MPattern.push_back((char)Value);
-    MLength = Count;
-    MCGType = detail::CG::FILL_USM;
-  }
+  void memset(void *Dest, int Value, size_t Count);
 
   /// Provides hints to the runtime library that data should be made available
   /// on a device earlier than Unified Shared Memory would normally require it
@@ -1783,12 +1751,7 @@ public:
   ///
   /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
   /// \param Count is a number of bytes to be prefetched.
-  void prefetch(const void *Ptr, size_t Count) {
-    throwIfActionIsCreated();
-    MDstPtr = const_cast<void *>(Ptr);
-    MLength = Count;
-    MCGType = detail::CG::PREFETCH_USM;
-  }
+  void prefetch(const void *Ptr, size_t Count);
 
 private:
   shared_ptr_class<detail::queue_impl> MQueue;
@@ -1830,7 +1793,7 @@ private:
   unique_ptr_class<detail::HostTask> MHostTask;
   detail::OSModuleHandle MOSModuleHandle = detail::OSUtil::ExeModuleHandle;
   // Storage for a lambda or function when using InteropTasks
-  std::unique_ptr<detail::InteropTask> MInteropTask;
+  unique_ptr_class<detail::InteropTask> MInteropTask;
   /// The list of events that order this operation.
   vector_class<detail::EventImplPtr> MEvents;
   /// The list of valid SYCL events that need to complete

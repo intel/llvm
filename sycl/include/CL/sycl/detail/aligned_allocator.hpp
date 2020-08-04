@@ -12,7 +12,6 @@
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/range.hpp>
 
-#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
