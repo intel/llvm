@@ -1,6 +1,5 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_BE=%sycl_be %t.out
 //
 // UNSUPPORTED: windows
 //
