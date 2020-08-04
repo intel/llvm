@@ -15,7 +15,7 @@ MyUnion GlobS;
 
 bool test0() {
   MyUnion S = GlobS;
-  MyUnion S0 = { 0 };
+  MyUnion S0 = {0};
   {
     buffer<MyUnion, 1> Buf(&S0, range<1>(1));
     queue myQueue;
@@ -52,7 +52,6 @@ bool test0() {
 // CHECK: [[MEMCPY_DST:%[0-9a-zA-Z_]+]] = bitcast %union.{{.*}}MyUnion* [[Z0]] to i8*
 // CHECK: [[MEMCPY_SRC:%[0-9a-zA-Z_]+]] = bitcast %union.{{.*}}MyUnion* [[MEM_ARG4]] to i8*
 // CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 4 [[MEMCPY_DST]], i8* align 4 [[MEMCPY_SRC]], i64 12, i1 false)
-
 // CHECK: [[Z1:%[a-zA-Z0-9_]*]]  = getelementptr inbounds %"class.{{.*}}.anon", %"class.{{.*}}.anon"* [[LOCAL_OBJECT]], i32 0, i32 0
 
 // Check load from kernel pointer argument alloca
@@ -69,4 +68,3 @@ bool test0() {
 // CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor" addrspace(4)* [[ACC_CAST1]], %union._ZTS7MyUnion.MyUnion addrspace(1)* [[MEM_LOAD1]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE1]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE2]], %"struct.{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET2]])
 // CHECK: [[ACC_CAST2:%[0-9]+]] = addrspacecast %"class{{.*}}.anon"* [[LOCAL_OBJECT]] to %"class{{.*}}.anon" addrspace(4)*
 // CHECK: call spir_func void @{{.*}}(%"class.{{.*}}.anon" addrspace(4)* [[ACC_CAST2]])
-

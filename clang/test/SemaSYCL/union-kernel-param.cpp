@@ -27,9 +27,9 @@ int main() {
   gpu_realw_mem accel;
 
   parallel_for<class kernel>(
-    [=]() {
-      call_some_dummy_kernel(accel.cuda);
-    });
+      [=]() {
+        call_some_dummy_kernel(accel.cuda);
+      });
 }
 
 // Check kernel parameters

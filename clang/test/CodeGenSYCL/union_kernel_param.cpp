@@ -45,7 +45,7 @@ MyUnion GlobS;
 
 bool test0() {
   MyUnion S = GlobS;
-  MyUnion S0 = { 0 };
+  MyUnion S0 = {0};
   {
     buffer<MyUnion, 1> Buf(&S0, range<1>(1));
     queue myQueue;
