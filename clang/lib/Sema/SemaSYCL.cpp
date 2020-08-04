@@ -941,8 +941,8 @@ public:
       else if (FieldTy->isArrayType()) {
         if (KF_FOR_EACH(handleArrayType, Field, FieldTy))
           VisitArrayElements(Field, FieldTy, handlers...);
-      } else if (FieldTy->isScalarType() || FieldTy->isUnionType() ||
-		  FieldTy->isVectorType()) {
+      } else if (FieldTy->isScalarType() || FieldTy->isVectorType() ||
+		  FieldTy->isUnionType()) {
         KF_FOR_EACH(handleSimpleType, Field, FieldTy);
       } else
         KF_FOR_EACH(handleOtherType, Field, FieldTy);
