@@ -70,6 +70,7 @@ This extension adds sub-group support to all of the functions from +SYCL_INTEL_g
 - +reduce+
 - +exclusive_scan+
 - +inclusive_scan+
+- +barrier+
 
 It additionally introduces a number of functions that are currently specific to sub-groups:
 
@@ -165,6 +166,7 @@ None.
 |========================================
 |Rev|Date|Author|Changes
 |1|2020-03-16|John Pennycook|*Initial public working draft*
+|2|2020-07-28|John Pennycook|*Add group barrier*
 |========================================
 
 //************************************************************************
