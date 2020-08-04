@@ -45,8 +45,8 @@ struct SCWrapper {
       : SC1(p.set_spec_constant<class sc_name1, int>(4)),
         SC2(p.set_spec_constant<class sc_name2, int>(2)) {}
 
-  cl::sycl::experimental::spec_constant<int, class sc_name1> SC1;
-  cl::sycl::experimental::spec_constant<int, class sc_name2> SC2;
+  cl::sycl::ONEAPI::experimental::spec_constant<int, class sc_name1> SC1;
+  cl::sycl::ONEAPI::experimental::spec_constant<int, class sc_name2> SC2;
 };
 
 int main(int argc, char **argv) {
