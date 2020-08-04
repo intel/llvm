@@ -38,6 +38,7 @@
 #define LLVM_IR_PASSMANAGER_H
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/TinyPtrVector.h"
@@ -510,10 +511,6 @@ public:
       if (!PI.runBeforePass<IRUnitT>(*P, IR))
         continue;
 
-      if (DebugLogging)
-        dbgs() << "Running pass: " << P->name() << " on " << IR.getName()
-               << "\n";
-
       PreservedAnalyses PassPA;
       {
         TimeTraceScope TimeScope(P->name(), IR.getName());
@@ -651,7 +648,7 @@ public:
   /// when any of its embedded analysis results end up invalidated. We pass an
   /// \c Invalidator object as an argument to \c invalidate() in order to let
   /// the analysis results themselves define the dependency graph on the fly.
-  /// This lets us avoid building building an explicit representation of the
+  /// This lets us avoid building an explicit representation of the
   /// dependencies between analysis results.
   class Invalidator {
   public:
@@ -846,7 +843,7 @@ public:
     return true;
   }
 
-  /// Invalidate a specific analysis pass for an IR module.
+  /// Invalidate a specific analysis pass for an IR unit.
   ///
   /// Note that the analysis result can disregard invalidation, if it determines
   /// it is in fact still valid.
@@ -890,7 +887,7 @@ private:
     return RI == AnalysisResults.end() ? nullptr : &*RI->second->second;
   }
 
-  /// Invalidate a function pass result.
+  /// Invalidate a pass result for a IR unit.
   void invalidateImpl(AnalysisKey *ID, IRUnitT &IR) {
     typename AnalysisResultMapT::iterator RI =
         AnalysisResults.find({ID, &IR});
@@ -904,20 +901,20 @@ private:
     AnalysisResults.erase(RI);
   }
 
-  /// Map type from module analysis pass ID to pass concept pointer.
+  /// Map type from analysis pass ID to pass concept pointer.
   using AnalysisPassMapT =
       DenseMap<AnalysisKey *, std::unique_ptr<PassConceptT>>;
 
-  /// Collection of module analysis passes, indexed by ID.
+  /// Collection of analysis passes, indexed by ID.
   AnalysisPassMapT AnalysisPasses;
 
-  /// Map from function to a list of function analysis results.
+  /// Map from IR unit to a list of analysis results.
   ///
-  /// Provides linear time removal of all analysis results for a function and
+  /// Provides linear time removal of all analysis results for a IR unit and
   /// the ultimate storage for a particular cached analysis result.
   AnalysisResultListMapT AnalysisResultLists;
 
-  /// Map from an analysis ID and function to a particular cached
+  /// Map from an analysis ID and IR unit to a particular cached
   /// analysis result.
   AnalysisResultMapT AnalysisResults;
 
@@ -1141,9 +1138,7 @@ public:
       // analyses that all trigger invalidation on the same outer analysis,
       // this entire system should be changed to some other deterministic
       // data structure such as a `SetVector` of a pair of pointers.
-      auto InvalidatedIt = std::find(InvalidatedIDList.begin(),
-                                     InvalidatedIDList.end(), InvalidatedID);
-      if (InvalidatedIt == InvalidatedIDList.end())
+      if (!llvm::is_contained(InvalidatedIDList, InvalidatedID))
         InvalidatedIDList.push_back(InvalidatedID);
     }
 

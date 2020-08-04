@@ -1,8 +1,8 @@
-; RUN: extract order %s -o %t.order
-; RUN: extract ir %s | llvm-as -o %t.o
+; RUN: split-file %s %t
+; RUN: llvm-as %t/a.ll -o %t.o
 ; RUN: %gold -plugin %llvmshlibdir/LLVMgold%shlibext \
 ; RUN:     -m elf_x86_64 -o %t.exe %t.o \
-; RUN:     --section-ordering-file=%t.order
+; RUN:     --section-ordering-file=%t/order
 ; RUN: llvm-readelf -s %t.exe | FileCheck %s
 
 ; Check that the order of the sections is tin -> _start -> pat.
@@ -16,7 +16,7 @@
 .text._start
 .text.pat
 
-;--- ir
+;--- a.ll
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 

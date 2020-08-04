@@ -2382,11 +2382,19 @@ multiclass sve_int_bin_pred_arit_0<bits<3> opc, string asm, string Ps,
   def : SVE_3_Op_Pat<nxv2i64, op, nxv2i1, nxv2i64, nxv2i64, !cast<Instruction>(NAME # _D)>;
 }
 
-multiclass sve_int_bin_pred_arit_1<bits<3> opc, string asm, SDPatternOperator op> {
-  def _B : sve_int_bin_pred_arit_log<0b00, 0b01, opc, asm, ZPR8>;
-  def _H : sve_int_bin_pred_arit_log<0b01, 0b01, opc, asm, ZPR16>;
-  def _S : sve_int_bin_pred_arit_log<0b10, 0b01, opc, asm, ZPR32>;
-  def _D : sve_int_bin_pred_arit_log<0b11, 0b01, opc, asm, ZPR64>;
+multiclass sve_int_bin_pred_arit_1<bits<3> opc, string asm, string Ps,
+                                   SDPatternOperator op,
+                                   DestructiveInstTypeEnum flags> {
+  let DestructiveInstType = flags in {
+  def _B : sve_int_bin_pred_arit_log<0b00, 0b01, opc, asm, ZPR8>,
+             SVEPseudo2Instr<Ps # _B, 1>;
+  def _H : sve_int_bin_pred_arit_log<0b01, 0b01, opc, asm, ZPR16>,
+             SVEPseudo2Instr<Ps # _H, 1>;
+  def _S : sve_int_bin_pred_arit_log<0b10, 0b01, opc, asm, ZPR32>,
+             SVEPseudo2Instr<Ps # _S, 1>;
+  def _D : sve_int_bin_pred_arit_log<0b11, 0b01, opc, asm, ZPR64>,
+             SVEPseudo2Instr<Ps # _D, 1>;
+  }
 
   def : SVE_3_Op_Pat<nxv16i8, op, nxv16i1, nxv16i8, nxv16i8, !cast<Instruction>(NAME # _B)>;
   def : SVE_3_Op_Pat<nxv8i16, op, nxv8i1, nxv8i16, nxv8i16, !cast<Instruction>(NAME # _H)>;
@@ -7728,9 +7736,13 @@ multiclass sve_mem_ldor_si<bits<2> sz, string asm, RegisterOperand listty,
                   (!cast<Instruction>(NAME) zprty:$Zt, PPR3bAny:$Pg, GPR64sp:$Rn, simm4s32:$imm4), 0>;
 
   // Base addressing mode
-  def : Pat<(Ty (Ld1ro (PredTy PPR3bAny:$gp), GPR64sp:$base)),
-            (!cast<Instruction>(NAME) PPR3bAny:$gp, GPR64sp:$base, (i64 0))>;
-
+  def : Pat<(Ty (Ld1ro (PredTy PPR3bAny:$Pg), GPR64sp:$base)),
+            (!cast<Instruction>(NAME) PPR3bAny:$Pg, GPR64sp:$base, (i64 0))>;
+  let AddedComplexity = 2 in {
+    // Reg + Imm addressing mode
+    def : Pat<(Ty (Ld1ro (PredTy PPR3bAny:$Pg), (add GPR64:$base, (i64 simm4s32:$imm)))),
+              (!cast<Instruction>(NAME) $Pg, $base, simm4s32:$imm)>;
+  }
 }
 
 class sve_mem_ldor_ss<bits<2> sz, string asm, RegisterOperand VecList,

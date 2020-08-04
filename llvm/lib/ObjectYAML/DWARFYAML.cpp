@@ -17,16 +17,16 @@
 namespace llvm {
 
 bool DWARFYAML::Data::isEmpty() const {
-  return DebugStrings.empty() && AbbrevDecls.empty() && ARanges.empty() &&
+  return DebugStrings.empty() && AbbrevDecls.empty() && DebugAranges &&
          DebugRanges.empty() && !PubNames && !PubTypes && !GNUPubNames &&
          !GNUPubTypes && CompileUnits.empty() && DebugLines.empty();
 }
 
-SetVector<StringRef> DWARFYAML::Data::getUsedSectionNames() const {
+SetVector<StringRef> DWARFYAML::Data::getNonEmptySectionNames() const {
   SetVector<StringRef> SecNames;
   if (!DebugStrings.empty())
     SecNames.insert("debug_str");
-  if (!ARanges.empty())
+  if (DebugAranges)
     SecNames.insert("debug_aranges");
   if (!DebugRanges.empty())
     SecNames.insert("debug_ranges");
@@ -50,6 +50,8 @@ SetVector<StringRef> DWARFYAML::Data::getUsedSectionNames() const {
     SecNames.insert("debug_str_offsets");
   if (DebugRnglists)
     SecNames.insert("debug_rnglists");
+  if (DebugLoclists)
+    SecNames.insert("debug_loclists");
   return SecNames;
 }
 
@@ -61,8 +63,7 @@ void MappingTraits<DWARFYAML::Data>::mapping(IO &IO, DWARFYAML::Data &DWARF) {
   IO.setContext(&DWARFCtx);
   IO.mapOptional("debug_str", DWARF.DebugStrings);
   IO.mapOptional("debug_abbrev", DWARF.AbbrevDecls);
-  if (!DWARF.ARanges.empty() || !IO.outputting())
-    IO.mapOptional("debug_aranges", DWARF.ARanges);
+  IO.mapOptional("debug_aranges", DWARF.DebugAranges);
   if (!DWARF.DebugRanges.empty() || !IO.outputting())
     IO.mapOptional("debug_ranges", DWARF.DebugRanges);
   IO.mapOptional("debug_pubnames", DWARF.PubNames);
@@ -75,6 +76,7 @@ void MappingTraits<DWARFYAML::Data>::mapping(IO &IO, DWARFYAML::Data &DWARF) {
   IO.mapOptional("debug_addr", DWARF.DebugAddr);
   IO.mapOptional("debug_str_offsets", DWARF.DebugStrOffsets);
   IO.mapOptional("debug_rnglists", DWARF.DebugRnglists);
+  IO.mapOptional("debug_loclists", DWARF.DebugLoclists);
   IO.setContext(OldContext);
 }
 
@@ -103,12 +105,12 @@ void MappingTraits<DWARFYAML::ARangeDescriptor>::mapping(
 void MappingTraits<DWARFYAML::ARange>::mapping(IO &IO,
                                                DWARFYAML::ARange &ARange) {
   IO.mapOptional("Format", ARange.Format, dwarf::DWARF32);
-  IO.mapRequired("Length", ARange.Length);
+  IO.mapOptional("Length", ARange.Length);
   IO.mapRequired("Version", ARange.Version);
   IO.mapRequired("CuOffset", ARange.CuOffset);
-  IO.mapRequired("AddrSize", ARange.AddrSize);
-  IO.mapRequired("SegSize", ARange.SegSize);
-  IO.mapRequired("Descriptors", ARange.Descriptors);
+  IO.mapOptional("AddressSize", ARange.AddrSize);
+  IO.mapOptional("SegmentSelectorSize", ARange.SegSize, 0);
+  IO.mapOptional("Descriptors", ARange.Descriptors);
 }
 
 void MappingTraits<DWARFYAML::RangeEntry>::mapping(
@@ -236,16 +238,39 @@ void MappingTraits<DWARFYAML::StringOffsetsTable>::mapping(
   IO.mapOptional("Offsets", StrOffsetsTable.Offsets);
 }
 
+void MappingTraits<DWARFYAML::DWARFOperation>::mapping(
+    IO &IO, DWARFYAML::DWARFOperation &DWARFOperation) {
+  IO.mapRequired("Operator", DWARFOperation.Operator);
+  IO.mapOptional("Values", DWARFOperation.Values);
+}
+
 void MappingTraits<DWARFYAML::RnglistEntry>::mapping(
     IO &IO, DWARFYAML::RnglistEntry &RnglistEntry) {
   IO.mapRequired("Operator", RnglistEntry.Operator);
   IO.mapOptional("Values", RnglistEntry.Values);
 }
 
+void MappingTraits<DWARFYAML::LoclistEntry>::mapping(
+    IO &IO, DWARFYAML::LoclistEntry &LoclistEntry) {
+  IO.mapRequired("Operator", LoclistEntry.Operator);
+  IO.mapOptional("Values", LoclistEntry.Values);
+  IO.mapOptional("DescriptionsLength", LoclistEntry.DescriptionsLength);
+  IO.mapOptional("Descriptions", LoclistEntry.Descriptions);
+}
+
 template <typename EntryType>
 void MappingTraits<DWARFYAML::ListEntries<EntryType>>::mapping(
     IO &IO, DWARFYAML::ListEntries<EntryType> &ListEntries) {
   IO.mapOptional("Entries", ListEntries.Entries);
+  IO.mapOptional("Content", ListEntries.Content);
+}
+
+template <typename EntryType>
+StringRef MappingTraits<DWARFYAML::ListEntries<EntryType>>::validate(
+    IO &IO, DWARFYAML::ListEntries<EntryType> &ListEntries) {
+  if (ListEntries.Entries && ListEntries.Content)
+    return "Entries and Content can't be used together";
+  return StringRef();
 }
 
 template <typename EntryType>

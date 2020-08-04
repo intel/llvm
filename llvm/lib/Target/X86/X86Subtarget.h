@@ -468,9 +468,6 @@ class X86Subtarget final : public X86GenSubtargetInfo {
   /// Indicates target prefers AVX512 mask registers.
   bool PreferMaskRegisters = false;
 
-  /// Threeway branch is profitable in this subtarget.
-  bool ThreewayBranchProfitable = false;
-
   /// Use Goldmont specific floating point div/sqrt costs.
   bool UseGLMDivSqrtCosts = false;
 
@@ -498,17 +495,13 @@ private:
   unsigned RequiredVectorWidth;
 
   /// True if compiling for 64-bit, false for 16-bit or 32-bit.
-  bool In64BitMode;
+  bool In64BitMode = false;
 
   /// True if compiling for 32-bit, false for 16-bit or 64-bit.
-  bool In32BitMode;
+  bool In32BitMode = false;
 
   /// True if compiling for 16-bit, false for 32-bit or 64-bit.
-  bool In16BitMode;
-
-  /// Contains the Overhead of gather\scatter instructions
-  int GatherOverhead = 1024;
-  int ScatterOverhead = 1024;
+  bool In16BitMode = false;
 
   X86SelectionDAGInfo TSInfo;
   // Ordering here is important. X86InstrInfo initializes X86RegisterInfo which
@@ -678,8 +671,6 @@ public:
   bool isPMADDWDSlow() const { return IsPMADDWDSlow; }
   bool isUnalignedMem16Slow() const { return IsUAMem16Slow; }
   bool isUnalignedMem32Slow() const { return IsUAMem32Slow; }
-  int getGatherOverhead() const { return GatherOverhead; }
-  int getScatterOverhead() const { return ScatterOverhead; }
   bool hasSSEUnalignedMem() const { return HasSSEUnalignedMem; }
   bool hasCmpxchg16b() const { return HasCmpxchg16b && is64Bit(); }
   bool useLeaForSP() const { return UseLeaForSP; }
@@ -729,7 +720,6 @@ public:
   bool hasWAITPKG() const { return HasWAITPKG; }
   bool hasPCONFIG() const { return HasPCONFIG; }
   bool hasSGX() const { return HasSGX; }
-  bool threewayBranchProfitable() const { return ThreewayBranchProfitable; }
   bool hasINVPCID() const { return HasINVPCID; }
   bool hasENQCMD() const { return HasENQCMD; }
   bool hasSERIALIZE() const { return HasSERIALIZE; }
@@ -786,8 +776,6 @@ public:
   }
 
   bool isXRaySupported() const override { return is64Bit(); }
-
-  X86ProcFamilyEnum getProcFamily() const { return X86ProcFamily; }
 
   /// TODO: to be removed later and replaced with suitable properties
   bool isAtom() const { return X86ProcFamily == IntelAtom; }

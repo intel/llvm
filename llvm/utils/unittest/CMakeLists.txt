@@ -19,9 +19,7 @@ include_directories(
   googlemock
   )
 
-# LLVM requires C++11 but gtest doesn't correctly detect the availability
-# of C++11 on MSVC, so we force it on.
-add_definitions(-DGTEST_LANG_CXX11=1)
+# Gtest 1.8.0 uses tr1/tuple which is deprecated on MSVC, so we force it off.
 add_definitions(-DGTEST_HAS_TR1_TUPLE=0)
 
 if(WIN32)
@@ -42,9 +40,6 @@ if(SUPPORTS_GNU_ZERO_VARIADIC_MACRO_ARGUMENTS_FLAG)
 endif()
 if(CXX_SUPPORTS_COVERED_SWITCH_DEFAULT_FLAG)
   add_definitions("-Wno-covered-switch-default")
-endif()
-if(CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG)
-  add_definitions("-Wno-suggest-override")
 endif()
 
 set(LLVM_REQUIRES_RTTI 1)
@@ -72,6 +67,14 @@ add_llvm_library(gtest
   # This is a library meant only for the build tree.
   BUILDTREE_ONLY
 )
+
+# The googletest and googlemock sources don't presently use the 'override'
+# keyword, which leads to lots of warnings from -Wsuggest-override. Disable
+# that warning here for any targets that link to gtest.
+if(CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG)
+  add_definitions("-Wno-suggest-override")
+  set_target_properties(gtest PROPERTIES INTERFACE_COMPILE_OPTIONS "-Wno-suggest-override")
+endif()
 
 add_subdirectory(UnitTestMain)
 

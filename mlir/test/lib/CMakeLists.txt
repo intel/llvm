@@ -1,6 +1,6 @@
-add_subdirectory(DeclarativeTransforms)
 add_subdirectory(Dialect)
 add_subdirectory(IR)
 add_subdirectory(Pass)
 add_subdirectory(Reducer)
+add_subdirectory(Target)
 add_subdirectory(Transforms)

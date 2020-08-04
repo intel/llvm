@@ -72,7 +72,7 @@ enum NodeType : unsigned {
   ADC,
   SBC, // adc, sbc instructions
 
-  // Arithmetic instructions
+  // Predicated instructions where inactive lanes produce undefined results.
   ADD_PRED,
   FADD_PRED,
   FDIV_PRED,
@@ -80,14 +80,14 @@ enum NodeType : unsigned {
   FMUL_PRED,
   FSUB_PRED,
   SDIV_PRED,
+  SHL_PRED,
+  SMAX_PRED,
+  SMIN_PRED,
+  SRA_PRED,
+  SRL_PRED,
   UDIV_PRED,
-  SMIN_MERGE_OP1,
-  UMIN_MERGE_OP1,
-  SMAX_MERGE_OP1,
-  UMAX_MERGE_OP1,
-  SHL_MERGE_OP1,
-  SRL_MERGE_OP1,
-  SRA_MERGE_OP1,
+  UMAX_PRED,
+  UMIN_PRED,
 
   SETCC_MERGE_ZERO,
 
@@ -461,12 +461,6 @@ public:
   const char *getTargetNodeName(unsigned Opcode) const override;
 
   SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
-
-  /// Returns true if a cast between SrcAS and DestAS is a noop.
-  bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override {
-    // Addrspacecasts are always noops.
-    return true;
-  }
 
   /// This method returns a target specific FastISel object, or null if the
   /// target does not support "fast" ISel.

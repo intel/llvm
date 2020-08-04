@@ -20,6 +20,7 @@
 #include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Support/LLVM.h"
+#include "mlir/Target/LLVMIR/TypeTranslation.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 #include "llvm/ADT/SetVector.h"
@@ -399,13 +400,13 @@ ModuleTranslation::convertOmpParallel(Operation &opInst,
     llvm::Instruction *codeGenIPBBTI = codeGenIPBB->getTerminator();
 
     builder.SetInsertPoint(codeGenIPBB);
-
-    for (auto &region : opInst.getRegions()) {
-      for (auto &bb : region) {
-        auto *llvmBB = llvm::BasicBlock::Create(
-            llvmContext, "omp.par.region", codeGenIP.getBlock()->getParent());
-        blockMapping[&bb] = llvmBB;
-      }
+    // ParallelOp has only `1` region associated with it.
+    auto &region = cast<omp::ParallelOp>(opInst).getRegion();
+    for (auto &bb : region) {
+      auto *llvmBB = llvm::BasicBlock::Create(
+          llvmContext, "omp.par.region", codeGenIP.getBlock()->getParent());
+      blockMapping[&bb] = llvmBB;
+    }
 
       // Then, convert blocks one by one in topological order to ensure
       // defs are converted before uses.
@@ -433,7 +434,6 @@ ModuleTranslation::convertOmpParallel(Operation &opInst,
       // Finally, after all blocks have been traversed and values mapped,
       // connect the PHI nodes to the results of preceding blocks.
       connectPHINodes(region, valueMapping, blockMapping);
-    }
   };
 
   // TODO: Perform appropriate actions according to the data-sharing
@@ -456,8 +456,12 @@ ModuleTranslation::convertOmpParallel(Operation &opInst,
   llvm::Value *ifCond = nullptr;
   llvm::Value *numThreads = nullptr;
   bool isCancellable = false;
+  // TODO: Determine the actual alloca insertion point, e.g., the function
+  // entry or the alloca insertion point as provided by the body callback
+  // above.
+  llvm::OpenMPIRBuilder::InsertPointTy allocaIP(builder.saveIP());
   builder.restoreIP(ompBuilder->CreateParallel(
-      builder, bodyGenCB, privCB, finiCB, ifCond, numThreads,
+      builder, allocaIP, bodyGenCB, privCB, finiCB, ifCond, numThreads,
       llvm::omp::OMP_PROC_BIND_default, isCancellable));
   return success();
 }
@@ -574,7 +578,7 @@ LogicalResult ModuleTranslation::convertOperation(Operation &opInst,
   }
 
   if (auto lpOp = dyn_cast<LLVM::LandingpadOp>(opInst)) {
-    llvm::Type *ty = lpOp.getType().dyn_cast<LLVMType>().getUnderlyingType();
+    llvm::Type *ty = convertType(lpOp.getType().cast<LLVMType>());
     llvm::LandingPadInst *lpi =
         builder.CreateLandingPad(ty, lpOp.getNumOperands());
 
@@ -661,7 +665,7 @@ LogicalResult ModuleTranslation::convertBlock(Block &bb, bool ignoreArguments) {
       if (!wrappedType)
         return emitError(bb.front().getLoc(),
                          "block argument does not have an LLVM type");
-      llvm::Type *type = wrappedType.getUnderlyingType();
+      llvm::Type *type = convertType(wrappedType);
       llvm::PHINode *phi = builder.CreatePHI(type, numPredecessors);
       valueMapping[arg] = phi;
     }
@@ -687,7 +691,7 @@ LogicalResult ModuleTranslation::convertGlobals() {
   llvm::sys::SmartScopedLock<true> scopedLock(
       llvmDialect->getLLVMContextMutex());
   for (auto op : getModuleBody(mlirModule).getOps<LLVM::GlobalOp>()) {
-    llvm::Type *type = op.getType().getUnderlyingType();
+    llvm::Type *type = convertType(op.getType());
     llvm::Constant *cst = llvm::UndefValue::get(type);
     if (op.getValueOrNull()) {
       // String attributes are treated separately because they cannot appear as
@@ -826,7 +830,7 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
       // NB: Attribute already verified to be boolean, so check if we can indeed
       // attach the attribute to this argument, based on its type.
       auto argTy = mlirArg.getType().dyn_cast<LLVM::LLVMType>();
-      if (!argTy.getUnderlyingType()->isPointerTy())
+      if (!argTy.isPointerTy())
         return func.emitError(
             "llvm.noalias attribute attached to LLVM non-pointer argument");
       if (attr.getValue())
@@ -837,7 +841,7 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
       // NB: Attribute already verified to be int, so check if we can indeed
       // attach the attribute to this argument, based on its type.
       auto argTy = mlirArg.getType().dyn_cast<LLVM::LLVMType>();
-      if (!argTy.getUnderlyingType()->isPointerTy())
+      if (!argTy.isPointerTy())
         return func.emitError(
             "llvm.align attribute attached to LLVM non-pointer argument");
       llvmArg.addAttrs(
@@ -896,7 +900,7 @@ LogicalResult ModuleTranslation::convertFunctionSignatures() {
   for (auto function : getModuleBody(mlirModule).getOps<LLVMFuncOp>()) {
     llvm::FunctionCallee llvmFuncCst = llvmModule->getOrInsertFunction(
         function.getName(),
-        cast<llvm::FunctionType>(function.getType().getUnderlyingType()));
+        cast<llvm::FunctionType>(convertType(function.getType())));
     llvm::Function *llvmFunc = cast<llvm::Function>(llvmFuncCst.getCallee());
     llvmFunc->setLinkage(convertLinkageToLLVM(function.linkage()));
     functionMapping[function.getName()] = llvmFunc;
@@ -926,6 +930,12 @@ LogicalResult ModuleTranslation::convertFunctions() {
   }
 
   return success();
+}
+
+llvm::Type *ModuleTranslation::convertType(LLVMType type) {
+  // Lock the LLVM context as we create types in it.
+  llvm::sys::SmartScopedLock<true> lock(llvmDialect->getLLVMContextMutex());
+  return LLVM::translateTypeToLLVMIR(type, llvmDialect->getLLVMContext());
 }
 
 /// A helper to look up remapped operands in the value remapping table.`
