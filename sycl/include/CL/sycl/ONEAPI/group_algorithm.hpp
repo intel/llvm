@@ -81,11 +81,11 @@ template <> inline id<3> linear_id_to_id(range<3> r, size_t linear_id) {
 
 // TODO: Replace with Group::fence_scope from SYCL 2020 provisional
 template <typename Group> struct FenceScope {
-  static constexpr intel::memory_scope value = intel::memory_scope::work_group;
+  static constexpr ONEAPI::memory_scope value = ONEAPI::memory_scope::work_group;
 };
 
-template <> struct FenceScope<intel::sub_group> {
-  static constexpr intel::memory_scope value = intel::memory_scope::sub_group;
+template <> struct FenceScope<ONEAPI::sub_group> {
+  static constexpr ONEAPI::memory_scope value = ONEAPI::memory_scope::sub_group;
 };
 
 template <typename T, class BinaryOperation> struct identity {};
