@@ -69,7 +69,7 @@ constexpr unsigned int ElemsPerAddrEncoding() {
 //
 // TODO @keryell
 // {quote}
-// An approach à la https ://github.com/chriskohlhoff/propria from
+// An approach a la https ://github.com/chriskohlhoff/propria from
 // @chriskohlhoff would be to add a property to the pointer, such as
 //
 //    auto result = flat_load(p, offsets);
