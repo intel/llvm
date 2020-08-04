@@ -2366,18 +2366,20 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   case PI_PROFILING_INFO_COMMAND_START: {
     ze_kernel_timestamp_result_t* tsResult = nullptr;
     ZE_CALL(zeCommandListAppendQueryKernelTimestamps(
-       Event->ZeCommandList, 1, &(Event->ZeEvent), tsResult, nullptr, nullptr, 1, &(Event->ZeEvent)));
+       Event->ZeCommandList, 1, &(Event->ZeEvent), tsResult, nullptr, nullptr,
+       1, &(Event->ZeEvent)));
     return ReturnValue(*tsResult);
   }
   case PI_PROFILING_INFO_COMMAND_END: {
     ze_kernel_timestamp_result_t* tsResult = nullptr;
     ZE_CALL(zeCommandListAppendQueryKernelTimestamps(
-        Event->ZeCommandList, 1, &(Event->ZeEvent), tsResult, nullptr, nullptr, 1, &(Event->ZeEvent)));
+        Event->ZeCommandList, 1, &(Event->ZeEvent), tsResult, nullptr, nullptr,
+        1, &(Event->ZeEvent)));
     return ReturnValue(*tsResult);
   }
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
-    uint64_t* tsResult;
+    uint64_t *tsResult;
     ZE_CALL(zeCommandListAppendWriteGlobalTimestamp(
         Event->ZeCommandList, tsResult, nullptr, 1, &(Event->ZeEvent)));
     return ReturnValue(*tsResult);
