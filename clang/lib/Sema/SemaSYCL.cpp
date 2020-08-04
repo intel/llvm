@@ -707,7 +707,39 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
 
 static const CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
   assert(Caller->getNumParams() > 0 && "Insufficient kernel parameters");
-  return Caller->getParamDecl(0)->getType()->getAsCXXRecordDecl();
+  
+  QualType KernelParamTy = (*Caller->param_begin())->getType();
+  // In SYCL 2020 kernels are now passed by reference.
+  if (KernelParamTy->isReferenceType())
+    return KernelParamTy->getPointeeCXXRecordDecl();
+
+  // SYCL 1.2.1
+  return KernelParamTy->getAsCXXRecordDecl();
+}
+
+static void checkKernelAndCaller(Sema &SemaRef, FunctionDecl *Caller,
+                                 const CXXRecordDecl *KernelObj) {
+  // check captures
+  if (KernelObj->isLambda()) {
+    for (const LambdaCapture &LC : KernelObj->captures())
+      if (LC.capturesThis() && LC.isImplicit())
+        SemaRef.Diag(LC.getLocation(), diag::err_implicit_this_capture);
+  }
+
+  // check that calling kernel conforms to spec
+  assert(Caller->param_size() >= 1 && "missing kernel function argument.");
+  QualType KernelParamTy = (*Caller->param_begin())->getType();
+  if (KernelParamTy->isReferenceType()) {
+    // passing by reference, so emit warning if not using SYCL 2020
+    if (SemaRef.LangOpts.SYCLVersion < 2020)
+      SemaRef.Diag(Caller->getLocation(),
+                   diag::warn_sycl_pass_by_reference_future);
+  } else {
+    // passing by value.  emit warning if using SYCL 2020 or greater
+    if (SemaRef.LangOpts.SYCLVersion > 2017)
+      SemaRef.Diag(Caller->getLocation(),
+                   diag::warn_sycl_pass_by_value_deprecated);
+  }
 }
 
 /// Creates a kernel parameter descriptor
@@ -2284,6 +2316,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   // The first argument to the KernelCallerFunc is the lambda object.
   const CXXRecordDecl *KernelObj = getKernelObjectType(KernelCallerFunc);
   assert(KernelObj && "invalid kernel caller");
+  checkKernelAndCaller(*this, KernelCallerFunc, KernelObj);
 
   // Calculate both names, since Integration headers need both.
   std::string CalculatedName, StableName;
