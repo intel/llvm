@@ -37,7 +37,6 @@ int main() {
   constexpr auto dev_type = info::device_type::gpu;
   auto devices = device::get_devices(dev_type);
 
-#ifdef __linux__
   int startSize = get_cpu_mem();
   std::cout << startSize << " kb" << std::endl;
 
@@ -46,12 +45,6 @@ int main() {
   }
   int endSize = get_cpu_mem();
   std::cout << endSize << " kb" << std::endl;
-#else
-  for (int i = 0; i < 1000; i++) {
-    devices = cl::sycl::device::get_devices(dev_type);
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  }
-#endif
 
   auto plat = devices[0].get_platform();
   std::string plat_name = plat.get_info<info::platform::name>();
