@@ -41,6 +41,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO.h"
@@ -53,6 +54,11 @@
 using namespace llvm;
 
 #define DEBUG_TYPE "deadargelim"
+
+static cl::opt<std::string>
+    IntegrationHeaderFileName("integr-header-file",
+                              cl::desc("Path to integration header file"),
+                              cl::value_desc("filename"), cl::Hidden);
 
 STATISTIC(NumArgumentsEliminated, "Number of unread args removed");
 STATISTIC(NumRetValsEliminated  , "Number of unused return values removed");
@@ -77,13 +83,15 @@ namespace {
     bool runOnModule(Module &M) override {
       if (skipModule(M))
         return false;
-      DeadArgumentEliminationPass DAEP(ShouldHackArguments());
+      DeadArgumentEliminationPass DAEP(ShouldHackArguments(),
+                                       CheckSpirKernels());
       ModuleAnalysisManager DummyMAM;
       PreservedAnalyses PA = DAEP.run(M, DummyMAM);
       return !PA.areAllPreserved();
     }
 
     virtual bool ShouldHackArguments() const { return false; }
+    virtual bool CheckSpirKernels() const { return false; }
   };
 
 } // end anonymous namespace
@@ -103,6 +111,7 @@ namespace {
     DAH() : DAE(ID) {}
 
     bool ShouldHackArguments() const override { return true; }
+    bool CheckSpirKernels() const override { return false; }
   };
 
 } // end anonymous namespace
@@ -113,11 +122,41 @@ INITIALIZE_PASS(DAH, "deadarghaX0r",
                 "Dead Argument Hacking (BUGPOINT USE ONLY; DO NOT USE)",
                 false, false)
 
+namespace {
+
+/// DAESYCL - DeadArgumentElimination pass for SPIR kernel functions even
+///           if they are external.
+struct DAESYCL : public DAE {
+  static char ID;
+
+  DAESYCL() : DAE(ID) {
+    initializeDAESYCLPass(*PassRegistry::getPassRegistry());
+  }
+
+  StringRef getPassName() const override {
+    return "Dead Argument Elimination for SPIR kernels in SYCL environment";
+  }
+
+  bool ShouldHackArguments() const override { return false; }
+  bool CheckSpirKernels() const override { return true; }
+};
+
+} // end anonymous namespace
+
+char DAESYCL::ID = 0;
+
+INITIALIZE_PASS(
+    DAESYCL, "deadargelim-sycl",
+    "Dead Argument Elimination for SPIR kernels in SYCL environment", false,
+    false)
+
 /// createDeadArgEliminationPass - This pass removes arguments from functions
 /// which are not used by the body of the function.
 ModulePass *llvm::createDeadArgEliminationPass() { return new DAE(); }
 
 ModulePass *llvm::createDeadArgHackingPass() { return new DAH(); }
+
+ModulePass *llvm::createDeadArgEliminationSYCLPass() { return new DAESYCL(); }
 
 /// DeleteDeadVarargs - If this is an function that takes a ... list, and if
 /// llvm.vastart is never called, the varargs list is dead for the function.
@@ -535,7 +574,14 @@ void DeadArgumentEliminationPass::SurveyFunction(const Function &F) {
                       << " has musttail calls\n");
   }
 
-  if (!F.hasLocalLinkage() && (!ShouldHackArguments || F.isIntrinsic())) {
+  // We can't modify arguments if the function is not local
+  // but we can do so for SPIR kernel function in SYCL environment.
+  bool FuncIsSpirKernel =
+      CheckSpirKernels &&
+      StringRef(F.getParent()->getTargetTriple()).contains("sycldevice") &&
+      F.getCallingConv() == CallingConv::SPIR_KERNEL;
+  bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSpirKernel;
+  if (FuncIsLive && (!ShouldHackArguments || F.isIntrinsic())) {
     MarkLive(F);
     return;
   }
@@ -714,6 +760,78 @@ void DeadArgumentEliminationPass::PropagateLiveness(const RetOrArg &RA) {
   Uses.erase(Begin, I);
 }
 
+// Update kernel arguments table inside the integration header.
+// For example:
+//   static constexpr const bool param_omit_table[] = {
+//     // OMIT_TABLE_BEGIN
+//     // kernel_name_1
+//     false, false,     // <= update to true if the argument is dead
+//     // kernel_name_2
+//     false, false,
+//     // OMIT_TABLE_END
+//   };
+//   TODO: batch changes to multiple SPIR kernels and do one bulk update.
+constexpr StringLiteral OMIT_TABLE_BEGIN("// OMIT_TABLE_BEGIN");
+constexpr StringLiteral OMIT_TABLE_END("// OMIT_TABLE_END");
+static void updateIntegrationHeader(StringRef SpirKernelName,
+                                    const ArrayRef<bool> &ArgAlive) {
+  ErrorOr<std::unique_ptr<MemoryBuffer>> IntHeaderBuffer =
+      MemoryBuffer::getFile(IntegrationHeaderFileName);
+
+  if (!IntHeaderBuffer)
+    report_fatal_error("unable to read integration header file '" +
+                       IntegrationHeaderFileName +
+                       "': " + IntHeaderBuffer.getError().message());
+
+  // 1. Find the region between OMIT_TABLE_BEGIN and OMIT_TABLE_END
+  StringRef IntHeader((*IntHeaderBuffer)->getBuffer());
+  if (!IntHeader.contains(OMIT_TABLE_BEGIN))
+    report_fatal_error(OMIT_TABLE_BEGIN +
+                       " marker not found in integration header");
+  if (!IntHeader.contains(OMIT_TABLE_END))
+    report_fatal_error(OMIT_TABLE_END +
+                       " marker not found in integration header");
+
+  size_t BeginRegionPos =
+      IntHeader.find(OMIT_TABLE_BEGIN) + OMIT_TABLE_BEGIN.size();
+  size_t EndRegionPos = IntHeader.find(OMIT_TABLE_END);
+
+  StringRef OmitArgTable = IntHeader.slice(BeginRegionPos, EndRegionPos);
+
+  // 2. Find the line that corresponds to the SPIR kernel
+  if (!OmitArgTable.contains(SpirKernelName))
+    report_fatal_error(
+        "Argument table not found in integration header for function '" +
+        SpirKernelName + "'");
+
+  size_t BeginLinePos =
+      OmitArgTable.find(SpirKernelName) + SpirKernelName.size();
+  size_t EndLinePos = OmitArgTable.find("//", BeginLinePos);
+
+  StringRef OmitArgLine = OmitArgTable.slice(BeginLinePos, EndLinePos);
+
+  size_t LineLeftTrim = OmitArgLine.size() - OmitArgLine.ltrim().size();
+  size_t LineRightTrim = OmitArgLine.size() - OmitArgLine.rtrim().size();
+
+  // 3. Construct new file contents and replace only that string.
+  std::string NewIntHeader;
+  NewIntHeader +=
+      IntHeader.take_front(BeginRegionPos + BeginLinePos + LineLeftTrim);
+  for (auto &AliveArg : ArgAlive)
+    NewIntHeader += AliveArg ? "false, " : "true, ";
+  NewIntHeader += IntHeader.drop_front(BeginRegionPos + BeginLinePos +
+                                       OmitArgLine.size() - LineRightTrim);
+
+  // 4. Flush the string into the file.
+  std::error_code EC;
+  raw_fd_ostream File(IntegrationHeaderFileName, EC, sys::fs::F_Text);
+
+  if (EC)
+    report_fatal_error("Cannot open integration header for writing.");
+
+  File << NewIntHeader;
+}
+
 // RemoveDeadStuffFromFunction - Remove any arguments and return values from F
 // that are not in LiveValues. Transform the function and all of the callees of
 // the function to not have these arguments and return values.
@@ -756,6 +874,9 @@ bool DeadArgumentEliminationPass::RemoveDeadStuffFromFunction(Function *F) {
                         << F->getName() << "\n");
     }
   }
+
+  if (CheckSpirKernels)
+    updateIntegrationHeader(F->getName(), ArgAlive);
 
   // Find out the new return value.
   Type *RetTy = FTy->getReturnType();
@@ -1072,6 +1193,11 @@ bool DeadArgumentEliminationPass::RemoveDeadStuffFromFunction(Function *F) {
 
 PreservedAnalyses DeadArgumentEliminationPass::run(Module &M,
                                                    ModuleAnalysisManager &) {
+  // Integration header file must be provided for
+  // DAE to work on SPIR kernels.
+  if (CheckSpirKernels && !IntegrationHeaderFileName.getNumOccurrences())
+    return PreservedAnalyses::all();
+
   bool Changed = false;
 
   // First pass: Do a simple check to see if any functions can have their "..."

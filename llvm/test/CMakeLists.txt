@@ -53,7 +53,6 @@ set(LLVM_TEST_DEPENDS
           bugpoint
           count
           file-table-tform
-          extract
           llc
           lli
           lli-child-target

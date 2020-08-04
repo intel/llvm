@@ -1531,7 +1531,7 @@ void OCL20ToSPIRV::visitCallEnqueueKernel(CallInst *CI,
 
   // Invoke: Pointer to invoke function
   Value *BlockFunc = CI->getArgOperand(BlockFIdx);
-  Args.push_back(cast<Function>(GetUnderlyingObject(BlockFunc, DL)));
+  Args.push_back(cast<Function>(getUnderlyingObject(BlockFunc)));
 
   // Param: Pointer to block literal
   Value *BlockLiteral = CI->getArgOperand(BlockFIdx + 1);
@@ -1540,7 +1540,7 @@ void OCL20ToSPIRV::visitCallEnqueueKernel(CallInst *CI,
   // Param Size: Size of block literal structure
   // Param Aligment: Aligment of block literal structure
   // TODO: these numbers should be obtained from block literal structure
-  Type *ParamType = GetUnderlyingObject(BlockLiteral, DL)->getType();
+  Type *ParamType = getUnderlyingObject(BlockLiteral)->getType();
   if (PointerType *PT = dyn_cast<PointerType>(ParamType))
     ParamType = PT->getElementType();
   Args.push_back(getInt32(M, DL.getTypeStoreSize(ParamType)));
@@ -1584,13 +1584,13 @@ void OCL20ToSPIRV::visitCallKernelQuery(CallInst *CI, StringRef DemangledName) {
   const unsigned BlockFIdx = HasNDRange ? 1 : 0;
   Value *BlockFVal = CI->getArgOperand(BlockFIdx)->stripPointerCasts();
 
-  auto *BlockF = cast<Function>(GetUnderlyingObject(BlockFVal, DL));
+  auto *BlockF = cast<Function>(getUnderlyingObject(BlockFVal));
 
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInst(M, CI,
                  [=](CallInst *CI, std::vector<Value *> &Args) {
                    Value *Param = *Args.rbegin();
-                   Type *ParamType = GetUnderlyingObject(Param, DL)->getType();
+                   Type *ParamType = getUnderlyingObject(Param)->getType();
                    if (PointerType *PT = dyn_cast<PointerType>(ParamType)) {
                      ParamType = PT->getElementType();
                    }
