@@ -15,6 +15,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/ObjectYAML/DWARFYAML.h"
 #include "llvm/Support/Errc.h"
@@ -125,7 +126,8 @@ Error DWARFYAML::emitDebugAbbrev(raw_ostream &OS, const DWARFYAML::Data &DI) {
 }
 
 Error DWARFYAML::emitDebugAranges(raw_ostream &OS, const DWARFYAML::Data &DI) {
-  for (auto Range : DI.ARanges) {
+  assert(DI.DebugAranges && "unexpected emitDebugAranges() call");
+  for (auto Range : *DI.DebugAranges) {
     uint8_t AddrSize;
     if (Range.AddrSize)
       AddrSize = *Range.AddrSize;
@@ -209,9 +211,8 @@ Error DWARFYAML::emitDebugRanges(raw_ostream &OS, const DWARFYAML::Data &DI) {
   return Error::success();
 }
 
-Error DWARFYAML::emitPubSection(raw_ostream &OS,
-                                const DWARFYAML::PubSection &Sect,
-                                bool IsLittleEndian, bool IsGNUPubSec) {
+static Error emitPubSection(raw_ostream &OS, const DWARFYAML::PubSection &Sect,
+                            bool IsLittleEndian, bool IsGNUPubSec = false) {
   writeInitialLength(Sect.Length, OS, IsLittleEndian);
   writeInteger((uint16_t)Sect.Version, OS, IsLittleEndian);
   writeInteger((uint32_t)Sect.UnitOffset, OS, IsLittleEndian);
@@ -225,6 +226,28 @@ Error DWARFYAML::emitPubSection(raw_ostream &OS,
   }
 
   return Error::success();
+}
+
+Error DWARFYAML::emitDebugPubnames(raw_ostream &OS, const Data &DI) {
+  assert(DI.PubNames && "unexpected emitDebugPubnames() call");
+  return emitPubSection(OS, *DI.PubNames, DI.IsLittleEndian);
+}
+
+Error DWARFYAML::emitDebugPubtypes(raw_ostream &OS, const Data &DI) {
+  assert(DI.PubTypes && "unexpected emitDebugPubtypes() call");
+  return emitPubSection(OS, *DI.PubTypes, DI.IsLittleEndian);
+}
+
+Error DWARFYAML::emitDebugGNUPubnames(raw_ostream &OS, const Data &DI) {
+  assert(DI.GNUPubNames && "unexpected emitDebugGNUPubnames() call");
+  return emitPubSection(OS, *DI.GNUPubNames, DI.IsLittleEndian,
+                        /*IsGNUStyle=*/true);
+}
+
+Error DWARFYAML::emitDebugGNUPubtypes(raw_ostream &OS, const Data &DI) {
+  assert(DI.GNUPubTypes && "unexpected emitDebugGNUPubtypes() call");
+  return emitPubSection(OS, *DI.GNUPubTypes, DI.IsLittleEndian,
+                        /*IsGNUStyle=*/true);
 }
 
 static Expected<uint64_t> writeDIE(ArrayRef<DWARFYAML::Abbrev> AbbrevDecls,
@@ -588,6 +611,39 @@ static Error writeListEntryAddress(StringRef EncodingName, raw_ostream &OS,
   return Error::success();
 }
 
+static Expected<uint64_t>
+writeDWARFExpression(raw_ostream &OS,
+                     const DWARFYAML::DWARFOperation &Operation,
+                     uint8_t AddrSize, bool IsLittleEndian) {
+  auto CheckOperands = [&](uint64_t ExpectedOperands) -> Error {
+    return checkOperandCount(dwarf::OperationEncodingString(Operation.Operator),
+                             Operation.Values, ExpectedOperands);
+  };
+
+  uint64_t ExpressionBegin = OS.tell();
+  writeInteger((uint8_t)Operation.Operator, OS, IsLittleEndian);
+  switch (Operation.Operator) {
+  case dwarf::DW_OP_consts:
+    if (Error Err = CheckOperands(1))
+      return std::move(Err);
+    encodeSLEB128(Operation.Values[0], OS);
+    break;
+  case dwarf::DW_OP_stack_value:
+    if (Error Err = CheckOperands(0))
+      return std::move(Err);
+    break;
+  default:
+    StringRef EncodingStr = dwarf::OperationEncodingString(Operation.Operator);
+    return createStringError(errc::not_supported,
+                             "DWARF expression: " +
+                                 (EncodingStr.empty()
+                                      ? "0x" + utohexstr(Operation.Operator)
+                                      : EncodingStr) +
+                                 " is not supported");
+  }
+  return OS.tell() - ExpressionBegin;
+}
+
 static Expected<uint64_t> writeListEntry(raw_ostream &OS,
                                          const DWARFYAML::RnglistEntry &Entry,
                                          uint8_t AddrSize,
@@ -643,6 +699,103 @@ static Expected<uint64_t> writeListEntry(raw_ostream &OS,
     if (Error Err = WriteAddress(Entry.Values[0]))
       return std::move(Err);
     encodeULEB128(Entry.Values[1], OS);
+    break;
+  }
+
+  return OS.tell() - BeginOffset;
+}
+
+static Expected<uint64_t> writeListEntry(raw_ostream &OS,
+                                         const DWARFYAML::LoclistEntry &Entry,
+                                         uint8_t AddrSize,
+                                         bool IsLittleEndian) {
+  uint64_t BeginOffset = OS.tell();
+  writeInteger((uint8_t)Entry.Operator, OS, IsLittleEndian);
+
+  StringRef EncodingName = dwarf::LocListEncodingString(Entry.Operator);
+
+  auto CheckOperands = [&](uint64_t ExpectedOperands) -> Error {
+    return checkOperandCount(EncodingName, Entry.Values, ExpectedOperands);
+  };
+
+  auto WriteAddress = [&](uint64_t Addr) -> Error {
+    return writeListEntryAddress(EncodingName, OS, Addr, AddrSize,
+                                 IsLittleEndian);
+  };
+
+  auto WriteDWARFOperations = [&]() -> Error {
+    std::string OpBuffer;
+    raw_string_ostream OpBufferOS(OpBuffer);
+    uint64_t DescriptionsLength = 0;
+
+    for (const DWARFYAML::DWARFOperation &Op : Entry.Descriptions) {
+      if (Expected<uint64_t> OpSize =
+              writeDWARFExpression(OpBufferOS, Op, AddrSize, IsLittleEndian))
+        DescriptionsLength += *OpSize;
+      else
+        return OpSize.takeError();
+    }
+
+    if (Entry.DescriptionsLength)
+      DescriptionsLength = *Entry.DescriptionsLength;
+    else
+      DescriptionsLength = OpBuffer.size();
+
+    encodeULEB128(DescriptionsLength, OS);
+    OS.write(OpBuffer.data(), OpBuffer.size());
+
+    return Error::success();
+  };
+
+  switch (Entry.Operator) {
+  case dwarf::DW_LLE_end_of_list:
+    if (Error Err = CheckOperands(0))
+      return std::move(Err);
+    break;
+  case dwarf::DW_LLE_base_addressx:
+    if (Error Err = CheckOperands(1))
+      return std::move(Err);
+    encodeULEB128(Entry.Values[0], OS);
+    break;
+  case dwarf::DW_LLE_startx_endx:
+  case dwarf::DW_LLE_startx_length:
+  case dwarf::DW_LLE_offset_pair:
+    if (Error Err = CheckOperands(2))
+      return std::move(Err);
+    encodeULEB128(Entry.Values[0], OS);
+    encodeULEB128(Entry.Values[1], OS);
+    if (Error Err = WriteDWARFOperations())
+      return std::move(Err);
+    break;
+  case dwarf::DW_LLE_default_location:
+    if (Error Err = CheckOperands(0))
+      return std::move(Err);
+    if (Error Err = WriteDWARFOperations())
+      return std::move(Err);
+    break;
+  case dwarf::DW_LLE_base_address:
+    if (Error Err = CheckOperands(1))
+      return std::move(Err);
+    if (Error Err = WriteAddress(Entry.Values[0]))
+      return std::move(Err);
+    break;
+  case dwarf::DW_LLE_start_end:
+    if (Error Err = CheckOperands(2))
+      return std::move(Err);
+    if (Error Err = WriteAddress(Entry.Values[0]))
+      return std::move(Err);
+    cantFail(WriteAddress(Entry.Values[1]));
+    if (Error Err = WriteDWARFOperations())
+      return std::move(Err);
+    break;
+  case dwarf::DW_LLE_start_length:
+    if (Error Err = CheckOperands(2))
+      return std::move(Err);
+    if (Error Err = WriteAddress(Entry.Values[0]))
+      return std::move(Err);
+    encodeULEB128(Entry.Values[1], OS);
+    if (Error Err = WriteDWARFOperations())
+      return std::move(Err);
     break;
   }
 
@@ -726,7 +879,7 @@ Error writeDWARFLists(raw_ostream &OS,
       EmitOffsets(ArrayRef<uint64_t>((const uint64_t *)Table.Offsets->data(),
                                      Table.Offsets->size()),
                   0);
-    else
+    else if (OffsetEntryCount != 0)
       EmitOffsets(Offsets, OffsetsSize);
 
     OS.write(ListBuffer.data(), ListBuffer.size());
@@ -741,14 +894,47 @@ Error DWARFYAML::emitDebugRnglists(raw_ostream &OS, const Data &DI) {
       OS, *DI.DebugRnglists, DI.IsLittleEndian, DI.Is64BitAddrSize);
 }
 
-using EmitFuncType = Error (*)(raw_ostream &, const DWARFYAML::Data &);
+Error DWARFYAML::emitDebugLoclists(raw_ostream &OS, const Data &DI) {
+  assert(DI.DebugLoclists && "unexpected emitDebugRnglists() call");
+  return writeDWARFLists<DWARFYAML::LoclistEntry>(
+      OS, *DI.DebugLoclists, DI.IsLittleEndian, DI.Is64BitAddrSize);
+}
+
+std::function<Error(raw_ostream &, const DWARFYAML::Data &)>
+DWARFYAML::getDWARFEmitterByName(StringRef SecName) {
+  auto EmitFunc =
+      StringSwitch<
+          std::function<Error(raw_ostream &, const DWARFYAML::Data &)>>(SecName)
+          .Case("debug_abbrev", DWARFYAML::emitDebugAbbrev)
+          .Case("debug_addr", DWARFYAML::emitDebugAddr)
+          .Case("debug_aranges", DWARFYAML::emitDebugAranges)
+          .Case("debug_gnu_pubnames", DWARFYAML::emitDebugGNUPubnames)
+          .Case("debug_gnu_pubtypes", DWARFYAML::emitDebugGNUPubtypes)
+          .Case("debug_info", DWARFYAML::emitDebugInfo)
+          .Case("debug_line", DWARFYAML::emitDebugLine)
+          .Case("debug_loclists", DWARFYAML::emitDebugLoclists)
+          .Case("debug_pubnames", DWARFYAML::emitDebugPubnames)
+          .Case("debug_pubtypes", DWARFYAML::emitDebugPubtypes)
+          .Case("debug_ranges", DWARFYAML::emitDebugRanges)
+          .Case("debug_rnglists", DWARFYAML::emitDebugRnglists)
+          .Case("debug_str", DWARFYAML::emitDebugStr)
+          .Case("debug_str_offsets", DWARFYAML::emitDebugStrOffsets)
+          .Default([&](raw_ostream &, const DWARFYAML::Data &) {
+            return createStringError(errc::not_supported,
+                                     SecName + " is not supported");
+          });
+
+  return EmitFunc;
+}
 
 static Error
-emitDebugSectionImpl(const DWARFYAML::Data &DI, EmitFuncType EmitFunc,
-                     StringRef Sec,
+emitDebugSectionImpl(const DWARFYAML::Data &DI, StringRef Sec,
                      StringMap<std::unique_ptr<MemoryBuffer>> &OutputBuffers) {
   std::string Data;
   raw_string_ostream DebugInfoStream(Data);
+
+  auto EmitFunc = DWARFYAML::getDWARFEmitterByName(Sec);
+
   if (Error Err = EmitFunc(DebugInfoStream, DI))
     return Err;
   DebugInfoStream.flush();
@@ -775,23 +961,12 @@ DWARFYAML::emitDebugSections(StringRef YAMLString, bool IsLittleEndian) {
     return createStringError(YIn.error(), GeneratedDiag.getMessage());
 
   StringMap<std::unique_ptr<MemoryBuffer>> DebugSections;
-  Error Err = emitDebugSectionImpl(DI, &DWARFYAML::emitDebugInfo, "debug_info",
-                                   DebugSections);
-  Err = joinErrors(std::move(Err),
-                   emitDebugSectionImpl(DI, &DWARFYAML::emitDebugLine,
-                                        "debug_line", DebugSections));
-  Err = joinErrors(std::move(Err),
-                   emitDebugSectionImpl(DI, &DWARFYAML::emitDebugStr,
-                                        "debug_str", DebugSections));
-  Err = joinErrors(std::move(Err),
-                   emitDebugSectionImpl(DI, &DWARFYAML::emitDebugAbbrev,
-                                        "debug_abbrev", DebugSections));
-  Err = joinErrors(std::move(Err),
-                   emitDebugSectionImpl(DI, &DWARFYAML::emitDebugAranges,
-                                        "debug_aranges", DebugSections));
-  Err = joinErrors(std::move(Err),
-                   emitDebugSectionImpl(DI, &DWARFYAML::emitDebugRanges,
-                                        "debug_ranges", DebugSections));
+  Error Err = Error::success();
+  cantFail(std::move(Err));
+
+  for (StringRef SecName : DI.getNonEmptySectionNames())
+    Err = joinErrors(std::move(Err),
+                     emitDebugSectionImpl(DI, SecName, DebugSections));
 
   if (Err)
     return std::move(Err);
