@@ -73,10 +73,10 @@ bool test0() {
   if (!Passed) {
     std::cout << "test0 failed" << std::endl;
     std::cout << "test0 input:" << std::endl;
-    printStruct(S);
+    printUnion(S);
     std::cout << std::endl;
     std::cout << "test0 result:\n";
-    printStruct(S0);
+    printUnion(S0);
     std::cout << std::endl;
   }
   return Passed;
