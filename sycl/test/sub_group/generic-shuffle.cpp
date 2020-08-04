@@ -1,5 +1,6 @@
 // UNSUPPORTED: cuda || cpu
 // CUDA compilation and runtime do not yet support sub-groups.
+// #2245 failed on OpenCL CPU (2020.10.7.0.15) with avx2 instruction set
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out

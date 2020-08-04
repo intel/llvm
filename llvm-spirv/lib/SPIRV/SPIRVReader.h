@@ -108,6 +108,8 @@ public:
   Value *transAsmINTEL(SPIRVAsmINTEL *BA);
   CallInst *transAsmCallINTEL(SPIRVAsmCallINTEL *BI, Function *F,
                               BasicBlock *BB);
+  CallInst *transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
+                              bool IsBinaryInst = false);
   bool transNonTemporalMetadata(Instruction *I);
   bool transSourceLanguage();
   bool transSourceExtension();

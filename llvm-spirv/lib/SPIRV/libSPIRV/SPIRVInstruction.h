@@ -2654,6 +2654,64 @@ _SPIRV_OP(ReadPipeBlockingINTEL, false, 5)
 _SPIRV_OP(WritePipeBlockingINTEL, false, 5)
 #undef _SPIRV_OP
 
+class SPIRVArbFloatIntelInst : public SPIRVInstTemplateBase {
+protected:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityArbitraryPrecisionFloatingPointINTEL);
+  }
+
+  SPIRVExtSet getRequiredExtensions() const override {
+    return getSet(ExtensionID::SPV_INTEL_arbitrary_precision_floating_point);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVArbFloatIntelInst,                            \
+                            OpArbitraryFloat##x##INTEL, __VA_ARGS__>           \
+      SPIRVArbitraryFloat##x##INTEL;
+_SPIRV_OP(Cast, true, 9)
+_SPIRV_OP(CastFromInt, true, 8)
+_SPIRV_OP(CastToInt, true, 8)
+_SPIRV_OP(Add, true, 11)
+_SPIRV_OP(Sub, true, 11)
+_SPIRV_OP(Mul, true, 11)
+_SPIRV_OP(Div, true, 11)
+_SPIRV_OP(GT, true, 7)
+_SPIRV_OP(GE, true, 7)
+_SPIRV_OP(LT, true, 7)
+_SPIRV_OP(LE, true, 7)
+_SPIRV_OP(EQ, true, 7)
+_SPIRV_OP(Recip, true, 9)
+_SPIRV_OP(RSqrt, true, 9)
+_SPIRV_OP(Cbrt, true, 9)
+_SPIRV_OP(Hypot, true, 11)
+_SPIRV_OP(Sqrt, true, 9)
+_SPIRV_OP(Log, true, 9)
+_SPIRV_OP(Log2, true, 9)
+_SPIRV_OP(Log10, true, 9)
+_SPIRV_OP(Log1p, true, 9)
+_SPIRV_OP(Exp, true, 9)
+_SPIRV_OP(Exp2, true, 9)
+_SPIRV_OP(Exp10, true, 9)
+_SPIRV_OP(Expm1, true, 9)
+_SPIRV_OP(Sin, true, 9)
+_SPIRV_OP(Cos, true, 9)
+_SPIRV_OP(SinCos, true, 9)
+_SPIRV_OP(SinPi, true, 9)
+_SPIRV_OP(CosPi, true, 9)
+_SPIRV_OP(SinCosPi, true, 9)
+_SPIRV_OP(ASin, true, 9)
+_SPIRV_OP(ASinPi, true, 9)
+_SPIRV_OP(ACos, true, 9)
+_SPIRV_OP(ACosPi, true, 9)
+_SPIRV_OP(ATan, true, 9)
+_SPIRV_OP(ATanPi, true, 9)
+_SPIRV_OP(ATan2, true, 11)
+_SPIRV_OP(Pow, true, 11)
+_SPIRV_OP(PowR, true, 11)
+_SPIRV_OP(PowN, true, 10)
+#undef _SPIRV_OP
+
 class SPIRVAtomicInstBase : public SPIRVInstTemplateBase {
 public:
   SPIRVCapVec getRequiredCapability() const override {

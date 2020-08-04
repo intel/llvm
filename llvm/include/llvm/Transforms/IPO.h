@@ -144,6 +144,9 @@ ModulePass *createDeadArgEliminationPass();
 /// bugpoint.
 ModulePass *createDeadArgHackingPass();
 
+/// DeadArgumentElimination pass for SYCL kernel functions
+ModulePass *createDeadArgEliminationSYCLPass();
+
 //===----------------------------------------------------------------------===//
 /// createArgumentPromotionPass - This pass promotes "by reference" arguments to
 /// be passed by value if the number of elements passed is smaller or
