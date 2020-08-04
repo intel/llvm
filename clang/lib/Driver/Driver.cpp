@@ -331,62 +331,6 @@ static Arg *MakeInputArg(DerivedArgList &Args, const OptTable &Opts,
   return A;
 }
 
-// Add SYCL device libraries into device code link proess as default.
-static void addSYCLDeviceLibs(const ToolChain &TC, Driver::InputList &Inputs,
-                              const OptTable &Opts, DerivedArgList &Args) {
-  enum SYCLDeviceLibType { sycl_devicelib_wrapper, sycl_devicelib_fallback };
-  if (Args.hasArg(options::OPT_c))
-    return;
-  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
-    StringRef LibLoc, LibSysUtils;
-    if (TC.getTriple().isWindowsMSVCEnvironment()) {
-      LibLoc = Args.MakeArgString(TC.getDriver().Dir + "/../bin");
-      LibSysUtils = "libsycl-msvc";
-    } else {
-      LibLoc = Args.MakeArgString(TC.getDriver().Dir + "/../lib");
-      LibSysUtils = "libsycl-glibc";
-    }
-    SmallVector<StringRef, 4> sycl_device_wrapper_libs = {
-        LibSysUtils, "libsycl-complex", "libsycl-complex-fp64", "libsycl-cmath",
-        "libsycl-cmath-fp64"};
-    // For AOT compilation, we need to link sycl_device_fallback_libs as default
-    // too.
-    SmallVector<StringRef, 4> sycl_device_fallback_libs = {
-        "libsycl-fallback-cassert", "libsycl-fallback-complex",
-        "libsycl-fallback-complex-fp64", "libsycl-fallback-cmath",
-        "libsycl-fallback-cmath-fp64"};
-
-    auto addInputs = [&](SYCLDeviceLibType t) {
-      auto sycl_libs = (t == sycl_devicelib_wrapper)
-                           ? sycl_device_wrapper_libs
-                           : sycl_device_fallback_libs;
-      for (const StringRef &Lib : sycl_libs) {
-        SmallString<128> LibName(LibLoc);
-        llvm::sys::path::append(LibName, Lib);
-        llvm::sys::path::replace_extension(LibName, ".o");
-        Arg *InputArg = MakeInputArg(Args, Opts, Args.MakeArgString(LibName));
-        Inputs.push_back(std::make_pair(types::TY_Object, InputArg));
-      }
-    };
-    addInputs(sycl_devicelib_wrapper);
-    addInputs(sycl_devicelib_fallback);
-  }
-}
-
-
-static bool isFallbackDeviceLibsInputAction(const Action *OffloadAct) {
-  auto IT = *(OffloadAct->input_begin());
-  if (dyn_cast<InputAction>(IT)) {
-    StringRef InputObjPath =
-        dyn_cast<InputAction>(IT)->getInputArg().getValue();
-    StringRef InputObjFileName = llvm::sys::path::filename(InputObjPath);
-    if (InputObjFileName.startswith("libsycl-fallback-") &&
-        InputObjFileName.endswith(".o"))
-      return true;
-  }
-  return false;
-}
-
 DerivedArgList *Driver::TranslateInputArgs(const InputArgList &Args) const {
   const llvm::opt::OptTable &Opts = getOpts();
   DerivedArgList *DAL = new DerivedArgList(Args);
@@ -2601,7 +2545,6 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
           << A->getAsString(Args) << A->getValue();
     }
   }
-  addSYCLDeviceLibs(TC, Inputs, Opts, Args);
   if (CCCIsCPP() && Inputs.empty()) {
     // If called as standalone preprocessor, stdin is processed
     // if no other input is present.
@@ -3737,7 +3680,6 @@ class OffloadingActionBuilder final {
     }
 
     ActionBuilderReturnCode addDeviceDepences(Action *HostAction) override {
-
       // If this is an input action replicate it for each SYCL toolchain.
       if (auto *IA = dyn_cast<InputAction>(HostAction)) {
         SYCLDeviceActions.clear();
@@ -3844,6 +3786,53 @@ class OffloadingActionBuilder final {
       SYCLDeviceActions.clear();
     }
 
+    void addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
+                           bool isSpirvAOT) {
+      enum SYCLDeviceLibType {
+        sycl_devicelib_wrapper,
+        sycl_devicelib_fallback
+      };
+      StringRef LibLoc, LibSysUtils;
+      if (TC->getTriple().isWindowsMSVCEnvironment()) {
+        LibLoc = Args.MakeArgString(TC->getDriver().Dir + "/../bin");
+        LibSysUtils = "libsycl-msvc";
+      } else {
+        LibLoc = Args.MakeArgString(TC->getDriver().Dir + "/../lib");
+        LibSysUtils = "libsycl-glibc";
+      }
+      SmallVector<StringRef, 4> sycl_device_wrapper_libs = {
+          LibSysUtils, "libsycl-complex", "libsycl-complex-fp64",
+          "libsycl-cmath", "libsycl-cmath-fp64"};
+      // For AOT compilation, we need to link sycl_device_fallback_libs as
+      // default too.
+      SmallVector<StringRef, 4> sycl_device_fallback_libs = {
+          "libsycl-fallback-cassert", "libsycl-fallback-complex",
+          "libsycl-fallback-complex-fp64", "libsycl-fallback-cmath",
+          "libsycl-fallback-cmath-fp64"};
+      auto addInputs = [&](SYCLDeviceLibType t) {
+        auto sycl_libs = (t == sycl_devicelib_wrapper)
+                             ? sycl_device_wrapper_libs
+                             : sycl_device_fallback_libs;
+        for (const StringRef &Lib : sycl_libs) {
+          SmallString<128> LibName(LibLoc);
+          llvm::sys::path::append(LibName, Lib);
+          llvm::sys::path::replace_extension(LibName, ".o");
+          Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
+                                       Args.MakeArgString(LibName));
+          auto *SYCLDeviceLibsInputAction =
+              C.MakeAction<InputAction>(*InputArg, types::TY_Object);
+          auto *SYCLDeviceLibsUnbundleAction =
+              C.MakeAction<OffloadUnbundlingJobAction>(
+                  SYCLDeviceLibsInputAction);
+          addDeviceDepences(SYCLDeviceLibsUnbundleAction);
+          DeviceLinkObjects.push_back(SYCLDeviceLibsUnbundleAction);
+        }
+      };
+      addInputs(sycl_devicelib_wrapper);
+      if (isSpirvAOT)
+        addInputs(sycl_devicelib_fallback);
+    }
+
     void appendLinkDependences(OffloadAction::DeviceDependences &DA) override {
       assert(ToolChains.size() == DeviceLinkerInputs.size() &&
              "Toolchains and linker inputs sizes do not match.");
@@ -3923,6 +3912,7 @@ class OffloadingActionBuilder final {
         ActionList DeviceLibObjects;
         ActionList LinkObjects;
         auto TT = SYCLTripleList[I];
+        auto isNVPTX = (*TC)->getTriple().isNVPTX();
         bool isSpirvAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
@@ -3930,15 +3920,13 @@ class OffloadingActionBuilder final {
           // FPGA aoco does not go through the link, everything else does.
           if (Input->getType() == types::TY_FPGA_AOCO)
             DeviceLibObjects.push_back(Input);
-          else {
-            if (!isSpirvAOT &&
-                Input->getKind() == Action::OffloadUnbundlingJobClass &&
-                Input->size() == 1 && isFallbackDeviceLibsInputAction(Input)) {
-              continue;
-            }
+          else
             LinkObjects.push_back(Input);
-          }
         }
+
+        // For SYCL compilation, add SYCL device libraries as default.
+        if (!isNVPTX && !Args.hasArg(options::OPT_fintelfpga))
+          addSYCLDeviceLibs(*TC, LinkObjects, isSpirvAOT);
         // The linkage actions subgraph leading to the offload wrapper.
         // [cond] Means incoming/outgoing dependence is created only when cond
         //        is true. A function of:
@@ -3993,7 +3981,6 @@ class OffloadingActionBuilder final {
         Action *DeviceLinkAction =
             C.MakeAction<LinkJobAction>(LinkObjects, types::TY_LLVM_BC);
         // setup some flags upfront
-        auto isNVPTX = (*TC)->getTriple().isNVPTX();
 
         if (isNVPTX && DeviceCodeSplit) {
           // TODO Temporary limitation, need to support code splitting for PTX
@@ -4017,8 +4004,19 @@ class OffloadingActionBuilder final {
         types::ID PostLinkOutType = isNVPTX || !MultiFileActionDeps
                                         ? types::TY_LLVM_BC
                                         : types::TY_Tempfiletable;
-        auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
-            DeviceLinkAction, PostLinkOutType);
+        SYCLPostLinkJobAction *PostLinkDCRAction = nullptr;
+        SYCLPostLinkJobAction *PostLinkAction = nullptr;
+        if (isNVPTX) {
+          PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(DeviceLinkAction,
+                                                               PostLinkOutType);
+        } else {
+          PostLinkDCRAction = C.MakeAction<SYCLPostLinkJobAction>(
+              DeviceLinkAction, types::TY_LLVM_BC);
+          PostLinkDCRAction->setDeadCodeRemoval(true);
+          PostLinkDCRAction->setRTSetsSpecConstants(false);
+          PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
+              PostLinkDCRAction, PostLinkOutType);
+        }
         PostLinkAction->setRTSetsSpecConstants(!isAOT);
 
         if (isNVPTX) {
@@ -4561,7 +4559,7 @@ public:
       return nullptr;
 
     // Let builders add host linking actions.
-    Action* HA;
+    Action* HA = nullptr;
     for (DeviceActionBuilder *SB : SpecializedBuilders) {
       if (!SB->isValid())
         continue;
@@ -4580,7 +4578,6 @@ public:
     for (auto *SB : SpecializedBuilders) {
       if (!SB->isValid())
         continue;
-
       SB->appendLinkDependences(DDeps);
     }
 

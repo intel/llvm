@@ -687,8 +687,13 @@ public:
 
   bool getRTSetsSpecConstants() const { return RTSetsSpecConsts; }
 
+  void setDeadCodeRemoval(bool Val) { DeadCodeRemoval = Val; }
+
+  bool getDeadCodeRemoval() const { return DeadCodeRemoval; }
+
 private:
   bool RTSetsSpecConsts = true;
+  bool DeadCodeRemoval = false;
 };
 
 class PartialLinkJobAction : public JobAction {

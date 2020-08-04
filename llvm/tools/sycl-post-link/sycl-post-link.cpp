@@ -86,6 +86,10 @@ static cl::opt<bool> OutputAssembly{"S",
                                     cl::desc("Write output as LLVM assembly"),
                                     cl::Hidden, cl::cat(PostLinkCat)};
 
+static cl::opt<bool> DeadCodeRemoval{
+    "dead-code-removal", cl::desc("Remove all dead code in current module"),
+    cl::cat(PostLinkCat)};
+
 enum IRSplitMode {
   SPLIT_PER_TU,    // one module per translation unit
   SPLIT_PER_KERNEL // one module per kernel
@@ -532,6 +536,29 @@ static string_vector saveResultSymbolsLists(string_vector &ResSymbolsLists) {
   return std::move(Res);
 }
 
+void RemoveDeadCode(Module &M) {
+  std::vector<Function *> unusedFuncVec;
+  bool isClean = false;
+  while (!isClean) {
+    unusedFuncVec.clear();
+    for (Function &F : M) {
+      if (F.user_empty() && (F.getCallingConv() == CallingConv::SPIR_FUNC)) {
+        F.deleteBody();
+        unusedFuncVec.push_back(&F);
+      }
+    }
+
+    if (!unusedFuncVec.empty()) {
+      for (Function *F : unusedFuncVec) {
+        M.getFunctionList().remove(F);
+      }
+      isClean = false;
+    } else {
+      isClean = true;
+    }
+  }
+}
+
 #define CHECK_AND_EXIT(E)                                                      \
   {                                                                            \
     Error LocE = std::move(E);                                                 \
@@ -578,7 +605,10 @@ int main(int argc, char **argv) {
       "will produce single output file example_p.bc suitable for SPIRV\n"
       "translation.\n");
 
-  bool DoSplit = SplitMode.getNumOccurrences() > 0;
+  // For DeadCodeRemoval, the input is original IR and output is a 'clean' IR
+  // whose 'unused' functions are removed. DeadCodeRemoval shouldn't work with
+  // any other functionalities such as code split...
+  bool DoSplit = (SplitMode.getNumOccurrences() > 0) && !DeadCodeRemoval;
   bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
 
   if (!DoSplit && !DoSpecConst && !DoSymGen) {
@@ -608,6 +638,11 @@ int main(int argc, char **argv) {
   if (OutputFilename.getNumOccurrences() == 0)
     OutputFilename = (Twine(sys::path::stem(InputFilename)) + ".files").str();
 
+  if (DeadCodeRemoval && IROutputOnly) {
+    RemoveDeadCode(*MPtr);
+    saveModule(*MPtr, OutputFilename);
+    return 0;
+  }
   std::map<StringRef, std::vector<Function *>> GlobalsSet;
 
   if (DoSplit || DoSymGen) {

@@ -7811,6 +7811,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   else
     addArgs(CmdArgs, TCArgs, {"-spec-const=default"});
 
+  if (SYCLPostLink && SYCLPostLink->getDeadCodeRemoval())
+    addArgs(CmdArgs, TCArgs, {"--dead-code-removal"});
   // Add output file table file option
   assert(Output.isFilename() && "output must be a filename");
   addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});
