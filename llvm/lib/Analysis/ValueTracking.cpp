@@ -1642,6 +1642,17 @@ static void computeKnownBitsFromOperator(const Operator *I,
     if (const IntrinsicInst *II = dyn_cast<IntrinsicInst>(I)) {
       switch (II->getIntrinsicID()) {
       default: break;
+      case Intrinsic::abs:
+        computeKnownBits(I->getOperand(0), Known2, Depth + 1, Q);
+        // Otherwise, if this call is undefined for INT_MIN, the result is
+        // positive.
+        if (match(II->getArgOperand(1), m_One()))
+          Known.Zero.setSignBit();
+        // Absolute value preserves trailing zero count.
+        Known.Zero.setLowBits(Known2.Zero.countTrailingOnes());
+        // FIXME: Handle known negative/non-negative input?
+        // FIXME: Calculate the negated Known bits and combine them?
+        break;
       case Intrinsic::bitreverse:
         computeKnownBits(I->getOperand(0), DemandedElts, Known2, Depth + 1, Q);
         Known.Zero |= Known2.Zero.reverseBits();
@@ -4149,8 +4160,7 @@ static bool isSameUnderlyingObjectInLoop(const PHINode *PN,
   return true;
 }
 
-Value *llvm::GetUnderlyingObject(Value *V, const DataLayout &DL,
-                                 unsigned MaxLookup) {
+Value *llvm::getUnderlyingObject(Value *V, unsigned MaxLookup) {
   if (!V->getType()->isPointerTy())
     return V;
   for (unsigned Count = 0; MaxLookup == 0 || Count < MaxLookup; ++Count) {
@@ -4195,16 +4205,15 @@ Value *llvm::GetUnderlyingObject(Value *V, const DataLayout &DL,
   return V;
 }
 
-void llvm::GetUnderlyingObjects(const Value *V,
+void llvm::getUnderlyingObjects(const Value *V,
                                 SmallVectorImpl<const Value *> &Objects,
-                                const DataLayout &DL, LoopInfo *LI,
-                                unsigned MaxLookup) {
+                                LoopInfo *LI, unsigned MaxLookup) {
   SmallPtrSet<const Value *, 4> Visited;
   SmallVector<const Value *, 4> Worklist;
   Worklist.push_back(V);
   do {
     const Value *P = Worklist.pop_back_val();
-    P = GetUnderlyingObject(P, DL, MaxLookup);
+    P = getUnderlyingObject(P, MaxLookup);
 
     if (!Visited.insert(P).second)
       continue;
@@ -4265,19 +4274,18 @@ static const Value *getUnderlyingObjectFromInt(const Value *V) {
   } while (true);
 }
 
-/// This is a wrapper around GetUnderlyingObjects and adds support for basic
+/// This is a wrapper around getUnderlyingObjects and adds support for basic
 /// ptrtoint+arithmetic+inttoptr sequences.
-/// It returns false if unidentified object is found in GetUnderlyingObjects.
+/// It returns false if unidentified object is found in getUnderlyingObjects.
 bool llvm::getUnderlyingObjectsForCodeGen(const Value *V,
-                          SmallVectorImpl<Value *> &Objects,
-                          const DataLayout &DL) {
+                                          SmallVectorImpl<Value *> &Objects) {
   SmallPtrSet<const Value *, 16> Visited;
   SmallVector<const Value *, 4> Working(1, V);
   do {
     V = Working.pop_back_val();
 
     SmallVector<const Value *, 4> Objs;
-    GetUnderlyingObjects(V, Objs, DL);
+    getUnderlyingObjects(V, Objs);
 
     for (const Value *V : Objs) {
       if (!Visited.insert(V).second)
@@ -4290,7 +4298,7 @@ bool llvm::getUnderlyingObjectsForCodeGen(const Value *V,
           continue;
         }
       }
-      // If GetUnderlyingObjects fails to find an identifiable object,
+      // If getUnderlyingObjects fails to find an identifiable object,
       // getUnderlyingObjectsForCodeGen also fails for safety.
       if (!isIdentifiedObject(V)) {
         Objects.clear();
@@ -4302,16 +4310,70 @@ bool llvm::getUnderlyingObjectsForCodeGen(const Value *V,
   return true;
 }
 
-/// Return true if the only users of this pointer are lifetime markers.
-bool llvm::onlyUsedByLifetimeMarkers(const Value *V) {
+static AllocaInst *
+findAllocaForValue(Value *V, DenseMap<Value *, AllocaInst *> &AllocaForValue) {
+  if (AllocaInst *AI = dyn_cast<AllocaInst>(V))
+    return AI;
+  // See if we've already calculated (or started to calculate) alloca for a
+  // given value.
+  auto I = AllocaForValue.find(V);
+  if (I != AllocaForValue.end())
+    return I->second;
+  // Store 0 while we're calculating alloca for value V to avoid
+  // infinite recursion if the value references itself.
+  AllocaForValue[V] = nullptr;
+  AllocaInst *Res = nullptr;
+  if (CastInst *CI = dyn_cast<CastInst>(V))
+    Res = findAllocaForValue(CI->getOperand(0), AllocaForValue);
+  else if (PHINode *PN = dyn_cast<PHINode>(V)) {
+    for (Value *IncValue : PN->incoming_values()) {
+      // Allow self-referencing phi-nodes.
+      if (IncValue == PN)
+        continue;
+      AllocaInst *IncValueAI = findAllocaForValue(IncValue, AllocaForValue);
+      // AI for incoming values should exist and should all be equal.
+      if (IncValueAI == nullptr || (Res != nullptr && IncValueAI != Res))
+        return nullptr;
+      Res = IncValueAI;
+    }
+  } else if (GetElementPtrInst *EP = dyn_cast<GetElementPtrInst>(V)) {
+    Res = findAllocaForValue(EP->getPointerOperand(), AllocaForValue);
+  }
+  if (Res)
+    AllocaForValue[V] = Res;
+  return Res;
+}
+
+AllocaInst *llvm::findAllocaForValue(Value *V) {
+  DenseMap<Value *, AllocaInst *> AllocaForValue;
+  return ::findAllocaForValue(V, AllocaForValue);
+}
+
+static bool onlyUsedByLifetimeMarkersOrDroppableInstsHelper(
+    const Value *V, bool AllowLifetime, bool AllowDroppable) {
   for (const User *U : V->users()) {
     const IntrinsicInst *II = dyn_cast<IntrinsicInst>(U);
-    if (!II) return false;
-
-    if (!II->isLifetimeStartOrEnd())
+    if (!II)
       return false;
+
+    if (AllowLifetime && II->isLifetimeStartOrEnd())
+      continue;
+
+    if (AllowDroppable && II->isDroppable())
+      continue;
+
+    return false;
   }
   return true;
+}
+
+bool llvm::onlyUsedByLifetimeMarkers(const Value *V) {
+  return onlyUsedByLifetimeMarkersOrDroppableInstsHelper(
+      V, /* AllowLifetime */ true, /* AllowDroppable */ false);
+}
+bool llvm::onlyUsedByLifetimeMarkersOrDroppableInsts(const Value *V) {
+  return onlyUsedByLifetimeMarkersOrDroppableInstsHelper(
+      V, /* AllowLifetime */ true, /* AllowDroppable */ true);
 }
 
 bool llvm::mustSuppressSpeculation(const LoadInst &LI) {
@@ -4758,7 +4820,7 @@ static bool canCreateUndefOrPoison(const Operator *Op, bool PoisonOnly) {
     const auto *CE = dyn_cast<ConstantExpr>(Op);
     if (isa<CastInst>(Op) || (CE && CE->isCast()))
       return false;
-    else if (isa<BinaryOperator>(Op))
+    else if (Instruction::isBinaryOp(Opcode))
       return false;
     // Be conservative and return true.
     return true;
@@ -4794,8 +4856,8 @@ bool llvm::isGuaranteedNotToBeUndefOrPoison(const Value *V,
         isa<ConstantPointerNull>(C) || isa<Function>(C))
       return true;
 
-    if (C->getType()->isVectorTy())
-      return !C->containsUndefElement() && !C->containsConstantExpression();
+    if (C->getType()->isVectorTy() && !isa<ConstantExpr>(C))
+      return !C->containsConstantExpression() && !C->containsUndefElement();
   }
 
   // Strip cast operations from a pointer value.

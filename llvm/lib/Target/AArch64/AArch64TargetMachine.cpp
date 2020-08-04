@@ -148,10 +148,10 @@ static cl::opt<int> EnableGlobalISelAtO(
     cl::desc("Enable GlobalISel at or below an opt level (-1 to disable)"),
     cl::init(0));
 
-static cl::opt<bool> EnableSVEIntrinsicOpts(
-    "aarch64-sve-intrinsic-opts", cl::Hidden,
-    cl::desc("Enable SVE intrinsic opts"),
-    cl::init(true));
+static cl::opt<bool>
+    EnableSVEIntrinsicOpts("aarch64-enable-sve-intrinsic-opts", cl::Hidden,
+                           cl::desc("Enable SVE intrinsic opts"),
+                           cl::init(true));
 
 static cl::opt<bool> EnableFalkorHWPFFix("aarch64-enable-falkor-hwpf-fix",
                                          cl::init(true), cl::Hidden);
@@ -457,6 +457,7 @@ void AArch64PassConfig::addIRPasses() {
                                             .forwardSwitchCondToPhi(true)
                                             .convertSwitchToLookupTable(true)
                                             .needCanonicalLoops(false)
+                                            .hoistCommonInsts(true)
                                             .sinkCommonInsts(true)));
 
   // Run LoopDataPrefetch

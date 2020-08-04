@@ -52,6 +52,10 @@ def CC1AsOption : OptionFlag;
 // NoDriverOption - This option should not be accepted by the driver.
 def NoDriverOption : OptionFlag;
 
+// If an option affects linking, but has a primary group (so Link_Group cannot
+// be used), add this flag.
+def LinkOption : OptionFlag;
+
 // A short name to show in documentation. The name will be interpreted as rST.
 class DocName<string name> { string DocName = name; }
 
@@ -592,7 +596,7 @@ def config_system_dir_EQ : Joined<["--"], "config-system-dir=">, Flags<[DriverOp
   HelpText<"System directory for configuration files">;
 def config_user_dir_EQ : Joined<["--"], "config-user-dir=">, Flags<[DriverOption, HelpHidden]>,
   HelpText<"User directory for configuration files">;
-def coverage : Flag<["-", "--"], "coverage">, Flags<[CoreOption]>;
+def coverage : Flag<["-", "--"], "coverage">, Group<Link_Group>, Flags<[CoreOption]>;
 def cpp_precomp : Flag<["-"], "cpp-precomp">, Group<clang_ignored_f_Group>;
 def current__version : JoinedOrSeparate<["-"], "current_version">;
 def cxx_isystem : JoinedOrSeparate<["-"], "cxx-isystem">, Group<clang_i_Group>,
@@ -708,7 +712,7 @@ def emit_merged_ifs : Flag<["-"], "emit-merged-ifs">,
   HelpText<"Generate Interface Stub Files, emit merged text not binary.">;
 def interface_stub_version_EQ : JoinedOrSeparate<["-"], "interface-stub-version=">, Flags<[CC1Option]>;
 def exported__symbols__list : Separate<["-"], "exported_symbols_list">;
-def e : JoinedOrSeparate<["-"], "e">, Group<Link_Group>;
+def e : JoinedOrSeparate<["-"], "e">, Flags<[LinkerInput]>, Group<Link_Group>;
 def fmax_tokens_EQ : Joined<["-"], "fmax-tokens=">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Max total number of preprocessed tokens for -Wmax-tokens.">;
 def fPIC : Flag<["-"], "fPIC">, Group<f_Group>;
@@ -1768,7 +1772,7 @@ def fpass_plugin_EQ : Joined<["-"], "fpass-plugin=">,
   HelpText<"Load pass plugin from a dynamic shared object file (only with new pass manager).">;
 defm preserve_as_comments : OptOutFFlag<"preserve-as-comments", "",
   "Do not preserve comments in inline assembly">;
-def fprofile_arcs : Flag<["-"], "fprofile-arcs">, Group<f_Group>;
+def fprofile_arcs : Flag<["-"], "fprofile-arcs">, Group<f_Group>, Flags<[LinkOption]>;
 def fno_profile_arcs : Flag<["-"], "fno-profile-arcs">, Group<f_Group>;
 def framework : Separate<["-"], "framework">, Flags<[LinkerInput]>;
 def frandom_seed_EQ : Joined<["-"], "frandom-seed=">, Group<clang_ignored_f_Group>;
@@ -2509,6 +2513,10 @@ def mdirect_move : Flag<["-"], "mdirect-move">,
     Group<m_ppc_Features_Group>;
 def mnodirect_move : Flag<["-"], "mno-direct-move">,
     Group<m_ppc_Features_Group>;
+def mpaired_vector_memops: Flag<["-"], "mpaired-vector-memops">,
+    Group<m_ppc_Features_Group>;
+def mnopaired_vector_memops: Flag<["-"], "mno-paired-vector-memops">,
+    Group<m_ppc_Features_Group>;
 def mhtm : Flag<["-"], "mhtm">, Group<m_ppc_Features_Group>;
 def mno_htm : Flag<["-"], "mno-htm">, Group<m_ppc_Features_Group>;
 def mfprnd : Flag<["-"], "mfprnd">, Group<m_ppc_Features_Group>;
@@ -2784,7 +2792,7 @@ def nostdinc : Flag<["-"], "nostdinc">, Flags<[CoreOption]>;
 def nostdlibinc : Flag<["-"], "nostdlibinc">;
 def nostdincxx : Flag<["-"], "nostdinc++">, Flags<[CC1Option]>,
   HelpText<"Disable standard #include directories for the C++ standard library">;
-def nostdlib : Flag<["-"], "nostdlib">;
+def nostdlib : Flag<["-"], "nostdlib">, Group<Link_Group>;
 def nostdlibxx : Flag<["-"], "nostdlib++">;
 def nolibsycl : Flag<["-"], "nolibsycl">, Flags<[DriverOption, CoreOption]>,
   HelpText<"Do not link SYCL runtime library">;
@@ -2830,15 +2838,15 @@ def pthread : Flag<["-"], "pthread">, Flags<[CC1Option]>,
   HelpText<"Support POSIX threads in generated code">;
 def no_pthread : Flag<["-"], "no-pthread">, Flags<[CC1Option]>;
 def p : Flag<["-"], "p">;
-def pie : Flag<["-"], "pie">;
-def static_pie : Flag<["-"], "static-pie">;
+def pie : Flag<["-"], "pie">, Group<Link_Group>;
+def static_pie : Flag<["-"], "static-pie">, Group<Link_Group>;
 def read__only__relocs : Separate<["-"], "read_only_relocs">;
 def remap : Flag<["-"], "remap">;
 def rewrite_objc : Flag<["-"], "rewrite-objc">, Flags<[DriverOption,CC1Option]>,
   HelpText<"Rewrite Objective-C source to C++">, Group<Action_Group>;
 def rewrite_legacy_objc : Flag<["-"], "rewrite-legacy-objc">, Flags<[DriverOption]>,
   HelpText<"Rewrite Legacy Objective-C source to C++">;
-def rdynamic : Flag<["-"], "rdynamic">;
+def rdynamic : Flag<["-"], "rdynamic">, Group<Link_Group>;
 def resource_dir : Separate<["-"], "resource-dir">,
   Flags<[DriverOption, CC1Option, CoreOption, HelpHidden]>,
   HelpText<"The directory which holds the compiler resource files">;
@@ -2880,13 +2888,13 @@ def segs__read__only__addr : Separate<["-"], "segs_read_only_addr">;
 def segs__read__write__addr : Separate<["-"], "segs_read_write_addr">;
 def segs__read__ : Joined<["-"], "segs_read_">;
 def shared_libgcc : Flag<["-"], "shared-libgcc">;
-def shared : Flag<["-", "--"], "shared">;
+def shared : Flag<["-", "--"], "shared">, Group<Link_Group>;
 def single__module : Flag<["-"], "single_module">;
 def specs_EQ : Joined<["-", "--"], "specs=">;
 def specs : Separate<["-", "--"], "specs">, Flags<[Unsupported]>;
 def static_libgcc : Flag<["-"], "static-libgcc">;
 def static_libstdcxx : Flag<["-"], "static-libstdc++">;
-def static : Flag<["-", "--"], "static">, Flags<[NoArgumentUnused]>;
+def static : Flag<["-", "--"], "static">, Group<Link_Group>, Flags<[NoArgumentUnused]>;
 def std_default_EQ : Joined<["-"], "std-default=">;
 def std_EQ : Joined<["-", "--"], "std=">, Flags<[CC1Option]>,
   Group<CompileOnly_Group>, HelpText<"Language standard to compile for">,
@@ -3345,8 +3353,8 @@ defm : BooleanFFlag<"keep-inline-functions">, Group<clang_ignored_gcc_optimizati
 
 def fprofile_dir : Joined<["-"], "fprofile-dir=">, Group<f_Group>;
 
-def fuse_ld_EQ : Joined<["-"], "fuse-ld=">, Group<f_Group>, Flags<[CoreOption]>;
-def ld_path_EQ : Joined<["--"], "ld-path=">;
+def fuse_ld_EQ : Joined<["-"], "fuse-ld=">, Group<f_Group>, Flags<[CoreOption, LinkOption]>;
+def ld_path_EQ : Joined<["--"], "ld-path=">, Group<Link_Group>;
 
 defm align_labels : BooleanFFlag<"align-labels">, Group<clang_ignored_gcc_optimization_f_Group>;
 def falign_labels_EQ : Joined<["-"], "falign-labels=">, Group<clang_ignored_gcc_optimization_f_Group>;

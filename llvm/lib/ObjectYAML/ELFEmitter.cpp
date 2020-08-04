@@ -355,7 +355,7 @@ ELFState<ELFT>::ELFState(ELFYAML::Object &D, yaml::ErrorHandler EH)
   if (Doc.Symbols)
     ImplicitSections.push_back(".symtab");
   if (Doc.DWARF)
-    for (StringRef DebugSecName : Doc.DWARF->getUsedSectionNames()) {
+    for (StringRef DebugSecName : Doc.DWARF->getNonEmptySectionNames()) {
       std::string SecName = ("." + DebugSecName).str();
       ImplicitSections.push_back(StringRef(SecName).copy(StringAlloc));
     }
@@ -551,6 +551,8 @@ static void overrideFields(ELFYAML::Section *From, typename ELFT::Shdr &To) {
     To.sh_offset = *From->ShOffset;
   if (From->ShSize)
     To.sh_size = *From->ShSize;
+  if (From->ShType)
+    To.sh_type = *From->ShType;
 }
 
 template <class ELFT>
@@ -931,7 +933,7 @@ void ELFState<ELFT>::initStrtabSectionHeader(Elf_Shdr &SHeader, StringRef Name,
 }
 
 static bool shouldEmitDWARF(DWARFYAML::Data &DWARF, StringRef Name) {
-  SetVector<StringRef> DebugSecNames = DWARF.getUsedSectionNames();
+  SetVector<StringRef> DebugSecNames = DWARF.getNonEmptySectionNames();
   return Name.consume_front(".") && DebugSecNames.count(Name);
 }
 
