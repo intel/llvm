@@ -250,7 +250,6 @@ bool device_impl::has(aspect Aspect) const {
     throw runtime_error("This device aspect has not been implemented yet.",
                         PI_INVALID_DEVICE);
   }
-  return false;
 }
 
 } // namespace detail
