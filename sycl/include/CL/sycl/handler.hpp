@@ -147,7 +147,7 @@ template <int Dims> struct NotIntMsg<range<Dims>> {
 
 template <int Dims> struct NotIntMsg<id<Dims>> {
   constexpr static const char *Msg =
-      "Provided offset is out of integer limits.  Pass "
+      "Provided offset is out of integer limits. Pass "
       "`-fno-sycl-id-queries-fit-in-int' to disable offset check.";
 };
 #endif
