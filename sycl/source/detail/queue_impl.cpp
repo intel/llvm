@@ -14,6 +14,7 @@
 #include <detail/queue_impl.hpp>
 
 #include <cstring>
+#include <utility>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include "xpti_trace_framework.hpp"
@@ -27,7 +28,7 @@ template <> cl_uint queue_impl::get_info<info::queue::reference_count>() const {
   RT::PiResult result = PI_SUCCESS;
   if (!is_host())
     getPlugin().call<PiApiKind::piQueueGetInfo>(
-        MCommandQueue, PI_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
+        MQueues[0], PI_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
         nullptr);
   return result;
 }
@@ -40,78 +41,80 @@ template <> device queue_impl::get_info<info::queue::device>() const {
   return get_device();
 }
 
-static event prepareUSMEvent(shared_ptr_class<detail::queue_impl> QueueImpl,
-                             RT::PiEvent NativeEvent) {
+static event
+prepareUSMEvent(const shared_ptr_class<detail::queue_impl> &QueueImpl,
+                RT::PiEvent NativeEvent) {
   auto EventImpl = std::make_shared<detail::event_impl>(QueueImpl);
   EventImpl->getHandleRef() = NativeEvent;
   EventImpl->setContextImpl(detail::getSyclObjImpl(QueueImpl->get_context()));
   return detail::createSyclObjFromImpl<event>(EventImpl);
 }
 
-event queue_impl::memset(shared_ptr_class<detail::queue_impl> Impl, void *Ptr,
-                         int Value, size_t Count) {
-  context Context = get_context();
-  RT::PiEvent NativeEvent = nullptr;
-  MemoryManager::fill_usm(Ptr, Impl, Count, Value, /*DepEvents*/ {},
+event queue_impl::memset(const shared_ptr_class<detail::queue_impl> &Self,
+                         void *Ptr, int Value, size_t Count) {
+  RT::PiEvent NativeEvent{};
+  MemoryManager::fill_usm(Ptr, Self, Count, Value, /*DepEvents*/ {},
                           NativeEvent);
 
-  if (Context.is_host())
+  if (MContext->is_host())
     return event();
 
-  event ResEvent = prepareUSMEvent(Impl, NativeEvent);
+  event ResEvent = prepareUSMEvent(Self, NativeEvent);
   addUSMEvent(ResEvent);
   return ResEvent;
 }
 
-event queue_impl::memcpy(shared_ptr_class<detail::queue_impl> Impl, void *Dest,
-                         const void *Src, size_t Count) {
-  context Context = get_context();
-  RT::PiEvent NativeEvent = nullptr;
-  MemoryManager::copy_usm(Src, Impl, Count, Dest, /*DepEvents*/ {},
+event queue_impl::memcpy(const shared_ptr_class<detail::queue_impl> &Self,
+                         void *Dest, const void *Src, size_t Count) {
+  RT::PiEvent NativeEvent{};
+  MemoryManager::copy_usm(Src, Self, Count, Dest, /*DepEvents*/ {},
                           NativeEvent);
 
-  if (Context.is_host())
+  if (MContext->is_host())
     return event();
 
-  event ResEvent = prepareUSMEvent(Impl, NativeEvent);
+  event ResEvent = prepareUSMEvent(Self, NativeEvent);
   addUSMEvent(ResEvent);
   return ResEvent;
 }
 
-event queue_impl::mem_advise(shared_ptr_class<detail::queue_impl> Impl,
+event queue_impl::mem_advise(const shared_ptr_class<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
                              pi_mem_advice Advice) {
-  context Context = get_context();
-  if (Context.is_host()) {
+  if (MContext->is_host()) {
     return event();
   }
 
   // non-Host device
-  RT::PiEvent NativeEvent = nullptr;
+  RT::PiEvent NativeEvent{};
   const detail::plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(getHandleRef(), Ptr, Length,
                                                    Advice, &NativeEvent);
 
-  event ResEvent = prepareUSMEvent(Impl, NativeEvent);
+  event ResEvent = prepareUSMEvent(Self, NativeEvent);
   addUSMEvent(ResEvent);
   return ResEvent;
 }
 
-void queue_impl::addEvent(event Event) {
+void queue_impl::addEvent(const event &Event) {
   std::weak_ptr<event_impl> EventWeakPtr{getSyclObjImpl(Event)};
-  std::lock_guard<mutex_class> Guard(MMutex);
+  std::lock_guard<mutex_class> Lock(MMutex);
   MEvents.push_back(std::move(EventWeakPtr));
 }
 
-void queue_impl::addUSMEvent(event Event) {
-  std::lock_guard<mutex_class> Guard(MMutex);
-  MUSMEvents.push_back(std::move(Event));
+void queue_impl::addUSMEvent(const event &Event) {
+  std::lock_guard<mutex_class> Lock(MMutex);
+  MUSMEvents.push_back(Event);
 }
 
 void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
                                         string_class &Name, int32_t StreamID,
                                         uint64_t &IId) {
   void *TraceEvent = nullptr;
+  (void)CodeLoc;
+  (void)Name;
+  (void)StreamID;
+  (void)IId;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   xpti::trace_event_data_t *WaitEvent = nullptr;
   if (!xptiTraceEnabled())
@@ -172,6 +175,10 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
 
 void queue_impl::instrumentationEpilog(void *TelemetryEvent, string_class &Name,
                                        int32_t StreamID, uint64_t IId) {
+  (void)TelemetryEvent;
+  (void)Name;
+  (void)StreamID;
+  (void)IId;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!(xptiTraceEnabled() && TelemetryEvent))
     return;
@@ -184,6 +191,7 @@ void queue_impl::instrumentationEpilog(void *TelemetryEvent, string_class &Name,
 }
 
 void queue_impl::wait(const detail::code_location &CodeLoc) {
+  (void)CodeLoc;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   void *TelemetryEvent = nullptr;
   uint64_t IId;
@@ -192,24 +200,20 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
 #endif
 
-  std::vector<std::shared_ptr<event_impl>> Events;
+  vector_class<std::weak_ptr<event_impl>> Events;
+  vector_class<event> USMEvents;
   {
-    std::lock_guard<mutex_class> Guard(MMutex);
-    for (std::weak_ptr<event_impl> &EventImplWeakPtr : MEvents)
-      if (std::shared_ptr<event_impl> EventImplPtr = EventImplWeakPtr.lock())
-        Events.push_back(EventImplPtr);
+    std::lock_guard<mutex_class> Lock(MMutex);
+    Events = std::move(MEvents);
+    USMEvents = std::move(MUSMEvents);
   }
 
-  for (std::shared_ptr<event_impl> &Event : Events) {
-    Event->wait(Event);
-  }
+  for (std::weak_ptr<event_impl> &EventImplWeakPtr : Events)
+    if (std::shared_ptr<event_impl> EventImplPtr = EventImplWeakPtr.lock())
+      EventImplPtr->wait(EventImplPtr);
 
-  for (event &Event : MUSMEvents) {
+  for (event &Event : USMEvents)
     Event.wait();
-  }
-
-  MEvents.clear();
-  MUSMEvents.clear();
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
@@ -222,9 +226,9 @@ void queue_impl::initHostTaskAndEventCallbackThreadPool() {
 
   int Size = 1;
 
-  if (const char *val = std::getenv("SYCL_QUEUE_THREAD_POOL_SIZE"))
+  if (const char *Val = std::getenv("SYCL_QUEUE_THREAD_POOL_SIZE"))
     try {
-      Size = std::stoi(val);
+      Size = std::stoi(Val);
     } catch (...) {
       throw invalid_parameter_error(
           "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment variable",
@@ -241,9 +245,9 @@ void queue_impl::initHostTaskAndEventCallbackThreadPool() {
 }
 
 pi_native_handle queue_impl::getNative() const {
-  auto Plugin = getPlugin();
-  pi_native_handle Handle;
-  Plugin.call<PiApiKind::piextQueueGetNativeHandle>(MCommandQueue, &Handle);
+  const detail::plugin &Plugin = getPlugin();
+  pi_native_handle Handle{};
+  Plugin.call<PiApiKind::piextQueueGetNativeHandle>(MQueues[0], &Handle);
   return Handle;
 }
 
