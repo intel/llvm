@@ -114,6 +114,20 @@ pi_result getInfoArray(size_t array_length, size_t param_value_size,
                      array_length * sizeof(T), memcpy);
 }
 
+template <typename T, typename RetType>
+pi_result getInfoArray(size_t array_length, size_t param_value_size,
+                       void *param_value, size_t *param_value_size_ret,
+                       T *value) {
+  if (param_value) {
+    memset(param_value, 0, param_value_size);
+    for (uint32_t I = 0; I < array_length; I++)
+      ((RetType *)param_value)[I] = (RetType)value[I];
+  }
+  if (param_value_size_ret)
+    *param_value_size_ret = array_length * sizeof(RetType);
+  return PI_SUCCESS;
+}
+
 template <>
 pi_result getInfo<const char *>(size_t param_value_size, void *param_value,
                                 size_t *param_value_size_ret,
@@ -1061,9 +1075,10 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     // ze_device_compute_properties.subGroupSizes is in uint32_t whereas the
     // expected return is size_t datatype. size_t can be 8 bytes of data.
-    return getInfoArray(Device->ZeDeviceComputeProperties.numSubGroupSizes,
-                        ParamValueSize, ParamValue, ParamValueSizeRet,
-                        Device->ZeDeviceComputeProperties.subGroupSizes);
+    return getInfoArray<uint32_t, size_t>(
+        Device->ZeDeviceComputeProperties.numSubGroupSizes, ParamValueSize,
+        ParamValue, ParamValueSizeRet,
+        Device->ZeDeviceComputeProperties.subGroupSizes);
   }
   case PI_DEVICE_INFO_IL_VERSION: {
     // Set to a space separated list of IL version strings of the form
@@ -3108,7 +3123,8 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   // piEnqueueMemBufferMap, but can only do so after the above copy
   // is completed. Instead of waiting for It here (blocking), we shall
   // do so in piEventRelease called for the pi_event tracking the unmap.
-  (*Event)->CommandData = MemObj->MapHostPtr ? nullptr : MappedPtr;
+  if (Event)
+    (*Event)->CommandData = MemObj->MapHostPtr ? nullptr : MappedPtr;
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
