@@ -3530,6 +3530,7 @@ def fsycl_esimd : Flag<["-"], "fsycl-explicit-simd">, Group<sycl_Group>, Flags<[
   HelpText<"Enable SYCL explicit SIMD extension">;
 def fno_sycl_esimd : Flag<["-"], "fno-sycl-explicit-simd">, Group<sycl_Group>,
   HelpText<"Disable SYCL explicit SIMD extension">, Flags<[NoArgumentUnused, CoreOption]>;
+defm sycl_std_optimizations : OptOutFFlag<"sycl-std-optimizations", "Enable", "Disable", " standard optimization pipeline for SYCL device compiler">;
 
 //===----------------------------------------------------------------------===//
 // CC1 Options
@@ -4454,8 +4455,6 @@ def fsycl_std_layout_kernel_params: Flag<["-"], "fsycl-std-layout-kernel-params"
 def fsycl_allow_func_ptr : Flag<["-"], "fsycl-allow-func-ptr">,
   HelpText<"Allow function pointers in SYCL device.">;
 def fno_sycl_allow_func_ptr : Flag<["-"], "fno-sycl-allow-func-ptr">;
-def fsycl_enable_optimizations: Flag<["-"], "fsycl-enable-optimizations">,
-  HelpText<"Experimental flag enabling standard optimization in the front-end.">;
 
 } // let Flags = [CC1Option]
 
