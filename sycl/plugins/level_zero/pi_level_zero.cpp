@@ -3173,7 +3173,8 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   // piEnqueueMemBufferMap, but can only do so after the above copy
   // is completed. Instead of waiting for It here (blocking), we shall
   // do so in piEventRelease called for the pi_event tracking the unmap.
-  (*Event)->CommandData = MemObj->MapHostPtr ? nullptr : MappedPtr;
+  if (Event)
+    (*Event)->CommandData = MemObj->MapHostPtr ? nullptr : MappedPtr;
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
