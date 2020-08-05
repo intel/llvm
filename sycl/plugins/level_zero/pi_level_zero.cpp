@@ -20,7 +20,6 @@
 #include <string>
 #include <thread>
 #include <utility>
-#include <vector>
 
 #include <level_zero/zet_api.h>
 
@@ -152,9 +151,6 @@ private:
   void *param_value;
   size_t *param_value_size_ret;
 };
-
-// save discovered pi_devices & pi_platforms for quick return
-static std::vector<pi_device> piDevicesCache;
 
 } // anonymous namespace
 
@@ -632,17 +628,10 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   ze_driver_handle_t ZeDriver = Platform->ZeDriver;
 
   // Get number of devices supporting Level Zero
-  uint32_t ZeDeviceCount = 0;
+  uint32_t ZeDeviceCount = Platform->PiDevicesCache.size();
   const bool AskingForGPU = (DeviceType & PI_DEVICE_TYPE_GPU);
   const bool AskingForDefault = (DeviceType == PI_DEVICE_TYPE_DEFAULT);
 
-  if (piDevicesCache.size() != 0) {
-    for (const pi_device CachedDevice : piDevicesCache) {
-      if (CachedDevice->Platform == Platform) {
-        ZeDeviceCount++;
-      }
-    }
-  }
   if (ZeDeviceCount == 0) {
     ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, nullptr));
   }
@@ -663,13 +652,8 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   }
 
   // if devices are already captured in cache, return them from the cache.
-  uint32_t count = 0;
-  for (const pi_device CachedDevice : piDevicesCache) {
-    if (CachedDevice->Platform == Platform) {
-      Devices[count++] = CachedDevice;
-    }
-  }
-  if (count == ZeDeviceCount) {
+  for (const pi_device CachedDevice : Platform->PiDevicesCache) {
+    *(Devices++) = CachedDevice;
     return PI_SUCCESS;
   }
 
@@ -685,7 +669,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
           return Result;
         }
         // save a copy in the cache for future uses.
-        piDevicesCache.push_back(Devices[I]);
+        Platform->PiDevicesCache.push_back(Devices[I]);
       }
     }
   } catch (const std::bad_alloc &) {
@@ -715,9 +699,10 @@ pi_result piDeviceRelease(pi_device Device) {
     // Destroy the command list used for initializations
     ZE_CALL(zeCommandListDestroy(Device->ZeCommandListInit));
     // invalidate piDeviceCache entry
-    for (uint32_t i = 0; i < piDevicesCache.size(); i++) {
-      if (Device == piDevicesCache[i]) {
-        piDevicesCache.erase(piDevicesCache.begin() + i);
+    pi_platform Platform = Device->Platform;
+    for (uint32_t i = 0; i < Platform->PiDevicesCache.size(); i++) {
+      if (Device == Platform->PiDevicesCache[i]) {
+        Platform->PiDevicesCache.erase(Platform->PiDevicesCache.begin() + i);
         break;
       }
     }

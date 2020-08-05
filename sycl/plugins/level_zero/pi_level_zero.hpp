@@ -24,6 +24,7 @@
 #include <iostream>
 #include <mutex>
 #include <unordered_map>
+#include <vector>
 
 #include <level_zero/ze_api.h>
 
@@ -69,6 +70,9 @@ struct _pi_platform {
   // Cache versions info from zeDriverGetProperties.
   std::string ZeDriverVersion;
   std::string ZeDriverApiVersion;
+
+  // Cache pi_devices for reuse
+  std::vector<pi_device> PiDevicesCache;
 };
 
 struct _pi_device : _pi_object {
