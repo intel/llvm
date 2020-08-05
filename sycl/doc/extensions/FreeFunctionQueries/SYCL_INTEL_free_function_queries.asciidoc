@@ -1,4 +1,4 @@
-= SYCL_INTEL_global_work_items
+= SYCL_INTEL_free_function_queries
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 
@@ -29,7 +29,7 @@ This document describes an extension that adds features for SYCL work items and 
 
 == Name Strings
 
-+SYCL_INTEL_global_work_items+
++SYCL_INTEL_free_function_queries+
 
 == Notice
 
@@ -59,7 +59,7 @@ This extension is written against the SYCL 2020 Provisional specification, Revis
 
 == Overview
 
-The extension allows to get `item`, `nd_item`, `h_item`, `group` instances globally
+The extension allows to get `item`, `nd_item`, `group`, `sub_group` instances globally
 
 == Modifications of SYCL 2020 provisional specification
 
@@ -71,7 +71,7 @@ The extension allows to get `item`, `nd_item`, `h_item`, `group` instances globa
 
 [source,c++,multiptr,linenums]
 ----
-template <int dimensions>
+template <int dimensions, bool with_offset>
 item<dimensions> this_item();
 ----
 
@@ -81,14 +81,14 @@ item<dimensions> this_item();
 a|
 [source,c++,multiptr,linenums]
 ----
-template <int dimensions>
+template <int dimensions, bool with_offset>
 item<dimensions> this_item();
 ---- a|
 Returns the `item` instance representing the current work item in a `range`. The prerequisites:
 
 * `dimensions` value passed to `this_item` function shall match `dimensions` value passed to the `range` when the `parallel_for` is called
 
-* shall only be invoked within the `parallel_for` context with `range` as the argument
+* shall only be invoked within the `parallel_for` context with `range` or `nd_range` as the argument
 
 If prerequisites are not fulfilled the behavior is undefined
 |===
@@ -123,36 +123,6 @@ Returns the `nd_item` instance representing the current work item in a `nd_range
 If prerequisites are not fulfilled the behavior is undefined
 |===
 
-=== Changes in 4.10.1.6 (h_item class)
-
-==== Changes in synopsis
-
-===== Add the following free function
-
-[source,c++,multiptr,linenums]
-----
-template <int dimensions>
-h_item<dimensions> this_h_item();
-----
-
-===== Add the table with free functions description
-
-|===
-a|
-[source,c++,multiptr,linenums]
-----
-template <int dimensions>
-h_item<dimensions> this_h_item();
----- a|
-Returns the `h_item` instance representing the work item in a local `range` passed to a `parallel_for_work_item`. The prerequisites:
-
-* `dimensions` value passed to `this_h_item` function shall match `dimensions` value passed to the `range` when the `parallel_for_work_group` is called
-
-* shall only be called from within the`parallel_for_work_item` context
-
-If prerequisites are not fulfilled the behavior is undefined
-|===
-
 === Changes in 4.10.1.7 (group class)
 
 ==== Changes in synopsis
@@ -178,7 +148,33 @@ Returns the `group` instance representing the particular work-group within the p
 
 * `dimensions` value passed to `this_group` function shall match `dimensions` value passed to the `range` when the `parallel_for_work_group` is called
 
-* shall only be called from within the`parallel_for_work_group` context
+* shall only be called from within the `parallel_for` with `nd_range` as the argument
+
+If prerequisites are not fulfilled the behavior is undefined
+|===
+
+=== Changes in 4.10.1.8 (sub_group class)
+
+==== Changes in synopsis
+
+===== Add the following free function
+
+[source,c++,multiptr,linenums]
+----
+sub_group this_sub_group();
+----
+
+===== Add the table with free functions description
+
+|===
+a|
+[source,c++,multiptr,linenums]
+----
+sub_group this_sub_group();
+---- a|
+Returns the `sub_group` instance representing the particular `sub-group` within the parallel execution. The prerequisites:
+
+* shall only be called from within the `parallel_for` with `nd_range` as the argument
 
 If prerequisites are not fulfilled the behavior is undefined
 |===
