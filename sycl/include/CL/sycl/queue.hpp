@@ -365,8 +365,7 @@ public:
   // Here we simplify the &CodeLoc declaration to be CODELOCPARAM(&CodeLoc) and
   // CODELOCARG(&CodeLoc) Similarly, the KernelFunc param is simplified to be
   // KERNELFUNCPARAM(KernelFunc) Once the queue kernel functions are defined,
-  // these macros are #undef immediately. Compare this first definition of
-  // single_task here, with the second one below.
+  // these macros are #undef immediately.
 
   // replace CODELOCPARAM(&CodeLoc) with nothing
   // or :   , const detail::code_location &CodeLoc =
@@ -407,494 +406,314 @@ public:
         CodeLoc);
   }
 
+
+  /// single_task version with a kernel represented as a lambda.
+  ///
+  /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  event single_task(event DepEvent,
+                    KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
+    CODELOCARG(&CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.template single_task<KernelName, KernelType>(KernelFunc);
+        },
+        CodeLoc);
+  }
+
+  /// single_task version with a kernel represented as a lambda.
+  ///
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  event single_task(const vector_class<event> &DepEvents,
+                    KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
+    CODELOCARG(&CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.template single_task<KernelName, KernelType>(KernelFunc);
+        },
+        CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  event parallel_for(range<1> NumWorkItems,
+                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
+    CODELOCARG(&CodeLoc);
+    return parallel_for_impl<KernelName>(NumWorkItems, KernelFunc, CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  event parallel_for(range<2> NumWorkItems,
+                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
+    CODELOCARG(&CodeLoc);
+    return parallel_for_impl<KernelName>(NumWorkItems, KernelFunc, CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  event parallel_for(range<3> NumWorkItems,
+                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
+    CODELOCARG(&CodeLoc);
+    return parallel_for_impl<KernelName>(NumWorkItems, KernelFunc, CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  event parallel_for(range<1> NumWorkItems, event DepEvent,
+                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
+    CODELOCARG(&CodeLoc);
+    return parallel_for_impl<KernelName>(NumWorkItems, DepEvent, KernelFunc,
+                                         CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  event parallel_for(range<2> NumWorkItems, event DepEvent,
+                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
+    CODELOCARG(&CodeLoc);
+    return parallel_for_impl<KernelName>(NumWorkItems, DepEvent, KernelFunc,
+                                         CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  event parallel_for(range<3> NumWorkItems, event DepEvent,
+                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
+    CODELOCARG(&CodeLoc);
+    return parallel_for_impl<KernelName>(NumWorkItems, DepEvent, KernelFunc,
+                                         CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  event parallel_for(range<1> NumWorkItems,
+                     const vector_class<event> &DepEvents,
+                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
+    CODELOCARG(&CodeLoc);
+    return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
+                                         CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  event parallel_for(range<2> NumWorkItems,
+                     const vector_class<event> &DepEvents,
+                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
+    CODELOCARG(&CodeLoc);
+    return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
+                                         CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  event parallel_for(range<3> NumWorkItems,
+                     const vector_class<event> &DepEvents,
+                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
+    CODELOCARG(&CodeLoc);
+    return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
+                                         CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range and
+  /// offset that specify global size and global offset correspondingly.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param WorkItemOffset specifies the offset for each work item id
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
+  event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
+                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
+    CODELOCARG(&CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.template parallel_for<KernelName, KernelType>(
+              NumWorkItems, WorkItemOffset, KernelFunc);
+        },
+        CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range and
+  /// offset that specify global size and global offset correspondingly.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param WorkItemOffset specifies the offset for each work item id
+  /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
+  event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
+                     event DepEvent,
+                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
+    CODELOCARG(&CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.template parallel_for<KernelName, KernelType>(
+              NumWorkItems, WorkItemOffset, KernelFunc);
+        },
+        CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range and
+  /// offset that specify global size and global offset correspondingly.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param WorkItemOffset specifies the offset for each work item id
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
+  event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
+                     const vector_class<event> &DepEvents,
+                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
+    CODELOCARG(&CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.template parallel_for<KernelName, KernelType>(
+              NumWorkItems, WorkItemOffset, KernelFunc);
+        },
+        CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + nd_range that
+  /// specifies global, local sizes and offset.
+  ///
+  /// \param ExecutionRange is a range that specifies the work space of the
+  /// kernel
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
+  event parallel_for(nd_range<Dims> ExecutionRange,
+                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
+    CODELOCARG(&CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.template parallel_for<KernelName, KernelType>(ExecutionRange,
+                                                            KernelFunc);
+        },
+        CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + nd_range that
+  /// specifies global, local sizes and offset.
+  ///
+  /// \param ExecutionRange is a range that specifies the work space of the
+  /// kernel
+  /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
+  event parallel_for(nd_range<Dims> ExecutionRange, event DepEvent,
+                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
+    CODELOCARG(&CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.template parallel_for<KernelName, KernelType>(ExecutionRange,
+                                                            KernelFunc);
+        },
+        CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + nd_range that
+  /// specifies global, local sizes and offset.
+  ///
+  /// \param ExecutionRange is a range that specifies the work space of the
+  /// kernel
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
+  event parallel_for(nd_range<Dims> ExecutionRange,
+                     const vector_class<event> &DepEvents,
+                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
+    CODELOCARG(&CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.template parallel_for<KernelName, KernelType>(ExecutionRange,
+                                                            KernelFunc);
+        },
+        CodeLoc);
+  }
+
 // Clean up CODELOC and KERNELFUNC macros.
 #undef CODELOCPARAM
 #undef CODELOCARG
 #undef KERNELFUNCPARAM
-
-  /// single_task version with a kernel represented as a lambda.
-  ///
-  /// \param DepEvent is an event that specifies the kernel dependencies
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType>
-  event single_task(
-      event DepEvent,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-      KernelType KernelFunc
-#else
-      const KernelType &KernelFunc
-#endif
-
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.template single_task<KernelName, KernelType>(KernelFunc);
-        },
-        CodeLoc);
-  }
-
-  /// single_task version with a kernel represented as a lambda.
-  ///
-  /// \param DepEvents is a vector of events that specifies the kernel
-  /// dependencies
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType>
-  event single_task(
-      const vector_class<event> &DepEvents,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-      KernelType KernelFunc
-#else
-      const KernelType &KernelFunc
-#endif
-
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.template single_task<KernelName, KernelType>(KernelFunc);
-        },
-        CodeLoc);
-  }
-
-  /// parallel_for version with a kernel represented as a lambda + range that
-  /// specifies global size only.
-  ///
-  /// \param NumWorkItems is a range that specifies the work space of the kernel
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(
-      range<1> NumWorkItems,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-      KernelType KernelFunc
-#else
-      const KernelType &KernelFunc
-#endif
-
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
-    return parallel_for_impl<KernelName>(NumWorkItems, KernelFunc, CodeLoc);
-  }
-
-  /// parallel_for version with a kernel represented as a lambda + range that
-  /// specifies global size only.
-  ///
-  /// \param NumWorkItems is a range that specifies the work space of the kernel
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(
-      range<2> NumWorkItems,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-      KernelType KernelFunc
-#else
-      const KernelType &KernelFunc
-#endif
-
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
-    return parallel_for_impl<KernelName>(NumWorkItems, KernelFunc, CodeLoc);
-  }
-
-  /// parallel_for version with a kernel represented as a lambda + range that
-  /// specifies global size only.
-  ///
-  /// \param NumWorkItems is a range that specifies the work space of the kernel
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(
-      range<3> NumWorkItems,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-      KernelType KernelFunc
-#else
-      const KernelType &KernelFunc
-#endif
-
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
-    return parallel_for_impl<KernelName>(NumWorkItems, KernelFunc, CodeLoc);
-  }
-
-  /// parallel_for version with a kernel represented as a lambda + range that
-  /// specifies global size only.
-  ///
-  /// \param NumWorkItems is a range that specifies the work space of the kernel
-  /// \param DepEvent is an event that specifies the kernel dependencies
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(
-      range<1> NumWorkItems, event DepEvent,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-      KernelType KernelFunc
-#else
-      const KernelType &KernelFunc
-#endif
-
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
-    return parallel_for_impl<KernelName>(NumWorkItems, DepEvent, KernelFunc,
-                                         CodeLoc);
-  }
-
-  /// parallel_for version with a kernel represented as a lambda + range that
-  /// specifies global size only.
-  ///
-  /// \param NumWorkItems is a range that specifies the work space of the kernel
-  /// \param DepEvent is an event that specifies the kernel dependencies
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(
-      range<2> NumWorkItems, event DepEvent,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-      KernelType KernelFunc
-#else
-      const KernelType &KernelFunc
-#endif
-
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
-    return parallel_for_impl<KernelName>(NumWorkItems, DepEvent, KernelFunc,
-                                         CodeLoc);
-  }
-
-  /// parallel_for version with a kernel represented as a lambda + range that
-  /// specifies global size only.
-  ///
-  /// \param NumWorkItems is a range that specifies the work space of the kernel
-  /// \param DepEvent is an event that specifies the kernel dependencies
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(
-      range<3> NumWorkItems, event DepEvent,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-      KernelType KernelFunc
-#else
-      const KernelType &KernelFunc
-#endif
-
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
-    return parallel_for_impl<KernelName>(NumWorkItems, DepEvent, KernelFunc,
-                                         CodeLoc);
-  }
-
-  /// parallel_for version with a kernel represented as a lambda + range that
-  /// specifies global size only.
-  ///
-  /// \param NumWorkItems is a range that specifies the work space of the kernel
-  /// \param DepEvents is a vector of events that specifies the kernel
-  /// dependencies
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(
-      range<1> NumWorkItems, const vector_class<event> &DepEvents,
-      const KernelType &KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
-    return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
-                                         CodeLoc);
-  }
-
-  /// parallel_for version with a kernel represented as a lambda + range that
-  /// specifies global size only.
-  ///
-  /// \param NumWorkItems is a range that specifies the work space of the kernel
-  /// \param DepEvents is a vector of events that specifies the kernel
-  /// dependencies
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(
-      range<2> NumWorkItems, const vector_class<event> &DepEvents,
-      const KernelType &KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
-    return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
-                                         CodeLoc);
-  }
-
-  /// parallel_for version with a kernel represented as a lambda + range that
-  /// specifies global size only.
-  ///
-  /// \param NumWorkItems is a range that specifies the work space of the kernel
-  /// \param DepEvents is a vector of events that specifies the kernel
-  /// dependencies
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(
-      range<3> NumWorkItems, const vector_class<event> &DepEvents,
-      const KernelType &KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
-    return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
-                                         CodeLoc);
-  }
-
-  /// parallel_for version with a kernel represented as a lambda + range and
-  /// offset that specify global size and global offset correspondingly.
-  ///
-  /// \param NumWorkItems is a range that specifies the work space of the kernel
-  /// \param WorkItemOffset specifies the offset for each work item id
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            int Dims>
-  event parallel_for(
-      range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-      const KernelType &KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
-    return submit(
-        [&](handler &CGH) {
-          CGH.template parallel_for<KernelName, KernelType>(
-              NumWorkItems, WorkItemOffset, KernelFunc);
-        },
-        CodeLoc);
-  }
-
-  /// parallel_for version with a kernel represented as a lambda + range and
-  /// offset that specify global size and global offset correspondingly.
-  ///
-  /// \param NumWorkItems is a range that specifies the work space of the kernel
-  /// \param WorkItemOffset specifies the offset for each work item id
-  /// \param DepEvent is an event that specifies the kernel dependencies
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            int Dims>
-  event parallel_for(
-      range<Dims> NumWorkItems, id<Dims> WorkItemOffset, event DepEvent,
-      const KernelType &KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.template parallel_for<KernelName, KernelType>(
-              NumWorkItems, WorkItemOffset, KernelFunc);
-        },
-        CodeLoc);
-  }
-
-  /// parallel_for version with a kernel represented as a lambda + range and
-  /// offset that specify global size and global offset correspondingly.
-  ///
-  /// \param NumWorkItems is a range that specifies the work space of the kernel
-  /// \param WorkItemOffset specifies the offset for each work item id
-  /// \param DepEvents is a vector of events that specifies the kernel
-  /// dependencies
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            int Dims>
-  event parallel_for(
-      range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-      const vector_class<event> &DepEvents,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-      KernelType KernelFunc
-#else
-      const KernelType &KernelFunc
-#endif
-
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.template parallel_for<KernelName, KernelType>(
-              NumWorkItems, WorkItemOffset, KernelFunc);
-        },
-        CodeLoc);
-  }
-
-  /// parallel_for version with a kernel represented as a lambda + nd_range that
-  /// specifies global, local sizes and offset.
-  ///
-  /// \param ExecutionRange is a range that specifies the work space of the
-  /// kernel
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            int Dims>
-  event parallel_for(
-      nd_range<Dims> ExecutionRange,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-      KernelType KernelFunc
-#else
-      const KernelType &KernelFunc
-#endif
-
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
-    return submit(
-        [&](handler &CGH) {
-          CGH.template parallel_for<KernelName, KernelType>(ExecutionRange,
-                                                            KernelFunc);
-        },
-        CodeLoc);
-  }
-
-  /// parallel_for version with a kernel represented as a lambda + nd_range that
-  /// specifies global, local sizes and offset.
-  ///
-  /// \param ExecutionRange is a range that specifies the work space of the
-  /// kernel
-  /// \param DepEvent is an event that specifies the kernel dependencies
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            int Dims>
-  event parallel_for(
-      nd_range<Dims> ExecutionRange, event DepEvent,
-      const KernelType &KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.template parallel_for<KernelName, KernelType>(ExecutionRange,
-                                                            KernelFunc);
-        },
-        CodeLoc);
-  }
-
-  /// parallel_for version with a kernel represented as a lambda + nd_range that
-  /// specifies global, local sizes and offset.
-  ///
-  /// \param ExecutionRange is a range that specifies the work space of the
-  /// kernel
-  /// \param DepEvents is a vector of events that specifies the kernel
-  /// dependencies
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            int Dims>
-  event parallel_for(
-      nd_range<Dims> ExecutionRange, const vector_class<event> &DepEvents,
-      const KernelType &KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.template parallel_for<KernelName, KernelType>(ExecutionRange,
-                                                            KernelFunc);
-        },
-        CodeLoc);
-  }
 
   /// Returns whether the queue is in order or OoO
   ///
