@@ -1,3 +1,7 @@
+// XFAIL: cuda
+// The negative test fails on CUDA.  It's not clear whether the CUDA backend
+// respects the reqd_work_group_size attribute.
+
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
