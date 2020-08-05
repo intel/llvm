@@ -10919,8 +10919,8 @@ def warn_sycl_kernel_invalid_template_param_type : Warning<
   "template parameter of a function template with the 'sycl_kernel' attribute"
   " cannot be a non-type template parameter">, InGroup<IgnoredAttributes>;
 def warn_sycl_kernel_num_of_function_params : Warning<
-  "function template with 'sycl_kernel' attribute must have a single parameter">,
-  InGroup<IgnoredAttributes>;
+  "function template with 'sycl_kernel' attribute must have at least one"
+  " parameter">, InGroup<IgnoredAttributes>;
 def warn_sycl_kernel_return_type : Warning<
   "function template with 'sycl_kernel' attribute must have a 'void' return type">,
   InGroup<IgnoredAttributes>;
