@@ -138,6 +138,12 @@ template <typename Ptr, typename T>
 using EnableIfIsPointer =
     cl::sycl::detail::enable_if_t<cl::sycl::detail::is_pointer<Ptr>::value, T>;
 
+template <typename T>
+using EnableIfIsTriviallyCopyable = cl::sycl::detail::enable_if_t<
+    std::is_trivially_copyable<T>::value &&
+        !cl::sycl::detail::is_vector_arithmetic<T>::value,
+    T>;
+
 // EnableIf shorthands for algorithms that depend on type and an operator
 template <typename T, typename BinaryOperation>
 using EnableIfIsScalarArithmeticNativeOp = cl::sycl::detail::enable_if_t<
@@ -286,8 +292,8 @@ EnableIfIsPointer<Ptr, bool> none_of(Group g, Ptr first, Ptr last,
 }
 
 template <typename Group, typename T>
-EnableIfIsScalarArithmetic<T> broadcast(Group, T x,
-                                        typename Group::id_type local_id) {
+EnableIfIsTriviallyCopyable<T> broadcast(Group, T x,
+                                         typename Group::id_type local_id) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
@@ -323,7 +329,7 @@ EnableIfIsVectorArithmetic<T> broadcast(Group g, T x,
 }
 
 template <typename Group, typename T>
-EnableIfIsScalarArithmetic<T>
+EnableIfIsTriviallyCopyable<T>
 broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
@@ -363,7 +369,7 @@ broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 }
 
 template <typename Group, typename T>
-EnableIfIsScalarArithmetic<T> broadcast(Group g, T x) {
+EnableIfIsTriviallyCopyable<T> broadcast(Group g, T x) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
                 "intel::sub_group class.");
