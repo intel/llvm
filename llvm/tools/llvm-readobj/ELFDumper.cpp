@@ -353,7 +353,7 @@ public:
   void printSymbolsHelper(bool IsDynamic) const;
   std::string getDynamicEntry(uint64_t Type, uint64_t Value) const;
 
-  Expected<const typename ELFT::Shdr *> findSectionByName(StringRef Name) const;
+  const Elf_Shdr *findSectionByName(StringRef Name) const;
 
   const Elf_Shdr *getDotSymtabSec() const { return DotSymtabSec; }
   const Elf_Shdr *getDotCGProfileSec() const { return DotCGProfileSec; }
@@ -2454,7 +2454,7 @@ void printFlags(T Value, ArrayRef<EnumEntry<TFlag>> Flags, raw_ostream &OS) {
 }
 
 template <class ELFT>
-Expected<const typename ELFT::Shdr *>
+const typename ELFT::Shdr *
 ELFDumper<ELFT>::findSectionByName(StringRef Name) const {
   const ELFFile<ELFT> *Obj = ObjF->getELFFile();
   for (const Elf_Shdr &Shdr : cantFail(Obj->sections())) {
@@ -3009,12 +3009,7 @@ Error MipsGOTParser<ELFT>::findGOT(Elf_Dyn_Range DynTable,
 
   // Find static GOT secton.
   if (IsStatic) {
-    Expected<const Elf_Shdr *> GotOrErr = Dumper.findSectionByName(".got");
-    if (!GotOrErr)
-      return GotOrErr.takeError();
-    else
-      GotSec = *GotOrErr;
-
+    GotSec = Dumper.findSectionByName(".got");
     if (!GotSec)
       return Error::success();
 
@@ -3333,19 +3328,14 @@ static void printMipsReginfoData(ScopedPrinter &W,
 
 template <class ELFT> void ELFDumper<ELFT>::printMipsReginfo() {
   const ELFFile<ELFT> *Obj = ObjF->getELFFile();
-  Expected<const Elf_Shdr *> RegInfoOrErr = findSectionByName(".reginfo");
-  if (!RegInfoOrErr) {
-    reportUniqueWarning(RegInfoOrErr.takeError());
-    return;
-  }
-
-  if ((*RegInfoOrErr) == nullptr) {
+  const Elf_Shdr *RegInfo = findSectionByName(".reginfo");
+  if (!RegInfo) {
     W.startLine() << "There is no .reginfo section in the file.\n";
     return;
   }
 
   ArrayRef<uint8_t> Sec = unwrapOrError(ObjF->getFileName(),
-                                        Obj->getSectionContents(*RegInfoOrErr));
+                                        Obj->getSectionContents(RegInfo));
   if (Sec.size() != sizeof(Elf_Mips_RegInfo<ELFT>)) {
     W.startLine() << "The .reginfo section has a wrong size.\n";
     return;
@@ -3356,62 +3346,107 @@ template <class ELFT> void ELFDumper<ELFT>::printMipsReginfo() {
   printMipsReginfoData(W, *Reginfo);
 }
 
-template <class ELFT> void ELFDumper<ELFT>::printMipsOptions() {
-  const ELFFile<ELFT> *Obj = ObjF->getELFFile();
-  Expected<const Elf_Shdr *> MipsOptOrErr = findSectionByName(".MIPS.options");
-  if (!MipsOptOrErr) {
-    reportUniqueWarning(MipsOptOrErr.takeError());
-    return;
+template <class ELFT>
+static Expected<const Elf_Mips_Options<ELFT> *>
+readMipsOptions(const uint8_t *SecBegin, ArrayRef<uint8_t> &SecData,
+                bool &IsSupported) {
+  if (SecData.size() < sizeof(Elf_Mips_Options<ELFT>))
+    return createError("the .MIPS.options section has an invalid size (0x" +
+                       Twine::utohexstr(SecData.size()) + ")");
+
+  const Elf_Mips_Options<ELFT> *O =
+      reinterpret_cast<const Elf_Mips_Options<ELFT> *>(SecData.data());
+  const uint8_t Size = O->size;
+  if (Size > SecData.size()) {
+    const uint64_t Offset = SecData.data() - SecBegin;
+    const uint64_t SecSize = Offset + SecData.size();
+    return createError("a descriptor of size 0x" + Twine::utohexstr(Size) +
+                       " at offset 0x" + Twine::utohexstr(Offset) +
+                       " goes past the end of the .MIPS.options "
+                       "section of size 0x" +
+                       Twine::utohexstr(SecSize));
   }
 
-  if ((*MipsOptOrErr) == nullptr) {
+  IsSupported = O->kind == ODK_REGINFO;
+  const size_t ExpectedSize =
+      sizeof(Elf_Mips_Options<ELFT>) + sizeof(Elf_Mips_RegInfo<ELFT>);
+
+  if (IsSupported)
+    if (Size < ExpectedSize)
+      return createError(
+          "a .MIPS.options entry of kind " +
+          Twine(getElfMipsOptionsOdkType(O->kind)) +
+          " has an invalid size (0x" + Twine::utohexstr(Size) +
+          "), the expected size is 0x" + Twine::utohexstr(ExpectedSize));
+
+  SecData = SecData.drop_front(Size);
+  return O;
+}
+
+template <class ELFT> void ELFDumper<ELFT>::printMipsOptions() {
+  const ELFFile<ELFT> *Obj = ObjF->getELFFile();
+  const Elf_Shdr *MipsOpts = findSectionByName(".MIPS.options");
+  if (!MipsOpts) {
     W.startLine() << "There is no .MIPS.options section in the file.\n";
     return;
   }
 
   DictScope GS(W, "MIPS Options");
 
-  ArrayRef<uint8_t> Sec = unwrapOrError(ObjF->getFileName(),
-                                        Obj->getSectionContents(*MipsOptOrErr));
-  while (!Sec.empty()) {
-    if (Sec.size() < sizeof(Elf_Mips_Options<ELFT>)) {
-      W.startLine() << "The .MIPS.options section has a wrong size.\n";
-      return;
-    }
-    auto *O = reinterpret_cast<const Elf_Mips_Options<ELFT> *>(Sec.data());
-    DictScope GS(W, getElfMipsOptionsOdkType(O->kind));
-    switch (O->kind) {
-    case ODK_REGINFO:
-      printMipsReginfoData(W, O->getRegInfo());
-      break;
-    default:
-      W.startLine() << "Unsupported MIPS options tag.\n";
+  ArrayRef<uint8_t> Data =
+      unwrapOrError(ObjF->getFileName(), Obj->getSectionContents(MipsOpts));
+  const uint8_t *const SecBegin = Data.begin();
+  while (!Data.empty()) {
+    bool IsSupported;
+    Expected<const Elf_Mips_Options<ELFT> *> OptsOrErr =
+        readMipsOptions<ELFT>(SecBegin, Data, IsSupported);
+    if (!OptsOrErr) {
+      reportUniqueWarning(OptsOrErr.takeError());
       break;
     }
-    Sec = Sec.slice(O->size);
+
+    unsigned Kind = (*OptsOrErr)->kind;
+    const char *Type = getElfMipsOptionsOdkType(Kind);
+    if (!IsSupported) {
+      W.startLine() << "Unsupported MIPS options tag: " << Type << " (" << Kind
+                    << ")\n";
+      continue;
+    }
+
+    DictScope GS(W, Type);
+    if (Kind == ODK_REGINFO)
+      printMipsReginfoData(W, (*OptsOrErr)->getRegInfo());
+    else
+      llvm_unreachable("unexpected .MIPS.options section descriptor kind");
   }
 }
 
 template <class ELFT> void ELFDumper<ELFT>::printStackMap() const {
   const ELFFile<ELFT> *Obj = ObjF->getELFFile();
-  const Elf_Shdr *StackMapSection = nullptr;
-  for (const Elf_Shdr &Sec : cantFail(Obj->sections())) {
-    StringRef Name =
-        unwrapOrError(ObjF->getFileName(), Obj->getSectionName(&Sec));
-    if (Name == ".llvm_stackmaps") {
-      StackMapSection = &Sec;
-      break;
-    }
-  }
-
+  const Elf_Shdr *StackMapSection = findSectionByName(".llvm_stackmaps");
   if (!StackMapSection)
     return;
 
-  ArrayRef<uint8_t> StackMapContentsArray = unwrapOrError(
-      ObjF->getFileName(), Obj->getSectionContents(StackMapSection));
+  auto Warn = [&](Error &&E) {
+    this->reportUniqueWarning(createError("unable to read the stack map from " +
+                                          describe(*StackMapSection) + ": " +
+                                          toString(std::move(E))));
+  };
 
-  prettyPrintStackMap(
-      W, StackMapParser<ELFT::TargetEndianness>(StackMapContentsArray));
+  Expected<ArrayRef<uint8_t>> ContentOrErr =
+      Obj->getSectionContents(StackMapSection);
+  if (!ContentOrErr) {
+    Warn(ContentOrErr.takeError());
+    return;
+  }
+
+  if (Error E = StackMapParser<ELFT::TargetEndianness>::validateHeader(
+          *ContentOrErr)) {
+    Warn(std::move(E));
+    return;
+  }
+
+  prettyPrintStackMap(W, StackMapParser<ELFT::TargetEndianness>(*ContentOrErr));
 }
 
 template <class ELFT> void ELFDumper<ELFT>::printGroupSections() {
@@ -5982,16 +6017,13 @@ template <class ELFT>
 Expected<const Elf_Mips_ABIFlags<ELFT> *>
 getMipsAbiFlagsSection(const ELFObjectFile<ELFT> *ObjF,
                        const ELFDumper<ELFT> &Dumper) {
-  Expected<const typename ELFT::Shdr *> SecOrErr =
-      Dumper.findSectionByName(".MIPS.abiflags");
-  if (!SecOrErr)
-    return SecOrErr.takeError();
-  if (*SecOrErr == nullptr)
+  const typename ELFT::Shdr *Sec = Dumper.findSectionByName(".MIPS.abiflags");
+  if (Sec == nullptr)
     return nullptr;
 
   const ELFFile<ELFT> *Obj = ObjF->getELFFile();
   constexpr StringRef ErrPrefix = "unable to read the .MIPS.abiflags section: ";
-  Expected<ArrayRef<uint8_t>> DataOrErr = Obj->getSectionContents(*SecOrErr);
+  Expected<ArrayRef<uint8_t>> DataOrErr = Obj->getSectionContents(Sec);
   if (!DataOrErr)
     return createError(ErrPrefix + toString(DataOrErr.takeError()));
 

@@ -535,6 +535,10 @@ static unsigned getJumpThreadDuplicationCost(BasicBlock *BB,
     if (isa<BitCastInst>(I) && I->getType()->isPointerTy())
       continue;
 
+    // Freeze instruction is free, too.
+    if (isa<FreezeInst>(I))
+      continue;
+
     // Bail out if this instruction gives back a token type, it is not possible
     // to duplicate it if it is used outside this BB.
     if (I->getType()->isTokenTy() && I->isUsedOutsideOfBlock(BB))
@@ -674,13 +678,9 @@ bool JumpThreadingPass::ComputeValueKnownInPredecessorsImpl(
     return !Result.empty();
   }
 
-  // Handle Cast instructions.  Only see through Cast when the source operand is
-  // PHI, Cmp, or Freeze to save the compilation time.
+  // Handle Cast instructions.
   if (CastInst *CI = dyn_cast<CastInst>(I)) {
     Value *Source = CI->getOperand(0);
-    if (!isa<PHINode>(Source) && !isa<CmpInst>(Source) &&
-        !isa<FreezeInst>(Source))
-      return false;
     ComputeValueKnownInPredecessorsImpl(Source, BB, Result, Preference,
                                         RecursionSet, CxtI);
     if (Result.empty())
@@ -693,12 +693,8 @@ bool JumpThreadingPass::ComputeValueKnownInPredecessorsImpl(
     return true;
   }
 
-  // Handle Freeze instructions, in a manner similar to Cast.
   if (FreezeInst *FI = dyn_cast<FreezeInst>(I)) {
     Value *Source = FI->getOperand(0);
-    if (!isa<PHINode>(Source) && !isa<CmpInst>(Source) &&
-        !isa<CastInst>(Source))
-      return false;
     ComputeValueKnownInPredecessorsImpl(Source, BB, Result, Preference,
                                         RecursionSet, CxtI);
 
