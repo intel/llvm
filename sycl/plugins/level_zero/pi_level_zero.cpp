@@ -504,7 +504,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     for (const pi_platform CachedPlatform : piPlatformsCache) {
       if (CachedPlatform->ZeDriver == ZeDriver) {
         Platforms[0] = CachedPlatform;
-	// if the caller sent a valid NumPlatforms pointer, set it here
+        // if the caller sent a valid NumPlatforms pointer, set it here
         if (NumPlatforms)
           *NumPlatforms = 1;
 
