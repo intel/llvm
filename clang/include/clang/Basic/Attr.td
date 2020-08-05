@@ -1188,6 +1188,14 @@ def SYCLDeviceIndirectlyCallable : InheritableAttr {
   let PragmaAttributeSupport = 0;
 }
 
+def SYCLIntelBufferLocation : InheritableAttr {
+  // No spelling, as this attribute can't be created in the source code.
+  let Spellings = [];
+  let Args = [UnsignedArgument<"LocationID">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [SYCLIntelBufferLocationAttrDocs];
+}
+
 def SYCLIntelKernelArgsRestrict : InheritableAttr {
   let Spellings = [ CXX11<"intel", "kernel_args_restrict"> ];
   let Subjects = SubjectList<[Function], ErrorDiag>;

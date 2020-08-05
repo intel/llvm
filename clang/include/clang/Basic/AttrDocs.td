@@ -1994,6 +1994,25 @@ can be lowered.
   }];
 }
 
+def SYCLIntelBufferLocationAttrDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "kernel_args_buffer_location";
+  let Content = [{
+This attribute is implicitly added to OpenCL pointer kernel parameters generated
+from a SYCL kernel object. It lacks a spelling, as it is not intended to be used
+by the programmer.
+
+This attribute causes clang to generate metadata on the OpenCL kernel containing
+the number of kernel parameters. The metadata contains an integer that is set
+according to the values passed through the ``accessor`` property
+``buffer_location``. These values are mapped to the actual locations of the
+global buffers (such as DDR, QDR, etc) and applied to pointer kernel parameters.
+Number of metadata arguments is the same as a number of kernel parameters, so
+any parameter that isn't an ``accessor`` with ``buffer_location`` property is
+annotated by '-1' in the metadata node.
+  }];
+}
+
 def SYCLIntelKernelArgsRestrictDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "kernel_args_restrict";
