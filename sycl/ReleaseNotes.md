@@ -1,12 +1,15 @@
 # August'20 release notes
 
-Release notes for the commit range 75b3dc2..4d5b34d
+Release notes for the commit range 75b3dc2..414c1e5
 
 ## New features
   - Implemented basic support for the [Explicit SIMD extension](./sycl/doc/extensions/ExplicitSIMD/dpcpp-explicit-simd.md)
     for low-level GPU performance tuning [84bf234] [32bf607] [a lot of others]
   - Implemented support for the [SYCL_INTEL_usm_address_spaces extension](https://github.com/intel/llvm/pull/1840)
   - Implemented support for the [Use Pinned Host Memory Property extension](doc/extensions/UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc) [e5ea144][aee2d6c][396759d]
+  - Implemented aspects feature from the SYCL 2020 provisional Specification
+    [89804af]
+
 
 ## Improvements
 ### SYCL Compiler
@@ -83,6 +86,7 @@ Release notes for the commit range 75b3dc2..4d5b34d
     query native handles of SYCL objects and to create SYCL objects by providing
     a native handle: platform, device, queue, program. The feature is described
     the SYCL 2020 provisional specification [a51c333]
+  - Added support for `sycl::intel::atomic_ref` from [SYCL_INTEL_extended_atomics extension](doc/extensions/ExtendedAtomics/SYCL_INTEL_extended_atomics.asciidoc)
 
 
 ### Documentation
