@@ -79,16 +79,6 @@ template <> inline id<3> linear_id_to_id(range<3> r, size_t linear_id) {
   return result;
 }
 
-// TODO: Replace with Group::fence_scope from SYCL 2020 provisional
-template <typename Group> struct FenceScope {
-  static constexpr ONEAPI::memory_scope value =
-      ONEAPI::memory_scope::work_group;
-};
-
-template <> struct FenceScope<ONEAPI::sub_group> {
-  static constexpr ONEAPI::memory_scope value = ONEAPI::memory_scope::sub_group;
-};
-
 template <typename T, class BinaryOperation> struct identity {};
 
 template <typename T, typename V> struct identity<T, ONEAPI::plus<V>> {
@@ -901,42 +891,6 @@ template <typename Group> bool leader(Group g) {
   typename Group::linear_id_type linear_id =
       sycl::detail::get_local_linear_id(g);
   return (linear_id == 0);
-#else
-  (void)g;
-  throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
-#endif
-}
-
-template <typename Group> void barrier(Group, memory_scope scope) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
-#ifdef __SYCL_DEVICE_ONLY__
-  // MemoryScope must be broader than Group scope for correctness
-  auto GroupScope = detail::FenceScope<Group>::value;
-  auto BroadestScope = (scope > GroupScope) ? scope : GroupScope;
-  auto MemoryScope = sycl::detail::spirv::getScope(BroadestScope);
-  auto ExecutionScope = sycl::detail::spirv::group_scope<Group>::value;
-  __spirv_ControlBarrier(ExecutionScope, MemoryScope,
-                         __spv::MemorySemanticsMask::AcquireRelease |
-                             __spv::MemorySemanticsMask::SubgroupMemory |
-                             __spv::MemorySemanticsMask::WorkgroupMemory |
-                             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
-#else
-  (void)scope;
-  throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
-#endif
-}
-
-template <typename Group> void barrier(Group g) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
-#ifdef __SYCL_DEVICE_ONLY__
-  auto MemoryScope = detail::FenceScope<Group>::value;
-  barrier(g, MemoryScope);
 #else
   (void)g;
   throw runtime_error("Group algorithms are not supported on host device.",

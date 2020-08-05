@@ -8,12 +8,10 @@
 
 #include "helper.hpp"
 #include <CL/sycl.hpp>
-template <typename T>
-class sycl_subgr;
+template <typename T> class sycl_subgr;
 using namespace cl::sycl;
-template <typename T>
-void check(queue &Queue) {
-  const int G = 240, L = 60;
+template <typename T> void check(queue &Queue) {
+  const int G = 256, L = 64;
   try {
     nd_range<1> NdRange(G, L);
     buffer<T> syclbuf(G);
@@ -23,9 +21,10 @@ void check(queue &Queue) {
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<sycl_subgr<T>>(NdRange, [=](nd_item<1> NdItem) {
         ONEAPI::sub_group SG = NdItem.get_sub_group();
-        /*Broadcast GID of element with SGLID == SGID */
+        /*Broadcast GID of element with SGLID == SGID % SGMLR*/
         syclacc[NdItem.get_global_id()] =
-            broadcast(SG, T(NdItem.get_global_id(0)), SG.get_group_id());
+            broadcast(SG, T(NdItem.get_global_id(0)),
+                      SG.get_group_id() % SG.get_max_local_range()[0]);
         if (NdItem.get_global_id(0) == 0)
           sgsizeacc[0] = SG.get_max_local_range()[0];
       });
@@ -44,7 +43,8 @@ void check(queue &Queue) {
         WGid++;
         SGid = 0;
       }
-      exit_if_not_equal<T>(syclacc[j], L * WGid + SGid + SGid * sg_size,
+      exit_if_not_equal<T>(syclacc[j],
+                           L * WGid + SGid % sg_size + SGid * sg_size,
                            "broadcasted value");
     }
   } catch (exception e) {
