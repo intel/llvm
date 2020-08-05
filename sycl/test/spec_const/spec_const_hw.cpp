@@ -1,3 +1,6 @@
+// TODO: Enable compilation w/o -fno-sycl-std-optimizations option.
+// See https://github.com/intel/llvm/issues/2264 for more details.
+
 // UNSUPPORTED: cuda || level_zero
 //
 // RUN: %clangxx -fsycl -fno-sycl-std-optimizations -fsycl-targets=%sycl_triple %s -o %t.out

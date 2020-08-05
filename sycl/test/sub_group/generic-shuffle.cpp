@@ -1,3 +1,6 @@
+// TODO: Enable compilation w/o -fno-sycl-std-optimizations option.
+// See https://github.com/intel/llvm/issues/2264 for more details.
+
 // UNSUPPORTED: cuda || cpu
 // CUDA compilation and runtime do not yet support sub-groups.
 // #2245 failed on OpenCL CPU (2020.10.7.0.15) with avx2 instruction set
