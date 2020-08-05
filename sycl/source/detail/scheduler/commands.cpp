@@ -1652,6 +1652,8 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
   const detail::plugin &Plugin = MQueue->getPlugin();
   for (ArgDesc &Arg : ExecKernel->MArgs) {
     switch (Arg.MType) {
+    case kernel_param_kind_t::kind_stream:
+      break;
     case kernel_param_kind_t::kind_accessor: {
       Requirement *Req = (Requirement *)(Arg.MPtr);
       AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);

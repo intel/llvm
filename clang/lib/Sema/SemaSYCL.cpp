@@ -880,26 +880,6 @@ public:
     VisitRecordFields(Owner, handlers...);
   }
 
-  // FIXME: Can this be refactored/handled some other way?
-  template <typename ParentTy, typename... Handlers>
-  void VisitStreamRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
-                         CXXRecordDecl *Wrapper, Handlers &... handlers) {
-    (void)std::initializer_list<int>{
-        (handlers.enterStruct(Owner, Parent), 0)...};
-    for (const auto &Field : Wrapper->fields()) {
-      QualType FieldTy = Field->getType();
-      (void)std::initializer_list<int>{
-          (handlers.enterField(Wrapper, Field), 0)...};
-      // Required to initialize accessors inside streams.
-      if (Util::isSyclAccessorType(FieldTy))
-        KF_FOR_EACH(handleSyclAccessorType, Field, FieldTy);
-      (void)std::initializer_list<int>{
-          (handlers.leaveField(Wrapper, Field), 0)...};
-    }
-    (void)std::initializer_list<int>{
-        (handlers.leaveStruct(Owner, Parent), 0)...};
-  }
-
   template <typename... Handlers>
   void VisitRecordBases(const CXXRecordDecl *KernelFunctor,
                         Handlers &... handlers) {
@@ -924,12 +904,9 @@ public:
         KF_FOR_EACH(handleSyclHalfType, Field, FieldTy);
       else if (Util::isSyclSpecConstantType(FieldTy))
         KF_FOR_EACH(handleSyclSpecConstantType, Field, FieldTy);
-      else if (Util::isSyclStreamType(FieldTy)) {
-        CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
-        // Handle accessors in stream class.
-        VisitStreamRecord(Owner, Field, RD, handlers...);
+      else if (Util::isSyclStreamType(FieldTy))
         KF_FOR_EACH(handleSyclStreamType, Field, FieldTy);
-      } else if (FieldTy->isStructureOrClassType()) {
+      else if (FieldTy->isStructureOrClassType()) {
         if (KF_FOR_EACH(handleStructType, Field, FieldTy)) {
           CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
           VisitRecord(Owner, Field, RD, handlers...);
@@ -1297,8 +1274,7 @@ public:
   }
 
   bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy);
-    return true;
+    return handleSpecialType(FD, FieldTy);
   }
 
   bool handleSyclStreamType(const CXXBaseSpecifier &, QualType FieldTy) final {
@@ -1515,6 +1491,13 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
           createSpecialMethodCall(MemberExprBases.back(), InitMethod, FD);
       BodyStmts.push_back(InitCall);
     }
+    CXXMethodDecl *FinalizeMethod =
+        getMethodByName(RecordDecl, FinalizeMethodName);
+    if (FinalizeMethod) {
+      CXXMemberCallExpr *FinalizeCall =
+          createSpecialMethodCall(MemberExprBases.back(), FinalizeMethod, FD);
+      FinalizeStmts.push_back(FinalizeCall);
+    }
     return true;
   }
 
@@ -1536,6 +1519,13 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
       CXXMemberCallExpr *InitCall =
           createSpecialMethodCall(MemberExprBases.back(), InitMethod, nullptr);
       BodyStmts.push_back(InitCall);
+    }
+    CXXMethodDecl *FinalizeMethod =
+        getMethodByName(RecordDecl, FinalizeMethodName);
+    if (FinalizeMethod) {
+      CXXMemberCallExpr *FinalizeCall = createSpecialMethodCall(
+          MemberExprBases.back(), FinalizeMethod, nullptr);
+      FinalizeStmts.push_back(FinalizeCall);
     }
     return true;
   }
@@ -1583,23 +1573,7 @@ public:
   }
 
   bool handleSyclStreamType(FieldDecl *FD, QualType Ty) final {
-    const auto *StreamDecl = Ty->getAsCXXRecordDecl();
-    createExprForStructOrScalar(FD);
-    size_t NumBases = MemberExprBases.size();
-    CXXMethodDecl *InitMethod = getMethodByName(StreamDecl, InitMethodName);
-    if (InitMethod) {
-      CXXMemberCallExpr *InitCall =
-          createSpecialMethodCall(MemberExprBases.back(), InitMethod, FD);
-      BodyStmts.push_back(InitCall);
-    }
-    CXXMethodDecl *FinalizeMethod =
-        getMethodByName(StreamDecl, FinalizeMethodName);
-    if (FinalizeMethod) {
-      CXXMemberCallExpr *FinalizeCall = createSpecialMethodCall(
-          MemberExprBases[NumBases - 2], FinalizeMethod, FD);
-      FinalizeStmts.push_back(FinalizeCall);
-    }
-    return true;
+    return handleSpecialType(FD, Ty);
   }
 
   bool handleSyclStreamType(const CXXBaseSpecifier &BS, QualType Ty) final {
@@ -1666,18 +1640,7 @@ public:
     const CXXRecordDecl *RD =
         FD->getType()->getBaseElementTypeUnsafe()->getAsCXXRecordDecl();
 
-    // Initializers for accessors inside stream not added.
-    if (!Util::isSyclStreamType(FD->getType()))
-      addStructInit(RD);
-    // Pop out unused initializers created in handleSyclAccesorType
-    // for accessors inside stream class.
-    else {
-      for (const auto &Field : RD->fields()) {
-        QualType FieldTy = Field->getType();
-        if (Util::isSyclAccessorType(FieldTy))
-          InitExprs.pop_back();
-      }
-    }
+    addStructInit(RD);
     return true;
   }
 
@@ -1831,7 +1794,7 @@ public:
   }
 
   bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
+    addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
     return true;
   }
 
@@ -2211,6 +2174,7 @@ static const char *paramKind2Str(KernelParamKind K) {
     CASE(accessor);
     CASE(std_layout);
     CASE(sampler);
+    CASE(stream);
     CASE(pointer);
   default:
     return "<ERROR>";

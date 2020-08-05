@@ -199,6 +199,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+class stream;
 namespace intel {
 namespace gpu {
 // Forward declare a "back-door" access class to support ESIMD.
@@ -886,6 +887,7 @@ public:
 
 private:
   friend class sycl::intel::gpu::AccessorPrivateProxy;
+  friend class sycl::stream;
 
 public:
   using value_type = DataT;

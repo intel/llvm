@@ -63,10 +63,23 @@ using GlobalBufAccessorT = accessor<char, 1, cl::sycl::access::mode::read_write,
                                     cl::sycl::access::target::global_buffer,
                                     cl::sycl::access::placeholder::false_t>;
 
+constexpr static access::address_space GlobalBufAS =
+    TargetToAS<cl::sycl::access::target::global_buffer>::AS;
+using GlobalBufPtrType =
+    typename detail::PtrValueType<char, GlobalBufAS>::type *;
+constexpr static int GlobalBufDim = 1;
+
 using GlobalOffsetAccessorT =
     accessor<unsigned, 1, cl::sycl::access::mode::atomic,
              cl::sycl::access::target::global_buffer,
              cl::sycl::access::placeholder::false_t>;
+
+constexpr static access::address_space GlobalOffsetAS =
+    TargetToAS<cl::sycl::access::target::global_buffer>::AS;
+using GlobalOffsetPtrType =
+    typename detail::PtrValueType<unsigned, GlobalOffsetAS>::type *;
+constexpr static int GlobalOffsetDim = 1;
+
 
 inline void write(GlobalBufAccessorT &GlobalFlushBuf, size_t FlushBufferSize,
                   unsigned WIOffset, unsigned &Offset, const char *Str,
@@ -697,6 +710,12 @@ inline __width_manipulator__ setw(int Width) {
 /// \ingroup sycl_api
 class __SYCL_EXPORT stream {
 public:
+
+#ifdef __SYCL_DEVICE_ONLY__
+  // Default constructor for objects later initialized with __init member.
+  stream() = default;
+#endif
+
   stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH);
 
   size_t get_size() const;
@@ -810,7 +829,28 @@ private:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
-  void __init() {
+  void __init(detail::GlobalBufPtrType GlobalBufPtr,
+              range<detail::GlobalBufDim> GlobalBufAccRange,
+              range<detail::GlobalBufDim> GlobalBufMemRange,
+              id<detail::GlobalBufDim> GlobalBufId,
+              detail::GlobalOffsetPtrType GlobalOffsetPtr,
+              range<detail::GlobalOffsetDim> GlobalOffsetAccRange,
+              range<detail::GlobalOffsetDim> GlobalOffsetMemRange,
+              id<detail::GlobalOffsetDim> GlobalOffsetId,
+              detail::GlobalBufPtrType GlobalFlushPtr,
+              range<detail::GlobalBufDim> GlobalFlushAccRange,
+              range<detail::GlobalBufDim> GlobalFlushMemRange,
+              id<detail::GlobalBufDim> GlobalFlushId,
+              size_t _FlushBufferSize) {
+#ifndef __SYCL_EXPLICIT_SIMD__
+    GlobalBuf.__init(GlobalBufPtr, GlobalBufAccRange, GlobalBufMemRange,
+                     GlobalBufId);
+    GlobalOffset.__init(GlobalOffsetPtr, GlobalOffsetAccRange,
+                        GlobalOffsetMemRange, GlobalOffsetId);
+    GlobalFlushBuf.__init(GlobalFlushPtr, GlobalFlushAccRange,
+                          GlobalFlushMemRange, GlobalFlushId);
+#endif
+    FlushBufferSize = _FlushBufferSize;
     // Calculate work item's global id, this should be done once, that
     // is why this is done in _init method, call to __init method is generated
     // by frontend. As a result each work item will write to its own section
@@ -833,6 +873,8 @@ private:
     }
   }
 #endif
+
+  friend class handler;
 
   friend const stream &operator<<(const stream &, const char);
   friend const stream &operator<<(const stream &, const char *);
