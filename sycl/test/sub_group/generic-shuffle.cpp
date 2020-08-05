@@ -1,9 +1,8 @@
 // TODO: Enable compilation w/o -fno-sycl-std-optimizations option.
 // See https://github.com/intel/llvm/issues/2264 for more details.
 
-// UNSUPPORTED: cuda || cpu
+// UNSUPPORTED: cuda
 // CUDA compilation and runtime do not yet support sub-groups.
-// #2245 failed on OpenCL CPU (2020.10.7.0.15) with avx2 instruction set
 //
 // RUN: %clangxx -fsycl -fno-sycl-std-optimizations -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
@@ -27,7 +26,7 @@ template <typename T> class pointer_kernel;
 using namespace cl::sycl;
 
 template <typename T>
-void check_pointer(queue &Queue, size_t G = 240, size_t L = 60) {
+void check_pointer(queue &Queue, size_t G = 256, size_t L = 64) {
   try {
     nd_range<1> NdRange(G, L);
     buffer<T *> buf(G);
@@ -121,7 +120,7 @@ void check_pointer(queue &Queue, size_t G = 240, size_t L = 60) {
 }
 
 template <typename T, typename Generator>
-void check_struct(queue &Queue, Generator &Gen, size_t G = 240, size_t L = 60) {
+void check_struct(queue &Queue, Generator &Gen, size_t G = 256, size_t L = 64) {
 
   // Fill a vector with values that will be shuffled
   std::vector<T> values(G);

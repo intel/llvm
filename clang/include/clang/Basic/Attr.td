@@ -1131,7 +1131,7 @@ def SYCLDevice : InheritableAttr {
 def SYCLKernel : InheritableAttr {
   let Spellings = [Clang<"sycl_kernel">];
   let Subjects = SubjectList<[FunctionTmpl]>;
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsHost, SYCLIsDevice];
   let Documentation = [SYCLKernelDocs];
 }
 
@@ -1186,6 +1186,14 @@ def SYCLDeviceIndirectlyCallable : InheritableAttr {
   let LangOpts = [SYCLIsDevice];
   let Documentation = [SYCLDeviceIndirectlyCallableDocs];
   let PragmaAttributeSupport = 0;
+}
+
+def SYCLIntelBufferLocation : InheritableAttr {
+  // No spelling, as this attribute can't be created in the source code.
+  let Spellings = [];
+  let Args = [UnsignedArgument<"LocationID">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [SYCLIntelBufferLocationAttrDocs];
 }
 
 def SYCLIntelKernelArgsRestrict : InheritableAttr {
