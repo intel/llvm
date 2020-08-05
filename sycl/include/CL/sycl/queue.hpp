@@ -406,7 +406,6 @@ public:
         CodeLoc);
   }
 
-
   /// single_task version with a kernel represented as a lambda.
   ///
   /// \param DepEvent is an event that specifies the kernel dependencies
