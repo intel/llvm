@@ -1,10 +1,10 @@
 ;RUN: llvm-as %s -o %t.bc
-;RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-;RUN: llvm-spirv %t.bc -o %t.spt
-;RUN: llvm-spirv -r %t.spt -o %t.rev.bc
+;RUN: llvm-spirv %t.bc -o %t.spv
+;RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+;RUN: llvm-spirv %t.bc -o %t.spv
+;RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ;RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
-;CHECK-SPIRV: Decorate {{[0-9]+}} UserSemantic "annotation_on_variable"
 ;CHECK-SPIRV: Decorate {{[0-9]+}} UserSemantic "annotation_on_function"
 
 ;CHECK-LLVM: @llvm.global.annotations  = appending global [1 x { i8*, i8*, i8*, i32 }] [{ i8*, i8*, i8*, i32 } { i8* bitcast (void ()* @foo to i8*), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @1, i32 0, i32 0), i8* undef, i32 undef }], section "llvm.metadata"
