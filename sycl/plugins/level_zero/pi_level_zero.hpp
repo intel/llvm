@@ -316,6 +316,11 @@ struct _pi_program : _pi_object {
     // is not yet compiled.
     IL,
 
+    // The program has been created by loading native code, but it has not yet
+    // been built.  This is equivalent to an OpenCL "program executable" that
+    // is loaded via clCreateProgramWithBinary().
+    Native,
+
     // The program consists of native code (typically compiled from SPIR-v),
     // but it has unresolved external dependencies which need to be resolved
     // by linking with other Object state program(s).  Programs in this state
@@ -392,7 +397,7 @@ struct _pi_program : _pi_object {
         NumMods = Prog->LinkedPrograms.size();
         IsDone = (It == Prog->LinkedPrograms.end());
         Mod = IsDone ? nullptr : (*It)->ZeModule;
-      } else if (Prog->State == IL) {
+      } else if (Prog->State == IL || Prog->State == Native) {
         NumMods = 0;
         IsDone = true;
         Mod = nullptr;
@@ -425,13 +430,13 @@ struct _pi_program : _pi_object {
     std::vector<LinkedReleaser>::iterator It;
   };
 
-  // Construct a program in IL state.
-  _pi_program(pi_context Context, const void *InputIL, size_t InputILLength)
-      : State(IL), Context(Context), ILBytes(new uint8_t[InputILLength]),
-        ILLength(InputILLength), ZeModule(nullptr), HasImports(false),
+  // Construct a program in IL or Native state.
+  _pi_program(pi_context Context, const void *Input, size_t Length, state St)
+      : State(St), Context(Context), Code(new uint8_t[Length]),
+        CodeLength(Length), ZeModule(nullptr), HasImports(false),
         HasImportsAndIsLinked(false), ZeBuildLog(nullptr) {
 
-    std::memcpy(ILBytes.get(), InputIL, InputILLength);
+    std::memcpy(Code.get(), Input, Length);
   }
 
   // Construct a program in either Object or Exe state.
@@ -453,12 +458,11 @@ struct _pi_program : _pi_object {
   state State;
   pi_context Context; // Context of the program.
 
-  // Used for programs in IL state.
-  std::unique_ptr<uint8_t[]> ILBytes; // Array containing raw IL.
-  size_t ILLength;                    // Size (bytes) of the array.
+  // Used for programs in IL or Native states.
+  std::unique_ptr<uint8_t[]> Code; // Array containing raw IL / native code.
+  size_t CodeLength;               // Size (bytes) of the array.
 
   // Level Zero specialization constants, used for programs in IL state.
-  // Access to this member is protected by Mutex.
   std::unordered_map<uint32_t, uint64_t> ZeSpecConstants;
   std::mutex MutexZeSpecConstants; // Protects access to this field.
 

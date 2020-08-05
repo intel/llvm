@@ -427,6 +427,9 @@ extern "C" {
 // Forward declarations
 decltype(piEventCreate) piEventCreate;
 
+static pi_result compileOrBuild(pi_program Program, pi_uint32 NumDevices,
+                                const pi_device *DeviceList,
+                                const char *Options);
 static pi_result copyModule(ze_device_handle_t ZeDevice,
                             ze_module_handle_t SrcMod,
                             ze_module_handle_t *DestMod);
@@ -1680,15 +1683,19 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
 pi_result piProgramCreate(pi_context Context, const void *ILBytes,
                           size_t Length, pi_program *Program) {
 
-  assert(Context);
-  assert(Program);
+  if (!Context)
+    return PI_INVALID_CONTEXT;
+  if (!ILBytes || !Length)
+    return PI_INVALID_VALUE;
+  if (!Program)
+    return PI_INVALID_VALUE;
 
   // NOTE: the Level Zero module creation is also building the program, so we
   // are deferring it until the program is ready to be built in piProgramBuild
   // and piProgramCompile. Also it is only then we know the build options.
 
   try {
-    *Program = new _pi_program(Context, ILBytes, Length);
+    *Program = new _pi_program(Context, ILBytes, Length, _pi_program::IL);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1702,45 +1709,43 @@ pi_result piProgramCreateWithBinary(pi_context Context, pi_uint32 NumDevices,
                                     const size_t *Lengths,
                                     const unsigned char **Binaries,
                                     pi_int32 *BinaryStatus,
-                                    pi_program *RetProgram) {
+                                    pi_program *Program) {
 
-  // This must be for the single device in this context.
+  if (!Context)
+    return PI_INVALID_CONTEXT;
+  if (!DeviceList || !NumDevices)
+    return PI_INVALID_VALUE;
+  if (!Binaries || !Lengths || !Binaries[0] || !Lengths[0])
+    return PI_INVALID_VALUE;
+  if (!Program)
+    return PI_INVALID_VALUE;
+
+  // For now we support only one device.
   assert(NumDevices == 1);
-  assert(Context);
-  assert(RetProgram);
-  assert(DeviceList && DeviceList[0] == Context->Device);
-  ze_device_handle_t ZeDevice = Context->Device->ZeDevice;
+  if (DeviceList[0] != Context->Device)
+    return PI_INVALID_DEVICE;
 
-  // Check the binary too.
-  assert(Lengths && Lengths[0] != 0);
-  assert(Binaries && Binaries[0] != nullptr);
   size_t Length = Lengths[0];
-  auto Binary = pi_cast<const uint8_t *>(Binaries[0]);
+  auto Binary = Binaries[0];
 
-  ze_module_desc_t ZeModuleDesc = {};
-  ZeModuleDesc.version = ZE_MODULE_DESC_VERSION_CURRENT;
-  ZeModuleDesc.format = ZE_MODULE_FORMAT_NATIVE;
-  ZeModuleDesc.inputSize = Length;
-  ZeModuleDesc.pInputModule = Binary;
-  ZeModuleDesc.pBuildFlags = nullptr;
-  ZeModuleDesc.pConstants = nullptr;
-
-  ze_module_handle_t ZeModule;
-  ZE_CALL(zeModuleCreate(ZeDevice, &ZeModuleDesc, &ZeModule, 0));
+  // In OpenCL, clCreateProgramWithBinary() can be used to load any of the
+  // following: "program executable", "compiled program", or "library of
+  // compiled programs".  In addition, the loaded program can be either
+  // IL (SPIR-v) or native device code.  For now, we assume that
+  // piProgramCreateWithBinary() is only used to load a "program executable"
+  // as native device code.
+  //
+  // If we wanted to support all the same cases as OpenCL, we would need to
+  // somehow examine the binary image to distinguish the cases.  Alternatively,
+  // we could change the PI interface and have the caller pass additional
+  // information to distinguish the cases.
 
   try {
-    // TODO: It's not clear whether piProgramCreateWithBinary() can be
-    //  used also to create programs with state Object.  For now, assume
-    //  it's always a fully linked executable.
-    *RetProgram = new _pi_program(Context, ZeModule, _pi_program::Exe);
+    *Program = new _pi_program(Context, Binary, Length, _pi_program::Native);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return PI_ERROR_UNKNOWN;
-  }
-
-  if (BinaryStatus) {
-    *BinaryStatus = PI_SUCCESS;
   }
   return PI_SUCCESS;
 }
@@ -1770,11 +1775,9 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
     return ReturnValue(Program->Context->Device);
   case PI_PROGRAM_INFO_BINARY_SIZES: {
     size_t SzBinary;
-    if (Program->State == _pi_program::IL) {
-      // The OpenCL spec indicates that PI_PROGRAM_INFO_BINARY_SIZES is not
-      // defined in this case, but it does not say what to do if it happens.
-      // Returning a zero size seems reasonable.
-      SzBinary = 0;
+    if (Program->State == _pi_program::IL ||
+        Program->State == _pi_program::Native) {
+      SzBinary = Program->CodeLength;
     } else {
       assert(Program->State == _pi_program::Object ||
              Program->State == _pi_program::Exe ||
@@ -1806,8 +1809,9 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
     uint8_t **PBinary = pi_cast<uint8_t **>(ParamValue);
     if (!PBinary[0])
       break;
-    if (Program->State == _pi_program::IL) {
-      // Nothing to do (see comments above for PI_PROGRAM_INFO_BINARY_SIZES).
+    if (Program->State == _pi_program::IL ||
+        Program->State == _pi_program::Native) {
+      std::memcpy(PBinary[0], Program->Code.get(), Program->CodeLength);
     } else {
       assert(Program->State == _pi_program::Object ||
              Program->State == _pi_program::Exe ||
@@ -1827,10 +1831,11 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
   case PI_PROGRAM_INFO_NUM_KERNELS: {
     uint32_t NumKernels;
     if (Program->State == _pi_program::IL ||
+        Program->State == _pi_program::Native ||
         Program->State == _pi_program::Object) {
-      // The OpenCL spec says this case isn't supported, but it doesn't say
-      // what to do if it happens.  Returning zero seems reasonable.
-      NumKernels = 0;
+      // The OpenCL spec says to return CL_INVALID_PROGRAM_EXECUTABLE in this
+      // case, but there is no corresponding PI error code.
+      return PI_INVALID_OPERATION;
     } else {
       assert(Program->State == _pi_program::Exe ||
              Program->State == _pi_program::LinkedExe);
@@ -1850,8 +1855,11 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
     try {
       std::string PINames{""};
       if (Program->State == _pi_program::IL ||
+          Program->State == _pi_program::Native ||
           Program->State == _pi_program::Object) {
-        // Nothing to do (see comment for PI_PROGRAM_INFO_NUM_KERNELS above).
+        // The OpenCL spec says to return CL_INVALID_PROGRAM_EXECUTABLE in this
+        // case, but there is no corresponding PI error code.
+        return PI_INVALID_OPERATION;
       } else {
         assert(Program->State == _pi_program::Exe ||
                Program->State == _pi_program::LinkedExe);
@@ -1996,26 +2004,79 @@ pi_result piProgramCompile(
     const pi_program *InputHeaders, const char **HeaderIncludeNames,
     void (*PFnNotify)(pi_program Program, void *UserData), void *UserData) {
 
-  // We only support one device with Level Zero, and we don't support input
-  // headers.
-  assert(Program);
-  assert(NumDevices == 1);
-  assert(DeviceList);
-  assert(NumInputHeaders == 0);
-  assert(Program);
-  assert(!PFnNotify && !UserData);
+  // The OpenCL spec says this should return CL_INVALID_PROGRAM, but there is
+  // no corresponding PI error code.
+  if (!Program)
+    return PI_INVALID_OPERATION;
 
-  // It is only valid to compile a program if it was loaded from IL.
+  // It's only valid to compile a program created from IL (we don't support
+  // programs created from source code).
+  //
+  // The OpenCL spec says that the header parameters are ignored when compiling
+  // IL programs, so we don't validate them.
   if (Program->State != _pi_program::IL)
     return PI_INVALID_OPERATION;
-  assert(Program->ILBytes);
 
-  // Translate collected specialization constants.
+  // These aren't supported.
+  assert(!PFnNotify && !UserData);
+
+  pi_result res = compileOrBuild(Program, NumDevices, DeviceList, Options);
+  if (res != PI_SUCCESS)
+    return res;
+
+  Program->State = _pi_program::Object;
+  return PI_SUCCESS;
+}
+
+pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
+                         const pi_device *DeviceList, const char *Options,
+                         void (*PFnNotify)(pi_program Program, void *UserData),
+                         void *UserData) {
+
+  // The OpenCL spec says this should return CL_INVALID_PROGRAM, but there is
+  // no corresponding PI error code.
+  if (!Program)
+    return PI_INVALID_OPERATION;
+
+  // It is legal to build a program created from either IL or from native
+  // device code.
+  if (Program->State != _pi_program::IL &&
+      Program->State != _pi_program::Native)
+    return PI_INVALID_OPERATION;
+
+  // These aren't supported.
+  assert(!PFnNotify && !UserData);
+
+  pi_result res = compileOrBuild(Program, NumDevices, DeviceList, Options);
+  if (res != PI_SUCCESS)
+    return res;
+
+  Program->State = _pi_program::Exe;
+  return PI_SUCCESS;
+}
+
+// Perform common operations for compiling or building a program.
+static pi_result compileOrBuild(pi_program Program, pi_uint32 NumDevices,
+                                const pi_device *DeviceList,
+                                const char *Options) {
+
+  if ((NumDevices && !DeviceList) || (!NumDevices && DeviceList))
+    return PI_INVALID_VALUE;
+
+  // We only support one device with Level Zero.
+  assert(NumDevices == 1 && DeviceList);
+
+  // We should have either IL or native device code.
+  assert(Program->Code);
+
+  // Specialization constants are used only if the program was created from
+  // IL.  Translate them to the Level Zero format.
   ze_module_constants_t ZeSpecConstants = {};
-  std::vector<uint32_t> ZeSpecContantsIds(Program->ZeSpecConstants.size());
-  std::vector<uint64_t> ZeSpecContantsValues(Program->ZeSpecConstants.size());
-  {
+  if (Program->State == _pi_program::IL) {
     std::lock_guard<std::mutex> Guard(Program->MutexZeSpecConstants);
+
+    std::vector<uint32_t> ZeSpecContantsIds(Program->ZeSpecConstants.size());
+    std::vector<uint64_t> ZeSpecContantsValues(Program->ZeSpecConstants.size());
     ZeSpecConstants.numConstants = Program->ZeSpecConstants.size();
     auto ZeSpecContantsIdsIt = ZeSpecContantsIds.begin();
     auto ZeSpecContantsValuesIt = ZeSpecContantsValues.begin();
@@ -2029,12 +2090,14 @@ pi_result piProgramCompile(
     ZeSpecConstants.pConstantValues = ZeSpecContantsValues.data();
   }
 
-  // Ask Level Zero to build the IL and load the native code onto the device.
+  // Ask Level Zero to build and load the native code onto the device.
   ze_module_desc_t ZeModuleDesc = {};
   ZeModuleDesc.version = ZE_MODULE_DESC_VERSION_CURRENT;
-  ZeModuleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
-  ZeModuleDesc.inputSize = Program->ILLength;
-  ZeModuleDesc.pInputModule = Program->ILBytes.get();
+  ZeModuleDesc.format = (Program->State == _pi_program::IL)
+                            ? ZE_MODULE_FORMAT_IL_SPIRV
+                            : ZE_MODULE_FORMAT_NATIVE;
+  ZeModuleDesc.inputSize = Program->CodeLength;
+  ZeModuleDesc.pInputModule = Program->Code.get();
   ZeModuleDesc.pBuildFlags = Options;
   ZeModuleDesc.pConstants = &ZeSpecConstants;
 
@@ -2050,27 +2113,11 @@ pi_result piProgramCompile(
   ZE_CALL(zeModuleGetProperties(ZeModule, &ZeModuleProps));
   Program->HasImports = (ZeModuleProps.flags & ZE_MODULE_PROPERTY_FLAG_IMPORTS);
 
-  // The program is now in the Object state.  We no longer need the IL.
-  Program->State = _pi_program::Object;
-  Program->ILBytes.reset();
+  // We no longer need the IL / native code.
+  // The caller must set the State to Object or Exe as appropriate.
+  Program->Code.reset();
   Program->ZeModule = ZeModule;
   Program->ZeBuildLog = ZeBuildLog;
-  return PI_SUCCESS;
-}
-
-pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
-                         const pi_device *DeviceList, const char *Options,
-                         void (*PFnNotify)(pi_program Program, void *UserData),
-                         void *UserData) {
-
-  // On Level Zero, there's no real difference between compiling and building.
-  // We just assume that the resulting program is an executable in the case of
-  // building.
-  pi_result res = piProgramCompile(Program, NumDevices, DeviceList, Options, 0,
-                                   nullptr, nullptr, PFnNotify, UserData);
-  if (res != PI_SUCCESS)
-    return res;
-  Program->State = _pi_program::Exe;
   return PI_SUCCESS;
 }
 
