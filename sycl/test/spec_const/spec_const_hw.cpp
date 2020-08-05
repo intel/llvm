@@ -39,6 +39,15 @@ float foo(
   return f32;
 }
 
+struct SCWrapper {
+  SCWrapper(cl::sycl::program &p)
+      : SC1(p.set_spec_constant<class sc_name1, int>(4)),
+        SC2(p.set_spec_constant<class sc_name2, int>(2)) {}
+
+  cl::sycl::experimental::spec_constant<int, class sc_name1> SC1;
+  cl::sycl::experimental::spec_constant<int, class sc_name2> SC2;
+};
+
 int main(int argc, char **argv) {
   val = argc + 16;
 
@@ -61,6 +70,7 @@ int main(int argc, char **argv) {
   std::cout << "val = " << val << "\n";
   cl::sycl::program program1(q.get_context());
   cl::sycl::program program2(q.get_context());
+  cl::sycl::program program3(q.get_context());
 
   int goldi = (int)get_value();
   // TODO make this floating point once supported by the compiler
@@ -77,11 +87,17 @@ int main(int argc, char **argv) {
   // SYCL RT execution path
   program2.build_with_kernel_type<KernelBBBf>("-cl-fast-relaxed-math");
 
+  SCWrapper W(program3);
+  program3.build_with_kernel_type<class KernelWrappedSC>();
+  int goldw = 6;
+
   std::vector<int> veci(1);
   std::vector<float> vecf(1);
+  std::vector<int> vecw(1);
   try {
     cl::sycl::buffer<int, 1> bufi(veci.data(), veci.size());
     cl::sycl::buffer<float, 1> buff(vecf.data(), vecf.size());
+    cl::sycl::buffer<int, 1> bufw(vecw.data(), vecw.size());
 
     q.submit([&](cl::sycl::handler &cgh) {
       auto acci = bufi.get_access<cl::sycl::access::mode::write>(cgh);
@@ -99,6 +115,13 @@ int main(int argc, char **argv) {
             accf[0] = foo(f32);
           });
     });
+
+    q.submit([&](cl::sycl::handler &cgh) {
+      auto accw = bufw.get_access<cl::sycl::access::mode::write>(cgh);
+      cgh.single_task<KernelWrappedSC>(
+          program3.get_kernel<KernelWrappedSC>(),
+          [=]() { accw[0] = W.SC1.get() + W.SC2.get(); });
+    });
   } catch (cl::sycl::exception &e) {
     std::cout << "*** Exception caught: " << e.what() << "\n";
     return 1;
@@ -114,6 +137,12 @@ int main(int argc, char **argv) {
 
   if (valf != goldf) {
     std::cout << "*** ERROR: " << valf << " != " << goldf << "(gold)\n";
+    passed = false;
+  }
+  int valw = vecw[0];
+
+  if (valw != goldw) {
+    std::cout << "*** ERROR: " << valw << " != " << goldw << "(gold)\n";
     passed = false;
   }
   std::cout << (passed ? "passed\n" : "FAILED\n");

@@ -364,6 +364,10 @@ public:
   addLoopControlINTELInst(SPIRVWord LoopControl,
                           std::vector<SPIRVWord> LoopControlParameters,
                           SPIRVBasicBlock *BB) override;
+  SPIRVInstruction *addArbFloatPointIntelInst(Op OC, SPIRVType *ResTy,
+                                              SPIRVValue *InA, SPIRVValue *InB,
+                                              const std::vector<SPIRVWord> &Ops,
+                                              SPIRVBasicBlock *BB) override;
   SPIRVInstruction *addSelectionMergeInst(SPIRVId MergeBlock,
                                           SPIRVWord SelectionControl,
                                           SPIRVBasicBlock *BB) override;
@@ -1408,6 +1412,22 @@ SPIRVInstruction *SPIRVModuleImpl::addLoopControlINTELInst(
   return addInstruction(
       new SPIRVLoopControlINTEL(LoopControl, LoopControlParameters, BB), BB,
       const_cast<SPIRVInstruction *>(BB->getTerminateInstr()));
+}
+
+SPIRVInstruction *SPIRVModuleImpl::addArbFloatPointIntelInst(
+    Op OC, SPIRVType *ResTy, SPIRVValue *InA, SPIRVValue *InB,
+    const std::vector<SPIRVWord> &Ops, SPIRVBasicBlock *BB) {
+  // SPIR-V format:
+  //   A<id> [Literal MA] [B<id>] [Literal MB] [Literal Mout]
+  //   [Literal EnableSubnormals Literal RoundingMode Literal RoundingAccuracy]
+  auto OpsItr = Ops.begin();
+  std::vector<SPIRVWord> TheOps = getVec(InA->getId(), *OpsItr++);
+  if (InB)
+    TheOps.push_back(InB->getId());
+  TheOps.insert(TheOps.end(), OpsItr, Ops.end());
+
+  return addInstruction(
+      SPIRVInstTemplateBase::create(OC, ResTy, getId(), TheOps, BB, this), BB);
 }
 
 SPIRVInstruction *
