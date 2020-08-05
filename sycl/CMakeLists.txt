@@ -107,6 +107,9 @@ if( NOT OpenCL_INCLUDE_DIRS )
     INSTALL_COMMAND   ""
     STEP_TARGETS      build
     COMMENT           "Downloading OpenCL headers."
+    LOG_DOWNLOAD 1
+    LOG_UPDATE 1
+    LOG_BUILD 1
   )
   add_definitions(-DCL_TARGET_OPENCL_VERSION=220)
 else()
@@ -154,6 +157,11 @@ if( NOT OpenCL_LIBRARIES )
     STEP_TARGETS      configure,build,install
     DEPENDS           ocl-headers
     BUILD_BYPRODUCTS ${OpenCL_LIBRARIES}
+    LOG_DOWNLOAD 1
+    LOG_UPDATE 1
+    LOG_CONFIGURE 1
+    LOG_BUILD 1
+    LOG_INSTALL 1
   )
   ExternalProject_Add_Step(ocl-icd llvminstall
     COMMAND ${CMAKE_COMMAND} -E copy_directory <INSTALL_DIR>/ ${LLVM_BINARY_DIR}
