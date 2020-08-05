@@ -366,10 +366,13 @@ public:
 // CODELOCARG(B,C,D) Similarly, the KernelFunc param is simplified to be
 // KERNELFUNCPARAM(B,F,G) Once the queue kernel functions are defined, these
 // macros are #undef immediately. Compare this first definition of single_task
-// here, with the second one below. replace CODELOCPARAM(A,B,C,D,E) with nothing
+// here, with the second one below.
+
+// replace CODELOCPARAM(A,B,C,D,E) with nothing
 // or :   , const detail::code_location &CodeLoc =
-// detail::code_location::current() replace CODELOCARG(B,C,D) with nothign or :
-// const detail::code_location &CodeLoc = {};
+// detail::code_location::current()
+// replace CODELOCARG(B,C,D) with nothing
+// or :  const detail::code_location &CodeLoc = {}
 #define A ,
 #define B const
 #define C detail::code_location
