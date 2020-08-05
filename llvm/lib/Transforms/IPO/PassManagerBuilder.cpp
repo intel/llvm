@@ -680,7 +680,6 @@ void PassManagerBuilder::populateModulePassManager(
   if (RunInliner) {
     MPM.add(createGlobalOptimizerPass());
     MPM.add(createGlobalDCEPass());
-    MPM.add(createDeadArgEliminationSYCLPass());
   }
 
   // If we are planning to perform ThinLTO later, let's not bloat the code with

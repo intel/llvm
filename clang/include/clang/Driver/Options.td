@@ -4456,6 +4456,8 @@ def fsycl_allow_func_ptr : Flag<["-"], "fsycl-allow-func-ptr">,
 def fno_sycl_allow_func_ptr : Flag<["-"], "fno-sycl-allow-func-ptr">;
 def fsycl_enable_optimizations: Flag<["-"], "fsycl-enable-optimizations">,
   HelpText<"Experimental flag enabling standard optimization in the front-end.">;
+def fenable_sycl_dae : Flag<["-"], "fenable-sycl-dae">,
+  HelpText<"Enable Dead Argument Elimination in SPIR kernels">;
 
 } // let Flags = [CC1Option]
 
