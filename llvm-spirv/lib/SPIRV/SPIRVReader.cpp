@@ -3175,7 +3175,6 @@ bool SPIRVToLLVM::translate() {
     if (BV->getStorageClass() != StorageClassFunction)
       transValue(BV, nullptr, nullptr);
   }
-  transGlobalAnnotations();
 
   // Compile unit might be needed during translation of debug intrinsics.
   for (SPIRVExtInst *EI : BM->getDebugInstVec()) {
@@ -3193,8 +3192,35 @@ bool SPIRVToLLVM::translate() {
   }
 
   for (unsigned I = 0, E = BM->getNumFunctions(); I != E; ++I) {
-    transFunction(BM->getFunction(I));
+    auto Fun = BM->getFunction(I);
+    auto transFun = transFunction(Fun);
+    for (auto UsSem : Fun->getDecorationStringLiteral(DecorationUserSemantic)) {
+      auto vFun = dyn_cast<Value>(transFun);
+      Constant *StrConstant =
+          ConstantDataArray::getString(*Context, StringRef(UsSem));
+      auto *GS = new GlobalVariable(
+          *transFun->getParent(), StrConstant->getType(),
+          /*IsConstant*/ true, GlobalValue::PrivateLinkage, StrConstant, "");
+
+      GS->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
+      GS->setSection("llvm.metadata");
+
+      Type *ResType = PointerType::getInt8PtrTy(
+          vFun->getContext(), vFun->getType()->getPointerAddressSpace());
+      Constant *C =
+          ConstantExpr::getPointerBitCastOrAddrSpaceCast(transFun, ResType);
+
+      Type *Int8PtrTyPrivate = Type::getInt8PtrTy(*Context, SPIRAS_Private);
+      IntegerType *Int32Ty = Type::getInt32Ty(*Context);
+
+      llvm::Constant *Fields[4] = {
+          C, ConstantExpr::getBitCast(GS, Int8PtrTyPrivate),
+          UndefValue::get(Int8PtrTyPrivate), UndefValue::get(Int32Ty)};
+      GlobalAnnotations.push_back(ConstantStruct::getAnon(Fields));
+    }
   }
+
+  transGlobalAnnotations();
 
   if (!transMetadata())
     return false;
