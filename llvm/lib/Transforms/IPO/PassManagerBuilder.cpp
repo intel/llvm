@@ -680,6 +680,7 @@ void PassManagerBuilder::populateModulePassManager(
   if (RunInliner) {
     MPM.add(createGlobalOptimizerPass());
     MPM.add(createGlobalDCEPass());
+    MPM.add(createDeadArgEliminationSYCLPass());
   }
 
   // If we are planning to perform ThinLTO later, let's not bloat the code with
@@ -784,10 +785,13 @@ void PassManagerBuilder::populateModulePassManager(
   // convert to more optimized IR using more aggressive simplify CFG options.
   // The extra sinking transform can create larger basic blocks, so do this
   // before SLP vectorization.
+  // FIXME: study whether hoisting and/or sinking of common instructions should
+  //        be delayed until after SLP vectorizer.
   MPM.add(createCFGSimplificationPass(SimplifyCFGOptions()
                                           .forwardSwitchCondToPhi(true)
                                           .convertSwitchToLookupTable(true)
                                           .needCanonicalLoops(false)
+                                          .hoistCommonInsts(true)
                                           .sinkCommonInsts(true)));
 
   if (SLPVectorize) {

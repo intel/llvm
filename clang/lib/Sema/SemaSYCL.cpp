@@ -1455,13 +1455,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     InitExprs.push_back(ILE);
   }
 
-  void createSpecialMethodCall(const CXXRecordDecl *SpecialClass, Expr *Base,
-                               const std::string &MethodName,
-                               FieldDecl *Field) {
-    CXXMethodDecl *Method = getMethodByName(SpecialClass, MethodName);
-    assert(Method &&
-           "The accessor/sampler/stream must have the __init method. Stream"
-           " must also have __finalize method");
+  CXXMemberCallExpr *createSpecialMethodCall(Expr *Base, CXXMethodDecl *Method,
+                                             FieldDecl *Field) {
     unsigned NumParams = Method->getNumParams();
     llvm::SmallVector<Expr *, 4> ParamDREs(NumParams);
     llvm::ArrayRef<ParmVarDecl *> KernelParameters =
@@ -1485,10 +1480,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     CXXMemberCallExpr *Call = CXXMemberCallExpr::Create(
         SemaRef.Context, MethodME, ParamStmts, ResultTy, VK, SourceLocation(),
         FPOptionsOverride());
-    if (MethodName == FinalizeMethodName)
-      FinalizeStmts.push_back(Call);
-    else
-      BodyStmts.push_back(Call);
+    return Call;
   }
 
   // FIXME Avoid creation of kernel obj clone.
@@ -1517,8 +1509,12 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, None);
     InitExprs.push_back(MemberInit.get());
 
-    createSpecialMethodCall(RecordDecl, MemberExprBases.back(), InitMethodName,
-                            FD);
+    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
+    if (InitMethod) {
+      CXXMemberCallExpr *InitCall =
+          createSpecialMethodCall(MemberExprBases.back(), InitMethod, FD);
+      BodyStmts.push_back(InitCall);
+    }
     return true;
   }
 
@@ -1535,8 +1531,12 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, None);
     InitExprs.push_back(MemberInit.get());
 
-    createSpecialMethodCall(RecordDecl, MemberExprBases.back(), InitMethodName,
-                            nullptr);
+    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
+    if (InitMethod) {
+      CXXMemberCallExpr *InitCall =
+          createSpecialMethodCall(MemberExprBases.back(), InitMethod, nullptr);
+      BodyStmts.push_back(InitCall);
+    }
     return true;
   }
 
@@ -1578,14 +1578,27 @@ public:
     return handleSpecialType(FD, Ty);
   }
 
+  bool handleSyclSpecConstantType(FieldDecl *FD, QualType Ty) final {
+    return handleSpecialType(FD, Ty);
+  }
+
   bool handleSyclStreamType(FieldDecl *FD, QualType Ty) final {
     const auto *StreamDecl = Ty->getAsCXXRecordDecl();
     createExprForStructOrScalar(FD);
     size_t NumBases = MemberExprBases.size();
-    createSpecialMethodCall(StreamDecl, MemberExprBases[NumBases - 2],
-                            InitMethodName, FD);
-    createSpecialMethodCall(StreamDecl, MemberExprBases[NumBases - 2],
-                            FinalizeMethodName, FD);
+    CXXMethodDecl *InitMethod = getMethodByName(StreamDecl, InitMethodName);
+    if (InitMethod) {
+      CXXMemberCallExpr *InitCall =
+          createSpecialMethodCall(MemberExprBases.back(), InitMethod, FD);
+      BodyStmts.push_back(InitCall);
+    }
+    CXXMethodDecl *FinalizeMethod =
+        getMethodByName(StreamDecl, FinalizeMethodName);
+    if (FinalizeMethod) {
+      CXXMemberCallExpr *FinalizeCall = createSpecialMethodCall(
+          MemberExprBases[NumBases - 2], FinalizeMethod, FD);
+      FinalizeStmts.push_back(FinalizeCall);
+    }
     return true;
   }
 
@@ -1796,7 +1809,7 @@ public:
         cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl())
             ->getTemplateInstantiationArgs();
     assert(TemplateArgs.size() == 2 &&
-           "Incorrect template args for Accessor Type");
+           "Incorrect template args for spec constant type");
     // Get specialization constant ID type, which is the second template
     // argument.
     QualType SpecConstIDTy = TemplateArgs.get(1).getAsType().getCanonicalType();
