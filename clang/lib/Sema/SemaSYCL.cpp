@@ -822,6 +822,13 @@ public:
     else if (ElementTy->isStructureOrClassType())
       VisitRecord(Owner, ArrayField, ElementTy->getAsCXXRecordDecl(),
                   handlers...);
+    else if (ElementTy->isUnionType())
+      // TODO: This check is still necessary I think?! Array seems to handle
+      // this differently (see above) for structs I think.
+      //if (KF_FOR_EACH(handleUnionType, Field, FieldTy)) {
+      VisitUnion(Owner, ArrayField, ElementTy->getAsCXXRecordDecl(),
+                  handlers...);
+      //}
     else if (ElementTy->isArrayType())
       VisitArrayElements(ArrayField, ElementTy, handlers...);
     else if (ElementTy->isScalarType())
@@ -848,6 +855,41 @@ public:
   template <typename ParentTy, typename... Handlers>
   void VisitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
                    const CXXRecordDecl *Wrapper, Handlers &... handlers);
+
+  // Base case, only calls these when filtered.
+  template <typename... FilteredHandlers, typename ParentTy>
+  void VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
+                  const CXXRecordDecl *Wrapper,
+                  FilteredHandlers &... handlers) {
+    (void)std::initializer_list<int>{
+        (handlers.enterUnion(Owner, Parent), 0)...};
+    VisitRecordHelper(Wrapper, Wrapper->fields(), handlers...);
+    (void)std::initializer_list<int>{
+        (handlers.leaveUnion(Owner, Parent), 0)...};
+  }
+
+
+  template <typename... FilteredHandlers, typename ParentTy,
+            typename CurHandler, typename... Handlers>
+  std::enable_if_t<!CurHandler::VisitUnionBody>
+  VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
+                  const CXXRecordDecl *Wrapper,
+                  FilteredHandlers &... filtered_handlers,
+                  CurHandler &cur_handler, Handlers &... handlers) {
+    VisitUnion<FilteredHandlers...>(
+        Owner, Parent, Wrapper, filtered_handlers..., handlers...);
+  }
+
+  template <typename... FilteredHandlers, typename ParentTy,
+            typename CurHandler, typename... Handlers>
+  std::enable_if_t<CurHandler::VisitUnionBody>
+  VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
+                  const CXXRecordDecl *Wrapper,
+                  FilteredHandlers &... filtered_handlers,
+                  CurHandler &cur_handler, Handlers &... handlers) {
+    VisitUnion<FilteredHandlers..., CurHandler>(
+        Owner, Parent, Wrapper, filtered_handlers..., cur_handler, handlers...);
+  }
 
   template <typename... Handlers>
   void VisitRecordHelper(const CXXRecordDecl *Owner,
@@ -934,6 +976,11 @@ public:
           CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
           VisitRecord(Owner, Field, RD, handlers...);
         }
+      } else if (FieldTy->isUnionType()) {
+        if (KF_FOR_EACH(handleUnionType, Field, FieldTy)) {
+          CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
+          VisitUnion(Owner, Field, RD, handlers...);
+        }
       } else if (FieldTy->isReferenceType())
         KF_FOR_EACH(handleReferenceType, Field, FieldTy);
       else if (FieldTy->isPointerType())
@@ -949,6 +996,9 @@ public:
           (handlers.leaveField(Owner, Field), 0)...};
     }
   }
+
+
+
 #undef KF_FOR_EACH
 };
 // Parent contains the FieldDecl or CXXBaseSpecifier that was used to enter
@@ -973,6 +1023,8 @@ protected:
   SyclKernelFieldHandler(Sema &S) : SemaRef(S) {}
 
 public:
+
+  static const constexpr bool VisitUnionBody = false;
   // Mark these virtual so that we can use override in the implementer classes,
   // despite virtual dispatch never being used.
 
@@ -997,6 +1049,7 @@ public:
   }
   virtual bool handleSyclHalfType(FieldDecl *, QualType) { return true; }
   virtual bool handleStructType(FieldDecl *, QualType) { return true; }
+  virtual bool handleUnionType(FieldDecl *, QualType) { return true; }
   virtual bool handleReferenceType(FieldDecl *, QualType) { return true; }
   virtual bool handlePointerType(FieldDecl *, QualType) { return true; }
   virtual bool handleArrayType(FieldDecl *, QualType) { return true; }
@@ -1016,6 +1069,8 @@ public:
   virtual bool leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &) {
     return true;
   }
+  virtual bool enterUnion(const CXXRecordDecl *, FieldDecl *) { return true; }
+  virtual bool leaveUnion(const CXXRecordDecl *, FieldDecl *) { return true; }
 
   // The following are used for stepping through array elements.
 
@@ -1037,6 +1092,7 @@ public:
 // A type to check the validity of all of the argument types.
 class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   bool IsInvalid = false;
+  unsigned UnionCount = 0;
   DiagnosticsEngine &Diag;
 
   // Check whether the object should be disallowed from being copied to kernel.
@@ -1079,7 +1135,6 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   void checkAccessorType(QualType Ty, SourceRange Loc) {
     assert(Util::isSyclAccessorType(Ty) &&
            "Should only be called on SYCL accessor types.");
-
     const RecordDecl *RecD = Ty->getAsRecordDecl();
     if (const ClassTemplateSpecializationDecl *CTSD =
             dyn_cast<ClassTemplateSpecializationDecl>(RecD)) {
@@ -1093,6 +1148,8 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   }
 
 public:
+  static const constexpr bool VisitUnionBody = true;
+
   SyclKernelFieldChecker(Sema &S)
       : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {}
   bool isValid() { return !IsInvalid; }
@@ -1108,13 +1165,39 @@ public:
     return isValid();
   }
 
+  bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
+    // TODO: Replace with a better diagnostic.
+    if (UnionCount) {
+      IsInvalid = true;
+      Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type)
+          << FieldTy;
+    }
+    return isValid();
+  }
+
   bool handleSyclAccessorType(const CXXBaseSpecifier &BS,
                               QualType FieldTy) final {
+    // TODO: Replace with a better diagnostic.
+    if (UnionCount) {
+      IsInvalid = true;
+      Diag.Report(BS.getBeginLoc(), diag::err_bad_kernel_param_type) << FieldTy;
+      return isValid();
+    }
+
     checkAccessorType(FieldTy, BS.getBeginLoc());
     return isValid();
   }
 
   bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
+    // TODO: Replace with a better diagnostic.
+    // TODO: What other types do we need ot check?  What types other than
+    // pointer/accessor requires a decomposition?
+    if (UnionCount) {
+      IsInvalid = true;
+      Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type) << FieldTy;
+      return isValid();
+    }
+
     checkAccessorType(FieldTy, FD->getLocation());
     return isValid();
   }
@@ -1128,6 +1211,15 @@ public:
     Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type) << FieldTy;
     IsInvalid = true;
     return isValid();
+  }
+
+  bool enterUnion(const CXXRecordDecl *RD, FieldDecl *FD) {
+    ++UnionCount;
+    return true;
+  }
+  bool leaveUnion(const CXXRecordDecl *RD, FieldDecl *FD) {
+    --UnionCount;
+    return true;
   }
 };
 
@@ -1289,6 +1381,10 @@ public:
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
     addParam(FD, FieldTy);
     return true;
+  }
+
+  bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
+    return handleScalarType(FD, FieldTy);
   }
 
   bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
@@ -1626,6 +1722,11 @@ public:
     return true;
   }
 
+  bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
+    return handleScalarType(FD, FieldTy);
+  }
+
+
   bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
     CXXCastPath BasePath;
     QualType DerivedTy(RD->getTypeForDecl(), 0);
@@ -1828,6 +1929,10 @@ public:
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
     addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
     return true;
+  }
+
+  bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
+    return handleScalarType(FD, FieldTy);
   }
 
   bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
