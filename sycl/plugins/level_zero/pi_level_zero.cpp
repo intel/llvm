@@ -141,7 +141,6 @@ private:
 
 // save discovered pi_devices & pi_platforms for quick return
 static std::vector<pi_device> piDevicesCache;
-static std::vector<pi_platform> piPlatformsCache;
 
 } // anonymous namespace
 
@@ -488,9 +487,10 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     assert(ZeDriverCount == 1);
     ZE_CALL(zeDriverGet(&ZeDriverCount, &ZeDriver));
 
-    for (uint32_t i = 0; i < piPlatformsCache.size(); i++) {
-      if (piPlatformsCache[i]->ZeDriver == ZeDriver) {
-        Platforms[0] = piPlatformsCache[i];
+    for (const pi_platform CachedPlatform : piPlatformsCache) {
+      if (CachedPlatform->ZeDriver == ZeDriver) {
+        Platforms[0] = CachedPlatform;
+	// if the caller sent a valid NumPlatforms pointer, set it here
         if (NumPlatforms)
           *NumPlatforms = 1;
 
@@ -623,8 +623,8 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   const bool AskingForDefault = (DeviceType == PI_DEVICE_TYPE_DEFAULT);
 
   if (piDevicesCache.size() != 0) {
-    for (uint32_t i = 0; i < piDevicesCache.size(); i++) {
-      if (piDevicesCache[i]->Platform == Platform) {
+    for (const pi_device CachedDevice : piDevicesCache) {
+      if (CachedDevice->Platform == Platform) {
         ZeDeviceCount++;
       }
     }
@@ -650,9 +650,9 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 
   // if devices are already captured in cache, return them from the cache.
   uint32_t count = 0;
-  for (uint32_t i = 0; i < piDevicesCache.size(); i++) {
-    if (piDevicesCache[i]->Platform == Platform) {
-      Devices[count++] = piDevicesCache[i];
+  for (const pi_device CachedDevice : piDevicesCache) {
+    if (CachedDevice->Platform == Platform) {
+      Devices[count++] = CachedDevice;
     }
   }
   if (count == ZeDeviceCount) {
