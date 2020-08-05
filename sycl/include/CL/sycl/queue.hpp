@@ -361,40 +361,35 @@ public:
     return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); });
   }
 
-// having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
-// Here we simplify the &CodeLoc declaration to be CODELOCPARAM(A,B,C,D,E) and
-// CODELOCARG(B,C,D) Similarly, the KernelFunc param is simplified to be
-// KERNELFUNCPARAM(B,F,G) Once the queue kernel functions are defined, these
-// macros are #undef immediately. Compare this first definition of single_task
-// here, with the second one below.
+  // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
+  // Here we simplify the &CodeLoc declaration to be CODELOCPARAM(&CodeLoc) and
+  // CODELOCARG(&CodeLoc) Similarly, the KernelFunc param is simplified to be
+  // KERNELFUNCPARAM(KernelFunc) Once the queue kernel functions are defined,
+  // these macros are #undef immediately. Compare this first definition of
+  // single_task here, with the second one below.
 
-// replace CODELOCPARAM(A,B,C,D,E) with nothing
-// or :   , const detail::code_location &CodeLoc =
-// detail::code_location::current()
-// replace CODELOCARG(B,C,D) with nothing
-// or :  const detail::code_location &CodeLoc = {}
-#define A ,
-#define B const
-#define C detail::code_location
-#define D &CodeLoc
-#define E detail::code_location::current()
+  // replace CODELOCPARAM(&CodeLoc) with nothing
+  // or :   , const detail::code_location &CodeLoc =
+  // detail::code_location::current()
+  // replace CODELOCARG(&CodeLoc) with nothing
+  // or :  const detail::code_location &CodeLoc = {}
+
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-#define CODELOCPARAM(a, b, c, d, e) a b c d = e
+#define CODELOCPARAM(a)                                                        \
+  , const detail::code_location a = detail::code_location::current()
 
-#define CODELOCARG(b, c, d)
+#define CODELOCARG(a)
 #else
-#define CODELOCPARAM(a, b, c, d, e)
+#define CODELOCPARAM(a)
 
-#define CODELOCARG(b, c, d) b c d = {}
+#define CODELOCARG(a) const detail::code_location a = {}
 #endif
-// replace KERNELFUNCPARAM(B,F,G) with   KernelType KernelFunc
-//                                  or   const KernelType &KernelFunc
-#define F KernelType
-#define G KernelFunc
+// replace KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
+//                                     or     const KernelType &KernelFunc
 #ifdef __SYCL_NONCONST_FUNCTOR__
-#define KERNELFUNCPARAM(B, F, G) F G
+#define KERNELFUNCPARAM(a) KernelType a
 #else
-#define KERNELFUNCPARAM(B, F, G) B F &G
+#define KERNELFUNCPARAM(a) const KernelType &a
 #endif
 
   /// single_task version with a kernel represented as a lambda.
@@ -402,8 +397,8 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event single_task(KERNELFUNCPARAM(B, F, G) CODELOCPARAM(A, B, C, D, E)) {
-    CODELOCARG(B, C, D);
+  event single_task(KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
+    CODELOCARG(&CodeLoc);
 
     return submit(
         [&](handler &CGH) {
@@ -413,13 +408,6 @@ public:
   }
 
 // Clean up CODELOC and KERNELFUNC macros.
-#undef A
-#undef B
-#undef C
-#undef D
-#undef E
-#undef F
-#undef G
 #undef CODELOCPARAM
 #undef CODELOCARG
 #undef KERNELFUNCPARAM
