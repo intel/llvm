@@ -88,7 +88,7 @@ Returns the `item` instance representing the current work item in a `range`. The
 
 * `dimensions` value passed to `this_item` function shall match `dimensions` value passed to the `range` when the `parallel_for` is called
 
-* shall only be invoked within the `parallel_for` context with `range` or `nd_range` as the argument
+* shall only be invoked within the `parallel_for` with `range` or `nd_range` as the argument
 
 If prerequisites are not fulfilled the behavior is undefined
 |===
@@ -118,7 +118,7 @@ Returns the `nd_item` instance representing the current work item in a `nd_range
 
 * `dimensions` value passed to `this_nd_item` function shall match `dimensions` value passed to the `nd_range` when the `parallel_for` is called
 
-* shall only be invoked within the `parallel_for` context with `nd_range` as the argument
+* shall only be invoked within the `parallel_for` with `nd_range` as the argument
 
 If prerequisites are not fulfilled the behavior is undefined
 |===
