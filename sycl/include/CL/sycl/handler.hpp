@@ -690,6 +690,8 @@ private:
   template <typename KernelName, typename KernelType, int Dims>
   void parallel_for_lambda_impl(range<Dims> NumWorkItems,
                                 KernelType KernelFunc) {
+    static_assert(std::is_trivially_copyable<KernelType>::value,
+                                        "KernelType must be trivially copyable");
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -854,6 +856,8 @@ public:
   /// \param KernelFunc is a SYCL kernel function.
   template <typename KernelName = detail::auto_name, typename KernelType>
   void single_task(KernelType KernelFunc) {
+    static_assert(std::is_trivially_copyable<KernelType>::value,
+                                        "KernelType must be trivially copyable");
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -944,6 +948,8 @@ public:
             int Dims>
   void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
                     KernelType KernelFunc) {
+    static_assert(std::is_trivially_copyable<KernelType>::value,
+                                   "KernelType must be trivially copyable");
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -976,6 +982,8 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(nd_range<Dims> ExecutionRange, KernelType KernelFunc) {
+    static_assert(std::is_trivially_copyable<KernelType>::value,
+                                   "KernelType must be trivially copyable");
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1281,6 +1289,8 @@ public:
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType>
   void single_task(kernel Kernel, KernelType KernelFunc) {
+    static_assert(std::is_trivially_copyable<KernelType>::value,
+                                   "KernelType must be trivially copyable");
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1321,6 +1331,8 @@ public:
             int Dims>
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
                     KernelType KernelFunc) {
+    static_assert(std::is_trivially_copyable<KernelType>::value,
+                                   "KernelType must be trivially copyable");
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1356,6 +1368,8 @@ public:
             int Dims>
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
                     id<Dims> WorkItemOffset, KernelType KernelFunc) {
+    static_assert(std::is_trivially_copyable<KernelType>::value,
+                                   "KernelType must be trivially copyable");
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1393,6 +1407,8 @@ public:
             int Dims>
   void parallel_for(kernel Kernel, nd_range<Dims> NDRange,
                     KernelType KernelFunc) {
+    static_assert(std::is_trivially_copyable<KernelType>::value,
+                                   "KernelType must be trivially copyable");
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1473,6 +1489,8 @@ public:
   void parallel_for_work_group(kernel Kernel, range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize,
                                KernelType KernelFunc) {
+    static_assert(std::is_trivially_copyable<KernelType>::value,
+                                   "KernelType must be trivially copyable");
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
