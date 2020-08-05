@@ -137,5 +137,7 @@ device::get_info() const {
 
 pi_native_handle device::getNative() const { return impl->getNative(); }
 
+bool device::has(aspect Aspect) const { return impl->has(Aspect); }
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
