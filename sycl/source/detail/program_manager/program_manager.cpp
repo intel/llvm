@@ -330,7 +330,7 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
           : createBinaryProgram(Ctx, RawImg.BinaryStart, ImgSize);
 
   {
-    auto LockGuard = Ctx->getKernelProgramCache().acquireCachedPrograms();
+    std::lock_guard<mutex_class> Lock(MMutex);
     // associate the PI program with the image it was created for
     NativePrograms[Res] = &Img;
   }
@@ -983,7 +983,7 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
     // caller hasn't provided the image object - find it
     { // make sure NativePrograms map access is synchronized
       ContextImplPtr Ctx = getSyclObjImpl(Prg.get_context());
-      auto LockGuard = Ctx->getKernelProgramCache().acquireCachedPrograms();
+      std::lock_guard<mutex_class> Lock(MMutex);
       auto It = NativePrograms.find(NativePrg);
       if (It == NativePrograms.end())
         throw sycl::experimental::spec_const_error(
