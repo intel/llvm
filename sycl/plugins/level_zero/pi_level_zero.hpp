@@ -74,6 +74,8 @@ struct _pi_platform {
   // Cache pi_devices for reuse
   std::vector<pi_device> PiDevicesCache;
   std::mutex DeviceCacheMutex;
+  // Flag to indicate PiDevicesCache is invalidated
+  bool CacheInvalidated = false;
 };
 
 struct _pi_device : _pi_object {

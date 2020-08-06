@@ -461,7 +461,8 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return PI_INVALID_VALUE;
   }
 
-  static std::vector<pi_platform> piPlatformsCache;
+  static std::vector<pi_platform> PiPlatformsCache;
+  static std::mutex PlatformsCacheMutex;
 
   // This is a good time to initialize Level Zero.
   // TODO: We can still safely recover if something goes wrong during the init.
@@ -497,7 +498,8 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     assert(ZeDriverCount == 1);
     ZE_CALL(zeDriverGet(&ZeDriverCount, &ZeDriver));
 
-    for (const pi_platform CachedPlatform : piPlatformsCache) {
+    std::lock_guard<std::mutex> Lock(PlatformsCacheMutex);
+    for (const pi_platform CachedPlatform : PiPlatformsCache) {
       if (CachedPlatform->ZeDriver == ZeDriver) {
         Platforms[0] = CachedPlatform;
         // if the caller sent a valid NumPlatforms pointer, set it here
@@ -535,7 +537,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
           std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
 
       // save a copy in the cache for future uses
-      piPlatformsCache.push_back(Platforms[0]);
+      PiPlatformsCache.push_back(Platforms[0]);
     } catch (const std::bad_alloc &) {
       return PI_OUT_OF_HOST_MEMORY;
     } catch (...) {
@@ -625,11 +627,19 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
                        pi_uint32 *NumDevices) {
 
   assert(Platform);
-  std::lock_guard<std::mutex> Lock(Platform->DeviceCacheMutex);
   ze_driver_handle_t ZeDriver = Platform->ZeDriver;
 
   // Get number of devices supporting Level Zero
-  uint32_t ZeDeviceCount = Platform->PiDevicesCache.size();
+  uint32_t ZeDeviceCount = 0;
+  std::lock_guard<std::mutex> Lock(Platform->DeviceCacheMutex);
+  if (Platform->CacheInvalidated) {
+    for (const pi_device CachedDevice : Platform->PiDevicesCache) {
+      CachedDevice->initialize();
+    }
+    Platform->CacheInvalidated = false;
+  }
+  ZeDeviceCount = Platform->PiDevicesCache.size();
+
   const bool AskingForGPU = (DeviceType & PI_DEVICE_TYPE_GPU);
   const bool AskingForDefault = (DeviceType == PI_DEVICE_TYPE_DEFAULT);
 
@@ -695,21 +705,12 @@ pi_result piDeviceRetain(pi_device Device) {
 
 pi_result piDeviceRelease(pi_device Device) {
   assert(Device);
-  pi_platform Platform = Device->Platform;
-  std::lock_guard<std::mutex> Lock(Platform->DeviceCacheMutex);
   // TODO: OpenCL says root-device ref-count remains unchanged (1),
   // but when would we free the device's data?
   if (--(Device->RefCount) == 0) {
-    // Destroy the command list used for initializations
-    ZE_CALL(zeCommandListDestroy(Device->ZeCommandListInit));
-    // invalidate piDeviceCache entry
-    for (uint32_t i = 0; i < Platform->PiDevicesCache.size(); i++) {
-      if (Device == Platform->PiDevicesCache[i]) {
-        Platform->PiDevicesCache.erase(Platform->PiDevicesCache.begin() + i);
-        break;
-      }
-    }
-    delete Device;
+    pi_platform Platform = Device->Platform;
+    std::lock_guard<std::mutex> Lock(Platform->DeviceCacheMutex);
+    Platform->CacheInvalidated = true;
   }
 
   return PI_SUCCESS;
