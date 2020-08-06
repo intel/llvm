@@ -31,8 +31,8 @@ int main() {
   try {
     Q.submit([&](handler &CGH) {
       CGH.parallel_for<class ReqdWGSizePositiveA>(
-          nd_range<3>(range<3>(8, 8, 8), range<3>(4, 4, 4)),
-          [=](nd_item<3>) [[intel::reqd_work_group_size(4, 4, 4)]]{});
+          nd_range<3>(range<3>(8, 8, 8), range<3>(4, 4, 4)), [=
+      ](nd_item<3>) [[intel::reqd_work_group_size(4, 4, 4)]]{});
     });
     Q.wait_and_throw();
   } catch (nd_range_error &E) {
@@ -59,8 +59,8 @@ int main() {
     try {
       Q.submit([&](handler &CGH) {
         CGH.parallel_for<class ReqdWGSizeNoLocalPositive>(
-            range<3>(16, 16, 16),
-            [=](item<3>) [[intel::reqd_work_group_size(4, 4, 4)]]{});
+            range<3>(16, 16, 16), [=
+        ](item<3>) [[intel::reqd_work_group_size(4, 4, 4)]]{});
       });
       Q.wait_and_throw();
     } catch (nd_range_error &E) {
@@ -88,10 +88,10 @@ int main() {
   try {
     Q.submit([&](handler &CGH) {
       CGH.parallel_for<class ReqdWGSizeNegativeA>(
-          nd_range<3>(range<3>(16, 16, 16), range<3>(8, 8, 8)),
-          [=](nd_item<3>) [[intel::reqd_work_group_size(4, 4, 4)]]{
+          nd_range<3>(range<3>(16, 16, 16), range<3>(8, 8, 8)), [=
+      ](nd_item<3>) [[intel::reqd_work_group_size(4, 4, 4)]]{
 
-          });
+                                                                });
     });
     Q.wait_and_throw();
     std::cerr << "Test case ReqdWGSizeNegativeA failed: no exception has been "
