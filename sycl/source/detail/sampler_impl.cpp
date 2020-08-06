@@ -22,10 +22,7 @@ sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
 sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
 
   RT::PiSampler Sampler = pi::cast<RT::PiSampler>(clSampler);
-  {
-    std::lock_guard<mutex_class> Lock(MMutex);
-    MContextToSampler[syclContext] = Sampler;
-  }
+  MContextToSampler[syclContext] = Sampler;
   const detail::plugin &Plugin = getSyclObjImpl(syclContext)->getPlugin();
   Plugin.call<PiApiKind::piSamplerRetain>(Sampler);
   Plugin.call<PiApiKind::piSamplerGetInfo>(
@@ -49,13 +46,12 @@ sampler_impl::~sampler_impl() {
 }
 
 RT::PiSampler sampler_impl::getOrCreateSampler(const context &Context) {
-  RT::PiSampler resultSampler = nullptr;
   {
     std::lock_guard<mutex_class> Lock(MMutex);
-    resultSampler = MContextToSampler[Context];
+    auto It = MContextToSampler.find(Context);
+    if (It != MContextToSampler.end())
+      return It->second;
   }
-  if (resultSampler)
-    return resultSampler;
 
   const pi_sampler_properties sprops[] = {
       PI_SAMPLER_INFO_NORMALIZED_COORDS,
@@ -67,6 +63,7 @@ RT::PiSampler sampler_impl::getOrCreateSampler(const context &Context) {
       0};
 
   RT::PiResult errcode_ret = PI_SUCCESS;
+  RT::PiSampler resultSampler = nullptr;
   const detail::plugin &Plugin = getSyclObjImpl(Context)->getPlugin();
 
   errcode_ret = Plugin.call_nocheck<PiApiKind::piSamplerCreate>(
