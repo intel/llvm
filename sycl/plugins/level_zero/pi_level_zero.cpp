@@ -625,6 +625,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
                        pi_uint32 *NumDevices) {
 
   assert(Platform);
+  std::lock_guard<std::mutex> Lock(Platform->DeviceCacheMutex);
   ze_driver_handle_t ZeDriver = Platform->ZeDriver;
 
   // Get number of devices supporting Level Zero
@@ -653,7 +654,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 
   // if devices are already captured in cache, return them from the cache.
   for (const pi_device CachedDevice : Platform->PiDevicesCache) {
-    *(Devices++) = CachedDevice;
+    *Devices++ = CachedDevice;
   }
   if (!Platform->PiDevicesCache.empty()) {
     return PI_SUCCESS;
@@ -694,14 +695,14 @@ pi_result piDeviceRetain(pi_device Device) {
 
 pi_result piDeviceRelease(pi_device Device) {
   assert(Device);
-
+  pi_platform Platform = Device->Platform;
+  std::lock_guard<std::mutex> Lock(Platform->DeviceCacheMutex);
   // TODO: OpenCL says root-device ref-count remains unchanged (1),
   // but when would we free the device's data?
   if (--(Device->RefCount) == 0) {
     // Destroy the command list used for initializations
     ZE_CALL(zeCommandListDestroy(Device->ZeCommandListInit));
     // invalidate piDeviceCache entry
-    pi_platform Platform = Device->Platform;
     for (uint32_t i = 0; i < Platform->PiDevicesCache.size(); i++) {
       if (Device == Platform->PiDevicesCache[i]) {
         Platform->PiDevicesCache.erase(Platform->PiDevicesCache.begin() + i);
