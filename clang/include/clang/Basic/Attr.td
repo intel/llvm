@@ -1131,7 +1131,7 @@ def SYCLDevice : InheritableAttr {
 def SYCLKernel : InheritableAttr {
   let Spellings = [Clang<"sycl_kernel">];
   let Subjects = SubjectList<[FunctionTmpl]>;
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsHost, SYCLIsDevice];
   let Documentation = [SYCLKernelDocs];
 }
 
