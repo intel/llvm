@@ -654,6 +654,8 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   // if devices are already captured in cache, return them from the cache.
   for (const pi_device CachedDevice : Platform->PiDevicesCache) {
     *(Devices++) = CachedDevice;
+  }
+  if (!Platform->PiDevicesCache.empty()) {
     return PI_SUCCESS;
   }
 
