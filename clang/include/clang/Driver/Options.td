@@ -3530,6 +3530,7 @@ def fsycl_esimd : Flag<["-"], "fsycl-explicit-simd">, Group<sycl_Group>, Flags<[
   HelpText<"Enable SYCL explicit SIMD extension">;
 def fno_sycl_esimd : Flag<["-"], "fno-sycl-explicit-simd">, Group<sycl_Group>,
   HelpText<"Disable SYCL explicit SIMD extension">, Flags<[NoArgumentUnused, CoreOption]>;
+defm sycl_std_optimizations : OptOutFFlag<"sycl-std-optimizations", "Enable", "Disable", " standard optimization pipeline for SYCL device compiler">;
 
 //===----------------------------------------------------------------------===//
 // CC1 Options
