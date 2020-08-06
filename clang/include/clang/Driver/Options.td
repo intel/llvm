@@ -4455,6 +4455,8 @@ def fsycl_std_layout_kernel_params: Flag<["-"], "fsycl-std-layout-kernel-params"
 def fsycl_allow_func_ptr : Flag<["-"], "fsycl-allow-func-ptr">,
   HelpText<"Allow function pointers in SYCL device.">;
 def fno_sycl_allow_func_ptr : Flag<["-"], "fno-sycl-allow-func-ptr">;
+def fenable_sycl_dae : Flag<["-"], "fenable-sycl-dae">,
+  HelpText<"Enable Dead Argument Elimination in SPIR kernels">;
 
 } // let Flags = [CC1Option]
 

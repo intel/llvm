@@ -179,7 +179,6 @@
 ; CHECK-NEXT:         Branch Probability Analysis
 ; CHECK-NEXT:         Block Frequency Analysis
 ; CHECK-NEXT:     Dead Global Elimination
-; CHECK-NEXT:     Dead Argument Elimination for SPIR kernels in SYCL environment
 ; CHECK-NEXT:     CallGraph Construction
 ; CHECK-NEXT:     Globals Alias Analysis
 ; CHECK-NEXT:     FunctionPass Manager
