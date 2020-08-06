@@ -1193,7 +1193,7 @@ def SYCLIntelBufferLocation : InheritableAttr {
   let Spellings = [];
   let Args = [UnsignedArgument<"LocationID">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
-  let Documentation = [SYCLIntelBufferLocationAttrDocs];
+  let Documentation = [Undocumented];
 }
 
 def SYCLIntelKernelArgsRestrict : InheritableAttr {
