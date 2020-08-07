@@ -1,6 +1,5 @@
 // UNSUPPORTED: windows
-// RUN: %clangxx -fsycl -c %s -o %t.o
-// RUN: %clangxx -fsycl %t.o %sycl_libs_dir/libsycl-cmath.o -o %t.out
+// RUN: %clangxx -fsycl %s -o %t.out -fno-builtin
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 #include <CL/sycl.hpp>
 #include <iostream>
@@ -16,6 +15,8 @@ constexpr s::access::mode sycl_write = s::access::mode::write;
 SYCL_EXTERNAL
 extern "C" float sinf(float x) { return x + 100.f; }
 
+SYCL_EXTERNAL
+extern "C" float cosf(float x);
 class DeviceTest;
 
 void device_test() {
@@ -37,7 +38,6 @@ void device_test() {
       });
     });
   }
-
   assert(approx_equal_fp(result_sin, 100.f) && approx_equal_fp(result_cos, 1.f));
 }
 
