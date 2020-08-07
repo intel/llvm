@@ -5,7 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
 #include "clang/Driver/Driver.h"
 #include "InputInfo.h"
 #include "ToolChains/AIX.h"
@@ -3787,13 +3786,13 @@ class OffloadingActionBuilder final {
     }
 
     void addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
-                           bool isSpirvAOT) {
+                           bool isSpirvAOT, bool isMSVCEnv) {
       enum SYCLDeviceLibType {
         sycl_devicelib_wrapper,
         sycl_devicelib_fallback
       };
       StringRef LibLoc, LibSysUtils;
-      if (TC->getTriple().isWindowsMSVCEnvironment()) {
+      if (isMSVCEnv) {
         LibLoc = Args.MakeArgString(TC->getDriver().Dir + "/../bin");
         LibSysUtils = "libsycl-msvc";
       } else {
@@ -3925,8 +3924,11 @@ class OffloadingActionBuilder final {
         }
 
         // For SYCL compilation, add SYCL device libraries as default.
-        if (!isNVPTX && !Args.hasArg(options::OPT_fintelfpga))
-          addSYCLDeviceLibs(*TC, LinkObjects, isSpirvAOT);
+        if (!isNVPTX && !Args.hasArg(options::OPT_fintelfpga)) {
+          addSYCLDeviceLibs(
+              *TC, LinkObjects, isSpirvAOT,
+              C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
+        }
         // The linkage actions subgraph leading to the offload wrapper.
         // [cond] Means incoming/outgoing dependence is created only when cond
         //        is true. A function of:
