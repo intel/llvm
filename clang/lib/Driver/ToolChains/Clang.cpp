@@ -4106,7 +4106,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (!Args.hasFlag(options::OPT_fsycl_std_optimizations,
                       options::OPT_fno_sycl_std_optimizations, true))
       CmdArgs.push_back("-fno-sycl-std-optimizations");
-    else {
+    else if (RawTriple.isSPIR()) {
+      // Set `sycl-opt` option to configure LLVM passes for SPIR target
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-sycl-opt");
     }

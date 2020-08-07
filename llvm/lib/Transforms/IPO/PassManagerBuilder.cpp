@@ -68,7 +68,6 @@ static cl::opt<bool>
 RunLoopRerolling("reroll-loops", cl::Hidden,
                  cl::desc("Run the loop rerolling pass"));
 
-// TODO: pass -fsycl-std-optimizations option value though CodeGen options.
 static cl::opt<bool>
     SYCLOptimizationMode("sycl-opt", cl::init(false), cl::Hidden,
                          cl::desc("Enable SYCL optimization mode."));
