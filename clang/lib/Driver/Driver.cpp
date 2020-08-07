@@ -4006,7 +4006,7 @@ class OffloadingActionBuilder final {
                                         : types::TY_Tempfiletable;
         SYCLPostLinkJobAction *PostLinkDCRAction = nullptr;
         SYCLPostLinkJobAction *PostLinkAction = nullptr;
-        if (isNVPTX) {
+        if (isNVPTX || Args.hasArg(options::OPT_fintelfpga)) {
           PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(DeviceLinkAction,
                                                                PostLinkOutType);
         } else {
