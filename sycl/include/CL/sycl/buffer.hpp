@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/accessor_property_list.hpp>
 #include <CL/sycl/detail/buffer_impl.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
@@ -247,36 +248,42 @@ public:
 
   template <access::mode Mode,
             access::target Target = access::target::global_buffer>
-  accessor<T, dimensions, Mode, Target, access::placeholder::false_t>
+  accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
+           property_list>
   get_access(handler &CommandGroupHandler) {
-    return accessor<T, dimensions, Mode, Target, access::placeholder::false_t>(
-        *this, CommandGroupHandler);
+    return accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
+                    property_list>(*this,
+                                                      CommandGroupHandler);
   }
 
   template <access::mode mode>
   accessor<T, dimensions, mode, access::target::host_buffer,
-           access::placeholder::false_t>
+           access::placeholder::false_t, property_list>
   get_access() {
     return accessor<T, dimensions, mode, access::target::host_buffer,
-                    access::placeholder::false_t>(*this);
+                    access::placeholder::false_t,
+                    property_list>(*this);
   }
 
   template <access::mode mode,
             access::target target = access::target::global_buffer>
-  accessor<T, dimensions, mode, target, access::placeholder::false_t>
+  accessor<T, dimensions, mode, target, access::placeholder::false_t,
+           property_list>
   get_access(handler &commandGroupHandler, range<dimensions> accessRange,
              id<dimensions> accessOffset = {}) {
-    return accessor<T, dimensions, mode, target, access::placeholder::false_t>(
+    return accessor<T, dimensions, mode, target, access::placeholder::false_t,
+                    property_list>(
         *this, commandGroupHandler, accessRange, accessOffset);
   }
 
   template <access::mode mode>
   accessor<T, dimensions, mode, access::target::host_buffer,
-           access::placeholder::false_t>
+           access::placeholder::false_t, property_list>
   get_access(range<dimensions> accessRange, id<dimensions> accessOffset = {}) {
     return accessor<T, dimensions, mode, access::target::host_buffer,
-                    access::placeholder::false_t>(*this, accessRange,
-                                                  accessOffset);
+                    access::placeholder::false_t,
+                    property_list>(*this, accessRange,
+                                                      accessOffset);
   }
 
 #if __cplusplus > 201402L
@@ -339,7 +346,7 @@ private:
   template <typename A, int dims, typename C, typename Enable>
   friend class buffer;
   template <typename DataT, int dims, access::mode mode, access::target target,
-            access::placeholder isPlaceholder>
+            access::placeholder isPlaceholder, typename PropertyListT>
   friend class accessor;
   range<dimensions> Range;
   // Offset field specifies the origin of the sub buffer inside the parent

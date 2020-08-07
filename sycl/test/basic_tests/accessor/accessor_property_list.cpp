@@ -1,0 +1,107 @@
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.out
+
+#include <CL/sycl.hpp>
+
+#include <type_traits>
+
+using namespace sycl::ext::ONEAPI;
+
+int main() {
+  {
+    // Create empty property list
+    accessor_property_list PL;
+  }
+
+  {
+    // Single CT property
+    accessor_property_list PL{no_alias};
+    static_assert(PL.has_property<property::no_alias>(), "Property not found");
+    static_assert(!PL.has_property<property::no_offset>(), "Property is found");
+  }
+
+  {
+    // Single RT property
+    accessor_property_list PL{sycl::noinit};
+    assert(PL.has_property<sycl::property::noinit>() && "Property not found");
+  }
+
+  {
+    // Compile time and runtime properties
+    accessor_property_list PL{sycl::noinit, no_alias};
+    assert(PL.has_property<property::no_alias>() && "Property not found");
+    assert(PL.has_property<sycl::property::noinit>() && "Property not found");
+  }
+
+  {
+    // Multiple CT properties
+    accessor_property_list PL{no_alias, no_offset};
+    static_assert(PL.has_property<property::no_alias>(), "Property not found");
+    static_assert(PL.has_property<property::no_offset>(), "Property not found");
+
+    static_assert(PL.get_property<property::no_alias>() == no_alias,
+                  "Properties are not equal");
+    property::no_alias<false> NAfalse;
+    static_assert(PL.get_property<property::no_alias>() != NAfalse,
+                  "Properties are equal");
+  }
+
+  {
+    int data[1] = {0};
+
+    sycl::buffer<int, 1> buf_data(data, sycl::range<1>(1),
+                                  {sycl::property::buffer::use_host_ptr()});
+    sycl::queue Queue;
+
+    Queue.submit([&](sycl::handler &cgh) {
+      accessor_property_list PL{no_alias};
+      sycl::accessor acc_1(buf_data, cgh, PL);
+      sycl::accessor acc_2(buf_data, cgh, sycl::range<1>(0), PL);
+      sycl::accessor acc_3(buf_data, cgh, sycl::range<1>(0), sycl::id<1>(1),
+                           PL);
+      sycl::accessor acc_4(buf_data, cgh, sycl::read_only, PL);
+      sycl::accessor acc_5(buf_data, cgh, sycl::range<1>(0), sycl::read_only,
+                           PL);
+      sycl::accessor acc_6(buf_data, cgh, sycl::range<1>(0), sycl::id<1>(0),
+                           sycl::read_only, PL);
+      sycl::accessor acc_7(buf_data, cgh, sycl::write_only, PL);
+      sycl::accessor acc_8(buf_data, cgh, sycl::range<1>(0), sycl::write_only,
+                           PL);
+      sycl::accessor acc_9(buf_data, cgh, sycl::range<1>(0), sycl::id<1>(0),
+                           sycl::write_only, PL);
+      cgh.single_task<class NullKernel>([]() {});
+    });
+    accessor_property_list PL{no_alias};
+    sycl::accessor acc_1(buf_data, PL);
+    sycl::accessor acc_2(buf_data, sycl::range<1>(0), PL);
+    sycl::accessor acc_3(buf_data, sycl::range<1>(0), sycl::id<1>(0), PL);
+    sycl::accessor acc_4(buf_data, sycl::read_only, PL);
+    sycl::accessor acc_5(buf_data, sycl::range<1>(0), sycl::read_only, PL);
+    sycl::accessor acc_6(buf_data, sycl::range<1>(0), sycl::id<1>(0),
+                         sycl::read_only, PL);
+    sycl::accessor acc_7(buf_data, sycl::write_only, PL);
+    sycl::accessor acc_8(buf_data, sycl::range<1>(0), sycl::write_only, PL);
+    sycl::accessor acc_9(buf_data, sycl::range<1>(0), sycl::id<1>(0),
+                         sycl::write_only, PL);
+  }
+
+  {
+    int data[1] = {0};
+
+    sycl::buffer<int, 1> buf_data(data, sycl::range<1>(1),
+                                  {sycl::property::buffer::use_host_ptr()});
+
+    accessor_property_list PL{sycl::noinit, no_alias};
+    sycl::accessor acc_1(buf_data, PL);
+    sycl::accessor<int, 1, sycl::access::mode::read_write,
+                   sycl::access::target::global_buffer,
+                   sycl::access::placeholder::true_t,
+                   accessor_property_list<property::no_alias<>>>
+        acc_2(acc_1);
+  }
+
+  return 0;
+}

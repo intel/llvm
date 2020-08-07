@@ -1767,8 +1767,9 @@ public:
   /// \param Pattern is a value to be used to fill the memory.
   template <typename T, int Dims, access::mode AccessMode,
             access::target AccessTarget,
-            access::placeholder IsPlaceholder = access::placeholder::false_t>
-  void fill(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder> Dst,
+            access::placeholder IsPlaceholder = access::placeholder::false_t,
+            typename PropertyListT = property_list>
+  void fill(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT> Dst,
             const T &Pattern) {
     throwIfActionIsCreated();
     // TODO add check:T must be an integral scalar value or a SYCL vector type
@@ -1918,7 +1919,8 @@ private:
   friend class detail::queue_impl;
   // Make accessor class friend to keep the list of associated accessors.
   template <typename DataT, int Dims, access::mode AccMode,
-            access::target AccTarget, access::placeholder isPlaceholder>
+            access::target AccTarget, access::placeholder isPlaceholder,
+            typename PropertyListT>
   friend class accessor;
   friend device detail::getDeviceFromHandler(handler &);
 
