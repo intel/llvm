@@ -30,10 +30,13 @@
 #include <string>
 #include <vector>
 
-#ifdef __GNUG__
+#if defined __has_include
+#if __has_include(<cxxabi.h>)
+#define __SYCL_ENABLE_GNU_DEMANGLING
 #include <cstdlib>
 #include <cxxabi.h>
 #include <memory>
+#endif
 #endif
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -49,7 +52,7 @@ namespace detail {
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
 #endif
 
-#ifdef __GNUG__
+#ifdef __SYCL_ENABLE_GNU_DEMANGLING
 struct DemangleHandle {
   char *p;
   DemangleHandle(char *ptr) : p(ptr) {}
