@@ -2849,26 +2849,30 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
                                   size_t ParamValueSize, void *ParamValue,
                                   size_t *ParamValueSizeRet) {
 
-#if 0
   assert(Event);
   uint64_t ZeTimerResolution =
       Event->Queue->Context->Device->ZeDeviceProperties.timerResolution;
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
+
+  ze_kernel_timestamp_result_t tsResult;
+
   switch (ParamName) {
   case PI_PROFILING_INFO_COMMAND_START: {
-    uint64_t ContextStart;
-    ZE_CALL(zeEventGetTimestamp(
-        Event->ZeEvent, ZE_EVENT_TIMESTAMP_CONTEXT_START, &ContextStart));
-    ContextStart *= ZeTimerResolution;
-    return ReturnValue(uint64_t{ContextStart});
+    zeEventQueryKernelTimestamp(Event->ZeEvent, &tsResult);
+
+    uint64_t ContextStartTime = tsResult.context.kernelStart;
+    ContextStartTime *= ZeTimerResolution;
+
+    return ReturnValue(uint64_t{ContextStartTime});
   }
   case PI_PROFILING_INFO_COMMAND_END: {
-    uint64_t ContextEnd;
-    ZE_CALL(zeEventGetTimestamp(Event->ZeEvent, ZE_EVENT_TIMESTAMP_CONTEXT_END,
-                                &ContextEnd));
-    ContextEnd *= ZeTimerResolution;
-    return ReturnValue(uint64_t{ContextEnd});
+    zeEventQueryKernelTimestamp(Event->ZeEvent, &tsResult);
+
+    uint64_t ContextEndTime = tsResult.context.kernelEnd;
+    ContextEndTime *= ZeTimerResolution;
+
+    return ReturnValue(uint64_t{ContextEndTime});
   }
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
@@ -2878,7 +2882,6 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
     zePrint("piEventGetProfilingInfo: not supported ParamName\n");
     return PI_INVALID_VALUE;
   }
-#endif
 
   return PI_SUCCESS;
 }
