@@ -61,9 +61,7 @@ int main() {
     }
 
     // Copying to nullptr is skipped if the number of bytes to copy is 0.
-    q.submit([&](handler &cgh) {
-      cgh.memcpy(nullptr, src, 0);
-    });
+    q.submit([&](handler &cgh) { cgh.memcpy(nullptr, src, 0); });
     q.wait_and_throw();
   }
   std::cout << "Passed\n";

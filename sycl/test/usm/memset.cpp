@@ -57,9 +57,7 @@ int main() {
     }
 
     // Filling to nullptr is skipped if the number of bytes to fill is 0.
-    q.submit([&](handler &cgh) {
-      cgh.memset(nullptr, 0, 0);
-    });
+    q.submit([&](handler &cgh) { cgh.memset(nullptr, 0, 0); });
     q.wait_and_throw();
   }
   std::cout << "Passed\n";
