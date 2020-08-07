@@ -82,7 +82,7 @@ sycl/plugins/cuda/ @intel/llvm-reviewers-cuda
 
 sycl/doc/ @pvchupin @kbobrovs
 
-sycl/doc/extensions/ @mkinsner @jbrodman
+sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 
 xpti/ @tovinkere @andykaylor
 xptifw/ @tovinkere  @andykaylor

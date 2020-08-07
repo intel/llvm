@@ -563,10 +563,11 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
       // Order of integer numbers in MD node follows the order of function
       // parameters on which we shall attach the appropriate decoration. Add
       // decoration only if MD value is not negative.
-      BM->addCapability(CapabilityFPGABufferLocationINTEL);
       int LocID = getMDOperandAsInt(BufferLocation, ArgNo);
-      if (LocID >= 0)
+      if (LocID >= 0) {
+        BM->addCapability(CapabilityFPGABufferLocationINTEL);
         BA->addDecorate(DecorationBufferLocationINTEL, LocID);
+      }
     }
   }
   if (Attrs.hasAttribute(AttributeList::ReturnIndex, Attribute::ZExt))
@@ -2748,6 +2749,13 @@ SPIRVInstruction *LLVMToSPIRV::transBuiltinToInst(StringRef DemangledName,
       !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_blocking_pipes))
     return nullptr;
 
+  if (((OpArbitraryFloatSinCosPiINTEL <= OC &&
+        OC <= OpArbitraryFloatCastToIntINTEL) ||
+       (OpArbitraryFloatAddINTEL <= OC && OC <= OpArbitraryFloatPowNINTEL)) &&
+      !BM->isAllowedToUseExtension(
+          ExtensionID::SPV_INTEL_arbitrary_precision_floating_point))
+    return nullptr;
+
   auto Inst = transBuiltinToInstWithoutDecoration(OC, CI, BB);
   addDecorations(Inst, Dec);
   return Inst;
@@ -3044,6 +3052,139 @@ LLVMToSPIRV::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     return BM->addSampledImageInst(transType(SampledImgTy),
                                    transValue(Image, BB),
                                    transValue(Sampler, BB), BB);
+  }
+  case OpArbitraryFloatCastINTEL:
+  case OpArbitraryFloatCastFromIntINTEL:
+  case OpArbitraryFloatCastToIntINTEL:
+  case OpArbitraryFloatRecipINTEL:
+  case OpArbitraryFloatRSqrtINTEL:
+  case OpArbitraryFloatCbrtINTEL:
+  case OpArbitraryFloatSqrtINTEL:
+  case OpArbitraryFloatLogINTEL:
+  case OpArbitraryFloatLog2INTEL:
+  case OpArbitraryFloatLog10INTEL:
+  case OpArbitraryFloatLog1pINTEL:
+  case OpArbitraryFloatExpINTEL:
+  case OpArbitraryFloatExp2INTEL:
+  case OpArbitraryFloatExp10INTEL:
+  case OpArbitraryFloatExpm1INTEL:
+  case OpArbitraryFloatSinINTEL:
+  case OpArbitraryFloatCosINTEL:
+  case OpArbitraryFloatSinCosINTEL:
+  case OpArbitraryFloatSinPiINTEL:
+  case OpArbitraryFloatCosPiINTEL:
+  case OpArbitraryFloatSinCosPiINTEL:
+  case OpArbitraryFloatASinINTEL:
+  case OpArbitraryFloatASinPiINTEL:
+  case OpArbitraryFloatACosINTEL:
+  case OpArbitraryFloatACosPiINTEL:
+  case OpArbitraryFloatATanINTEL:
+  case OpArbitraryFloatATanPiINTEL: {
+    // Format of instruction CastFromInt:
+    //   LLVM arbitrary floating point functions return value type:
+    //       iN (arbitrary precision integer of N bits length)
+    //   Arguments: A(iN), Mout(i32), EnableSubnormals(i32), RoundingMode(i32),
+    //              RoundingAccuracy(i32)
+    //   where A and return values are of arbitrary precision integer type.
+    //   SPIR-V arbitrary floating point instruction layout:
+    //   <id>ResTy Res<id> A<id> Literal Mout Literal EnableSubnormals
+    //       Literal RoundingMode Literal RoundingAccuracy
+
+    // Format of instruction CastToInt:
+    //   LLVM arbitrary floating point functions return value: iN
+    //   Arguments: A(iN), MA(i32), EnableSubnormals(i32), RoundingMode(i32),
+    //              RoundingAccuracy(i32)
+    //   where A and return values are of arbitrary precision integer type.
+    //   SPIR-V arbitrary floating point instruction layout:
+    //   <id>ResTy Res<id> A<id> Literal MA Literal EnableSubnormals
+    //       Literal RoundingMode Literal RoundingAccuracy
+
+    // Format of other instructions:
+    //   LLVM arbitrary floating point functions return value: iN
+    //   Arguments: A(iN), MA(i32), Mout(i32), EnableSubnormals(i32),
+    //              RoundingMode(i32), RoundingAccuracy(i32)
+    //   where A and return values are of arbitrary precision integer type.
+    //   SPIR-V arbitrary floating point instruction layout:
+    //   <id>ResTy Res<id> A<id> Literal MA Literal Mout
+    //       Literal EnableSubnormals Literal RoundingMode
+    //       Literal RoundingAccuracy
+
+    Type *ResTy = CI->getType();
+
+    auto OpItr = CI->value_op_begin();
+    auto OpEnd = OpItr + CI->getNumArgOperands();
+
+    SPIRVValue *InA = transValue(*OpItr++ /* A - input */, BB);
+
+    std::vector<SPIRVWord> Literals;
+    std::transform(OpItr, OpEnd, std::back_inserter(Literals), [](auto *O) {
+      return cast<llvm::ConstantInt>(O)->getZExtValue();
+    });
+
+    return BM->addArbFloatPointIntelInst(OC, transType(ResTy), InA, nullptr,
+                                         Literals, BB);
+  }
+  case OpArbitraryFloatAddINTEL:
+  case OpArbitraryFloatSubINTEL:
+  case OpArbitraryFloatMulINTEL:
+  case OpArbitraryFloatDivINTEL:
+  case OpArbitraryFloatGTINTEL:
+  case OpArbitraryFloatGEINTEL:
+  case OpArbitraryFloatLTINTEL:
+  case OpArbitraryFloatLEINTEL:
+  case OpArbitraryFloatEQINTEL:
+  case OpArbitraryFloatHypotINTEL:
+  case OpArbitraryFloatATan2INTEL:
+  case OpArbitraryFloatPowINTEL:
+  case OpArbitraryFloatPowRINTEL:
+  case OpArbitraryFloatPowNINTEL: {
+    // Format of instructions Add, Sub, Mul, Div, Hypot, ATan2, Pow, PowR:
+    //   LLVM arbitrary floating point functions return value:
+    //       iN (arbitrary precision integer of N bits length)
+    //   Arguments: A(iN), MA(i32), B(iN), MB(i32), Mout(i32),
+    //              EnableSubnormals(i32), RoundingMode(i32),
+    //              RoundingAccuracy(i32)
+    //   where A, B and return values are of arbitrary precision integer type.
+    //   SPIR-V arbitrary floating point instruction layout:
+    //   <id>ResTy Res<id> A<id> Literal MA B<id> Literal MB Literal Mout
+    //       Literal EnableSubnormals Literal RoundingMode
+    //       Literal RoundingAccuracy
+
+    // Format of instruction PowN:
+    //   LLVM arbitrary floating point functions return value: iN
+    //   Arguments: A(iN), MA(i32), B(iN), Mout(i32), EnableSubnormals(i32),
+    //              RoundingMode(i32), RoundingAccuracy(i32)
+    //   where A, B and return values are of arbitrary precision integer type.
+    //   SPIR-V arbitrary floating point instruction layout:
+    //   <id>ResTy Res<id> A<id> Literal MA B<id> Literal Mout
+    //       Literal EnableSubnormals Literal RoundingMode
+    //       Literal RoundingAccuracy
+
+    // Format of instructions GT, GE, LT, LE, EQ:
+    //   LLVM arbitrary floating point functions return value: Bool
+    //   Arguments: A(iN), MA(i32), B(iN), MB(i32)
+    //   where A and B are of arbitrary precision integer type.
+    //   SPIR-V arbitrary floating point instruction layout:
+    //   <id>ResTy Res<id> A<id> Literal MA B<id> Literal MB
+
+    Type *ResTy = CI->getType();
+
+    auto OpItr = CI->value_op_begin();
+    auto OpEnd = OpItr + CI->getNumArgOperands();
+
+    SPIRVValue *InA = transValue(*OpItr++ /* A - input */, BB);
+
+    std::vector<SPIRVWord> Literals;
+    Literals.push_back(cast<llvm::ConstantInt>(*OpItr++)->getZExtValue());
+
+    SPIRVValue *InB = transValue(*OpItr++ /* B - input */, BB);
+
+    std::transform(OpItr, OpEnd, std::back_inserter(Literals), [](auto *O) {
+      return cast<llvm::ConstantInt>(O)->getZExtValue();
+    });
+
+    return BM->addArbFloatPointIntelInst(OC, transType(ResTy), InA, InB,
+                                         Literals, BB);
   }
   default: {
     if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {

@@ -26,7 +26,9 @@ public:
   TestFnObj(buffer<int> &buf, handler &cgh) :
     data(buf.get_access<access::mode::write>(cgh)) {}
   accessor<int, 1, access::mode::write, access::target::global_buffer> data;
-  void operator()(id<1> item) const { data[item] = item[0]; }
+  void operator()(id<1> item) {
+    data[item] = item[0];
+  }
 };
 
 void kernel2();

@@ -11,7 +11,7 @@ static constexpr int my_array[1] = {42};
 void foo(const test_type &) {}
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
   kernelFunc();
 }
 

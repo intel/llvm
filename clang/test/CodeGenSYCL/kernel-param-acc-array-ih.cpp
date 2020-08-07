@@ -21,7 +21,7 @@
 // CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {
 // CHECK-NEXT:   //--- _ZTSZ4mainE8kernel_A
 // CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 12 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 16 },
 // CHECK-EMPTY:
 // CHECK-NEXT: };
 
@@ -37,7 +37,7 @@
 using namespace cl::sycl;
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void a_kernel(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void a_kernel(Func kernelFunc) {
   kernelFunc();
 }
 

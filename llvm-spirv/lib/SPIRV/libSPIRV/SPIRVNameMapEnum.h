@@ -562,6 +562,8 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityGroupNonUniformClustered, "GroupNonUniformClustered");
   add(CapabilityUSMStorageClassesINTEL, "USMStorageClassesINTEL");
   add(CapabilityFPGABufferLocationINTEL, "FPGABufferLocationINTEL");
+  add(CapabilityArbitraryPrecisionFloatingPointINTEL,
+      "ArbitraryPrecisionFloatingPointINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

@@ -261,6 +261,10 @@ extern cl::opt<PGOViewCountsType> PGOViewCounts;
 // Defined in Analysis/BlockFrequencyInfo.cpp:  -view-bfi-func-name=
 extern cl::opt<std::string> ViewBlockFreqFuncName;
 
+static cl::opt<bool>
+    PGOOldCFGHashing("pgo-instr-old-cfg-hashing", cl::init(false), cl::Hidden,
+                     cl::desc("Use the old CFG function hashing"));
+
 // Return a string describing the branch condition that can be
 // used in static branch probability heuristics:
 static std::string getBranchCondString(Instruction *TI) {
@@ -620,7 +624,8 @@ public:
 } // end anonymous namespace
 
 // Compute Hash value for the CFG: the lower 32 bits are CRC32 of the index
-// value of each BB in the CFG. The higher 32 bits record the number of edges.
+// value of each BB in the CFG. The higher 32 bits are the CRC32 of the numbers
+// of selects, indirect calls, mem ops and edges.
 template <class Edge, class BBInfo>
 void FuncPGOInstrumentation<Edge, BBInfo>::computeCFGHash() {
   std::vector<uint8_t> Indexes;
@@ -639,12 +644,31 @@ void FuncPGOInstrumentation<Edge, BBInfo>::computeCFGHash() {
   }
   JC.update(Indexes);
 
-  // Hash format for context sensitive profile. Reserve 4 bits for other
-  // information.
-  FunctionHash = (uint64_t)SIVisitor.getNumOfSelectInsts() << 56 |
-                 (uint64_t)ValueSites[IPVK_IndirectCallTarget].size() << 48 |
-                 //(uint64_t)ValueSites[IPVK_MemOPSize].size() << 40 |
-                 (uint64_t)MST.AllEdges.size() << 32 | JC.getCRC();
+  JamCRC JCH;
+  if (PGOOldCFGHashing) {
+    // Hash format for context sensitive profile. Reserve 4 bits for other
+    // information.
+    FunctionHash = (uint64_t)SIVisitor.getNumOfSelectInsts() << 56 |
+                   (uint64_t)ValueSites[IPVK_IndirectCallTarget].size() << 48 |
+                   //(uint64_t)ValueSites[IPVK_MemOPSize].size() << 40 |
+                   (uint64_t)MST.AllEdges.size() << 32 | JC.getCRC();
+  } else {
+    // The higher 32 bits.
+    auto updateJCH = [&JCH](uint64_t Num) {
+      uint8_t Data[8];
+      support::endian::write64le(Data, Num);
+      JCH.update(Data);
+    };
+    updateJCH((uint64_t)SIVisitor.getNumOfSelectInsts());
+    updateJCH((uint64_t)ValueSites[IPVK_IndirectCallTarget].size());
+    updateJCH((uint64_t)ValueSites[IPVK_MemOPSize].size());
+    updateJCH((uint64_t)MST.AllEdges.size());
+
+    // Hash format for context sensitive profile. Reserve 4 bits for other
+    // information.
+    FunctionHash = (((uint64_t)JCH.getCRC()) << 28) + JC.getCRC();
+  }
+
   // Reserve bit 60-63 for other information purpose.
   FunctionHash &= 0x0FFFFFFFFFFFFFFF;
   if (IsCS)
@@ -653,8 +677,12 @@ void FuncPGOInstrumentation<Edge, BBInfo>::computeCFGHash() {
                     << " CRC = " << JC.getCRC()
                     << ", Selects = " << SIVisitor.getNumOfSelectInsts()
                     << ", Edges = " << MST.AllEdges.size() << ", ICSites = "
-                    << ValueSites[IPVK_IndirectCallTarget].size()
-                    << ", Hash = " << FunctionHash << "\n";);
+                    << ValueSites[IPVK_IndirectCallTarget].size());
+  if (!PGOOldCFGHashing) {
+    LLVM_DEBUG(dbgs() << ", Memops = " << ValueSites[IPVK_MemOPSize].size()
+                      << ", High32 CRC = " << JCH.getCRC());
+  }
+  LLVM_DEBUG(dbgs() << ", Hash = " << FunctionHash << "\n";);
 }
 
 // Check if we can safely rename this Comdat function.
@@ -1020,7 +1048,8 @@ public:
         FreqAttr(FFA_Normal), IsCS(IsCS) {}
 
   // Read counts for the instrumented BB from profile.
-  bool readCounters(IndexedInstrProfReader *PGOReader, bool &AllZeros);
+  bool readCounters(IndexedInstrProfReader *PGOReader, bool &AllZeros,
+                    bool &AllMinusOnes);
 
   // Populate the counts for all BBs.
   void populateCounters();
@@ -1131,11 +1160,18 @@ bool PGOUseFunc::setInstrumentedCounts(
   if (NumCounters != CountFromProfile.size()) {
     return false;
   }
+  auto *FuncEntry = &*F.begin();
+
   // Set the profile count to the Instrumented BBs.
   uint32_t I = 0;
   for (BasicBlock *InstrBB : InstrumentBBs) {
     uint64_t CountValue = CountFromProfile[I++];
     UseBBInfo &Info = getBBInfo(InstrBB);
+    // If we reach here, we know that we have some nonzero count
+    // values in this function. The entry count should not be 0.
+    // Fix it if necessary.
+    if (InstrBB == FuncEntry && CountValue == 0)
+      CountValue = 1;
     Info.setBBInfoCount(CountValue);
   }
   ProfileCountSize = CountFromProfile.size();
@@ -1196,7 +1232,8 @@ void PGOUseFunc::setEdgeCount(DirectEdges &Edges, uint64_t Value) {
 // Read the profile from ProfileFileName and assign the value to the
 // instrumented BB and the edges. This function also updates ProgramMaxCount.
 // Return true if the profile are successfully read, and false on errors.
-bool PGOUseFunc::readCounters(IndexedInstrProfReader *PGOReader, bool &AllZeros) {
+bool PGOUseFunc::readCounters(IndexedInstrProfReader *PGOReader, bool &AllZeros,
+                              bool &AllMinusOnes) {
   auto &Ctx = M->getContext();
   Expected<InstrProfRecord> Result =
       PGOReader->getInstrProfRecord(FuncInfo.FuncName, FuncInfo.FunctionHash);
@@ -1239,10 +1276,13 @@ bool PGOUseFunc::readCounters(IndexedInstrProfReader *PGOReader, bool &AllZeros)
 
   IsCS ? NumOfCSPGOFunc++ : NumOfPGOFunc++;
   LLVM_DEBUG(dbgs() << CountFromProfile.size() << " counts\n");
+  AllMinusOnes = (CountFromProfile.size() > 0);
   uint64_t ValueSum = 0;
   for (unsigned I = 0, S = CountFromProfile.size(); I < S; I++) {
     LLVM_DEBUG(dbgs() << "  " << I << ": " << CountFromProfile[I] << "\n");
     ValueSum += CountFromProfile[I];
+    if (CountFromProfile[I] != (uint64_t)-1)
+      AllMinusOnes = false;
   }
   AllZeros = (ValueSum == 0);
 
@@ -1326,7 +1366,6 @@ void PGOUseFunc::populateCounters() {
   }
 #endif
   uint64_t FuncEntryCount = getBBInfo(&*F.begin()).CountValue;
-  F.setEntryCount(ProfileCount(FuncEntryCount, Function::PCT_Real));
   uint64_t FuncMaxCount = FuncEntryCount;
   for (auto &BB : F) {
     auto BI = findBBInfo(&BB);
@@ -1334,6 +1373,11 @@ void PGOUseFunc::populateCounters() {
       continue;
     FuncMaxCount = std::max(FuncMaxCount, BI->CountValue);
   }
+
+  // Fix the obviously inconsistent entry count.
+  if (FuncMaxCount > 0 && FuncEntryCount == 0)
+    FuncEntryCount = 1;
+  F.setEntryCount(ProfileCount(FuncEntryCount, Function::PCT_Real));
   markFunctionAttributes(FuncEntryCount, FuncMaxCount);
 
   // Now annotate select instructions
@@ -1646,13 +1690,27 @@ static bool annotateAllFunctions(
     SplitIndirectBrCriticalEdges(F, BPI, BFI);
     PGOUseFunc Func(F, &M, TLI, ComdatMembers, BPI, BFI, PSI, IsCS,
                     InstrumentFuncEntry);
+    // When AllMinusOnes is true, it means the profile for the function
+    // is unrepresentative and this function is actually hot. Set the
+    // entry count of the function to be multiple times of hot threshold
+    // and drop all its internal counters.
+    bool AllMinusOnes = false;
     bool AllZeros = false;
-    if (!Func.readCounters(PGOReader.get(), AllZeros))
+    if (!Func.readCounters(PGOReader.get(), AllZeros, AllMinusOnes))
       continue;
     if (AllZeros) {
       F.setEntryCount(ProfileCount(0, Function::PCT_Real));
       if (Func.getProgramMaxCount() != 0)
         ColdFunctions.push_back(&F);
+      continue;
+    }
+    const unsigned MultiplyFactor = 3;
+    if (AllMinusOnes) {
+      uint64_t HotThreshold = PSI->getHotCountThreshold();
+      if (HotThreshold)
+        F.setEntryCount(
+            ProfileCount(HotThreshold * MultiplyFactor, Function::PCT_Real));
+      HotFunctions.push_back(&F);
       continue;
     }
     Func.populateCounters();

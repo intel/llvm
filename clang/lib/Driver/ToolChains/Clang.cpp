@@ -508,7 +508,7 @@ static codegenoptions::DebugInfoKind DebugLevelToInfoKind(const Arg &A) {
     return codegenoptions::DebugLineTablesOnly;
   if (A.getOption().matches(options::OPT_gline_directives_only))
     return codegenoptions::DebugDirectivesOnly;
-  return codegenoptions::DebugInfoConstructor;
+  return codegenoptions::LimitedDebugInfo;
 }
 
 static bool mustUseNonLeafFramePointerForTarget(const llvm::Triple &Triple) {
@@ -1926,18 +1926,6 @@ void Clang::AddPPCTargetArgs(const ArgList &Args,
   if (T.isOSBinFormatELF()) {
     switch (getToolChain().getArch()) {
     case llvm::Triple::ppc64: {
-      // When targeting a processor that supports QPX, or if QPX is
-      // specifically enabled, default to using the ABI that supports QPX (so
-      // long as it is not specifically disabled).
-      bool HasQPX = false;
-      if (Arg *A = Args.getLastArg(options::OPT_mcpu_EQ))
-        HasQPX = A->getValue() == StringRef("a2q");
-      HasQPX = Args.hasFlag(options::OPT_mqpx, options::OPT_mno_qpx, HasQPX);
-      if (HasQPX) {
-        ABIName = "elfv1-qpx";
-        break;
-      }
-
       if (T.isMusl() || (T.isOSFreeBSD() && T.getOSMajorVersion() >= 13))
         ABIName = "elfv2";
       else
@@ -2438,7 +2426,7 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
           CmdArgs.push_back(Value.data());
         } else {
           RenderDebugEnablingArgs(Args, CmdArgs,
-                                  codegenoptions::DebugInfoConstructor,
+                                  codegenoptions::LimitedDebugInfo,
                                   DwarfVersion, llvm::DebuggerKind::Default);
         }
       } else if (Value.startswith("-mcpu") || Value.startswith("-mfpu") ||
@@ -3711,7 +3699,7 @@ static void RenderDebugOptions(const ToolChain &TC, const Driver &D,
   if (const Arg *A =
           Args.getLastArg(options::OPT_g_Group, options::OPT_gsplit_dwarf,
                           options::OPT_gsplit_dwarf_EQ)) {
-    DebugInfoKind = codegenoptions::DebugInfoConstructor;
+    DebugInfoKind = codegenoptions::LimitedDebugInfo;
 
     // If the last option explicitly specified a debug-info level, use it.
     if (checkDebugInfoOption(A, Args, D, TC) &&
@@ -3816,7 +3804,7 @@ static void RenderDebugOptions(const ToolChain &TC, const Driver &D,
     if (checkDebugInfoOption(A, Args, D, TC)) {
       if (DebugInfoKind != codegenoptions::DebugLineTablesOnly &&
           DebugInfoKind != codegenoptions::DebugDirectivesOnly) {
-        DebugInfoKind = codegenoptions::DebugInfoConstructor;
+        DebugInfoKind = codegenoptions::LimitedDebugInfo;
         CmdArgs.push_back("-dwarf-ext-refs");
         CmdArgs.push_back("-fmodule-format=obj");
       }
@@ -3836,9 +3824,7 @@ static void RenderDebugOptions(const ToolChain &TC, const Driver &D,
           TC.GetDefaultStandaloneDebug());
   if (const Arg *A = Args.getLastArg(options::OPT_fstandalone_debug))
     (void)checkDebugInfoOption(A, Args, D, TC);
-  if ((DebugInfoKind == codegenoptions::LimitedDebugInfo ||
-       DebugInfoKind == codegenoptions::DebugInfoConstructor) &&
-      NeedFullDebug)
+  if (DebugInfoKind == codegenoptions::LimitedDebugInfo && NeedFullDebug)
     DebugInfoKind = codegenoptions::FullDebugInfo;
 
   if (Args.hasFlag(options::OPT_gembed_source, options::OPT_gno_embed_source,
@@ -4116,6 +4102,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasFlag(options::OPT_fsycl_esimd, options::OPT_fno_sycl_esimd,
                      false))
       CmdArgs.push_back("-fsycl-explicit-simd");
+
+    if (!Args.hasFlag(options::OPT_fsycl_std_optimizations,
+                      options::OPT_fno_sycl_std_optimizations, true))
+      CmdArgs.push_back("-fno-sycl-std-optimizations");
+
     // Pass the triple of host when doing SYCL
     auto AuxT = llvm::Triple(llvm::sys::getProcessTriple());
     std::string NormalizedTriple = AuxT.normalize();
@@ -6787,7 +6778,7 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
                           options::OPT_gline_tables_only)) {
     *EmitCodeView = true;
     if (DebugInfoArg->getOption().matches(options::OPT__SLASH_Z7))
-      *DebugInfoKind = codegenoptions::DebugInfoConstructor;
+      *DebugInfoKind = codegenoptions::LimitedDebugInfo;
     else
       *DebugInfoKind = codegenoptions::DebugLineTablesOnly;
   } else {
@@ -7088,7 +7079,7 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
     // the guard for source type, however there is a test which asserts
     // that some assembler invocation receives no -debug-info-kind,
     // and it's not clear whether that test is just overly restrictive.
-    DebugInfoKind = (WantDebug ? codegenoptions::DebugInfoConstructor
+    DebugInfoKind = (WantDebug ? codegenoptions::LimitedDebugInfo
                                : codegenoptions::NoDebugInfo);
     // Add the -fdebug-compilation-dir flag if needed.
     addDebugCompDirArg(Args, CmdArgs, C.getDriver().getVFS());

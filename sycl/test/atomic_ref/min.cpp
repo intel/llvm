@@ -55,8 +55,6 @@ int main() {
   }
 
   constexpr int N = 32;
-
-  // TODO: Enable missing tests when supported
   min_test<int>(q, N);
   min_test<unsigned int>(q, N);
   min_test<long>(q, N);
@@ -65,7 +63,6 @@ int main() {
   min_test<unsigned long long>(q, N);
   min_test<float>(q, N);
   min_test<double>(q, N);
-  //min_test<char*>(q, N);
 
   std::cout << "Test passed." << std::endl;
 }

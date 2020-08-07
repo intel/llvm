@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-return-type -verify -Wno-sycl-2017-compat -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-return-type -verify -fsyntax-only -std=c++17 %s
 void bar();
 
 template <typename T>
@@ -7,7 +7,7 @@ void usage(T func) {
 }
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
 }
 

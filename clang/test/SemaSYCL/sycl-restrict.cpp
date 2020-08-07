@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -triple spir64 -Wno-return-type -verify -Wno-sycl-2017-compat -fsyntax-only -std=c++17 %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -triple spir64 -fno-sycl-allow-func-ptr -Wno-return-type -verify -Wno-sycl-2017-compat -fsyntax-only -std=c++17 %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -triple spir64 -DALLOW_FP=1 -fsycl-allow-func-ptr -Wno-return-type -verify -Wno-sycl-2017-compat -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -triple spir64 -Wno-return-type -verify -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -triple spir64 -fno-sycl-allow-func-ptr -Wno-return-type -verify -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -triple spir64 -DALLOW_FP=1 -fsycl-allow-func-ptr -Wno-return-type -verify -fsyntax-only -std=c++17 %s
 
 namespace std {
 class type_info;
@@ -86,7 +86,7 @@ bool isa_B(A *a) {
 }
 
 template <typename N, typename L>
-__attribute__((sycl_kernel)) void kernel1(const L &l) {
+__attribute__((sycl_kernel)) void kernel1(L l) {
   l(); //#rtti_kernel  // expected-note 2{{called by 'kernel1<kernel_name, (lambda at }}
 }
 } // namespace Check_RTTI_Restriction
@@ -374,7 +374,7 @@ int use2(a_type ab, a_type *abp) {
 }
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc(); //#call_kernelFunc // expected-note 3{{called by 'kernel_single_task<fake_kernel, (lambda at}}
 }
 

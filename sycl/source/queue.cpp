@@ -18,49 +18,47 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-queue::queue(const context &syclContext, const device_selector &deviceSelector,
-             const async_handler &asyncHandler, const property_list &propList) {
+queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
+             const async_handler &AsyncHandler, const property_list &PropList) {
 
-  const vector_class<device> Devs = syclContext.get_devices();
+  const vector_class<device> Devs = SyclContext.get_devices();
 
-  auto Comp = [&deviceSelector](const device &d1, const device &d2) {
-    return deviceSelector(d1) < deviceSelector(d2);
+  auto Comp = [&DeviceSelector](const device &d1, const device &d2) {
+    return DeviceSelector(d1) < DeviceSelector(d2);
   };
 
-  const device &syclDevice = *std::max_element(Devs.begin(), Devs.end(), Comp);
+  const device &SyclDevice = *std::max_element(Devs.begin(), Devs.end(), Comp);
 
   impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(syclDevice), detail::getSyclObjImpl(syclContext),
-      asyncHandler, propList);
+      detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
+      AsyncHandler, PropList);
 }
 
-queue::queue(const context &syclContext,
-             const device &syclDevice,
-             const async_handler &asyncHandler,
-             const property_list &propList) {
+queue::queue(const context &SyclContext, const device &SyclDevice,
+             const async_handler &AsyncHandler, const property_list &PropList) {
   impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(syclDevice), detail::getSyclObjImpl(syclContext),
-      asyncHandler, propList);
+      detail::getSyclObjImpl(SyclDevice), detail::getSyclObjImpl(SyclContext),
+      AsyncHandler, PropList);
 }
 
-queue::queue(const device &syclDevice, const async_handler &asyncHandler,
-             const property_list &propList) {
+queue::queue(const device &SyclDevice, const async_handler &AsyncHandler,
+             const property_list &PropList) {
   impl = std::make_shared<detail::queue_impl>(
-      detail::getSyclObjImpl(syclDevice), asyncHandler, propList);
+      detail::getSyclObjImpl(SyclDevice), AsyncHandler, PropList);
 }
 
-queue::queue(cl_command_queue clQueue, const context &syclContext,
-             const async_handler &asyncHandler) {
+queue::queue(cl_command_queue clQueue, const context &SyclContext,
+             const async_handler &AsyncHandler) {
   impl = std::make_shared<detail::queue_impl>(
       reinterpret_cast<RT::PiQueue>(clQueue),
-      detail::getSyclObjImpl(syclContext), asyncHandler);
+      detail::getSyclObjImpl(SyclContext), AsyncHandler);
 }
 
-queue::queue(const context &syclContext, const device_selector &deviceSelector,
-             const property_list &propList)
-    : queue(syclContext, deviceSelector,
-            detail::getSyclObjImpl(syclContext)->get_async_handler(),
-            propList) {}
+queue::queue(const context &SyclContext, const device_selector &deviceSelector,
+             const property_list &PropList)
+    : queue(SyclContext, deviceSelector,
+            detail::getSyclObjImpl(SyclContext)->get_async_handler(),
+            PropList) {}
 
 queue::queue(const context &SyclContext, const device &SyclDevice,
              const property_list &PropList)
@@ -79,16 +77,16 @@ bool queue::is_host() const { return impl->is_host(); }
 
 void queue::throw_asynchronous() { impl->throw_asynchronous(); }
 
-event queue::memset(void *ptr, int value, size_t count) {
-  return impl->memset(impl, ptr, value, count);
+event queue::memset(void *Ptr, int Value, size_t Count) {
+  return impl->memset(impl, Ptr, Value, Count);
 }
 
-event queue::memcpy(void *dest, const void *src, size_t count) {
-  return impl->memcpy(impl, dest, src, count);
+event queue::memcpy(void *Dest, const void *Src, size_t Count) {
+  return impl->memcpy(impl, Dest, Src, Count);
 }
 
-event queue::mem_advise(const void *ptr, size_t length, pi_mem_advice advice) {
-  return impl->mem_advise(impl, ptr, length, advice);
+event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice) {
+  return impl->mem_advise(impl, Ptr, Length, Advice);
 }
 
 event queue::submit_impl(function_class<void(handler &)> CGH,
@@ -96,9 +94,9 @@ event queue::submit_impl(function_class<void(handler &)> CGH,
   return impl->submit(CGH, impl, CodeLoc);
 }
 
-event queue::submit_impl(function_class<void(handler &)> CGH, queue secondQueue,
+event queue::submit_impl(function_class<void(handler &)> CGH, queue SecondQueue,
                          const detail::code_location &CodeLoc) {
-  return impl->submit(CGH, impl, secondQueue.impl, CodeLoc);
+  return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc);
 }
 
 void queue::wait_proxy(const detail::code_location &CodeLoc) {
@@ -109,26 +107,26 @@ void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
   impl->wait_and_throw(CodeLoc);
 }
 
-template <info::queue param>
-typename info::param_traits<info::queue, param>::return_type
+template <info::queue Param>
+typename info::param_traits<info::queue, Param>::return_type
 queue::get_info() const {
-  return impl->get_info<param>();
+  return impl->get_info<Param>();
 }
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template __SYCL_EXPORT ret_type queue::get_info<info::param_type::param>()   \
+#define PARAM_TRAITS_SPEC(ParamType, Param, RetType)                           \
+  template __SYCL_EXPORT RetType queue::get_info<info::ParamType::Param>()     \
       const;
 
 #include <CL/sycl/info/queue_traits.def>
 
 #undef PARAM_TRAITS_SPEC
 
-template <typename propertyT> bool queue::has_property() const {
-  return impl->has_property<propertyT>();
+template <typename PropertyT> bool queue::has_property() const {
+  return impl->has_property<PropertyT>();
 }
 
-template <typename propertyT> propertyT queue::get_property() const {
-  return impl->get_property<propertyT>();
+template <typename PropertyT> PropertyT queue::get_property() const {
+  return impl->get_property<PropertyT>();
 }
 
 template __SYCL_EXPORT bool

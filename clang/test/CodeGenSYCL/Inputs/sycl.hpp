@@ -71,15 +71,23 @@ enum prop_type {
   base_prop
 };
 
+// Compile time known accessor property
+// TODO: this doesn't belong to property namespace, instead it shall be in its
+// own namespace. Change it, when the actual implementation in SYCL headers is
+// ready
+template <int>
+class buffer_location {};
+
 struct property_base {
   virtual prop_type type() const = 0;
 };
 } // namespace property
 
+template <typename... properties>
 class property_list {
 public:
-  template <typename... propertyTN>
-  property_list(propertyTN... props) {}
+  template <typename... propertiesTN>
+  property_list(propertiesTN... props){};
 
   template <typename propertyT>
   bool has_property() const { return true; }
@@ -127,7 +135,8 @@ struct _ImplT {
 
 template <typename dataT, int dimensions, access::mode accessmode,
           access::target accessTarget = access::target::global_buffer,
-          access::placeholder isPlaceholder = access::placeholder::false_t>
+          access::placeholder isPlaceholder = access::placeholder::false_t,
+          typename propertyListT = property_list<>>
 class accessor {
 
 public:
@@ -141,6 +150,8 @@ public:
 private:
   void __init(__attribute__((opencl_global)) dataT *Ptr, range<dimensions> AccessRange,
               range<dimensions> MemRange, id<dimensions> Offset) {}
+
+  propertyListT prop_list;
 };
 
 template <int dimensions, access::mode accessmode, access::target accesstarget>
@@ -260,26 +271,26 @@ public:
 
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 template <typename KernelName = auto_name, typename KernelType>
-ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) {
+ATTR_SYCL_KERNEL void kernel_single_task(KernelType kernelFunc) {
   kernelFunc();
 }
 
 template <typename KernelName, typename KernelType, int Dims>
 ATTR_SYCL_KERNEL void
-kernel_parallel_for(const KernelType &KernelFunc) {
+kernel_parallel_for(KernelType KernelFunc) {
   KernelFunc(id<Dims>());
 }
 
 template <typename KernelName, typename KernelType, int Dims>
 ATTR_SYCL_KERNEL void
-kernel_parallel_for_work_group(const KernelType &KernelFunc) {
+kernel_parallel_for_work_group(KernelType KernelFunc) {
   KernelFunc(group<Dims>());
 }
 
 class handler {
 public:
   template <typename KernelName = auto_name, typename KernelType, int Dims>
-  void parallel_for(range<Dims> numWorkItems, const KernelType &kernelFunc) {
+  void parallel_for(range<Dims> numWorkItems, KernelType kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for<NameT, KernelType, Dims>(kernelFunc);
@@ -289,7 +300,7 @@ public:
   }
 
   template <typename KernelName = auto_name, typename KernelType, int Dims>
-  void parallel_for_work_group(range<Dims> numWorkGroups, range<Dims> WorkGroupSize, const KernelType &kernelFunc) {
+  void parallel_for_work_group(range<Dims> numWorkGroups, range<Dims> WorkGroupSize, KernelType kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for_work_group<NameT, KernelType, Dims>(kernelFunc);
@@ -300,7 +311,7 @@ public:
   }
 
   template <typename KernelName = auto_name, typename KernelType>
-  void single_task(const KernelType &kernelFunc) {
+  void single_task(KernelType kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
     kernel_single_task<NameT>(kernelFunc);
@@ -326,7 +337,8 @@ const stream& operator<<(const stream &S, T&&) {
 }
 
 template <typename T, int dimensions = 1,
-          typename AllocatorT = int /*fake type as AllocatorT is not used*/>
+          typename AllocatorT = int /*fake type as AllocatorT is not used*/,
+          typename... properties>
 class buffer {
 public:
   using value_type = T;
@@ -338,13 +350,13 @@ public:
   buffer(ParamTypes... args) {} // fake constructor
 
   buffer(const range<dimensions> &bufferRange,
-         const property_list &propList = {}) {}
+         const property_list<properties...> &propList = {}) {}
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
-         const property_list &propList = {}) {}
+         const property_list<properties...> &propList = {}) {}
 
   buffer(const T *hostData, const range<dimensions> &bufferRange,
-         const property_list &propList = {}) {}
+         const property_list<properties...> &propList = {}) {}
 
   buffer(const buffer &rhs) = default;
 
@@ -412,11 +424,12 @@ enum class image_channel_type : unsigned int {
   fp32
 };
 
-template <int dimensions = 1, typename AllocatorT = int>
+template <int dimensions = 1, typename AllocatorT = int, typename... properties>
 class image {
 public:
   image(image_channel_order Order, image_channel_type Type,
-        const range<dimensions> &Range, const property_list &PropList = {}) {}
+        const range<dimensions> &Range,
+        const property_list<properties...> &PropList = {}) {}
 
   /* -- common interface members -- */
 

@@ -1,16 +1,15 @@
-// RUN: %clang_cc1 %s -fsycl -fsycl-is-device -triple spir64 -fsyntax-only -Wno-sycl-2017-compat -DTRIGGER_ERROR -verify
-// RUN: %clang_cc1 %s -fsycl -fsycl-is-device -triple spir64 -fsyntax-only -Wno-sycl-2017-compat -ast-dump | FileCheck %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-host -fsyntax-only -Wno-sycl-2017-compat -verify %s
+// RUN: %clang_cc1 %s -fsycl -fsycl-is-device -triple spir64 -fsyntax-only -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 %s -fsycl -fsycl-is-device -triple spir64 -fsyntax-only -ast-dump | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-host -fsyntax-only -verify %s
 
 #ifndef __SYCL_DEVICE_ONLY__
 struct FuncObj {
   [[intelfpga::num_simd_work_items(42)]] // expected-no-diagnostics
-  void
-  operator()() const {}
+  void operator()() {}
 };
 
 template <typename name, typename Func>
-void kernel(const Func &kernelFunc) {
+void kernel(Func kernelFunc) {
   kernelFunc();
 }
 
@@ -24,11 +23,12 @@ void foo() {
 [[intelfpga::num_simd_work_items(2)]] void func_do_not_ignore() {}
 
 struct FuncObj {
-  [[intelfpga::num_simd_work_items(42)]] void operator()() const {}
+  [[intelfpga::num_simd_work_items(42)]]
+  void operator()() {}
 };
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
   kernelFunc();
 }
 

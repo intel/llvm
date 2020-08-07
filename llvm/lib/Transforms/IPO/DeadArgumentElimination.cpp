@@ -77,13 +77,15 @@ namespace {
     bool runOnModule(Module &M) override {
       if (skipModule(M))
         return false;
-      DeadArgumentEliminationPass DAEP(ShouldHackArguments());
+      DeadArgumentEliminationPass DAEP(ShouldHackArguments(),
+                                       CheckSpirKernels());
       ModuleAnalysisManager DummyMAM;
       PreservedAnalyses PA = DAEP.run(M, DummyMAM);
       return !PA.areAllPreserved();
     }
 
     virtual bool ShouldHackArguments() const { return false; }
+    virtual bool CheckSpirKernels() const { return false; }
   };
 
 } // end anonymous namespace
@@ -103,6 +105,7 @@ namespace {
     DAH() : DAE(ID) {}
 
     bool ShouldHackArguments() const override { return true; }
+    bool CheckSpirKernels() const override { return false; }
   };
 
 } // end anonymous namespace
@@ -113,11 +116,41 @@ INITIALIZE_PASS(DAH, "deadarghaX0r",
                 "Dead Argument Hacking (BUGPOINT USE ONLY; DO NOT USE)",
                 false, false)
 
+namespace {
+
+/// DAESYCL - DeadArgumentElimination pass for SPIR kernel functions even
+///           if they are external.
+struct DAESYCL : public DAE {
+  static char ID;
+
+  DAESYCL() : DAE(ID) {
+    initializeDAESYCLPass(*PassRegistry::getPassRegistry());
+  }
+
+  StringRef getPassName() const override {
+    return "Dead Argument Elimination for SPIR kernels in SYCL environment";
+  }
+
+  bool ShouldHackArguments() const override { return false; }
+  bool CheckSpirKernels() const override { return true; }
+};
+
+} // end anonymous namespace
+
+char DAESYCL::ID = 0;
+
+INITIALIZE_PASS(
+    DAESYCL, "deadargelim-sycl",
+    "Dead Argument Elimination for SPIR kernels in SYCL environment", false,
+    false)
+
 /// createDeadArgEliminationPass - This pass removes arguments from functions
 /// which are not used by the body of the function.
 ModulePass *llvm::createDeadArgEliminationPass() { return new DAE(); }
 
 ModulePass *llvm::createDeadArgHackingPass() { return new DAH(); }
+
+ModulePass *llvm::createDeadArgEliminationSYCLPass() { return new DAESYCL(); }
 
 /// DeleteDeadVarargs - If this is an function that takes a ... list, and if
 /// llvm.vastart is never called, the varargs list is dead for the function.
@@ -535,7 +568,14 @@ void DeadArgumentEliminationPass::SurveyFunction(const Function &F) {
                       << " has musttail calls\n");
   }
 
-  if (!F.hasLocalLinkage() && (!ShouldHackArguments || F.isIntrinsic())) {
+  // We can't modify arguments if the function is not local
+  // but we can do so for SPIR kernel function in SYCL environment.
+  bool FuncIsSpirKernel =
+      CheckSpirKernels &&
+      StringRef(F.getParent()->getTargetTriple()).contains("sycldevice") &&
+      F.getCallingConv() == CallingConv::SPIR_KERNEL;
+  bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSpirKernel;
+  if (FuncIsLive && (!ShouldHackArguments || F.isIntrinsic())) {
     MarkLive(F);
     return;
   }
@@ -755,6 +795,18 @@ bool DeadArgumentEliminationPass::RemoveDeadStuffFromFunction(Function *F) {
                         << ArgI << " (" << I->getName() << ") from "
                         << F->getName() << "\n");
     }
+  }
+
+  if (CheckSpirKernels) {
+    SmallVector<Metadata *, 10> MDOmitArgs;
+    auto MDOmitArgTrue = llvm::ConstantAsMetadata::get(
+        ConstantInt::get(Type::getInt1Ty(F->getContext()), 1));
+    auto MDOmitArgFalse = llvm::ConstantAsMetadata::get(
+        ConstantInt::get(Type::getInt1Ty(F->getContext()), 0));
+    for (auto &AliveArg : ArgAlive)
+      MDOmitArgs.push_back(AliveArg ? MDOmitArgFalse : MDOmitArgTrue);
+    F->setMetadata("spir_kernel_omit_args",
+                   llvm::MDNode::get(F->getContext(), MDOmitArgs));
   }
 
   // Find out the new return value.

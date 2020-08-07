@@ -71,7 +71,7 @@ void foo(float *A, int *B, State *C, State &D) {
 // CHECK-DAG: attributes [[ATT]] = { readnone }
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
 }
 
