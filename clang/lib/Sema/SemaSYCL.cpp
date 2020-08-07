@@ -1392,6 +1392,22 @@ public:
     return handleSpecialType(FD, FieldTy);
   }
 
+  RecordDecl *wrapPointer(FieldDecl *Field, QualType FieldTy) {
+    RecordDecl *WrapperClass =
+        SemaRef.getASTContext().buildImplicitRecord("wrapper_class");
+    WrapperClass->startDefinition();
+    Field = FieldDecl::Create(
+        SemaRef.getASTContext(), WrapperClass, SourceLocation(),
+        SourceLocation(), /*Id=*/nullptr, FieldTy,
+        SemaRef.getASTContext().getTrivialTypeSourceInfo(FieldTy,
+                                                         SourceLocation()),
+        /*BW=*/nullptr, /*Mutable=*/false, /*InitStyle=*/ICIS_NoInit);
+    Field->setAccess(AS_public);
+    WrapperClass->addDecl(Field);
+    WrapperClass->completeDefinition();
+    return WrapperClass;
+  };
+
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
     // USM allows to use raw pointers instead of buffers/accessors, but these
     // pointers point to the specially allocated memory. For pointer fields we
@@ -1407,6 +1423,14 @@ public:
     PointeeTy = SemaRef.getASTContext().getQualifiedType(
         PointeeTy.getUnqualifiedType(), Quals);
     QualType ModTy = SemaRef.getASTContext().getPointerType(PointeeTy);
+    // When the kernel is generated, struct type captures are decomposed; i.e.
+    // the parameters of the kernel are the fields of the struct, and not the
+    // struct itself. This causes an error in the backend when the struct field
+    // is a pointer, since non-USM pointers cannot be passed directly.
+    // To work around this issue, all pointers are wrapped in a generated
+    // 'wrapper_class'.
+    RecordDecl *WrappedPointer = wrapPointer(FD, ModTy);
+    ModTy = SemaRef.getASTContext().getRecordType(WrappedPointer);
     addParam(FD, ModTy);
     return true;
   }
@@ -1532,12 +1556,21 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     QualType ParamType = KernelParameter->getOriginalType();
     Expr *DRE = SemaRef.BuildDeclRefExpr(KernelParameter, ParamType, VK_LValue,
                                          SourceLocation());
-    if (FD->getType()->isPointerType() &&
-        FD->getType()->getPointeeType().getAddressSpace() !=
-            ParamType->getPointeeType().getAddressSpace())
-      DRE = ImplicitCastExpr::Create(SemaRef.Context, FD->getType(),
-                                     CK_AddressSpaceConversion, DRE, nullptr,
-                                     VK_RValue);
+
+    // In  DeclCreator, we wrapped all pointers inside a struct. Therefore when
+    // generating the initializers, we have to 'unwrap' the pointer.
+    if (FD->getType()->isPointerType()) {
+      CXXRecordDecl *WrapperStruct = ParamType->getAsCXXRecordDecl();
+      // Pointer field wrapped inside wrapper_struct
+      FieldDecl *Pointer = *(WrapperStruct->field_begin());
+      DRE = BuildMemberExpr(DRE, Pointer);
+
+      if (FD->getType()->getPointeeType().getAddressSpace() !=
+          Pointer->getType()->getPointeeType().getAddressSpace())
+        DRE = ImplicitCastExpr::Create(SemaRef.Context, FD->getType(),
+                                       CK_AddressSpaceConversion, DRE, nullptr,
+                                       VK_RValue);
+    }
     return DRE;
   }
 
@@ -1946,7 +1979,7 @@ public:
   }
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy, SYCLIntegrationHeader::kind_pointer);
+    addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
     return true;
   }
 

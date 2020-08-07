@@ -76,16 +76,18 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_data' 'int'
 
 // Check kernel parameters
-// CHECK: {{.*}}kernel_pointer{{.*}} 'void (__global int *, __global int *)'
-// CHECK: ParmVarDecl {{.*}} used _arg_ '__global int *'
-// CHECK: ParmVarDecl {{.*}} used _arg_ '__global int *'
+// CHECK: {{.*}}kernel_pointer{{.*}} 'void (wrapper_class, wrapper_class)'
+// CHECK: ParmVarDecl {{.*}} used _arg_ 'wrapper_class'
+// CHECK: ParmVarDecl {{.*}} used _arg_ 'wrapper_class'
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})'
 
 // Check that lambda fields of pointer types are initialized
 // CHECK: InitListExpr
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_' '__global int *'
+// CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
+// CHECK-NEXT: DeclRefExpr {{.*}} 'wrapper_class' lvalue ParmVar {{.*}} '_arg_' 'wrapper_class'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_' '__global int *'
+// CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
+// CHECK-NEXT: DeclRefExpr {{.*}} 'wrapper_class' lvalue ParmVar {{.*}} '_arg_' 'wrapper_class'
 
 // Check kernel parameters
