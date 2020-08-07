@@ -1733,7 +1733,7 @@ public:
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
   /// No operations is done if \param Count is zero. An exception is thrown
-  /// if either \param Dest or \param Src is nullptr. The behavoir is undefined
+  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.
   ///
   /// \param Dest is a USM pointer to the destination memory.
@@ -1743,7 +1743,7 @@ public:
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \param Count is zero. An exception is thrown
-  /// if \param Dest is nullptr. The behavoir is undefined if \param Dest
+  /// if \param Dest is nullptr. The behavior is undefined if \param Dest
   /// is invalid.
   ///
   /// \param Dest is a USM pointer to the memory to fill.
