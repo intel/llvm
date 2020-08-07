@@ -535,14 +535,16 @@ static string_vector saveResultSymbolsLists(string_vector &ResSymbolsLists) {
   }
   return std::move(Res);
 }
-
-void RemoveDeadCode(Module &M) {
+// Remove 'unused' functions in device LLVM IR module, there is one execption
+// that functions with 'reference-indirectly' attribute can't be removed.
+static void RemoveDeadCode(Module &M) {
   std::vector<Function *> unusedFuncVec;
   bool isClean = false;
   while (!isClean) {
     unusedFuncVec.clear();
     for (Function &F : M) {
-      if (F.user_empty() && (F.getCallingConv() == CallingConv::SPIR_FUNC)) {
+      if (F.user_empty() && (F.getCallingConv() == CallingConv::SPIR_FUNC) &&
+          !F.getAttributes().hasFnAttribute("referenced-indirectly")) {
         F.deleteBody();
         unusedFuncVec.push_back(&F);
       }
