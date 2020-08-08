@@ -1541,10 +1541,6 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     return mapValue(V, transCallInst(CI, BB));
   }
 
-  // FIXME: this is not valid translation of freeze instruction
-  if (FreezeInst *FI = dyn_cast<FreezeInst>(V))
-    return mapValue(V, transValue(FI->getOperand(0), BB));
-
   llvm_unreachable("Not implemented");
   return nullptr;
 }
