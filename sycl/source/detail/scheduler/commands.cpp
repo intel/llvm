@@ -30,7 +30,7 @@
 #include <string>
 #include <vector>
 
-#if defined __has_include
+#ifdef __has_include
 #if __has_include(<cxxabi.h>)
 #define __SYCL_ENABLE_GNU_DEMANGLING
 #include <cstdlib>
