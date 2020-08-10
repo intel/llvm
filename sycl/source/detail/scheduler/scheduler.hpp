@@ -431,7 +431,9 @@ public:
 
 protected:
   Scheduler();
-  static Scheduler instance;
+  static std::atomic<Scheduler *> instance;
+
+  static void setInstance(Scheduler *);
 
   /// Provides exclusive access to std::shared_timed_mutex object with deadlock
   /// avoidance

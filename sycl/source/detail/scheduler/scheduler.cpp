@@ -122,14 +122,35 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
 // The init_priority here causes the constructor for scheduler to run relatively
 // early, and therefore the destructor to run relatively late (after anything
 // else that has no priority set, or has a priority higher than 2000).
-Scheduler Scheduler::instance __attribute__((init_priority(2000)));
+std::atomic<Scheduler *> Scheduler::instance(nullptr);
 #else
 #pragma warning(disable : 4073)
 #pragma init_seg(lib)
-Scheduler Scheduler::instance;
+std::atomic<Scheduler *> Scheduler::instance(nullptr);
 #endif
 
-Scheduler &Scheduler::getInstance() { return instance; }
+Scheduler &Scheduler::getInstance() {
+  Scheduler *Ptr = instance;
+
+  if (!Ptr) {
+    Ptr = new Scheduler;
+    Scheduler *Expected = nullptr;
+
+    while (!instance.compare_exchange_weak(Expected, Ptr))
+      if (Expected) {
+        delete Ptr;
+
+        Ptr = Expected;
+        break;
+      }
+  }
+
+  return *Ptr;
+}
+
+void Scheduler::setInstance(Scheduler *Ptr) {
+  instance = Ptr;
+}
 
 std::vector<EventImplPtr> Scheduler::getWaitList(EventImplPtr Event) {
   std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
