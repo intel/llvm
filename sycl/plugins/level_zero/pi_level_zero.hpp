@@ -75,6 +75,10 @@ struct _pi_platform {
   std::vector<pi_device> PiDevicesCache;
   std::mutex PiDevicesCacheMutex;
   // Flag to indicate PiDevicesCache is invalidated
+  // This flag is used in piDeviceRelease to invalidate the entire cache
+  //   whenever there is a call to piDeviceRelease for any cached device.
+  // This flag is used in piDevicesGet to reuse the cache
+  //   without expensive calls to L0 RT.
   bool CacheInvalidated = false;
 };
 
