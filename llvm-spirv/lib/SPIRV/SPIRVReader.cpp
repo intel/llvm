@@ -3192,7 +3192,8 @@ bool SPIRVToLLVM::translate() {
   }
 
   for (unsigned I = 0, E = BM->getNumFunctions(); I != E; ++I) {
-    transUserSemantic(I);
+    transFunction(BM->getFunction(I));
+    transUserSemantic(BM->getFunction(I));
   }
 
   transGlobalAnnotations();
@@ -3460,11 +3461,14 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
   }
 }
 
-void SPIRVToLLVM::transUserSemantic(unsigned FunNum) {
-  auto Fun = BM->getFunction(FunNum);
+// Having UserSemantic decoration on Function is against the spec, but we allow
+// this for various purposes (like prototyping new features when we need to
+// attach some information on function and propagate that through SPIR-V and
+// ect.)
+void SPIRVToLLVM::transUserSemantic(SPIRV::SPIRVFunction *Fun) {
   auto transFun = transFunction(Fun);
   for (auto UsSem : Fun->getDecorationStringLiteral(DecorationUserSemantic)) {
-    auto vFun = dyn_cast<Value>(transFun);
+    auto V = cast<Value>(transFun);
     Constant *StrConstant =
         ConstantDataArray::getString(*Context, StringRef(UsSem));
     auto *GS = new GlobalVariable(
@@ -3475,7 +3479,7 @@ void SPIRVToLLVM::transUserSemantic(unsigned FunNum) {
     GS->setSection("llvm.metadata");
 
     Type *ResType = PointerType::getInt8PtrTy(
-        vFun->getContext(), vFun->getType()->getPointerAddressSpace());
+        V->getContext(), V->getType()->getPointerAddressSpace());
     Constant *C =
         ConstantExpr::getPointerBitCastOrAddrSpaceCast(transFun, ResType);
 
