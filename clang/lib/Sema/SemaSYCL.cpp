@@ -705,8 +705,19 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
       .Default(InvokeUnknown);
 }
 
+static const CXXRecordDecl *getKernelObjectType(QualType Ty) {
+  // TODO: Once Chris' work is committed again, this changes.
+  return Ty->getAsCXXRecordDecl();
+}
+
 static const CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
-  return (*Caller->param_begin())->getType()->getAsCXXRecordDecl();
+  assert(Caller->getNumParams() > 0 && "Insufficient kernel parameters");
+  return getKernelObjectType(Caller->getParamDecl(0)->getType());
+}
+
+static const CXXRecordDecl *getKernelObjectType(ArrayRef<const Expr*> Args) {
+  assert(Args.size() > 0 && "Insufficient kernel arguments");
+  return getKernelObjectType(Args[0]->getType());
 }
 
 /// Creates a kernel parameter descriptor
@@ -1205,7 +1216,6 @@ public:
 class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   FunctionDecl *KernelDecl;
   llvm::SmallVector<ParmVarDecl *, 8> Params;
-  SyclKernelFieldChecker &ArgChecker;
   Sema::ContextRAII FuncContext;
   // Holds the last handled field's first parameter. This doesn't store an
   // iterator as push_back invalidates iterators.
@@ -1339,13 +1349,12 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   }
 
 public:
-  SyclKernelDeclCreator(Sema &S, SyclKernelFieldChecker &ArgChecker,
-                        StringRef Name, SourceLocation Loc, bool IsInline,
-                        bool IsSIMDKernel)
+  SyclKernelDeclCreator(Sema &S, StringRef Name, SourceLocation Loc,
+                        bool IsInline, bool IsSIMDKernel)
       : SyclKernelFieldHandler(S),
         KernelDecl(createKernelDecl(S.getASTContext(), Name, Loc, IsInline,
                                     IsSIMDKernel)),
-        ArgChecker(ArgChecker), FuncContext(SemaRef, KernelDecl) {}
+        FuncContext(SemaRef, KernelDecl) {}
 
   ~SyclKernelDeclCreator() {
     ASTContext &Ctx = SemaRef.getASTContext();
@@ -1360,8 +1369,7 @@ public:
     KernelDecl->setType(FuncType);
     KernelDecl->setParams(Params);
 
-    if (ArgChecker.isValid())
-      SemaRef.addSyclDeviceDecl(KernelDecl);
+    SemaRef.addSyclDeviceDecl(KernelDecl);
   }
 
   bool handleSyclAccessorType(const CXXBaseSpecifier &BS,
@@ -2017,6 +2025,37 @@ public:
 };
 } // namespace
 
+void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
+                               SourceLocation CallLoc,
+                               ArrayRef<const Expr *> Args) {
+  // TODO: Diagnose with 'CallLoc' to get a better diagnostic.
+  const CXXRecordDecl *KernelObj = getKernelObjectType(Args);
+  if (!KernelObj) {
+    Diag(Args[0]->getExprLoc(), diag::err_sycl_kernel_not_function_object);
+    KernelFunc->setInvalidDecl();
+    return;
+  }
+
+  if (KernelObj->isLambda()) {
+    for (const LambdaCapture &LC : KernelObj->captures())
+      if (LC.capturesThis() && LC.isImplicit()) {
+        Diag(LC.getLocation(), diag::err_implicit_this_capture);
+        KernelFunc->setInvalidDecl();
+      }
+  }
+
+  // TODO: Teach SYCLKernelFieldChecker to better mark the called function for
+  // better diagnostics.
+  SyclKernelFieldChecker checker(*this);
+  // TODO: Union checker likely needs to be here too.
+
+  KernelObjVisitor Visitor{*this};
+  Visitor.VisitRecordBases(KernelObj, checker);
+  Visitor.VisitRecordFields(KernelObj, checker);
+  if(!checker.isValid())
+    KernelFunc->setInvalidDecl();
+}
+
 // Generates the OpenCL kernel using KernelCallerFunc (kernel caller
 // function) defined is SYCL headers.
 // Generated OpenCL kernel contains the body of the kernel caller function,
@@ -2051,14 +2090,8 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       constructKernelName(*this, KernelCallerFunc, MC);
   StringRef KernelName(getLangOpts().SYCLUnnamedLambda ? StableName
                                                        : CalculatedName);
-  if (KernelObj->isLambda()) {
-    for (const LambdaCapture &LC : KernelObj->captures())
-      if (LC.capturesThis() && LC.isImplicit())
-        Diag(LC.getLocation(), diag::err_implicit_this_capture);
-  }
-  SyclKernelFieldChecker checker(*this);
   SyclKernelDeclCreator kernel_decl(
-      *this, checker, KernelName, KernelObj->getLocation(),
+      *this, KernelName, KernelObj->getLocation(),
       KernelCallerFunc->isInlined(), KernelCallerFunc->hasAttr<SYCLSimdAttr>());
   SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelObj,
                                     KernelCallerFunc);
@@ -2069,9 +2102,9 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
 
   ConstructingOpenCLKernel = true;
   KernelObjVisitor Visitor{*this};
-  Visitor.VisitRecordBases(KernelObj, checker, kernel_decl, kernel_body,
+  Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body,
                            int_header);
-  Visitor.VisitRecordFields(KernelObj, checker, kernel_decl, kernel_body,
+  Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body,
                             int_header);
   ConstructingOpenCLKernel = false;
 }

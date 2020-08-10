@@ -12306,6 +12306,9 @@ private:
                  bool IsMemberFunction, SourceLocation Loc, SourceRange Range,
                  VariadicCallType CallType);
 
+  void CheckSYCLKernelCall(FunctionDecl *CallerFunc, SourceLocation CallLoc,
+                           ArrayRef<const Expr *> Args);
+
   bool CheckObjCString(Expr *Arg);
   ExprResult CheckOSLogFormatStringArg(Expr *Arg);
 
