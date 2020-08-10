@@ -462,7 +462,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   }
 
   static std::vector<pi_platform> PiPlatformsCache;
-  static std::mutex PlatformsCacheMutex;
+  static std::mutex PiPlatformsCacheMutex;
 
   // This is a good time to initialize Level Zero.
   // TODO: We can still safely recover if something goes wrong during the init.
@@ -498,7 +498,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     assert(ZeDriverCount == 1);
     ZE_CALL(zeDriverGet(&ZeDriverCount, &ZeDriver));
 
-    std::lock_guard<std::mutex> Lock(PlatformsCacheMutex);
+    std::lock_guard<std::mutex> Lock(PiPlatformsCacheMutex);
     for (const pi_platform CachedPlatform : PiPlatformsCache) {
       if (CachedPlatform->ZeDriver == ZeDriver) {
         Platforms[0] = CachedPlatform;
@@ -631,7 +631,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 
   // Get number of devices supporting Level Zero
   uint32_t ZeDeviceCount = 0;
-  std::lock_guard<std::mutex> Lock(Platform->DeviceCacheMutex);
+  std::lock_guard<std::mutex> Lock(Platform->PiDevicesCacheMutex);
   if (Platform->CacheInvalidated) {
     for (const pi_device CachedDevice : Platform->PiDevicesCache) {
       CachedDevice->initialize();
@@ -709,7 +709,7 @@ pi_result piDeviceRelease(pi_device Device) {
   // but when would we free the device's data?
   if (--(Device->RefCount) == 0) {
     pi_platform Platform = Device->Platform;
-    std::lock_guard<std::mutex> Lock(Platform->DeviceCacheMutex);
+    std::lock_guard<std::mutex> Lock(Platform->PiDevicesCacheMutex);
     Platform->CacheInvalidated = true;
   }
 
