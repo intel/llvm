@@ -430,17 +430,24 @@ public:
   QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
 
 protected:
+  // TODO: after switching to C++17, change std::shared_timed_mutex to
+  // std::shared_mutex
+  using RWLockT = std::shared_timed_mutex;
+  using ReadLockT = std::shared_lock<RWLockT>;
+  using WriteLockT = std::unique_lock<RWLockT>;
+
   Scheduler();
   static Scheduler instance;
 
   /// Provides exclusive access to std::shared_timed_mutex object with deadlock
   /// avoidance
   ///
-  /// \param Lock is an instance of std::unique_lock<std::shared_timed_mutex>
+  /// \param Lock is an instance of WriteLockT
   /// class
-  void lockSharedTimedMutex(std::unique_lock<std::shared_timed_mutex> &Lock);
+  void acquireWriteLock(WriteLockT &Lock);
 
-  static void enqueueLeavesOfReqUnlocked(const Requirement *const Req);
+  static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
+                                         ReadLockT &GraphReadLock);
 
   /// Graph builder class.
   ///
@@ -458,24 +465,26 @@ protected:
     ///
     /// \return a command that represents command group execution.
     Command *addCG(std::unique_ptr<detail::CG> CommandGroup,
-                   QueueImplPtr Queue);
+                   QueueImplPtr Queue, std::vector<Command *> &ToEnqueue);
 
     /// Registers a \ref CG "command group" that updates host memory to the
     /// latest state.
     ///
     /// \return a command that represents command group execution.
     Command *addCGUpdateHost(std::unique_ptr<detail::CG> CommandGroup,
-                             QueueImplPtr HostQueue);
+                             QueueImplPtr HostQueue,
+                             std::vector<Command *> &ToEnqueue);
 
     /// Enqueues a command to update memory to the latest state.
     ///
     /// \param Req is a requirement, that describes memory object.
-    Command *addCopyBack(Requirement *Req);
+    Command *addCopyBack(Requirement *Req, std::vector<Command *> &ToEnqueue);
 
     /// Enqueues a command to create a host accessor.
     ///
     /// \param Req points to memory being accessed.
-    Command *addHostAccessor(Requirement *Req);
+    Command *addHostAccessor(Requirement *Req,
+                             std::vector<Command *> &ToEnqueue);
 
     /// [Provisional] Optimizes the whole graph.
     void optimize();
@@ -516,7 +525,8 @@ protected:
 
     /// Adds new command to leaves if needed.
     void addNodeToLeaves(MemObjRecord *Record, Command *Cmd,
-                         access::mode AccessMode);
+                         access::mode AccessMode,
+                         std::vector<Command *> &ToEnqueue);
 
     /// Removes commands from leaves.
     void updateLeaves(const std::set<Command *> &Cmds, MemObjRecord *Record,
@@ -526,10 +536,11 @@ protected:
     /// \param Cmd dependant command
     /// \param DepEvent event to depend on
     /// \param Dep optional DepDesc to perform connection properly
+    /// \returns the connecting command which is to be enqueued
     ///
     /// Optionality of Dep is set by Dep.MDepCommand equal to nullptr.
-    void connectDepEvent(Command *const Cmd, EventImplPtr DepEvent,
-                         const DepDesc &Dep);
+    Command *connectDepEvent(Command *const Cmd, EventImplPtr DepEvent,
+                             const DepDesc &Dep);
 
     std::vector<SYCLMemObjI *> MMemObjs;
 
@@ -544,16 +555,19 @@ protected:
     /// \param Req is a Requirement describing destination.
     /// \param Queue is a queue that is bound to target context.
     Command *insertMemoryMove(MemObjRecord *Record, Requirement *Req,
-                              const QueueImplPtr &Queue);
+                              const QueueImplPtr &Queue,
+                              std::vector<Command *> &ToEnqueue);
 
     // Inserts commands required to remap the memory object to its current host
     // context so that the required access mode becomes valid.
     Command *remapMemoryObject(MemObjRecord *Record, Requirement *Req,
-                               AllocaCommandBase *HostAllocaCmd);
+                               AllocaCommandBase *HostAllocaCmd,
+                               std::vector<Command *> &ToEnqueue);
 
     UpdateHostRequirementCommand *
     insertUpdateHostReqCmd(MemObjRecord *Record, Requirement *Req,
-                           const QueueImplPtr &Queue);
+                           const QueueImplPtr &Queue,
+                           std::vector<Command *> &ToEnqueue);
 
     /// Finds dependencies for the requirement.
     std::set<Command *> findDepsForReq(MemObjRecord *Record,
@@ -565,7 +579,8 @@ protected:
         std::is_same<typename std::remove_cv<T>::type, Requirement>::value,
         EmptyCommand *>::type
     addEmptyCmd(Command *Cmd, const std::vector<T *> &Req,
-                const QueueImplPtr &Queue, Command::BlockReason Reason);
+                const QueueImplPtr &Queue, Command::BlockReason Reason,
+                std::vector<Command *> &ToEnqueue);
 
   protected:
     /// Finds a command dependency corresponding to the record.
@@ -584,9 +599,9 @@ protected:
     /// Searches for suitable alloca in memory record.
     ///
     /// If none found, creates new one.
-    AllocaCommandBase *getOrCreateAllocaForReq(MemObjRecord *Record,
-                                               const Requirement *Req,
-                                               QueueImplPtr Queue);
+    AllocaCommandBase *getOrCreateAllocaForReq(
+        MemObjRecord *Record, const Requirement *Req, QueueImplPtr Queue,
+        std::vector<Command *> &ToEnqueue);
 
     void markModifiedIfWrite(MemObjRecord *Record, Requirement *Req);
 
@@ -686,22 +701,24 @@ protected:
     static std::vector<EventImplPtr> getWaitList(EventImplPtr Event);
 
     /// Waits for the command, associated with Event passed, is completed.
-    static void waitForEvent(EventImplPtr Event);
+    /// \param GraphReadLock read-lock which is already acquired for reading
+    static void waitForEvent(EventImplPtr Event,
+                             ReadLockT &GraphReadLock);
 
     /// Enqueues the command and all its dependencies.
     ///
     /// \param EnqueueResult is set to specific status if enqueue failed.
+    /// \param GraphReadLock read-lock which is already acquired for reading
     /// \return true if the command is successfully enqueued.
     static bool enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
+                               ReadLockT &GraphReadLock,
                                BlockingT Blocking = NON_BLOCKING);
   };
 
-  void waitForRecordToFinish(MemObjRecord *Record);
+  void waitForRecordToFinish(MemObjRecord *Record, ReadLockT &GraphReadLock);
 
   GraphBuilder MGraphBuilder;
-  // TODO: after switching to C++17, change std::shared_timed_mutex to
-  // std::shared_mutex
-  std::shared_timed_mutex MGraphLock;
+  RWLockT MGraphLock;
 
   QueueImplPtr DefaultHostQueue;
 

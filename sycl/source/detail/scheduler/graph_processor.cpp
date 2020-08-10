@@ -36,7 +36,8 @@ Scheduler::GraphProcessor::getWaitList(EventImplPtr Event) {
   return Result;
 }
 
-void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event) {
+void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
+                                             ReadLockT &GraphReadLock) {
   Command *Cmd = getCommand(Event);
   // Command can be nullptr if user creates cl::sycl::event explicitly or the
   // event has been waited on by another thread
@@ -44,16 +45,19 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event) {
     return;
 
   EnqueueResultT Res;
-  bool Enqueued = enqueueCommand(Cmd, Res, BLOCKING);
+  bool Enqueued = enqueueCommand(Cmd, Res, GraphReadLock, BLOCKING);
   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
     // TODO: Reschedule commands.
     throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+
+  GraphReadLock.unlock();
 
   Cmd->getEvent()->waitInternal();
 }
 
 bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
                                                EnqueueResultT &EnqueueResult,
+                                               ReadLockT &GraphReadLock,
                                                BlockingT Blocking) {
   if (!Cmd || Cmd->isSuccessfullyEnqueued())
     return true;
@@ -63,7 +67,7 @@ bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
 
   for (DepDesc &Dep : Cmd->MDeps) {
     const bool Enqueued =
-        enqueueCommand(Dep.MDepCommand, EnqueueResult, Blocking);
+        enqueueCommand(Dep.MDepCommand, EnqueueResult, GraphReadLock, Blocking);
     if (!Enqueued)
       switch (EnqueueResult.MResult) {
       case EnqueueResultT::SyclEnqueueFailed:
@@ -85,7 +89,13 @@ bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
   if (BlockedByDep)
     return false;
 
-  return Cmd->enqueue(EnqueueResult, Blocking);
+  {
+    GraphReadLock.unlock();
+    bool Result = Cmd->enqueue(EnqueueResult, Blocking);
+    GraphReadLock.lock();
+
+    return Result;
+  }
 }
 
 } // namespace detail
