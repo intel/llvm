@@ -982,7 +982,6 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
   if (!Img) {
     // caller hasn't provided the image object - find it
     { // make sure NativePrograms map access is synchronized
-      ContextImplPtr Ctx = getSyclObjImpl(Prg.get_context());
       std::lock_guard<mutex_class> Lock(MMutex);
       auto It = NativePrograms.find(NativePrg);
       if (It == NativePrograms.end())
