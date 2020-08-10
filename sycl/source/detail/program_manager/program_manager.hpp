@@ -185,7 +185,7 @@ private:
   std::unordered_map<pi::PiProgram, const RTDeviceBinaryImage *> NativePrograms;
 
   /// Protects NativePrograms that can be changed by class' methods.
-  mutex_class MNativeProgramsMutex;
+  std::mutex MNativeProgramsMutex;
   /// True iff a SPIRV file has been specified with an environment variable
   bool m_UseSpvFile = false;
 };
