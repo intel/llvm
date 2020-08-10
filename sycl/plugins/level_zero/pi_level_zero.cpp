@@ -632,15 +632,6 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   // Get number of devices supporting Level Zero
   uint32_t ZeDeviceCount = 0;
   std::lock_guard<std::mutex> Lock(Platform->PiDevicesCacheMutex);
-  // As soon as there was a call to piDeviceRelease(), the entire cache is
-  // invalidated by setting the flag CacheInvalidated. We just need to
-  // re-initialize cached pi_devices to reuse them.
-  if (Platform->CacheInvalidated) {
-    for (const pi_device CachedDevice : Platform->PiDevicesCache) {
-      CachedDevice->initialize();
-    }
-    Platform->CacheInvalidated = false;
-  }
   ZeDeviceCount = Platform->PiDevicesCache.size();
 
   const bool AskingForGPU = (DeviceType & PI_DEVICE_TYPE_GPU);
@@ -710,19 +701,12 @@ pi_result piDeviceRelease(pi_device Device) {
   assert(Device);
   // TODO: OpenCL says root-device ref-count remains unchanged (1),
   // but when would we free the device's data?
-  if (--(Device->RefCount) == 0) {
-    // We invalidate the entire cache as soon as any device is released.
-    // The saved pi_devices in cache is still intact but flag CacheInvalided
-    // will not allow the entire cached devices to be reused without
-    // re-initializing them.
-    // TODO: This means the cached pi_device live until the program ends.
-    // If L0 RT does not do its own cleanup for Ze_Device_Handle upon tear-down,
-    // we need to figure out a way to call
-    // ZE_CALL(zeCommandListDestroy(Device->ZeCommandListInit));
-    pi_platform Platform = Device->Platform;
-    std::lock_guard<std::mutex> Lock(Platform->PiDevicesCacheMutex);
-    Platform->CacheInvalidated = true;
-  }
+  --(Device->RefCount);
+  // TODO: All cached pi_devices live until the program ends.
+  // If L0 RT does not do its own cleanup for Ze_Device_Handle upon tear-down,
+  // we need to figure out a way to call here
+  // ZE_CALL(zeCommandListDestroy(Device->ZeCommandListInit)); and,
+  // in piDevicesGet(), we need to call initialize for each cached pi_device.
 
   return PI_SUCCESS;
 }
