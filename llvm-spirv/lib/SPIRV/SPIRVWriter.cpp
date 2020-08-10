@@ -175,7 +175,7 @@ bool LLVMToSPIRV::isBuiltinTransToExtInst(Function *F,
   SPIRVExtInstSetKind Set = SPIRVEIS_Count;
   if (!SPIRVExtSetShortNameMap::rfind(ExtSetName.str(), &Set))
     return false;
-  assert((Set == SPIRVEIS_OpenCL || Set == SPIRVEIS_Debug) &&
+  assert((Set == SPIRVEIS_OpenCL || Set == SPIRVEIS_OpenCL_DebugInfo_100) &&
          "Unsupported extended instruction set");
 
   auto ExtOpName = S.substr(Loc + 1);
@@ -1608,7 +1608,7 @@ bool LLVMToSPIRV::transBuiltinSet() {
   if (!BM->importBuiltinSet("OpenCL.std", &EISId))
     return false;
   if (SPIRVMDWalker(*M).getNamedMD("llvm.dbg.cu")) {
-    if (!BM->importBuiltinSet("SPIRV.debug", &EISId))
+    if (!BM->importBuiltinSet("OpenCL.DebugInfo.100", &EISId))
       return false;
   }
   return true;
