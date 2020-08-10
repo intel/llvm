@@ -715,7 +715,7 @@ static const CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
   return getKernelObjectType(Caller->getParamDecl(0)->getType());
 }
 
-static const CXXRecordDecl *getKernelObjectType(ArrayRef<const Expr*> Args) {
+static const CXXRecordDecl *getKernelObjectType(ArrayRef<const Expr *> Args) {
   assert(Args.size() > 0 && "Insufficient kernel arguments");
   return getKernelObjectType(Args[0]->getType());
 }
@@ -2023,10 +2023,10 @@ public:
   using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::handleSyclSamplerType;
 };
+
 } // namespace
 
-void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
-                               SourceLocation CallLoc,
+void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
                                ArrayRef<const Expr *> Args) {
   // TODO: Diagnose with 'CallLoc' to get a better diagnostic.
   const CXXRecordDecl *KernelObj = getKernelObjectType(Args);
@@ -2040,19 +2040,21 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
     for (const LambdaCapture &LC : KernelObj->captures())
       if (LC.capturesThis() && LC.isImplicit()) {
         Diag(LC.getLocation(), diag::err_implicit_this_capture);
+        Diag(CallLoc.getBegin(), diag::note_used_here);
         KernelFunc->setInvalidDecl();
       }
   }
 
-  // TODO: Teach SYCLKernelFieldChecker to better mark the called function for
-  // better diagnostics.
+  // TODO: Teach SYCLKernelFieldChecker to better print the call location.
   SyclKernelFieldChecker checker(*this);
   // TODO: Union checker likely needs to be here too.
 
   KernelObjVisitor Visitor{*this};
+  DiagnosingSYCLKernel = true;
   Visitor.VisitRecordBases(KernelObj, checker);
   Visitor.VisitRecordFields(KernelObj, checker);
-  if(!checker.isValid())
+  DiagnosingSYCLKernel = false;
+  if (!checker.isValid())
     KernelFunc->setInvalidDecl();
 }
 
@@ -2090,9 +2092,9 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       constructKernelName(*this, KernelCallerFunc, MC);
   StringRef KernelName(getLangOpts().SYCLUnnamedLambda ? StableName
                                                        : CalculatedName);
-  SyclKernelDeclCreator kernel_decl(
-      *this, KernelName, KernelObj->getLocation(),
-      KernelCallerFunc->isInlined(), KernelCallerFunc->hasAttr<SYCLSimdAttr>());
+  SyclKernelDeclCreator kernel_decl(*this, KernelName, KernelObj->getLocation(),
+                                    KernelCallerFunc->isInlined(),
+                                    KernelCallerFunc->hasAttr<SYCLSimdAttr>());
   SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelObj,
                                     KernelCallerFunc);
   SyclKernelIntHeaderCreator int_header(
@@ -2100,13 +2102,9 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       calculateKernelNameType(Context, KernelCallerFunc), KernelName,
       StableName);
 
-  ConstructingOpenCLKernel = true;
   KernelObjVisitor Visitor{*this};
-  Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body,
-                           int_header);
-  Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body,
-                            int_header);
-  ConstructingOpenCLKernel = false;
+  Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header);
+  Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header);
 }
 
 // This function marks all the callees of explicit SIMD kernel
@@ -2275,7 +2273,7 @@ Sema::DeviceDiagBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
          "Should only be called during SYCL compilation");
   FunctionDecl *FD = dyn_cast<FunctionDecl>(getCurLexicalContext());
   DeviceDiagBuilder::Kind DiagKind = [this, FD] {
-    if (ConstructingOpenCLKernel)
+    if (DiagnosingSYCLKernel)
       return DeviceDiagBuilder::K_ImmediateWithCallStack;
     if (!FD)
       return DeviceDiagBuilder::K_Nop;
