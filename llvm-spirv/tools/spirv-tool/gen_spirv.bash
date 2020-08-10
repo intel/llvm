@@ -74,9 +74,7 @@ echo "
 gen() {
 type=$1
 if [[ "$type" == NameMap ]]; then
-  for prefix in SourceLanguage ExecutionModel AddressingModel MemoryModel ExecutionMode StorageClass Dim SamplerAddressingMode SamplerFilterMode ImageFormat \
-      ImageChannelOrder ImageChannelDataType FPRoundingMode LinkageType AccessQualifier FunctionParameterAttribute Decoration BuiltIn Scope GroupOperation \
-      KernelEnqueueFlags Capability; do
+  for prefix in LinkageType Decoration BuiltIn Capability; do
     genNameMap $prefix
   done
 elif [[ "$type" == isValid ]]; then
