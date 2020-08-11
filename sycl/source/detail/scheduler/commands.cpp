@@ -1199,12 +1199,8 @@ AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
   throw runtime_error("Alloca for command not found", PI_INVALID_OPERATION);
 }
 
-void ExecCGCommand::flushStreams() {
-  assert(MCommandGroup->getType() == CG::KERNEL && "Expected kernel");
-  for (auto StreamImplPtr :
-       ((CGExecKernel *)MCommandGroup.get())->getStreams()) {
-    StreamImplPtr->flush();
-  }
+vector_class<StreamImplPtr> ExecCGCommand::getStreams() const {
+  return ((CGExecKernel *)MCommandGroup.get())->getStreams();
 }
 
 cl_int UpdateHostRequirementCommand::enqueueImp() {
