@@ -15,11 +15,18 @@
 using namespace llvm::util;
 using namespace llvm;
 
+namespace {
+
+::llvm::Error makeError(const Twine &Msg) {
+  return createStringError(std::error_code{}, Msg);
+}
+
+} // anonymous namespace
+
 Expected<std::unique_ptr<PropertySetRegistry>>
 PropertySetRegistry::read(const MemoryBuffer *Buf) {
   auto Res = std::make_unique<PropertySetRegistry>();
   PropertySet *CurPropSet = nullptr;
-  std::error_code EC;
 
   for (line_iterator LI(*Buf); !LI.is_at_end(); LI++) {
     // see if this line starts a new property set
@@ -27,27 +34,27 @@ PropertySetRegistry::read(const MemoryBuffer *Buf) {
       // yes - parse the category (property name)
       auto EndPos = LI->rfind(']');
       if (EndPos == StringRef::npos)
-        return createStringError(EC, "invalid line: " + *LI);
+        return makeError("invalid line: " + *LI);
       StringRef Category = LI->substr(1, EndPos - 1);
       CurPropSet = &(*Res)[Category];
       continue;
     }
     if (!CurPropSet)
-      return createStringError(EC, "property category missing");
+      return makeError("property category missing");
     // parse name and type+value
     auto Parts = LI->split('=');
 
     if (Parts.first.empty() || Parts.second.empty())
-      return createStringError(EC, "invalid property line: " + *LI);
+      return makeError("invalid property line: " + *LI);
     auto TypeVal = Parts.second.split('|');
 
     if (TypeVal.first.empty() || TypeVal.second.empty())
-      return createStringError(EC, "invalid property value: " + Parts.second);
+      return makeError("invalid property value: " + Parts.second);
     APInt Tint;
 
     // parse type
     if (TypeVal.first.getAsInteger(10, Tint))
-      return createStringError(EC, "invalid property type: " + TypeVal.first);
+      return makeError("invalid property type: " + TypeVal.first);
     Expected<PropertyValue::Type> Ttag =
         PropertyValue::getTypeTag(static_cast<int>(Tint.getSExtValue()));
     StringRef Val = TypeVal.second;
@@ -61,17 +68,19 @@ PropertySetRegistry::read(const MemoryBuffer *Buf) {
     case PropertyValue::Type::UINT32: {
       APInt ValV;
       if (Val.getAsInteger(10, ValV))
-        return createStringError(EC, "invalid property value: ", Val.data());
+        return createStringError(std::error_code{},
+                                 "invalid property value: ", Val.data());
       Prop.set(static_cast<uint32_t>(ValV.getZExtValue()));
       break;
     }
     default:
-      return createStringError(EC, "unsupported property type: ", Ttag.get());
+      return createStringError(std::error_code{},
+                               "unsupported property type: ", Ttag.get());
     }
-    (*CurPropSet)[Parts.first] = Prop;
+    (*CurPropSet)[Parts.first] = std::move(Prop);
   }
   if (!CurPropSet)
-    return createStringError(EC, "invalid property set registry");
+    return makeError("invalid property set registry");
 
   return Expected<std::unique_ptr<PropertySetRegistry>>(std::move(Res));
 }
