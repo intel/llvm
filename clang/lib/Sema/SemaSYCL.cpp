@@ -706,7 +706,6 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
 }
 
 static const CXXRecordDecl *getKernelObjectType(QualType Ty) {
-  // TODO: Once Chris' work is committed again, this changes.
   return Ty->getAsCXXRecordDecl();
 }
 
@@ -2028,7 +2027,6 @@ public:
 
 void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
                                ArrayRef<const Expr *> Args) {
-  // TODO: Diagnose with 'CallLoc' to get a better diagnostic.
   const CXXRecordDecl *KernelObj = getKernelObjectType(Args);
   if (!KernelObj) {
     Diag(Args[0]->getExprLoc(), diag::err_sycl_kernel_not_function_object);
@@ -2045,9 +2043,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
       }
   }
 
-  // TODO: Teach SYCLKernelFieldChecker to better print the call location.
   SyclKernelFieldChecker checker(*this);
-  // TODO: Union checker likely needs to be here too.
 
   KernelObjVisitor Visitor{*this};
   DiagnosingSYCLKernel = true;
