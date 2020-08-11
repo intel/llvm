@@ -109,8 +109,6 @@ private:
   } Val;
 };
 
-std::ostream &operator<<(std::ostream &Out, const PropertyValue &V);
-
 // A property set. Preserves insertion order when iterating elements.
 using PropertySet = MapVector<StringRef, PropertyValue>;
 
