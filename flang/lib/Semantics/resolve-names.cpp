@@ -1547,7 +1547,7 @@ bool AttrsVisitor::IsConflictingAttr(Attr attrName) {
   return HaveAttrConflict(attrName, Attr::INTENT_IN, Attr::INTENT_INOUT) ||
       HaveAttrConflict(attrName, Attr::INTENT_IN, Attr::INTENT_OUT) ||
       HaveAttrConflict(attrName, Attr::INTENT_INOUT, Attr::INTENT_OUT) ||
-      HaveAttrConflict(attrName, Attr::PASS, Attr::NOPASS) ||
+      HaveAttrConflict(attrName, Attr::PASS, Attr::NOPASS) || // C781
       HaveAttrConflict(attrName, Attr::PURE, Attr::IMPURE) ||
       HaveAttrConflict(attrName, Attr::PUBLIC, Attr::PRIVATE) ||
       HaveAttrConflict(attrName, Attr::RECURSIVE, Attr::NON_RECURSIVE);
@@ -5749,7 +5749,8 @@ void ResolveNamesVisitor::HandleProcedureName(
     // error was reported
   } else {
     symbol = &Resolve(name, symbol)->GetUltimate();
-    if (ConvertToProcEntity(*symbol) && IsIntrinsic(symbol->name())) {
+    if (ConvertToProcEntity(*symbol) && IsIntrinsic(symbol->name()) &&
+        !IsDummy(*symbol)) {
       symbol->attrs().set(Attr::INTRINSIC);
       // 8.2(3): ignore type from intrinsic in type-declaration-stmt
       symbol->get<ProcEntityDetails>().set_interface(ProcInterface{});

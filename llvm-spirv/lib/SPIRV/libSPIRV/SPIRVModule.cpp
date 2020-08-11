@@ -364,6 +364,10 @@ public:
   addLoopControlINTELInst(SPIRVWord LoopControl,
                           std::vector<SPIRVWord> LoopControlParameters,
                           SPIRVBasicBlock *BB) override;
+  SPIRVInstruction *addFixedPointIntelInst(Op OC, SPIRVType *ResTy,
+                                           SPIRVValue *Input,
+                                           const std::vector<SPIRVWord> &Ops,
+                                           SPIRVBasicBlock *BB) override;
   SPIRVInstruction *addArbFloatPointIntelInst(Op OC, SPIRVType *ResTy,
                                               SPIRVValue *InA, SPIRVValue *InB,
                                               const std::vector<SPIRVWord> &Ops,
@@ -1412,6 +1416,14 @@ SPIRVInstruction *SPIRVModuleImpl::addLoopControlINTELInst(
   return addInstruction(
       new SPIRVLoopControlINTEL(LoopControl, LoopControlParameters, BB), BB,
       const_cast<SPIRVInstruction *>(BB->getTerminateInstr()));
+}
+
+SPIRVInstruction *SPIRVModuleImpl::addFixedPointIntelInst(
+    Op OC, SPIRVType *ResTy, SPIRVValue *Input,
+    const std::vector<SPIRVWord> &Ops, SPIRVBasicBlock *BB) {
+  std::vector<SPIRVWord> TheOps = getVec(Input->getId(), Ops);
+  return addInstruction(
+      SPIRVInstTemplateBase::create(OC, ResTy, getId(), TheOps, BB, this), BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addArbFloatPointIntelInst(
