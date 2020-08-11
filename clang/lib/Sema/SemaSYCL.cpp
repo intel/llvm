@@ -1315,6 +1315,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   FunctionDecl *KernelDecl;
   llvm::SmallVector<ParmVarDecl *, 8> Params;
   SyclKernelFieldChecker &ArgChecker;
+  SyclKernelUnionBodyChecker &ArgChecker1;
   Sema::ContextRAII FuncContext;
   // Holds the last handled field's first parameter. This doesn't store an
   // iterator as push_back invalidates iterators.
@@ -1449,12 +1450,14 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
 
 public:
   SyclKernelDeclCreator(Sema &S, SyclKernelFieldChecker &ArgChecker,
+		        SyclKernelUnionBodyChecker &ArgChecker1,
                         StringRef Name, SourceLocation Loc, bool IsInline,
                         bool IsSIMDKernel)
       : SyclKernelFieldHandler(S),
         KernelDecl(createKernelDecl(S.getASTContext(), Name, Loc, IsInline,
                                     IsSIMDKernel)),
-        ArgChecker(ArgChecker), FuncContext(SemaRef, KernelDecl) {}
+        ArgChecker(ArgChecker), ArgChecker1(ArgChecker1),
+	FuncContext(SemaRef, KernelDecl) {}
 
   ~SyclKernelDeclCreator() {
     ASTContext &Ctx = SemaRef.getASTContext();
@@ -2178,8 +2181,9 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
         Diag(LC.getLocation(), diag::err_implicit_this_capture);
   }
   SyclKernelFieldChecker checker(*this);
+  SyclKernelUnionBodyChecker checker1(*this);
   SyclKernelDeclCreator kernel_decl(
-      *this, checker, KernelName, KernelObj->getLocation(),
+      *this, checker, checker1, KernelName, KernelObj->getLocation(),
       KernelCallerFunc->isInlined(), KernelCallerFunc->hasAttr<SYCLSimdAttr>());
   SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelObj,
                                     KernelCallerFunc);
