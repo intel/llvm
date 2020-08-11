@@ -62,6 +62,7 @@ private:
   void constructorHelper(const std::vector<T> &data, Args... rest) {
     _input_buffers_data[Index] = data;
     _input_buffers[Index].reset(new cl::sycl::buffer<T>(_input_buffers_data[Index].data(), _input_buffers_data[Index].size()));
+    _input_buffers[Index]->set_final_data(nullptr);
     constructorHelper<Index + 1>(rest...);
   }
 
@@ -79,12 +80,7 @@ bool isInlineASMSupported(sycl::device Device) {
   // defined
   if (DeviceVendorName.find("Intel") == sycl::string_class::npos)
     return false;
-  if (DriverVersion.length() < 5)
-    return false;
-  if (DriverVersion[2] != '.')
-    return false;
-  if (std::stoi(DriverVersion.substr(0, 2), nullptr, 10) < 20 || std::stoi(DriverVersion.substr(3, 2), nullptr, 10) < 12)
-    return false;
+
   return true;
 }
 
@@ -113,6 +109,7 @@ bool launchInlineASMTest(F &f, bool requires_particular_sg_size = true) {
   } catch (cl::sycl::exception &e) {
     std::cerr << "Caught exception: " << e.what() << std::endl;
   }
+
   return true;
 }
 
