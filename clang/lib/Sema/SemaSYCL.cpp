@@ -883,8 +883,8 @@ public:
              const CXXRecordDecl *Wrapper,
              FilteredHandlers &... filtered_handlers, CurHandler &cur_handler,
              Handlers &... handlers) {
-    VisitUnion<FilteredHandlers...>(
-        Owner, Parent, Wrapper, filtered_handlers..., handlers...);
+    VisitUnion<FilteredHandlers...>(Owner, Parent, Wrapper,
+                                    filtered_handlers..., handlers...);
   }
 
   template <typename... FilteredHandlers, typename ParentTy,
@@ -892,8 +892,8 @@ public:
   std::enable_if_t<CurHandler::VisitUnionBody>
   VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
              const CXXRecordDecl *Wrapper,
-             FilteredHandlers &... filtered_handlers,
-             CurHandler &cur_handler, Handlers &... handlers) {
+	     FilteredHandlers &... filtered_handlers, CurHandler &cur_handler,
+             Handlers &... handlers) {
     VisitUnion<FilteredHandlers..., CurHandler>(
         Owner, Parent, Wrapper, filtered_handlers..., cur_handler, handlers...);
   }
@@ -1455,7 +1455,7 @@ public:
         KernelDecl(createKernelDecl(S.getASTContext(), Name, Loc, IsInline,
                                     IsSIMDKernel)),
         ArgChecker(ArgChecker), ArgChecker1(ArgChecker1),
-	FuncContext(SemaRef, KernelDecl) {}
+        FuncContext(SemaRef, KernelDecl) {}
 
   ~SyclKernelDeclCreator() {
     ASTContext &Ctx = SemaRef.getASTContext();
