@@ -32,13 +32,13 @@ template <class Y> void enqueue2() {
 template <typename T> class Bar3;
 // CHECK: template <typename T> class Bar3;
 template <template <typename> class> class Baz3;
-// CHECK: template <template <typename> class > class Baz3;
+// CHECK: template <template <typename> class> class Baz3;
 template <template <template <typename> class> class T> class Foo3;
-// CHECK: template <template <template <typename> class > class T> class Foo3;
+// CHECK: template <template <template <typename> class> class T> class Foo3;
 template <typename T , typename... Args> class Mist3;
 // CHECK: template <typename T, typename ...Args> class Mist3;
 template <typename T, template <typename, typename...> class, typename... Args> class Ice3;
-// CHECK: template <typename T, template <typename, typename ...> class , typename ...Args> class Ice3;
+// CHECK: template <typename T, template <typename, typename ...> class, typename ...Args> class Ice3;
 
 int main() {
   enqueue<Foo1>();

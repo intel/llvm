@@ -541,6 +541,12 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                              size_t Len, void *DstMem,
                              std::vector<RT::PiEvent> DepEvents,
                              RT::PiEvent &OutEvent) {
+  if (!Len)
+    return;
+  if (!SrcMem || !DstMem)
+    throw runtime_error("NULL pointer argument in memory copy operation.",
+                        PI_INVALID_VALUE);
+
   sycl::context Context = SrcQueue->get_context();
 
   if (Context.is_host()) {
@@ -557,6 +563,12 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
 void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                              int Pattern, std::vector<RT::PiEvent> DepEvents,
                              RT::PiEvent &OutEvent) {
+  if (!Length)
+    return;
+  if (!Mem)
+    throw runtime_error("NULL pointer argument in memory fill operation.",
+                        PI_INVALID_VALUE);
+
   sycl::context Context = Queue->get_context();
 
   if (Context.is_host()) {
