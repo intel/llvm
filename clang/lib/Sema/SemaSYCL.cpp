@@ -892,7 +892,7 @@ public:
   std::enable_if_t<CurHandler::VisitUnionBody>
   VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
              const CXXRecordDecl *Wrapper,
-	     FilteredHandlers &... filtered_handlers, CurHandler &cur_handler,
+             FilteredHandlers &... filtered_handlers, CurHandler &cur_handler,
              Handlers &... handlers) {
     VisitUnion<FilteredHandlers..., CurHandler>(
         Owner, Parent, Wrapper, filtered_handlers..., cur_handler, handlers...);
