@@ -705,18 +705,9 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
       .Default(InvokeUnknown);
 }
 
-static const CXXRecordDecl *getKernelObjectType(QualType Ty) {
-  return Ty->getAsCXXRecordDecl();
-}
-
 static const CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
   assert(Caller->getNumParams() > 0 && "Insufficient kernel parameters");
-  return getKernelObjectType(Caller->getParamDecl(0)->getType());
-}
-
-static const CXXRecordDecl *getKernelObjectType(ArrayRef<const Expr *> Args) {
-  assert(Args.size() > 0 && "Insufficient kernel arguments");
-  return getKernelObjectType(Args[0]->getType());
+  return Caller->getParamDecl(0)->getType()->getAsCXXRecordDecl();
 }
 
 /// Creates a kernel parameter descriptor
@@ -2027,7 +2018,7 @@ public:
 
 void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
                                ArrayRef<const Expr *> Args) {
-  const CXXRecordDecl *KernelObj = getKernelObjectType(Args);
+  const CXXRecordDecl *KernelObj = getKernelObjectType(KernelFunc);
   if (!KernelObj) {
     Diag(Args[0]->getExprLoc(), diag::err_sycl_kernel_not_function_object);
     KernelFunc->setInvalidDecl();
