@@ -21,7 +21,7 @@ void test0() {
     queue myQueue;
     myQueue.submit([&](handler &cgh) {
       auto B = Buf.get_access<access::mode::write>(cgh);
-      cgh.single_task<class MyKernel>([=] {B; S;});
+      cgh.single_task<class MyKernel>([=] {B; S; });
     });
   }
 }

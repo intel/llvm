@@ -833,10 +833,10 @@ public:
     else if (ElementTy->isUnionType())
       // TODO: This check is still necessary I think?! Array seems to handle
       // this differently (see above) for structs I think.
-      //if (KF_FOR_EACH(handleUnionType, Field, FieldTy)) {
+      // if (KF_FOR_EACH(handleUnionType, Field, FieldTy)) {
       VisitUnion(Owner, ArrayField, ElementTy->getAsCXXRecordDecl(),
-                  handlers...);
-      //}
+                 handlers...);
+    //}
     else if (ElementTy->isArrayType())
       VisitArrayElements(ArrayField, ElementTy, handlers...);
     else if (ElementTy->isScalarType())
@@ -876,14 +876,13 @@ public:
         (handlers.leaveUnion(Owner, Parent), 0)...};
   }
 
-
   template <typename... FilteredHandlers, typename ParentTy,
             typename CurHandler, typename... Handlers>
   std::enable_if_t<!CurHandler::VisitUnionBody>
   VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
-                  const CXXRecordDecl *Wrapper,
-                  FilteredHandlers &... filtered_handlers,
-                  CurHandler &cur_handler, Handlers &... handlers) {
+             const CXXRecordDecl *Wrapper,
+             FilteredHandlers &... filtered_handlers, CurHandler &cur_handler,
+             Handlers &... handlers) {
     VisitUnion<FilteredHandlers...>(
         Owner, Parent, Wrapper, filtered_handlers..., handlers...);
   }
@@ -892,9 +891,9 @@ public:
             typename CurHandler, typename... Handlers>
   std::enable_if_t<CurHandler::VisitUnionBody>
   VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
-                  const CXXRecordDecl *Wrapper,
-                  FilteredHandlers &... filtered_handlers,
-                  CurHandler &cur_handler, Handlers &... handlers) {
+             const CXXRecordDecl *Wrapper,
+             FilteredHandlers &... filtered_handlers,
+             CurHandler &cur_handler, Handlers &... handlers) {
     VisitUnion<FilteredHandlers..., CurHandler>(
         Owner, Parent, Wrapper, filtered_handlers..., cur_handler, handlers...);
   }
@@ -1259,7 +1258,7 @@ class SyclKernelUnionBodyChecker : public SyclKernelFieldHandler {
   bool IsInvalid = false;
   DiagnosticsEngine &Diag;
 
-  public:
+public:
   SyclKernelUnionBodyChecker(Sema &S)
       : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {}
   bool isValid() { return !IsInvalid; }
@@ -1307,7 +1306,7 @@ class SyclKernelUnionBodyChecker : public SyclKernelFieldHandler {
           << FieldTy;
     }
     return isValid();
-   }
+  }
 };
 
 // A type to Create and own the FunctionDecl for the kernel.
@@ -1450,9 +1449,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
 
 public:
   SyclKernelDeclCreator(Sema &S, SyclKernelFieldChecker &ArgChecker,
-		        SyclKernelUnionBodyChecker &ArgChecker1,
-                        StringRef Name, SourceLocation Loc, bool IsInline,
-                        bool IsSIMDKernel)
+                        SyclKernelUnionBodyChecker &ArgChecker1, StringRef Name,
+                        SourceLocation Loc, bool IsInline, bool IsSIMDKernel)
       : SyclKernelFieldHandler(S),
         KernelDecl(createKernelDecl(S.getASTContext(), Name, Loc, IsInline,
                                     IsSIMDKernel)),

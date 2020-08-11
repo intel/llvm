@@ -95,7 +95,7 @@ int main() {
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_foo_c 'int'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} cinit 
+// CHECK-NEXT: VarDecl {{.*}} cinit
 // CHECK-NEXT: InitListExpr {{.*}}
 
 // Initializer for first element of inner union array

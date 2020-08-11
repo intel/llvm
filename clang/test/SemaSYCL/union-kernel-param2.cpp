@@ -22,7 +22,7 @@ int main() {
     } struct_mem;
     int d;
   } union_mem;
-	
+
   struct MyStruct {
     union MyUnion {
       int a[3];
@@ -103,4 +103,4 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'char' lvalue ParmVar {{.*}} '_arg_c' 'char'
 // CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_d' 'int'  
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_d' 'int'
