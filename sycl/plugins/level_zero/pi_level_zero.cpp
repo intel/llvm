@@ -1769,13 +1769,18 @@ pi_result piProgramCreateWithBinary(pi_context Context, pi_uint32 NumDevices,
     return PI_INVALID_CONTEXT;
   if (!DeviceList || !NumDevices)
     return PI_INVALID_VALUE;
-  if (!Binaries || !Lengths || !Binaries[0] || !Lengths[0])
+  if (!Binaries || !Lengths)
     return PI_INVALID_VALUE;
   if (!Program)
     return PI_INVALID_VALUE;
 
   // For now we support only one device.
   assert(NumDevices == 1);
+  if (!Binaries[0] || !Lengths[0]) {
+    if (BinaryStatus)
+      *BinaryStatus = PI_INVALID_VALUE;
+    return PI_INVALID_VALUE;
+  }
   if (DeviceList[0] != Context->Device)
     return PI_INVALID_DEVICE;
 
@@ -1801,6 +1806,9 @@ pi_result piProgramCreateWithBinary(pi_context Context, pi_uint32 NumDevices,
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
+
+  if (BinaryStatus)
+    *BinaryStatus = PI_SUCCESS;
   return PI_SUCCESS;
 }
 
