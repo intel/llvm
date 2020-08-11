@@ -2728,6 +2728,23 @@ static void emitKernelNameType(QualType T, ASTContext &Ctx, raw_ostream &OS,
   emitWithoutAnonNamespaces(OS, T.getCanonicalType().getAsString(TypePolicy));
 }
 
+int SYCLIntegrationHeader::getCppVersion() {
+  LangOptions LangOpts = S.getASTContext().getLangOpts();
+  if (LangOpts.CPlusPlus) {
+    if (LangOpts.CPlusPlus20)
+      return 201707L;
+    else if (LangOpts.CPlusPlus17)
+      return 201703L;
+    else if (LangOpts.CPlusPlus14)
+      return 201402L;
+    else if (LangOpts.CPlusPlus11)
+      return 201103L;
+    else
+      return 199711L;
+  }
+  return -1;
+}
+
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "// This is auto-generated SYCL integration header.\n";
   O << "\n";
@@ -2735,6 +2752,16 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "#include <CL/sycl/detail/defines.hpp>\n";
   O << "#include <CL/sycl/detail/kernel_desc.hpp>\n";
 
+  O << "\n";
+
+  int cpp_version = getCppVersion();
+  if (cpp_version != -1) {
+    O << "#define STD_CPP_VERSION ";
+    O << cpp_version << "\n";
+    O << "#if __cplusplus != STD_CPP_VERSION\n";
+    O << "#error \"C++ version for host compilation does not match C++ version used for device compilation\"\n";
+    O << "#endif\n";
+  }
   O << "\n";
 
   if (SpecConsts.size() > 0) {
