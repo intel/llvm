@@ -162,7 +162,22 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
   if (nullptr != Record)
     return Record;
 
-  const size_t LeafLimit = 8;
+  static size_t LeafLimit = 0;
+
+  if (!LeafLimit) {
+    if (const char *Val = std::getenv("SYCL_LEAF_LIMIT"))
+      try {
+        LeafLimit = std::stoul(Val);
+      } catch (...) {
+        throw invalid_parameter_error(
+            "Invalid value for SYCL_LEAF_LIMIT environment variable",
+            PI_INVALID_VALUE);
+      }
+
+    if (!LeafLimit)
+      LeafLimit = 8;
+  }
+
   MemObject->MRecord.reset(
       new MemObjRecord{Queue->getContextImplPtr(), LeafLimit});
 
