@@ -461,6 +461,10 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return PI_INVALID_VALUE;
   }
 
+  // Cache pi_platforms for reuse in the future
+  // It solves two problems;
+  // 1. sycl::device equality issue; we always return the same pi_device.
+  // 2. performance; we can save time by immediately return from cache.
   static std::vector<pi_platform> PiPlatformsCache;
   static std::mutex PiPlatformsCacheMutex;
 
@@ -689,7 +693,6 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 
 pi_result piDeviceRetain(pi_device Device) {
   assert(Device);
-
   // The root-device ref-count remains unchanged (always 1).
   if (Device->IsSubDevice) {
     ++(Device->RefCount);
@@ -699,9 +702,11 @@ pi_result piDeviceRetain(pi_device Device) {
 
 pi_result piDeviceRelease(pi_device Device) {
   assert(Device);
+  assert(Device->RefCount > 0 && "Device is already released.");
   // TODO: OpenCL says root-device ref-count remains unchanged (1),
   // but when would we free the device's data?
-  --(Device->RefCount);
+  if (Device->IsSubDevice)
+    --(Device->RefCount);
   // TODO: All cached pi_devices live until the program ends.
   // If L0 RT does not do its own cleanup for Ze_Device_Handle upon tear-down,
   // we need to figure out a way to call here
