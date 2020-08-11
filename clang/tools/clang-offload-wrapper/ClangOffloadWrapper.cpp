@@ -610,6 +610,15 @@ private:
     return std::make_pair(ImageB, ImageE);
   }
 
+  // Adds given data buffer as constant byte array and returns a constant
+  // pointer to it. The pointer type does not carry size information.
+  Constant *addRawDataToModule(ArrayRef<char> Data, const Twine &Name) {
+    auto *Var = addGlobalArrayVariable(Name, Data);
+    auto *DataPtr = ConstantExpr::getGetElementPtr(Var->getValueType(), Var,
+                                                   getSizetConstPair(0u, 0u));
+    return DataPtr;
+  }
+
   // Creates all necessary data objects for the given image and returns a pair
   // of pointers that point to the beginning and end of the global variable that
   // contains the image data.
@@ -716,6 +725,14 @@ private:
         PropValAddr = Constant::getNullValue(Type::getInt8PtrTy(C));
         PropValSize =
             ConstantInt::get(Type::getInt64Ty(C), Prop.second.asUint32());
+        break;
+      }
+      case llvm::util::PropertyValue::BYTE_ARRAY: {
+        const char *Ptr =
+            reinterpret_cast<const char *>(Prop.second.asRawByteArray());
+        uint64_t Size = Prop.second.getRawByteArraySize();
+        PropValSize = ConstantInt::get(Type::getInt64Ty(C), Size);
+        PropValAddr = addRawDataToModule(ArrayRef<char>(Ptr, Size), "prop_val");
         break;
       }
       default:
