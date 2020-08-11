@@ -4,6 +4,14 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
+//==---------- unused_pointer.cpp - test pointers in struct --------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//==----------------------------------------------------------------------==//
+
 #include <CL/sycl.hpp>
 #include <iostream>
 
@@ -11,7 +19,8 @@ using namespace std;
 
 struct struct_with_pointer {
   int data;
-  int *ptr; // Unused pointer
+  int *ptr1;   // Unused pointer
+  float *ptr2; // Unused pointer
 };
 
 int main(int argc, char **argv) {

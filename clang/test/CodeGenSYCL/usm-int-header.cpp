@@ -2,8 +2,8 @@
 // RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl -fsycl-is-device -fsycl-int-header=%t.h %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s --check-prefix=INT-HEADER
 
-// INT-HEADER:{ kernel_param_kind_t::kind_std_layout, 8, 0 },
-// INT-HEADER:{ kernel_param_kind_t::kind_std_layout, 8, 8 },
+// INT-HEADER:{ kernel_param_kind_t::kind_pointer, 8, 0 },
+// INT-HEADER:{ kernel_param_kind_t::kind_pointer, 8, 8 },
 
 //==--usm-int-header.cpp - USM kernel param aspace and int header test -----==//
 //
@@ -31,7 +31,7 @@ int main() {
     });
 }
 
-// CHECK: FunctionDecl {{.*}}usm_test 'void (wrapper_class, wrapper_class)'
+// CHECK: FunctionDecl {{.*}}usm_test 'void (__global int *, __global float *)'
 
 // TODO: SYCL specific fail - analyze and enable
 // XFAIL: windows-msvc

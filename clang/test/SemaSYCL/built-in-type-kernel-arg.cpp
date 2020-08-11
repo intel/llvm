@@ -12,6 +12,7 @@ __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
 
 struct test_struct {
   int data;
+  int *ptr; // Unused pointer in struct
 };
 
 void test(const int some_const) {
@@ -65,8 +66,9 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
 
 // Check kernel parameters
-// CHECK: {{.*}}kernel_struct{{.*}} 'void (int)'
+// CHECK: {{.*}}kernel_struct{{.*}} 'void (int, __wrapper_class)'
 // CHECK: ParmVarDecl {{.*}} used _arg_data 'int'
+// CHECK: ParmVarDecl {{.*}} used _arg_ptr '__wrapper_class'
 
 // Check that lambda field of struct type is initialized
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})'
@@ -74,20 +76,21 @@ int main() {
 // CHECK-NEXT: InitListExpr {{.*}}'test_struct'{{.*}}
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_data' 'int'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr' '__wrapper_class'
 
 // Check kernel parameters
-// CHECK: {{.*}}kernel_pointer{{.*}} 'void (wrapper_class, wrapper_class)'
-// CHECK: ParmVarDecl {{.*}} used _arg_ 'wrapper_class'
-// CHECK: ParmVarDecl {{.*}} used _arg_ 'wrapper_class'
+// CHECK: {{.*}}kernel_pointer{{.*}} 'void (__global int *, __global int *)'
+// CHECK: ParmVarDecl {{.*}} used _arg_ '__global int *'
+// CHECK: ParmVarDecl {{.*}} used _arg_ '__global int *'
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})'
 
 // Check that lambda fields of pointer types are initialized
 // CHECK: InitListExpr
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
-// CHECK-NEXT: DeclRefExpr {{.*}} 'wrapper_class' lvalue ParmVar {{.*}} '_arg_' 'wrapper_class'
+// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_' '__global int *'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
-// CHECK-NEXT: DeclRefExpr {{.*}} 'wrapper_class' lvalue ParmVar {{.*}} '_arg_' 'wrapper_class'
+// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_' '__global int *'
 
 // Check kernel parameters

@@ -1210,6 +1210,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   // Holds the last handled field's first parameter. This doesn't store an
   // iterator as push_back invalidates iterators.
   size_t LastParamIndex = 0;
+  // Keeps track of whether we are currently handling fields inside a struct.
+  int StructDepth = 0;
 
   void addParam(const FieldDecl *FD, QualType FieldTy) {
     const ConstantArrayType *CAT =
@@ -1364,6 +1366,16 @@ public:
       SemaRef.addSyclDeviceDecl(KernelDecl);
   }
 
+  bool enterStruct(const CXXRecordDecl *, FieldDecl *) final {
+    ++StructDepth;
+    return true;
+  }
+
+  bool leaveStruct(const CXXRecordDecl *, FieldDecl *) final {
+    --StructDepth;
+    return true;
+  }
+
   bool handleSyclAccessorType(const CXXBaseSpecifier &BS,
                               QualType FieldTy) final {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
@@ -1392,9 +1404,9 @@ public:
     return handleSpecialType(FD, FieldTy);
   }
 
-  RecordDecl *wrapPointer(FieldDecl *Field, QualType FieldTy) {
+  RecordDecl *wrapField(FieldDecl *Field, QualType FieldTy) {
     RecordDecl *WrapperClass =
-        SemaRef.getASTContext().buildImplicitRecord("wrapper_class");
+        SemaRef.getASTContext().buildImplicitRecord("__wrapper_class");
     WrapperClass->startDefinition();
     Field = FieldDecl::Create(
         SemaRef.getASTContext(), WrapperClass, SourceLocation(),
@@ -1423,14 +1435,17 @@ public:
     PointeeTy = SemaRef.getASTContext().getQualifiedType(
         PointeeTy.getUnqualifiedType(), Quals);
     QualType ModTy = SemaRef.getASTContext().getPointerType(PointeeTy);
-    // When the kernel is generated, struct type captures are decomposed; i.e.
-    // the parameters of the kernel are the fields of the struct, and not the
-    // struct itself. This causes an error in the backend when the struct field
-    // is a pointer, since non-USM pointers cannot be passed directly.
-    // To work around this issue, all pointers are wrapped in a generated
-    // 'wrapper_class'.
-    RecordDecl *WrappedPointer = wrapPointer(FD, ModTy);
-    ModTy = SemaRef.getASTContext().getRecordType(WrappedPointer);
+    // When the kernel is generated, struct type kernel arguments are
+    // decomposed; i.e. the parameters of the kernel are the fields of the
+    // struct, and not the struct itself. This causes an error in the backend
+    // when the struct field is a pointer, since non-USM pointers cannot be
+    // passed directly. To work around this issue, all pointers inside the
+    // struct are wrapped in a generated '__wrapper_class'.
+    if (StructDepth) {
+      RecordDecl *WrappedPointer = wrapField(FD, ModTy);
+      ModTy = SemaRef.getASTContext().getRecordType(WrappedPointer);
+    }
+
     addParam(FD, ModTy);
     return true;
   }
@@ -1466,6 +1481,9 @@ public:
   }
   using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::handleSyclSamplerType;
+  // Required to handle pointers inside structs
+  using SyclKernelFieldHandler::enterStruct;
+  using SyclKernelFieldHandler::leaveStruct;
 };
 
 class SyclKernelBodyCreator : public SyclKernelFieldHandler {
@@ -1557,16 +1575,21 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     Expr *DRE = SemaRef.BuildDeclRefExpr(KernelParameter, ParamType, VK_LValue,
                                          SourceLocation());
 
-    // In  DeclCreator, we wrapped all pointers inside a struct. Therefore when
-    // generating the initializers, we have to 'unwrap' the pointer.
     if (FD->getType()->isPointerType()) {
-      CXXRecordDecl *WrapperStruct = ParamType->getAsCXXRecordDecl();
-      // Pointer field wrapped inside wrapper_struct
-      FieldDecl *Pointer = *(WrapperStruct->field_begin());
-      DRE = BuildMemberExpr(DRE, Pointer);
+      QualType ModifiedType = ParamType;
+      // Struct Type kernel arguments are decomposed. The pointer fields are
+      // then wrapped inside a compiler generated struct. Therefore when
+      // generating the initializers, we have to 'unwrap' the pointer.
+      if (MemberExprBases.size() > 2) {
+        CXXRecordDecl *WrapperStruct = ParamType->getAsCXXRecordDecl();
+        // Pointer field wrapped inside wrapper_struct
+        FieldDecl *Pointer = *(WrapperStruct->field_begin());
+        DRE = BuildMemberExpr(DRE, Pointer);
+        ModifiedType = Pointer->getType();
+      }
 
       if (FD->getType()->getPointeeType().getAddressSpace() !=
-          Pointer->getType()->getPointeeType().getAddressSpace())
+          ModifiedType->getPointeeType().getAddressSpace())
         DRE = ImplicitCastExpr::Create(SemaRef.Context, FD->getType(),
                                        CK_AddressSpaceConversion, DRE, nullptr,
                                        VK_RValue);
@@ -1902,6 +1925,7 @@ public:
 class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   SYCLIntegrationHeader &Header;
   int64_t CurOffset = 0;
+  int StructDepth = 0;
 
   void addParam(const FieldDecl *FD, QualType ArgTy,
                 SYCLIntegrationHeader::kernel_param_kind_t Kind) {
@@ -1979,7 +2003,9 @@ public:
   }
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
+    addParam(FD, FieldTy,
+             ((StructDepth) ? SYCLIntegrationHeader::kind_std_layout
+                            : SYCLIntegrationHeader::kind_pointer));
     return true;
   }
 
@@ -2002,6 +2028,16 @@ public:
 
   bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
     addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
+    return true;
+  }
+
+  bool enterStruct(const CXXRecordDecl *, FieldDecl *) final {
+    ++StructDepth;
+    return true;
+  }
+
+  bool leaveStruct(const CXXRecordDecl *, FieldDecl *) final {
+    --StructDepth;
     return true;
   }
 
@@ -2045,8 +2081,10 @@ public:
     CurOffset -= ArraySize;
     return true;
   }
+  using SyclKernelFieldHandler::enterStruct;
   using SyclKernelFieldHandler::handleSyclHalfType;
   using SyclKernelFieldHandler::handleSyclSamplerType;
+  using SyclKernelFieldHandler::leaveStruct;
 };
 } // namespace
 
