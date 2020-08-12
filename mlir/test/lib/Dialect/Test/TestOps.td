@@ -724,7 +724,8 @@ def OpNativeCodeCall3 : TEST_Op<"native_code_call3"> {
 // Test that NativeCodeCall is not ignored if it is not used to directly
 // replace the matched root op.
 def : Pattern<(OpNativeCodeCall3 $input),
-              [(NativeCodeCall<"createOpI($_builder, $0)"> $input), (OpK)]>;
+              [(NativeCodeCall<"createOpI($_builder, $_loc, $0)"> $input),
+               (OpK)]>;
 
 // Test AllAttrConstraintsOf.
 def OpAllAttrConstraint1 : TEST_Op<"all_attr_constraint_of1"> {
@@ -1524,6 +1525,33 @@ def TableGenBuildOp2 : TEST_Op<"tblgen_build_2"> {
 def TableGenBuildOp3 : TEST_Op<"tblgen_build_3", [SameVariadicResultSize]> {
   let arguments = (ins Variadic<AnyType>:$inputs);
   let results = (outs Variadic<AnyType>:$resultA, Variadic<AnyType>:$resultB);
+}
+
+// Single variadic arg, non variadic results, with SameOperandsAndResultType.
+// Tests suppression of ambiguious build methods for operations with
+// SameOperandsAndResultType trait.
+def TableGenBuildOp4 : TEST_Op<"tblgen_build_4", [SameOperandsAndResultType]> {
+  let arguments = (ins Variadic<AnyType>:$inputs);
+  let results = (outs AnyType:$result);
+}
+
+// Single variadic arg with SameOperandsAndResultType and InferTypeOpInterface.
+// Tests suppression of ambiguious build methods for operations with
+// SameOperandsAndResultType and InferTypeOpInterface.
+def TableGenBuildOp5 : TEST_Op<"tblgen_build_5",
+      [SameOperandsAndResultType, InferTypeOpInterface]> {
+  let arguments = (ins Variadic<AnyType>:$inputs);
+  let results = (outs AnyType:$result);
+
+  let extraClassDeclaration = [{
+    static LogicalResult inferReturnTypes(MLIRContext *, 
+          Optional<Location> location, ValueRange operands,
+          DictionaryAttr attributes, RegionRange regions,
+          SmallVectorImpl<Type> &inferredReturnTypes) {
+      inferredReturnTypes.assign({operands[0].getType()});
+      return success();
+    }
+   }];
 }
 
 #endif // TEST_OPS
