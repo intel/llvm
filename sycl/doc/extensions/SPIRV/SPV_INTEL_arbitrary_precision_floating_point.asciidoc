@@ -321,7 +321,7 @@ Two `OpTypeInts` representing two arbitrary precision floating point numbers (ih
 The two numbers are compared and a value of `true` is returned in _Result_ if `A > B`.
 Otherwise, a value of `false` is returned.
 
-_Result Type_ must be a Boolean.
+_Result Type_ must be a Boolean type.
 
 _M* contains the width of the mantissa of the floating point types within _A_ and _B_.
 Note that the exponent values (E1, E2) are inferred from the width of the `OpTypeInt`.
