@@ -416,6 +416,9 @@ std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
   case PI_PROPERTY_TYPE_UINT32:
     Out << "[UINT32] ";
     break;
+  case PI_PROPERTY_TYPE_BYTE_ARRAY:
+    Out << "[Byte array] ";
+    break;
   case PI_PROPERTY_TYPE_STRING:
     Out << "[String] ";
     break;
@@ -425,16 +428,20 @@ std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
   }
   Out << P.Prop->Name << "=";
 
-  switch (P.Prop->Type) {
-  case PI_PROPERTY_TYPE_UINT32:
+  if (P.Prop->Type == PI_PROPERTY_TYPE_UINT32) {
     Out << P.asUint32();
-    break;
-  case PI_PROPERTY_TYPE_STRING:
+  } else if (P.Prop->Type == PI_PROPERTY_TYPE_BYTE_ARRAY) {
+    std::vector<unsigned char> ByteArray = P.asByteArray();
+    std::ios_base::fmtflags FlagsBackup = Out.flags();
+    Out << std::hex;
+    for (auto Byte : ByteArray) {
+      Out << "0x" << static_cast<unsigned int>(Byte) << " ";
+    }
+    Out.flags(FlagsBackup);
+  } else if (P.Prop->Type == PI_PROPERTY_TYPE_STRING) {
     Out << P.asCString();
-    break;
-  default:
-    assert("unsupported property");
-    return Out;
+  } else {
+    assert(false && "Unsupported property");
   }
   return Out;
 }
@@ -489,6 +496,13 @@ pi_uint32 DeviceBinaryProperty::asUint32() const {
   // if type fits into the ValSize - it is used to store the property value
   assert(Prop->ValAddr == nullptr && "primitive types must be stored inline");
   return sycl::detail::pi::asUint32(&Prop->ValSize);
+}
+
+std::vector<unsigned char> DeviceBinaryProperty::asByteArray() const {
+  assert(Prop->Type == PI_PROPERTY_TYPE_BYTE_ARRAY && "property type mismatch");
+  assert(Prop->ValSize > 0 && "property size mismatch");
+  const auto *Data = pi::cast<const unsigned char *>(Prop->ValAddr);
+  return {Data, Data + Prop->ValSize};
 }
 
 const char *DeviceBinaryProperty::asCString() const {
@@ -550,6 +564,7 @@ void DeviceBinaryImage::init(pi_device_binary Bin) {
 
   SpecConstIDMap.init(Bin, PI_PROPERTY_SET_SPEC_CONST_MAP);
   DeviceLibReqMask.init(Bin, PI_PROPERTY_SET_DEVICELIB_REQ_MASK);
+  KernelParamOptInfo.init(Bin, PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
 }
 
 } // namespace pi

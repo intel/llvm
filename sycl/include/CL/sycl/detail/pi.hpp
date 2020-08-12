@@ -22,6 +22,7 @@
 #include <cassert>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Forward declarations
@@ -204,6 +205,7 @@ public:
       : Prop(Prop) {}
 
   pi_uint32 asUint32() const;
+  std::vector<unsigned char> asByteArray() const;
   const char *asCString() const;
 
 protected:
@@ -300,6 +302,9 @@ public:
   /// value is 32-bit unsigned integer ID.
   const PropertyRange &getSpecConstants() const { return SpecConstIDMap; }
   const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
+  const PropertyRange &getKernelParamOptInfo() const {
+    return KernelParamOptInfo;
+  }
   virtual ~DeviceBinaryImage() {}
 
 protected:
@@ -310,6 +315,7 @@ protected:
   pi::PiDeviceBinaryType Format = PI_DEVICE_BINARY_TYPE_NONE;
   DeviceBinaryImage::PropertyRange SpecConstIDMap;
   DeviceBinaryImage::PropertyRange DeviceLibReqMask;
+  DeviceBinaryImage::PropertyRange KernelParamOptInfo;
 };
 
 /// Tries to determine the device binary image foramat. Returns
