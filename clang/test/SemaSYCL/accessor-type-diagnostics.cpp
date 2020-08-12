@@ -6,11 +6,6 @@
 
 using namespace cl::sycl;
 
-template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
-  kernelFunc();
-}
-
 //alias template
 template <typename...>
 using int128alias_t = __uint128_t;
@@ -42,7 +37,7 @@ int main() {
   // -- Accessor of struct that contains a prohibited type.
   accessor<Mesh, 1, access::mode::read_write> struct_acc;
 
-  kernel<class use_local>(
+  kernel_single_task<class use_local>(
       [=]() {
         ok_acc.use();
 
