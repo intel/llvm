@@ -2034,14 +2034,14 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
       }
   }
 
-  SyclKernelFieldChecker checker(*this);
+  SyclKernelFieldChecker Checker(*this);
 
   KernelObjVisitor Visitor{*this};
   DiagnosingSYCLKernel = true;
-  Visitor.VisitRecordBases(KernelObj, checker);
-  Visitor.VisitRecordFields(KernelObj, checker);
+  Visitor.VisitRecordBases(KernelObj, Checker);
+  Visitor.VisitRecordFields(KernelObj, Checker);
   DiagnosingSYCLKernel = false;
-  if (!checker.isValid())
+  if (!Checker.isValid())
     KernelFunc->setInvalidDecl();
 }
 

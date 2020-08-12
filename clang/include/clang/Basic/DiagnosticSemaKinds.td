@@ -10938,7 +10938,7 @@ def err_sycl_kernel_incorrectly_named : Error<
   "|name is invalid. Unscoped enum requires fixed underlying type"
   "}0">;
 def err_sycl_kernel_not_function_object
-    : Error<"kernel parameter is required to be a lambda or function object">;
+    : Error<"kernel parameter must be a lambda or function object">;
 def err_sycl_restrict : Error<
   "SYCL kernel cannot "
 "%select{use a non-const global variable"

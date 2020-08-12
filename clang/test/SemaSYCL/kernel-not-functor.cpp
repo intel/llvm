@@ -7,7 +7,7 @@ __attribute__((sycl_kernel)) void kernel(F kernelFunc) {
 
 template <typename Name, typename F>
 void uses_kernel(F kernelFunc) {
-  // expected-error@+1{{kernel parameter is required to be a lambda or function object}}
+  // expected-error@+1{{kernel parameter must be a lambda or function object}}
   kernel<Name>(kernelFunc);
 }
 
