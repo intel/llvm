@@ -29,7 +29,7 @@ namespace {
 
 class MachOWriter {
 public:
-  MachOWriter(MachOYAML::Object &Obj) : Obj(Obj), is64Bit(true), fileStart(0) {
+  MachOWriter(MachOYAML::Object &Obj) : Obj(Obj), fileStart(0) {
     is64Bit = Obj.Header.magic == MachO::MH_MAGIC_64 ||
               Obj.Header.magic == MachO::MH_CIGAM_64;
     memset(reinterpret_cast<void *>(&Header), 0, sizeof(MachO::mach_header_64));
@@ -293,18 +293,17 @@ Error MachOWriter::writeSectionData(raw_ostream &OS) {
             Err = DWARFYAML::emitDebugStr(OS, Obj.DWARF);
           else if (0 == strncmp(&Sec.sectname[0], "__debug_abbrev", 16))
             Err = DWARFYAML::emitDebugAbbrev(OS, Obj.DWARF);
-          else if (0 == strncmp(&Sec.sectname[0], "__debug_aranges", 16))
-            Err = DWARFYAML::emitDebugAranges(OS, Obj.DWARF);
-          else if (0 == strncmp(&Sec.sectname[0], "__debug_ranges", 16))
+          else if (0 == strncmp(&Sec.sectname[0], "__debug_aranges", 16)) {
+            if (Obj.DWARF.DebugAranges)
+              Err = DWARFYAML::emitDebugAranges(OS, Obj.DWARF);
+          } else if (0 == strncmp(&Sec.sectname[0], "__debug_ranges", 16))
             Err = DWARFYAML::emitDebugRanges(OS, Obj.DWARF);
           else if (0 == strncmp(&Sec.sectname[0], "__debug_pubnames", 16)) {
             if (Obj.DWARF.PubNames)
-              Err = DWARFYAML::emitPubSection(OS, *Obj.DWARF.PubNames,
-                                              Obj.IsLittleEndian);
+              Err = DWARFYAML::emitDebugPubnames(OS, Obj.DWARF);
           } else if (0 == strncmp(&Sec.sectname[0], "__debug_pubtypes", 16)) {
             if (Obj.DWARF.PubTypes)
-              Err = DWARFYAML::emitPubSection(OS, *Obj.DWARF.PubTypes,
-                                              Obj.IsLittleEndian);
+              Err = DWARFYAML::emitDebugPubtypes(OS, Obj.DWARF);
           } else if (0 == strncmp(&Sec.sectname[0], "__debug_info", 16))
             Err = DWARFYAML::emitDebugInfo(OS, Obj.DWARF);
           else if (0 == strncmp(&Sec.sectname[0], "__debug_line", 16))

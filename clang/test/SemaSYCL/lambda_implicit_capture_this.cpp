@@ -13,6 +13,7 @@ public:
 };
 
 void Class::function() {
+  // expected-note@+1{{used here}}
   kernel<class kernel_wrapper>(
       [=]() {
         int acc[1] = {5};

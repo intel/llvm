@@ -1108,6 +1108,7 @@ not made control-dependent on any additional values, e.g., unrolling a loop
 executed by all work items.
 
 Sample usage:
+
 .. code-block:: c
 
   void convfunc(void) __attribute__((convergent));
@@ -1991,25 +1992,6 @@ over depth-stitching.
 2. Will not size the memory to the next largest power of 2 if force_pow2_depth
 is set to 0, and will prefer depth-stitching over width-stitching if RAM usage
 can be lowered.
-  }];
-}
-
-def SYCLIntelBufferLocationAttrDocs : Documentation {
-  let Category = DocCatFunction;
-  let Heading = "kernel_args_buffer_location";
-  let Content = [{
-This attribute is implicitly added to OpenCL pointer kernel parameters generated
-from a SYCL kernel object. It lacks a spelling, as it is not intended to be used
-by the programmer.
-
-This attribute causes clang to generate metadata on the OpenCL kernel containing
-the number of kernel parameters. The metadata contains an integer that is set
-according to the values passed through the ``accessor`` property
-``buffer_location``. These values are mapped to the actual locations of the
-global buffers (such as DDR, QDR, etc) and applied to pointer kernel parameters.
-Number of metadata arguments is the same as a number of kernel parameters, so
-any parameter that isn't an ``accessor`` with ``buffer_location`` property is
-annotated by '-1' in the metadata node.
   }];
 }
 
@@ -3629,11 +3611,12 @@ distinguish USM (Unified Shared Memory) pointers that access global device
 memory from those that access global host memory. These new address spaces are
 a subset of the ``__global/opencl_global`` address space, the full address space
 set model for OpenCL 2.0 with the extension looks as follows:
-  generic->global->host
-                 ->device
-         ->private
-         ->local
-  constant
+
+  | generic->global->host
+  |                ->device
+  |        ->private
+  |        ->local
+  | constant
 
 As ``global_device`` and ``global_host`` are a subset of
 ``__global/opencl_global`` address spaces it is allowed to convert
