@@ -1011,6 +1011,8 @@ public:
   detail::enable_if_t<Reduction::accessor_mode == access::mode::read_write &&
                       Reduction::has_fast_atomics && !Reduction::is_usm>
   parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
+    static_assert(std::is_trivially_copyable<KernelType>::value,
+                  "KernelType must be trivially copyable");
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
                                           Redu.getUserAccessor());
   }
@@ -1024,6 +1026,8 @@ public:
   detail::enable_if_t<Reduction::accessor_mode == access::mode::read_write &&
                       Reduction::has_fast_atomics && Reduction::is_usm>
   parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
+    static_assert(std::is_trivially_copyable<KernelType>::value,
+                  "KernelType must be trivially copyable");
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
                                           Redu.getUSMPointer());
   }
@@ -1043,6 +1047,8 @@ public:
   detail::enable_if_t<Reduction::accessor_mode == access::mode::discard_write &&
                       Reduction::has_fast_atomics>
   parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
+    static_assert(std::is_trivially_copyable<KernelType>::value,
+                  "KernelType must be trivially copyable");
     shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     auto RWAcc = Redu.getReadWriteScalarAcc(*this);
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
@@ -1100,6 +1106,8 @@ public:
     // the main kernel, but simply generate Range.get_global_range.size() number
     // of partial sums, leaving the reduction work to the additional/aux
     // kernels.
+    static_assert(std::is_trivially_copyable<KernelType>::value,
+                  "KernelType must be trivially copyable");
     constexpr bool HFR = Reduction::has_fast_reduce;
     size_t OneElemSize = HFR ? 0 : sizeof(typename Reduction::result_type);
     // TODO: currently the maximal work group size is determined for the given
@@ -1154,6 +1162,8 @@ public:
             int Dims>
   void parallel_for_work_group(range<Dims> NumWorkGroups,
                                KernelType KernelFunc) {
+    static_assert(std::is_trivially_copyable<KernelType>::value,
+                  "KernelType must be trivially copyable");
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1187,6 +1197,8 @@ public:
   void parallel_for_work_group(range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize,
                                KernelType KernelFunc) {
+    static_assert(std::is_trivially_copyable<KernelType>::value,
+                  "KernelType must be trivially copyable");
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1451,6 +1463,8 @@ public:
             int Dims>
   void parallel_for_work_group(kernel Kernel, range<Dims> NumWorkGroups,
                                KernelType KernelFunc) {
+    static_assert(std::is_trivially_copyable<KernelType>::value,
+                  "KernelType must be trivially copyable");
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
