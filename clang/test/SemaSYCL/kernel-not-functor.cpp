@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify %s
 
 template <typename Name, typename F>
 __attribute__((sycl_kernel)) void kernel(F kernelFunc) {
