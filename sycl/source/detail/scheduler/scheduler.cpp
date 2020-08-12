@@ -10,6 +10,7 @@
 #include <CL/sycl/device_selector.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/stream_impl.hpp>
 
 #include <memory>
 #include <mutex>
@@ -63,12 +64,14 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record) {
 
 EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
                               QueueImplPtr Queue) {
-  Command *NewCmd = nullptr;
+  EventImplPtr NewEvent = nullptr;
   const bool IsKernel = CommandGroup->getType() == CG::KERNEL;
+  vector_class<StreamImplPtr> Streams;
   {
     std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
     lockSharedTimedMutex(Lock);
 
+    Command *NewCmd = nullptr;
     switch (CommandGroup->getType()) {
     case CG::UPDATE_HOST:
       NewCmd = MGraphBuilder.addCGUpdateHost(std::move(CommandGroup),
@@ -80,22 +83,30 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     default:
       NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), std::move(Queue));
     }
+    NewEvent = NewCmd->getEvent();
   }
 
   {
     std::shared_lock<std::shared_timed_mutex> Lock(MGraphLock);
 
-    // TODO: Check if lazy mode.
-    EnqueueResultT Res;
-    bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
-    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-      throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+    Command *NewCmd = static_cast<Command *>(NewEvent->getCommand());
+    if (NewCmd) {
+      // TODO: Check if lazy mode.
+      EnqueueResultT Res;
+      bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+
+      if (IsKernel)
+        Streams = ((ExecCGCommand *)NewCmd)->getStreams();
+    }
   }
 
-  if (IsKernel)
-    ((ExecCGCommand *)NewCmd)->flushStreams();
+  for (auto StreamImplPtr : Streams) {
+    StreamImplPtr->flush();
+  }
 
-  return NewCmd->getEvent();
+  return NewEvent;
 }
 
 EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
