@@ -38,6 +38,9 @@ template <typename DataT, int Dimensions, cl::sycl::access::mode AccessMode,
           cl::sycl::access::placeholder IsPlaceholder>
 class __fill;
 
+template <typename T>
+class __usmfill;
+
 template <typename T_Src, typename T_Dst, int Dims,
           cl::sycl::access::mode AccessMode,
           cl::sycl::access::target AccessTarget,
@@ -1712,6 +1715,20 @@ public:
         Dst[Index] = Pattern;
       });
     }
+  }
+
+  /// Fills the specified memory with the specified pattern.
+  ///
+  /// \param Ptr is the pointer to the memory to fill
+  /// \param Pattern is the pattern to fill into the memory.  T should be
+  /// trivially copyable.
+  /// \param Count is the number of times to fill Pattern into Ptr.
+  template <typename T> void fill(void *Ptr, const T &Pattern, size_t Count) {
+    throwIfActionIsCreated();
+    parallel_for<class __usmfill<T>>(range<1>(Count), [=](id<1> Index) {
+      T *CastedPtr = static_cast<T *>(Ptr);
+      CastedPtr[Index] = Pattern;
+    });
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
