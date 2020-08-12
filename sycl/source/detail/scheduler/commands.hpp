@@ -32,6 +32,7 @@ class DispatchHostTask;
 using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
+using StreamImplPtr = std::shared_ptr<detail::stream_impl>;
 
 class Command;
 class AllocaCommand;
@@ -480,7 +481,7 @@ class ExecCGCommand : public Command {
 public:
   ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue);
 
-  void flushStreams();
+  vector_class<StreamImplPtr> getStreams() const;
 
   void printDot(std::ostream &Stream) const final override;
   void emitInstrumentationData() final override;

@@ -2654,6 +2654,33 @@ _SPIRV_OP(ReadPipeBlockingINTEL, false, 5)
 _SPIRV_OP(WritePipeBlockingINTEL, false, 5)
 #undef _SPIRV_OP
 
+class SPIRVFixedPointIntelInst : public SPIRVInstTemplateBase {
+protected:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityArbitraryPrecisionFixedPointINTEL);
+  }
+
+  SPIRVExtSet getRequiredExtensions() const override {
+    return getSet(ExtensionID::SPV_INTEL_arbitrary_precision_fixed_point);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVFixedPointIntelInst, Op##x, __VA_ARGS__>      \
+      SPIRV##x;
+_SPIRV_OP(FixedSqrtINTEL, true, 9)
+_SPIRV_OP(FixedRecipINTEL, true, 9)
+_SPIRV_OP(FixedRsqrtINTEL, true, 9)
+_SPIRV_OP(FixedSinINTEL, true, 9)
+_SPIRV_OP(FixedCosINTEL, true, 9)
+_SPIRV_OP(FixedSinCosINTEL, true, 9)
+_SPIRV_OP(FixedSinPiINTEL, true, 9)
+_SPIRV_OP(FixedCosPiINTEL, true, 9)
+_SPIRV_OP(FixedSinCosPiINTEL, true, 9)
+_SPIRV_OP(FixedLogINTEL, true, 9)
+_SPIRV_OP(FixedExpINTEL, true, 9)
+#undef _SPIRV_OP
+
 class SPIRVArbFloatIntelInst : public SPIRVInstTemplateBase {
 protected:
   SPIRVCapVec getRequiredCapability() const override {
