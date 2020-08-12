@@ -2168,9 +2168,11 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
       // actions for each individual extension.
       Decorations = tryParseIntelFPGAAnnotationString(AnnotationString);
 
-    // If the pointer is a GEP, then we have to emit a member decoration for the
-    // GEP-accessed struct, or a memory access decoration for the GEP itself.
-    if (auto *GI = dyn_cast<GetElementPtrInst>(AnnotSubj)) {
+    // If the pointer is a GEP on a struct, then we have to emit a member
+    // decoration for the GEP-accessed struct, or a memory access decoration
+    // for the GEP itself.
+    auto *GI = dyn_cast<GetElementPtrInst>(AnnotSubj);
+    if (GI && isa<StructType>(GI->getSourceElementType())) {
       auto *Ty = transType(GI->getSourceElementType());
       auto *ResPtr = transValue(GI, BB);
       SPIRVWord MemberNumber =
