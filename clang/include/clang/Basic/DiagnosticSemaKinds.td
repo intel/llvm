@@ -10930,8 +10930,8 @@ def warn_sycl_kernel_invalid_template_param_type : Warning<
   "template parameter of a function template with the 'sycl_kernel' attribute"
   " cannot be a non-type template parameter">, InGroup<IgnoredAttributes>;
 def warn_sycl_kernel_num_of_function_params : Warning<
-  "function template with 'sycl_kernel' attribute must have a single parameter">,
-  InGroup<IgnoredAttributes>;
+  "function template with 'sycl_kernel' attribute must have at least one"
+  " parameter">, InGroup<IgnoredAttributes>;
 def warn_sycl_kernel_return_type : Warning<
   "function template with 'sycl_kernel' attribute must have a 'void' return type">,
   InGroup<IgnoredAttributes>;
@@ -10948,6 +10948,8 @@ def err_sycl_kernel_incorrectly_named : Error<
   "|needs to have a globally-visible name"
   "|name is invalid. Unscoped enum requires fixed underlying type"
   "}0">;
+def err_sycl_kernel_not_function_object
+    : Error<"kernel parameter must be a lambda or function object">;
 def err_sycl_restrict : Error<
   "SYCL kernel cannot "
 "%select{use a non-const global variable"
@@ -10991,6 +10993,16 @@ def warn_boolean_attribute_argument_is_not_valid: Warning<
 def err_sycl_attibute_cannot_be_applied_here
     : Error<"%0 attribute cannot be applied to a "
             "static function or function in an anonymous namespace">;
+def err_sycl_compiletime_property_duplication : Error<
+  "Can't apply %0 property twice to the same accessor">;
+def err_sycl_invalid_property_list_param_number : Error<
+  "%0 must have exactly one template parameter">;
+def err_sycl_invalid_accessor_property_template_param : Error<
+  "Fifth template parameter of the accessor must be of a property_list type">;
+def err_sycl_invalid_property_list_template_param : Error<
+  "%select{property_list|property_list pack argument|buffer_location}0 "
+  "template parameter must be a "
+  "%select{parameter pack|type|non-negative integer}1">;
 def warn_sycl_attibute_function_raw_ptr
     : Warning<"SYCL 1.2.1 specification does not allow %0 attribute applied "
               "to a function with a raw pointer "

@@ -1370,7 +1370,7 @@ def flto_EQ : Joined<["-"], "flto=">, Flags<[CoreOption, CC1Option]>, Group<f_Gr
   HelpText<"Set LTO mode to either 'full' or 'thin'">, Values<"thin,full">;
 def flto : Flag<["-"], "flto">, Flags<[CoreOption, CC1Option]>, Group<f_Group>,
   HelpText<"Enable LTO in 'full' mode">;
-def fno_lto : Flag<["-"], "fno-lto">, Group<f_Group>,
+def fno_lto : Flag<["-"], "fno-lto">, Flags<[CoreOption, CC1Option]>, Group<f_Group>,
   HelpText<"Disable LTO mode (default)">;
 def flto_jobs_EQ : Joined<["-"], "flto-jobs=">,
   Flags<[CC1Option]>, Group<f_Group>,
@@ -3538,6 +3538,7 @@ def fsycl_esimd : Flag<["-"], "fsycl-explicit-simd">, Group<sycl_Group>, Flags<[
   HelpText<"Enable SYCL explicit SIMD extension">;
 def fno_sycl_esimd : Flag<["-"], "fno-sycl-explicit-simd">, Group<sycl_Group>,
   HelpText<"Disable SYCL explicit SIMD extension">, Flags<[NoArgumentUnused, CoreOption]>;
+defm sycl_std_optimizations : OptOutFFlag<"sycl-std-optimizations", "Enable", "Disable", " standard optimization pipeline for SYCL device compiler">;
 
 //===----------------------------------------------------------------------===//
 // CC1 Options
@@ -4462,8 +4463,8 @@ def fsycl_std_layout_kernel_params: Flag<["-"], "fsycl-std-layout-kernel-params"
 def fsycl_allow_func_ptr : Flag<["-"], "fsycl-allow-func-ptr">,
   HelpText<"Allow function pointers in SYCL device.">;
 def fno_sycl_allow_func_ptr : Flag<["-"], "fno-sycl-allow-func-ptr">;
-def fsycl_enable_optimizations: Flag<["-"], "fsycl-enable-optimizations">,
-  HelpText<"Experimental flag enabling standard optimization in the front-end.">;
+def fenable_sycl_dae : Flag<["-"], "fenable-sycl-dae">,
+  HelpText<"Enable Dead Argument Elimination in SPIR kernels">;
 
 } // let Flags = [CC1Option]
 

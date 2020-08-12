@@ -4558,6 +4558,9 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
   if (FD)
     diagnoseArgDependentDiagnoseIfAttrs(FD, ThisArg, Args, Loc);
 
+  if (FD && FD->hasAttr<SYCLKernelAttr>())
+    CheckSYCLKernelCall(FD, Range, Args);
+
   // Diagnose variadic calls in SYCL.
   if (FD && FD ->isVariadic() && getLangOpts().SYCLIsDevice &&
       !isUnevaluatedContext() && !isKnownGoodSYCLDecl(FD))
@@ -11163,7 +11166,7 @@ static bool AnalyzeBitFieldAssignment(Sema &S, FieldDecl *Bitfield, Expr *Init,
         BitfieldEnumDecl->getNumPositiveBits() > 0 &&
         BitfieldEnumDecl->getNumNegativeBits() == 0) {
       S.Diag(InitLoc, diag::warn_no_underlying_type_specified_for_enum_bitfield)
-        << BitfieldEnumDecl->getNameAsString();
+          << BitfieldEnumDecl;
     }
   }
 
