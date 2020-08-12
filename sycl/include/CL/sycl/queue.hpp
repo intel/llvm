@@ -362,33 +362,33 @@ public:
   }
 
   // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
-  // Here we simplify the &CodeLoc declaration to be CODELOCPARAM(&CodeLoc) and
-  // CODELOCARG(&CodeLoc) Similarly, the KernelFunc param is simplified to be
-  // KERNELFUNCPARAM(KernelFunc) Once the queue kernel functions are defined,
+  // Here we simplify the &CodeLoc declaration to be _CODELOCPARAM(&CodeLoc) and
+  // _CODELOCARG(&CodeLoc) Similarly, the KernelFunc param is simplified to be
+  // _KERNELFUNCPARAM(KernelFunc) Once the queue kernel functions are defined,
   // these macros are #undef immediately.
 
-  // replace CODELOCPARAM(&CodeLoc) with nothing
+  // replace _CODELOCPARAM(&CodeLoc) with nothing
   // or :   , const detail::code_location &CodeLoc =
   // detail::code_location::current()
-  // replace CODELOCARG(&CodeLoc) with nothing
+  // replace _CODELOCARG(&CodeLoc) with nothing
   // or :  const detail::code_location &CodeLoc = {}
 
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-#define CODELOCPARAM(a)                                                        \
+#define _CODELOCPARAM(a)                                                       \
   , const detail::code_location a = detail::code_location::current()
 
-#define CODELOCARG(a)
+#define _CODELOCARG(a)
 #else
-#define CODELOCPARAM(a)
+#define _CODELOCPARAM(a)
 
-#define CODELOCARG(a) const detail::code_location a = {}
+#define _CODELOCARG(a) const detail::code_location a = {}
 #endif
-// replace KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
+// replace _KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
 //                                     or     const KernelType &KernelFunc
 #ifdef __SYCL_NONCONST_FUNCTOR__
-#define KERNELFUNCPARAM(a) KernelType a
+#define _KERNELFUNCPARAM(a) KernelType a
 #else
-#define KERNELFUNCPARAM(a) const KernelType &a
+#define _KERNELFUNCPARAM(a) const KernelType &a
 #endif
 
   /// single_task version with a kernel represented as a lambda.
@@ -396,8 +396,8 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event single_task(KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
-    CODELOCARG(&CodeLoc);
+  event single_task(_KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
 
     return submit(
         [&](handler &CGH) {
@@ -413,8 +413,8 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(event DepEvent,
-                    KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
-    CODELOCARG(&CodeLoc);
+                    _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
@@ -431,8 +431,8 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(const vector_class<event> &DepEvents,
-                    KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
-    CODELOCARG(&CodeLoc);
+                    _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
@@ -449,8 +449,8 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event parallel_for(range<1> NumWorkItems,
-                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
-    CODELOCARG(&CodeLoc);
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, KernelFunc, CodeLoc);
   }
 
@@ -462,8 +462,8 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event parallel_for(range<2> NumWorkItems,
-                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
-    CODELOCARG(&CodeLoc);
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, KernelFunc, CodeLoc);
   }
 
@@ -475,8 +475,8 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event parallel_for(range<3> NumWorkItems,
-                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
-    CODELOCARG(&CodeLoc);
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, KernelFunc, CodeLoc);
   }
 
@@ -489,8 +489,8 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event parallel_for(range<1> NumWorkItems, event DepEvent,
-                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
-    CODELOCARG(&CodeLoc);
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvent, KernelFunc,
                                          CodeLoc);
   }
@@ -504,8 +504,8 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event parallel_for(range<2> NumWorkItems, event DepEvent,
-                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
-    CODELOCARG(&CodeLoc);
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvent, KernelFunc,
                                          CodeLoc);
   }
@@ -519,8 +519,8 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event parallel_for(range<3> NumWorkItems, event DepEvent,
-                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
-    CODELOCARG(&CodeLoc);
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvent, KernelFunc,
                                          CodeLoc);
   }
@@ -536,8 +536,8 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   event parallel_for(range<1> NumWorkItems,
                      const vector_class<event> &DepEvents,
-                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
-    CODELOCARG(&CodeLoc);
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
                                          CodeLoc);
   }
@@ -553,8 +553,8 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   event parallel_for(range<2> NumWorkItems,
                      const vector_class<event> &DepEvents,
-                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
-    CODELOCARG(&CodeLoc);
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
                                          CodeLoc);
   }
@@ -570,8 +570,8 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   event parallel_for(range<3> NumWorkItems,
                      const vector_class<event> &DepEvents,
-                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
-    CODELOCARG(&CodeLoc);
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
                                          CodeLoc);
   }
@@ -586,8 +586,8 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
-    CODELOCARG(&CodeLoc);
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.template parallel_for<KernelName, KernelType>(
@@ -608,8 +608,8 @@ public:
             int Dims>
   event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
                      event DepEvent,
-                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
-    CODELOCARG(&CodeLoc);
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
@@ -632,8 +632,8 @@ public:
             int Dims>
   event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
                      const vector_class<event> &DepEvents,
-                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
-    CODELOCARG(&CodeLoc);
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
@@ -653,8 +653,8 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(nd_range<Dims> ExecutionRange,
-                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
-    CODELOCARG(&CodeLoc);
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.template parallel_for<KernelName, KernelType>(ExecutionRange,
@@ -674,8 +674,8 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   event parallel_for(nd_range<Dims> ExecutionRange, event DepEvent,
-                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
-    CODELOCARG(&CodeLoc);
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
@@ -698,8 +698,8 @@ public:
             int Dims>
   event parallel_for(nd_range<Dims> ExecutionRange,
                      const vector_class<event> &DepEvents,
-                     KERNELFUNCPARAM(KernelFunc) CODELOCPARAM(&CodeLoc)) {
-    CODELOCARG(&CodeLoc);
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
@@ -710,9 +710,9 @@ public:
   }
 
 // Clean up CODELOC and KERNELFUNC macros.
-#undef CODELOCPARAM
-#undef CODELOCARG
-#undef KERNELFUNCPARAM
+#undef _CODELOCPARAM
+#undef _CODELOCARG
+#undef _KERNELFUNCPARAM
 
   /// Returns whether the queue is in order or OoO
   ///

@@ -37,7 +37,6 @@ public:
 // expected-no-diagnostics
 #endif
 
-//using namespace cl::sycl;
 
 void function() {
 }

@@ -4165,15 +4165,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                              .Cases("2017", "1.2.1", "121", "sycl-1.2.1", 2017)
                              .Case("2020", 2020)
                              .Default(0);
-      if (version == 2017)
-        CmdArgs.push_back("-DCL_SYCL_LANGUAGE_VERSION=121");
-      else if (version == 2020)
-        CmdArgs.push_back("-DCL_SYCL_LANGUAGE_VERSION=2020");
-
     } else {
       // Ensure the default version in SYCL mode is 1.2.1 (aka 2017)
       CmdArgs.push_back("-sycl-std=2017");
-      CmdArgs.push_back("-DCL_SYCL_LANGUAGE_VERSION=121");
     }
   }
 

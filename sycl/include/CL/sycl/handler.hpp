@@ -947,6 +947,14 @@ public:
     MCGType = detail::CG::CODEPLAY_HOST_TASK;
   }
 
+// replace _KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
+//                                     or     const KernelType &KernelFunc
+#ifdef __SYCL_NONCONST_FUNCTOR__
+#define _KERNELFUNCPARAM(a) KernelType a
+#else
+#define _KERNELFUNCPARAM(a) const KernelType &a
+#endif
+
   /// Defines and invokes a SYCL kernel function for the specified range and
   /// offset.
   ///
@@ -963,11 +971,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-                    KernelType KernelFunc) {
-#else
-                    const KernelType &KernelFunc) {
-#endif
+                    _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1000,11 +1004,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(nd_range<Dims> ExecutionRange,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-                    KernelType KernelFunc) {
-#else
-                    const KernelType &KernelFunc) {
-#endif
+                    _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1032,11 +1032,7 @@ public:
   detail::enable_if_t<Reduction::accessor_mode == access::mode::read_write &&
                       Reduction::has_fast_atomics && !Reduction::is_usm>
   parallel_for(nd_range<Dims> Range, Reduction Redu,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-               KernelType KernelFunc) {
-#else
-               const KernelType &KernelFunc) {
-#endif
+               _KERNELFUNCPARAM(KernelFunc)) {
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
                                           Redu.getUserAccessor());
   }
@@ -1050,11 +1046,7 @@ public:
   detail::enable_if_t<Reduction::accessor_mode == access::mode::read_write &&
                       Reduction::has_fast_atomics && Reduction::is_usm>
   parallel_for(nd_range<Dims> Range, Reduction Redu,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-               KernelType KernelFunc) {
-#else
-               const KernelType &KernelFunc) {
-#endif
+               _KERNELFUNCPARAM(KernelFunc)) {
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
                                           Redu.getUSMPointer());
   }
@@ -1074,11 +1066,7 @@ public:
   detail::enable_if_t<Reduction::accessor_mode == access::mode::discard_write &&
                       Reduction::has_fast_atomics>
   parallel_for(nd_range<Dims> Range, Reduction Redu,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-               KernelType KernelFunc) {
-#else
-               const KernelType &KernelFunc) {
-#endif
+               _KERNELFUNCPARAM(KernelFunc)) {
     shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     auto RWAcc = Redu.getReadWriteScalarAcc(*this);
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
@@ -1115,11 +1103,7 @@ public:
             int Dims, typename Reduction>
   detail::enable_if_t<!Reduction::has_fast_atomics>
   parallel_for(nd_range<Dims> Range, Reduction Redu,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-               KernelType KernelFunc) {
-#else
-               const KernelType &KernelFunc) {
-#endif
+               _KERNELFUNCPARAM(KernelFunc)) {
     // This parallel_for() is lowered to the following sequence:
     // 1) Call a kernel that a) call user's lambda function and b) performs
     //    one iteration of reduction, storing the partial reductions/sums
@@ -1194,11 +1178,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for_work_group(range<Dims> NumWorkGroups,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-                               KernelType KernelFunc) {
-#else
-                               const KernelType &KernelFunc) {
-#endif
+                               _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1231,11 +1211,7 @@ public:
             int Dims>
   void parallel_for_work_group(range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-                               KernelType KernelFunc) {
-#else
-                               const KernelType &KernelFunc) {
-#endif
+                               _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1337,12 +1313,7 @@ public:
   /// \param KernelFunc is a lambda that is used if device, queue is bound to,
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void single_task(kernel Kernel,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-                   KernelType KernelFunc) {
-#else
-                   const KernelType &KernelFunc) {
-#endif
+  void single_task(kernel Kernel, _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1382,11 +1353,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-                    KernelType KernelFunc) {
-#else
-                    const KernelType &KernelFunc) {
-#endif
+                    _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1421,12 +1388,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
-                    id<Dims> WorkItemOffset,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-                    KernelType KernelFunc) {
-#else
-                    const KernelType &KernelFunc) {
-#endif
+                    id<Dims> WorkItemOffset, _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1463,11 +1425,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for(kernel Kernel, nd_range<Dims> NDRange,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-                    KernelType KernelFunc) {
-#else
-                    const KernelType &KernelFunc) {
-#endif
+                    _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1509,11 +1467,7 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for_work_group(kernel Kernel, range<Dims> NumWorkGroups,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-                               KernelType KernelFunc) {
-#else
-                               const KernelType &KernelFunc) {
-#endif
+                               _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1551,11 +1505,7 @@ public:
             int Dims>
   void parallel_for_work_group(kernel Kernel, range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize,
-#ifdef __SYCL_NONCONST_FUNCTOR__
-                               KernelType KernelFunc) {
-#else
-                               const KernelType &KernelFunc) {
-#endif
+                               _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1578,6 +1528,9 @@ public:
     MCGType = detail::CG::KERNEL;
 #endif // __SYCL_DEVICE_ONLY__
   }
+
+  // Clean up KERNELFUNC macro.
+#undef _KERNELFUNCPARAM
 
   // Explicit copy operations API
 

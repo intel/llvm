@@ -465,6 +465,9 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     // SYCL Version is set to a value when building SYCL applications
     if (LangOpts.SYCLVersion == 2017)
       Builder.defineMacro("CL_SYCL_LANGUAGE_VERSION", "121");
+    else if (LangOpts.SYCLVersion == 2020)
+      Builder.defineMacro("CL_SYCL_LANGUAGE_VERSION", "202001");
+
     if (LangOpts.SYCLValueFitInMaxInt)
       Builder.defineMacro("__SYCL_ID_QUERIES_FIT_IN_INT__", "1");
   }
