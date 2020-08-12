@@ -38,8 +38,7 @@ template <typename DataT, int Dimensions, cl::sycl::access::mode AccessMode,
           cl::sycl::access::placeholder IsPlaceholder>
 class __fill;
 
-template <typename T>
-class __usmfill;
+template <typename T> class __usmfill;
 
 template <typename T_Src, typename T_Dst, int Dims,
           cl::sycl::access::mode AccessMode,
