@@ -20,7 +20,6 @@
 #include <string>
 #include <thread>
 #include <utility>
-#include <vector>
 
 #include <level_zero/zet_api.h>
 
@@ -487,6 +486,13 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     return PI_INVALID_VALUE;
   }
 
+  // Cache pi_platforms for reuse in the future
+  // It solves two problems;
+  // 1. sycl::device equality issue; we always return the same pi_device.
+  // 2. performance; we can save time by immediately return from cache.
+  static std::vector<pi_platform> PiPlatformsCache;
+  static std::mutex PiPlatformsCacheMutex;
+
   // This is a good time to initialize Level Zero.
   // TODO: We can still safely recover if something goes wrong during the init.
   // Implement handling segfault using sigaction.
@@ -521,6 +527,18 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     assert(ZeDriverCount == 1);
     ZE_CALL(zeDriverGet(&ZeDriverCount, &ZeDriver));
 
+    std::lock_guard<std::mutex> Lock(PiPlatformsCacheMutex);
+    for (const pi_platform CachedPlatform : PiPlatformsCache) {
+      if (CachedPlatform->ZeDriver == ZeDriver) {
+        Platforms[0] = CachedPlatform;
+        // if the caller sent a valid NumPlatforms pointer, set it here
+        if (NumPlatforms)
+          *NumPlatforms = 1;
+
+        return PI_SUCCESS;
+      }
+    }
+
     try {
       // TODO: figure out how/when to release this memory
       *Platforms = new _pi_platform(ZeDriver);
@@ -546,6 +564,9 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
       Platforms[0]->ZeDriverApiVersion =
           std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + std::string(".") +
           std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
+
+      // save a copy in the cache for future uses
+      PiPlatformsCache.push_back(Platforms[0]);
     } catch (const std::bad_alloc &) {
       return PI_OUT_OF_HOST_MEMORY;
     } catch (...) {
@@ -639,9 +660,16 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 
   // Get number of devices supporting Level Zero
   uint32_t ZeDeviceCount = 0;
+  std::lock_guard<std::mutex> Lock(Platform->PiDevicesCacheMutex);
+  ZeDeviceCount = Platform->PiDevicesCache.size();
+
   const bool AskingForGPU = (DeviceType & PI_DEVICE_TYPE_GPU);
   const bool AskingForDefault = (DeviceType == PI_DEVICE_TYPE_DEFAULT);
-  ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, nullptr));
+
+  if (ZeDeviceCount == 0) {
+    ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, nullptr));
+  }
+
   if (ZeDeviceCount == 0 || !(AskingForGPU || AskingForDefault)) {
     if (NumDevices)
       *NumDevices = 0;
@@ -657,6 +685,14 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     return PI_SUCCESS;
   }
 
+  // if devices are already captured in cache, return them from the cache.
+  for (const pi_device CachedDevice : Platform->PiDevicesCache) {
+    *Devices++ = CachedDevice;
+  }
+  if (!Platform->PiDevicesCache.empty()) {
+    return PI_SUCCESS;
+  }
+
   try {
     std::vector<ze_device_handle_t> ZeDevices(ZeDeviceCount);
     ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, ZeDevices.data()));
@@ -668,6 +704,8 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
         if (Result != PI_SUCCESS) {
           return Result;
         }
+        // save a copy in the cache for future uses.
+        Platform->PiDevicesCache.push_back(Devices[I]);
       }
     }
   } catch (const std::bad_alloc &) {
@@ -680,7 +718,6 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 
 pi_result piDeviceRetain(pi_device Device) {
   assert(Device);
-
   // The root-device ref-count remains unchanged (always 1).
   if (Device->IsSubDevice) {
     ++(Device->RefCount);
@@ -690,14 +727,16 @@ pi_result piDeviceRetain(pi_device Device) {
 
 pi_result piDeviceRelease(pi_device Device) {
   assert(Device);
-
+  assert(Device->RefCount > 0 && "Device is already released.");
   // TODO: OpenCL says root-device ref-count remains unchanged (1),
   // but when would we free the device's data?
-  if (--(Device->RefCount) == 0) {
-    // Destroy the command list used for initializations
-    ZE_CALL(zeCommandListDestroy(Device->ZeCommandListInit));
-    delete Device;
-  }
+  if (Device->IsSubDevice)
+    --(Device->RefCount);
+  // TODO: All cached pi_devices live until the program ends.
+  // If L0 RT does not do its own cleanup for Ze_Device_Handle upon tear-down,
+  // we need to figure out a way to call here
+  // ZE_CALL(zeCommandListDestroy(Device->ZeCommandListInit)); and,
+  // in piDevicesGet(), we need to call initialize for each cached pi_device.
 
   return PI_SUCCESS;
 }
