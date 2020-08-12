@@ -707,7 +707,7 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
 
 static const CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
   assert(Caller->getNumParams() > 0 && "Insufficient kernel parameters");
-  
+
   QualType KernelParamTy = (*Caller->param_begin())->getType();
   // In SYCL 2020 kernels are now passed by reference.
   if (KernelParamTy->isReferenceType())
