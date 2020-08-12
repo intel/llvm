@@ -32,6 +32,7 @@ class DispatchHostTask;
 using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
+using StreamImplPtr = std::shared_ptr<detail::stream_impl>;
 
 class Command;
 class AllocaCommand;
@@ -219,8 +220,15 @@ public:
   bool MIsBlockable = false;
   /// Counts the number of memory objects this command is a leaf for.
   unsigned MLeafCounter = 0;
-  /// Used for marking the node as visited during graph traversal.
-  bool MVisited = false;
+
+  struct Marks {
+    /// Used for marking the node as visited during graph traversal.
+    bool MVisited = false;
+    /// Used for marking the node for deletion during cleanup.
+    bool MToBeDeleted = false;
+  };
+  /// Used for marking the node during graph traversal.
+  Marks MMarks;
 
   enum class BlockReason : int { HostAccessor = 0, HostTask };
 
@@ -272,15 +280,15 @@ class EmptyCommand : public Command {
 public:
   EmptyCommand(QueueImplPtr Queue);
 
-  void printDot(std::ostream &Stream) const final;
-  const Requirement *getRequirement() const final { return &MRequirements[0]; }
+  void printDot(std::ostream &Stream) const final override;
+  const Requirement *getRequirement() const final override { return &MRequirements[0]; }
   void addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
                       const Requirement *Req);
 
-  void emitInstrumentationData();
+  void emitInstrumentationData() override;
 
 private:
-  cl_int enqueueImp() final;
+  cl_int enqueueImp() final override;
 
   // Employing deque here as it allows to push_back/emplace_back without
   // invalidation of pointer or reference to stored data item regardless of
@@ -294,11 +302,11 @@ class ReleaseCommand : public Command {
 public:
   ReleaseCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd);
 
-  void printDot(std::ostream &Stream) const final;
-  void emitInstrumentationData();
+  void printDot(std::ostream &Stream) const final override;
+  void emitInstrumentationData() override;
 
 private:
-  cl_int enqueueImp() final;
+  cl_int enqueueImp() final override;
 
   /// Command which allocates memory release command should dealocate.
   AllocaCommandBase *MAllocaCmd = nullptr;
@@ -316,9 +324,9 @@ public:
 
   virtual void *getMemAllocation() const = 0;
 
-  const Requirement *getRequirement() const final { return &MRequirement; }
+  const Requirement *getRequirement() const final override { return &MRequirement; }
 
-  void emitInstrumentationData();
+  void emitInstrumentationData() override;
 
   void *MMemAllocation = nullptr;
 
@@ -355,12 +363,12 @@ public:
                 bool InitFromUserData = true,
                 AllocaCommandBase *LinkedAllocaCmd = nullptr);
 
-  void *getMemAllocation() const final { return MMemAllocation; }
-  void printDot(std::ostream &Stream) const final;
-  void emitInstrumentationData();
+  void *getMemAllocation() const final override { return MMemAllocation; }
+  void printDot(std::ostream &Stream) const final override;
+  void emitInstrumentationData() override;
 
 private:
-  cl_int enqueueImp() final;
+  cl_int enqueueImp() final override;
 
   /// The flag indicates that alloca should try to reuse pointer provided by
   /// the user during memory object construction.
@@ -373,13 +381,13 @@ public:
   AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
                       AllocaCommandBase *ParentAlloca);
 
-  void *getMemAllocation() const final;
-  void printDot(std::ostream &Stream) const final;
+  void *getMemAllocation() const final override;
+  void printDot(std::ostream &Stream) const final override;
   AllocaCommandBase *getParentAlloca() { return MParentAlloca; }
-  void emitInstrumentationData();
+  void emitInstrumentationData() override;
 
 private:
-  cl_int enqueueImp() final;
+  cl_int enqueueImp() final override;
 
   AllocaCommandBase *MParentAlloca = nullptr;
 };
@@ -390,12 +398,12 @@ public:
   MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req, void **DstPtr,
                QueueImplPtr Queue, access::mode MapMode);
 
-  void printDot(std::ostream &Stream) const final;
-  const Requirement *getRequirement() const final { return &MSrcReq; }
-  void emitInstrumentationData();
+  void printDot(std::ostream &Stream) const final override;
+  const Requirement *getRequirement() const final override { return &MSrcReq; }
+  void emitInstrumentationData() override;
 
 private:
-  cl_int enqueueImp() final;
+  cl_int enqueueImp() final override;
 
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MSrcReq;
@@ -409,12 +417,12 @@ public:
   UnMapMemObject(AllocaCommandBase *DstAllocaCmd, Requirement Req,
                  void **SrcPtr, QueueImplPtr Queue);
 
-  void printDot(std::ostream &Stream) const final;
-  const Requirement *getRequirement() const final { return &MDstReq; }
-  void emitInstrumentationData();
+  void printDot(std::ostream &Stream) const final override;
+  const Requirement *getRequirement() const final override { return &MDstReq; }
+  void emitInstrumentationData() override;
 
 private:
-  cl_int enqueueImp() final;
+  cl_int enqueueImp() final override;
 
   AllocaCommandBase *MDstAllocaCmd = nullptr;
   Requirement MDstReq;
@@ -429,13 +437,13 @@ public:
                 Requirement DstReq, AllocaCommandBase *DstAllocaCmd,
                 QueueImplPtr SrcQueue, QueueImplPtr DstQueue);
 
-  void printDot(std::ostream &Stream) const final;
-  const Requirement *getRequirement() const final { return &MDstReq; }
-  void emitInstrumentationData() final;
-  ContextImplPtr getContext() const final;
+  void printDot(std::ostream &Stream) const final override;
+  const Requirement *getRequirement() const final override { return &MDstReq; }
+  void emitInstrumentationData() final override;
+  ContextImplPtr getContext() const final override;
 
 private:
-  cl_int enqueueImp() final;
+  cl_int enqueueImp() final override;
 
   QueueImplPtr MSrcQueue;
   Requirement MSrcReq;
@@ -452,13 +460,13 @@ public:
                     Requirement DstReq, void **DstPtr, QueueImplPtr SrcQueue,
                     QueueImplPtr DstQueue);
 
-  void printDot(std::ostream &Stream) const final;
-  const Requirement *getRequirement() const final { return &MDstReq; }
-  void emitInstrumentationData() final;
-  ContextImplPtr getContext() const final;
+  void printDot(std::ostream &Stream) const final override;
+  const Requirement *getRequirement() const final override { return &MDstReq; }
+  void emitInstrumentationData() final override;
+  ContextImplPtr getContext() const final override;
 
 private:
-  cl_int enqueueImp() final;
+  cl_int enqueueImp() final override;
 
   QueueImplPtr MSrcQueue;
   Requirement MSrcReq;
@@ -473,10 +481,10 @@ class ExecCGCommand : public Command {
 public:
   ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue);
 
-  void flushStreams();
+  vector_class<StreamImplPtr> getStreams() const;
 
-  void printDot(std::ostream &Stream) const final;
-  void emitInstrumentationData() final;
+  void printDot(std::ostream &Stream) const final override;
+  void emitInstrumentationData() final override;
 
   detail::CG &getCG() const { return *MCommandGroup; }
 
@@ -487,7 +495,7 @@ public:
   EmptyCommand *MEmptyCmd = nullptr;
 
 private:
-  cl_int enqueueImp() final;
+  cl_int enqueueImp() final override;
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
@@ -506,12 +514,12 @@ public:
   UpdateHostRequirementCommand(QueueImplPtr Queue, Requirement Req,
                                AllocaCommandBase *SrcAllocaCmd, void **DstPtr);
 
-  void printDot(std::ostream &Stream) const final;
-  const Requirement *getRequirement() const final { return &MDstReq; }
-  void emitInstrumentationData() final;
+  void printDot(std::ostream &Stream) const final override;
+  const Requirement *getRequirement() const final override { return &MDstReq; }
+  void emitInstrumentationData() final override;
 
 private:
-  cl_int enqueueImp() final;
+  cl_int enqueueImp() final override;
 
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MDstReq;

@@ -185,6 +185,11 @@ static void shrinkScalarCompare(const SIInstrInfo *TII, MachineInstr &MI) {
   if (!MI.getOperand(0).isReg())
     TII->commuteInstruction(MI, false, 0, 1);
 
+  // cmpk requires src0 to be a register
+  const MachineOperand &Src0 = MI.getOperand(0);
+  if (!Src0.isReg())
+    return;
+
   const MachineOperand &Src1 = MI.getOperand(1);
   if (!Src1.isImm())
     return;
@@ -369,12 +374,16 @@ static bool shrinkScalarLogicOp(const GCNSubtarget &ST,
     }
 
     if (SrcReg->isReg() && SrcReg->getReg() == Dest->getReg()) {
+      const bool IsUndef = SrcReg->isUndef();
+      const bool IsKill = SrcReg->isKill();
       MI.setDesc(TII->get(Opc));
       if (Opc == AMDGPU::S_BITSET0_B32 ||
           Opc == AMDGPU::S_BITSET1_B32) {
         Src0->ChangeToImmediate(NewImm);
         // Remove the immediate and add the tied input.
-        MI.getOperand(2).ChangeToRegister(Dest->getReg(), false);
+        MI.getOperand(2).ChangeToRegister(Dest->getReg(), /*IsDef*/ false,
+                                          /*isImp*/ false, IsKill,
+                                          /*isDead*/ false, IsUndef);
         MI.tieOperands(0, 2);
       } else {
         SrcImm->setImm(NewImm);

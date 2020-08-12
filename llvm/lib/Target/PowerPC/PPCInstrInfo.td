@@ -50,6 +50,10 @@ def SDT_PPCVecSplat : SDTypeProfile<1, 2, [ SDTCisVec<0>,
   SDTCisVec<1>, SDTCisInt<2>
 ]>;
 
+def SDT_PPCSpToDp : SDTypeProfile<1, 1, [ SDTCisVT<0, v2f64>,
+  SDTCisInt<1>
+]>;
+
 def SDT_PPCVecShift : SDTypeProfile<1, 3, [ SDTCisVec<0>,
   SDTCisVec<1>, SDTCisVec<2>, SDTCisPtrTy<3>
 ]>;
@@ -194,19 +198,10 @@ def PPCaddiDtprelL   : SDNode<"PPCISD::ADDI_DTPREL_L", SDTIntBinOp>;
 
 def PPCvperm     : SDNode<"PPCISD::VPERM", SDT_PPCvperm, []>;
 def PPCxxsplt    : SDNode<"PPCISD::XXSPLT", SDT_PPCVecSplat, []>;
+def PPCxxspltidp : SDNode<"PPCISD::XXSPLTI_SP_TO_DP", SDT_PPCSpToDp, []>;
 def PPCvecinsert : SDNode<"PPCISD::VECINSERT", SDT_PPCVecInsert, []>;
 def PPCxxpermdi  : SDNode<"PPCISD::XXPERMDI", SDT_PPCxxpermdi, []>;
 def PPCvecshl    : SDNode<"PPCISD::VECSHL", SDT_PPCVecShift, []>;
-
-def PPCqvfperm   : SDNode<"PPCISD::QVFPERM", SDT_PPCqvfperm, []>;
-def PPCqvgpci    : SDNode<"PPCISD::QVGPCI", SDT_PPCqvgpci, []>;
-def PPCqvaligni  : SDNode<"PPCISD::QVALIGNI", SDT_PPCqvaligni, []>;
-def PPCqvesplati : SDNode<"PPCISD::QVESPLATI", SDT_PPCqvesplati, []>;
-
-def PPCqbflt     : SDNode<"PPCISD::QBFLT", SDT_PPCqbflt, []>;
-
-def PPCqvlfsb    : SDNode<"PPCISD::QVLFSb", SDT_PPCqvlfsb,
-                          [SDNPHasChain, SDNPMayLoad]>;
 
 def PPCcmpb     : SDNode<"PPCISD::CMPB", SDTIntBinOp, []>;
 
@@ -318,6 +313,7 @@ def SDTDynOp  : SDTypeProfile<1, 2, []>;
 def SDTDynAreaOp  : SDTypeProfile<1, 1, []>;
 def PPCdynalloc   : SDNode<"PPCISD::DYNALLOC", SDTDynOp, [SDNPHasChain]>;
 def PPCdynareaoffset   : SDNode<"PPCISD::DYNAREAOFFSET", SDTDynAreaOp, [SDNPHasChain]>;
+def PPCprobedalloca : SDNode<"PPCISD::PROBED_ALLOCA", SDTDynOp, [SDNPHasChain]>;
 
 // PC Relative Specific Nodes
 def PPCmatpcreladdr : SDNode<"PPCISD::MAT_PCREL_ADDR", SDTIntUnaryOp, []>;
@@ -325,6 +321,23 @@ def PPCmatpcreladdr : SDNode<"PPCISD::MAT_PCREL_ADDR", SDTIntUnaryOp, []>;
 //===----------------------------------------------------------------------===//
 // PowerPC specific transformation functions and pattern fragments.
 //
+
+// A floating point immediate that is not a positive zero and can be converted
+// to a single precision floating point non-denormal immediate without loss of
+// information.
+def nzFPImmAsi32 : PatLeaf<(fpimm), [{
+  APFloat APFloatOfN = N->getValueAPF();
+  return convertToNonDenormSingle(APFloatOfN) && !N->isExactlyValue(+0.0);
+}]>;
+
+// Convert the floating point immediate into a 32 bit floating point immediate
+// and get a i32 with the resulting bits.
+def getFPAs32BitInt : SDNodeXForm<fpimm, [{
+  APFloat APFloatOfN = N->getValueAPF();
+  convertToNonDenormSingle(APFloatOfN);
+  return CurDAG->getTargetConstant(APFloatOfN.bitcastToAPInt().getZExtValue(),
+                                   SDLoc(N), MVT::i32);
+}]>;
 
 def SHL32 : SDNodeXForm<imm, [{
   // Transformation function: 31 - imm
@@ -392,6 +405,7 @@ def immZExt16  : PatLeaf<(imm), [{
 def immNonAllOneAnyExt8 : ImmLeaf<i32, [{
   return (isInt<8>(Imm) && (Imm != -1)) || (isUInt<8>(Imm) && (Imm != 0xFF));
 }]>;
+def i32immNonAllOneNonZero : ImmLeaf<i32, [{ return Imm && (Imm != -1); }]>;
 def immSExt5NonZero : ImmLeaf<i32, [{ return Imm && isInt<5>(Imm); }]>;
 
 // imm16Shifted* - These match immediates where the low 16-bits are zero.  There
@@ -733,7 +747,13 @@ def PPCS34ImmAsmOperand : AsmOperandClass {
 }
 def s34imm : Operand<i64> {
   let PrintMethod = "printS34ImmOperand";
-  let EncoderMethod = "getImm34Encoding";
+  let EncoderMethod = "getImm34EncodingNoPCRel";
+  let ParserMatchClass = PPCS34ImmAsmOperand;
+  let DecoderMethod = "decodeSImmOperand<34>";
+}
+def s34imm_pcrel : Operand<i64> {
+  let PrintMethod = "printS34ImmOperand";
+  let EncoderMethod = "getImm34EncodingPCRel";
   let ParserMatchClass = PPCS34ImmAsmOperand;
   let DecoderMethod = "decodeSImmOperand<34>";
 }
@@ -998,8 +1018,10 @@ def IsE500  : Predicate<"Subtarget->isE500()">;
 def HasSPE  : Predicate<"Subtarget->hasSPE()">;
 def HasICBT : Predicate<"Subtarget->hasICBT()">;
 def HasPartwordAtomics : Predicate<"Subtarget->hasPartwordAtomics()">;
-def NoNaNsFPMath : Predicate<"TM.Options.NoNaNsFPMath">;
-def NaNsFPMath   : Predicate<"!TM.Options.NoNaNsFPMath">;
+def NoNaNsFPMath
+    : Predicate<"Subtarget->getTargetMachine().Options.NoNaNsFPMath">;
+def NaNsFPMath
+    : Predicate<"!Subtarget->getTargetMachine().Options.NoNaNsFPMath">;
 def HasBPERMD : Predicate<"Subtarget->hasBPERMD()">;
 def HasExtDiv : Predicate<"Subtarget->hasExtDiv()">;
 def IsISA3_0 : Predicate<"Subtarget->isISA3_0()">;
@@ -1374,6 +1396,24 @@ def DYNALLOC : PPCEmitTimePseudo<(outs gprc:$result), (ins gprc:$negsize, memri:
                              (PPCdynalloc i32:$negsize, iaddr:$fpsi))]>;
 def DYNAREAOFFSET : PPCEmitTimePseudo<(outs i32imm:$result), (ins memri:$fpsi), "#DYNAREAOFFSET",
                        [(set i32:$result, (PPCdynareaoffset iaddr:$fpsi))]>;
+// Probed alloca to support stack clash protection.
+let Defs = [R1], Uses = [R1], hasNoSchedulingInfo = 1 in {
+def PROBED_ALLOCA_32 : PPCCustomInserterPseudo<(outs gprc:$result),
+                         (ins gprc:$negsize, memri:$fpsi), "#PROBED_ALLOCA_32",
+                           [(set i32:$result,
+                             (PPCprobedalloca i32:$negsize, iaddr:$fpsi))]>;
+def PREPARE_PROBED_ALLOCA_32 : PPCEmitTimePseudo<(outs
+    gprc:$fp, gprc:$actual_negsize),
+    (ins gprc:$negsize, memri:$fpsi), "#PREPARE_PROBED_ALLOCA_32", []>;
+def PREPARE_PROBED_ALLOCA_NEGSIZE_SAME_REG_32 : PPCEmitTimePseudo<(outs
+    gprc:$fp, gprc:$actual_negsize),
+    (ins gprc:$negsize, memri:$fpsi),
+    "#PREPARE_PROBED_ALLOCA_NEGSIZE_SAME_REG_32", []>,
+    RegConstraint<"$actual_negsize = $negsize">;
+def PROBED_STACKALLOC_32 : PPCEmitTimePseudo<(outs gprc:$scratch, gprc:$temp),
+    (ins i64imm:$stacksize),
+    "#PROBED_STACKALLOC_32", []>;
+}
 
 // SELECT_CC_* - Used to implement the SELECT_CC DAG operation.  Expanded after
 // instruction selection into a branch sequence.
@@ -1523,11 +1563,12 @@ let isBranch = 1, isTerminator = 1, hasCtrlDep = 1, PPC970_Unit = 7 in {
     def BCn : BForm_4<16, 4, 0, 0, (outs), (ins crbitrc:$bi, condbrtarget:$dst),
              "bc 4, $bi, $dst">;
 
-    let isReturn = 1, Uses = [LR, RM] in
+    let isReturn = 1, Uses = [LR, RM] in {
     def BCLR  : XLForm_2_br2<19, 16, 12, 0, (outs), (ins crbitrc:$bi),
                              "bclr 12, $bi, 0", IIC_BrB, []>;
     def BCLRn : XLForm_2_br2<19, 16, 4, 0, (outs), (ins crbitrc:$bi),
                              "bclr 4, $bi, 0", IIC_BrB, []>;
+    }
   }
 
   let isReturn = 1, Defs = [CTR], Uses = [CTR, LR, RM] in {
@@ -2544,22 +2585,7 @@ def FTDIV: XForm_17<63, 128, (outs crrc:$crD), (ins f8rc:$fA, f8rc:$fB),
 def FTSQRT: XForm_17a<63, 160, (outs crrc:$crD), (ins f8rc:$fB),
                       "ftsqrt $crD, $fB", IIC_FPCompare>;
 
-let Uses = [RM], mayRaiseFPException = 1 in {
-  let hasSideEffects = 0 in {
-  defm FCTIW  : XForm_26r<63, 14, (outs f8rc:$frD), (ins f8rc:$frB),
-                          "fctiw", "$frD, $frB", IIC_FPGeneral,
-                          []>;
-  defm FCTIWU  : XForm_26r<63, 142, (outs f8rc:$frD), (ins f8rc:$frB),
-                          "fctiwu", "$frD, $frB", IIC_FPGeneral,
-                          []>;
-  defm FCTIWZ : XForm_26r<63, 15, (outs f8rc:$frD), (ins f8rc:$frB),
-                          "fctiwz", "$frD, $frB", IIC_FPGeneral,
-                          [(set f64:$frD, (PPCfctiwz f64:$frB))]>;
-
-  defm FRSP   : XForm_26r<63, 12, (outs f4rc:$frD), (ins f8rc:$frB),
-                          "frsp", "$frD, $frB", IIC_FPGeneral,
-                          [(set f32:$frD, (any_fpround f64:$frB))]>;
-
+let mayRaiseFPException = 1, hasSideEffects = 0 in {
   let Interpretation64Bit = 1, isCodeGenOnly = 1 in
   defm FRIND  : XForm_26r<63, 392, (outs f8rc:$frD), (ins f8rc:$frB),
                           "frin", "$frD, $frB", IIC_FPGeneral,
@@ -2567,9 +2593,7 @@ let Uses = [RM], mayRaiseFPException = 1 in {
   defm FRINS  : XForm_26r<63, 392, (outs f4rc:$frD), (ins f4rc:$frB),
                           "frin", "$frD, $frB", IIC_FPGeneral,
                           [(set f32:$frD, (any_fround f32:$frB))]>;
-  }
 
-  let hasSideEffects = 0 in {
   let Interpretation64Bit = 1, isCodeGenOnly = 1 in
   defm FRIPD  : XForm_26r<63, 456, (outs f8rc:$frD), (ins f8rc:$frB),
                           "frip", "$frD, $frB", IIC_FPGeneral,
@@ -2591,6 +2615,22 @@ let Uses = [RM], mayRaiseFPException = 1 in {
   defm FRIMS  : XForm_26r<63, 488, (outs f4rc:$frD), (ins f4rc:$frB),
                           "frim", "$frD, $frB", IIC_FPGeneral,
                           [(set f32:$frD, (any_ffloor f32:$frB))]>;
+}
+
+let Uses = [RM], mayRaiseFPException = 1, hasSideEffects = 0 in {
+  defm FCTIW  : XForm_26r<63, 14, (outs f8rc:$frD), (ins f8rc:$frB),
+                          "fctiw", "$frD, $frB", IIC_FPGeneral,
+                          []>;
+  defm FCTIWU  : XForm_26r<63, 142, (outs f8rc:$frD), (ins f8rc:$frB),
+                          "fctiwu", "$frD, $frB", IIC_FPGeneral,
+                          []>;
+  defm FCTIWZ : XForm_26r<63, 15, (outs f8rc:$frD), (ins f8rc:$frB),
+                          "fctiwz", "$frD, $frB", IIC_FPGeneral,
+                          [(set f64:$frD, (PPCfctiwz f64:$frB))]>;
+
+  defm FRSP   : XForm_26r<63, 12, (outs f4rc:$frD), (ins f8rc:$frB),
+                          "frsp", "$frD, $frB", IIC_FPGeneral,
+                          [(set f32:$frD, (any_fpround f64:$frB))]>;
 
   defm FSQRT  : XForm_26r<63, 22, (outs f8rc:$frD), (ins f8rc:$frB),
                           "fsqrt", "$frD, $frB", IIC_FPSqrtD,
@@ -2598,8 +2638,7 @@ let Uses = [RM], mayRaiseFPException = 1 in {
   defm FSQRTS : XForm_26r<59, 22, (outs f4rc:$frD), (ins f4rc:$frB),
                           "fsqrts", "$frD, $frB", IIC_FPSqrtS,
                           [(set f32:$frD, (any_fsqrt f32:$frB))]>;
-  }
-  }
+}
 }
 
 /// Note that FMR is defined as pseudo-ops on the PPC970 because they are
@@ -2876,13 +2915,17 @@ let Uses = [RM] in {
 
 // The above pseudo gets expanded to make use of the following instructions
 // to manipulate FPSCR.  Note that FPSCR is not modeled at the DAG level.
-let Uses = [RM], Defs = [RM] in {
-  def MTFSB0 : XForm_43<63, 70, (outs), (ins u5imm:$FM),
-                        "mtfsb0 $FM", IIC_IntMTFSB0, []>,
-               PPC970_DGroup_Single, PPC970_Unit_FPU;
-  def MTFSB1 : XForm_43<63, 38, (outs), (ins u5imm:$FM),
-                        "mtfsb1 $FM", IIC_IntMTFSB0, []>,
-               PPC970_DGroup_Single, PPC970_Unit_FPU;
+
+// When FM is 30/31, we are setting the 62/63 bit of FPSCR, the implicit-def
+// RM should be set.
+def MTFSB0 : XForm_43<63, 70, (outs), (ins u5imm:$FM),
+                      "mtfsb0 $FM", IIC_IntMTFSB0, []>,
+             PPC970_DGroup_Single, PPC970_Unit_FPU;
+def MTFSB1 : XForm_43<63, 38, (outs), (ins u5imm:$FM),
+                      "mtfsb1 $FM", IIC_IntMTFSB0, []>,
+             PPC970_DGroup_Single, PPC970_Unit_FPU;
+
+let Defs = [RM] in {
   let isCodeGenOnly = 1 in
   def MTFSFb  : XFLForm<63, 711, (outs), (ins i32imm:$FM, f8rc:$rT),
                         "mtfsf $FM, $rT", IIC_IntMTFSB0, []>,
@@ -3207,8 +3250,12 @@ def : Pat<(PPCcall (i32 texternalsym:$dst)),
 // Calls for AIX only
 def : Pat<(PPCcall (i32 mcsym:$dst)),
           (BL mcsym:$dst)>;
+
 def : Pat<(PPCcall_nop (i32 mcsym:$dst)),
           (BL_NOP mcsym:$dst)>;
+
+def : Pat<(PPCcall_nop (i32 texternalsym:$dst)),
+          (BL_NOP texternalsym:$dst)>;
 
 def : Pat<(PPCtc_return (i32 tglobaladdr:$dst),  imm:$imm),
           (TCRETURNdi tglobaladdr:$dst, imm:$imm)>;
@@ -3413,7 +3460,6 @@ include "PPCInstrAltivec.td"
 include "PPCInstrSPE.td"
 include "PPCInstr64Bit.td"
 include "PPCInstrVSX.td"
-include "PPCInstrQPX.td"
 include "PPCInstrHTM.td"
 
 def crnot : OutPatFrag<(ops node:$in),
@@ -3855,105 +3901,47 @@ defm : CRNotPat<(i1 (setcc i64:$s1, i64:$s2, SETLE)),
 defm : CRNotPat<(i1 (setcc i64:$s1, i64:$s2, SETNE)),
                 (EXTRACT_SUBREG (CMPD $s1, $s2), sub_eq)>;
 
-let Predicates = [HasFPU] in {
-// Instantiations of CRNotPat for f32.
-defm : CRNotPat<(i1 (setcc f32:$s1, f32:$s2, SETUGE)),
-                (EXTRACT_SUBREG (FCMPUS $s1, $s2), sub_lt)>;
-defm : CRNotPat<(i1 (setcc f32:$s1, f32:$s2, SETGE)),
-                (EXTRACT_SUBREG (FCMPUS $s1, $s2), sub_lt)>;
-defm : CRNotPat<(i1 (setcc f32:$s1, f32:$s2, SETULE)),
-                (EXTRACT_SUBREG (FCMPUS $s1, $s2), sub_gt)>;
-defm : CRNotPat<(i1 (setcc f32:$s1, f32:$s2, SETLE)),
-                (EXTRACT_SUBREG (FCMPUS $s1, $s2), sub_gt)>;
-defm : CRNotPat<(i1 (setcc f32:$s1, f32:$s2, SETUNE)),
-                (EXTRACT_SUBREG (FCMPUS $s1, $s2), sub_eq)>;
-defm : CRNotPat<(i1 (setcc f32:$s1, f32:$s2, SETNE)),
-                (EXTRACT_SUBREG (FCMPUS $s1, $s2), sub_eq)>;
-defm : CRNotPat<(i1 (setcc f32:$s1, f32:$s2, SETO)),
-                (EXTRACT_SUBREG (FCMPUS $s1, $s2), sub_un)>;
+multiclass FSetCCPat<SDNode SetCC, ValueType Ty, PatLeaf FCmp> {
+  defm : CRNotPat<(i1 (SetCC Ty:$s1, Ty:$s2, SETUGE)),
+                  (EXTRACT_SUBREG (FCmp $s1, $s2), sub_lt)>;
+  defm : CRNotPat<(i1 (SetCC Ty:$s1, Ty:$s2, SETGE)),
+                  (EXTRACT_SUBREG (FCmp $s1, $s2), sub_lt)>;
+  defm : CRNotPat<(i1 (SetCC Ty:$s1, Ty:$s2, SETULE)),
+                  (EXTRACT_SUBREG (FCmp $s1, $s2), sub_gt)>;
+  defm : CRNotPat<(i1 (SetCC Ty:$s1, Ty:$s2, SETLE)),
+                  (EXTRACT_SUBREG (FCmp $s1, $s2), sub_gt)>;
+  defm : CRNotPat<(i1 (SetCC Ty:$s1, Ty:$s2, SETUNE)),
+                  (EXTRACT_SUBREG (FCmp $s1, $s2), sub_eq)>;
+  defm : CRNotPat<(i1 (SetCC Ty:$s1, Ty:$s2, SETNE)),
+                  (EXTRACT_SUBREG (FCmp $s1, $s2), sub_eq)>;
+  defm : CRNotPat<(i1 (SetCC Ty:$s1, Ty:$s2, SETO)),
+                  (EXTRACT_SUBREG (FCmp $s1, $s2), sub_un)>;
 
-// Instantiations of CRNotPat for f64.
-defm : CRNotPat<(i1 (setcc f64:$s1, f64:$s2, SETUGE)),
-                (EXTRACT_SUBREG (FCMPUD $s1, $s2), sub_lt)>;
-defm : CRNotPat<(i1 (setcc f64:$s1, f64:$s2, SETGE)),
-                (EXTRACT_SUBREG (FCMPUD $s1, $s2), sub_lt)>;
-defm : CRNotPat<(i1 (setcc f64:$s1, f64:$s2, SETULE)),
-                (EXTRACT_SUBREG (FCMPUD $s1, $s2), sub_gt)>;
-defm : CRNotPat<(i1 (setcc f64:$s1, f64:$s2, SETLE)),
-                (EXTRACT_SUBREG (FCMPUD $s1, $s2), sub_gt)>;
-defm : CRNotPat<(i1 (setcc f64:$s1, f64:$s2, SETUNE)),
-                (EXTRACT_SUBREG (FCMPUD $s1, $s2), sub_eq)>;
-defm : CRNotPat<(i1 (setcc f64:$s1, f64:$s2, SETNE)),
-                (EXTRACT_SUBREG (FCMPUD $s1, $s2), sub_eq)>;
-defm : CRNotPat<(i1 (setcc f64:$s1, f64:$s2, SETO)),
-                (EXTRACT_SUBREG (FCMPUD $s1, $s2), sub_un)>;
-
-// Instantiations of CRNotPat for f128.
-defm : CRNotPat<(i1 (setcc f128:$s1, f128:$s2, SETUGE)),
-                (EXTRACT_SUBREG (XSCMPUQP $s1, $s2), sub_lt)>;
-defm : CRNotPat<(i1 (setcc f128:$s1, f128:$s2, SETGE)),
-                (EXTRACT_SUBREG (XSCMPUQP $s1, $s2), sub_lt)>;
-defm : CRNotPat<(i1 (setcc f128:$s1, f128:$s2, SETULE)),
-                (EXTRACT_SUBREG (XSCMPUQP $s1, $s2), sub_gt)>;
-defm : CRNotPat<(i1 (setcc f128:$s1, f128:$s2, SETLE)),
-                (EXTRACT_SUBREG (XSCMPUQP $s1, $s2), sub_gt)>;
-defm : CRNotPat<(i1 (setcc f128:$s1, f128:$s2, SETUNE)),
-                (EXTRACT_SUBREG (XSCMPUQP $s1, $s2), sub_eq)>;
-defm : CRNotPat<(i1 (setcc f128:$s1, f128:$s2, SETNE)),
-                (EXTRACT_SUBREG (XSCMPUQP $s1, $s2), sub_eq)>;
-defm : CRNotPat<(i1 (setcc f128:$s1, f128:$s2, SETO)),
-                (EXTRACT_SUBREG (XSCMPUQP $s1, $s2), sub_un)>;
+  def : Pat<(i1 (SetCC Ty:$s1, Ty:$s2, SETOLT)),
+            (EXTRACT_SUBREG (FCmp $s1, $s2), sub_lt)>;
+  def : Pat<(i1 (SetCC Ty:$s1, Ty:$s2, SETLT)),
+            (EXTRACT_SUBREG (FCmp $s1, $s2), sub_lt)>;
+  def : Pat<(i1 (SetCC Ty:$s1, Ty:$s2, SETOGT)),
+            (EXTRACT_SUBREG (FCmp $s1, $s2), sub_gt)>;
+  def : Pat<(i1 (SetCC Ty:$s1, Ty:$s2, SETGT)),
+            (EXTRACT_SUBREG (FCmp $s1, $s2), sub_gt)>;
+  def : Pat<(i1 (SetCC Ty:$s1, Ty:$s2, SETOEQ)),
+            (EXTRACT_SUBREG (FCmp $s1, $s2), sub_eq)>;
+  def : Pat<(i1 (SetCC Ty:$s1, Ty:$s2, SETEQ)),
+            (EXTRACT_SUBREG (FCmp $s1, $s2), sub_eq)>;
+  def : Pat<(i1 (SetCC Ty:$s1, Ty:$s2, SETUO)),
+            (EXTRACT_SUBREG (FCmp $s1, $s2), sub_un)>;
 }
 
-// SETCC for f32.
 let Predicates = [HasFPU] in {
-def : Pat<(i1 (setcc f32:$s1, f32:$s2, SETOLT)),
-          (EXTRACT_SUBREG (FCMPUS $s1, $s2), sub_lt)>;
-def : Pat<(i1 (setcc f32:$s1, f32:$s2, SETLT)),
-          (EXTRACT_SUBREG (FCMPUS $s1, $s2), sub_lt)>;
-def : Pat<(i1 (setcc f32:$s1, f32:$s2, SETOGT)),
-          (EXTRACT_SUBREG (FCMPUS $s1, $s2), sub_gt)>;
-def : Pat<(i1 (setcc f32:$s1, f32:$s2, SETGT)),
-          (EXTRACT_SUBREG (FCMPUS $s1, $s2), sub_gt)>;
-def : Pat<(i1 (setcc f32:$s1, f32:$s2, SETOEQ)),
-          (EXTRACT_SUBREG (FCMPUS $s1, $s2), sub_eq)>;
-def : Pat<(i1 (setcc f32:$s1, f32:$s2, SETEQ)),
-          (EXTRACT_SUBREG (FCMPUS $s1, $s2), sub_eq)>;
-def : Pat<(i1 (setcc f32:$s1, f32:$s2, SETUO)),
-          (EXTRACT_SUBREG (FCMPUS $s1, $s2), sub_un)>;
+// SETCC for f32.
+defm : FSetCCPat<setcc, f32, FCMPUS>;
 
 // SETCC for f64.
-def : Pat<(i1 (setcc f64:$s1, f64:$s2, SETOLT)),
-          (EXTRACT_SUBREG (FCMPUD $s1, $s2), sub_lt)>;
-def : Pat<(i1 (setcc f64:$s1, f64:$s2, SETLT)),
-          (EXTRACT_SUBREG (FCMPUD $s1, $s2), sub_lt)>;
-def : Pat<(i1 (setcc f64:$s1, f64:$s2, SETOGT)),
-          (EXTRACT_SUBREG (FCMPUD $s1, $s2), sub_gt)>;
-def : Pat<(i1 (setcc f64:$s1, f64:$s2, SETGT)),
-          (EXTRACT_SUBREG (FCMPUD $s1, $s2), sub_gt)>;
-def : Pat<(i1 (setcc f64:$s1, f64:$s2, SETOEQ)),
-          (EXTRACT_SUBREG (FCMPUD $s1, $s2), sub_eq)>;
-def : Pat<(i1 (setcc f64:$s1, f64:$s2, SETEQ)),
-          (EXTRACT_SUBREG (FCMPUD $s1, $s2), sub_eq)>;
-def : Pat<(i1 (setcc f64:$s1, f64:$s2, SETUO)),
-          (EXTRACT_SUBREG (FCMPUD $s1, $s2), sub_un)>;
+defm : FSetCCPat<setcc, f64, FCMPUD>;
 
 // SETCC for f128.
-def : Pat<(i1 (setcc f128:$s1, f128:$s2, SETOLT)),
-          (EXTRACT_SUBREG (XSCMPUQP $s1, $s2), sub_lt)>;
-def : Pat<(i1 (setcc f128:$s1, f128:$s2, SETLT)),
-          (EXTRACT_SUBREG (XSCMPUQP $s1, $s2), sub_lt)>;
-def : Pat<(i1 (setcc f128:$s1, f128:$s2, SETOGT)),
-          (EXTRACT_SUBREG (XSCMPUQP $s1, $s2), sub_gt)>;
-def : Pat<(i1 (setcc f128:$s1, f128:$s2, SETGT)),
-          (EXTRACT_SUBREG (XSCMPUQP $s1, $s2), sub_gt)>;
-def : Pat<(i1 (setcc f128:$s1, f128:$s2, SETOEQ)),
-          (EXTRACT_SUBREG (XSCMPUQP $s1, $s2), sub_eq)>;
-def : Pat<(i1 (setcc f128:$s1, f128:$s2, SETEQ)),
-          (EXTRACT_SUBREG (XSCMPUQP $s1, $s2), sub_eq)>;
-def : Pat<(i1 (setcc f128:$s1, f128:$s2, SETUO)),
-          (EXTRACT_SUBREG (XSCMPUQP $s1, $s2), sub_un)>;
-
+defm : FSetCCPat<setcc, f128, XSCMPUQP>;
 }
 
 // This must be in this file because it relies on patterns defined in this file
@@ -4275,9 +4263,11 @@ def MTMSRD : XForm_mtmsr<31, 178, (outs), (ins gprc:$RS, i32imm:$L),
 def MCRFS : XLForm_3<63, 64, (outs crrc:$BF), (ins crrc:$BFA),
                      "mcrfs $BF, $BFA", IIC_BrMCR>;
 
+// If W is 0 and BF is 7, the 60:63 bits will be set, we should set the
+// implicit-def RM.
 def MTFSFI : XLForm_4<63, 134, (outs crrc:$BF), (ins i32imm:$U, i32imm:$W),
                       "mtfsfi $BF, $U, $W", IIC_IntMFFS>;
-
+let Defs = [CR1] in
 def MTFSFI_rec : XLForm_4<63, 134, (outs crrc:$BF), (ins i32imm:$U, i32imm:$W),
                        "mtfsfi. $BF, $U, $W", IIC_IntMFFS>, isRecordForm;
 
@@ -4285,12 +4275,15 @@ def : InstAlias<"mtfsfi $BF, $U", (MTFSFI crrc:$BF, i32imm:$U, 0)>;
 def : InstAlias<"mtfsfi. $BF, $U", (MTFSFI_rec crrc:$BF, i32imm:$U, 0)>;
 
 let Predicates = [HasFPU] in {
+let Defs = [RM] in {
 def MTFSF : XFLForm_1<63, 711, (outs),
                       (ins i32imm:$FLM, f8rc:$FRB, i32imm:$L, i32imm:$W),
                       "mtfsf $FLM, $FRB, $L, $W", IIC_IntMFFS, []>;
+let Defs = [CR1] in
 def MTFSF_rec : XFLForm_1<63, 711, (outs),
                        (ins i32imm:$FLM, f8rc:$FRB, i32imm:$L, i32imm:$W),
                        "mtfsf. $FLM, $FRB, $L, $W", IIC_IntMFFS, []>, isRecordForm;
+}
 
 def : InstAlias<"mtfsf $FLM, $FRB", (MTFSF i32imm:$FLM, f8rc:$FRB, 0, 0)>;
 def : InstAlias<"mtfsf. $FLM, $FRB", (MTFSF_rec i32imm:$FLM, f8rc:$FRB, 0, 0)>;

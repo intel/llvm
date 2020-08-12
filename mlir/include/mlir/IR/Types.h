@@ -21,21 +21,24 @@ class IndexType;
 class IntegerType;
 class MLIRContext;
 class TypeStorage;
+class TypeRange;
 
 namespace detail {
 struct FunctionTypeStorage;
 struct OpaqueTypeStorage;
 } // namespace detail
 
-/// Instances of the Type class are immutable and uniqued.  They wrap a pointer
-/// to the storage object owned by MLIRContext.  Therefore, instances of Type
-/// are passed around by value.
+/// Instances of the Type class are uniqued, have an immutable identifier and an
+/// optional mutable component.  They wrap a pointer to the storage object owned
+/// by MLIRContext.  Therefore, instances of Type are passed around by value.
 ///
 /// Some types are "primitives" meaning they do not have any parameters, for
 /// example the Index type.  Parametric types have additional information that
 /// differentiates the types of the same kind between them, for example the
 /// Integer type has bitwidth, making i8 and i16 belong to the same kind by be
-/// different instances of the IntegerType.
+/// different instances of the IntegerType.  Type parameters are part of the
+/// unique immutable key.  The mutable component of the type can be modified
+/// after the type is created, but cannot affect the identity of the type.
 ///
 /// Types are constructed and uniqued via the 'detail::TypeUniquer' class.
 ///
@@ -62,6 +65,7 @@ struct OpaqueTypeStorage;
 ///    - The type kind (for LLVM-style RTTI).
 ///    - The dialect that defined the type.
 ///    - Any parameters of the type.
+///    - An optional mutable component.
 /// For non-parametric types, a convenience DefaultTypeStorage is provided.
 /// Parametric storage types must derive TypeStorage and respect the following:
 ///    - Define a type alias, KeyTy, to a type that uniquely identifies the
@@ -75,11 +79,14 @@ struct OpaqueTypeStorage;
 ///    - Provide a method, 'bool operator==(const KeyTy &) const', to
 ///      compare the storage instance against an instance of the key type.
 ///
-///    - Provide a construction method:
+///    - Provide a static construction method:
 ///        'DerivedStorage *construct(TypeStorageAllocator &, const KeyTy &key)'
 ///      that builds a unique instance of the derived storage. The arguments to
 ///      this function are an allocator to store any uniqued data within the
 ///      context and the key type for this storage.
+///
+///    - If they have a mutable component, this component must not be a part of
+//       the key.
 class Type {
 public:
   /// Integer identifier for all the concrete type kinds.
@@ -100,10 +107,10 @@ public:
   };
 
   /// Utility class for implementing types.
-  template <typename ConcreteType, typename BaseType,
-            typename StorageType = DefaultTypeStorage>
+  template <typename ConcreteType, typename BaseType, typename StorageType,
+            template <typename T> class... Traits>
   using TypeBase = detail::StorageUserBase<ConcreteType, BaseType, StorageType,
-                                           detail::TypeUniquer>;
+                                           detail::TypeUniquer, Traits...>;
 
   using ImplType = TypeStorage;
 
@@ -196,6 +203,9 @@ public:
     return Type(reinterpret_cast<ImplType *>(const_cast<void *>(pointer)));
   }
 
+  /// Return the abstract type descriptor for this type.
+  const AbstractType &getAbstractType() { return impl->getAbstractType(); }
+
 protected:
   ImplType *impl;
 };
@@ -205,32 +215,71 @@ inline raw_ostream &operator<<(raw_ostream &os, Type type) {
   return os;
 }
 
+//===----------------------------------------------------------------------===//
+// TypeTraitBase
+//===----------------------------------------------------------------------===//
+
+namespace TypeTrait {
+/// This class represents the base of a type trait.
+template <typename ConcreteType, template <typename> class TraitType>
+using TraitBase = detail::StorageUserTraitBase<ConcreteType, TraitType>;
+} // namespace TypeTrait
+
+//===----------------------------------------------------------------------===//
+// TypeInterface
+//===----------------------------------------------------------------------===//
+
+/// This class represents the base of a type interface. See the definition  of
+/// `detail::Interface` for requirements on the `Traits` type.
+template <typename ConcreteType, typename Traits>
+class TypeInterface : public detail::Interface<ConcreteType, Type, Traits, Type,
+                                               TypeTrait::TraitBase> {
+public:
+  using Base = TypeInterface<ConcreteType, Traits>;
+  using InterfaceBase =
+      detail::Interface<ConcreteType, Type, Traits, Type, TypeTrait::TraitBase>;
+  using InterfaceBase::InterfaceBase;
+
+private:
+  /// Returns the impl interface instance for the given type.
+  static typename InterfaceBase::Concept *getInterfaceFor(Type type) {
+    return type.getAbstractType().getInterface<ConcreteType>();
+  }
+
+  /// Allow access to 'getInterfaceFor'.
+  friend InterfaceBase;
+};
+
+//===----------------------------------------------------------------------===//
+// FunctionType
+//===----------------------------------------------------------------------===//
+
 /// Function types map from a list of inputs to a list of results.
 class FunctionType
     : public Type::TypeBase<FunctionType, Type, detail::FunctionTypeStorage> {
 public:
   using Base::Base;
 
-  static FunctionType get(ArrayRef<Type> inputs, ArrayRef<Type> results,
+  static FunctionType get(TypeRange inputs, TypeRange results,
                           MLIRContext *context);
 
   // Input types.
   unsigned getNumInputs() const { return getSubclassData(); }
-
   Type getInput(unsigned i) const { return getInputs()[i]; }
-
   ArrayRef<Type> getInputs() const;
 
   // Result types.
   unsigned getNumResults() const;
-
   Type getResult(unsigned i) const { return getResults()[i]; }
-
   ArrayRef<Type> getResults() const;
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast.
   static bool kindof(unsigned kind) { return kind == Kind::Function; }
 };
+
+//===----------------------------------------------------------------------===//
+// OpaqueType
+//===----------------------------------------------------------------------===//
 
 /// Opaque types represent types of non-registered dialects. These are types
 /// represented in their raw string form, and can only usefully be tested for

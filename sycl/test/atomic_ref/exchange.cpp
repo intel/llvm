@@ -16,10 +16,10 @@ class exchange_kernel;
 
 template <typename T>
 void exchange_test(queue q, size_t N) {
-  const T initial = std::numeric_limits<T>::max();
+  const T initial = T(N);
   T exchange = initial;
   std::vector<T> output(N);
-  std::fill(output.begin(), output.end(), 0);
+  std::fill(output.begin(), output.end(), T(0));
   {
     buffer<T> exchange_buf(&exchange, 1);
     buffer<T> output_buf(output.data(), output.size());
@@ -28,9 +28,9 @@ void exchange_test(queue q, size_t N) {
       auto exc = exchange_buf.template get_access<access::mode::read_write>(cgh);
       auto out = output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for<exchange_kernel<T>>(range<1>(N), [=](item<1> it) {
-        int gid = it.get_id(0);
+        size_t gid = it.get_id(0);
         auto atm = atomic_ref<T, intel::memory_order::relaxed, intel::memory_scope::device, access::address_space::global_space>(exc[0]);
-        out[gid] = atm.exchange(gid);
+        out[gid] = atm.exchange(T(gid));
       });
     });
   }
@@ -52,8 +52,6 @@ int main() {
   }
 
   constexpr int N = 32;
-
-  // TODO: Enable missing tests when supported
   exchange_test<int>(q, N);
   exchange_test<unsigned int>(q, N);
   exchange_test<long>(q, N);
@@ -62,7 +60,7 @@ int main() {
   exchange_test<unsigned long long>(q, N);
   exchange_test<float>(q, N);
   exchange_test<double>(q, N);
-  //exchange_test<char*>(q, N);
+  exchange_test<char *>(q, N);
 
   std::cout << "Test passed." << std::endl;
 }

@@ -15,6 +15,7 @@
 #include "lock.h"
 #include "memory.h"
 #include "unit.h"
+#include <cstdlib>
 
 namespace Fortran::runtime::io {
 
@@ -26,16 +27,17 @@ public:
   }
 
   ExternalFileUnit &LookUpOrCreate(
-      int n, const Terminator &terminator, bool *wasExtant) {
+      int n, const Terminator &terminator, bool &wasExtant) {
     CriticalSection critical{lock_};
     auto *p{Find(n)};
-    if (wasExtant) {
-      *wasExtant = p != nullptr;
-    }
-    if (p) {
-      return *p;
-    }
-    return Create(n, terminator);
+    wasExtant = p != nullptr;
+    return p ? *p : Create(n, terminator);
+  }
+
+  // Unit look-up by name is needed for INQUIRE(FILE="...")
+  ExternalFileUnit *LookUp(const char *path) {
+    CriticalSection critical{lock_};
+    return Find(path);
   }
 
   ExternalFileUnit &NewUnit(const Terminator &terminator) {
@@ -49,6 +51,7 @@ public:
 
   void DestroyClosed(ExternalFileUnit &);
   void CloseAll(IoErrorHandler &);
+  void FlushAll(IoErrorHandler &);
 
 private:
   struct Chain {
@@ -58,7 +61,7 @@ private:
   };
 
   static constexpr int buckets_{1031}; // must be prime
-  int Hash(int n) { return n % buckets_; }
+  int Hash(int n) { return std::abs(n) % buckets_; }
 
   ExternalFileUnit *Find(int n) {
     Chain *previous{nullptr};
@@ -75,6 +78,7 @@ private:
     }
     return nullptr;
   }
+  ExternalFileUnit *Find(const char *path);
 
   ExternalFileUnit &Create(int, const Terminator &);
 

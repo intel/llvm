@@ -1,9 +1,11 @@
 # Exclude tests from libMLIR.so
 add_mlir_library(MLIRTestIR
   TestFunc.cpp
+  TestInterfaces.cpp
   TestMatchers.cpp
   TestSideEffects.cpp
   TestSymbolUses.cpp
+  TestTypes.cpp
 
   EXCLUDE_FROM_LIBMLIR
 

@@ -88,6 +88,8 @@ ModulePass *createPGOIndirectCallPromotionLegacyPass(bool InLTO = false,
                                                      bool SamplePGO = false);
 FunctionPass *createPGOMemOPSizeOptLegacyPass();
 
+ModulePass *createCGProfileLegacyPass();
+
 // The pgo-specific indirect call promotion function declared below is used by
 // the pgo-driven indirect call promotion and sample profile passes. It's a
 // wrapper around llvm::promoteCall, et al. that additionally computes !prof
@@ -141,9 +143,8 @@ ModulePass *createInstrProfilingLegacyPass(
 ModulePass *createInstrOrderFilePass();
 
 // Insert DataFlowSanitizer (dynamic data flow analysis) instrumentation
-ModulePass *createDataFlowSanitizerPass(
-    const std::vector<std::string> &ABIListFiles = std::vector<std::string>(),
-    void *(*getArgTLS)() = nullptr, void *(*getRetValTLS)() = nullptr);
+ModulePass *createDataFlowSanitizerLegacyPassPass(
+    const std::vector<std::string> &ABIListFiles = std::vector<std::string>());
 
 // Options for sanitizer coverage instrumentation.
 struct SanitizerCoverageOptions {

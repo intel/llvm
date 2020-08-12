@@ -380,6 +380,11 @@ def imm_not_XFORM : SDNodeXForm<imm, [{
   return CurDAG->getTargetConstant(~(int)N->getZExtValue(), SDLoc(N), MVT::i32);
 }]>;
 
+// asr_imm_XFORM - Returns a shift immediate with bit {5} set to 1
+def asr_imm_XFORM : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(0x20 | N->getZExtValue(), SDLoc(N), MVT:: i32);
+}]>;
+
 /// imm16_31 predicate - True if the 32-bit immediate is in the range [16,31].
 def imm16_31 : ImmLeaf<i32, [{
   return (int32_t)Imm >= 16 && (int32_t)Imm < 32;
@@ -446,6 +451,8 @@ def fsub_mlx : PatFrag<(ops node:$lhs, node:$rhs),(fsub node:$lhs, node:$rhs),[{
 def imm_even : ImmLeaf<i32, [{ return (Imm & 1) == 0; }]>;
 def imm_odd : ImmLeaf<i32, [{ return (Imm & 1) == 1; }]>;
 
+def asr_imm : ImmLeaf<i32, [{ return Imm > 0 && Imm <= 32; }], asr_imm_XFORM>;
+
 //===----------------------------------------------------------------------===//
 // NEON/MVE pattern fragments
 //
@@ -497,6 +504,18 @@ def SubReg_i32_lane : SDNodeXForm<imm, [{
   return CurDAG->getTargetConstant(N->getZExtValue() & 1, SDLoc(N), MVT::i32);
 }]>;
 
+
+def ARMimmAllZerosV: PatLeaf<(bitconvert (v4i32 (ARMvmovImm (i32 0))))>;
+def ARMimmAllZerosD: PatLeaf<(bitconvert (v2i32 (ARMvmovImm (i32 0))))>;
+def ARMimmAllOnesV: PatLeaf<(bitconvert (v16i8 (ARMvmovImm (i32 0xEFF))))>;
+def ARMimmAllOnesD: PatLeaf<(bitconvert (v8i8 (ARMvmovImm (i32 0xEFF))))>;
+
+def ARMimmOneV: PatLeaf<(ARMvmovImm (i32 timm)), [{
+  ConstantSDNode *ConstVal = cast<ConstantSDNode>(N->getOperand(0));
+  unsigned EltBits = 0;
+  uint64_t EltVal = ARM_AM::decodeVMOVModImm(ConstVal->getZExtValue(), EltBits);
+  return (EltBits == N->getValueType(0).getScalarSizeInBits() && EltVal == 0x01);
+}]>;
 
 
 //===----------------------------------------------------------------------===//
@@ -812,7 +831,9 @@ def mod_imm_neg : Operand<i32>, PatLeaf<(imm), [{
 def arm_i32imm : IntImmLeaf<i32, [{
   if (Subtarget->useMovt())
     return true;
-  return ARM_AM::isSOImmTwoPartVal(Imm.getZExtValue());
+  if (ARM_AM::isSOImmTwoPartVal(Imm.getZExtValue()))
+    return true;
+  return ARM_AM::isSOImmTwoPartValNeg(Imm.getZExtValue());
 }]>;
 
 /// imm0_1 predicate - Immediate in the range [0,1].
@@ -4069,6 +4090,15 @@ def : ARMV6Pat<(int_arm_ssat16 GPRnopc:$a, imm1_16:$pos),
                (SSAT16 imm1_16:$pos, GPRnopc:$a)>;
 def : ARMV6Pat<(int_arm_usat16 GPRnopc:$a, imm0_15:$pos),
                (USAT16 imm0_15:$pos, GPRnopc:$a)>;
+def : ARMV6Pat<(int_arm_ssat (shl GPRnopc:$a, imm0_31:$shft), imm1_32:$pos),
+               (SSAT imm1_32:$pos, GPRnopc:$a, imm0_31:$shft)>;
+def : ARMV6Pat<(int_arm_ssat (sra GPRnopc:$a, asr_imm:$shft), imm1_32:$pos),
+               (SSAT imm1_32:$pos, GPRnopc:$a, asr_imm:$shft)>;
+def : ARMV6Pat<(int_arm_usat (shl GPRnopc:$a, imm0_31:$shft), imm0_31:$pos),
+               (USAT imm0_31:$pos, GPRnopc:$a, imm0_31:$shft)>;
+def : ARMV6Pat<(int_arm_usat (sra GPRnopc:$a, asr_imm:$shft), imm0_31:$pos),
+               (USAT imm0_31:$pos, GPRnopc:$a, asr_imm:$shft)>;
+
 
 //===----------------------------------------------------------------------===//
 //  Bitwise Instructions.

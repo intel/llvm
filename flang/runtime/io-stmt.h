@@ -16,6 +16,7 @@
 #include "file.h"
 #include "format.h"
 #include "internal-unit.h"
+#include "io-api.h"
 #include "io-error.h"
 #include <functional>
 #include <type_traits>
@@ -26,6 +27,11 @@ namespace Fortran::runtime::io {
 class ExternalFileUnit;
 
 class OpenStatementState;
+class InquireUnitState;
+class InquireNoUnitState;
+class InquireUnconnectedFileState;
+class InquireIOLengthState;
+class ExternalMiscIoStatementState;
 class CloseStatementState;
 class NoopCloseStatementState;
 
@@ -48,7 +54,7 @@ public:
   // This design avoids virtual member functions and function pointers,
   // which may not have good support in some runtime environments.
   std::optional<DataEdit> GetNextDataEdit(int = 1);
-  bool Emit(const char *, std::size_t);
+  bool Emit(const char *, std::size_t, std::size_t elementBytes = 0);
   std::optional<char32_t> GetCurrentChar(); // vacant after end of record
   bool AdvanceRecord(int = 1);
   void BackspaceRecord();
@@ -58,6 +64,11 @@ public:
   IoErrorHandler &GetIoErrorHandler() const;
   ExternalFileUnit *GetExternalFileUnit() const; // null if internal unit
   MutableModes &mutableModes();
+  void BeginReadingRecord();
+  bool Inquire(InquiryKeywordHash, char *, std::size_t);
+  bool Inquire(InquiryKeywordHash, bool &);
+  bool Inquire(InquiryKeywordHash, std::int64_t, bool &); // PENDING=
+  bool Inquire(InquiryKeywordHash, std::int64_t &);
 
   // N.B.: this also works with base classes
   template <typename A> A *get_if() const {
@@ -73,7 +84,8 @@ public:
 
   bool EmitRepeated(char, std::size_t);
   bool EmitField(const char *, std::size_t length, std::size_t width);
-  void SkipSpaces(std::optional<int> &remaining);
+
+  std::optional<char32_t> SkipSpaces(std::optional<int> &remaining);
   std::optional<char32_t> NextInField(std::optional<int> &remaining);
   std::optional<char32_t> GetNextNonBlank(); // can advance record
 
@@ -94,7 +106,12 @@ private:
       std::reference_wrapper<ExternalListIoStatementState<Direction::Output>>,
       std::reference_wrapper<ExternalListIoStatementState<Direction::Input>>,
       std::reference_wrapper<UnformattedIoStatementState<Direction::Output>>,
-      std::reference_wrapper<UnformattedIoStatementState<Direction::Input>>>
+      std::reference_wrapper<UnformattedIoStatementState<Direction::Input>>,
+      std::reference_wrapper<InquireUnitState>,
+      std::reference_wrapper<InquireNoUnitState>,
+      std::reference_wrapper<InquireUnconnectedFileState>,
+      std::reference_wrapper<InquireIOLengthState>,
+      std::reference_wrapper<ExternalMiscIoStatementState>>
       u_;
 };
 
@@ -105,6 +122,13 @@ struct IoStatementBase : public DefaultFormatControlCallbacks {
   int EndIoStatement();
   std::optional<DataEdit> GetNextDataEdit(IoStatementState &, int = 1);
   ExternalFileUnit *GetExternalFileUnit() const { return nullptr; }
+  void BeginReadingRecord() {}
+
+  bool Inquire(InquiryKeywordHash, char *, std::size_t);
+  bool Inquire(InquiryKeywordHash, bool &);
+  bool Inquire(InquiryKeywordHash, std::int64_t, bool &);
+  bool Inquire(InquiryKeywordHash, std::int64_t &);
+  void BadInquiryKeywordHashCrash(InquiryKeywordHash);
 };
 
 struct InputStatementState {};
@@ -156,7 +180,8 @@ public:
   InternalIoStatementState(
       const Descriptor &, const char *sourceFile = nullptr, int sourceLine = 0);
   int EndIoStatement();
-  bool Emit(const CharType *, std::size_t chars /* not bytes */);
+  bool Emit(const CharType *, std::size_t chars /* not necessarily bytes */,
+      std::size_t elementBytes = 0);
   std::optional<char32_t> GetCurrentChar();
   bool AdvanceRecord(int = 1);
   void BackspaceRecord();
@@ -235,7 +260,7 @@ class ExternalIoStatementState : public ExternalIoStatementBase,
 public:
   using ExternalIoStatementBase::ExternalIoStatementBase;
   int EndIoStatement();
-  bool Emit(const char *, std::size_t chars /* not bytes */);
+  bool Emit(const char *, std::size_t, std::size_t elementBytes = 0);
   bool Emit(const char16_t *, std::size_t chars /* not bytes */);
   bool Emit(const char32_t *, std::size_t chars /* not bytes */);
   std::optional<char32_t> GetCurrentChar();
@@ -243,6 +268,10 @@ public:
   void BackspaceRecord();
   void HandleRelativePosition(std::int64_t);
   void HandleAbsolutePosition(std::int64_t);
+  void BeginReadingRecord();
+
+private:
+  bool beganReading_{false};
 };
 
 template <Direction DIR, typename CHAR>
@@ -280,6 +309,8 @@ template <Direction DIR>
 class UnformattedIoStatementState : public ExternalIoStatementState<DIR> {
 public:
   using ExternalIoStatementState<DIR>::ExternalIoStatementState;
+  bool Receive(char *, std::size_t, std::size_t elementBytes = 0);
+  bool Emit(const char *, std::size_t, std::size_t elementBytes = 0);
   int EndIoStatement();
 };
 
@@ -290,17 +321,25 @@ public:
       : ExternalIoStatementBase{unit, sourceFile, sourceLine}, wasExtant_{
                                                                    wasExtant} {}
   bool wasExtant() const { return wasExtant_; }
-  void set_status(OpenStatus status) { status_ = status; }
-  void set_path(const char *, std::size_t, int kind); // FILE=
+  void set_status(OpenStatus status) { status_ = status; } // STATUS=
+  void set_path(const char *, std::size_t); // FILE=
   void set_position(Position position) { position_ = position; } // POSITION=
+  void set_action(Action action) { action_ = action; } // ACTION=
+  void set_convert(Convert convert) { convert_ = convert; } // CONVERT=
+  void set_access(Access access) { access_ = access; } // ACCESS=
+  void set_isUnformatted(bool yes = true) { isUnformatted_ = yes; } // FORM=
   int EndIoStatement();
 
 private:
   bool wasExtant_;
-  OpenStatus status_{OpenStatus::Unknown};
+  std::optional<OpenStatus> status_;
   Position position_{Position::AsIs};
+  std::optional<Action> action_;
+  Convert convert_{Convert::Native};
   OwningPtr<char> path_;
   std::size_t pathLength_;
+  std::optional<bool> isUnformatted_;
+  std::optional<Access> access_;
 };
 
 class CloseStatementState : public ExternalIoStatementBase {
@@ -315,19 +354,29 @@ private:
   CloseStatus status_{CloseStatus::Keep};
 };
 
-class NoopCloseStatementState : public IoStatementBase {
+// For CLOSE(bad unit) and INQUIRE(unconnected unit)
+class NoUnitIoStatementState : public IoStatementBase {
 public:
-  NoopCloseStatementState(const char *sourceFile, int sourceLine)
-      : IoStatementBase{sourceFile, sourceLine}, ioStatementState_{*this} {}
   IoStatementState &ioStatementState() { return ioStatementState_; }
-  void set_status(CloseStatus) {} // discards
   MutableModes &mutableModes() { return connection_.modes; }
   ConnectionState &GetConnectionState() { return connection_; }
   int EndIoStatement();
 
+protected:
+  template <typename A>
+  NoUnitIoStatementState(const char *sourceFile, int sourceLine, A &stmt)
+      : IoStatementBase{sourceFile, sourceLine}, ioStatementState_{stmt} {}
+
 private:
   IoStatementState ioStatementState_; // points to *this
   ConnectionState connection_;
+};
+
+class NoopCloseStatementState : public NoUnitIoStatementState {
+public:
+  NoopCloseStatementState(const char *sourceFile, int sourceLine)
+      : NoUnitIoStatementState{sourceFile, sourceLine, *this} {}
+  void set_status(CloseStatus) {} // discards
 };
 
 extern template class InternalIoStatementState<Direction::Output>;
@@ -352,6 +401,61 @@ extern template class FormatControl<
     ExternalFormattedIoStatementState<Direction::Output>>;
 extern template class FormatControl<
     ExternalFormattedIoStatementState<Direction::Input>>;
+
+class InquireUnitState : public ExternalIoStatementBase {
+public:
+  InquireUnitState(ExternalFileUnit &unit, const char *sourceFile = nullptr,
+      int sourceLine = 0);
+  bool Inquire(InquiryKeywordHash, char *, std::size_t);
+  bool Inquire(InquiryKeywordHash, bool &);
+  bool Inquire(InquiryKeywordHash, std::int64_t, bool &);
+  bool Inquire(InquiryKeywordHash, std::int64_t &);
+};
+
+class InquireNoUnitState : public NoUnitIoStatementState {
+public:
+  InquireNoUnitState(const char *sourceFile = nullptr, int sourceLine = 0);
+  bool Inquire(InquiryKeywordHash, char *, std::size_t);
+  bool Inquire(InquiryKeywordHash, bool &);
+  bool Inquire(InquiryKeywordHash, std::int64_t, bool &);
+  bool Inquire(InquiryKeywordHash, std::int64_t &);
+};
+
+class InquireUnconnectedFileState : public NoUnitIoStatementState {
+public:
+  InquireUnconnectedFileState(OwningPtr<char> &&path,
+      const char *sourceFile = nullptr, int sourceLine = 0);
+  bool Inquire(InquiryKeywordHash, char *, std::size_t);
+  bool Inquire(InquiryKeywordHash, bool &);
+  bool Inquire(InquiryKeywordHash, std::int64_t, bool &);
+  bool Inquire(InquiryKeywordHash, std::int64_t &);
+
+private:
+  OwningPtr<char> path_; // trimmed and NUL terminated
+};
+
+class InquireIOLengthState : public NoUnitIoStatementState,
+                             public OutputStatementState {
+public:
+  InquireIOLengthState(const char *sourceFile = nullptr, int sourceLine = 0);
+  std::size_t bytes() const { return bytes_; }
+  bool Emit(const char *, std::size_t, std::size_t elementBytes = 0);
+
+private:
+  std::size_t bytes_{0};
+};
+
+class ExternalMiscIoStatementState : public ExternalIoStatementBase {
+public:
+  enum Which { Flush, Backspace, Endfile, Rewind };
+  ExternalMiscIoStatementState(ExternalFileUnit &unit, Which which,
+      const char *sourceFile = nullptr, int sourceLine = 0)
+      : ExternalIoStatementBase{unit, sourceFile, sourceLine}, which_{which} {}
+  int EndIoStatement();
+
+private:
+  Which which_;
+};
 
 } // namespace Fortran::runtime::io
 #endif // FORTRAN_RUNTIME_IO_STMT_H_

@@ -438,11 +438,12 @@ static bool arrayMatchesBoundExpr(ASTContext *Context,
       Context->getAsConstantArrayType(ArrayType);
   if (!ConstType)
     return false;
-  llvm::APSInt ConditionSize;
-  if (!ConditionExpr->isIntegerConstantExpr(ConditionSize, *Context))
+  Optional<llvm::APSInt> ConditionSize =
+      ConditionExpr->getIntegerConstantExpr(*Context);
+  if (!ConditionSize)
     return false;
   llvm::APSInt ArraySize(ConstType->getSize());
-  return llvm::APSInt::isSameValue(ConditionSize, ArraySize);
+  return llvm::APSInt::isSameValue(*ConditionSize, ArraySize);
 }
 
 ForLoopIndexUseVisitor::ForLoopIndexUseVisitor(ASTContext *Context,
@@ -500,7 +501,7 @@ void ForLoopIndexUseVisitor::addUsage(const Usage &U) {
 ///     int k = *i + 2;
 ///   }
 /// \endcode
-bool ForLoopIndexUseVisitor::TraverseUnaryDeref(UnaryOperator *Uop) {
+bool ForLoopIndexUseVisitor::TraverseUnaryOperator(UnaryOperator *Uop) {
   // If we dereference an iterator that's actually a pointer, count the
   // occurrence.
   if (isDereferenceOfUop(Uop, IndexVar)) {

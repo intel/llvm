@@ -9,8 +9,8 @@
 #pragma once
 
 #include <CL/sycl/detail/cg.hpp>
-#include <CL/sycl/detail/circular_buffer.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
+#include <detail/circular_buffer.hpp>
 #include <detail/scheduler/commands.hpp>
 
 #include <cstddef>
@@ -165,6 +165,9 @@
 /// clReleaseContext(ContextGPU);
 /// clReleaseContext(ContextCPU);
 /// \endcode
+
+// For testing purposes
+class MockScheduler;
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -576,6 +579,8 @@ protected:
     friend class Command;
 
   private:
+    friend class ::MockScheduler;
+
     /// Searches for suitable alloca in memory record.
     ///
     /// If none found, creates new one.

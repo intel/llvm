@@ -404,9 +404,6 @@ unsigned PPCRegisterInfo::getRegPressureLimit(const TargetRegisterClass *RC,
   }
   case PPC::F8RCRegClassID:
   case PPC::F4RCRegClassID:
-  case PPC::QFRCRegClassID:
-  case PPC::QSRCRegClassID:
-  case PPC::QBRCRegClassID:
   case PPC::VRRCRegClassID:
   case PPC::VFRCRegClassID:
   case PPC::VSLRCRegClassID:
@@ -480,6 +477,63 @@ void PPCRegisterInfo::lowerDynamicAlloc(MachineBasicBlock::iterator II) const {
 
   // Get the maximum call stack size.
   unsigned maxCallFrameSize = MFI.getMaxCallFrameSize();
+  Align MaxAlign = MFI.getMaxAlign();
+  assert(isAligned(MaxAlign, maxCallFrameSize) &&
+         "Maximum call-frame size not sufficiently aligned");
+  (void)MaxAlign;
+
+  const TargetRegisterClass *G8RC = &PPC::G8RCRegClass;
+  const TargetRegisterClass *GPRC = &PPC::GPRCRegClass;
+  Register Reg = MF.getRegInfo().createVirtualRegister(LP64 ? G8RC : GPRC);
+  bool KillNegSizeReg = MI.getOperand(1).isKill();
+  Register NegSizeReg = MI.getOperand(1).getReg();
+
+  prepareDynamicAlloca(II, NegSizeReg, KillNegSizeReg, Reg);
+  // Grow the stack and update the stack pointer link, then determine the
+  // address of new allocated space.
+  if (LP64) {
+    BuildMI(MBB, II, dl, TII.get(PPC::STDUX), PPC::X1)
+        .addReg(Reg, RegState::Kill)
+        .addReg(PPC::X1)
+        .addReg(NegSizeReg, getKillRegState(KillNegSizeReg));
+    BuildMI(MBB, II, dl, TII.get(PPC::ADDI8), MI.getOperand(0).getReg())
+        .addReg(PPC::X1)
+        .addImm(maxCallFrameSize);
+  } else {
+    BuildMI(MBB, II, dl, TII.get(PPC::STWUX), PPC::R1)
+        .addReg(Reg, RegState::Kill)
+        .addReg(PPC::R1)
+        .addReg(NegSizeReg, getKillRegState(KillNegSizeReg));
+    BuildMI(MBB, II, dl, TII.get(PPC::ADDI), MI.getOperand(0).getReg())
+        .addReg(PPC::R1)
+        .addImm(maxCallFrameSize);
+  }
+
+  // Discard the DYNALLOC instruction.
+  MBB.erase(II);
+}
+
+/// To accomplish dynamic stack allocation, we have to calculate exact size
+/// subtracted from the stack pointer according alignment information and get
+/// previous frame pointer.
+void PPCRegisterInfo::prepareDynamicAlloca(MachineBasicBlock::iterator II,
+                                           Register &NegSizeReg,
+                                           bool &KillNegSizeReg,
+                                           Register &FramePointer) const {
+  // Get the instruction.
+  MachineInstr &MI = *II;
+  // Get the instruction's basic block.
+  MachineBasicBlock &MBB = *MI.getParent();
+  // Get the basic block's function.
+  MachineFunction &MF = *MBB.getParent();
+  // Get the frame info.
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  const PPCSubtarget &Subtarget = MF.getSubtarget<PPCSubtarget>();
+  // Get the instruction info.
+  const TargetInstrInfo &TII = *Subtarget.getInstrInfo();
+  // Determine whether 64-bit pointers are used.
+  bool LP64 = TM.isPPC64();
+  DebugLoc dl = MI.getDebugLoc();
   // Get the total frame size.
   unsigned FrameSize = MFI.getStackSize();
 
@@ -487,8 +541,6 @@ void PPCRegisterInfo::lowerDynamicAlloc(MachineBasicBlock::iterator II) const {
   const PPCFrameLowering *TFI = getFrameLowering(MF);
   Align TargetAlign = TFI->getStackAlign();
   Align MaxAlign = MFI.getMaxAlign();
-  assert(isAligned(MaxAlign, maxCallFrameSize) &&
-         "Maximum call-frame size not sufficiently aligned");
 
   // Determine the previous frame's address.  If FrameSize can't be
   // represented as 16 bits or we need special alignment, then we load the
@@ -498,32 +550,26 @@ void PPCRegisterInfo::lowerDynamicAlloc(MachineBasicBlock::iterator II) const {
   // Fortunately, a frame greater than 32K is rare.
   const TargetRegisterClass *G8RC = &PPC::G8RCRegClass;
   const TargetRegisterClass *GPRC = &PPC::GPRCRegClass;
-  Register Reg = MF.getRegInfo().createVirtualRegister(LP64 ? G8RC : GPRC);
 
   if (MaxAlign < TargetAlign && isInt<16>(FrameSize)) {
     if (LP64)
-      BuildMI(MBB, II, dl, TII.get(PPC::ADDI8), Reg)
-        .addReg(PPC::X31)
-        .addImm(FrameSize);
+      BuildMI(MBB, II, dl, TII.get(PPC::ADDI8), FramePointer)
+          .addReg(PPC::X31)
+          .addImm(FrameSize);
     else
-      BuildMI(MBB, II, dl, TII.get(PPC::ADDI), Reg)
-        .addReg(PPC::R31)
-        .addImm(FrameSize);
+      BuildMI(MBB, II, dl, TII.get(PPC::ADDI), FramePointer)
+          .addReg(PPC::R31)
+          .addImm(FrameSize);
   } else if (LP64) {
-    BuildMI(MBB, II, dl, TII.get(PPC::LD), Reg)
-      .addImm(0)
-      .addReg(PPC::X1);
+    BuildMI(MBB, II, dl, TII.get(PPC::LD), FramePointer)
+        .addImm(0)
+        .addReg(PPC::X1);
   } else {
-    BuildMI(MBB, II, dl, TII.get(PPC::LWZ), Reg)
-      .addImm(0)
-      .addReg(PPC::R1);
+    BuildMI(MBB, II, dl, TII.get(PPC::LWZ), FramePointer)
+        .addImm(0)
+        .addReg(PPC::R1);
   }
-
-  bool KillNegSizeReg = MI.getOperand(1).isKill();
-  Register NegSizeReg = MI.getOperand(1).getReg();
-
-  // Grow the stack and update the stack pointer link, then determine the
-  // address of new allocated space.
+  // Determine the actual NegSizeReg according to alignment info.
   if (LP64) {
     if (MaxAlign > TargetAlign) {
       unsigned UnalNegSizeReg = NegSizeReg;
@@ -537,18 +583,10 @@ void PPCRegisterInfo::lowerDynamicAlloc(MachineBasicBlock::iterator II) const {
       unsigned NegSizeReg1 = NegSizeReg;
       NegSizeReg = MF.getRegInfo().createVirtualRegister(G8RC);
       BuildMI(MBB, II, dl, TII.get(PPC::AND8), NegSizeReg)
-        .addReg(UnalNegSizeReg, getKillRegState(KillNegSizeReg))
-        .addReg(NegSizeReg1, RegState::Kill);
+          .addReg(UnalNegSizeReg, getKillRegState(KillNegSizeReg))
+          .addReg(NegSizeReg1, RegState::Kill);
       KillNegSizeReg = true;
     }
-
-    BuildMI(MBB, II, dl, TII.get(PPC::STDUX), PPC::X1)
-      .addReg(Reg, RegState::Kill)
-      .addReg(PPC::X1)
-      .addReg(NegSizeReg, getKillRegState(KillNegSizeReg));
-    BuildMI(MBB, II, dl, TII.get(PPC::ADDI8), MI.getOperand(0).getReg())
-      .addReg(PPC::X1)
-      .addImm(maxCallFrameSize);
   } else {
     if (MaxAlign > TargetAlign) {
       unsigned UnalNegSizeReg = NegSizeReg;
@@ -562,21 +600,51 @@ void PPCRegisterInfo::lowerDynamicAlloc(MachineBasicBlock::iterator II) const {
       unsigned NegSizeReg1 = NegSizeReg;
       NegSizeReg = MF.getRegInfo().createVirtualRegister(GPRC);
       BuildMI(MBB, II, dl, TII.get(PPC::AND), NegSizeReg)
-        .addReg(UnalNegSizeReg, getKillRegState(KillNegSizeReg))
-        .addReg(NegSizeReg1, RegState::Kill);
+          .addReg(UnalNegSizeReg, getKillRegState(KillNegSizeReg))
+          .addReg(NegSizeReg1, RegState::Kill);
       KillNegSizeReg = true;
     }
-
-    BuildMI(MBB, II, dl, TII.get(PPC::STWUX), PPC::R1)
-      .addReg(Reg, RegState::Kill)
-      .addReg(PPC::R1)
-      .addReg(NegSizeReg, getKillRegState(KillNegSizeReg));
-    BuildMI(MBB, II, dl, TII.get(PPC::ADDI), MI.getOperand(0).getReg())
-      .addReg(PPC::R1)
-      .addImm(maxCallFrameSize);
   }
+}
 
-  // Discard the DYNALLOC instruction.
+void PPCRegisterInfo::lowerPrepareProbedAlloca(
+    MachineBasicBlock::iterator II) const {
+  MachineInstr &MI = *II;
+  // Get the instruction's basic block.
+  MachineBasicBlock &MBB = *MI.getParent();
+  // Get the basic block's function.
+  MachineFunction &MF = *MBB.getParent();
+  const PPCSubtarget &Subtarget = MF.getSubtarget<PPCSubtarget>();
+  // Get the instruction info.
+  const TargetInstrInfo &TII = *Subtarget.getInstrInfo();
+  // Determine whether 64-bit pointers are used.
+  bool LP64 = TM.isPPC64();
+  DebugLoc dl = MI.getDebugLoc();
+  Register FramePointer = MI.getOperand(0).getReg();
+  const Register ActualNegSizeReg = MI.getOperand(1).getReg();
+  bool KillNegSizeReg = MI.getOperand(2).isKill();
+  Register NegSizeReg = MI.getOperand(2).getReg();
+  const MCInstrDesc &CopyInst = TII.get(LP64 ? PPC::OR8 : PPC::OR);
+  // RegAllocator might allocate FramePointer and NegSizeReg in the same phyreg.
+  if (FramePointer == NegSizeReg) {
+    assert(KillNegSizeReg && "FramePointer is a def and NegSizeReg is an use, "
+                             "NegSizeReg should be killed");
+    // FramePointer is clobbered earlier than the use of NegSizeReg in
+    // prepareDynamicAlloca, save NegSizeReg in ActualNegSizeReg to avoid
+    // misuse.
+    BuildMI(MBB, II, dl, CopyInst, ActualNegSizeReg)
+        .addReg(NegSizeReg)
+        .addReg(NegSizeReg);
+    NegSizeReg = ActualNegSizeReg;
+    KillNegSizeReg = false;
+  }
+  prepareDynamicAlloca(II, NegSizeReg, KillNegSizeReg, FramePointer);
+  // NegSizeReg might be updated in prepareDynamicAlloca if MaxAlign >
+  // TargetAlign.
+  if (NegSizeReg != ActualNegSizeReg)
+    BuildMI(MBB, II, dl, CopyInst, ActualNegSizeReg)
+        .addReg(NegSizeReg)
+        .addReg(NegSizeReg);
   MBB.erase(II);
 }
 
@@ -1017,6 +1085,15 @@ PPCRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   if (FPSI && FrameIndex == FPSI &&
       (OpC == PPC::DYNALLOC || OpC == PPC::DYNALLOC8)) {
     lowerDynamicAlloc(II);
+    return;
+  }
+
+  if (FPSI && FrameIndex == FPSI &&
+      (OpC == PPC::PREPARE_PROBED_ALLOCA_64 ||
+       OpC == PPC::PREPARE_PROBED_ALLOCA_32 ||
+       OpC == PPC::PREPARE_PROBED_ALLOCA_NEGSIZE_SAME_REG_64 ||
+       OpC == PPC::PREPARE_PROBED_ALLOCA_NEGSIZE_SAME_REG_32)) {
+    lowerPrepareProbedAlloca(II);
     return;
   }
 

@@ -39,7 +39,7 @@ public:
   void finalize();
 
   /// Add attributes known for \p FnID to \p Fn.
-  static void addAttributes(omp::RuntimeFunction FnID, Function &Fn);
+  void addAttributes(omp::RuntimeFunction FnID, Function &Fn);
 
   /// Type used throughout for insertion points.
   using InsertPointTy = IRBuilder<>::InsertPoint;
@@ -156,6 +156,7 @@ public:
   /// Generator for '#omp parallel'
   ///
   /// \param Loc The insert and source location description.
+  /// \param AllocaIP The insertion points to be used for alloca instructions.
   /// \param BodyGenCB Callback that will generate the region code.
   /// \param PrivCB Callback to copy a given variable (think copy constructor).
   /// \param FiniCB Callback to finalize variable copies.
@@ -166,10 +167,11 @@ public:
   ///
   /// \returns The insertion position *after* the parallel.
   IRBuilder<>::InsertPoint
-  CreateParallel(const LocationDescription &Loc, BodyGenCallbackTy BodyGenCB,
-                 PrivatizeCallbackTy PrivCB, FinalizeCallbackTy FiniCB,
-                 Value *IfCondition, Value *NumThreads,
-                 omp::ProcBindKind ProcBind, bool IsCancellable);
+  CreateParallel(const LocationDescription &Loc, InsertPointTy AllocaIP,
+                 BodyGenCallbackTy BodyGenCB, PrivatizeCallbackTy PrivCB,
+                 FinalizeCallbackTy FiniCB, Value *IfCondition,
+                 Value *NumThreads, omp::ProcBindKind ProcBind,
+                 bool IsCancellable);
 
   /// Generator for '#omp flush'
   ///
@@ -199,8 +201,8 @@ public:
   }
 
   /// Return the function declaration for the runtime function with \p FnID.
-  static FunctionCallee getOrCreateRuntimeFunction(Module &M,
-                                                   omp::RuntimeFunction FnID);
+  FunctionCallee getOrCreateRuntimeFunction(Module &M,
+                                            omp::RuntimeFunction FnID);
 
   Function *getOrCreateRuntimeFunctionPtr(omp::RuntimeFunction FnID);
 
@@ -285,9 +287,14 @@ public:
   /// Helper that contains information about regions we need to outline
   /// during finalization.
   struct OutlineInfo {
-    SmallVector<BasicBlock *, 32> Blocks;
     using PostOutlineCBTy = std::function<void(Function &)>;
     PostOutlineCBTy PostOutlineCB;
+    BasicBlock *EntryBB, *ExitBB;
+
+    /// Collect all blocks in between EntryBB and ExitBB in both the given
+    /// vector and set.
+    void collectBlocks(SmallPtrSetImpl<BasicBlock *> &BlockSet,
+                       SmallVectorImpl<BasicBlock *> &BlockVector);
   };
 
   /// Collection of regions that need to be outlined during finalization.
@@ -381,7 +388,31 @@ public:
                                       llvm::ConstantInt *Size,
                                       const llvm::Twine &Name = Twine(""));
 
+  /// Declarations for LLVM-IR types (simple, array, function and structure) are
+  /// generated below. Their names are defined and used in OpenMPKinds.def. Here
+  /// we provide the declarations, the initializeTypes function will provide the
+  /// values.
+  ///
+  ///{
+#define OMP_TYPE(VarName, InitValue) Type *VarName = nullptr;
+#define OMP_ARRAY_TYPE(VarName, ElemTy, ArraySize)                             \
+  ArrayType *VarName##Ty = nullptr;                                            \
+  PointerType *VarName##PtrTy = nullptr;
+#define OMP_FUNCTION_TYPE(VarName, IsVarArg, ReturnType, ...)                  \
+  FunctionType *VarName = nullptr;                                             \
+  PointerType *VarName##Ptr = nullptr;
+#define OMP_STRUCT_TYPE(VarName, StrName, ...)                                 \
+  StructType *VarName = nullptr;                                               \
+  PointerType *VarName##Ptr = nullptr;
+#include "llvm/Frontend/OpenMP/OMPKinds.def"
+
+  ///}
+
 private:
+  /// Create all simple and struct types exposed by the runtime and remember
+  /// the llvm::PointerTypes of them for easy access later.
+  void initializeTypes(Module &M);
+
   /// Common interface for generating entry calls for OMP Directives.
   /// if the directive has a region/body, It will set the insertion
   /// point to the body

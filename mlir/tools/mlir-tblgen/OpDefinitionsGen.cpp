@@ -14,8 +14,8 @@
 #include "OpFormatGen.h"
 #include "mlir/TableGen/Format.h"
 #include "mlir/TableGen/GenInfo.h"
+#include "mlir/TableGen/Interfaces.h"
 #include "mlir/TableGen/OpClass.h"
-#include "mlir/TableGen/OpInterfaces.h"
 #include "mlir/TableGen/OpTrait.h"
 #include "mlir/TableGen/Operator.h"
 #include "mlir/TableGen/SideEffects.h"
@@ -36,10 +36,14 @@ using namespace mlir::tblgen;
 
 cl::OptionCategory opDefGenCat("Options for -gen-op-defs and -gen-op-decls");
 
-static cl::opt<std::string>
-    opFilter("op-regex",
-             cl::desc("Regex of name of op's to filter (no filter if empty)"),
-             cl::cat(opDefGenCat));
+static cl::opt<std::string> opIncFilter(
+    "op-include-regex",
+    cl::desc("Regex of name of op's to include (no filter if empty)"),
+    cl::cat(opDefGenCat));
+static cl::opt<std::string> opExcFilter(
+    "op-exclude-regex",
+    cl::desc("Regex of name of op's to exclude (no filter if empty)"),
+    cl::cat(opDefGenCat));
 
 static const char *const tblgenNamePrefix = "tblgen_";
 static const char *const generatedArgName = "odsArg";
@@ -315,7 +319,7 @@ private:
 
 private:
   // The TableGen record for this op.
-  // TODO(antiagainst,zinenko): OpEmitter should not have a Record directly,
+  // TODO: OpEmitter should not have a Record directly,
   // it should rather go through the Operator for better abstraction.
   const Record &def;
 
@@ -883,7 +887,8 @@ static bool canGenerateUnwrappedBuilder(Operator &op) {
 }
 
 static bool canInferType(Operator &op) {
-  return op.getTrait("InferTypeOpInterface::Trait") && op.getNumRegions() == 0;
+  return op.getTrait("::mlir::InferTypeOpInterface::Trait") &&
+         op.getNumRegions() == 0;
 }
 
 void OpEmitter::genSeparateArgParamBuilder() {
@@ -911,9 +916,9 @@ void OpEmitter::genSeparateArgParamBuilder() {
 
     if (inferType) {
       // Generate builder that infers type too.
-      // TODO(jpienaar): Subsume this with general checking if type can be
+      // TODO: Subsume this with general checking if type can be
       // inferred automatically.
-      // TODO(jpienaar): Expand to handle regions.
+      // TODO: Expand to handle regions.
       body << formatv(R"(
         ::llvm::SmallVector<::mlir::Type, 2> inferredReturnTypes;
         if (succeeded({0}::inferReturnTypes(odsBuilder.getContext(),
@@ -938,26 +943,71 @@ void OpEmitter::genSeparateArgParamBuilder() {
              << ");\n";
       }
       return;
-    case TypeParamKind::Collective:
-      body << "  "
-           << "assert(resultTypes.size() "
-           << (op.getNumVariableLengthResults() == 0 ? "==" : ">=") << " "
-           << (op.getNumResults() - op.getNumVariableLengthResults())
-           << "u && \"mismatched number of results\");\n";
+    case TypeParamKind::Collective: {
+      int numResults = op.getNumResults();
+      int numVariadicResults = op.getNumVariableLengthResults();
+      int numNonVariadicResults = numResults - numVariadicResults;
+      bool hasVariadicResult = numVariadicResults != 0;
+
+      // Avoid emitting "resultTypes.size() >= 0u" which is always true.
+      if (!(hasVariadicResult && numNonVariadicResults == 0))
+        body << "  "
+             << "assert(resultTypes.size() "
+             << (hasVariadicResult ? ">=" : "==") << " "
+             << numNonVariadicResults
+             << "u && \"mismatched number of results\");\n";
       body << "  " << builderOpState << ".addTypes(resultTypes);\n";
+    }
       return;
     }
     llvm_unreachable("unhandled TypeParamKind");
   };
 
+  // A separate arg param builder method will have a signature which is
+  // ambiguous with the collective params build method (generated in
+  // `genCollectiveParamBuilder` function below) if it has a single
+  // `ArrayReg<Type>` parameter for result types and a single `ArrayRef<Value>`
+  // parameter for the operands, no parameters after that, and the collective
+  // params build method has `attributes` as its last parameter (with
+  // a default value). This will happen when all of the following are true:
+  // 1. [`attributes` as last parameter in collective params build method]:
+  //    getNumVariadicRegions must be 0 (otherwise the collective params build
+  //    method ends with a `numRegions` param, and we don't specify default
+  //    value for attributes).
+  // 2. [single `ArrayRef<Value>` parameter for operands, and no parameters
+  //    after that]: numArgs() must be 1 (if not, each arg gets a separate param
+  //    in the build methods generated here) and the single arg must be a
+  //    non-attribute variadic argument.
+  // 3. [single `ArrayReg<Type>` parameter for result types]:
+  //      3a. paramKind should be Collective, or
+  //      3b. paramKind should be Separate and there should be a single variadic
+  //          result
+  //
+  // In that case, skip generating such ambiguous build methods here.
+  bool hasSingleVariadicResult =
+      op.getNumResults() == 1 && op.getResult(0).isVariadic();
+
+  bool hasSingleVariadicArg =
+      op.getNumArgs() == 1 &&
+      op.getArg(0).is<tblgen::NamedTypeConstraint *>() &&
+      op.getOperand(0).isVariadic();
+  bool hasNoVariadicRegions = op.getNumVariadicRegions() == 0;
+
   for (auto attrType : attrBuilderType) {
-    emit(attrType, TypeParamKind::Separate, /*inferType=*/false);
+    // Case 3b above.
+    if (!(hasNoVariadicRegions && hasSingleVariadicArg &&
+          hasSingleVariadicResult))
+      emit(attrType, TypeParamKind::Separate, /*inferType=*/false);
     if (canInferType(op))
       emit(attrType, TypeParamKind::None, /*inferType=*/true);
-    // Emit separate arg build with collective type, unless there is only one
-    // variadic result, in which case the above would have already generated
-    // the same build method.
-    if (!(op.getNumResults() == 1 && op.getResult(0).isVariableLength()))
+    // The separate arg + collective param kind method will be:
+    // (a) Same as the separate arg + separate param kind method if there is
+    //     only one variadic result.
+    // (b) Ambiguous with the collective params method under conditions in (3a)
+    //     above.
+    // In either case, skip generating such build method.
+    if (!hasSingleVariadicResult &&
+        !(hasNoVariadicRegions && hasSingleVariadicArg))
       emit(attrType, TypeParamKind::Collective, /*inferType=*/false);
   }
 }
@@ -976,8 +1026,12 @@ void OpEmitter::genUseOperandAsResultTypeCollectiveParamBuilder() {
       builderOpState +
       ", ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> "
       "attributes";
-  if (op.getNumVariadicRegions())
+  if (op.getNumVariadicRegions()) {
     params += ", unsigned numRegions";
+  } else {
+    // Provide default value for `attributes` since its the last parameter
+    params += " = {}";
+  }
   auto &m = opClass.newMethod("void", "build", params, OpMethod::MP_Static);
   auto &body = m.body();
 
@@ -1002,14 +1056,13 @@ void OpEmitter::genUseOperandAsResultTypeCollectiveParamBuilder() {
 }
 
 void OpEmitter::genInferredTypeCollectiveParamBuilder() {
-  // TODO(jpienaar): Expand to support regions.
-  const char *params =
-      "::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &{0}, "
-      "::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> "
-      "attributes";
-  auto &m =
-      opClass.newMethod("void", "build", formatv(params, builderOpState).str(),
-                        OpMethod::MP_Static);
+  // TODO: Expand to support regions.
+  std::string params =
+      std::string("::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &") +
+      builderOpState +
+      ", ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> "
+      "attributes = {}";
+  auto &m = opClass.newMethod("void", "build", params, OpMethod::MP_Static);
   auto &body = m.body();
 
   int numResults = op.getNumResults();
@@ -1115,7 +1168,7 @@ void OpEmitter::genUseAttrAsResultTypeBuilder() {
 
 void OpEmitter::genBuilder() {
   // Handle custom builders if provided.
-  // TODO(antiagainst): Create wrapper class for OpBuilder to hide the native
+  // TODO: Create wrapper class for OpBuilder to hide the native
   // TableGen API calls here.
   {
     auto *listInit = dyn_cast_or_null<ListInit>(def.getValueInit("builders"));
@@ -1179,8 +1232,12 @@ void OpEmitter::genCollectiveParamBuilder() {
       ", ::llvm::ArrayRef<::mlir::Type> resultTypes, ::mlir::ValueRange "
       "operands, "
       "::llvm::ArrayRef<::mlir::NamedAttribute> attributes";
-  if (op.getNumVariadicRegions())
+  if (op.getNumVariadicRegions()) {
     params += ", unsigned numRegions";
+  } else {
+    // Provide default value for `attributes` since its the last parameter
+    params += " = {}";
+  }
   auto &m = opClass.newMethod("void", "build", params, OpMethod::MP_Static);
   auto &body = m.body();
 
@@ -1211,7 +1268,7 @@ void OpEmitter::genCollectiveParamBuilder() {
   body << "  " << builderOpState << ".addTypes(resultTypes);\n";
 
   // Generate builder that infers type too.
-  // TODO(jpienaar): Expand to handle regions and successors.
+  // TODO: Expand to handle regions and successors.
   if (canInferType(op) && op.getNumSuccessors() == 0)
     genInferredTypeCollectiveParamBuilder();
 }
@@ -1275,7 +1332,7 @@ void OpEmitter::buildParamList(std::string &paramList,
       // Creating an APInt requires us to provide bitwidth, value, and
       // signedness, which is complicated compared to others. Similarly
       // for APFloat.
-      // TODO(b/144412160) Adjust the 'returnType' field of such attributes
+      // TODO: Adjust the 'returnType' field of such attributes
       // to support them.
       StringRef retType = namedAttr->attr.getReturnType();
       if (retType == "::llvm::APInt" || retType == "::llvm::APFloat")
@@ -1469,7 +1526,7 @@ void OpEmitter::genOpInterfaceMethod(const tblgen::InterfaceOpTrait *opTrait) {
   alwaysDeclaredMethods.insert(alwaysDeclaredMethodsVec.begin(),
                                alwaysDeclaredMethodsVec.end());
 
-  for (const OpInterfaceMethod &method : interface.getMethods()) {
+  for (const InterfaceMethod &method : interface.getMethods()) {
     // Don't declare if the method has a body.
     if (method.getBody())
       continue;
@@ -1482,7 +1539,7 @@ void OpEmitter::genOpInterfaceMethod(const tblgen::InterfaceOpTrait *opTrait) {
     std::string args;
     llvm::raw_string_ostream os(args);
     interleaveComma(method.getArguments(), os,
-                    [&](const OpInterfaceMethod::Argument &arg) {
+                    [&](const InterfaceMethod::Argument &arg) {
                       os << arg.type << " " << arg.name;
                     });
     opClass.newMethod(method.getReturnType(), method.getName(), os.str(),
@@ -1601,7 +1658,12 @@ void OpEmitter::genTypeInterfaceMethods() {
     if (type.isArg()) {
       auto argIndex = type.getArg();
       assert(!op.getArg(argIndex).is<NamedAttribute *>());
-      return os << "operands[" << argIndex << "].getType()";
+      auto arg = op.getArgToOperandOrAttribute(argIndex);
+      if (arg.kind() == Operator::OperandOrAttribute::Kind::Operand)
+        return os << "operands[" << arg.operandOrAttributeIndex()
+                  << "].getType()";
+      return os << "attributes[" << arg.operandOrAttributeIndex()
+                << "].getType()";
     } else {
       return os << tgfmt(*type.getType().getBuilderCall(), &fctx);
     }
@@ -1908,7 +1970,7 @@ void OpEmitter::genOpAsmInterface() {
   // TODO: We could also add a flag to allow operations to opt in to this
   // generation, even if they only have a single operation.
   int numResults = op.getNumResults();
-  if (numResults <= 1 || op.getTrait("OpAsmOpInterface::Trait"))
+  if (numResults <= 1 || op.getTrait("::mlir::OpAsmOpInterface::Trait"))
     return;
 
   SmallVector<StringRef, 4> resultNames(numResults);
@@ -1918,7 +1980,7 @@ void OpEmitter::genOpAsmInterface() {
   // Don't add the trait if none of the results have a valid name.
   if (llvm::all_of(resultNames, [](StringRef name) { return name.empty(); }))
     return;
-  opClass.addTrait("OpAsmOpInterface::Trait");
+  opClass.addTrait("::mlir::OpAsmOpInterface::Trait");
 
   // Generate the right accessor for the number of results.
   auto &method = opClass.newMethod("void", "getAsmResultNames",
@@ -2078,15 +2140,19 @@ void OpOperandAdaptorEmitter::emitDef(const Operator &op, raw_ostream &os) {
 // Emits the opcode enum and op classes.
 static void emitOpClasses(const std::vector<Record *> &defs, raw_ostream &os,
                           bool emitDecl) {
-  IfDefScope scope("GET_OP_CLASSES", os);
   // First emit forward declaration for each class, this allows them to refer
   // to each others in traits for example.
   if (emitDecl) {
+    os << "#if defined(GET_OP_CLASSES) || defined(GET_OP_FWD_DEFINES)\n";
+    os << "#undef GET_OP_FWD_DEFINES\n";
     for (auto *def : defs) {
       Operator op(*def);
       os << "class " << op.getCppClassName() << ";\n";
     }
+    os << "#endif\n\n";
   }
+
+  IfDefScope scope("GET_OP_CLASSES", os);
   for (auto *def : defs) {
     Operator op(*def);
     if (emitDecl) {
@@ -2128,13 +2194,20 @@ getAllDerivedDefinitions(const RecordKeeper &recordKeeper,
   if (!classDef)
     PrintFatalError("ERROR: Couldn't find the `" + className + "' class!\n");
 
-  llvm::Regex includeRegex(opFilter);
+  llvm::Regex includeRegex(opIncFilter), excludeRegex(opExcFilter);
   std::vector<Record *> defs;
   for (const auto &def : recordKeeper.getDefs()) {
-    if (def.second->isSubClassOf(classDef)) {
-      if (opFilter.empty() || includeRegex.match(getOperationName(*def.second)))
-        defs.push_back(def.second.get());
-    }
+    if (!def.second->isSubClassOf(classDef))
+      continue;
+    // Include if no include filter or include filter matches.
+    if (!opIncFilter.empty() &&
+        !includeRegex.match(getOperationName(*def.second)))
+      continue;
+    // Unless there is an exclude filter and it matches.
+    if (!opExcFilter.empty() &&
+        excludeRegex.match(getOperationName(*def.second)))
+      continue;
+    defs.push_back(def.second.get());
   }
 
   return defs;

@@ -257,7 +257,78 @@ void TestIntrinsics() {
   TestCall{defaults, table, "idint"}
       .Push(Const(Scalar<Real4>{}))
       .DoCall(Int4::GetType());
+
+  TestCall{defaults, table, "num_images"}.DoCall(Int4::GetType());
+  TestCall{defaults, table, "num_images"}
+      .Push(Const(Scalar<Int1>{}))
+      .DoCall(Int4::GetType());
+  TestCall{defaults, table, "num_images"}
+      .Push(Const(Scalar<Int4>{}))
+      .DoCall(Int4::GetType());
+  TestCall{defaults, table, "num_images"}
+      .Push(Const(Scalar<Int8>{}))
+      .DoCall(Int4::GetType());
+  TestCall{defaults, table, "num_images"}
+      .Push(Named("team_number", Const(Scalar<Int4>{})))
+      .DoCall(Int4::GetType());
+  TestCall{defaults, table, "num_images"}
+      .Push(Const(Scalar<Int4>{}))
+      .Push(Const(Scalar<Int4>{}))
+      .DoCall(); // too many args
+  TestCall{defaults, table, "num_images"}
+      .Push(Named("bad", Const(Scalar<Int4>{})))
+      .DoCall(); // bad keyword
+  TestCall{defaults, table, "num_images"}
+      .Push(Const(Scalar<Char>{}))
+      .DoCall(); // bad type
+  TestCall{defaults, table, "num_images"}
+      .Push(Const(Scalar<Log4>{}))
+      .DoCall(); // bad type
+  TestCall{defaults, table, "num_images"}
+      .Push(Const(Scalar<Complex8>{}))
+      .DoCall(); // bad type
+  TestCall{defaults, table, "num_images"}
+      .Push(Const(Scalar<Real4>{}))
+      .DoCall(); // bad type
+
   // TODO: test other intrinsics
+
+  // Test unrestricted specific to generic name mapping (table 16.2).
+  TEST(table.GetGenericIntrinsicName("alog") == "log");
+  TEST(table.GetGenericIntrinsicName("alog10") == "log10");
+  TEST(table.GetGenericIntrinsicName("amod") == "mod");
+  TEST(table.GetGenericIntrinsicName("cabs") == "abs");
+  TEST(table.GetGenericIntrinsicName("ccos") == "cos");
+  TEST(table.GetGenericIntrinsicName("cexp") == "exp");
+  TEST(table.GetGenericIntrinsicName("clog") == "log");
+  TEST(table.GetGenericIntrinsicName("csin") == "sin");
+  TEST(table.GetGenericIntrinsicName("csqrt") == "sqrt");
+  TEST(table.GetGenericIntrinsicName("dabs") == "abs");
+  TEST(table.GetGenericIntrinsicName("dacos") == "acos");
+  TEST(table.GetGenericIntrinsicName("dasin") == "asin");
+  TEST(table.GetGenericIntrinsicName("datan") == "atan");
+  TEST(table.GetGenericIntrinsicName("datan2") == "atan2");
+  TEST(table.GetGenericIntrinsicName("dcos") == "cos");
+  TEST(table.GetGenericIntrinsicName("dcosh") == "cosh");
+  TEST(table.GetGenericIntrinsicName("ddim") == "dim");
+  TEST(table.GetGenericIntrinsicName("dexp") == "exp");
+  TEST(table.GetGenericIntrinsicName("dint") == "aint");
+  TEST(table.GetGenericIntrinsicName("dlog") == "log");
+  TEST(table.GetGenericIntrinsicName("dlog10") == "log10");
+  TEST(table.GetGenericIntrinsicName("dmod") == "mod");
+  TEST(table.GetGenericIntrinsicName("dnint") == "anint");
+  TEST(table.GetGenericIntrinsicName("dsign") == "sign");
+  TEST(table.GetGenericIntrinsicName("dsin") == "sin");
+  TEST(table.GetGenericIntrinsicName("dsinh") == "sinh");
+  TEST(table.GetGenericIntrinsicName("dsqrt") == "sqrt");
+  TEST(table.GetGenericIntrinsicName("dtan") == "tan");
+  TEST(table.GetGenericIntrinsicName("dtanh") == "tanh");
+  TEST(table.GetGenericIntrinsicName("iabs") == "abs");
+  TEST(table.GetGenericIntrinsicName("idim") == "dim");
+  TEST(table.GetGenericIntrinsicName("idnint") == "nint");
+  TEST(table.GetGenericIntrinsicName("isign") == "sign");
+  // Test a case where specific and generic name are the same.
+  TEST(table.GetGenericIntrinsicName("acos") == "acos");
 }
 } // namespace Fortran::evaluate
 

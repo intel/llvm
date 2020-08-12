@@ -170,8 +170,8 @@ public:
          const property_list &propList = {})
       : Range(range<1>(container.size())) {
     impl = std::make_shared<detail::buffer_impl>(
-        container.data(), container.data() + container.size(),
-        get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
+        container.data(), get_count() * sizeof(T),
+        detail::getNextPowerOfTwo(sizeof(T)), propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
   }
@@ -290,6 +290,11 @@ public:
 
   template <typename... Ts> auto get_host_access(Ts... args) {
     return host_accessor{*this, args...};
+  }
+
+  template <typename... Ts>
+  auto get_host_access(handler &commandGroupHandler, Ts... args) {
+    return host_accessor{*this, commandGroupHandler, args...};
   }
 
 #endif

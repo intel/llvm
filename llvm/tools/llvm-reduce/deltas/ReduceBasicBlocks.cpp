@@ -36,11 +36,12 @@ static void replaceBranchTerminator(BasicBlock &BB,
   if (ChunkSucessors.size() == Term->getNumSuccessors())
     return;
 
-  bool IsBranch = isa<BranchInst>(Term);
+  bool IsBranch = isa<BranchInst>(Term) || isa<InvokeInst>(Term);
   Value *Address = nullptr;
   if (auto IndBI = dyn_cast<IndirectBrInst>(Term))
     Address = IndBI->getAddress();
 
+  Term->replaceAllUsesWith(UndefValue::get(Term->getType()));
   Term->eraseFromParent();
 
   if (ChunkSucessors.empty()) {
@@ -82,17 +83,14 @@ static void removeUninterestingBBsFromSwitch(SwitchInst &SwInst,
 /// accordingly. It also removes allocations of out-of-chunk arguments.
 static void extractBasicBlocksFromModule(std::vector<Chunk> ChunksToKeep,
                                          Module *Program) {
-  int I = 0, BBCount = 0;
+  Oracle O(ChunksToKeep);
+
   std::set<BasicBlock *> BBsToKeep;
 
   for (auto &F : *Program)
     for (auto &BB : F)
-      if (I < (int)ChunksToKeep.size()) {
-        if (ChunksToKeep[I].contains(++BBCount))
-          BBsToKeep.insert(&BB);
-        if (ChunksToKeep[I].end == BBCount)
-          ++I;
-      }
+      if (O.shouldKeep())
+        BBsToKeep.insert(&BB);
 
   std::vector<BasicBlock *> BBsToDelete;
   for (auto &F : *Program)

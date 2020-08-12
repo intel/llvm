@@ -137,6 +137,15 @@ public:
 
   FPContractMode getFPContractMode() const { return FPCMode; }
 
+  bool isSPIRVAllowUnknownIntrinsicsEnabled() const noexcept {
+    return SPIRVAllowUnknownIntrinsics;
+  }
+
+  void
+  setSPIRVAllowUnknownIntrinsicsEnabled(bool AllowUnknownIntrinsics) noexcept {
+    SPIRVAllowUnknownIntrinsics = AllowUnknownIntrinsics;
+  }
+
 private:
   // Common translation options
   VersionNumber MaxVersion = VersionNumber::MaximumVersion;
@@ -159,6 +168,10 @@ private:
   // - FPContractMode::Fast allows *all* operations to be contracted
   //   for all entry points
   FPContractMode FPCMode = FPContractMode::On;
+
+  // Unknown LLVM intrinsics will be translated as external function calls in
+  // SPIR-V
+  bool SPIRVAllowUnknownIntrinsics = false;
 };
 
 } // namespace SPIRV

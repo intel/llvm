@@ -28,7 +28,6 @@
 #include <CL/sycl/sampler.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <algorithm>
 #include <functional>
 #include <limits>
 #include <memory>
@@ -179,6 +178,7 @@ template <typename T, class BinaryOperation, int Dims, bool IsUSM,
 class reduction_impl;
 
 using cl::sycl::detail::enable_if_t;
+using cl::sycl::detail::queue_impl;
 
 template <typename KernelName, typename KernelType, int Dims, class Reduction,
           typename OutputT>
@@ -191,10 +191,14 @@ enable_if_t<!Reduction::has_fast_atomics>
 reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
            Reduction &Redu);
 
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<!Reduction::has_fast_atomics>
-reduAuxCGFunc(handler &CGH, const nd_range<Dims> &Range, size_t NWorkItems,
+template <typename KernelName, typename KernelType, class Reduction>
+enable_if_t<!Reduction::has_fast_atomics, size_t>
+reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
               Reduction &Redu);
+
+__SYCL_EXPORT size_t reduGetMaxWGSize(shared_ptr_class<queue_impl> Queue,
+                                      size_t LocalMemBytesPerWorkItem);
+
 } // namespace detail
 } // namespace intel
 
@@ -245,7 +249,7 @@ private:
                             typename std::remove_reference<T>::type>::type>
   F *storePlainArg(T &&Arg) {
     MArgsStorage.emplace_back(sizeof(T));
-    F *Storage = (F *)MArgsStorage.back().data();
+    auto Storage = reinterpret_cast<F *>(MArgsStorage.back().data());
     *Storage = Arg;
     return Storage;
   }
@@ -303,8 +307,8 @@ private:
   /// Streams are then forwarded to command group and flushed in the scheduler.
   ///
   /// \param Stream is a pointer to SYCL stream.
-  void addStream(shared_ptr_class<detail::stream_impl> Stream) {
-    MStreamStorage.push_back(std::move(Stream));
+  void addStream(const shared_ptr_class<detail::stream_impl> &Stream) {
+    MStreamStorage.push_back(Stream);
   }
 
   /// Saves buffers created by handling reduction feature in handler.
@@ -313,8 +317,8 @@ private:
   /// The 'MSharedPtrStorage' suits that need.
   ///
   /// @param ReduObj is a pointer to object that must be stored.
-  void addReduction(shared_ptr_class<const void> ReduObj) {
-    MSharedPtrStorage.push_back(std::move(ReduObj));
+  void addReduction(const shared_ptr_class<const void> &ReduObj) {
+    MSharedPtrStorage.push_back(ReduObj);
   }
 
   ~handler() = default;
@@ -322,19 +326,7 @@ private:
   bool is_host() { return MIsHost; }
 
   void associateWithHandler(detail::AccessorBaseHost *AccBase,
-                            access::target AccTarget) {
-    detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
-    detail::Requirement *Req = AccImpl.get();
-    // Add accessor to the list of requirements.
-    MRequirements.push_back(Req);
-    // Store copy of the accessor.
-    MAccStorage.push_back(std::move(AccImpl));
-    // Add an accessor to the handler list of associated accessors.
-    // For associated accessors index does not means nothing.
-    MAssociatedAccesors.emplace_back(detail::kernel_param_kind_t::kind_accessor,
-                                     Req, static_cast<int>(AccTarget),
-                                     /*index*/ 0);
-  }
+                            access::target AccTarget);
 
   // Recursively calls itself until arguments pack is fully processed.
   // The version for regular(standard layout) argument.
@@ -382,7 +374,7 @@ private:
   }
 
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
-    void *StoredArg = (void *)storePlainArg(Arg);
+    auto StoredArg = static_cast<void *>(storePlainArg(Arg));
 
     if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
       MArgs.emplace_back(detail::kernel_param_kind_t::kind_pointer, StoredArg,
@@ -394,7 +386,7 @@ private:
   }
 
   void setArgHelper(int ArgIndex, sampler &&Arg) {
-    void *StoredArg = (void *)storePlainArg(Arg);
+    auto StoredArg = static_cast<void *>(storePlainArg(Arg));
     MArgs.emplace_back(detail::kernel_param_kind_t::kind_sampler, StoredArg,
                        sizeof(sampler), ArgIndex);
   }
@@ -504,47 +496,55 @@ private:
 
   template <typename T, int Dim, access::mode Mode, access::target Target,
             access::placeholder IsPH>
-  detail::enable_if_t<Dim == 0 && Mode == access::mode::atomic, T>
-  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) const {
+  static detail::enable_if_t<Dim == 0 && Mode == access::mode::atomic, T>
+  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) {
+#ifdef __ENABLE_USM_ADDR_SPACE__
     atomic<T, access::address_space::global_device_space> AtomicSrc = Src;
+#else
+    atomic<T, access::address_space::global_space> AtomicSrc = Src;
+#endif // __ENABLE_USM_ADDR_SPACE__
     return AtomicSrc.load();
   }
 
   template <typename T, int Dim, access::mode Mode, access::target Target,
             access::placeholder IsPH>
-  detail::enable_if_t<(Dim > 0) && Mode == access::mode::atomic, T>
-  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) const {
+  static detail::enable_if_t<(Dim > 0) && Mode == access::mode::atomic, T>
+  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) {
     id<Dim> Id = getDelinearizedIndex(Src.get_range(), 0);
     return Src[Id].load();
   }
 
   template <typename T, int Dim, access::mode Mode, access::target Target,
             access::placeholder IsPH>
-  detail::enable_if_t<Mode != access::mode::atomic, T>
-  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) const {
+  static detail::enable_if_t<Mode != access::mode::atomic, T>
+  readFromFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Src) {
     return *(Src.get_pointer());
   }
 
   template <typename T, int Dim, access::mode Mode, access::target Target,
             access::placeholder IsPH>
-  detail::enable_if_t<Dim == 0 && Mode == access::mode::atomic, void>
-  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) const {
+  static detail::enable_if_t<Dim == 0 && Mode == access::mode::atomic, void>
+  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) {
+#ifdef __ENABLE_USM_ADDR_SPACE__
     atomic<T, access::address_space::global_device_space> AtomicDst = Dst;
+#else
+    atomic<T, access::address_space::global_space> AtomicDst = Dst;
+#endif // __ENABLE_USM_ADDR_SPACE__
     AtomicDst.store(V);
   }
 
   template <typename T, int Dim, access::mode Mode, access::target Target,
             access::placeholder IsPH>
-  detail::enable_if_t<(Dim > 0) && Mode == access::mode::atomic, void>
-  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) const {
+  static detail::enable_if_t<(Dim > 0) && Mode == access::mode::atomic, void>
+  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) {
     id<Dim> Id = getDelinearizedIndex(Dst.get_range(), 0);
     Dst[Id].store(V);
   }
 
   template <typename T, int Dim, access::mode Mode, access::target Target,
             access::placeholder IsPH>
-  detail::enable_if_t<Mode != access::mode::atomic, void>
-  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) const {
+  static detail::enable_if_t<Mode != access::mode::atomic, void>
+  writeToFirstAccElement(accessor<T, Dim, Mode, Target, IsPH> Dst, T V) {
     *(Dst.get_pointer()) = V;
   }
 
@@ -713,6 +713,7 @@ private:
     MNDRDesc.set(std::move(NumWorkItems));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
+    MKernelName = getKernelName();
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -777,11 +778,30 @@ public:
   /// Registers event dependencies on this command group.
   ///
   /// \param Events is a vector of valid SYCL events to wait on.
-  void depends_on(vector_class<event> Events) {
-    for (event &Event : Events) {
+  void depends_on(const vector_class<event> &Events) {
+    for (const event &Event : Events) {
       MEvents.push_back(detail::getSyclObjImpl(Event));
     }
   }
+
+  template <typename T>
+  using remove_cv_ref_t =
+      typename std::remove_cv<detail::remove_reference_t<T>>::type;
+
+  template <typename U, typename T>
+  using is_same_type = std::is_same<remove_cv_ref_t<U>, remove_cv_ref_t<T>>;
+
+  template <typename T> struct ShouldEnableSetArg {
+    static constexpr bool value =
+        std::is_trivially_copyable<detail::remove_reference_t<T>>::value
+#if CL_SYCL_LANGUAGE_VERSION && CL_SYCL_LANGUAGE_VERSION <= 121
+            && std::is_standard_layout<detail::remove_reference_t<T>>::value
+#endif
+        || is_same_type<sampler, T>::value // Sampler
+        || (!is_same_type<cl_mem, T>::value &&
+            std::is_pointer<remove_cv_ref_t<T>>::value) // USM
+        || is_same_type<cl_mem, T>::value;              // Interop
+  };
 
   /// Sets argument for OpenCL interoperability kernels.
   ///
@@ -789,7 +809,17 @@ public:
   ///
   /// \param ArgIndex is a positional number of argument to be set.
   /// \param Arg is an argument value to be set.
-  template <typename T> void set_arg(int ArgIndex, T &&Arg) {
+  template <typename T>
+  typename std::enable_if<ShouldEnableSetArg<T>::value, void>::type
+  set_arg(int ArgIndex, T &&Arg) {
+    setArgHelper(ArgIndex, std::move(Arg));
+  }
+
+  template <typename DataT, int Dims, access::mode AccessMode,
+            access::target AccessTarget, access::placeholder IsPlaceholder>
+  void
+  set_arg(int ArgIndex,
+          accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder> Arg) {
     setArgHelper(ArgIndex, std::move(Arg));
   }
 
@@ -1028,8 +1058,6 @@ public:
             int Dims, typename Reduction>
   detail::enable_if_t<!Reduction::has_fast_atomics>
   parallel_for(nd_range<Dims> Range, Reduction Redu, KernelType KernelFunc) {
-    size_t NWorkGroups = Range.get_group_range().size();
-
     // This parallel_for() is lowered to the following sequence:
     // 1) Call a kernel that a) call user's lambda function and b) performs
     //    one iteration of reduction, storing the partial reductions/sums
@@ -1043,42 +1071,51 @@ public:
     // 2) Call an aux kernel (if necessary, i.e. if N2 > 1) as many times as
     //    necessary to reduce all partial sums into one final sum.
 
+    // Before running the kernels, check that device has enough local memory
+    // to hold local arrays that may be required for the reduction algorithm.
+    // TODO: If the work-group-size is limited by the local memory, then
+    // a special version of the main kernel may be created. The one that would
+    // not use local accessors, which means it would not do the reduction in
+    // the main kernel, but simply generate Range.get_global_range.size() number
+    // of partial sums, leaving the reduction work to the additional/aux
+    // kernels.
+    constexpr bool HFR = Reduction::has_fast_reduce;
+    size_t OneElemSize = HFR ? 0 : sizeof(typename Reduction::result_type);
+    // TODO: currently the maximal work group size is determined for the given
+    // queue/device, while it may be safer to use queries to the kernel compiled
+    // for the device.
+    size_t MaxWGSize = intel::detail::reduGetMaxWGSize(MQueue, OneElemSize);
+    if (Range.get_local_range().size() > MaxWGSize)
+      throw sycl::runtime_error("The implementation handling parallel_for with"
+                                " reduction requires smaller work group size.",
+                                PI_INVALID_WORK_GROUP_SIZE);
+
     // 1. Call the kernel that includes user's lambda function.
     intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
     shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     this->finalize();
 
-    // 2. Run the additional aux kernel as many times as needed to reduce
+    // 2. Run the additional kernel as many times as needed to reduce
     // all partial sums into one scalar.
 
-    // TODO: user's nd_range and the work-group size specified there must
-    // be honored only for the main kernel that calls user's lambda functions.
-    // There is no need in using the same work-group size in these additional
-    // kernels. Thus, the better strategy here is to make the work-group size
-    // as big as possible to converge/reduce the partial sums into the last
-    // sum faster.
-    size_t WGSize = Range.get_local_range().size();
-    size_t NWorkItems = NWorkGroups;
+    // TODO: Create a special slow/sequential version of the kernel that would
+    // handle the reduction instead of reporting an assert below.
+    if (MaxWGSize <= 1)
+      throw sycl::runtime_error("The implementation handling parallel_for with "
+                                "reduction requires the maximal work group "
+                                "size to be greater than 1 to converge. "
+                                "The maximal work group size depends on the "
+                                "device and the size of the objects passed to "
+                                "the reduction.",
+                                PI_INVALID_WORK_GROUP_SIZE);
+    size_t NWorkItems = Range.get_group_range().size();
     while (NWorkItems > 1) {
-      WGSize = std::min(WGSize, NWorkItems);
-      NWorkGroups = NWorkItems / WGSize;
-      // The last group may be not fully loaded. Still register it as a group.
-      if ((NWorkItems % WGSize) != 0)
-        ++NWorkGroups;
-      nd_range<1> Range(range<1>(WGSize * NWorkGroups), range<1>(WGSize));
-
       handler AuxHandler(QueueCopy, MIsHost);
       AuxHandler.saveCodeLoc(MCodeLoc);
 
-      // The last kernel DOES write to user's accessor passed to reduction.
-      // Associate it with handler manually.
-      if (NWorkGroups == 1 && !Reduction::is_usm)
-        Redu.associateWithHandler(AuxHandler);
-      intel::detail::reduAuxCGFunc<KernelName, KernelType>(AuxHandler, Range,
-                                                           NWorkItems, Redu);
+      NWorkItems = intel::detail::reduAuxCGFunc<KernelName, KernelType>(
+          AuxHandler, NWorkItems, MaxWGSize, Redu);
       MLastEvent = AuxHandler.finalize();
-
-      NWorkItems = NWorkGroups;
     } // end while (NWorkItems > 1)
   }
 
@@ -1165,6 +1202,7 @@ public:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
+    MKernelName = getKernelName();
   }
 
   void parallel_for(range<1> NumWorkItems, kernel Kernel) {
@@ -1198,6 +1236,7 @@ public:
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
+    MKernelName = getKernelName();
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
@@ -1218,6 +1257,7 @@ public:
     MNDRDesc.set(std::move(NDRange));
     MCGType = detail::CG::KERNEL;
     extractArgsAndReqs();
+    MKernelName = getKernelName();
   }
 
   /// Defines and invokes a SYCL kernel function.
@@ -1240,9 +1280,10 @@ public:
     MNDRDesc.set(range<1>{1});
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>())
+    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
-    else
+      MKernelName = getKernelName();
+    } else
       StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(std::move(KernelFunc));
 #endif
   }
@@ -1280,9 +1321,10 @@ public:
     MNDRDesc.set(std::move(NumWorkItems));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>())
+    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
-    else
+      MKernelName = getKernelName();
+    } else
       StoreLambda<NameT, KernelType, Dims, LambdaArgType>(
           std::move(KernelFunc));
 #endif
@@ -1316,9 +1358,10 @@ public:
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>())
+    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
-    else
+      MKernelName = getKernelName();
+    } else
       StoreLambda<NameT, KernelType, Dims, LambdaArgType>(
           std::move(KernelFunc));
 #endif
@@ -1353,9 +1396,10 @@ public:
     MNDRDesc.set(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     MCGType = detail::CG::KERNEL;
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>())
+    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
-    else
+      MKernelName = getKernelName();
+    } else
       StoreLambda<NameT, KernelType, Dims, LambdaArgType>(
           std::move(KernelFunc));
 #endif
@@ -1515,8 +1559,8 @@ public:
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
     MRequirements.push_back(AccImpl.get());
-    MSrcPtr = (void *)AccImpl.get();
-    MDstPtr = (void *)Dst;
+    MSrcPtr = static_cast<void *>(AccImpl.get());
+    MDstPtr = static_cast<void *>(Dst);
     // Store copy of accessor to the local storage to make sure it is alive
     // until we finish
     MAccStorage.push_back(std::move(AccImpl));
@@ -1622,7 +1666,7 @@ public:
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
-    MDstPtr = (void *)AccImpl.get();
+    MDstPtr = static_cast<void *>(AccImpl.get());
     MRequirements.push_back(AccImpl.get());
     MAccStorage.push_back(std::move(AccImpl));
   }
@@ -1651,12 +1695,12 @@ public:
       detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
       detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
-      MDstPtr = (void *)AccImpl.get();
+      MDstPtr = static_cast<void *>(AccImpl.get());
       MRequirements.push_back(AccImpl.get());
       MAccStorage.push_back(std::move(AccImpl));
 
       MPattern.resize(sizeof(T));
-      T *PatternPtr = (T *)MPattern.data();
+      auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
       *PatternPtr = Pattern;
     } else {
 
@@ -1684,41 +1728,28 @@ public:
   ///
   /// \param WaitList is a vector of valid SYCL events that need to complete
   /// before barrier command can be executed.
-  void barrier(const vector_class<event> &WaitList) {
-    throwIfActionIsCreated();
-    MCGType = detail::CG::BARRIER_WAITLIST;
-    MEventsWaitWithBarrier.resize(WaitList.size());
-    std::transform(
-        WaitList.begin(), WaitList.end(), MEventsWaitWithBarrier.begin(),
-        [](const event &Event) { return detail::getSyclObjImpl(Event); });
-  }
+  void barrier(const vector_class<event> &WaitList);
 
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
   ///
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Src is a USM pointer to the source memory.
   /// \param Count is a number of bytes to copy.
-  void memcpy(void *Dest, const void *Src, size_t Count) {
-    throwIfActionIsCreated();
-    MSrcPtr = const_cast<void *>(Src);
-    MDstPtr = Dest;
-    MLength = Count;
-    MCGType = detail::CG::COPY_USM;
-  }
+  void memcpy(void *Dest, const void *Src, size_t Count);
 
   /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if \param Dest is nullptr. The behavior is undefined if \param Dest
+  /// is invalid.
   ///
   /// \param Dest is a USM pointer to the memory to fill.
   /// \param Value is a value to be set. Value is cast as an unsigned char.
   /// \param Count is a number of bytes to fill.
-  void memset(void *Dest, int Value, size_t Count) {
-    throwIfActionIsCreated();
-    MDstPtr = Dest;
-    MPattern.push_back((char)Value);
-    MLength = Count;
-    MCGType = detail::CG::FILL_USM;
-  }
+  void memset(void *Dest, int Value, size_t Count);
 
   /// Provides hints to the runtime library that data should be made available
   /// on a device earlier than Unified Shared Memory would normally require it
@@ -1726,12 +1757,7 @@ public:
   ///
   /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
   /// \param Count is a number of bytes to be prefetched.
-  void prefetch(const void *Ptr, size_t Count) {
-    throwIfActionIsCreated();
-    MDstPtr = const_cast<void *>(Ptr);
-    MLength = Count;
-    MCGType = detail::CG::PREFETCH_USM;
-  }
+  void prefetch(const void *Ptr, size_t Count);
 
 private:
   shared_ptr_class<detail::queue_impl> MQueue;
@@ -1771,9 +1797,9 @@ private:
   unique_ptr_class<detail::HostKernelBase> MHostKernel;
   /// Storage for lambda/function when using HostTask
   unique_ptr_class<detail::HostTask> MHostTask;
-  detail::OSModuleHandle MOSModuleHandle;
+  detail::OSModuleHandle MOSModuleHandle = detail::OSUtil::ExeModuleHandle;
   // Storage for a lambda or function when using InteropTasks
-  std::unique_ptr<detail::InteropTask> MInteropTask;
+  unique_ptr_class<detail::InteropTask> MInteropTask;
   /// The list of events that order this operation.
   vector_class<detail::EventImplPtr> MEvents;
   /// The list of valid SYCL events that need to complete

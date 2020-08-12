@@ -212,10 +212,10 @@ template <> struct ResolveUnderlyingType<bool, false> {
 struct Bitfield {
   /// Describes an element of a Bitfield. This type is then used with the
   /// Bitfield static member functions.
-  /// \param T, the type of the field once in unpacked form,
-  /// \param Offset, the position of the first bit,
-  /// \param Size, the size of the field,
-  /// \param MaxValue, For enums the maximum enum allowed.
+  /// \tparam T         The type of the field once in unpacked form.
+  /// \tparam Offset    The position of the first bit.
+  /// \tparam Size      The size of the field.
+  /// \tparam MaxValue  For enums the maximum enum allowed.
   template <typename T, unsigned Offset, unsigned Size,
             T MaxValue = std::is_enum<T>::value
                              ? T(0) // coupled with static_assert below
@@ -227,7 +227,8 @@ struct Bitfield {
     static constexpr unsigned Shift = Offset;
     static constexpr unsigned Bits = Size;
     static constexpr unsigned FirstBit = Offset;
-    static constexpr unsigned LastBit = Shift + Bits;
+    static constexpr unsigned LastBit = Shift + Bits - 1;
+    static constexpr unsigned NextBit = Shift + Bits;
 
   private:
     template <typename, typename> friend struct bitfields_details::Impl;
@@ -273,7 +274,13 @@ struct Bitfield {
 
   /// Returns whether the two bitfields share common bits.
   template <typename A, typename B> static constexpr bool isOverlapping() {
-    return A::LastBit > B::FirstBit && B::LastBit > A::FirstBit;
+    return A::LastBit >= B::FirstBit && B::LastBit >= A::FirstBit;
+  }
+
+  template <typename A> static constexpr bool areContiguous() { return true; }
+  template <typename A, typename B, typename... Others>
+  static constexpr bool areContiguous() {
+    return A::NextBit == B::FirstBit && areContiguous<B, Others...>();
   }
 };
 

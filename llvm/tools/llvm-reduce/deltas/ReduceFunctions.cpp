@@ -24,33 +24,29 @@ using namespace llvm;
 /// that aren't inside any of the desired Chunks.
 static void extractFunctionsFromModule(const std::vector<Chunk> &ChunksToKeep,
                                        Module *Program) {
+  Oracle O(ChunksToKeep);
+
   // Get functions inside desired chunks
   std::set<Function *> FuncsToKeep;
-  int I = 0, FunctionCount = 0;
   for (auto &F : *Program)
-    if (I < (int)ChunksToKeep.size()) {
-      if (ChunksToKeep[I].contains(++FunctionCount))
-        FuncsToKeep.insert(&F);
-      if (FunctionCount == ChunksToKeep[I].end)
-        ++I;
-    }
+    if (O.shouldKeep())
+      FuncsToKeep.insert(&F);
 
-  // Delete out-of-chunk functions, and replace their calls with undef
+  // Delete out-of-chunk functions, and replace their users with undef
   std::vector<Function *> FuncsToRemove;
-  SetVector<CallInst *> CallsToRemove;
+  SetVector<Instruction *> InstrsToRemove;
   for (auto &F : *Program)
     if (!FuncsToKeep.count(&F)) {
-      for (auto U : F.users())
-        if (auto *Call = dyn_cast<CallInst>(U)) {
-          Call->replaceAllUsesWith(UndefValue::get(Call->getType()));
-          CallsToRemove.insert(Call);
-        }
-      F.replaceAllUsesWith(UndefValue::get(F.getType()));
+      for (auto U : F.users()) {
+        U->replaceAllUsesWith(UndefValue::get(U->getType()));
+        if (auto *I = dyn_cast<Instruction>(U))
+          InstrsToRemove.insert(I);
+      }
       FuncsToRemove.push_back(&F);
     }
 
-  for (auto *C : CallsToRemove)
-    C->eraseFromParent();
+  for (auto *I : InstrsToRemove)
+    I->eraseFromParent();
 
   for (auto *F : FuncsToRemove)
     F->eraseFromParent();

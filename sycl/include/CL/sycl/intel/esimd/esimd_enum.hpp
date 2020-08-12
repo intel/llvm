@@ -30,7 +30,7 @@ using uint = unsigned int;
 // class.
 #define ESIMD_PRIVATE __attribute__((opencl_private))
 // Bind a ESIMD global variable to a specific register.
-#define ESIMD_REGISTER(n) __attribute__((register(n)))
+#define ESIMD_REGISTER(n) __attribute__((register_num(n)))
 #else
 // TODO ESIMD define what this means on Windows host
 #define ESIMD_NODEBUG

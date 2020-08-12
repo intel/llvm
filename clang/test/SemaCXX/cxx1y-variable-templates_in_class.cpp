@@ -5,7 +5,7 @@
 #define CONST const
 
 #ifdef PRECXX11
-#define static_assert(expr, msg) typedef int static_assert[(expr) ? 1 : -1];
+#define static_assert _Static_assert
 #endif
 
 class A {
@@ -164,7 +164,7 @@ namespace constexpred {
                                                       // expected-error {{non-static data member cannot be constexpr; did you intend to make it const?}}
     template<typename T> constexpr float right<float,T> = 5;  // expected-error {{non-static data member cannot be constexpr; did you intend to make it static?}}
     template<> static constexpr int right<int,int> = 7;
-    template<> static constexpr float right<float,int>; // expected-error {{requires an initializer}}
+    template <> static constexpr float right<float, int>; // expected-error {{declaration of constexpr static data member 'right<float, int>' requires an initializer}}
     template static constexpr int right<int,int>;     // expected-error {{expected '<' after 'template'}}
   };
 }
@@ -237,7 +237,7 @@ namespace in_class_template {
   namespace definition_after_outer_instantiation {
     template<typename A> struct S {
       template<typename B> static const int V1;
-      template<typename B> static const int V2;
+      template<typename B> static const int V2; // expected-note 3{{here}}
     };
     template struct S<int>;
     template<typename A> template<typename B> const int S<A>::V1 = 123;
@@ -250,11 +250,11 @@ namespace in_class_template {
     // is instantiated. This is kind of implied by [temp.class.spec.mfunc]/2,
     // and matches our behavior for member class templates, but it's not clear
     // that this is intentional. See PR17294 and core-24030.
-    static_assert(S<int>::V2<int*> == 456, ""); // FIXME expected-error {{}}
-    static_assert(S<int>::V2<int&> == 789, ""); // expected-error {{}}
+    static_assert(S<int>::V2<int*> == 456, ""); // FIXME expected-error {{}} expected-note {{initializer of 'V2<int *>' is unknown}}
+    static_assert(S<int>::V2<int&> == 789, ""); // expected-error {{}} expected-note {{initializer of 'V2<int &>' is unknown}}
 
     template<typename A> template<typename B> const int S<A>::V2<B&> = 789;
-    static_assert(S<int>::V2<int&> == 789, ""); // FIXME expected-error {{}}
+    static_assert(S<int>::V2<int&> == 789, ""); // FIXME expected-error {{}} expected-note {{initializer of 'V2<int &>' is unknown}}
 
     // All is OK if the partial specialization is declared before the implicit
     // instantiation of the class template specialization.

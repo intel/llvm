@@ -2267,8 +2267,70 @@ pi_result cuda_piEnqueueKernelLaunch(
   assert(command_queue != nullptr);
   assert(command_queue->get_context() == kernel->get_context());
   assert(kernel != nullptr);
+  assert(global_work_offset != nullptr);
   assert(work_dim > 0);
   assert(work_dim < 4);
+
+  // Set the number of threads per block to the number of threads per warp
+  // by default unless user has provided a better number
+  int threadsPerBlock[3] = {32, 1, 1};
+
+  {
+    size_t maxThreadsPerBlock[3] = {};
+    pi_result retError = cuda_piDeviceGetInfo(
+        command_queue->device_, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
+        sizeof(maxThreadsPerBlock), maxThreadsPerBlock, nullptr);
+    assert(retError == PI_SUCCESS);
+    (void)retError;
+    size_t maxWorkGroupSize = 0;
+    retError = cuda_piDeviceGetInfo(
+        command_queue->device_, PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
+        sizeof(maxWorkGroupSize), &maxWorkGroupSize, nullptr);
+    assert(retError == PI_SUCCESS);
+
+    if (local_work_size) {
+      for (size_t i = 0; i < work_dim; i++) {
+        if (local_work_size[i] > maxThreadsPerBlock[i])
+          return PI_INVALID_WORK_ITEM_SIZE;
+        // Checks that local work sizes are a divisor of the global work sizes
+        // which includes that the local work sizes are neither larger than the
+        // global work sizes and not 0.
+        if (0u == local_work_size[i])
+          return PI_INVALID_WORK_GROUP_SIZE;
+        if (0u != (global_work_size[i] % local_work_size[i]))
+          return PI_INVALID_WORK_GROUP_SIZE;
+        threadsPerBlock[i] = static_cast<int>(local_work_size[i]);
+      }
+      if (maxWorkGroupSize < size_t(threadsPerBlock[0] * threadsPerBlock[1] *
+                                    threadsPerBlock[2])) {
+        return PI_INVALID_WORK_GROUP_SIZE;
+      }
+    } else {
+      // Determine local work sizes that result in uniform work groups.
+      // The default threadsPerBlock only require handling the first work_dim
+      // dimension.
+      threadsPerBlock[0] =
+          std::min(static_cast<int>(maxThreadsPerBlock[0]),
+                   std::min(static_cast<int>(global_work_size[0]),
+                            static_cast<int>(threadsPerBlock[0])));
+      // Find a local work group size that is a divisor of the global
+      // work group size to produce uniform work groups.
+      while (0u != (global_work_size[0] % threadsPerBlock[0])) {
+        --threadsPerBlock[0];
+      }
+      assert(
+          maxWorkGroupSize >=
+          size_t(threadsPerBlock[0] * threadsPerBlock[1] * threadsPerBlock[2]));
+    }
+  }
+
+  int blocksPerGrid[3] = {1, 1, 1};
+
+  for (size_t i = 0; i < work_dim; i++) {
+    blocksPerGrid[i] =
+        static_cast<int>(global_work_size[i] + threadsPerBlock[i] - 1) /
+        threadsPerBlock[i];
+  }
 
   pi_result retError = PI_SUCCESS;
   std::unique_ptr<_pi_event> retImplEv{nullptr};
@@ -2295,41 +2357,6 @@ pi_result cuda_piEnqueueKernelLaunch(
       }
       kernel->set_implicit_offset_arg(sizeof(cuda_implicit_offset),
                                       cuda_implicit_offset);
-    }
-
-    // Set the number of threads per block to the number of threads per warp
-    // by default unless user has provided a better number
-    int threadsPerBlock[3] = {32, 1, 1};
-
-    if (local_work_size) {
-      for (size_t i = 0; i < work_dim; i++) {
-        threadsPerBlock[i] = static_cast<int>(local_work_size[i]);
-      }
-    } else {
-      for (size_t i = 0; i < work_dim; i++) {
-        threadsPerBlock[i] = std::min(static_cast<int>(global_work_size[i]),
-                                      static_cast<int>(threadsPerBlock[i]));
-      }
-    }
-
-    size_t maxThreadsPerBlock[3] = {};
-    retError = cuda_piDeviceGetInfo(
-        command_queue->device_, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
-        sizeof(maxThreadsPerBlock), maxThreadsPerBlock, nullptr);
-    assert(retError == PI_SUCCESS);
-
-    for (size_t i = 0; i < work_dim; i++) {
-      if (size_t(threadsPerBlock[i]) > maxThreadsPerBlock[i]) {
-        return PI_INVALID_WORK_GROUP_SIZE;
-      }
-    }
-
-    int blocksPerGrid[3] = {1, 1, 1};
-
-    for (size_t i = 0; i < work_dim; i++) {
-      blocksPerGrid[i] =
-          static_cast<int>(global_work_size[i] + threadsPerBlock[i] - 1) /
-          threadsPerBlock[i];
     }
 
     auto argIndices = kernel->get_arg_indices();
@@ -3975,6 +4002,8 @@ pi_result cuda_piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
 
 /// Implements mapping on the host using a BufferRead operation.
 /// Mapped pointers are stored in the pi_mem object.
+/// If the buffer uses pinned host memory a pointer to that memory is returned
+/// and no read operation is done.
 /// \TODO Untie types from OpenCL
 ///
 pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
@@ -3984,11 +4013,14 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
                                      pi_uint32 num_events_in_wait_list,
                                      const pi_event *event_wait_list,
                                      pi_event *event, void **ret_map) {
-
   assert(ret_map != nullptr);
   assert(command_queue != nullptr);
+  assert(buffer != nullptr);
+  assert(buffer->mem_type_ == _pi_mem::mem_type::buffer);
 
   pi_result ret_err = PI_INVALID_OPERATION;
+  const bool is_pinned = buffer->mem_.buffer_mem_.allocMode_ ==
+                         _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
 
   // Currently no support for overlapping regions
   if (buffer->mem_.buffer_mem_.get_map_ptr() != nullptr) {
@@ -4002,15 +4034,21 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
     ret_err = PI_SUCCESS;
   }
 
-  if ((map_flags & CL_MAP_READ) || (map_flags & CL_MAP_WRITE)) {
+  if (!is_pinned && ((map_flags & CL_MAP_READ) || (map_flags & CL_MAP_WRITE))) {
+    // Pinned host memory is already on host so it doesn't need to be read.
     ret_err = cuda_piEnqueueMemBufferRead(
         command_queue, buffer, blocking_map, offset, size, hostPtr,
         num_events_in_wait_list, event_wait_list, event);
   } else {
+    ScopedContext active(command_queue->get_context());
+
+    if (is_pinned) {
+      ret_err = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                                         event_wait_list, nullptr);
+    }
+
     if (event) {
       try {
-        ScopedContext active(command_queue->get_context());
-
         *event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_MAP,
                                         command_queue);
         (*event)->start();
@@ -4026,6 +4064,7 @@ pi_result cuda_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
 
 /// Implements the unmap from the host, using a BufferWrite operation.
 /// Requires the mapped pointer to be already registered in the given memobj.
+/// If memobj uses pinned host memory, this will not do a write.
 ///
 pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
                                  void *mapped_ptr,
@@ -4037,22 +4076,33 @@ pi_result cuda_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
   assert(command_queue != nullptr);
   assert(mapped_ptr != nullptr);
   assert(memobj != nullptr);
+  assert(memobj->mem_type_ == _pi_mem::mem_type::buffer);
   assert(memobj->mem_.buffer_mem_.get_map_ptr() != nullptr);
   assert(memobj->mem_.buffer_mem_.get_map_ptr() == mapped_ptr);
 
-  if ((memobj->mem_.buffer_mem_.get_map_flags() & CL_MAP_WRITE) ||
-      (memobj->mem_.buffer_mem_.get_map_flags() &
-       CL_MAP_WRITE_INVALIDATE_REGION)) {
+  const bool is_pinned = memobj->mem_.buffer_mem_.allocMode_ ==
+                         _pi_mem::mem_::buffer_mem_::alloc_mode::alloc_host_ptr;
+
+  if (!is_pinned &&
+      ((memobj->mem_.buffer_mem_.get_map_flags() & CL_MAP_WRITE) ||
+       (memobj->mem_.buffer_mem_.get_map_flags() &
+        CL_MAP_WRITE_INVALIDATE_REGION))) {
+    // Pinned host memory is only on host so it doesn't need to be written to.
     ret_err = cuda_piEnqueueMemBufferWrite(
         command_queue, memobj, true,
         memobj->mem_.buffer_mem_.get_map_offset(mapped_ptr),
         memobj->mem_.buffer_mem_.get_size(), mapped_ptr,
         num_events_in_wait_list, event_wait_list, event);
   } else {
+    ScopedContext active(command_queue->get_context());
+
+    if (is_pinned) {
+      ret_err = cuda_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                                         event_wait_list, nullptr);
+    }
+
     if (event) {
       try {
-        ScopedContext active(command_queue->get_context());
-
         *event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_UNMAP,
                                         command_queue);
         (*event)->start();

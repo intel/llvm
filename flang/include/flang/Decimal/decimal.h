@@ -44,12 +44,11 @@ struct ConversionToDecimalResult {
 };
 
 enum FortranRounding {
-  RoundNearest, /* RN */
+  RoundNearest, /* RN and RP */
   RoundUp, /* RU */
   RoundDown, /* RD */
   RoundToZero, /* RZ - no rounding */
   RoundCompatible, /* RC: like RN, but ties go away from 0 */
-  RoundDefault, /* RP: maps to one of the above */
 };
 
 /* The "minimize" flag causes the fewest number of output digits
@@ -69,7 +68,7 @@ enum DecimalConversionFlags {
  * some extra due to the library working internally in base 10**16
  * and computing its output size in multiples of 16.
  */
-#define EXTRA_DECIMAL_CONVERSION_SPACE (1 + 1 + 16 - 1)
+#define EXTRA_DECIMAL_CONVERSION_SPACE (1 + 1 + 2 * 16 - 1)
 
 #ifdef __cplusplus
 template <int PREC>

@@ -47,6 +47,8 @@ void MCExpr::print(raw_ostream &OS, const MCAsmInfo *MAI, bool InParens) const {
     auto Value = cast<MCConstantExpr>(*this).getValue();
     auto PrintInHex = cast<MCConstantExpr>(*this).useHexFormat();
     auto SizeInBytes = cast<MCConstantExpr>(*this).getSizeInBytes();
+    if (Value < 0 && MAI && !MAI->supportsSignedData())
+      PrintInHex = true;
     if (PrintInHex)
       switch (SizeInBytes) {
       default:
@@ -143,6 +145,7 @@ void MCExpr::print(raw_ostream &OS, const MCAsmInfo *MAI, bool InParens) const {
     case MCBinaryExpr::Mul:  OS <<  '*'; break;
     case MCBinaryExpr::NE:   OS << "!="; break;
     case MCBinaryExpr::Or:   OS <<  '|'; break;
+    case MCBinaryExpr::OrNot: OS << '!'; break;
     case MCBinaryExpr::Shl:  OS << "<<"; break;
     case MCBinaryExpr::Sub:  OS <<  '-'; break;
     case MCBinaryExpr::Xor:  OS <<  '^'; break;
@@ -322,6 +325,7 @@ StringRef MCSymbolRefExpr::getVariantKindName(VariantKind Kind) {
   case VK_PPC_TLSLD: return "tlsld";
   case VK_PPC_LOCAL: return "local";
   case VK_PPC_NOTOC: return "notoc";
+  case VK_PPC_PCREL_OPT: return "<<invalid>>";
   case VK_COFF_IMGREL32: return "IMGREL";
   case VK_Hexagon_LO16: return "LO16";
   case VK_Hexagon_HI16: return "HI16";
@@ -342,6 +346,20 @@ StringRef MCSymbolRefExpr::getVariantKindName(VariantKind Kind) {
   case VK_AMDGPU_REL64: return "rel64";
   case VK_AMDGPU_ABS32_LO: return "abs32@lo";
   case VK_AMDGPU_ABS32_HI: return "abs32@hi";
+  case VK_VE_HI32: return "hi";
+  case VK_VE_LO32: return "lo";
+  case VK_VE_PC_HI32: return "pc_hi";
+  case VK_VE_PC_LO32: return "pc_lo";
+  case VK_VE_GOT_HI32: return "got_hi";
+  case VK_VE_GOT_LO32: return "got_lo";
+  case VK_VE_GOTOFF_HI32: return "gotoff_hi";
+  case VK_VE_GOTOFF_LO32: return "gotoff_lo";
+  case VK_VE_PLT_HI32: return "plt_hi";
+  case VK_VE_PLT_LO32: return "plt_lo";
+  case VK_VE_TLS_GD_HI32: return "tls_gd_hi";
+  case VK_VE_TLS_GD_LO32: return "tls_gd_lo";
+  case VK_VE_TPOFF_HI32: return "tpoff_hi";
+  case VK_VE_TPOFF_LO32: return "tpoff_lo";
   }
   llvm_unreachable("Invalid variant kind");
 }
@@ -463,6 +481,20 @@ MCSymbolRefExpr::getVariantKindForName(StringRef Name) {
     .Case("rel64", VK_AMDGPU_REL64)
     .Case("abs32@lo", VK_AMDGPU_ABS32_LO)
     .Case("abs32@hi", VK_AMDGPU_ABS32_HI)
+    .Case("hi", VK_VE_HI32)
+    .Case("lo", VK_VE_LO32)
+    .Case("pc_hi", VK_VE_PC_HI32)
+    .Case("pc_lo", VK_VE_PC_LO32)
+    .Case("got_hi", VK_VE_GOT_HI32)
+    .Case("got_lo", VK_VE_GOT_LO32)
+    .Case("gotoff_hi", VK_VE_GOTOFF_HI32)
+    .Case("gotoff_lo", VK_VE_GOTOFF_LO32)
+    .Case("plt_hi", VK_VE_PLT_HI32)
+    .Case("plt_lo", VK_VE_PLT_LO32)
+    .Case("tls_gd_hi", VK_VE_TLS_GD_HI32)
+    .Case("tls_gd_lo", VK_VE_TLS_GD_LO32)
+    .Case("tpoff_hi", VK_VE_TPOFF_HI32)
+    .Case("tpoff_lo", VK_VE_TPOFF_LO32)
     .Default(VK_Invalid);
 }
 
@@ -889,6 +921,7 @@ bool MCExpr::evaluateAsRelocatableImpl(MCValue &Res, const MCAssembler *Asm,
     case MCBinaryExpr::Mul:  Result = LHS * RHS; break;
     case MCBinaryExpr::NE:   Result = LHS != RHS; break;
     case MCBinaryExpr::Or:   Result = LHS | RHS; break;
+    case MCBinaryExpr::OrNot: Result = LHS | ~RHS; break;
     case MCBinaryExpr::Shl:  Result = uint64_t(LHS) << uint64_t(RHS); break;
     case MCBinaryExpr::Sub:  Result = LHS - RHS; break;
     case MCBinaryExpr::Xor:  Result = LHS ^ RHS; break;

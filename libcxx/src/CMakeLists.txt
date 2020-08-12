@@ -29,6 +29,7 @@ set(LIBCXX_SOURCES
   new.cpp
   optional.cpp
   random.cpp
+  random_shuffle.cpp
   regex.cpp
   shared_mutex.cpp
   stdexcept.cpp
@@ -162,7 +163,8 @@ if (LIBCXX_ENABLE_SHARED)
   if(COMMAND llvm_setup_rpath)
     llvm_setup_rpath(cxx_shared)
   endif()
-  target_link_libraries(cxx_shared PRIVATE ${LIBCXX_LIBRARIES})
+  target_link_libraries(cxx_shared PUBLIC cxx-headers
+                                   PRIVATE ${LIBCXX_LIBRARIES})
   set_target_properties(cxx_shared
     PROPERTIES
       COMPILE_FLAGS "${LIBCXX_COMPILE_FLAGS}"
@@ -243,7 +245,8 @@ endif()
 # Build the static library.
 if (LIBCXX_ENABLE_STATIC)
   add_library(cxx_static STATIC ${exclude_from_all} ${LIBCXX_SOURCES} ${LIBCXX_HEADERS})
-  target_link_libraries(cxx_static PRIVATE ${LIBCXX_LIBRARIES})
+  target_link_libraries(cxx_static PUBLIC cxx-headers
+                                   PRIVATE ${LIBCXX_LIBRARIES})
   set(CMAKE_STATIC_LIBRARY_PREFIX "lib")
   set_target_properties(cxx_static
     PROPERTIES
@@ -297,7 +300,7 @@ if (LIBCXX_ENABLE_STATIC)
 endif()
 
 # Add a meta-target for both libraries.
-add_custom_target(cxx DEPENDS cxx-headers ${LIBCXX_BUILD_TARGETS})
+add_custom_target(cxx DEPENDS ${LIBCXX_BUILD_TARGETS})
 
 if (LIBCXX_ENABLE_EXPERIMENTAL_LIBRARY)
   set(LIBCXX_EXPERIMENTAL_SOURCES
@@ -380,10 +383,14 @@ if (NOT CMAKE_CONFIGURATION_TYPES AND (LIBCXX_INSTALL_LIBRARY OR
     if(LIBCXX_INSTALL_HEADERS)
       set(header_install_target install-cxx-headers)
     endif()
+    if (LIBCXX_ENABLE_PARALLEL_ALGORITHMS)
+      set(pstl_install_target install-pstl)
+    endif()
     add_custom_target(install-cxx
                       DEPENDS ${lib_install_target}
                               ${experimental_lib_install_target}
                               ${header_install_target}
+                              ${pstl_install_target}
                       COMMAND "${CMAKE_COMMAND}"
                       -DCMAKE_INSTALL_COMPONENT=cxx
                       -P "${LIBCXX_BINARY_DIR}/cmake_install.cmake")
@@ -391,6 +398,7 @@ if (NOT CMAKE_CONFIGURATION_TYPES AND (LIBCXX_INSTALL_LIBRARY OR
                       DEPENDS ${lib_install_target}
                               ${experimental_lib_install_target}
                               ${header_install_target}
+                              ${pstl_install_target}
                       COMMAND "${CMAKE_COMMAND}"
                       -DCMAKE_INSTALL_COMPONENT=cxx
                       -DCMAKE_INSTALL_DO_STRIP=1

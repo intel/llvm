@@ -364,7 +364,7 @@
      a = 3.14
   enddo
 
-  !ERROR: GRAINSIZE and NUM_TASKS are mutually exclusive and may not appear on the same TASKLOOP directive
+  !ERROR: GRAINSIZE and NUM_TASKS clauses are mutually exclusive and may not appear on the same TASKLOOP directive
   !$omp taskloop num_tasks(3) grainsize(2)
   do i = 1,N
      a = 3.14
@@ -396,6 +396,9 @@
   !$omp taskyield
   !$omp barrier
   !$omp taskwait
+  !$omp taskwait depend(source)
+  !ERROR: Internal: no symbol found for 'i'
+  !$omp taskwait depend(sink:i-1)
   ! !$omp target enter data map(to:arrayA) map(alloc:arrayB)
   ! !$omp target update from(arrayA) to(arrayB)
   ! !$omp target exit data map(from:arrayA) map(delete:arrayB)
@@ -403,6 +406,10 @@
   !ERROR: Internal: no symbol found for 'i'
   !$omp ordered depend(sink:i-1)
   !$omp flush (c)
+  !$omp flush acq_rel
+  !$omp flush release
+  !$omp flush acquire
+  !$omp flush release (c)
   !$omp cancel DO
   !$omp cancellation point parallel
 
@@ -454,7 +461,6 @@
   enddo
   !$omp end taskloop simd
 
-  !ERROR: REDUCTION clause is not allowed on the TASKLOOP SIMD directive
   !$omp taskloop simd reduction(+:a)
   do i = 1, N
      a = a + 3.14
@@ -462,7 +468,7 @@
   !ERROR: Unmatched END TASKLOOP directive
   !$omp end taskloop
 
-  !ERROR: GRAINSIZE and NUM_TASKS are mutually exclusive and may not appear on the same TASKLOOP SIMD directive
+  !ERROR: GRAINSIZE and NUM_TASKS clauses are mutually exclusive and may not appear on the same TASKLOOP SIMD directive
   !$omp taskloop simd num_tasks(3) grainsize(2)
   do i = 1,N
      a = 3.14

@@ -136,17 +136,11 @@ llvm::Optional<DocumentSymbol> declToSym(ASTContext &Ctx, const NamedDecl &ND) {
   auto &SM = Ctx.getSourceManager();
 
   SourceLocation NameLoc = nameLocation(ND, SM);
-  // getFileLoc is a good choice for us, but we also need to make sure
-  // sourceLocToPosition won't switch files, so we call getSpellingLoc on top of
-  // that to make sure it does not switch files.
-  // FIXME: sourceLocToPosition should not switch files!
   SourceLocation BeginLoc = SM.getSpellingLoc(SM.getFileLoc(ND.getBeginLoc()));
   SourceLocation EndLoc = SM.getSpellingLoc(SM.getFileLoc(ND.getEndLoc()));
-  if (NameLoc.isInvalid() || BeginLoc.isInvalid() || EndLoc.isInvalid())
-    return llvm::None;
-
-  if (!SM.isWrittenInMainFile(NameLoc) || !SM.isWrittenInMainFile(BeginLoc) ||
-      !SM.isWrittenInMainFile(EndLoc))
+  const auto SymbolRange =
+      toHalfOpenFileRange(SM, Ctx.getLangOpts(), {BeginLoc, EndLoc});
+  if (!SymbolRange)
     return llvm::None;
 
   Position NameBegin = sourceLocToPosition(SM, NameLoc);
@@ -162,8 +156,8 @@ llvm::Optional<DocumentSymbol> declToSym(ASTContext &Ctx, const NamedDecl &ND) {
   SI.name = printName(Ctx, ND);
   SI.kind = SK;
   SI.deprecated = ND.isDeprecated();
-  SI.range =
-      Range{sourceLocToPosition(SM, BeginLoc), sourceLocToPosition(SM, EndLoc)};
+  SI.range = Range{sourceLocToPosition(SM, SymbolRange->getBegin()),
+                   sourceLocToPosition(SM, SymbolRange->getEnd())};
   SI.selectionRange = Range{NameBegin, NameEnd};
   if (!SI.range.contains(SI.selectionRange)) {
     // 'selectionRange' must be contained in 'range', so in cases where clang
@@ -194,7 +188,7 @@ public:
   }
 
 private:
-  enum class VisitKind { No, OnlyDecl, DeclAndChildren };
+  enum class VisitKind { No, OnlyDecl, OnlyChildren, DeclAndChildren };
 
   void traverseDecl(Decl *D, std::vector<DocumentSymbol> &Results) {
     if (auto *Templ = llvm::dyn_cast<TemplateDecl>(D)) {
@@ -202,18 +196,25 @@ private:
       if (auto *TD = Templ->getTemplatedDecl())
         D = TD;
     }
-    auto *ND = llvm::dyn_cast<NamedDecl>(D);
-    if (!ND)
-      return;
-    VisitKind Visit = shouldVisit(ND);
+
+    VisitKind Visit = shouldVisit(D);
     if (Visit == VisitKind::No)
       return;
-    llvm::Optional<DocumentSymbol> Sym = declToSym(AST.getASTContext(), *ND);
+
+    if (Visit == VisitKind::OnlyChildren)
+      return traverseChildren(D, Results);
+
+    auto *ND = llvm::cast<NamedDecl>(D);
+    auto Sym = declToSym(AST.getASTContext(), *ND);
     if (!Sym)
       return;
-    if (Visit == VisitKind::DeclAndChildren)
-      traverseChildren(D, Sym->children);
     Results.push_back(std::move(*Sym));
+
+    if (Visit == VisitKind::OnlyDecl)
+      return;
+
+    assert(Visit == VisitKind::DeclAndChildren && "Unexpected VisitKind");
+    traverseChildren(ND, Results.back().children);
   }
 
   void traverseChildren(Decl *D, std::vector<DocumentSymbol> &Results) {
@@ -224,8 +225,14 @@ private:
       traverseDecl(C, Results);
   }
 
-  VisitKind shouldVisit(NamedDecl *D) {
+  VisitKind shouldVisit(Decl *D) {
     if (D->isImplicit())
+      return VisitKind::No;
+
+    if (llvm::isa<LinkageSpecDecl>(D) || llvm::isa<ExportDecl>(D))
+      return VisitKind::OnlyChildren;
+
+    if (!llvm::isa<NamedDecl>(D))
       return VisitKind::No;
 
     if (auto Func = llvm::dyn_cast<FunctionDecl>(D)) {

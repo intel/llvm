@@ -325,7 +325,7 @@ void *image_impl<Dimensions>::allocateMem(ContextImplPtr Context,
   return MemoryManager::allocateMemImage(
       std::move(Context), this, UserPtr, BaseT::MHostPtrReadOnly,
       BaseT::getSize(), Desc, Format, BaseT::MInteropEvent,
-      BaseT::MInteropContext, OutEventToWait);
+      BaseT::MInteropContext, MProps, OutEventToWait);
 }
 
 template <int Dimensions>

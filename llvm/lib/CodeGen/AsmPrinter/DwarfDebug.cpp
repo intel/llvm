@@ -95,10 +95,6 @@ static cl::opt<bool> UseDwarfRangesBaseAddressSpecifier(
     "use-dwarf-ranges-base-address-specifier", cl::Hidden,
     cl::desc("Use base address specifiers in debug_ranges"), cl::init(false));
 
-static cl::opt<bool> EmitDwarfDebugEntryValues(
-    "emit-debug-entry-values", cl::Hidden,
-    cl::desc("Emit the debug entry values"), cl::init(false));
-
 static cl::opt<bool> GenerateARangeSection("generate-arange-section",
                                            cl::Hidden,
                                            cl::desc("Generate dwarf aranges"),
@@ -166,6 +162,11 @@ static cl::opt<LinkageNameOption>
                                  clEnumValN(AbstractLinkageNames, "Abstract",
                                             "Abstract subprograms")),
                       cl::init(DefaultLinkageNames));
+
+static cl::opt<unsigned> LocationAnalysisSizeLimit(
+    "singlevarlocation-input-bb-limit",
+    cl::desc("Maximum block size to analyze for single-location variables"),
+    cl::init(30000), cl::Hidden);
 
 static const char *const DWARFGroupName = "dwarf";
 static const char *const DWARFGroupDescription = "DWARF Emission";
@@ -425,9 +426,7 @@ DwarfDebug::DwarfDebug(AsmPrinter *A, Module *M)
 
   // Emit call-site-param debug info for GDB and LLDB, if the target supports
   // the debug entry values feature. It can also be enabled explicitly.
-  EmitDebugEntryValues = (Asm->TM.Options.ShouldEmitDebugEntryValues() &&
-                          (tuneForGDB() || tuneForLLDB())) ||
-                         EmitDwarfDebugEntryValues;
+  EmitDebugEntryValues = Asm->TM.Options.ShouldEmitDebugEntryValues();
 
   Asm->OutStreamer->getContext().setDwarfVersion(DwarfVersion);
 }
@@ -1066,9 +1065,8 @@ DwarfDebug::getOrCreateDwarfCompileUnit(const DICompileUnit *DIUnit) {
   // compilation directory.
   if (!Asm->OutStreamer->hasRawTextSupport() || SingleCU)
     Asm->OutStreamer->emitDwarfFile0Directive(
-        CompilationDir, DIUnit->getFilename(),
-        NewCU.getMD5AsBytes(DIUnit->getFile()), DIUnit->getSource(),
-        NewCU.getUniqueID());
+        CompilationDir, DIUnit->getFilename(), getMD5AsBytes(DIUnit->getFile()),
+        DIUnit->getSource(), NewCU.getUniqueID());
 
   if (useSplitDwarf()) {
     NewCU.setSkeleton(constructSkeletonCU(NewCU));
@@ -1637,8 +1635,10 @@ static bool validThroughout(LexicalScopes &LScopes,
 // [1-3)    [(reg0, fragment 0, 32), (reg1, fragment 32, 32)]
 // [3-4)    [(reg1, fragment 32, 32), (123, fragment 64, 32)]
 // [4-)     [(@g, fragment 0, 96)]
-bool DwarfDebug::buildLocationList(SmallVectorImpl<DebugLocEntry> &DebugLoc,
-                                   const DbgValueHistoryMap::Entries &Entries) {
+bool DwarfDebug::buildLocationList(
+    SmallVectorImpl<DebugLocEntry> &DebugLoc,
+    const DbgValueHistoryMap::Entries &Entries,
+    DenseSet<const MachineBasicBlock *> &VeryLargeBlocks) {
   using OpenRange =
       std::pair<DbgValueHistoryMap::EntryIndex, DbgValueLoc>;
   SmallVector<OpenRange, 4> OpenRanges;
@@ -1664,7 +1664,8 @@ bool DwarfDebug::buildLocationList(SmallVectorImpl<DebugLocEntry> &DebugLoc,
 
     const MCSymbol *EndLabel;
     if (std::next(EI) == Entries.end()) {
-      EndLabel = Asm->getFunctionEnd();
+      const MachineBasicBlock &EndMBB = Asm->MF->back();
+      EndLabel = Asm->MBBSectionRanges[EndMBB.getSectionIDNum()].EndLabel;
       if (EI->isClobber())
         EndMI = EI->getInstr();
     }
@@ -1733,8 +1734,14 @@ bool DwarfDebug::buildLocationList(SmallVectorImpl<DebugLocEntry> &DebugLoc,
       DebugLoc.pop_back();
   }
 
-  return DebugLoc.size() == 1 && isSafeForSingleLocation &&
-         validThroughout(LScopes, StartDebugMI, EndMI);
+  // If there's a single entry, safe for a single location, and not part of
+  // an over-sized basic block, then ask validThroughout whether this
+  // location can be represented as a single variable location.
+  if (DebugLoc.size() != 1 || !isSafeForSingleLocation)
+    return false;
+  if (VeryLargeBlocks.count(StartDebugMI->getParent()))
+    return false;
+  return validThroughout(LScopes, StartDebugMI, EndMI);
 }
 
 DbgEntity *DwarfDebug::createConcreteEntity(DwarfCompileUnit &TheCU,
@@ -1765,6 +1772,13 @@ void DwarfDebug::collectEntityInfo(DwarfCompileUnit &TheCU,
                                    DenseSet<InlinedEntity> &Processed) {
   // Grab the variable info that was squirreled away in the MMI side-table.
   collectVariableInfoFromMFTable(TheCU, Processed);
+
+  // Identify blocks that are unreasonably sized, so that we can later
+  // skip lexical scope analysis over them.
+  DenseSet<const MachineBasicBlock *> VeryLargeBlocks;
+  for (const auto &MBB : *CurFn)
+    if (MBB.size() > LocationAnalysisSizeLimit)
+      VeryLargeBlocks.insert(&MBB);
 
   for (const auto &I : DbgValues) {
     InlinedEntity IV = I.first;
@@ -1802,7 +1816,8 @@ void DwarfDebug::collectEntityInfo(DwarfCompileUnit &TheCU,
     if (HistSize == 1 || SingleValueWithClobber) {
       const auto *End =
           SingleValueWithClobber ? HistoryMapEntries[1].getInstr() : nullptr;
-      if (validThroughout(LScopes, MInsn, End)) {
+      if (VeryLargeBlocks.count(MInsn->getParent()) == 0 &&
+          validThroughout(LScopes, MInsn, End)) {
         RegVar->initializeDbgValue(MInsn);
         continue;
       }
@@ -1817,7 +1832,8 @@ void DwarfDebug::collectEntityInfo(DwarfCompileUnit &TheCU,
 
     // Build the location list for this variable.
     SmallVector<DebugLocEntry, 8> Entries;
-    bool isValidSingleLocation = buildLocationList(Entries, HistoryMapEntries);
+    bool isValidSingleLocation =
+        buildLocationList(Entries, HistoryMapEntries, VeryLargeBlocks);
 
     // Check whether buildLocationList managed to merge all locations to one
     // that is valid throughout the variable's scope. If so, produce single
@@ -2115,7 +2131,9 @@ void DwarfDebug::endFunctionImpl(const MachineFunction *MF) {
   collectEntityInfo(TheCU, SP, Processed);
 
   // Add the range of this function to the list of ranges for the CU.
-  TheCU.addRange({Asm->getFunctionBegin(), Asm->getFunctionEnd()});
+  // With basic block sections, add ranges for all basic block sections.
+  for (const auto &R : Asm->MBBSectionRanges)
+    TheCU.addRange({R.second.BeginLabel, R.second.EndLabel});
 
   // Under -gmlt, skip building the subprogram if there are no inlined
   // subroutines inside it. But with -fdebug-info-for-profiling, the subprogram
@@ -2487,6 +2505,8 @@ void DwarfDebug::emitDebugLocValue(const AsmPrinter &AP, const DIBasicType *BT,
     // TODO TargetIndexLocation is a target-independent. Currently only the WebAssembly-specific
     // encoding is supported.
     DwarfExpr.addWasmLocation(Loc.Index, static_cast<uint64_t>(Loc.Offset));
+      DwarfExpr.addExpression(std::move(ExprCursor));
+      return;
   } else if (Value.isConstantFP()) {
     APInt RawBytes = Value.getConstantFP()->getValueAPF().bitcastToAPInt();
     DwarfExpr.addUnsignedConstant(RawBytes);
@@ -2976,7 +2996,10 @@ static void emitMacroHeader(AsmPrinter *Asm, const DwarfDebug &DD,
   Asm->OutStreamer->AddComment("Flags: 32 bit, debug_line_offset present");
   Asm->emitInt8(Flags);
   Asm->OutStreamer->AddComment("debug_line_offset");
-  Asm->OutStreamer->emitSymbolValue(CU.getLineTableStartSym(), /*Size=*/4);
+  if (DD.useSplitDwarf())
+    Asm->OutStreamer->emitIntValue(0, /*Size=*/4);
+  else
+    Asm->OutStreamer->emitSymbolValue(CU.getLineTableStartSym(), /*Size=*/4);
 }
 
 void DwarfDebug::handleMacroNodes(DIMacroNodeArray Nodes, DwarfCompileUnit &U) {
@@ -3032,16 +3055,22 @@ void DwarfDebug::emitMacro(DIMacro &M) {
 }
 
 void DwarfDebug::emitMacroFileImpl(
-    DIMacroFile &F, DwarfCompileUnit &U, unsigned StartFile, unsigned EndFile,
+    DIMacroFile &MF, DwarfCompileUnit &U, unsigned StartFile, unsigned EndFile,
     StringRef (*MacroFormToString)(unsigned Form)) {
 
   Asm->OutStreamer->AddComment(MacroFormToString(StartFile));
   Asm->emitULEB128(StartFile);
   Asm->OutStreamer->AddComment("Line Number");
-  Asm->emitULEB128(F.getLine());
+  Asm->emitULEB128(MF.getLine());
   Asm->OutStreamer->AddComment("File Number");
-  Asm->emitULEB128(U.getOrCreateSourceID(F.getFile()));
-  handleMacroNodes(F.getElements(), U);
+  DIFile &F = *MF.getFile();
+  if (useSplitDwarf())
+    Asm->emitULEB128(getDwoLineTable(U)->getFile(
+        F.getDirectory(), F.getFilename(), getMD5AsBytes(&F),
+        Asm->OutContext.getDwarfVersion(), F.getSource()));
+  else
+    Asm->emitULEB128(U.getOrCreateSourceID(&F));
+  handleMacroNodes(MF.getElements(), U);
   Asm->OutStreamer->AddComment(MacroFormToString(EndFile));
   Asm->emitULEB128(EndFile);
 }
@@ -3175,7 +3204,7 @@ MCDwarfDwoLineTable *DwarfDebug::getDwoLineTable(const DwarfCompileUnit &CU) {
   const DICompileUnit *DIUnit = CU.getCUNode();
   SplitTypeUnitFileTable.maybeSetRootFile(
       DIUnit->getDirectory(), DIUnit->getFilename(),
-      CU.getMD5AsBytes(DIUnit->getFile()), DIUnit->getSource());
+      getMD5AsBytes(DIUnit->getFile()), DIUnit->getSource());
   return &SplitTypeUnitFileTable;
 }
 
@@ -3357,4 +3386,21 @@ void DwarfDebug::insertSectionLabel(const MCSymbol *S) {
   if (SectionLabels.insert(std::make_pair(&S->getSection(), S)).second)
     if (useSplitDwarf() || getDwarfVersion() >= 5)
       AddrPool.getIndex(S);
+}
+
+Optional<MD5::MD5Result> DwarfDebug::getMD5AsBytes(const DIFile *File) const {
+  assert(File);
+  if (getDwarfVersion() < 5)
+    return None;
+  Optional<DIFile::ChecksumInfo<StringRef>> Checksum = File->getChecksum();
+  if (!Checksum || Checksum->Kind != DIFile::CSK_MD5)
+    return None;
+
+  // Convert the string checksum to an MD5Result for the streamer.
+  // The verifier validates the checksum so we assume it's okay.
+  // An MD5 checksum is 16 bytes.
+  std::string ChecksumString = fromHex(Checksum->Value);
+  MD5::MD5Result CKMem;
+  std::copy(ChecksumString.begin(), ChecksumString.end(), CKMem.Bytes.data());
+  return CKMem;
 }

@@ -44,12 +44,11 @@ struct VersionBase {
     return major > other.major ||
            (major == other.major && minor >= other.minor);
   }
+  bool operator<(const VersionType &other) const { return !(*this >= other); }
 };
 
 struct MacosVersion : VersionBase<MacosVersion> {
-  MacosVersion(u16 ten, u16 major) : VersionBase(ten, major) {
-    CHECK_EQ(ten, 10);
-  }
+  MacosVersion(u16 major, u16 minor) : VersionBase(major, minor) {}
 };
 
 struct DarwinKernelVersion : VersionBase<DarwinKernelVersion> {

@@ -132,7 +132,8 @@ namespace {
       bool reachable = false;
 
       // Vregs that must be live in because they are used without being
-      // defined. Map value is the user.
+      // defined. Map value is the user. vregsLiveIn doesn't include regs
+      // that only are used by PHI nodes.
       RegMap vregsLiveIn;
 
       // Regs killed in MBB. They may be defined again, and will then be in both
@@ -584,7 +585,6 @@ MachineVerifier::visitMachineBasicBlockBefore(const MachineBasicBlock *MBB) {
     // it is an entry block or landing pad.
     for (const auto &LI : MBB->liveins()) {
       if (isAllocatable(LI.PhysReg) && !MBB->isEHPad() &&
-          !MBB->isInlineAsmBrDefaultTarget() &&
           MBB->getIterator() != MBB->getParent()->begin()) {
         report("MBB has allocatable live-in, but isn't entry or landing-pad.", MBB);
         report_context(LI.PhysReg);
@@ -730,7 +730,7 @@ MachineVerifier::visitMachineBasicBlockBefore(const MachineBasicBlock *MBB) {
         continue;
       // Also accept successors which are for exception-handling or might be
       // inlineasm_br targets.
-      if (SuccMBB->isEHPad() || MBB->isInlineAsmBrIndirectTarget(SuccMBB))
+      if (SuccMBB->isEHPad() || SuccMBB->isInlineAsmBrIndirectTarget())
         continue;
       report("MBB has unexpected successors which are not branch targets, "
              "fallthrough, EHPads, or inlineasm_br targets.",
@@ -1019,6 +1019,10 @@ void MachineVerifier::verifyPreISelGenericInstruction(const MachineInstr *MI) {
 
     if (SrcTy.getSizeInBits() != DstTy.getSizeInBits())
       report("bitcast sizes must match", MI);
+
+    if (SrcTy == DstTy)
+      report("bitcast must change the type", MI);
+
     break;
   }
   case TargetOpcode::G_INTTOPTR:
@@ -1695,6 +1699,15 @@ MachineVerifier::visitMachineOperand(const MachineOperand *MO, unsigned MONum) {
       if (!RC) {
         // This is a generic virtual register.
 
+        // Do not allow undef uses for generic virtual registers. This ensures
+        // getVRegDef can never fail and return null on a generic register.
+        //
+        // FIXME: This restriction should probably be broadened to all SSA
+        // MIR. However, DetectDeadLanes/ProcessImplicitDefs technically still
+        // run on the SSA function just before phi elimination.
+        if (MO->isUndef())
+          report("Generic virtual register use cannot be undef", MO, MONum);
+
         // If we're post-Select, we can't have gvregs anymore.
         if (isFunctionSelected) {
           report("Generic virtual register invalid in a Selected function",
@@ -2217,63 +2230,28 @@ public:
 // can pass through an MBB live, but may not be live every time. It is assumed
 // that all vregsPassed sets are empty before the call.
 void MachineVerifier::calcRegsPassed() {
-  // This is a forward dataflow, doing it in RPO. A standard map serves as a
-  // priority (sorting by RPO number) queue, deduplicating worklist, and an RPO
-  // number to MBB mapping all at once.
-  std::map<unsigned, const MachineBasicBlock *> RPOWorklist;
-  DenseMap<const MachineBasicBlock *, unsigned> RPONumbers;
-  if (MF->empty()) {
+  if (MF->empty())
     // ReversePostOrderTraversal doesn't handle empty functions.
     return;
-  }
-  std::vector<FilteringVRegSet> VRegsPassedSets(MF->size());
-  for (const MachineBasicBlock *MBB :
-       ReversePostOrderTraversal<const MachineFunction *>(MF)) {
-    // Careful with the evaluation order, fetch next number before allocating.
-    unsigned Number = RPONumbers.size();
-    RPONumbers[MBB] = Number;
-    // Set-up the transfer functions for all blocks.
-    const BBInfo &MInfo = MBBInfoMap[MBB];
-    VRegsPassedSets[Number].addToFilter(MInfo.regsKilled);
-    VRegsPassedSets[Number].addToFilter(MInfo.regsLiveOut);
-  }
-  // First push live-out regs to successors' vregsPassed. Remember the MBBs that
-  // have any vregsPassed.
-  for (const MachineBasicBlock &MBB : *MF) {
-    const BBInfo &MInfo = MBBInfoMap[&MBB];
-    if (!MInfo.reachable)
-      continue;
-    for (const MachineBasicBlock *Succ : MBB.successors()) {
-      unsigned SuccNumber = RPONumbers[Succ];
-      FilteringVRegSet &SuccSet = VRegsPassedSets[SuccNumber];
-      if (SuccSet.add(MInfo.regsLiveOut))
-        RPOWorklist.emplace(SuccNumber, Succ);
-    }
-  }
 
-  // Iteratively push vregsPassed to successors.
-  while (!RPOWorklist.empty()) {
-    auto Next = RPOWorklist.begin();
-    const MachineBasicBlock *MBB = Next->second;
-    RPOWorklist.erase(Next);
-    FilteringVRegSet &MSet = VRegsPassedSets[RPONumbers[MBB]];
-    for (const MachineBasicBlock *Succ : MBB->successors()) {
-      if (Succ == MBB)
+  for (const MachineBasicBlock *MB :
+       ReversePostOrderTraversal<const MachineFunction *>(MF)) {
+    FilteringVRegSet VRegs;
+    BBInfo &Info = MBBInfoMap[MB];
+    assert(Info.reachable);
+
+    VRegs.addToFilter(Info.regsKilled);
+    VRegs.addToFilter(Info.regsLiveOut);
+    for (const MachineBasicBlock *Pred : MB->predecessors()) {
+      const BBInfo &PredInfo = MBBInfoMap[Pred];
+      if (!PredInfo.reachable)
         continue;
-      unsigned SuccNumber = RPONumbers[Succ];
-      FilteringVRegSet &SuccSet = VRegsPassedSets[SuccNumber];
-      if (SuccSet.add(MSet))
-        RPOWorklist.emplace(SuccNumber, Succ);
+
+      VRegs.add(PredInfo.regsLiveOut);
+      VRegs.add(PredInfo.vregsPassed);
     }
-  }
-  // Copy the results back to BBInfos.
-  for (const MachineBasicBlock &MBB : *MF) {
-    BBInfo &MInfo = MBBInfoMap[&MBB];
-    if (!MInfo.reachable)
-      continue;
-    const FilteringVRegSet &MSet = VRegsPassedSets[RPONumbers[&MBB]];
-    MInfo.vregsPassed.reserve(MSet.size());
-    MInfo.vregsPassed.insert(MSet.begin(), MSet.end());
+    Info.vregsPassed.reserve(VRegs.size());
+    Info.vregsPassed.insert(VRegs.begin(), VRegs.end());
   }
 }
 
@@ -2289,6 +2267,23 @@ void MachineVerifier::calcRegsRequired() {
       BBInfo &PInfo = MBBInfoMap[Pred];
       if (PInfo.addRequired(MInfo.vregsLiveIn))
         todo.insert(Pred);
+    }
+
+    // Handle the PHI node.
+    for (const MachineInstr &MI : MBB.phis()) {
+      for (unsigned i = 1, e = MI.getNumOperands(); i != e; i += 2) {
+        // Skip those Operands which are undef regs or not regs.
+        if (!MI.getOperand(i).isReg() || !MI.getOperand(i).readsReg())
+          continue;
+
+        // Get register and predecessor for one PHI edge.
+        Register Reg = MI.getOperand(i).getReg();
+        const MachineBasicBlock *Pred = MI.getOperand(i + 1).getMBB();
+
+        BBInfo &PInfo = MBBInfoMap[Pred];
+        if (PInfo.addRequired(Reg))
+          todo.insert(Pred);
+      }
     }
   }
 

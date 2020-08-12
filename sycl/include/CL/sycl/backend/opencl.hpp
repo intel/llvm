@@ -43,6 +43,13 @@ struct interop<backend::opencl, accessor<DataT, Dimensions, AccessMode,
   using type = cl_mem;
 };
 
+template <typename DataT, int Dimensions, access::mode AccessMode>
+struct interop<backend::opencl, accessor<DataT, Dimensions, AccessMode,
+                                         access::target::constant_buffer,
+                                         access::placeholder::false_t>> {
+  using type = cl_mem;
+};
+
 namespace opencl {
 
 // Implementation of various "make" functions resides in SYCL RT because

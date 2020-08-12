@@ -19,6 +19,7 @@
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/Value.h"
+#include "mlir/Target/LLVMIR/TypeTranslation.h"
 
 #include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
 #include "llvm/IR/BasicBlock.h"
@@ -61,6 +62,8 @@ public:
     LLVM::ensureDistinctSuccessors(m);
 
     T translator(m, std::move(llvmModule));
+    if (failed(translator.convertFunctionSignatures()))
+      return nullptr;
     if (failed(translator.convertGlobals()))
       return nullptr;
     if (failed(translator.convertFunctions()))
@@ -85,6 +88,12 @@ protected:
                                          llvm::IRBuilder<> &builder);
   virtual LogicalResult convertOmpOperation(Operation &op,
                                             llvm::IRBuilder<> &builder);
+  virtual LogicalResult convertOmpParallel(Operation &op,
+                                           llvm::IRBuilder<> &builder);
+
+  /// Converts the type from MLIR LLVM dialect to LLVM.
+  llvm::Type *convertType(LLVMType type);
+
   static std::unique_ptr<llvm::Module> prepareLLVMModule(Operation *m);
 
   /// A helper to look up remapped operands in the value remapping table.
@@ -94,10 +103,10 @@ private:
   /// Check whether the module contains only supported ops directly in its body.
   static LogicalResult checkSupportedModuleOps(Operation *m);
 
+  LogicalResult convertFunctionSignatures();
   LogicalResult convertFunctions();
   LogicalResult convertGlobals();
   LogicalResult convertOneFunction(LLVMFuncOp func);
-  void connectPHINodes(LLVMFuncOp func);
   LogicalResult convertBlock(Block &bb, bool ignoreArguments);
 
   llvm::Constant *getLLVMConstant(llvm::Type *llvmType, Attribute attr,
@@ -118,6 +127,9 @@ private:
 
   /// Mappings between llvm.mlir.global definitions and corresponding globals.
   DenseMap<Operation *, llvm::GlobalValue *> globalsMapping;
+
+  /// A stateful object used to translate types.
+  TypeToLLVMIRTranslator typeTranslator;
 
 protected:
   /// Mappings between original and translated values, used for lookups.

@@ -398,7 +398,7 @@ MemRefType MemRefType::getImpl(ArrayRef<int64_t> shape, Type elementType,
   auto *context = elementType.getContext();
 
   // Check that memref is formed from allowed types.
-  if (!elementType.isIntOrFloat() &&
+  if (!elementType.isIntOrIndexOrFloat() &&
       !elementType.isa<VectorType, ComplexType>())
     return emitOptionalError(location, "invalid memref element type"),
            MemRefType();
@@ -550,7 +550,7 @@ LogicalResult mlir::getStridesAndOffset(MemRefType t,
   // For now strides are only computed on a single affine map with a single
   // result (i.e. the closed subset of linearization maps that are compatible
   // with striding semantics).
-  // TODO(ntv): support more forms on a per-need basis.
+  // TODO: support more forms on a per-need basis.
   if (affineMaps.size() > 1)
     return failure();
   if (affineMaps.size() == 1 && affineMaps[0].getNumResults() != 1)
@@ -597,8 +597,8 @@ LogicalResult mlir::getStridesAndOffset(MemRefType t,
 
   /// In practice, a strided memref must be internally non-aliasing. Test
   /// against 0 as a proxy.
-  /// TODO(ntv) static cases can have more advanced checks.
-  /// TODO(ntv) dynamic cases would require a way to compare symbolic
+  /// TODO: static cases can have more advanced checks.
+  /// TODO: dynamic cases would require a way to compare symbolic
   /// expressions and would probably need an affine set context propagated
   /// everywhere.
   if (llvm::any_of(strides, [](AffineExpr e) {
@@ -638,9 +638,12 @@ LogicalResult mlir::getStridesAndOffset(MemRefType t,
 
 /// Get or create a new TupleType with the provided element types. Assumes the
 /// arguments define a well-formed type.
-TupleType TupleType::get(ArrayRef<Type> elementTypes, MLIRContext *context) {
+TupleType TupleType::get(TypeRange elementTypes, MLIRContext *context) {
   return Base::get(context, StandardTypes::Tuple, elementTypes);
 }
+
+/// Get or create an empty tuple type.
+TupleType TupleType::get(MLIRContext *context) { return get({}, context); }
 
 /// Return the elements types for this tuple.
 ArrayRef<Type> TupleType::getTypes() const { return getImpl()->getTypes(); }

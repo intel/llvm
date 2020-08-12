@@ -1836,6 +1836,40 @@ void CodeGenFunction::EmitObjCForCollectionStmt(const ObjCForCollectionStmt &S){
   llvm::Value *CurrentItem =
     Builder.CreateAlignedLoad(CurrentItemPtr, getPointerAlign());
 
+  if (SanOpts.has(SanitizerKind::ObjCCast)) {
+    // Before using an item from the collection, check that the implicit cast
+    // from id to the element type is valid. This is done with instrumentation
+    // roughly corresponding to:
+    //
+    //   if (![item isKindOfClass:expectedCls]) { /* emit diagnostic */ }
+    const ObjCObjectPointerType *ObjPtrTy =
+        elementType->getAsObjCInterfacePointerType();
+    const ObjCInterfaceType *InterfaceTy =
+        ObjPtrTy ? ObjPtrTy->getInterfaceType() : nullptr;
+    if (InterfaceTy) {
+      SanitizerScope SanScope(this);
+      auto &C = CGM.getContext();
+      assert(InterfaceTy->getDecl() && "No decl for ObjC interface type");
+      Selector IsKindOfClassSel = GetUnarySelector("isKindOfClass", C);
+      CallArgList IsKindOfClassArgs;
+      llvm::Value *Cls =
+          CGM.getObjCRuntime().GetClass(*this, InterfaceTy->getDecl());
+      IsKindOfClassArgs.add(RValue::get(Cls), C.getObjCClassType());
+      llvm::Value *IsClass =
+          CGM.getObjCRuntime()
+              .GenerateMessageSend(*this, ReturnValueSlot(), C.BoolTy,
+                                   IsKindOfClassSel, CurrentItem,
+                                   IsKindOfClassArgs)
+              .getScalarVal();
+      llvm::Constant *StaticData[] = {
+          EmitCheckSourceLocation(S.getBeginLoc()),
+          EmitCheckTypeDescriptor(QualType(InterfaceTy, 0))};
+      EmitCheck({{IsClass, SanitizerKind::ObjCCast}},
+                SanitizerHandler::InvalidObjCCast,
+                ArrayRef<llvm::Constant *>(StaticData), CurrentItem);
+    }
+  }
+
   // Cast that value to the right type.
   CurrentItem = Builder.CreateBitCast(CurrentItem, convertedElementType,
                                       "currentitem");
@@ -2216,8 +2250,7 @@ llvm::Value *
 CodeGenFunction::EmitARCRetainAutoreleasedReturnValue(llvm::Value *value) {
   emitAutoreleasedReturnValueMarker(*this);
   llvm::CallInst::TailCallKind tailKind =
-      CGM.getTargetCodeGenInfo()
-              .shouldSuppressTailCallsOfRetainAutoreleasedReturnValue()
+      CGM.getTargetCodeGenInfo().markARCOptimizedReturnCallsAsNoTail()
           ? llvm::CallInst::TCK_NoTail
           : llvm::CallInst::TCK_None;
   return emitARCValueOperation(
@@ -2236,9 +2269,14 @@ CodeGenFunction::EmitARCRetainAutoreleasedReturnValue(llvm::Value *value) {
 llvm::Value *
 CodeGenFunction::EmitARCUnsafeClaimAutoreleasedReturnValue(llvm::Value *value) {
   emitAutoreleasedReturnValueMarker(*this);
-  return emitARCValueOperation(*this, value, nullptr,
-              CGM.getObjCEntrypoints().objc_unsafeClaimAutoreleasedReturnValue,
-                     llvm::Intrinsic::objc_unsafeClaimAutoreleasedReturnValue);
+  llvm::CallInst::TailCallKind tailKind =
+      CGM.getTargetCodeGenInfo().markARCOptimizedReturnCallsAsNoTail()
+          ? llvm::CallInst::TCK_NoTail
+          : llvm::CallInst::TCK_None;
+  return emitARCValueOperation(
+      *this, value, nullptr,
+      CGM.getObjCEntrypoints().objc_unsafeClaimAutoreleasedReturnValue,
+      llvm::Intrinsic::objc_unsafeClaimAutoreleasedReturnValue, tailKind);
 }
 
 /// Release the given object.

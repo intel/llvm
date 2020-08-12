@@ -18,16 +18,16 @@ using namespace mlir;
 using namespace mlir::vector;
 namespace {
 
-#include "TestVectorTransformPatterns.h.inc"
-
 struct TestVectorToVectorConversion
     : public PassWrapper<TestVectorToVectorConversion, FunctionPass> {
   void runOnFunction() override {
     OwningRewritePatternList patterns;
-    auto *context = &getContext();
-    populateWithGenerated(context, &patterns);
-    populateVectorToVectorCanonicalizationPatterns(patterns, context);
-    populateVectorToVectorTransformationPatterns(patterns, context);
+    auto *ctx = &getContext();
+    patterns.insert<UnrollVectorPattern<AddFOp>>(ArrayRef<int64_t>{2, 2}, ctx);
+    patterns.insert<UnrollVectorPattern<vector::ContractionOp>>(
+        ArrayRef<int64_t>{2, 2, 2}, ctx);
+    populateVectorToVectorCanonicalizationPatterns(patterns, ctx);
+    populateVectorToVectorTransformationPatterns(patterns, ctx);
     applyPatternsAndFoldGreedily(getFunction(), patterns);
   }
 };
@@ -59,9 +59,16 @@ struct TestVectorContractionConversion
       *this, "vector-outerproduct",
       llvm::cl::desc("Lower vector.contract to vector.outerproduct"),
       llvm::cl::init(false)};
+  Option<bool> lowerToFilterOuterProduct{
+      *this, "vector-filter-outerproduct",
+      llvm::cl::desc("Lower vector.contract to vector.outerproduct but not for "
+                     "vectors of size 4."),
+      llvm::cl::init(false)};
 
   void runOnFunction() override {
     OwningRewritePatternList patterns;
+
+    // Test on one pattern in isolation.
     if (lowerToOuterProduct) {
       VectorContractLowering lowering = VectorContractLowering::OuterProduct;
       VectorTransformsOptions options{lowering};
@@ -71,7 +78,24 @@ struct TestVectorContractionConversion
       return;
     }
 
-    VectorContractLowering contractLowering = VectorContractLowering::FMA;
+    // Test on one pattern in isolation.
+    if (lowerToFilterOuterProduct) {
+      VectorContractLowering lowering = VectorContractLowering::OuterProduct;
+      VectorTransformsOptions options{lowering};
+      patterns.insert<ContractionOpToOuterProductOpLowering>(
+          options, &getContext(), [](vector::ContractionOp op) {
+            // Only lowers vector.contract where the lhs as a type vector<MxNx?>
+            // where M is not 4.
+            if (op.getRhsType().getShape()[0] == 4)
+              return failure();
+            return success();
+          });
+      applyPatternsAndFoldGreedily(getFunction(), patterns);
+      return;
+    }
+
+    // Test on all contract lowering patterns.
+    VectorContractLowering contractLowering = VectorContractLowering::Dot;
     if (lowerToFlatMatrix)
       contractLowering = VectorContractLowering::Matmul;
     VectorTransposeLowering transposeLowering =
@@ -80,6 +104,44 @@ struct TestVectorContractionConversion
       transposeLowering = VectorTransposeLowering::Flat;
     VectorTransformsOptions options{contractLowering, transposeLowering};
     populateVectorContractLoweringPatterns(patterns, &getContext(), options);
+    applyPatternsAndFoldGreedily(getFunction(), patterns);
+  }
+};
+
+struct TestVectorUnrollingPatterns
+    : public PassWrapper<TestVectorUnrollingPatterns, FunctionPass> {
+  void runOnFunction() override {
+    MLIRContext *ctx = &getContext();
+    OwningRewritePatternList patterns;
+    patterns.insert<UnrollVectorPattern<AddFOp>>(ArrayRef<int64_t>{2, 2}, ctx);
+    patterns.insert<UnrollVectorPattern<vector::ContractionOp>>(
+        ArrayRef<int64_t>{2, 2, 2}, ctx);
+    populateVectorToVectorCanonicalizationPatterns(patterns, ctx);
+    populateVectorToVectorTransformationPatterns(patterns, ctx);
+    applyPatternsAndFoldGreedily(getFunction(), patterns);
+  }
+};
+
+struct TestVectorTransferFullPartialSplitPatterns
+    : public PassWrapper<TestVectorTransferFullPartialSplitPatterns,
+                         FunctionPass> {
+  TestVectorTransferFullPartialSplitPatterns() = default;
+  TestVectorTransferFullPartialSplitPatterns(
+      const TestVectorTransferFullPartialSplitPatterns &pass) {}
+  Option<bool> useLinalgOps{
+      *this, "use-linalg-copy",
+      llvm::cl::desc("Split using a unmasked vector.transfer + linalg.fill + "
+                     "linalg.copy operations."),
+      llvm::cl::init(false)};
+  void runOnFunction() override {
+    MLIRContext *ctx = &getContext();
+    OwningRewritePatternList patterns;
+    VectorTransformsOptions options;
+    if (useLinalgOps)
+      options.setVectorTransferSplit(VectorTransferSplit::LinalgCopy);
+    else
+      options.setVectorTransferSplit(VectorTransferSplit::VectorTransfer);
+    patterns.insert<VectorTransferFullPartialRewriter>(ctx, options);
     applyPatternsAndFoldGreedily(getFunction(), patterns);
   }
 };
@@ -99,5 +161,14 @@ void registerTestVectorConversions() {
   PassRegistration<TestVectorContractionConversion> contractionPass(
       "test-vector-contraction-conversion",
       "Test conversion patterns that lower contract ops in the vector dialect");
+
+  PassRegistration<TestVectorUnrollingPatterns> contractionUnrollingPass(
+      "test-vector-unrolling-patterns",
+      "Test conversion patterns to unroll contract ops in the vector dialect");
+
+  PassRegistration<TestVectorTransferFullPartialSplitPatterns>
+      vectorTransformFullPartialPass("test-vector-transfer-full-partial-split",
+                                     "Test conversion patterns to split "
+                                     "transfer ops via scf.if + linalg ops");
 }
 } // namespace mlir

@@ -13,13 +13,16 @@
 
 #include "llvm/Transforms/IPO/Attributor.h"
 
+#include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AssumeBundleQueries.h"
+#include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/CaptureTracking.h"
 #include "llvm/Analysis/LazyValueInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -1052,9 +1055,10 @@ ChangeStatus AAReturnedValuesImpl::updateImpl(Attributor &A) {
   // map, NewRVsMap.
   decltype(ReturnedValues) NewRVsMap;
 
-  auto HandleReturnValue = [&](Value *RV, SmallSetVector<ReturnInst *, 4> &RIs) {
-    LLVM_DEBUG(dbgs() << "[AAReturnedValues] Returned value: " << *RV
-                      << " by #" << RIs.size() << " RIs\n");
+  auto HandleReturnValue = [&](Value *RV,
+                               SmallSetVector<ReturnInst *, 4> &RIs) {
+    LLVM_DEBUG(dbgs() << "[AAReturnedValues] Returned value: " << *RV << " by #"
+                      << RIs.size() << " RIs\n");
     CallBase *CB = dyn_cast<CallBase>(RV);
     if (!CB || UnresolvedCalls.count(CB))
       return;
@@ -1979,6 +1983,61 @@ struct AAUndefinedBehaviorImpl : public AAUndefinedBehavior {
       return true;
     };
 
+    auto InspectCallSiteForUB = [&](Instruction &I) {
+      // Check whether a callsite always cause UB or not
+
+      // Skip instructions that are already saved.
+      if (AssumedNoUBInsts.count(&I) || KnownUBInsts.count(&I))
+        return true;
+
+      // Check nonnull and noundef argument attribute violation for each
+      // callsite.
+      CallBase &CB = cast<CallBase>(I);
+      Function *Callee = CB.getCalledFunction();
+      if (!Callee)
+        return true;
+      for (unsigned idx = 0; idx < CB.getNumArgOperands(); idx++) {
+        // If current argument is known to be simplified to null pointer and the
+        // corresponding argument position is known to have nonnull attribute,
+        // the argument is poison. Furthermore, if the argument is poison and
+        // the position is known to have noundef attriubte, this callsite is
+        // considered UB.
+        // TODO: Check also nopoison attribute if it is introduced.
+        if (idx >= Callee->arg_size())
+          break;
+        Value *ArgVal = CB.getArgOperand(idx);
+        if (!ArgVal)
+          continue;
+        IRPosition CalleeArgumentIRP =
+            IRPosition::argument(*Callee->getArg(idx));
+        if (!CalleeArgumentIRP.hasAttr({Attribute::NoUndef}))
+          continue;
+        auto &NonNullAA = A.getAAFor<AANonNull>(*this, CalleeArgumentIRP);
+        if (!NonNullAA.isKnownNonNull())
+          continue;
+        const auto &ValueSimplifyAA =
+            A.getAAFor<AAValueSimplify>(*this, IRPosition::value(*ArgVal));
+        Optional<Value *> SimplifiedVal =
+            ValueSimplifyAA.getAssumedSimplifiedValue(A);
+
+        if (!ValueSimplifyAA.isKnown())
+          continue;
+        // Here, we handle three cases.
+        //   (1) Not having a value means it is dead. (we can replace the value
+        //       with undef)
+        //   (2) Simplified to null pointer. The argument is a poison value and
+        //       violate noundef attribute.
+        //   (3) Simplified to undef. The argument violate noundef attriubte.
+        if (!SimplifiedVal.hasValue() ||
+            isa<ConstantPointerNull>(*SimplifiedVal.getValue()) ||
+            isa<UndefValue>(*SimplifiedVal.getValue())) {
+          KnownUBInsts.insert(&I);
+          return true;
+        }
+      }
+      return true;
+    };
+
     A.checkForAllInstructions(InspectMemAccessInstForUB, *this,
                               {Instruction::Load, Instruction::Store,
                                Instruction::AtomicCmpXchg,
@@ -1986,6 +2045,7 @@ struct AAUndefinedBehaviorImpl : public AAUndefinedBehavior {
                               /* CheckBBLivenessOnly */ true);
     A.checkForAllInstructions(InspectBrInstForUB, *this, {Instruction::Br},
                               /* CheckBBLivenessOnly */ true);
+    A.checkForAllCallLikeInstructions(InspectCallSiteForUB, *this);
     if (NoUBPrevSize != AssumedNoUBInsts.size() ||
         UBPrevSize != KnownUBInsts.size())
       return ChangeStatus::CHANGED;
@@ -2468,7 +2528,7 @@ struct AANoAliasCallSiteArgument final : AANoAliasImpl {
         const auto &ReachabilityAA =
             A.getAAFor<AAReachability>(*this, IRPosition::function(*ScopeFn));
 
-        if (!ReachabilityAA.isAssumedReachable(UserI, getCtxI()))
+        if (!ReachabilityAA.isAssumedReachable(A, *UserI, *getCtxI()))
           return true;
 
         if (auto *CB = dyn_cast<CallBase>(UserI)) {
@@ -3424,7 +3484,6 @@ struct AADereferenceableFloating : AADereferenceableImpl {
         DerefBytes = DS.DerefBytesState.getAssumed();
         T.GlobalState &= DS.GlobalState;
       }
-
 
       // For now we do not try to "increase" dereferenceability due to negative
       // indices as we first have to come up with code to deal with loops and
@@ -4670,6 +4729,30 @@ struct AAValueSimplifyCallSiteArgument : AAValueSimplifyFloating {
   AAValueSimplifyCallSiteArgument(const IRPosition &IRP, Attributor &A)
       : AAValueSimplifyFloating(IRP, A) {}
 
+  /// See AbstractAttribute::manifest(...).
+  ChangeStatus manifest(Attributor &A) override {
+    ChangeStatus Changed = ChangeStatus::UNCHANGED;
+
+    if (SimplifiedAssociatedValue.hasValue() &&
+        !SimplifiedAssociatedValue.getValue())
+      return Changed;
+
+    Value &V = getAssociatedValue();
+    auto *C = SimplifiedAssociatedValue.hasValue()
+                  ? dyn_cast<Constant>(SimplifiedAssociatedValue.getValue())
+                  : UndefValue::get(V.getType());
+    if (C) {
+      Use &U = cast<CallBase>(&getAnchorValue())->getArgOperandUse(getArgNo());
+      // We can replace the AssociatedValue with the constant.
+      if (&V != C && V.getType() == C->getType()) {
+        if (A.changeUseAfterManifest(U, *C))
+          Changed = ChangeStatus::CHANGED;
+      }
+    }
+
+    return Changed | AAValueSimplify::manifest(A);
+  }
+
   void trackStatistics() const override {
     STATS_DECLTRACK_CSARG_ATTR(value_simplify)
   }
@@ -5394,8 +5477,7 @@ struct AAPrivatizablePtrFloating : public AAPrivatizablePtrImpl {
 
   /// See AAPrivatizablePtrImpl::identifyPrivatizableType(...)
   Optional<Type *> identifyPrivatizableType(Attributor &A) override {
-    Value *Obj =
-        GetUnderlyingObject(&getAssociatedValue(), A.getInfoCache().getDL());
+    Value *Obj = getUnderlyingObject(&getAssociatedValue());
     if (!Obj) {
       LLVM_DEBUG(dbgs() << "[AAPrivatizablePtr] No underlying object found!\n");
       return nullptr;

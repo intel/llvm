@@ -31,6 +31,19 @@ static const uint32_t DefaultCutoffsData[] = {
 const ArrayRef<uint32_t> ProfileSummaryBuilder::DefaultCutoffs =
     DefaultCutoffsData;
 
+const ProfileSummaryEntry &
+ProfileSummaryBuilder::getEntryForPercentile(SummaryEntryVector &DS,
+                                             uint64_t Percentile) {
+  auto It = partition_point(DS, [=](const ProfileSummaryEntry &Entry) {
+    return Entry.Cutoff < Percentile;
+  });
+  // The required percentile has to be <= one of the percentiles in the
+  // detailed summary.
+  if (It == DS.end())
+    report_fatal_error("Desired percentile exceeds the maximum cutoff");
+  return *It;
+}
+
 void InstrProfSummaryBuilder::addRecord(const InstrProfRecord &R) {
   // The first counter is not necessarily an entry count for IR
   // instrumentation profiles.
@@ -106,13 +119,22 @@ std::unique_ptr<ProfileSummary> InstrProfSummaryBuilder::getSummary() {
 }
 
 void InstrProfSummaryBuilder::addEntryCount(uint64_t Count) {
-  addCount(Count);
   NumFunctions++;
+
+  // Skip invalid count.
+  if (Count == (uint64_t)-1)
+    return;
+
+  addCount(Count);
   if (Count > MaxFunctionCount)
     MaxFunctionCount = Count;
 }
 
 void InstrProfSummaryBuilder::addInternalCount(uint64_t Count) {
+  // Skip invalid count.
+  if (Count == (uint64_t)-1)
+    return;
+
   addCount(Count);
   if (Count > MaxInternalBlockCount)
     MaxInternalBlockCount = Count;

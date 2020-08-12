@@ -14,6 +14,7 @@
 #define LLVM_SUPPORT_X86TARGETPARSERCOMMON_H
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringMap.h"
 
 namespace llvm {
 class StringRef;
@@ -34,7 +35,7 @@ enum ProcessorVendors : unsigned {
 // as a proxy for what's in libgcc/compiler-rt.
 enum ProcessorTypes : unsigned {
   CPU_TYPE_DUMMY,
-#define X86_CPU_TYPE(ARCHNAME, ENUM) \
+#define X86_CPU_TYPE(ENUM, STRING) \
   ENUM,
 #include "llvm/Support/X86TargetParser.def"
   CPU_TYPE_MAX
@@ -44,7 +45,7 @@ enum ProcessorTypes : unsigned {
 // as a proxy for what's in libgcc/compiler-rt.
 enum ProcessorSubtypes : unsigned {
   CPU_SUBTYPE_DUMMY,
-#define X86_CPU_SUBTYPE(ARCHNAME, ENUM) \
+#define X86_CPU_SUBTYPE(ENUM, STRING) \
   ENUM,
 #include "llvm/Support/X86TargetParser.def"
   CPU_SUBTYPE_MAX
@@ -53,8 +54,7 @@ enum ProcessorSubtypes : unsigned {
 // This should be kept in sync with libcc/compiler-rt as it should be used
 // by clang as a proxy for what's in libgcc/compiler-rt.
 enum ProcessorFeatures {
-#define X86_FEATURE(ENUM) \
-  ENUM,
+#define X86_FEATURE(ENUM, STRING) FEATURE_##ENUM,
 #include "llvm/Support/X86TargetParser.def"
   CPU_FEATURE_MAX
 };
@@ -132,7 +132,16 @@ CPUKind parseArchX86(StringRef CPU, bool Only64Bit = false);
 void fillValidCPUArchList(SmallVectorImpl<StringRef> &Values,
                           bool ArchIs32Bit);
 
+/// Get the key feature prioritizing target multiversioning.
 ProcessorFeatures getKeyFeature(CPUKind Kind);
+
+/// Fill in the features that \p CPU supports into \p Features.
+void getFeaturesForCPU(StringRef CPU, SmallVectorImpl<StringRef> &Features);
+
+/// Set or clear entries in \p Features that are implied to be enabled/disabled
+/// by the provided \p Feature.
+void updateImpliedFeatures(StringRef Feature, bool Enabled,
+                           StringMap<bool> &Features);
 
 } // namespace X86
 } // namespace llvm

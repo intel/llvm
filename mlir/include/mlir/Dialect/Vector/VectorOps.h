@@ -1,4 +1,4 @@
-//===- VectorOps.h - MLIR Super Vectorizer Operations -----------*- C++ -*-===//
+//===- VectorOps.h - MLIR Vector Dialect Operations -------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -19,6 +19,7 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/Interfaces/VectorInterfaces.h"
 
 namespace mlir {
 class MLIRContext;
@@ -46,8 +47,8 @@ void populateVectorSlicesLoweringPatterns(OwningRewritePatternList &patterns,
 
 /// Enum to control the lowering of `vector.contract` operations.
 enum class VectorContractLowering {
-  /// Progressively lower to finer grained `vector.contract` and `vector.fma`.
-  FMA = 0,
+  /// Progressively lower to finer grained `vector.contract` and dot-products.
+  Dot = 0,
   /// Lower to `vector.matrix_multiply`, maps 1-1 to LLVM matrix intrinsics.
   Matmul = 1,
   /// Lower to `vector.outerproduct`.
@@ -55,20 +56,46 @@ enum class VectorContractLowering {
 };
 /// Enum to control the lowering of `vector.transpose` operations.
 enum class VectorTransposeLowering {
-  // Lower transpose into element-wise extract and inserts.
+  /// Lower transpose into element-wise extract and inserts.
   EltWise = 0,
   /// Lower 2-D transpose to `vector.flat_transpose`, maps 1-1 to LLVM matrix
   /// intrinsics.
   Flat = 1,
 };
+/// Enum to control the splitting of `vector.transfer` operations into masked
+/// and unmasked variants.
+enum class VectorTransferSplit {
+  /// Do not split vector transfer operations.
+  None = 0,
+  /// Split using masked + unmasked vector.transfer operations.
+  VectorTransfer = 1,
+  /// Split using a unmasked vector.transfer + linalg.fill + linalg.copy
+  /// operations.
+  LinalgCopy = 2,
+  /// Do not split vector transfer operation but instead mark it as "unmasked".
+  ForceUnmasked = 3
+};
 /// Structure to control the behavior of vector transform patterns.
 struct VectorTransformsOptions {
-  VectorContractLowering vectorContractLowering = VectorContractLowering::FMA;
-  VectorTransposeLowering vectorTransposeLowering =
-      VectorTransposeLowering::EltWise;
+  /// Option to control the lowering of vector.contract.
+  VectorContractLowering vectorContractLowering = VectorContractLowering::Dot;
   VectorTransformsOptions &
   setVectorTransformsOptions(VectorContractLowering opt) {
     vectorContractLowering = opt;
+    return *this;
+  }
+  /// Option to control the lowering of vector.transpose.
+  VectorTransposeLowering vectorTransposeLowering =
+      VectorTransposeLowering::EltWise;
+  VectorTransformsOptions &
+  setVectorTransposeLowering(VectorTransposeLowering opt) {
+    vectorTransposeLowering = opt;
+    return *this;
+  }
+  /// Option to control the splitting of vector transfers.
+  VectorTransferSplit vectorTransferSplit = VectorTransferSplit::None;
+  VectorTransformsOptions &setVectorTransferSplit(VectorTransferSplit opt) {
+    vectorTransferSplit = opt;
     return *this;
   }
 };

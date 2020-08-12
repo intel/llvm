@@ -42,10 +42,24 @@ public:
   /// The pointer is not null if and only if the entity is usable.
   /// State of the entity is provided by the user of cache instance.
   /// Currently there is only a single user - ProgramManager class.
-  template<typename T> struct BuildResult {
+  template <typename T> struct BuildResult {
     std::atomic<T *> Ptr;
     std::atomic<int> State;
     BuildError Error;
+
+    /// Condition variable to signal that build result is ready.
+    /// A per-object (i.e. kernel or program) condition variable is employed
+    /// instead of global one in order to eliminate the following deadlock.
+    /// A thread T1 awaiting for build result BR1 to be ready may be awakened by
+    /// another thread (due to use of global condition variable), which made
+    /// build result BR2 ready. Meanwhile, a thread which made build result BR1
+    /// ready notifies everyone via a global condition variable and T1 will skip
+    /// this notification as it's not in condition_variable::wait()'s wait cycle
+    /// now. Now T1 goes to sleep again and will wait until either a spurious
+    /// wake-up or another thread will wake it up.
+    std::condition_variable MBuildCV;
+    /// A mutex to be employed along with MBuildCV.
+    std::mutex MBuildResultMutex;
 
     BuildResult(T* P, int S) : Ptr{P}, State{S}, Error{"", 0} {}
   };
@@ -59,14 +73,8 @@ public:
 
   using PiKernelT = std::remove_pointer<RT::PiKernel>::type;
 
-  struct BuildResultKernel : public BuildResult<PiKernelT> {
-    std::mutex MKernelMutex;
-
-    BuildResultKernel(PiKernelT *P, int S) : BuildResult(P, S) {}
-  };
-
   using PiKernelPtrT = std::atomic<PiKernelT *>;
-  using KernelWithBuildStateT = BuildResultKernel;
+  using KernelWithBuildStateT = BuildResult<PiKernelT>;
   using KernelByNameT = std::map<string_class, KernelWithBuildStateT>;
   using KernelCacheT = std::map<RT::PiProgram, KernelByNameT>;
 
@@ -82,20 +90,20 @@ public:
     return {MKernelsPerProgramCache, MKernelsPerProgramCacheMutex};
   }
 
-  template <class Predicate> void waitUntilBuilt(Predicate Pred) const {
-    std::unique_lock<std::mutex> Lock(MBuildCVMutex);
+  template <typename T, class Predicate>
+  void waitUntilBuilt(BuildResult<T> &BR, Predicate Pred) const {
+    std::unique_lock<std::mutex> Lock(BR.MBuildResultMutex);
 
-    MBuildCV.wait(Lock, Pred);
+    BR.MBuildCV.wait(Lock, Pred);
   }
 
-  void notifyAllBuild() const { MBuildCV.notify_all(); }
+  template <typename T> void notifyAllBuild(BuildResult<T> &BR) const {
+    BR.MBuildCV.notify_all();
+  }
 
 private:
   std::mutex MProgramCacheMutex;
   std::mutex MKernelsPerProgramCacheMutex;
-
-  mutable std::condition_variable MBuildCV;
-  mutable std::mutex MBuildCVMutex;
 
   ProgramCacheT MCachedPrograms;
   KernelCacheT MKernelsPerProgramCache;

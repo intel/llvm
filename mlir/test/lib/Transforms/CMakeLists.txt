@@ -32,14 +32,13 @@ add_mlir_library(MLIRTestTransforms
 
   DEPENDS
   MLIRStandardOpsIncGen
-  MLIRTestVectorTransformPatternsIncGen
 
   LINK_LIBS PUBLIC
   MLIRAffineOps
   MLIRAnalysis
   MLIREDSC
   MLIRGPU
-  MLIRGPUtoGPURuntimeTransforms
+  MLIRGPUToGPURuntimeTransforms
   MLIRLinalgOps
   MLIRLinalgTransforms
   MLIRNVVMIR
@@ -59,5 +58,3 @@ add_mlir_library(MLIRTestTransforms
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../Dialect/Test)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/../Dialect/Test)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../DeclarativeTransforms)
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/../DeclarativeTransforms)

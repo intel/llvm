@@ -320,6 +320,16 @@ platform_impl::get_info() const {
       param>::get(this->getHandleRef(), getPlugin());
 }
 
+// All devices on the platform must have the given aspect.
+bool platform_impl::has(aspect Aspect) const {
+  for (const auto &dev : get_devices()) {
+    if (dev.has(Aspect) == false) {
+      return false;
+    }
+  }
+  return true;
+}
+
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
   template ret_type platform_impl::get_info<info::param_type::param>() const;
 

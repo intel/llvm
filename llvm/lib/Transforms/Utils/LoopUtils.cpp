@@ -512,9 +512,10 @@ llvm::collectChildrenInLoop(DomTreeNode *N, const Loop *CurLoop) {
 
   AddRegionToWorklist(N);
 
-  for (size_t I = 0; I < Worklist.size(); I++)
-    for (DomTreeNode *Child : Worklist[I]->getChildren())
+  for (size_t I = 0; I < Worklist.size(); I++) {
+    for (DomTreeNode *Child : Worklist[I]->children())
       AddRegionToWorklist(Child);
+  }
 
   return Worklist;
 }
@@ -1144,7 +1145,7 @@ static bool isValidRewrite(ScalarEvolution *SE, Value *FromVal, Value *ToVal) {
   // producing an expression involving multiple pointers. Until then, we must
   // bail out here.
   //
-  // Retrieve the pointer operand of the GEP. Don't use GetUnderlyingObject
+  // Retrieve the pointer operand of the GEP. Don't use getUnderlyingObject
   // because it understands lcssa phis while SCEV does not.
   Value *FromPtr = FromVal;
   Value *ToPtr = ToVal;
@@ -1161,7 +1162,7 @@ static bool isValidRewrite(ScalarEvolution *SE, Value *FromVal, Value *ToVal) {
 
     // SCEV may have rewritten an expression that produces the GEP's pointer
     // operand. That's ok as long as the pointer operand has the same base
-    // pointer. Unlike GetUnderlyingObject(), getPointerBase() will find the
+    // pointer. Unlike getUnderlyingObject(), getPointerBase() will find the
     // base of a recurrence. This handles the case in which SCEV expansion
     // converts a pointer type recurrence into a nonrecurrent pointer base
     // indexed by an integer recurrence.

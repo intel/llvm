@@ -2435,10 +2435,21 @@ public:
         return true;
     return false;
   }
+  /// Get the trailing return type appearing (at any level) within this
+  /// declarator.
+  ParsedType getTrailingReturnType() const {
+    for (const auto &Chunk : type_objects())
+      if (Chunk.Kind == DeclaratorChunk::Function &&
+          Chunk.Fun.hasTrailingReturnType())
+        return Chunk.Fun.getTrailingReturnType();
+    return ParsedType();
+  }
 
   /// \brief Sets a trailing requires clause for this declarator.
   void setTrailingRequiresClause(Expr *TRC) {
     TrailingRequiresClause = TRC;
+
+    SetRangeEnd(TRC->getEndLoc());
   }
 
   /// \brief Sets a trailing requires clause for this declarator.

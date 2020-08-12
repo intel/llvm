@@ -22,12 +22,23 @@ func @int32_scalar(%lhs: i32, %rhs: i32) {
   %2 = muli %lhs, %rhs: i32
   // CHECK: spv.SDiv %{{.*}}, %{{.*}}: i32
   %3 = divi_signed %lhs, %rhs: i32
-  // CHECK: spv.SRem %{{.*}}, %{{.*}}: i32
-  %4 = remi_signed %lhs, %rhs: i32
   // CHECK: spv.UDiv %{{.*}}, %{{.*}}: i32
-  %5 = divi_unsigned %lhs, %rhs: i32
+  %4 = divi_unsigned %lhs, %rhs: i32
   // CHECK: spv.UMod %{{.*}}, %{{.*}}: i32
-  %6 = remi_unsigned %lhs, %rhs: i32
+  %5 = remi_unsigned %lhs, %rhs: i32
+  return
+}
+
+// CHECK-LABEL: @scalar_srem
+// CHECK-SAME: (%[[LHS:.+]]: i32, %[[RHS:.+]]: i32)
+func @scalar_srem(%lhs: i32, %rhs: i32) {
+  // CHECK: %[[LABS:.+]] = spv.GLSL.SAbs %[[LHS]] : i32
+  // CHECK: %[[RABS:.+]] = spv.GLSL.SAbs %[[RHS]] : i32
+  // CHECK:  %[[ABS:.+]] = spv.UMod %[[LABS]], %[[RABS]] : i32
+  // CHECK:  %[[POS:.+]] = spv.IEqual %[[LHS]], %[[LABS]] : i32
+  // CHECK:  %[[NEG:.+]] = spv.SNegate %[[ABS]] : i32
+  // CHECK:      %{{.+}} = spv.Select %[[POS]], %[[ABS]], %[[NEG]] : i1, i32
+  %0 = remi_signed %lhs, %rhs: i32
   return
 }
 
@@ -75,13 +86,24 @@ func @float32_binary_scalar(%lhs: f32, %rhs: f32) {
 
 // Check int vector types.
 // CHECK-LABEL: @int_vector234
-func @int_vector234(%arg0: vector<2xi8>, %arg1: vector<3xi16>, %arg2: vector<4xi64>) {
+func @int_vector234(%arg0: vector<2xi8>, %arg1: vector<4xi64>) {
   // CHECK: spv.SDiv %{{.*}}, %{{.*}}: vector<2xi8>
   %0 = divi_signed %arg0, %arg0: vector<2xi8>
-  // CHECK: spv.SRem %{{.*}}, %{{.*}}: vector<3xi16>
-  %1 = remi_signed %arg1, %arg1: vector<3xi16>
   // CHECK: spv.UDiv %{{.*}}, %{{.*}}: vector<4xi64>
-  %2 = divi_unsigned %arg2, %arg2: vector<4xi64>
+  %1 = divi_unsigned %arg1, %arg1: vector<4xi64>
+  return
+}
+
+// CHECK-LABEL: @vector_srem
+// CHECK-SAME: (%[[LHS:.+]]: vector<3xi16>, %[[RHS:.+]]: vector<3xi16>)
+func @vector_srem(%arg0: vector<3xi16>, %arg1: vector<3xi16>) {
+  // CHECK: %[[LABS:.+]] = spv.GLSL.SAbs %[[LHS]] : vector<3xi16>
+  // CHECK: %[[RABS:.+]] = spv.GLSL.SAbs %[[RHS]] : vector<3xi16>
+  // CHECK:  %[[ABS:.+]] = spv.UMod %[[LABS]], %[[RABS]] : vector<3xi16>
+  // CHECK:  %[[POS:.+]] = spv.IEqual %[[LHS]], %[[LABS]] : vector<3xi16>
+  // CHECK:  %[[NEG:.+]] = spv.SNegate %[[ABS]] : vector<3xi16>
+  // CHECK:      %{{.+}} = spv.Select %[[POS]], %[[ABS]], %[[NEG]] : vector<3xi1>, vector<3xi16>
+  %0 = remi_signed %arg0, %arg1: vector<3xi16>
   return
 }
 
@@ -132,8 +154,8 @@ module attributes {
 func @int_vector23(%arg0: vector<2xi8>, %arg1: vector<3xi16>) {
   // CHECK: spv.SDiv %{{.*}}, %{{.*}}: vector<2xi32>
   %0 = divi_signed %arg0, %arg0: vector<2xi8>
-  // CHECK: spv.SRem %{{.*}}, %{{.*}}: vector<3xi32>
-  %1 = remi_signed %arg1, %arg1: vector<3xi16>
+  // CHECK: spv.SDiv %{{.*}}, %{{.*}}: vector<3xi32>
+  %1 = divi_signed %arg1, %arg1: vector<3xi16>
   return
 }
 
@@ -159,7 +181,6 @@ module attributes {
      max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
 } {
 
-// CHECK-LEBEL: @int_vector4_invalid
 func @int_vector4_invalid(%arg0: vector<4xi64>) {
   // expected-error @+2 {{bitwidth emulation is not implemented yet on unsigned op}}
   // expected-error @+1 {{op requires the same type for all operands and results}}
@@ -741,7 +762,7 @@ func @load_i8(%arg0: memref<i8>) {
   //     CHECK: %[[LOAD:.+]] = spv.Load  "StorageBuffer" %[[PTR]]
   //     CHECK: %[[FOUR2:.+]] = spv.constant 4 : i32
   //     CHECK: %[[EIGHT:.+]] = spv.constant 8 : i32
-  //     CHECK: %[[IDX:.+]] = spv.SMod %[[ZERO]], %[[FOUR2]] : i32
+  //     CHECK: %[[IDX:.+]] = spv.UMod %[[ZERO]], %[[FOUR2]] : i32
   //     CHECK: %[[BITS:.+]] = spv.IMul %[[IDX]], %[[EIGHT]] : i32
   //     CHECK: %[[VALUE:.+]] = spv.ShiftRightArithmetic %[[LOAD]], %[[BITS]] : i32, i32
   //     CHECK: %[[MASK:.+]] = spv.constant 255 : i32
@@ -767,7 +788,7 @@ func @load_i16(%arg0: memref<10xi16>, %index : index) {
   //     CHECK: %[[LOAD:.+]] = spv.Load  "StorageBuffer" %[[PTR]]
   //     CHECK: %[[TWO2:.+]] = spv.constant 2 : i32
   //     CHECK: %[[SIXTEEN:.+]] = spv.constant 16 : i32
-  //     CHECK: %[[IDX:.+]] = spv.SMod %[[FLAT_IDX]], %[[TWO2]] : i32
+  //     CHECK: %[[IDX:.+]] = spv.UMod %[[FLAT_IDX]], %[[TWO2]] : i32
   //     CHECK: %[[BITS:.+]] = spv.IMul %[[IDX]], %[[SIXTEEN]] : i32
   //     CHECK: %[[VALUE:.+]] = spv.ShiftRightArithmetic %[[LOAD]], %[[BITS]] : i32, i32
   //     CHECK: %[[MASK:.+]] = spv.constant 65535 : i32
@@ -803,7 +824,7 @@ func @store_i8(%arg0: memref<i8>, %value: i8) {
   //     CHECK: %[[ZERO:.+]] = spv.constant 0 : i32
   //     CHECK: %[[FOUR:.+]] = spv.constant 4 : i32
   //     CHECK: %[[EIGHT:.+]] = spv.constant 8 : i32
-  //     CHECK: %[[IDX:.+]] = spv.SMod %[[ZERO]], %[[FOUR]] : i32
+  //     CHECK: %[[IDX:.+]] = spv.UMod %[[ZERO]], %[[FOUR]] : i32
   //     CHECK: %[[OFFSET:.+]] = spv.IMul %[[IDX]], %[[EIGHT]] : i32
   //     CHECK: %[[MASK1:.+]] = spv.constant 255 : i32
   //     CHECK: %[[TMP1:.+]] = spv.ShiftLeftLogical %[[MASK1]], %[[OFFSET]] : i32, i32
@@ -829,7 +850,7 @@ func @store_i16(%arg0: memref<10xi16>, %index: index, %value: i16) {
   //     CHECK: %[[FLAT_IDX:.+]] = spv.IAdd %[[OFFSET]], %[[UPDATE]] : i32
   //     CHECK: %[[TWO:.+]] = spv.constant 2 : i32
   //     CHECK: %[[SIXTEEN:.+]] = spv.constant 16 : i32
-  //     CHECK: %[[IDX:.+]] = spv.SMod %[[FLAT_IDX]], %[[TWO]] : i32
+  //     CHECK: %[[IDX:.+]] = spv.UMod %[[FLAT_IDX]], %[[TWO]] : i32
   //     CHECK: %[[OFFSET:.+]] = spv.IMul %[[IDX]], %[[SIXTEEN]] : i32
   //     CHECK: %[[MASK1:.+]] = spv.constant 65535 : i32
   //     CHECK: %[[TMP1:.+]] = spv.ShiftLeftLogical %[[MASK1]], %[[OFFSET]] : i32, i32
@@ -886,7 +907,7 @@ func @load_i8(%arg0: memref<i8>) {
   //     CHECK: %[[LOAD:.+]] = spv.Load  "StorageBuffer" %[[PTR]]
   //     CHECK: %[[FOUR2:.+]] = spv.constant 4 : i32
   //     CHECK: %[[EIGHT:.+]] = spv.constant 8 : i32
-  //     CHECK: %[[IDX:.+]] = spv.SMod %[[ZERO]], %[[FOUR2]] : i32
+  //     CHECK: %[[IDX:.+]] = spv.UMod %[[ZERO]], %[[FOUR2]] : i32
   //     CHECK: %[[BITS:.+]] = spv.IMul %[[IDX]], %[[EIGHT]] : i32
   //     CHECK: %[[VALUE:.+]] = spv.ShiftRightArithmetic %[[LOAD]], %[[BITS]] : i32, i32
   //     CHECK: %[[MASK:.+]] = spv.constant 255 : i32
@@ -913,7 +934,7 @@ func @store_i8(%arg0: memref<i8>, %value: i8) {
   //     CHECK: %[[ZERO:.+]] = spv.constant 0 : i32
   //     CHECK: %[[FOUR:.+]] = spv.constant 4 : i32
   //     CHECK: %[[EIGHT:.+]] = spv.constant 8 : i32
-  //     CHECK: %[[IDX:.+]] = spv.SMod %[[ZERO]], %[[FOUR]] : i32
+  //     CHECK: %[[IDX:.+]] = spv.UMod %[[ZERO]], %[[FOUR]] : i32
   //     CHECK: %[[OFFSET:.+]] = spv.IMul %[[IDX]], %[[EIGHT]] : i32
   //     CHECK: %[[MASK1:.+]] = spv.constant 255 : i32
   //     CHECK: %[[TMP1:.+]] = spv.ShiftLeftLogical %[[MASK1]], %[[OFFSET]] : i32, i32

@@ -1423,6 +1423,25 @@ Raw pointers and references to uncounted types can't be used as class members. O
    // ...
  };
 
+.. _webkit-UncountedLambdaCapturesChecker:
+
+webkit.UncountedLambdaCapturesChecker
+"""""""""""""""""""""""""""""""""""""
+Raw pointers and references to uncounted types can't be captured in lambdas. Only ref-counted types are allowed.
+
+.. code-block:: cpp
+
+ struct RefCntbl {
+   void ref() {}
+   void deref() {}
+ };
+
+ void foo(RefCntbl* a, RefCntbl& b) {
+   [&, a](){ // warn about 'a'
+     do_something(b); // warn about 'b'
+   };
+ };
+
 .. _alpha-checkers:
 
 Experimental Checkers
@@ -1834,6 +1853,19 @@ Check unreachable code.
  void test(id x) {
    return;
    [x retain]; // warn
+ }
+
+.. _alpha-cplusplus-SmartPtr:
+
+alpha.cplusplus.SmartPtr (C++)
+""""""""""""""""""""""""""""""
+Check for dereference of null smart pointers.
+
+.. code-block:: cpp
+
+ void deref_smart_ptr() {
+   std::unique_ptr<int> P;
+   *P; // warn: dereference of a default constructed smart unique_ptr
  }
 
 alpha.llvm

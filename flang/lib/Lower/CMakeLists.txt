@@ -7,8 +7,13 @@ add_flang_library(FortranLower
   Coarray.cpp
   ComplexExpr.cpp
   ConvertType.cpp
+  ConvertExpr.cpp
   DoLoopHelper.cpp
+  FIRBuilder.cpp
+  IntrinsicCall.cpp
+  IO.cpp
   Mangler.cpp
+  OpenACC.cpp
   OpenMP.cpp
   PFTBuilder.cpp
 
@@ -19,6 +24,10 @@ add_flang_library(FortranLower
   LINK_LIBS
   FIROptimizer
   ${dialect_libs}
+  FortranCommon
+  FortranParser
+  FortranEvaluate
+  FortranSemantics
   MLIRAffineToStandard
   MLIRLLVMIR
   MLIRSCFToStandard

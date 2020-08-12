@@ -442,6 +442,39 @@ nub_process_t DNBProcessAttach(nub_process_t attach_pid,
   if (err_str && err_len > 0)
     err_str[0] = '\0';
 
+  if (getenv("LLDB_DEBUGSERVER_PATH") == NULL) {
+    int mib[] = {CTL_KERN, KERN_PROC, KERN_PROC_PID,
+                 static_cast<int>(attach_pid)};
+    struct kinfo_proc processInfo;
+    size_t bufsize = sizeof(processInfo);
+    if (sysctl(mib, (unsigned)(sizeof(mib) / sizeof(int)), &processInfo,
+               &bufsize, NULL, 0) == 0 &&
+        bufsize > 0) {
+
+      if ((processInfo.kp_proc.p_flag & P_TRANSLATED) == P_TRANSLATED) {
+        const char *translated_debugserver =
+            "/Library/Apple/usr/libexec/oah/debugserver";
+        char fdstr[16];
+        char pidstr[16];
+        extern int communication_fd;
+
+        if (communication_fd == -1) {
+          fprintf(stderr, "Trying to attach to a translated process with the "
+                          "native debugserver, exiting...\n");
+          exit(1);
+        }
+
+        snprintf(fdstr, sizeof(fdstr), "--fd=%d", communication_fd);
+        snprintf(pidstr, sizeof(pidstr), "--attach=%d", attach_pid);
+        execl(translated_debugserver, "--native-regs", "--setsid", fdstr,
+              "--handoff-attach-from-native", pidstr, (char *)0);
+        DNBLogThreadedIf(LOG_PROCESS, "Failed to launch debugserver for "
+                         "translated process: ", errno, strerror(errno));
+        __builtin_trap();
+      }
+    }
+  }
+
   pid_t pid = INVALID_NUB_PROCESS;
   MachProcessSP processSP(new MachProcess);
   if (processSP.get()) {
@@ -1385,20 +1418,27 @@ nub_bool_t DNBProcessSharedLibrariesUpdated(nub_process_t pid) {
   return false;
 }
 
-const char *DNBGetDeploymentInfo(nub_process_t pid,
-                                 const struct load_command& lc,
+const char *DNBGetDeploymentInfo(nub_process_t pid, bool is_executable,
+                                 const struct load_command &lc,
                                  uint64_t load_command_address,
-                                 uint32_t& major_version,
-                                 uint32_t& minor_version,
-                                 uint32_t& patch_version) {
+                                 uint32_t &major_version,
+                                 uint32_t &minor_version,
+                                 uint32_t &patch_version) {
   MachProcessSP procSP;
-  if (GetProcessSP(pid, procSP))
-    return procSP->GetDeploymentInfo(lc, load_command_address,
-                                     major_version, minor_version,
-                                     patch_version);
+  if (GetProcessSP(pid, procSP)) {
+    // FIXME: This doesn't return the correct result when xctest (a
+    // macOS binary) is loaded with the macCatalyst dyld platform
+    // override. The image info corrects for this, but qProcessInfo
+    // will return what is in the binary.
+    auto info =
+        procSP->GetDeploymentInfo(lc, load_command_address, is_executable);
+    major_version = info.major_version;
+    minor_version = info.minor_version;
+    patch_version = info.patch_version;
+    return procSP->GetPlatformString(info.platform);
+  }
   return nullptr;
 }
-
 
 // Get the current shared library information for a process. Only return
 // the shared libraries that have changed since the last shared library

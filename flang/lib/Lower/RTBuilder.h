@@ -158,19 +158,6 @@ constexpr TypeBuilderFunc getModel<bool &>() {
 }
 
 template <>
-constexpr TypeBuilderFunc getModel<float _Complex>() {
-  return [](mlir::MLIRContext *context) -> mlir::Type {
-    return fir::CplxType::get(context, sizeof(float));
-  };
-}
-template <>
-constexpr TypeBuilderFunc getModel<double _Complex>() {
-  return [](mlir::MLIRContext *context) -> mlir::Type {
-    return fir::CplxType::get(context, sizeof(double));
-  };
-}
-
-template <>
 constexpr TypeBuilderFunc getModel<const Fortran::runtime::Descriptor &>() {
   return [](mlir::MLIRContext *context) -> mlir::Type {
     return fir::BoxType::get(mlir::NoneType::get(context));
@@ -181,7 +168,7 @@ constexpr TypeBuilderFunc getModel<const Fortran::runtime::NamelistGroup &>() {
   return [](mlir::MLIRContext *context) -> mlir::Type {
     // FIXME: a namelist group must be some well-defined data structure, use a
     // tuple as a proxy for the moment
-    return mlir::TupleType::get(llvm::None, context);
+    return mlir::TupleType::get(context);
   };
 }
 template <>

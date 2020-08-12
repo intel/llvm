@@ -159,22 +159,6 @@ def int_wasm_narrow_unsigned :
   Intrinsic<[llvm_anyvector_ty],
             [llvm_anyvector_ty, LLVMMatchType<1>],
             [IntrNoMem, IntrSpeculatable]>;
-def int_wasm_widen_low_signed :
-  Intrinsic<[llvm_anyvector_ty],
-            [llvm_anyvector_ty],
-            [IntrNoMem, IntrSpeculatable]>;
-def int_wasm_widen_high_signed :
-  Intrinsic<[llvm_anyvector_ty],
-            [llvm_anyvector_ty],
-            [IntrNoMem, IntrSpeculatable]>;
-def int_wasm_widen_low_unsigned :
-  Intrinsic<[llvm_anyvector_ty],
-            [llvm_anyvector_ty],
-            [IntrNoMem, IntrSpeculatable]>;
-def int_wasm_widen_high_unsigned :
-  Intrinsic<[llvm_anyvector_ty],
-            [llvm_anyvector_ty],
-            [IntrNoMem, IntrSpeculatable]>;
 
 // TODO: Replace these intrinsics with normal ISel patterns
 def int_wasm_pmin :
@@ -206,19 +190,19 @@ def int_wasm_nearest :
             [LLVMMatchType<0>],
             [IntrNoMem, IntrSpeculatable]>;
 
-//===----------------------------------------------------------------------===//
-// Bulk memory intrinsics
-//===----------------------------------------------------------------------===//
+// TODO: Replace these intrinsic with normal ISel patterns once the
+// load_zero instructions are merged to the proposal.
+def int_wasm_load32_zero :
+  Intrinsic<[llvm_v4i32_ty],
+            [LLVMPointerType<llvm_i32_ty>],
+            [IntrReadMem, IntrArgMemOnly],
+             "", [SDNPMemOperand]>;
 
-def int_wasm_memory_init :
-  Intrinsic<[],
-            [llvm_i32_ty, llvm_i32_ty, llvm_ptr_ty, llvm_i32_ty, llvm_i32_ty],
-            [IntrWriteMem, IntrInaccessibleMemOrArgMemOnly, WriteOnly<ArgIndex<2>>,
-             IntrHasSideEffects, ImmArg<ArgIndex<0>>, ImmArg<ArgIndex<1>>]>;
-def int_wasm_data_drop :
-  Intrinsic<[],
-            [llvm_i32_ty],
-            [IntrNoDuplicate, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+def int_wasm_load64_zero :
+  Intrinsic<[llvm_v2i64_ty],
+            [LLVMPointerType<llvm_i64_ty>],
+            [IntrReadMem, IntrArgMemOnly],
+             "", [SDNPMemOperand]>;
 
 //===----------------------------------------------------------------------===//
 // Thread-local storage intrinsics

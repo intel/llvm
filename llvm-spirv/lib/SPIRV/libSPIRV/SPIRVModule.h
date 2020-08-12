@@ -372,6 +372,14 @@ public:
   addLoopControlINTELInst(SPIRVWord LoopControl,
                           std::vector<SPIRVWord> LoopControlParameters,
                           SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVInstruction *
+  addFixedPointIntelInst(Op OC, SPIRVType *ResTy, SPIRVValue *Input,
+                         const std::vector<SPIRVWord> &Ops,
+                         SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVInstruction *
+  addArbFloatPointIntelInst(Op OC, SPIRVType *ResTy, SPIRVValue *InA,
+                            SPIRVValue *InB, const std::vector<SPIRVWord> &Ops,
+                            SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addStoreInst(SPIRVValue *, SPIRVValue *,
                                          const std::vector<SPIRVWord> &,
                                          SPIRVBasicBlock *) = 0;
@@ -474,6 +482,10 @@ public:
 
   FPContractMode getFPContractMode() const {
     return TranslationOpts.getFPContractMode();
+  }
+
+  bool isSPIRVAllowUnknownIntrinsicsEnabled() const noexcept {
+    return TranslationOpts.isSPIRVAllowUnknownIntrinsicsEnabled();
   }
 
   // I/O functions

@@ -190,17 +190,43 @@ inline bool isKnownNeverSNaN(Register Val, const MachineRegisterInfo &MRI) {
 
 Align inferAlignFromPtrInfo(MachineFunction &MF, const MachinePointerInfo &MPO);
 
-/// Return the least common multiple type of \p Ty0 and \p Ty1, by changing
-/// the number of vector elements or scalar bitwidth. The intent is a
-/// G_MERGE_VALUES can be constructed from \p Ty0 elements, and unmerged into
-/// \p Ty1.
-LLT getLCMType(LLT Ty0, LLT Ty1);
+/// Return a virtual register corresponding to the incoming argument register \p
+/// PhysReg. This register is expected to have class \p RC, and optional type \p
+/// RegTy. This assumes all references to the register will use the same type.
+///
+/// If there is an existing live-in argument register, it will be returned.
+/// This will also ensure there is a valid copy
+Register getFunctionLiveInPhysReg(MachineFunction &MF, const TargetInstrInfo &TII,
+                                  MCRegister PhysReg,
+                                  const TargetRegisterClass &RC,
+                                  LLT RegTy = LLT());
 
-/// Return a type that is greatest common divisor of \p OrigTy and \p
-/// TargetTy. This will either change the number of vector elements, or
-/// bitwidth of scalars. The intent is the result type can be used as the
-/// result of a G_UNMERGE_VALUES from \p OrigTy.
+/// Return the least common multiple type of \p OrigTy and \p TargetTy, by changing the
+/// number of vector elements or scalar bitwidth. The intent is a
+/// G_MERGE_VALUES, G_BUILD_VECTOR, or G_CONCAT_VECTORS can be constructed from
+/// \p OrigTy elements, and unmerged into \p TargetTy
+LLVM_READNONE
+LLT getLCMType(LLT OrigTy, LLT TargetTy);
+
+/// Return a type where the total size is the greatest common divisor of \p
+/// OrigTy and \p TargetTy. This will try to either change the number of vector
+/// elements, or bitwidth of scalars. The intent is the result type can be used
+/// as the result of a G_UNMERGE_VALUES from \p OrigTy, and then some
+/// combination of G_MERGE_VALUES, G_BUILD_VECTOR and G_CONCAT_VECTORS (possibly
+/// with intermediate casts) can re-form \p TargetTy.
+///
+/// If these are vectors with different element types, this will try to produce
+/// a vector with a compatible total size, but the element type of \p OrigTy. If
+/// this can't be satisfied, this will produce a scalar smaller than the
+/// original vector elements.
+///
+/// In the worst case, this returns LLT::scalar(1)
+LLVM_READNONE
 LLT getGCDType(LLT OrigTy, LLT TargetTy);
+
+/// \returns The splat index of a G_SHUFFLE_VECTOR \p MI when \p MI is a splat.
+/// If \p MI is not a splat, returns None.
+Optional<int> getSplatIndex(MachineInstr &MI);
 
 } // End namespace llvm.
 #endif

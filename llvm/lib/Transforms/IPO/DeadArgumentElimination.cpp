@@ -25,12 +25,14 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/NoFolder.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
@@ -75,13 +77,15 @@ namespace {
     bool runOnModule(Module &M) override {
       if (skipModule(M))
         return false;
-      DeadArgumentEliminationPass DAEP(ShouldHackArguments());
+      DeadArgumentEliminationPass DAEP(ShouldHackArguments(),
+                                       CheckSpirKernels());
       ModuleAnalysisManager DummyMAM;
       PreservedAnalyses PA = DAEP.run(M, DummyMAM);
       return !PA.areAllPreserved();
     }
 
     virtual bool ShouldHackArguments() const { return false; }
+    virtual bool CheckSpirKernels() const { return false; }
   };
 
 } // end anonymous namespace
@@ -101,6 +105,7 @@ namespace {
     DAH() : DAE(ID) {}
 
     bool ShouldHackArguments() const override { return true; }
+    bool CheckSpirKernels() const override { return false; }
   };
 
 } // end anonymous namespace
@@ -111,11 +116,41 @@ INITIALIZE_PASS(DAH, "deadarghaX0r",
                 "Dead Argument Hacking (BUGPOINT USE ONLY; DO NOT USE)",
                 false, false)
 
+namespace {
+
+/// DAESYCL - DeadArgumentElimination pass for SPIR kernel functions even
+///           if they are external.
+struct DAESYCL : public DAE {
+  static char ID;
+
+  DAESYCL() : DAE(ID) {
+    initializeDAESYCLPass(*PassRegistry::getPassRegistry());
+  }
+
+  StringRef getPassName() const override {
+    return "Dead Argument Elimination for SPIR kernels in SYCL environment";
+  }
+
+  bool ShouldHackArguments() const override { return false; }
+  bool CheckSpirKernels() const override { return true; }
+};
+
+} // end anonymous namespace
+
+char DAESYCL::ID = 0;
+
+INITIALIZE_PASS(
+    DAESYCL, "deadargelim-sycl",
+    "Dead Argument Elimination for SPIR kernels in SYCL environment", false,
+    false)
+
 /// createDeadArgEliminationPass - This pass removes arguments from functions
 /// which are not used by the body of the function.
 ModulePass *llvm::createDeadArgEliminationPass() { return new DAE(); }
 
 ModulePass *llvm::createDeadArgHackingPass() { return new DAH(); }
+
+ModulePass *llvm::createDeadArgEliminationSYCLPass() { return new DAESYCL(); }
 
 /// DeleteDeadVarargs - If this is an function that takes a ... list, and if
 /// llvm.vastart is never called, the varargs list is dead for the function.
@@ -287,7 +322,7 @@ bool DeadArgumentEliminationPass::RemoveDeadArgumentsFromCallers(Function &Fn) {
 
   for (Argument &Arg : Fn.args()) {
     if (!Arg.hasSwiftErrorAttr() && Arg.use_empty() &&
-        !Arg.hasPassPointeeByValueAttr()) {
+        !Arg.hasPassPointeeByValueCopyAttr()) {
       if (Arg.isUsedByMetadata()) {
         Arg.replaceAllUsesWith(UndefValue::get(Arg.getType()));
         Changed = true;
@@ -533,7 +568,14 @@ void DeadArgumentEliminationPass::SurveyFunction(const Function &F) {
                       << " has musttail calls\n");
   }
 
-  if (!F.hasLocalLinkage() && (!ShouldHackArguments || F.isIntrinsic())) {
+  // We can't modify arguments if the function is not local
+  // but we can do so for SPIR kernel function in SYCL environment.
+  bool FuncIsSpirKernel =
+      CheckSpirKernels &&
+      StringRef(F.getParent()->getTargetTriple()).contains("sycldevice") &&
+      F.getCallingConv() == CallingConv::SPIR_KERNEL;
+  bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSpirKernel;
+  if (FuncIsLive && (!ShouldHackArguments || F.isIntrinsic())) {
     MarkLive(F);
     return;
   }
@@ -755,6 +797,18 @@ bool DeadArgumentEliminationPass::RemoveDeadStuffFromFunction(Function *F) {
     }
   }
 
+  if (CheckSpirKernels) {
+    SmallVector<Metadata *, 10> MDOmitArgs;
+    auto MDOmitArgTrue = llvm::ConstantAsMetadata::get(
+        ConstantInt::get(Type::getInt1Ty(F->getContext()), 1));
+    auto MDOmitArgFalse = llvm::ConstantAsMetadata::get(
+        ConstantInt::get(Type::getInt1Ty(F->getContext()), 0));
+    for (auto &AliveArg : ArgAlive)
+      MDOmitArgs.push_back(AliveArg ? MDOmitArgFalse : MDOmitArgTrue);
+    F->setMetadata("spir_kernel_omit_args",
+                   llvm::MDNode::get(F->getContext(), MDOmitArgs));
+  }
+
   // Find out the new return value.
   Type *RetTy = FTy->getReturnType();
   Type *NRetTy = nullptr;
@@ -967,16 +1021,16 @@ bool DeadArgumentEliminationPass::RemoveDeadStuffFromFunction(Function *F) {
         for (unsigned Ri = 0; Ri != RetCount; ++Ri)
           if (NewRetIdxs[Ri] != -1) {
             Value *V;
+            IRBuilder<NoFolder> IRB(InsertPt);
             if (RetTypes.size() > 1)
               // We are still returning a struct, so extract the value from our
               // return value
-              V = ExtractValueInst::Create(NewCB, NewRetIdxs[Ri], "newret",
-                                           InsertPt);
+              V = IRB.CreateExtractValue(NewCB, NewRetIdxs[Ri], "newret");
             else
               // We are now returning a single element, so just insert that
               V = NewCB;
             // Insert the value at the old position
-            RetVal = InsertValueInst::Create(RetVal, V, Ri, "oldret", InsertPt);
+            RetVal = IRB.CreateInsertValue(RetVal, V, Ri, "oldret");
           }
         // Now, replace all uses of the old call instruction with the return
         // struct we built
@@ -1019,6 +1073,7 @@ bool DeadArgumentEliminationPass::RemoveDeadStuffFromFunction(Function *F) {
   if (F->getReturnType() != NF->getReturnType())
     for (BasicBlock &BB : *NF)
       if (ReturnInst *RI = dyn_cast<ReturnInst>(BB.getTerminator())) {
+        IRBuilder<NoFolder> IRB(RI);
         Value *RetVal = nullptr;
 
         if (!NFTy->getReturnType()->isVoidTy()) {
@@ -1033,14 +1088,14 @@ bool DeadArgumentEliminationPass::RemoveDeadStuffFromFunction(Function *F) {
           RetVal = UndefValue::get(NRetTy);
           for (unsigned RetI = 0; RetI != RetCount; ++RetI)
             if (NewRetIdxs[RetI] != -1) {
-              ExtractValueInst *EV =
-                  ExtractValueInst::Create(OldRet, RetI, "oldret", RI);
+              Value *EV = IRB.CreateExtractValue(OldRet, RetI, "oldret");
+
               if (RetTypes.size() > 1) {
                 // We're still returning a struct, so reinsert the value into
                 // our new return value at the new index
 
-                RetVal = InsertValueInst::Create(RetVal, EV, NewRetIdxs[RetI],
-                                                 "newret", RI);
+                RetVal = IRB.CreateInsertValue(RetVal, EV, NewRetIdxs[RetI],
+                                               "newret");
               } else {
                 // We are now only returning a simple value, so just return the
                 // extracted value.

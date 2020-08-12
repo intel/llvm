@@ -818,6 +818,10 @@ Discard value names in LLVM IR
 
 Enables an experimental new pass manager in LLVM.
 
+.. option:: -fexperimental-strict-floating-point
+
+Enables the use of non-default rounding modes and non-default exception handling on targets that are not currently ready.
+
 .. option:: -ffine-grained-bitfield-accesses, -fno-fine-grained-bitfield-accesses
 
 Use separate accesses for consecutive bitfield runs with legal widths and alignments.
@@ -1012,7 +1016,7 @@ Flags controlling how ``#include``\s are resolved to files.
 
 .. option:: -I<dir>, --include-directory <arg>, --include-directory=<arg>
 
-Add directory to include search path
+Add directory to include search path. If there are multiple -I options, these directories are searched in the order they are given before the standard system directories are searched. If the same directory is in the SYSTEM include search paths, for example if also specified with -isystem, the -I option will be ignored
 
 .. option:: -I-, --include-barrier
 
@@ -2755,6 +2759,10 @@ Generate a \_\_mcount\_loc section entry for each \_\_fentry\_\_ call.
 
 Make StdCall calling convention the default
 
+.. option:: -mseses, -mno-seses
+
+Enable speculative execution side effect suppression (SESES). Includes LVI control flow integrity mitigations
+
 .. option:: -msign-return-address=<arg>
 
 Select return address signing scope
@@ -3126,6 +3134,12 @@ X86
 .. option:: -madx, -mno-adx
 
 .. option:: -maes, -mno-aes
+
+.. option:: -mamx-bf16, -mno-amx-bf16
+
+.. option:: -mamx-int8, -mno-amx-int8
+
+.. option:: -mamx-tile, -mno-amx-tile
 
 .. option:: -mavx, -mno-avx
 

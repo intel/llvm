@@ -38,9 +38,10 @@ class SemanticsContext;
 // the indices for an array element, and the lower bound for a substring.
 struct EquivalenceObject {
   EquivalenceObject(Symbol &symbol, std::vector<ConstantSubscript> subscripts,
-      std::optional<ConstantSubscript> substringStart)
-      : symbol{symbol}, subscripts{subscripts}, substringStart{substringStart} {
-  }
+      std::optional<ConstantSubscript> substringStart, parser::CharBlock source)
+      : symbol{symbol}, subscripts{subscripts},
+        substringStart{substringStart}, source{source} {}
+
   bool operator==(const EquivalenceObject &) const;
   bool operator<(const EquivalenceObject &) const;
   std::string AsFortran() const;
@@ -48,6 +49,7 @@ struct EquivalenceObject {
   Symbol &symbol;
   std::vector<ConstantSubscript> subscripts; // for array elem
   std::optional<ConstantSubscript> substringStart;
+  parser::CharBlock source;
 };
 using EquivalenceSet = std::vector<EquivalenceObject>;
 
@@ -85,6 +87,7 @@ public:
   bool IsModule() const; // only module, not submodule
   bool IsSubmodule() const;
   bool IsDerivedType() const { return kind_ == Kind::DerivedType; }
+  bool IsStmtFunction() const;
   bool IsParameterizedDerivedType() const;
   Symbol *symbol() { return symbol_; }
   const Symbol *symbol() const { return symbol_; }
@@ -263,8 +266,9 @@ private:
 // Inline so that it can be called from Evaluate without a link-time dependency.
 
 inline const Symbol *Scope::GetSymbol() const {
-  return symbol_ ? symbol_
-                 : derivedTypeSpec_ ? &derivedTypeSpec_->typeSymbol() : nullptr;
+  return symbol_         ? symbol_
+      : derivedTypeSpec_ ? &derivedTypeSpec_->typeSymbol()
+                         : nullptr;
 }
 
 } // namespace Fortran::semantics

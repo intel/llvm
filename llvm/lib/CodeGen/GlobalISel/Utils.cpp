@@ -180,6 +180,14 @@ bool llvm::canReplaceReg(Register DstReg, Register SrcReg,
 
 bool llvm::isTriviallyDead(const MachineInstr &MI,
                            const MachineRegisterInfo &MRI) {
+  // FIXME: This logical is mostly duplicated with
+  // DeadMachineInstructionElim::isDead. Why is LOCAL_ESCAPE not considered in
+  // MachineInstr::isLabel?
+
+  // Don't delete frame allocation labels.
+  if (MI.getOpcode() == TargetOpcode::LOCAL_ESCAPE)
+    return false;
+
   // If we can move an instruction, we can remove it.  Otherwise, it has
   // a side-effect of some sort.
   bool SawStore = false;
@@ -489,6 +497,40 @@ Align llvm::inferAlignFromPtrInfo(MachineFunction &MF,
   return Align(1);
 }
 
+Register llvm::getFunctionLiveInPhysReg(MachineFunction &MF,
+                                        const TargetInstrInfo &TII,
+                                        MCRegister PhysReg,
+                                        const TargetRegisterClass &RC,
+                                        LLT RegTy) {
+  DebugLoc DL; // FIXME: Is no location the right choice?
+  MachineBasicBlock &EntryMBB = MF.front();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  Register LiveIn = MRI.getLiveInVirtReg(PhysReg);
+  if (LiveIn) {
+    MachineInstr *Def = MRI.getVRegDef(LiveIn);
+    if (Def) {
+      // FIXME: Should the verifier check this is in the entry block?
+      assert(Def->getParent() == &EntryMBB && "live-in copy not in entry block");
+      return LiveIn;
+    }
+
+    // It's possible the incoming argument register and copy was added during
+    // lowering, but later deleted due to being/becoming dead. If this happens,
+    // re-insert the copy.
+  } else {
+    // The live in register was not present, so add it.
+    LiveIn = MF.addLiveIn(PhysReg, &RC);
+    if (RegTy.isValid())
+      MRI.setType(LiveIn, RegTy);
+  }
+
+  BuildMI(EntryMBB, EntryMBB.begin(), DL, TII.get(TargetOpcode::COPY), LiveIn)
+    .addReg(PhysReg);
+  if (!EntryMBB.isLiveIn(PhysReg))
+    EntryMBB.addLiveIn(PhysReg);
+  return LiveIn;
+}
+
 Optional<APInt> llvm::ConstantFoldExtOp(unsigned Opcode, const Register Op1,
                                         uint64_t Imm,
                                         const MachineRegisterInfo &MRI) {
@@ -510,54 +552,118 @@ void llvm::getSelectionDAGFallbackAnalysisUsage(AnalysisUsage &AU) {
   AU.addPreserved<StackProtector>();
 }
 
-LLT llvm::getLCMType(LLT Ty0, LLT Ty1) {
-  if (!Ty0.isVector() && !Ty1.isVector()) {
-    unsigned Mul = Ty0.getSizeInBits() * Ty1.getSizeInBits();
-    int GCDSize = greatestCommonDivisor(Ty0.getSizeInBits(),
-                                        Ty1.getSizeInBits());
-    return LLT::scalar(Mul / GCDSize);
+static unsigned getLCMSize(unsigned OrigSize, unsigned TargetSize) {
+  unsigned Mul = OrigSize * TargetSize;
+  unsigned GCDSize = greatestCommonDivisor(OrigSize, TargetSize);
+  return Mul / GCDSize;
+}
+
+LLT llvm::getLCMType(LLT OrigTy, LLT TargetTy) {
+  const unsigned OrigSize = OrigTy.getSizeInBits();
+  const unsigned TargetSize = TargetTy.getSizeInBits();
+
+  if (OrigSize == TargetSize)
+    return OrigTy;
+
+  if (OrigTy.isVector()) {
+    const LLT OrigElt = OrigTy.getElementType();
+
+    if (TargetTy.isVector()) {
+      const LLT TargetElt = TargetTy.getElementType();
+
+      if (OrigElt.getSizeInBits() == TargetElt.getSizeInBits()) {
+        int GCDElts = greatestCommonDivisor(OrigTy.getNumElements(),
+                                            TargetTy.getNumElements());
+        // Prefer the original element type.
+        int Mul = OrigTy.getNumElements() * TargetTy.getNumElements();
+        return LLT::vector(Mul / GCDElts, OrigTy.getElementType());
+      }
+    } else {
+      if (OrigElt.getSizeInBits() == TargetSize)
+        return OrigTy;
+    }
+
+    unsigned LCMSize = getLCMSize(OrigSize, TargetSize);
+    return LLT::vector(LCMSize / OrigElt.getSizeInBits(), OrigElt);
   }
 
-  if (Ty0.isVector() && !Ty1.isVector()) {
-    assert(Ty0.getElementType() == Ty1 && "not yet handled");
-    return Ty0;
+  if (TargetTy.isVector()) {
+    unsigned LCMSize = getLCMSize(OrigSize, TargetSize);
+    return LLT::vector(LCMSize / OrigSize, OrigTy);
   }
 
-  if (Ty1.isVector() && !Ty0.isVector()) {
-    assert(Ty1.getElementType() == Ty0 && "not yet handled");
-    return Ty1;
-  }
+  unsigned LCMSize = getLCMSize(OrigSize, TargetSize);
 
-  if (Ty0.isVector() && Ty1.isVector()) {
-    assert(Ty0.getElementType() == Ty1.getElementType() && "not yet handled");
+  // Preserve pointer types.
+  if (LCMSize == OrigSize)
+    return OrigTy;
+  if (LCMSize == TargetSize)
+    return TargetTy;
 
-    int GCDElts = greatestCommonDivisor(Ty0.getNumElements(),
-                                        Ty1.getNumElements());
-
-    int Mul = Ty0.getNumElements() * Ty1.getNumElements();
-    return LLT::vector(Mul / GCDElts, Ty0.getElementType());
-  }
-
-  llvm_unreachable("not yet handled");
+  return LLT::scalar(LCMSize);
 }
 
 LLT llvm::getGCDType(LLT OrigTy, LLT TargetTy) {
-  if (OrigTy.isVector() && TargetTy.isVector()) {
-    assert(OrigTy.getElementType() == TargetTy.getElementType());
-    int GCD = greatestCommonDivisor(OrigTy.getNumElements(),
-                                    TargetTy.getNumElements());
-    return LLT::scalarOrVector(GCD, OrigTy.getElementType());
+  const unsigned OrigSize = OrigTy.getSizeInBits();
+  const unsigned TargetSize = TargetTy.getSizeInBits();
+
+  if (OrigSize == TargetSize)
+    return OrigTy;
+
+  if (OrigTy.isVector()) {
+    LLT OrigElt = OrigTy.getElementType();
+    if (TargetTy.isVector()) {
+      LLT TargetElt = TargetTy.getElementType();
+      if (OrigElt.getSizeInBits() == TargetElt.getSizeInBits()) {
+        int GCD = greatestCommonDivisor(OrigTy.getNumElements(),
+                                        TargetTy.getNumElements());
+        return LLT::scalarOrVector(GCD, OrigElt);
+      }
+    } else {
+      // If the source is a vector of pointers, return a pointer element.
+      if (OrigElt.getSizeInBits() == TargetSize)
+        return OrigElt;
+    }
+
+    unsigned GCD = greatestCommonDivisor(OrigSize, TargetSize);
+    if (GCD == OrigElt.getSizeInBits())
+      return OrigElt;
+
+    // If we can't produce the original element type, we have to use a smaller
+    // scalar.
+    if (GCD < OrigElt.getSizeInBits())
+      return LLT::scalar(GCD);
+    return LLT::vector(GCD / OrigElt.getSizeInBits(), OrigElt);
   }
 
-  if (OrigTy.isVector() && !TargetTy.isVector()) {
-    assert(OrigTy.getElementType() == TargetTy);
-    return TargetTy;
+  if (TargetTy.isVector()) {
+    // Try to preserve the original element type.
+    LLT TargetElt = TargetTy.getElementType();
+    if (TargetElt.getSizeInBits() == OrigSize)
+      return OrigTy;
   }
 
-  assert(!OrigTy.isVector() && !TargetTy.isVector() &&
-         "GCD type of vector and scalar not implemented");
-
-  int GCD = greatestCommonDivisor(OrigTy.getSizeInBits(),
-                                  TargetTy.getSizeInBits());
+  unsigned GCD = greatestCommonDivisor(OrigSize, TargetSize);
   return LLT::scalar(GCD);
+}
+
+Optional<int> llvm::getSplatIndex(MachineInstr &MI) {
+  assert(MI.getOpcode() == TargetOpcode::G_SHUFFLE_VECTOR &&
+         "Only G_SHUFFLE_VECTOR can have a splat index!");
+  ArrayRef<int> Mask = MI.getOperand(3).getShuffleMask();
+  auto FirstDefinedIdx = find_if(Mask, [](int Elt) { return Elt >= 0; });
+
+  // If all elements are undefined, this shuffle can be considered a splat.
+  // Return 0 for better potential for callers to simplify.
+  if (FirstDefinedIdx == Mask.end())
+    return 0;
+
+  // Make sure all remaining elements are either undef or the same
+  // as the first non-undef value.
+  int SplatValue = *FirstDefinedIdx;
+  if (any_of(make_range(std::next(FirstDefinedIdx), Mask.end()),
+             [&SplatValue](int Elt) { return Elt >= 0 && Elt != SplatValue; }))
+    return None;
+
+  return SplatValue;
 }

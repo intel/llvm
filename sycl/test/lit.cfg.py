@@ -36,7 +36,7 @@ config.test_source_root = os.path.dirname(__file__)
 config.test_exec_root = os.path.join(config.sycl_obj_root, 'test')
 
 # Propagate some variables from the host environment.
-llvm_config.with_system_environment(['PATH', 'OCL_ICD_FILENAME', 'SYCL_DEVICE_ALLOWLIST', 'SYCL_CONFIG_FILE_NAME'])
+llvm_config.with_system_environment(['PATH', 'OCL_ICD_FILENAMES', 'SYCL_DEVICE_ALLOWLIST', 'SYCL_CONFIG_FILE_NAME'])
 
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 if platform.system() == "Linux":
@@ -81,7 +81,7 @@ get_device_count_by_type_path = os.path.join(config.llvm_tools_dir, "get_device_
 
 def getDeviceCount(device_type):
     is_cuda = False;
-    is_level0 = False;
+    is_level_zero = False;
     process = subprocess.Popen([get_device_count_by_type_path, device_type, backend],
         stdout=subprocess.PIPE)
     (output, err) = process.communicate()
@@ -106,12 +106,12 @@ def getDeviceCount(device_type):
         if re.match(r".*cuda", result[1]):
             is_cuda = True;
         if re.match(r".*level zero", result[1]):
-            is_level0 = True;
+            is_level_zero = True;
 
     if err:
         lit_config.warning("getDeviceCount {TYPE} {BACKEND} stderr:{ERR}".format(
             TYPE=device_type, BACKEND=backend, ERR=err))
-    return [value,is_cuda,is_level0]
+    return [value,is_cuda,is_level_zero]
 
 # Every SYCL implementation provides a host implementation.
 config.available_features.add('host')
@@ -149,8 +149,8 @@ gpu_check_substitute = ""
 gpu_check_on_linux_substitute = ""
 
 cuda = False
-level0 = False
-[gpu_count, cuda, level0] = getDeviceCount("gpu")
+level_zero = False
+[gpu_count, cuda, level_zero] = getDeviceCount("gpu")
 
 if gpu_count > 0:
     found_at_least_one_device = True
@@ -160,12 +160,16 @@ if gpu_count > 0:
     config.available_features.add('gpu')
     if cuda:
        config.available_features.add('cuda')
-    elif level0:
-       config.available_features.add('level0')
+    elif level_zero:
+       config.available_features.add('level_zero')
 
     if platform.system() == "Linux":
         gpu_run_on_linux_substitute = "env SYCL_DEVICE_TYPE=GPU SYCL_BE={SYCL_BE} ".format(SYCL_BE=backend)
         gpu_check_on_linux_substitute = "| FileCheck %s"
+    # ESIMD-specific setup. Requires OpenCL for now.
+    esimd_run_substitute = " env SYCL_BE=PI_OPENCL SYCL_DEVICE_TYPE=GPU SYCL_PROGRAM_COMPILE_OPTIONS=-cmc"
+    config.substitutions.append( ('%ESIMD_RUN_PLACEHOLDER',  esimd_run_substitute) )
+    config.substitutions.append( ('%clangxx-esimd',  "clang++ -fsycl-explicit-simd" ) )
 else:
     lit_config.warning("GPU device not found")
 
@@ -188,7 +192,7 @@ config.substitutions.append( ('%ACC_RUN_PLACEHOLDER',  acc_run_substitute) )
 config.substitutions.append( ('%ACC_CHECK_PLACEHOLDER',  acc_check_substitute) )
 
 # LIT testing either supports OpenCL or CUDA or Level Zero.
-if not cuda and not level0 and found_at_least_one_device:
+if not cuda and not level_zero and found_at_least_one_device:
     config.available_features.add('opencl')
 
 if cuda:

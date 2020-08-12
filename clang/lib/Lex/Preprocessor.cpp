@@ -969,8 +969,10 @@ void Preprocessor::Lex(Token &Result) {
   LastTokenWasAt = Result.is(tok::at);
   --LexLevel;
 
-  if (LexLevel == 0 && !Result.getFlag(Token::IsReinjected)) {
-    ++TokenCount;
+  if ((LexLevel == 0 || PreprocessToken) &&
+      !Result.getFlag(Token::IsReinjected)) {
+    if (LexLevel == 0)
+      ++TokenCount;
     if (OnToken)
       OnToken(Result);
   }
@@ -1370,7 +1372,9 @@ bool Preprocessor::parseSimpleIntegerLiteral(Token &Tok, uint64_t &Value) {
   StringRef Spelling = getSpelling(Tok, IntegerBuffer, &NumberInvalid);
   if (NumberInvalid)
     return false;
-  NumericLiteralParser Literal(Spelling, Tok.getLocation(), *this);
+  NumericLiteralParser Literal(Spelling, Tok.getLocation(), getSourceManager(),
+                               getLangOpts(), getTargetInfo(),
+                               getDiagnostics());
   if (Literal.hadError || !Literal.isIntegerLiteral() || Literal.hasUDSuffix())
     return false;
   llvm::APInt APVal(64, 0);

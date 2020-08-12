@@ -1,14 +1,35 @@
 set(TARGET_LIBC_ENTRYPOINTS
+    # ctype.h entrypoints
+    libc.src.ctype.isalnum
+    libc.src.ctype.isalpha
+    libc.src.ctype.isblank
+    libc.src.ctype.iscntrl
+    libc.src.ctype.isdigit
+    libc.src.ctype.isgraph
+    libc.src.ctype.islower
+    libc.src.ctype.isprint
+    libc.src.ctype.ispunct
+    libc.src.ctype.isspace
+    libc.src.ctype.isupper
+    libc.src.ctype.isxdigit
+    
     # errno.h entrypoints
     libc.src.errno.__errno_location
 
     # string.h entrypoints
     libc.src.string.bzero
+    libc.src.string.memchr
     libc.src.string.memcpy
     libc.src.string.memset
-    libc.src.string.strcpy
+    libc.src.string.memrchr
     libc.src.string.strcat
+    libc.src.string.strchr
+    libc.src.string.strcpy
     libc.src.string.strlen
+    libc.src.string.strnlen
+    libc.src.string.strrchr
+    libc.src.string.strspn
+    libc.src.string.strstr
 )
 
 set(TARGET_LIBM_ENTRYPOINTS
@@ -28,6 +49,12 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.floor
     libc.src.math.floorf
     libc.src.math.floorl
+    libc.src.math.fmax
+    libc.src.math.fmaxf
+    libc.src.math.fmaxl
+    libc.src.math.fmin
+    libc.src.math.fminf
+    libc.src.math.fminl
     libc.src.math.frexp
     libc.src.math.frexpf
     libc.src.math.frexpl

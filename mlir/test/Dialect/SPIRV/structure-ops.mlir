@@ -175,7 +175,7 @@ spv.module Logical GLSL450 {
    spv.EntryPoint "GLCompute" @do_something
 }
 
-/// TODO(ravishankarm) : Add a test that verifies an error is thrown
+/// TODO: Add a test that verifies an error is thrown
 /// when interface entries of EntryPointOp are not
 /// spv.Variables. There is currently no other op that has a spv.ptr
 /// return type
@@ -343,6 +343,13 @@ spv.module Logical GLSL450 {
 spv.module Logical GLSL450 {
   // expected-error @+1 {{storage class cannot be 'Generic'}}
   spv.globalVariable @var0 : !spv.ptr<f32, Generic>
+}
+
+// -----
+
+spv.module Logical GLSL450 {
+  // expected-error @+1 {{storage class cannot be 'Function'}}
+  spv.globalVariable @var0 : !spv.ptr<f32, Function>
 }
 
 // -----

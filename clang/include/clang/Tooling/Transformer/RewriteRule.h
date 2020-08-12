@@ -21,6 +21,7 @@
 #include "clang/Tooling/Refactoring/AtomicChange.h"
 #include "clang/Tooling/Transformer/MatchConsumer.h"
 #include "clang/Tooling/Transformer/RangeSelector.h"
+#include "llvm/ADT/Any.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Error.h"
@@ -35,6 +36,7 @@ namespace transformer {
 struct Edit {
   CharSourceRange Range;
   std::string Replacement;
+  llvm::Any Metadata;
 };
 
 /// Maps a match result to a list of concrete edits (with possible
@@ -44,6 +46,8 @@ struct Edit {
 using EditGenerator = MatchConsumer<llvm::SmallVector<Edit, 1>>;
 
 using TextGenerator = std::shared_ptr<MatchComputation<std::string>>;
+
+using AnyGenerator = MatchConsumer<llvm::Any>;
 
 // Description of a source-code edit, expressed in terms of an AST node.
 // Includes: an ID for the (bound) node, a selector for source related to the
@@ -85,6 +89,12 @@ struct ASTEdit {
   RangeSelector TargetRange;
   TextGenerator Replacement;
   TextGenerator Note;
+  // Not all transformations will want or need to attach metadata and therefore
+  // should not be requierd to do so.
+  AnyGenerator Metadata = [](const ast_matchers::MatchFinder::MatchResult &)
+      -> llvm::Expected<llvm::Any> {
+    return llvm::Expected<llvm::Any>(llvm::Any());
+  };
 };
 
 /// Lifts a list of `ASTEdit`s into an `EditGenerator`.
@@ -97,8 +107,41 @@ struct ASTEdit {
 /// clients.  We recommend use of the \c AtomicChange or \c Replacements classes
 /// for assistance in detecting such conflicts.
 EditGenerator editList(llvm::SmallVector<ASTEdit, 1> Edits);
-// Convenience form of `editList` for a single edit.
+/// Convenience form of `editList` for a single edit.
 EditGenerator edit(ASTEdit);
+
+/// Convenience generator for a no-op edit generator.
+inline EditGenerator noEdits() { return editList({}); }
+
+/// Convenience version of `ifBound` specialized to `ASTEdit`.
+inline EditGenerator ifBound(std::string ID, ASTEdit TrueEdit,
+                             ASTEdit FalseEdit) {
+  return ifBound(std::move(ID), edit(std::move(TrueEdit)),
+                 edit(std::move(FalseEdit)));
+}
+
+/// Convenience version of `ifBound` that has no "False" branch. If the node is
+/// not bound, then no edits are produced.
+inline EditGenerator ifBound(std::string ID, ASTEdit TrueEdit) {
+  return ifBound(std::move(ID), edit(std::move(TrueEdit)), noEdits());
+}
+
+/// Flattens a list of generators into a single generator whose elements are the
+/// concatenation of the results of the argument generators.
+EditGenerator flattenVector(SmallVector<EditGenerator, 2> Generators);
+
+namespace detail {
+/// Convenience function to construct an \c EditGenerator. Overloaded for common
+/// cases so that user doesn't need to specify which factory function to
+/// use. This pattern gives benefits similar to implicit constructors, while
+/// maintaing a higher degree of explicitness.
+inline EditGenerator injectEdits(ASTEdit E) { return edit(std::move(E)); }
+inline EditGenerator injectEdits(EditGenerator G) { return G; }
+} // namespace detail
+
+template <typename... Ts> EditGenerator flatten(Ts &&...Edits) {
+  return flattenVector({detail::injectEdits(std::forward<Ts>(Edits))...});
+}
 
 /// Format of the path in an include directive -- angle brackets or quotes.
 enum class IncludeFormat {
@@ -257,6 +300,54 @@ inline ASTEdit insertAfter(RangeSelector S, TextGenerator Replacement) {
 
 /// Removes the source selected by \p S.
 ASTEdit remove(RangeSelector S);
+
+// FIXME: If `Metadata` returns an `llvm::Expected<T>` the `AnyGenerator` will
+// construct an `llvm::Expected<llvm::Any>` where no error is present but the
+// `llvm::Any` holds the error. This is unlikely but potentially surprising.
+// Perhaps the `llvm::Expected` should be unwrapped, or perhaps this should be a
+// compile-time error. No solution here is perfect.
+//
+// Note: This function template accepts any type callable with a MatchResult
+// rather than a `std::function` because the return-type needs to be deduced. If
+// it accepted a `std::function<R(MatchResult)>`, lambdas or other callable types
+// would not be able to deduce `R`, and users would be forced to specify
+// explicitly the type they intended to return by wrapping the lambda at the
+// call-site.
+template <typename Callable>
+inline ASTEdit withMetadata(ASTEdit Edit, Callable Metadata) {
+  Edit.Metadata =
+      [Gen = std::move(Metadata)](
+          const ast_matchers::MatchFinder::MatchResult &R) -> llvm::Any {
+    return Gen(R);
+  };
+
+  return Edit;
+}
+
+/// Assuming that the inner range is enclosed by the outer range, creates
+/// precision edits to remove the parts of the outer range that are not included
+/// in the inner range.
+inline EditGenerator shrinkTo(RangeSelector outer, RangeSelector inner) {
+  return editList({remove(enclose(before(outer), before(inner))),
+                   remove(enclose(after(inner), after(outer)))});
+}
+
+/// Applies `Rule` to all descendants of the node bound to `NodeId`. `Rule` can
+/// refer to nodes bound by the calling rule. `Rule` is not applied to the node
+/// itself.
+///
+/// For example,
+/// ```
+/// auto InlineX =
+///     makeRule(declRefExpr(to(varDecl(hasName("x")))), changeTo(cat("3")));
+/// makeRule(functionDecl(hasName("f"), hasBody(stmt().bind("body"))).bind("f"),
+///          flatten(
+///            changeTo(name("f"), cat("newName")),
+///            rewriteDescendants("body", InlineX)));
+/// ```
+/// Here, we find the function `f`, change its name to `newName` and change all
+/// appearances of `x` in its body to `3`.
+EditGenerator rewriteDescendants(std::string NodeId, RewriteRule Rule);
 
 /// The following three functions are a low-level part of the RewriteRule
 /// API. We expose them for use in implementing the fixtures that interpret

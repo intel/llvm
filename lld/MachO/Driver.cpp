@@ -13,6 +13,7 @@
 #include "OutputSegment.h"
 #include "SymbolTable.h"
 #include "Symbols.h"
+#include "SyntheticSections.h"
 #include "Target.h"
 #include "Writer.h"
 
@@ -30,6 +31,7 @@
 #include "llvm/Object/Archive.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/Option.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
@@ -98,6 +100,32 @@ static Optional<std::string> findLibrary(StringRef name) {
   return {};
 }
 
+static Optional<std::string> findFramework(StringRef name) {
+  // TODO: support .tbd files
+  llvm::SmallString<260> symlink;
+  llvm::SmallString<260> location;
+  StringRef suffix;
+  std::tie(name, suffix) = name.split(",");
+  for (StringRef dir : config->frameworkSearchPaths) {
+    symlink = dir;
+    path::append(symlink, name + ".framework", name);
+    // If the symlink fails to resolve, skip to the next search path.
+    // NOTE: we must resolve the symlink before trying the suffixes, because
+    // there are no symlinks for the suffixed paths.
+    if (fs::real_path(symlink, location))
+      continue;
+    if (!suffix.empty()) {
+      llvm::Twine suffixed = location + suffix;
+      if (fs::exists(suffixed))
+        return suffixed.str();
+      // Suffix lookup failed, fall through to the no-suffix case.
+    }
+    if (fs::exists(location))
+      return location.str().str();
+  }
+  return {};
+}
+
 static TargetInfo *createTargetInfo(opt::InputArgList &args) {
   StringRef arch = args.getLastArgValue(OPT_arch, "x86_64");
   config->arch = llvm::MachO::getArchitectureFromName(
@@ -124,28 +152,49 @@ static bool isDirectory(StringRef option, StringRef path) {
 
 static void getSearchPaths(std::vector<StringRef> &paths, unsigned optionCode,
                            opt::InputArgList &args,
+                           const std::vector<StringRef> &roots,
                            const SmallVector<StringRef, 2> &systemPaths) {
   StringRef optionLetter{(optionCode == OPT_F ? "F" : "L")};
   for (auto const &path : args::getStrings(args, optionCode)) {
-    if (isDirectory(optionLetter, path))
-      paths.push_back(path);
-  }
-  if (!args.hasArg(OPT_Z) && Triple(sys::getProcessTriple()).isOSDarwin()) {
-    for (auto const &path : systemPaths) {
+    // NOTE: only absolute paths are re-rooted to syslibroot(s)
+    if (llvm::sys::path::is_absolute(path, llvm::sys::path::Style::posix)) {
+      for (StringRef root : roots) {
+        SmallString<261> buffer(root);
+        llvm::sys::path::append(buffer, path);
+        // Do not warn about paths that are computed via the syslib roots
+        if (llvm::sys::fs::is_directory(buffer))
+          paths.push_back(saver.save(buffer.str()));
+      }
+    } else {
       if (isDirectory(optionLetter, path))
         paths.push_back(path);
     }
   }
+
+  // `-Z` suppresses the standard "system" search paths.
+  if (args.hasArg(OPT_Z))
+    return;
+
+  for (auto const &path : systemPaths) {
+    for (auto root : roots) {
+      SmallString<261> buffer(root);
+      llvm::sys::path::append(buffer, path);
+      if (isDirectory(optionLetter, buffer))
+        paths.push_back(saver.save(buffer.str()));
+    }
+  }
 }
 
-static void getLibrarySearchPaths(std::vector<StringRef> &paths,
-                                  opt::InputArgList &args) {
-  getSearchPaths(paths, OPT_L, args, {"/usr/lib", "/usr/local/lib"});
+static void getLibrarySearchPaths(opt::InputArgList &args,
+                                  const std::vector<StringRef> &roots,
+                                  std::vector<StringRef> &paths) {
+  getSearchPaths(paths, OPT_L, args, roots, {"/usr/lib", "/usr/local/lib"});
 }
 
-static void getFrameworkSearchPaths(std::vector<StringRef> &paths,
-                                    opt::InputArgList &args) {
-  getSearchPaths(paths, OPT_F, args,
+static void getFrameworkSearchPaths(opt::InputArgList &args,
+                                    const std::vector<StringRef> &roots,
+                                    std::vector<StringRef> &paths) {
+  getSearchPaths(paths, OPT_F, args, roots,
                  {"/Library/Frameworks", "/System/Library/Frameworks"});
 }
 
@@ -178,13 +227,21 @@ static void addFile(StringRef path) {
     if (!result)
       return;
 
-    std::unique_ptr<llvm::MachO::InterfaceFile> interface{std::move(*result)};
-    inputFiles.push_back(make<DylibFile>(std::move(interface)));
+    inputFiles.push_back(make<DylibFile>(std::move(*result)));
     break;
   }
   default:
     error(path + ": unhandled file type");
   }
+}
+
+static void addFileList(StringRef path) {
+  Optional<MemoryBufferRef> buffer = readFile(path);
+  if (!buffer)
+    return;
+  MemoryBufferRef mbref = *buffer;
+  for (StringRef path : args::getLines(mbref))
+    addFile(path);
 }
 
 static std::array<StringRef, 6> archNames{"arm",    "arm64", "i386",
@@ -205,7 +262,7 @@ static bool isArchString(StringRef s) {
 // entry (the one nearest to the front of the list.)
 //
 // The file can also have line comments that start with '#'.
-void parseOrderFile(StringRef path) {
+static void parseOrderFile(StringRef path) {
   Optional<MemoryBufferRef> buffer = readFile(path);
   if (!buffer) {
     error("Could not read order file at " + path);
@@ -360,9 +417,22 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
   config->outputFile = args.getLastArgValue(OPT_o, "a.out");
   config->installName =
       args.getLastArgValue(OPT_install_name, config->outputFile);
-  getLibrarySearchPaths(config->librarySearchPaths, args);
-  getFrameworkSearchPaths(config->frameworkSearchPaths, args);
+  config->headerPad = args::getHex(args, OPT_headerpad, /*Default=*/32);
   config->outputType = args.hasArg(OPT_dylib) ? MH_DYLIB : MH_EXECUTE;
+
+  std::vector<StringRef> roots;
+  for (const Arg *arg : args.filtered(OPT_syslibroot))
+    roots.push_back(arg->getValue());
+  // NOTE: the final `-syslibroot` being `/` will ignore all roots
+  if (roots.size() && roots.back() == "/")
+    roots.clear();
+  // NOTE: roots can never be empty - add an empty root to simplify the library
+  // and framework search path computation.
+  if (roots.empty())
+    roots.emplace_back("");
+
+  getLibrarySearchPaths(args, roots, config->librarySearchPaths);
+  getFrameworkSearchPaths(args, roots, config->frameworkSearchPaths);
 
   if (args.hasArg(OPT_v)) {
     message(getLLDVersion());
@@ -385,6 +455,9 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
     case OPT_INPUT:
       addFile(arg->getValue());
       break;
+    case OPT_filelist:
+      addFileList(arg->getValue());
+      break;
     case OPT_l: {
       StringRef name = arg->getValue();
       if (Optional<std::string> path = findLibrary(name)) {
@@ -394,15 +467,28 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
       error("library not found for -l" + name);
       break;
     }
+    case OPT_framework: {
+      StringRef name = arg->getValue();
+      if (Optional<std::string> path = findFramework(name)) {
+        addFile(*path);
+        break;
+      }
+      error("framework not found for -framework " + name);
+      break;
+    }
     case OPT_platform_version:
       handlePlatformVersion(arg);
       break;
     case OPT_o:
     case OPT_dylib:
     case OPT_e:
+    case OPT_F:
     case OPT_L:
+    case OPT_headerpad:
+    case OPT_install_name:
     case OPT_Z:
     case OPT_arch:
+    case OPT_syslibroot:
       // handled elsewhere
       break;
     default:
@@ -430,6 +516,7 @@ bool macho::link(llvm::ArrayRef<const char *> argsArr, bool canExitEarly,
   }
 
   createSyntheticSections();
+  symtab->addDSOHandle(in.header);
 
   // Initialize InputSections.
   for (InputFile *file : inputFiles) {

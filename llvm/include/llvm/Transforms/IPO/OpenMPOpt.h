@@ -17,6 +17,9 @@ namespace llvm {
 
 namespace omp {
 
+/// Summary of a kernel (=entry point for target offloading).
+using Kernel = Function *;
+
 /// Helper to remember if the module contains OpenMP (runtime calls), to be used
 /// foremost with containsOpenMP.
 struct OpenMPInModule {
@@ -30,8 +33,27 @@ struct OpenMPInModule {
   bool isKnown() { return Value != OpenMP::UNKNOWN; }
   operator bool() { return Value != OpenMP::NOT_FOUND; }
 
+  /// Does this function \p F contain any OpenMP runtime calls?
+  bool containsOMPRuntimeCalls(Function *F) const {
+    return FuncsWithOMPRuntimeCalls.contains(F);
+  }
+
+  /// Return the known kernels (=GPU entry points) in the module.
+  SmallPtrSetImpl<Kernel> &getKernels() { return Kernels; }
+
+  /// Identify kernels in the module and populate the Kernels set.
+  void identifyKernels(Module &M);
+
 private:
   enum class OpenMP { FOUND, NOT_FOUND, UNKNOWN } Value = OpenMP::UNKNOWN;
+
+  friend bool containsOpenMP(Module &M, OpenMPInModule &OMPInModule);
+
+  /// In which functions are OpenMP runtime calls present?
+  SmallPtrSet<Function *, 32> FuncsWithOMPRuntimeCalls;
+
+  /// Collection of known kernels (=GPU entry points) in the module.
+  SmallPtrSet<Kernel, 8> Kernels;
 };
 
 /// Helper to determine if \p M contains OpenMP (runtime calls).

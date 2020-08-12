@@ -1761,7 +1761,9 @@ public:
               Word("!DIR$ IGNORE_TKR"); // emitted even if tkr list is empty
               Walk(" ", tkr, ", ");
             },
-            [&](const std::list<Name> &names) { Walk("!DIR$ ", names, " "); },
+            [&](const std::list<CompilerDirective::NameValue> &names) {
+              Walk("!DIR$ ", names, " ");
+            },
         },
         x.u);
     Put('\n');
@@ -1777,6 +1779,379 @@ public:
     }
     Walk(std::get<Name>(x.t));
   }
+  void Unparse(const CompilerDirective::NameValue &x) {
+    Walk(std::get<Name>(x.t));
+    Walk("=", std::get<std::optional<std::uint64_t>>(x.t));
+  }
+
+  // OpenACC Directives & Clauses
+  void Unparse(const AccAtomicCapture &x) {
+    BeginOpenACC();
+    Word("!$ACC CAPTURE");
+    Put("\n");
+    EndOpenACC();
+    Walk(std::get<AccAtomicCapture::Stmt1>(x.t));
+    Put("\n");
+    Walk(std::get<AccAtomicCapture::Stmt2>(x.t));
+    BeginOpenACC();
+    Word("!$ACC END ATOMIC\n");
+    EndOpenACC();
+  }
+  void Unparse(const AccAtomicRead &x) {
+    BeginOpenACC();
+    Word("!$ACC ATOMIC READ");
+    Put("\n");
+    EndOpenACC();
+    Walk(std::get<Statement<AssignmentStmt>>(x.t));
+    BeginOpenACC();
+    Walk(std::get<std::optional<AccEndAtomic>>(x.t), "!$ACC END ATOMIC\n");
+    EndOpenACC();
+  }
+  void Unparse(const AccAtomicWrite &x) {
+    BeginOpenACC();
+    Word("!$ACC ATOMIC WRITE");
+    Put("\n");
+    EndOpenACC();
+    Walk(std::get<Statement<AssignmentStmt>>(x.t));
+    BeginOpenACC();
+    Walk(std::get<std::optional<AccEndAtomic>>(x.t), "!$ACC END ATOMIC\n");
+    EndOpenACC();
+  }
+  void Unparse(const AccAtomicUpdate &x) {
+    BeginOpenACC();
+    Word("!$ACC ATOMIC UPDATE");
+    Put("\n");
+    EndOpenACC();
+    Walk(std::get<Statement<AssignmentStmt>>(x.t));
+    BeginOpenACC();
+    Walk(std::get<std::optional<AccEndAtomic>>(x.t), "!$ACC END ATOMIC\n");
+    EndOpenACC();
+  }
+  void Unparse(const llvm::acc::Directive &x) {
+    Word(llvm::acc::getOpenACCDirectiveName(x).str());
+  }
+  void Before(const AccClause::Auto &) { Word("AUTO"); }
+  void Before(const AccClause::Capture &) { Word("CAPTURE"); }
+  void Before(const AccClause::Finalize &) { Word("FINALIZE"); }
+  void Before(const AccClause::IfPresent &) { Word("IF_PRESENT"); }
+  void Before(const AccClause::Independent &) { Word("INDEPENDENT"); }
+  void Before(const AccClause::NoHost &) { Word("NOHOST"); }
+  void Before(const AccClause::Read &) { Word("READ"); }
+  void Before(const AccClause::Seq &) { Word("SEQ"); }
+  void Before(const AccClause::Write &) { Word("WRITE"); }
+  void Before(const AccClause::Unknown &) { Word("UNKNOWN"); }
+  void Unparse(const AccClause::Attach &x) {
+    Word("ATTACH");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::Bind &x) {
+    Word("BIND");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::Collapse &x) {
+    Word("COLLAPSE");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::Copy &x) {
+    Word("COPY");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::Copyin &x) {
+    Word("COPYIN");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::Copyout &x) {
+    Word("COPYOUT");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::Create &x) {
+    Word("CREATE");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::Default &x) {
+    Word("DEFAULT");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::Delete &x) {
+    Word("DELETE");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::Detach &x) {
+    Word("DETACH");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::Device &x) {
+    Word("DEVICE");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::DevicePtr &x) {
+    Word("DEVICEPTR");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::DeviceResident &x) {
+    Word("DEVICE_RESIDENT");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::FirstPrivate &x) {
+    Word("FIRSTPRIVATE");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::Host &x) {
+    Word("HOST");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::If &x) {
+    Word("IF");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::Link &x) {
+    Word("LINK");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::NumGangs &x) {
+    Word("NUM_GANGS");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::NumWorkers &x) {
+    Word("NUM_WORKERS");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::Present &x) {
+    Word("PRESENT");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::Private &x) {
+    Word("PRIVATE");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::Reduction &x) {
+    Word("REDUCTION");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::VectorLength &x) {
+    Word("VECTOR_LENGTH");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::Async &x) {
+    Word("ASYNC");
+    Walk("(", x.v, ")");
+  }
+  void Unparse(const AccClause::DefaultAsync &x) {
+    Word("DEFAULT_ASYNC");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::DeviceNum &x) {
+    Word("DEVICE_NUM");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::Gang &x) {
+    Word("GANG");
+    Walk("(", x.v, ")");
+  }
+  void Unparse(const AccClause::NoCreate &x) {
+    Word("NO_CREATE");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::UseDevice &x) {
+    Word("USE_DEVICE");
+    Put("(");
+    Walk(x.v);
+    Put(")");
+  }
+  void Unparse(const AccClause::Self &x) {
+    Word("SELF");
+    Walk("(", x.v, ")");
+  }
+  void Unparse(const AccClause::Vector &x) {
+    Word("VECTOR");
+    Walk("(", x.v, ")");
+  }
+  void Unparse(const AccClause::Wait &x) {
+    Word("WAIT");
+    Walk("(", x.v, ")");
+  }
+  void Unparse(const AccClause::Worker &x) {
+    Word("WORKER");
+    Walk("(", x.v, ")");
+  }
+  void Unparse(const AccClause::DeviceType &x) {
+    Word("DEVICE_TYPE");
+    Put("(");
+    if (x.v.has_value())
+      Walk(x.v);
+    else
+      Put("*");
+    Put(")");
+  }
+  void Unparse(const AccObjectListWithModifier &x) {
+    Walk(std::get<std::optional<AccDataModifier>>(x.t), ":");
+    Walk(std::get<AccObjectList>(x.t));
+  }
+  void Unparse(const AccDataModifier::Modifier &x) {
+    Word(AccDataModifier::EnumToString(x));
+  }
+  void Unparse(const AccDefaultClause &x) {
+    switch (x.v) {
+    case AccDefaultClause::Arg::None:
+      Put("NONE");
+      break;
+    case AccDefaultClause::Arg::Present:
+      Put("PRESENT");
+      break;
+    }
+  }
+  void Unparse(const AccClauseList &x) { Walk(" ", x.v, " "); }
+  void Unparse(const AccGangArgument &x) {
+    Walk("NUM:", std::get<std::optional<ScalarIntExpr>>(x.t));
+    Walk(", STATIC:", std::get<std::optional<AccSizeExpr>>(x.t));
+  }
+  void Unparse(const OpenACCBlockConstruct &x) {
+    BeginOpenACC();
+    Word("!$ACC ");
+    Walk(std::get<AccBeginBlockDirective>(x.t));
+    Put("\n");
+    EndOpenACC();
+    Walk(std::get<Block>(x.t), "");
+    BeginOpenACC();
+    Word("!$ACC END ");
+    Walk(std::get<AccEndBlockDirective>(x.t));
+    Put("\n");
+    EndOpenACC();
+  }
+  void Unparse(const OpenACCLoopConstruct &x) {
+    BeginOpenACC();
+    Word("!$ACC ");
+    Walk(std::get<AccBeginLoopDirective>(x.t));
+    Put("\n");
+    EndOpenACC();
+    Walk(std::get<std::optional<DoConstruct>>(x.t));
+  }
+  void Unparse(const AccBeginLoopDirective &x) {
+    Walk(std::get<AccLoopDirective>(x.t));
+    Walk(std::get<AccClauseList>(x.t));
+  }
+  void Unparse(const OpenACCStandaloneConstruct &x) {
+    BeginOpenACC();
+    Word("!$ACC ");
+    Walk(std::get<AccStandaloneDirective>(x.t));
+    Walk(std::get<AccClauseList>(x.t));
+    Put("\n");
+    EndOpenACC();
+  }
+  void Unparse(const OpenACCStandaloneDeclarativeConstruct &x) {
+    BeginOpenACC();
+    Word("!$ACC ");
+    Walk(std::get<AccDeclarativeDirective>(x.t));
+    Walk(std::get<AccClauseList>(x.t));
+    Put("\n");
+    EndOpenACC();
+  }
+  void Unparse(const OpenACCCombinedConstruct &x) {
+    BeginOpenACC();
+    Word("!$ACC ");
+    Walk(std::get<AccBeginCombinedDirective>(x.t));
+    Put("\n");
+    EndOpenACC();
+    Walk(std::get<Block>(x.t), "");
+    BeginOpenACC();
+    Word("!$ACC END ");
+    Walk(std::get<std::optional<AccEndCombinedDirective>>(x.t));
+    Put("\n");
+    EndOpenACC();
+  }
+  void Unparse(const OpenACCRoutineConstruct &x) {
+    BeginOpenACC();
+    Word("!$ACC ROUTINE");
+    Walk("(", std::get<std::optional<Name>>(x.t), ")");
+    Walk(std::get<AccClauseList>(x.t));
+    Put("\n");
+    EndOpenACC();
+  }
+  void Unparse(const AccObject &x) {
+    std::visit(common::visitors{
+                   [&](const Designator &y) { Walk(y); },
+                   [&](const Name &y) { Put("/"), Walk(y), Put("/"); },
+               },
+        x.u);
+  }
+  void Unparse(const AccObjectList &x) { Walk(x.v, ","); }
+  void Unparse(const AccObjectListWithReduction &x) {
+    Walk(std::get<AccReductionOperator>(x.t));
+    Put(":");
+    Walk(std::get<AccObjectList>(x.t));
+  }
+  void Unparse(const OpenACCCacheConstruct &x) {
+    BeginOpenACC();
+    Word("!$ACC ");
+    Word("CACHE(");
+    Walk(std::get<AccObjectListWithModifier>(x.t));
+    Put(")");
+    Put("\n");
+    EndOpenACC();
+  }
+  void Unparse(const OpenACCWaitConstruct &x) {
+    BeginOpenACC();
+    Word("!$ACC ");
+    Word("WAIT(");
+    Walk(std::get<std::optional<AccWaitArgument>>(x.t));
+    Walk(std::get<AccClauseList>(x.t));
+    Put(")");
+    Put("\n");
+    EndOpenACC();
+  }
+
   // OpenMP Clauses & Directives
   void Unparse(const OmpObject &x) {
     std::visit(common::visitors{
@@ -2017,140 +2392,148 @@ public:
   }
   void Unparse(const OmpLoopDirective &x) {
     switch (x.v) {
-    case OmpLoopDirective::Directive::Distribute:
+    case llvm::omp::Directive::OMPD_distribute:
       Word("DISTRIBUTE ");
       break;
-    case OmpLoopDirective::Directive::DistributeParallelDo:
+    case llvm::omp::Directive::OMPD_distribute_parallel_do:
       Word("DISTRIBUTE PARALLEL DO ");
       break;
-    case OmpLoopDirective::Directive::DistributeParallelDoSimd:
+    case llvm::omp::Directive::OMPD_distribute_parallel_do_simd:
       Word("DISTRIBUTE PARALLEL DO SIMD ");
       break;
-    case OmpLoopDirective::Directive::DistributeSimd:
+    case llvm::omp::Directive::OMPD_distribute_simd:
       Word("DISTRIBUTE SIMD ");
       break;
-    case OmpLoopDirective::Directive::Do:
+    case llvm::omp::Directive::OMPD_do:
       Word("DO ");
       break;
-    case OmpLoopDirective::Directive::DoSimd:
-      Word("Do SIMD ");
+    case llvm::omp::Directive::OMPD_do_simd:
+      Word("DO SIMD ");
       break;
-    case OmpLoopDirective::Directive::ParallelDo:
+    case llvm::omp::Directive::OMPD_parallel_do:
       Word("PARALLEL DO ");
       break;
-    case OmpLoopDirective::Directive::ParallelDoSimd:
+    case llvm::omp::Directive::OMPD_parallel_do_simd:
       Word("PARALLEL DO SIMD ");
       break;
-    case OmpLoopDirective::Directive::Simd:
+    case llvm::omp::Directive::OMPD_simd:
       Word("SIMD ");
       break;
-    case OmpLoopDirective::Directive::TargetParallelDo:
+    case llvm::omp::Directive::OMPD_target_parallel_do:
       Word("TARGET PARALLEL DO ");
       break;
-    case OmpLoopDirective::Directive::TargetParallelDoSimd:
+    case llvm::omp::Directive::OMPD_target_parallel_do_simd:
       Word("TARGET PARALLEL DO SIMD ");
       break;
-    case OmpLoopDirective::Directive::TargetTeamsDistribute:
+    case llvm::omp::Directive::OMPD_target_teams_distribute:
       Word("TARGET TEAMS DISTRIBUTE ");
       break;
-    case OmpLoopDirective::Directive::TargetTeamsDistributeParallelDo:
+    case llvm::omp::Directive::OMPD_target_teams_distribute_parallel_do:
       Word("TARGET TEAMS DISTRIBUTE PARALLEL DO ");
       break;
-    case OmpLoopDirective::Directive::TargetTeamsDistributeParallelDoSimd:
+    case llvm::omp::Directive::OMPD_target_teams_distribute_parallel_do_simd:
       Word("TARGET TEAMS DISTRIBUTE PARALLEL DO SIMD ");
       break;
-    case OmpLoopDirective::Directive::TargetTeamsDistributeSimd:
+    case llvm::omp::Directive::OMPD_target_teams_distribute_simd:
       Word("TARGET TEAMS DISTRIBUTE SIMD ");
       break;
-    case OmpLoopDirective::Directive::TargetSimd:
+    case llvm::omp::Directive::OMPD_target_simd:
       Word("TARGET SIMD ");
       break;
-    case OmpLoopDirective::Directive::Taskloop:
+    case llvm::omp::Directive::OMPD_taskloop:
       Word("TASKLOOP ");
       break;
-    case OmpLoopDirective::Directive::TaskloopSimd:
+    case llvm::omp::Directive::OMPD_taskloop_simd:
       Word("TASKLOOP SIMD ");
       break;
-    case OmpLoopDirective::Directive::TeamsDistribute:
+    case llvm::omp::Directive::OMPD_teams_distribute:
       Word("TEAMS DISTRIBUTE ");
       break;
-    case OmpLoopDirective::Directive::TeamsDistributeParallelDo:
+    case llvm::omp::Directive::OMPD_teams_distribute_parallel_do:
       Word("TEAMS DISTRIBUTE PARALLEL DO ");
       break;
-    case OmpLoopDirective::Directive::TeamsDistributeParallelDoSimd:
+    case llvm::omp::Directive::OMPD_teams_distribute_parallel_do_simd:
       Word("TEAMS DISTRIBUTE PARALLEL DO SIMD ");
       break;
-    case OmpLoopDirective::Directive::TeamsDistributeSimd:
+    case llvm::omp::Directive::OMPD_teams_distribute_simd:
       Word("TEAMS DISTRIBUTE SIMD ");
+      break;
+    default:
       break;
     }
   }
   void Unparse(const OmpObjectList &x) { Walk(x.v, ","); }
   void Unparse(const OmpSimpleStandaloneDirective &x) {
     switch (x.v) {
-    case OmpSimpleStandaloneDirective::Directive::Barrier:
+    case llvm::omp::Directive::OMPD_barrier:
       Word("BARRIER ");
       break;
-    case OmpSimpleStandaloneDirective::Directive::Taskwait:
+    case llvm::omp::Directive::OMPD_taskwait:
       Word("TASKWAIT ");
       break;
-    case OmpSimpleStandaloneDirective::Directive::Taskyield:
+    case llvm::omp::Directive::OMPD_taskyield:
       Word("TASKYIELD ");
       break;
-    case OmpSimpleStandaloneDirective::Directive::TargetEnterData:
+    case llvm::omp::Directive::OMPD_target_enter_data:
       Word("TARGET ENTER DATA ");
       break;
-    case OmpSimpleStandaloneDirective::Directive::TargetExitData:
+    case llvm::omp::Directive::OMPD_target_exit_data:
       Word("TARGET EXIT DATA ");
       break;
-    case OmpSimpleStandaloneDirective::Directive::TargetUpdate:
+    case llvm::omp::Directive::OMPD_target_update:
       Word("TARGET UPDATE ");
       break;
-    case OmpSimpleStandaloneDirective::Directive::Ordered:
+    case llvm::omp::Directive::OMPD_ordered:
       Word("ORDERED ");
+      break;
+    default:
+      // Nothing to be done
       break;
     }
   }
   void Unparse(const OmpBlockDirective &x) {
     switch (x.v) {
-    case OmpBlockDirective::Directive::Master:
+    case llvm::omp::Directive::OMPD_master:
       Word("MASTER");
       break;
-    case OmpBlockDirective::Directive::Ordered:
+    case llvm::omp::Directive::OMPD_ordered:
       Word("ORDERED ");
       break;
-    case OmpBlockDirective::Directive::ParallelWorkshare:
+    case llvm::omp::Directive::OMPD_parallel_workshare:
       Word("PARALLEL WORKSHARE ");
       break;
-    case OmpBlockDirective::Directive::Parallel:
+    case llvm::omp::Directive::OMPD_parallel:
       Word("PARALLEL ");
       break;
-    case OmpBlockDirective::Directive::Single:
+    case llvm::omp::Directive::OMPD_single:
       Word("SINGLE ");
       break;
-    case OmpBlockDirective::Directive::TargetData:
+    case llvm::omp::Directive::OMPD_target_data:
       Word("TARGET DATA ");
       break;
-    case OmpBlockDirective::Directive::TargetParallel:
+    case llvm::omp::Directive::OMPD_target_parallel:
       Word("TARGET PARALLEL ");
       break;
-    case OmpBlockDirective::Directive::TargetTeams:
+    case llvm::omp::Directive::OMPD_target_teams:
       Word("TARGET TEAMS ");
       break;
-    case OmpBlockDirective::Directive::Target:
+    case llvm::omp::Directive::OMPD_target:
       Word("TARGET ");
       break;
-    case OmpBlockDirective::Directive::Taskgroup:
+    case llvm::omp::Directive::OMPD_taskgroup:
       Word("TASKGROUP ");
       break;
-    case OmpBlockDirective::Directive::Task:
+    case llvm::omp::Directive::OMPD_task:
       Word("TASK ");
       break;
-    case OmpBlockDirective::Directive::Teams:
+    case llvm::omp::Directive::OMPD_teams:
       Word("TEAMS ");
       break;
-    case OmpBlockDirective::Directive::Workshare:
+    case llvm::omp::Directive::OMPD_workshare:
       Word("WORKSHARE ");
+      break;
+    default:
+      // Nothing to be done
       break;
     }
   }
@@ -2314,11 +2697,13 @@ public:
   }
   void Unparse(const OmpSectionsDirective &x) {
     switch (x.v) {
-    case OmpSectionsDirective::Directive::Sections:
+    case llvm::omp::Directive::OMPD_sections:
       Word("SECTIONS ");
       break;
-    case OmpSectionsDirective::Directive::ParallelSections:
+    case llvm::omp::Directive::OMPD_parallel_sections:
       Word("PARALLEL SECTIONS ");
+      break;
+    default:
       break;
     }
   }
@@ -2359,10 +2744,24 @@ public:
     Put("\n");
     EndOpenMP();
   }
+  void Unparse(const OmpFlushMemoryClause &x) {
+    switch (x.v) {
+    case OmpFlushMemoryClause::FlushMemoryOrder::AcqRel:
+      Word("ACQ_REL ");
+      break;
+    case OmpFlushMemoryClause::FlushMemoryOrder::Release:
+      Word("RELEASE ");
+      break;
+    case OmpFlushMemoryClause::FlushMemoryOrder::Acquire:
+      Word("ACQUIRE ");
+      break;
+    }
+  }
   void Unparse(const OpenMPFlushConstruct &x) {
     BeginOpenMP();
-    Word("!$OMP FLUSH");
-    Walk("(", std::get<std::optional<OmpObjectList>>(x.t), ")");
+    Word("!$OMP FLUSH ");
+    Walk(std::get<std::optional<OmpFlushMemoryClause>>(x.t));
+    Walk(" (", std::get<std::optional<OmpObjectList>>(x.t), ")");
     Put("\n");
     EndOpenMP();
   }
@@ -2498,6 +2897,8 @@ private:
   }
   void BeginOpenMP() { openmpDirective_ = true; }
   void EndOpenMP() { openmpDirective_ = false; }
+  void BeginOpenACC() { openaccDirective_ = true; }
+  void EndOpenACC() { openaccDirective_ = false; }
 
   // Call back to the traversal framework.
   template <typename T> void Walk(const T &x) {
@@ -2567,6 +2968,7 @@ private:
   std::set<CharBlock> structureComponents_;
   Encoding encoding_{Encoding::UTF_8};
   bool capitalizeKeywords_{true};
+  bool openaccDirective_{false};
   bool openmpDirective_{false};
   bool backslashEscapes_{false};
   preStatementType *preStatement_{nullptr};
@@ -2575,7 +2977,7 @@ private:
 
 void UnparseVisitor::Put(char ch) {
   int sav = indent_;
-  if (openmpDirective_) {
+  if (openmpDirective_ || openaccDirective_) {
     indent_ = 0;
   }
   if (column_ <= 1) {
@@ -2596,13 +2998,16 @@ void UnparseVisitor::Put(char ch) {
     if (openmpDirective_) {
       out_ << "!$OMP&";
       column_ = 8;
+    } else if (openaccDirective_) {
+      out_ << "!$ACC&";
+      column_ = 8;
     } else {
       out_ << '&';
       column_ = indent_ + 3;
     }
   }
   out_ << ch;
-  if (openmpDirective_) {
+  if (openmpDirective_ || openaccDirective_) {
     indent_ = sav;
   }
 }

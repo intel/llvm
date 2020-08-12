@@ -171,14 +171,16 @@ public:
   void emitTPRel64Value(const MCExpr *Value) override;
   void emitGPRel32Value(const MCExpr *Value) override;
   void emitGPRel64Value(const MCExpr *Value) override;
-  bool emitRelocDirective(const MCExpr &Offset, StringRef Name,
-                          const MCExpr *Expr, SMLoc Loc,
-                          const MCSubtargetInfo &STI) override;
+  Optional<std::pair<bool, std::string>>
+  emitRelocDirective(const MCExpr &Offset, StringRef Name, const MCExpr *Expr,
+                     SMLoc Loc, const MCSubtargetInfo &STI) override;
   using MCStreamer::emitFill;
   void emitFill(const MCExpr &NumBytes, uint64_t FillValue,
                 SMLoc Loc = SMLoc()) override;
   void emitFill(const MCExpr &NumValues, int64_t Size, int64_t Expr,
                 SMLoc Loc = SMLoc()) override;
+  void emitNops(int64_t NumBytes, int64_t ControlledNopLength,
+                SMLoc Loc) override;
   void emitFileDirective(StringRef Filename) override;
 
   void emitAddrsig() override;

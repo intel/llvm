@@ -391,7 +391,13 @@ static Expr *maybeTailCall(Sema &S, QualType RetType, Expr *E,
     return nullptr;
 
   Expr *JustAddress = AddressExpr.get();
-  // FIXME: Check that the type of AddressExpr is void*
+
+  // Check that the type of AddressExpr is void*
+  if (!JustAddress->getType().getTypePtr()->isVoidPointerType())
+    S.Diag(cast<CallExpr>(JustAddress)->getCalleeDecl()->getLocation(),
+           diag::warn_coroutine_handle_address_invalid_return_type)
+        << JustAddress->getType();
+
   return buildBuiltinCall(S, Loc, Builtin::BI__builtin_coro_resume,
                           JustAddress);
 }
@@ -443,7 +449,8 @@ static ReadySuspendResumeResult buildCoawaitCalls(Sema &S, VarDecl *CoroPromise,
   if (!AwaitSuspend->getType()->isDependentType()) {
     // [expr.await]p3 [...]
     //   - await-suspend is the expression e.await_suspend(h), which shall be
-    //     a prvalue of type void or bool.
+    //     a prvalue of type void, bool, or std::coroutine_handle<Z> for some
+    //     type Z.
     QualType RetType = AwaitSuspend->getCallReturnType(S.Context);
 
     // Experimental support for coroutine_handle returning await_suspend.

@@ -57,27 +57,7 @@ class Type;
 class Value;
 class ValueHandleBase;
 
-struct DenseMapAPIntKeyInfo {
-  static inline APInt getEmptyKey() {
-    APInt V(nullptr, 0);
-    V.U.VAL = 0;
-    return V;
-  }
-
-  static inline APInt getTombstoneKey() {
-    APInt V(nullptr, 0);
-    V.U.VAL = 1;
-    return V;
-  }
-
-  static unsigned getHashValue(const APInt &Key) {
-    return static_cast<unsigned>(hash_value(Key));
-  }
-
-  static bool isEqual(const APInt &LHS, const APInt &RHS) {
-    return LHS.getBitWidth() == RHS.getBitWidth() && LHS == RHS;
-  }
-};
+using DenseMapAPIntKeyInfo = DenseMapInfo<APInt>;
 
 struct DenseMapAPFloatKeyInfo {
   static inline APFloat getEmptyKey() { return APFloat(APFloat::Bogus(), 1); }
@@ -525,6 +505,8 @@ template <> struct MDNodeKeyImpl<DICompositeType> {
   MDString *Identifier;
   Metadata *Discriminator;
   Metadata *DataLocation;
+  Metadata *Associated;
+  Metadata *Allocated;
 
   MDNodeKeyImpl(unsigned Tag, MDString *Name, Metadata *File, unsigned Line,
                 Metadata *Scope, Metadata *BaseType, uint64_t SizeInBits,
@@ -532,13 +514,15 @@ template <> struct MDNodeKeyImpl<DICompositeType> {
                 Metadata *Elements, unsigned RuntimeLang,
                 Metadata *VTableHolder, Metadata *TemplateParams,
                 MDString *Identifier, Metadata *Discriminator,
-                Metadata *DataLocation)
+                Metadata *DataLocation, Metadata *Associated,
+                Metadata *Allocated)
       : Tag(Tag), Name(Name), File(File), Line(Line), Scope(Scope),
         BaseType(BaseType), SizeInBits(SizeInBits), OffsetInBits(OffsetInBits),
         AlignInBits(AlignInBits), Flags(Flags), Elements(Elements),
         RuntimeLang(RuntimeLang), VTableHolder(VTableHolder),
         TemplateParams(TemplateParams), Identifier(Identifier),
-        Discriminator(Discriminator), DataLocation(DataLocation) {}
+        Discriminator(Discriminator), DataLocation(DataLocation),
+        Associated(Associated), Allocated(Allocated) {}
   MDNodeKeyImpl(const DICompositeType *N)
       : Tag(N->getTag()), Name(N->getRawName()), File(N->getRawFile()),
         Line(N->getLine()), Scope(N->getRawScope()),
@@ -549,7 +533,8 @@ template <> struct MDNodeKeyImpl<DICompositeType> {
         TemplateParams(N->getRawTemplateParams()),
         Identifier(N->getRawIdentifier()),
         Discriminator(N->getRawDiscriminator()),
-        DataLocation(N->getRawDataLocation()) {}
+        DataLocation(N->getRawDataLocation()),
+        Associated(N->getRawAssociated()), Allocated(N->getRawAllocated()) {}
 
   bool isKeyOf(const DICompositeType *RHS) const {
     return Tag == RHS->getTag() && Name == RHS->getRawName() &&
@@ -564,7 +549,9 @@ template <> struct MDNodeKeyImpl<DICompositeType> {
            TemplateParams == RHS->getRawTemplateParams() &&
            Identifier == RHS->getRawIdentifier() &&
            Discriminator == RHS->getRawDiscriminator() &&
-           DataLocation == RHS->getRawDataLocation();
+           DataLocation == RHS->getRawDataLocation() &&
+           Associated == RHS->getRawAssociated() &&
+           Allocated == RHS->getRawAllocated();
   }
 
   unsigned getHashValue() const {

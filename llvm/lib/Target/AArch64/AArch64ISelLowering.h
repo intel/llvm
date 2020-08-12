@@ -72,18 +72,22 @@ enum NodeType : unsigned {
   ADC,
   SBC, // adc, sbc instructions
 
-  // Arithmetic instructions
-  ADD_MERGE_OP1,
-  FADD_MERGE_OP1,
-  SDIV_MERGE_OP1,
-  UDIV_MERGE_OP1,
-  SMIN_MERGE_OP1,
-  UMIN_MERGE_OP1,
-  SMAX_MERGE_OP1,
-  UMAX_MERGE_OP1,
-  SHL_MERGE_OP1,
-  SRL_MERGE_OP1,
-  SRA_MERGE_OP1,
+  // Predicated instructions where inactive lanes produce undefined results.
+  ADD_PRED,
+  FADD_PRED,
+  FDIV_PRED,
+  FMA_PRED,
+  FMUL_PRED,
+  FSUB_PRED,
+  SDIV_PRED,
+  SHL_PRED,
+  SMAX_PRED,
+  SMIN_PRED,
+  SRA_PRED,
+  SRL_PRED,
+  UDIV_PRED,
+  UMAX_PRED,
+  UMIN_PRED,
 
   SETCC_MERGE_ZERO,
 
@@ -186,6 +190,14 @@ enum NodeType : unsigned {
   // Only the lower result lane is defined.
   SADDV,
   UADDV,
+
+  // Vector halving addition
+  SHADD,
+  UHADD,
+
+  // Vector rounding halving addition
+  SRHADD,
+  URHADD,
 
   // Vector across-lanes min/max
   // Only the lower result lane is defined.
@@ -450,12 +462,6 @@ public:
 
   SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
 
-  /// Returns true if a cast between SrcAS and DestAS is a noop.
-  bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override {
-    // Addrspacecasts are always noops.
-    return true;
-  }
-
   /// This method returns a target specific FastISel object, or null if the
   /// target does not support "fast" ISel.
   FastISel *createFastISel(FunctionLoweringInfo &funcInfo,
@@ -505,7 +511,7 @@ public:
   bool shouldSinkOperands(Instruction *I,
                           SmallVectorImpl<Use *> &Ops) const override;
 
-  bool hasPairedLoad(EVT LoadedType, unsigned &RequiredAligment) const override;
+  bool hasPairedLoad(EVT LoadedType, Align &RequiredAligment) const override;
 
   unsigned getMaxSupportedInterleaveFactor() const override { return 4; }
 
@@ -730,6 +736,16 @@ public:
 
   bool fallBackToDAGISel(const Instruction &Inst) const override;
 
+  /// SVE code generation for fixed length vectors does not custom lower
+  /// BUILD_VECTOR. This makes BUILD_VECTOR legalisation a source of stores to
+  /// merge. However, merging them creates a BUILD_VECTOR that is just as
+  /// illegal as the original, thus leading to an infinite legalisation loop.
+  /// NOTE: Once BUILD_VECTOR is legal or can be custom lowered for all legal
+  /// vector types this override can be removed.
+  bool mergeStoresAfterLegalization(EVT VT) const override {
+    return !useSVEForFixedLengthVectors();
+  }
+
 private:
   /// Keep a pointer to the AArch64Subtarget around so that we can
   /// make the right decision when generating code for different targets.
@@ -845,7 +861,10 @@ private:
   SDValue LowerDUPQLane(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerToPredicatedOp(SDValue Op, SelectionDAG &DAG,
                               unsigned NewOp) const;
+  SDValue LowerToScalableOp(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerEXTRACT_SUBVECTOR(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerINSERT_SUBVECTOR(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerDIV(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVectorSRA_SRL_SHL(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerShiftLeftParts(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerShiftRightParts(SDValue Op, SelectionDAG &DAG) const;
@@ -860,9 +879,11 @@ private:
   SDValue LowerFP_TO_INT(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINT_TO_FP(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVectorOR(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerXOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerCONCAT_VECTORS(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFSINCOS(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVSCALE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerTRUNCATE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVECREDUCE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerATOMIC_LOAD_SUB(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerATOMIC_LOAD_AND(SDValue Op, SelectionDAG &DAG) const;
@@ -875,6 +896,8 @@ private:
 
   SDValue LowerFixedLengthVectorLoadToSVE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFixedLengthVectorStoreToSVE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFixedLengthVectorTruncateToSVE(SDValue Op,
+                                              SelectionDAG &DAG) const;
 
   SDValue BuildSDIVPow2(SDNode *N, const APInt &Divisor, SelectionDAG &DAG,
                         SmallVectorImpl<SDNode *> &Created) const override;

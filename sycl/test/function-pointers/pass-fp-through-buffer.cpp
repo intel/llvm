@@ -11,6 +11,7 @@
 
 #include <CL/sycl.hpp>
 
+#include <algorithm>
 #include <iostream>
 #include <vector>
 

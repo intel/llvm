@@ -1131,7 +1131,7 @@ def SYCLDevice : InheritableAttr {
 def SYCLKernel : InheritableAttr {
   let Spellings = [Clang<"sycl_kernel">];
   let Subjects = SubjectList<[FunctionTmpl]>;
-  let LangOpts = [SYCLIsDevice];
+  let LangOpts = [SYCLIsHost, SYCLIsDevice];
   let Documentation = [SYCLKernelDocs];
 }
 
@@ -1186,6 +1186,14 @@ def SYCLDeviceIndirectlyCallable : InheritableAttr {
   let LangOpts = [SYCLIsDevice];
   let Documentation = [SYCLDeviceIndirectlyCallableDocs];
   let PragmaAttributeSupport = 0;
+}
+
+def SYCLIntelBufferLocation : InheritableAttr {
+  // No spelling, as this attribute can't be created in the source code.
+  let Spellings = [];
+  let Args = [UnsignedArgument<"LocationID">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [Undocumented];
 }
 
 def SYCLIntelKernelArgsRestrict : InheritableAttr {
@@ -1288,7 +1296,9 @@ def LoopUnrollHint : InheritableAttr {
 }
 
 def IntelReqdSubGroupSize: InheritableAttr {
-  let Spellings = [GNU<"intel_reqd_sub_group_size">, CXX11<"cl", "intel_reqd_sub_group_size">];
+  let Spellings = [GNU<"intel_reqd_sub_group_size">,
+                   CXX11<"cl", "intel_reqd_sub_group_size">,
+                   CXX11<"intel", "reqd_sub_group_size">];
   let Args = [ExprArgument<"SubGroupSize">];
   let Subjects = SubjectList<[Function, CXXMethod], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
@@ -1324,12 +1334,12 @@ def OpenCLGlobalAddressSpace : TypeAttr {
 
 def OpenCLGlobalDeviceAddressSpace : TypeAttr {
   let Spellings = [Clang<"opencl_global_device">];
-  let Documentation = [OpenCLGlobalAddressSpacesDocs];
+  let Documentation = [OpenCLAddressSpaceGlobalExtDocs];
 }
 
 def OpenCLGlobalHostAddressSpace : TypeAttr {
   let Spellings = [Clang<"opencl_global_host">];
-  let Documentation = [OpenCLGlobalAddressSpacesDocs];
+  let Documentation = [OpenCLAddressSpaceGlobalExtDocs];
 }
 
 def OpenCLLocalAddressSpace : TypeAttr {
@@ -2020,6 +2030,14 @@ def NeonVectorType : TypeAttr {
   let Documentation = [Undocumented];
   // Represented as VectorType instead.
   let ASTNode = 0;
+}
+
+def ArmSveVectorBits : TypeAttr {
+  let Spellings = [GNU<"arm_sve_vector_bits">];
+  let Subjects = SubjectList<[TypedefName], ErrorDiag>;
+  let Args = [UnsignedArgument<"NumBits">];
+  let Documentation = [ArmSveVectorBitsDocs];
+  let PragmaAttributeSupport = 0;
 }
 
 def ArmMveStrictPolymorphism : TypeAttr, TargetSpecificAttr<TargetARM> {

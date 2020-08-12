@@ -64,7 +64,7 @@ Error dumpDebugARanges(DWARFContext &DCtx, DWARFYAML::Data &Y) {
                                  DCtx.isLittleEndian(), 0);
   uint64_t Offset = 0;
   DWARFDebugArangeSet Set;
-
+  std::vector<DWARFYAML::ARange> DebugAranges;
   while (ArangesData.isValidOffset(Offset)) {
     if (Error E = Set.extract(ArangesData, &Offset))
       return E;
@@ -81,8 +81,10 @@ Error dumpDebugARanges(DWARFContext &DCtx, DWARFYAML::Data &Y) {
       Desc.Length = Descriptor.Length;
       Range.Descriptors.push_back(Desc);
     }
-    Y.ARanges.push_back(Range);
+    DebugAranges.push_back(Range);
   }
+
+  Y.DebugAranges = DebugAranges;
   return ErrorSuccess();
 }
 
@@ -122,7 +124,7 @@ static DWARFYAML::PubSection dumpPubSection(const DWARFContext &DCtx,
                                             bool IsGNUStyle) {
   DWARFDataExtractor PubSectionData(DCtx.getDWARFObj(), Section,
                                     DCtx.isLittleEndian(), 0);
-  DWARFYAML::PubSection Y(IsGNUStyle);
+  DWARFYAML::PubSection Y;
   uint64_t Offset = 0;
   dumpInitialLength(PubSectionData, Offset, Y.Length);
   Y.Version = PubSectionData.getU16(&Offset);
@@ -165,9 +167,10 @@ void dumpDebugPubSections(DWARFContext &DCtx, DWARFYAML::Data &Y) {
 void dumpDebugInfo(DWARFContext &DCtx, DWARFYAML::Data &Y) {
   for (const auto &CU : DCtx.compile_units()) {
     DWARFYAML::Unit NewUnit;
-    NewUnit.Length.setLength(CU->getLength());
+    NewUnit.Format = CU->getFormat();
+    NewUnit.Length = CU->getLength();
     NewUnit.Version = CU->getVersion();
-    if(NewUnit.Version >= 5)
+    if (NewUnit.Version >= 5)
       NewUnit.Type = (dwarf::UnitType)CU->getUnitType();
     NewUnit.AbbrOffset = CU->getAbbreviations()->getOffset();
     NewUnit.AddrSize = CU->getAddressByteSize();

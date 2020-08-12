@@ -107,6 +107,10 @@ public:
 
   void lowerDynamicAlloc(MachineBasicBlock::iterator II) const;
   void lowerDynamicAreaOffset(MachineBasicBlock::iterator II) const;
+  void prepareDynamicAlloca(MachineBasicBlock::iterator II,
+                            Register &NegSizeReg, bool &KillNegSizeReg,
+                            Register &FramePointer) const;
+  void lowerPrepareProbedAlloca(MachineBasicBlock::iterator II) const;
   void lowerCRSpilling(MachineBasicBlock::iterator II,
                        unsigned FrameIndex) const;
   void lowerCRRestore(MachineBasicBlock::iterator II,
@@ -149,7 +153,6 @@ public:
     switch (RegName[0]) {
       case 'r':
       case 'f':
-      case 'q': // for QPX
       case 'v':
         if (RegName[1] == 's')
           return RegName + 2;

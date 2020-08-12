@@ -174,6 +174,11 @@ def Canonicalizer : Pass<"canonicalize"> {
   let constructor = "mlir::createCanonicalizerPass()";
 }
 
+def CopyRemoval : FunctionPass<"copy-removal"> {
+  let summary = "Remove the redundant copies from input IR";
+  let constructor = "mlir::createCopyRemovalPass()";
+}
+
 def CSE : Pass<"cse"> {
   let summary = "Eliminate common sub-expressions";
   let description = [{
@@ -304,6 +309,11 @@ def MemRefDataFlowOpt : FunctionPass<"memref-dataflow-opt"> {
   let constructor = "mlir::createMemRefDataFlowOptPass()";
 }
 
+def NormalizeMemRefs : Pass<"normalize-memrefs", "ModuleOp"> {
+  let summary = "Normalize memrefs";
+  let constructor = "mlir::createNormalizeMemRefsPass()";
+}
+
 def ParallelLoopCollapsing : Pass<"parallel-loop-collapsing"> {
   let summary = "Collapse parallel loops to use less induction variables";
   let constructor = "mlir::createParallelLoopCollapsingPass()";
@@ -400,5 +410,4 @@ def SymbolDCE : Pass<"symbol-dce"> {
   }];
   let constructor = "mlir::createSymbolDCEPass()";
 }
-
 #endif // MLIR_TRANSFORMS_PASSES

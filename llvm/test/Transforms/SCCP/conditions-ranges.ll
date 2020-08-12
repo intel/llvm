@@ -231,12 +231,12 @@ define void @f7_nested_conds(i32* %a, i32 %b) {
 ; CHECK-NEXT:    [[C_1:%.*]] = icmp ne i32 [[A_V]], 0
 ; CHECK-NEXT:    br i1 [[C_1]], label [[TRUE:%.*]], label [[FALSE:%.*]]
 ; CHECK:       false:
-; CHECK-NEXT:    br i1 true, label [[TRUE_2:%.*]], label [[TRUE]]
+; CHECK-NEXT:    br label [[TRUE_2:%.*]]
 ; CHECK:       true.2:
 ; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    ret void
 ; CHECK:       true:
-; CHECK-NEXT:    store i32 [[B:%.*]], i32* [[A]]
+; CHECK-NEXT:    store i32 [[B:%.*]], i32* [[A]], align 4
 ; CHECK-NEXT:    ret void
 ;
 entry:
@@ -814,14 +814,11 @@ define void @f16_conditions_and(i32 %a, i32 %b) {
 ; CHECK-NEXT:    [[BC:%.*]] = and i1 [[LT]], [[GT]]
 ; CHECK-NEXT:    br i1 [[BC]], label [[TRUE:%.*]], label [[FALSE:%.*]]
 ; CHECK:       true:
-; CHECK-NEXT:    [[F_1:%.*]] = icmp eq i32 [[A]], 0
-; CHECK-NEXT:    call void @use(i1 [[F_1]])
-; CHECK-NEXT:    [[F_2:%.*]] = icmp eq i32 [[A]], 20
-; CHECK-NEXT:    call void @use(i1 [[F_2]])
+; CHECK-NEXT:    call void @use(i1 false)
+; CHECK-NEXT:    call void @use(i1 false)
 ; CHECK-NEXT:    call void @use(i1 false)
 ; CHECK-NEXT:    call void @use(i1 true)
-; CHECK-NEXT:    [[T_2:%.*]] = icmp ne i32 [[A]], 20
-; CHECK-NEXT:    call void @use(i1 [[T_2]])
+; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    [[C_1:%.*]] = icmp eq i32 [[A]], 21
 ; CHECK-NEXT:    call void @use(i1 [[C_1]])
 ; CHECK-NEXT:    [[C_2:%.*]] = icmp ugt i32 [[A]], 21
@@ -899,10 +896,8 @@ define void @f17_conditions_or(i32 %a, i32 %b) {
 ; CHECK:       false:
 ; CHECK-NEXT:    call void @use(i1 false)
 ; CHECK-NEXT:    call void @use(i1 false)
-; CHECK-NEXT:    [[F_3:%.*]] = icmp ugt i32 [[A]], 100
-; CHECK-NEXT:    call void @use(i1 [[F_3]])
-; CHECK-NEXT:    [[T_1:%.*]] = icmp ult i32 [[A]], 100
-; CHECK-NEXT:    call void @use(i1 [[T_1]])
+; CHECK-NEXT:    call void @use(i1 false)
+; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    [[C_1:%.*]] = icmp eq i32 [[A]], 21
 ; CHECK-NEXT:    call void @use(i1 [[C_1]])

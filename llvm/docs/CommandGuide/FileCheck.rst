@@ -103,11 +103,37 @@ and from the command line.
   -verify``. With this option FileCheck will verify that input does not contain
   warnings not covered by any ``CHECK:`` patterns.
 
-.. option:: --dump-input <mode>
+.. option:: --dump-input <value>
 
   Dump input to stderr, adding annotations representing currently enabled
-  diagnostics.  Do this either 'always', on 'fail' (default), or 'never'.
-  Specify 'help' to explain the dump format and quit.
+  diagnostics.  When there are multiple occurrences of this option, the
+  ``<value>`` that appears earliest in the list below has precedence.  The
+  default is ``fail``.
+
+  * ``help``   - Explain input dump and quit
+  * ``always`` - Always dump input
+  * ``fail``   - Dump input on failure
+  * ``never``  - Never dump input
+
+.. option:: --dump-input-context <N>
+
+  In the dump requested by ``--dump-input``, print ``<N>`` input lines before
+  and ``<N>`` input lines after any lines specified by ``--dump-input-filter``.
+  When there are multiple occurrences of this option, the largest specified
+  ``<N>`` has precedence.  The default is 5.
+
+.. option:: --dump-input-filter <value>
+
+  In the dump requested by ``--dump-input``, print only input lines of kind
+  ``<value>`` plus any context specified by ``--dump-input-context``.  When
+  there are multiple occurrences of this option, the ``<value>`` that appears
+  earliest in the list below has precedence.  The default is ``error`` when
+  ``--dump-input=fail``, and it's ``all`` when ``--dump-input=always``.
+
+  * ``all``             - All input lines
+  * ``annotation-full`` - Input lines with annotations
+  * ``annotation``      - Input lines with starting points of annotations
+  * ``error``           - Input lines with starting points of error annotations
 
 .. option:: --enable-var-scope
 
@@ -137,15 +163,15 @@ and from the command line.
 
 .. option:: -v
 
-  Print good directive pattern matches.  However, if ``-input-dump=fail`` or
-  ``-input-dump=always``, add those matches as input annotations instead.
+  Print good directive pattern matches.  However, if ``-dump-input=fail`` or
+  ``-dump-input=always``, add those matches as input annotations instead.
 
 .. option:: -vv
 
   Print information helpful in diagnosing internal FileCheck issues, such as
   discarded overlapping ``CHECK-DAG:`` matches, implicit EOF pattern matches,
   and ``CHECK-NOT:`` patterns that do not have matches.  Implies ``-v``.
-  However, if ``-input-dump=fail`` or ``-input-dump=always``, just add that
+  However, if ``-dump-input=fail`` or ``-dump-input=always``, just add that
   information as input annotations instead.
 
 .. option:: --allow-deprecated-dag-overlap
@@ -353,8 +379,57 @@ For example, the following works like you'd expect:
    ; CHECK-SAME:              scope: ![[SCOPE:[0-9]+]]
 
 "``CHECK-SAME:``" directives reject the input if there are any newlines between
-it and the previous directive.  A "``CHECK-SAME:``" cannot be the first
-directive in a file.
+it and the previous directive.
+
+"``CHECK-SAME:``" is also useful to avoid writing matchers for irrelevant
+fields. For example, suppose you're writing a test which parses a tool that
+generates output like this:
+
+.. code-block:: text
+
+   Name: foo
+   Field1: ...
+   Field2: ...
+   Field3: ...
+   Value: 1
+
+   Name: bar
+   Field1: ...
+   Field2: ...
+   Field3: ...
+   Value: 2
+
+   Name: baz
+   Field1: ...
+   Field2: ...
+   Field3: ...
+   Value: 1
+
+To write a test that verifies ``foo`` has the value ``1``, you might first
+write this:
+
+.. code-block:: text
+
+   CHECK: Name: foo
+   CHECK: Value: 1{{$}}
+
+However, this would be a bad test: if the value for ``foo`` changes, the test
+would still pass because the "``CHECK: Value: 1``" line would match the value
+from ``baz``. To fix this, you could add ``CHECK-NEXT`` matchers for every
+``FieldN:`` line, but that would be verbose, and need to be updated when
+``Field4`` is added. A more succint way to write the test using the
+"``CHECK-SAME:``" matcher would be as follows:
+
+.. code-block:: text
+
+   CHECK:      Name: foo
+   CHECK:      Value:
+   CHECK-SAME:        {{ 1$}}
+
+This verifies that the *next* time "``Value:``" appears in the ouput, it has
+the value ``1``.
+
+Note: a "``CHECK-SAME:``" cannot be the first directive in a file.
 
 The "CHECK-EMPTY:" directive
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -696,7 +771,7 @@ The syntax of a numeric substitution is
   A numeric operand is a previously defined numeric variable, an integer
   literal, or a function. Spaces are accepted before, after and between any of
   these elements. Numeric operands have 64-bit precision. Overflow and underflow
-  are rejected. There is no support for operator precendence, but parentheses
+  are rejected. There is no support for operator precedence, but parentheses
   can be used to change the evaluation order.
 
 The supported operators are:
@@ -715,7 +790,7 @@ The syntax of a function call is ``<name>(<arguments>)`` where:
   * mul - Returns the product of its two operands.
   * sub - Returns the difference of its two operands.
 
-* ``<arguments>`` is a comma seperated list of expressions.
+* ``<arguments>`` is a comma separated list of expressions.
 
 For example:
 
