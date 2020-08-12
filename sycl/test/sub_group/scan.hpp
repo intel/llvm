@@ -16,7 +16,7 @@ using namespace cl::sycl;
 
 template <typename SpecializationKernelName, typename T, class BinaryOperation>
 void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
-              size_t G = 120, size_t L = 60) {
+              size_t G = 256, size_t L = 64) {
   try {
     nd_range<1> NdRange(G, L);
     buffer<T> exbuf(G), inbuf(G);
@@ -73,7 +73,7 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
 }
 
 template <typename SpecializationKernelName, typename T>
-void check(queue &Queue, size_t G = 120, size_t L = 60) {
+void check(queue &Queue, size_t G = 256, size_t L = 64) {
   // limit data range for half to avoid rounding issues
   if (std::is_same<T, cl::sycl::half>::value) {
     G = 64;

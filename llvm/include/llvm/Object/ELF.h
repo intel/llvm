@@ -50,6 +50,7 @@ static inline Error createError(const Twine &Err) {
 
 enum PPCInstrMasks : uint64_t {
   PADDI_R12_NO_DISP = 0x0610000039800000,
+  PLD_R12_NO_DISP = 0x04100000E5800000,
   MTCTR_R12 = 0x7D8903A6,
   BCTR = 0x4E800420,
 };
@@ -202,7 +203,7 @@ public:
     return getSectionContentsAsArray<Elf_Relr>(Sec);
   }
 
-  Expected<std::vector<Elf_Rel>> decode_relrs(Elf_Relr_Range relrs) const;
+  std::vector<Elf_Rel> decode_relrs(Elf_Relr_Range relrs) const;
 
   Expected<std::vector<Elf_Rela>> android_relas(const Elf_Shdr *Sec) const;
 

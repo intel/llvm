@@ -16,6 +16,7 @@
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/experimental/spec_constant.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/program_impl.hpp>
@@ -380,7 +381,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
     // If device image is not SPIRV, DeviceLibReqMask will be 0 which means
     // no fallback device library will be linked.
     uint32_t DeviceLibReqMask = 0;
-    if (Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV)
+    if (Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV &&
+        !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
     const std::vector<device> &Devices = ContextImpl->getDevices();

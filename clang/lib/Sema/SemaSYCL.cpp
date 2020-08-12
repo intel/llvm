@@ -80,6 +80,14 @@ public:
   /// half class.
   static bool isSyclHalfType(const QualType &Ty);
 
+  /// Checks whether given clang type is a full specialization of the SYCL
+  /// property_list class.
+  static bool isPropertyListType(const QualType &Ty);
+
+  /// Checks whether given clang type is a full specialization of the SYCL
+  /// buffer_location class.
+  static bool isSyclBufferLocationType(const QualType &Ty);
+
   /// Checks whether given clang type is a standard SYCL API class with given
   /// name.
   /// \param Ty    the clang type being checked
@@ -1076,6 +1084,66 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
     return false;
   }
 
+  void checkPropertyListType(TemplateArgument PropList, SourceLocation Loc) {
+    if (PropList.getKind() != TemplateArgument::ArgKind::Type) {
+      SemaRef.Diag(Loc,
+                   diag::err_sycl_invalid_accessor_property_template_param);
+      return;
+    }
+    QualType PropListTy = PropList.getAsType();
+    if (!Util::isPropertyListType(PropListTy)) {
+      SemaRef.Diag(Loc,
+                   diag::err_sycl_invalid_accessor_property_template_param);
+      return;
+    }
+    const auto *PropListDecl =
+        cast<ClassTemplateSpecializationDecl>(PropListTy->getAsRecordDecl());
+    if (PropListDecl->getTemplateArgs().size() != 1) {
+      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_param_number)
+          << "property_list";
+      return;
+    }
+    const auto TemplArg = PropListDecl->getTemplateArgs()[0];
+    if (TemplArg.getKind() != TemplateArgument::ArgKind::Pack) {
+      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_template_param)
+          << /*property_list*/ 0 << /*parameter pack*/ 0;
+      return;
+    }
+    for (TemplateArgument::pack_iterator Prop = TemplArg.pack_begin();
+         Prop != TemplArg.pack_end(); ++Prop) {
+      if (Prop->getKind() != TemplateArgument::ArgKind::Type) {
+        SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_template_param)
+            << /*property_list pack argument*/ 1 << /*type*/ 1;
+        return;
+      }
+      QualType PropTy = Prop->getAsType();
+      if (Util::isSyclBufferLocationType(PropTy))
+        checkBufferLocationType(PropTy, Loc);
+    }
+  }
+
+  void checkBufferLocationType(QualType PropTy, SourceLocation Loc) {
+    const auto *PropDecl =
+        dyn_cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
+    if (PropDecl->getTemplateArgs().size() != 1) {
+      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_param_number)
+          << "buffer_location";
+      return;
+    }
+    const auto BufferLoc = PropDecl->getTemplateArgs()[0];
+    if (BufferLoc.getKind() != TemplateArgument::ArgKind::Integral) {
+      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_template_param)
+          << /*buffer_location*/ 2 << /*non-negative integer*/ 2;
+      return;
+    }
+    int LocationID = static_cast<int>(BufferLoc.getAsIntegral().getExtValue());
+    if (LocationID < 0) {
+      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_template_param)
+          << /*buffer_location*/ 2 << /*non-negative integer*/ 2;
+      return;
+    }
+  }
+
   void checkAccessorType(QualType Ty, SourceRange Loc) {
     assert(Util::isSyclAccessorType(Ty) &&
            "Should only be called on SYCL accessor types.");
@@ -1087,6 +1155,8 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
       TemplateArgument TA = TAL.get(0);
       const QualType TemplateArgTy = TA.getAsType();
 
+      if (TAL.size() > 5)
+        checkPropertyListType(TAL.get(5), Loc.getBegin());
       llvm::DenseSet<QualType> Visited;
       checkSYCLType(SemaRef, TemplateArgTy, Loc, Visited);
     }
@@ -1158,8 +1228,9 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
 
   void addParam(ParamDesc newParamDesc, QualType FieldTy) {
     // Create a new ParmVarDecl based on the new info.
+    ASTContext &Ctx = SemaRef.getASTContext();
     auto *NewParam = ParmVarDecl::Create(
-        SemaRef.getASTContext(), KernelDecl, SourceLocation(), SourceLocation(),
+        Ctx, KernelDecl, SourceLocation(), SourceLocation(),
         std::get<1>(newParamDesc), std::get<0>(newParamDesc),
         std::get<2>(newParamDesc), SC_None, /*DefArg*/ nullptr);
     NewParam->setScopeInfo(0, Params.size());
@@ -1169,11 +1240,56 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     Params.push_back(NewParam);
   }
 
+  // Handle accessor properties. If any properties were found in
+  // the property_list - add the appropriate attributes to ParmVarDecl.
+  void handleAccessorPropertyList(ParmVarDecl *Param,
+                                  const CXXRecordDecl *RecordDecl,
+                                  SourceLocation Loc) {
+    const auto *AccTy = cast<ClassTemplateSpecializationDecl>(RecordDecl);
+    // TODO: when SYCL headers' part is ready - replace this 'if' with an error
+    if (AccTy->getTemplateArgs().size() < 6)
+      return;
+    const auto PropList = cast<TemplateArgument>(AccTy->getTemplateArgs()[5]);
+    QualType PropListTy = PropList.getAsType();
+    const auto *PropListDecl =
+        cast<ClassTemplateSpecializationDecl>(PropListTy->getAsRecordDecl());
+    const auto TemplArg = PropListDecl->getTemplateArgs()[0];
+    // Move through TemplateArgs list of a property list and search for
+    // properties. If found - apply the appropriate attribute to ParmVarDecl.
+    for (TemplateArgument::pack_iterator Prop = TemplArg.pack_begin();
+         Prop != TemplArg.pack_end(); ++Prop) {
+      QualType PropTy = Prop->getAsType();
+      if (Util::isSyclBufferLocationType(PropTy))
+        handleBufferLocationProperty(Param, PropTy, Loc);
+    }
+  }
+
+  // Obtain an integer value stored in a template parameter of buffer_location
+  // property to pass it to buffer_location kernel attribute
+  void handleBufferLocationProperty(ParmVarDecl *Param, QualType PropTy,
+                                    SourceLocation Loc) {
+    // If we have more than 1 buffer_location properties on a single
+    // accessor - emit an error
+    if (Param->hasAttr<SYCLIntelBufferLocationAttr>()) {
+      SemaRef.Diag(Loc, diag::err_sycl_compiletime_property_duplication)
+          << "buffer_location";
+      return;
+    }
+    ASTContext &Ctx = SemaRef.getASTContext();
+    const auto *PropDecl =
+        cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
+    const auto BufferLoc = PropDecl->getTemplateArgs()[0];
+    int LocationID = static_cast<int>(BufferLoc.getAsIntegral().getExtValue());
+    Param->addAttr(
+        SYCLIntelBufferLocationAttr::CreateImplicit(Ctx, LocationID));
+  }
+
   // All special SYCL objects must have __init method. We extract types for
   // kernel parameters from __init method parameters. We will use __init method
   // and kernel parameters which we build here to initialize special objects in
   // the kernel body.
-  bool handleSpecialType(FieldDecl *FD, QualType FieldTy) {
+  bool handleSpecialType(FieldDecl *FD, QualType FieldTy,
+                         bool isAccessorType = false) {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
@@ -1182,8 +1298,13 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     // Don't do -1 here because we count on this to be the first parameter added
     // (if any).
     size_t ParamIndex = Params.size();
-    for (const ParmVarDecl *Param : InitMethod->parameters())
-      addParam(FD, Param->getType().getCanonicalType());
+    for (const ParmVarDecl *Param : InitMethod->parameters()) {
+      QualType ParamTy = Param->getType();
+      addParam(FD, ParamTy.getCanonicalType());
+      if (ParamTy.getTypePtr()->isPointerType() && isAccessorType)
+        handleAccessorPropertyList(Params.back(), RecordDecl,
+                                   FD->getLocation());
+    }
     LastParamIndex = ParamIndex;
     return true;
   }
@@ -1253,14 +1374,18 @@ public:
     // Don't do -1 here because we count on this to be the first parameter added
     // (if any).
     size_t ParamIndex = Params.size();
-    for (const ParmVarDecl *Param : InitMethod->parameters())
-      addParam(BS, Param->getType().getCanonicalType());
+    for (const ParmVarDecl *Param : InitMethod->parameters()) {
+      QualType ParamTy = Param->getType();
+      addParam(BS, ParamTy.getCanonicalType());
+      if (ParamTy.getTypePtr()->isPointerType())
+        handleAccessorPropertyList(Params.back(), RecordDecl, BS.getBeginLoc());
+    }
     LastParamIndex = ParamIndex;
     return true;
   }
 
   bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
-    return handleSpecialType(FD, FieldTy);
+    return handleSpecialType(FD, FieldTy, /*isAccessorType*/ true);
   }
 
   bool handleSyclSamplerType(FieldDecl *FD, QualType FieldTy) final {
@@ -1455,13 +1580,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     InitExprs.push_back(ILE);
   }
 
-  void createSpecialMethodCall(const CXXRecordDecl *SpecialClass, Expr *Base,
-                               const std::string &MethodName,
-                               FieldDecl *Field) {
-    CXXMethodDecl *Method = getMethodByName(SpecialClass, MethodName);
-    assert(Method &&
-           "The accessor/sampler/stream must have the __init method. Stream"
-           " must also have __finalize method");
+  CXXMemberCallExpr *createSpecialMethodCall(Expr *Base, CXXMethodDecl *Method,
+                                             FieldDecl *Field) {
     unsigned NumParams = Method->getNumParams();
     llvm::SmallVector<Expr *, 4> ParamDREs(NumParams);
     llvm::ArrayRef<ParmVarDecl *> KernelParameters =
@@ -1485,10 +1605,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     CXXMemberCallExpr *Call = CXXMemberCallExpr::Create(
         SemaRef.Context, MethodME, ParamStmts, ResultTy, VK, SourceLocation(),
         FPOptionsOverride());
-    if (MethodName == FinalizeMethodName)
-      FinalizeStmts.push_back(Call);
-    else
-      BodyStmts.push_back(Call);
+    return Call;
   }
 
   // FIXME Avoid creation of kernel obj clone.
@@ -1517,8 +1634,12 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, None);
     InitExprs.push_back(MemberInit.get());
 
-    createSpecialMethodCall(RecordDecl, MemberExprBases.back(), InitMethodName,
-                            FD);
+    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
+    if (InitMethod) {
+      CXXMemberCallExpr *InitCall =
+          createSpecialMethodCall(MemberExprBases.back(), InitMethod, FD);
+      BodyStmts.push_back(InitCall);
+    }
     return true;
   }
 
@@ -1535,8 +1656,12 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, None);
     InitExprs.push_back(MemberInit.get());
 
-    createSpecialMethodCall(RecordDecl, MemberExprBases.back(), InitMethodName,
-                            nullptr);
+    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
+    if (InitMethod) {
+      CXXMemberCallExpr *InitCall =
+          createSpecialMethodCall(MemberExprBases.back(), InitMethod, nullptr);
+      BodyStmts.push_back(InitCall);
+    }
     return true;
   }
 
@@ -1578,14 +1703,27 @@ public:
     return handleSpecialType(FD, Ty);
   }
 
+  bool handleSyclSpecConstantType(FieldDecl *FD, QualType Ty) final {
+    return handleSpecialType(FD, Ty);
+  }
+
   bool handleSyclStreamType(FieldDecl *FD, QualType Ty) final {
     const auto *StreamDecl = Ty->getAsCXXRecordDecl();
     createExprForStructOrScalar(FD);
     size_t NumBases = MemberExprBases.size();
-    createSpecialMethodCall(StreamDecl, MemberExprBases[NumBases - 2],
-                            InitMethodName, FD);
-    createSpecialMethodCall(StreamDecl, MemberExprBases[NumBases - 2],
-                            FinalizeMethodName, FD);
+    CXXMethodDecl *InitMethod = getMethodByName(StreamDecl, InitMethodName);
+    if (InitMethod) {
+      CXXMemberCallExpr *InitCall =
+          createSpecialMethodCall(MemberExprBases.back(), InitMethod, FD);
+      BodyStmts.push_back(InitCall);
+    }
+    CXXMethodDecl *FinalizeMethod =
+        getMethodByName(StreamDecl, FinalizeMethodName);
+    if (FinalizeMethod) {
+      CXXMemberCallExpr *FinalizeCall = createSpecialMethodCall(
+          MemberExprBases[NumBases - 2], FinalizeMethod, FD);
+      FinalizeStmts.push_back(FinalizeCall);
+    }
     return true;
   }
 
@@ -1796,7 +1934,7 @@ public:
         cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl())
             ->getTemplateInstantiationArgs();
     assert(TemplateArgs.size() == 2 &&
-           "Incorrect template args for Accessor Type");
+           "Incorrect template args for spec constant type");
     // Get specialization constant ID type, which is the second template
     // argument.
     QualType SpecConstIDTy = TemplateArgs.get(1).getAsType().getCanonicalType();
@@ -2826,6 +2964,23 @@ bool Util::isSyclSpecConstantType(const QualType &Ty) {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "experimental"},
+      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
+  return matchQualifiedTypeName(Ty, Scopes);
+}
+
+bool Util::isPropertyListType(const QualType &Ty) {
+  return isSyclType(Ty, "property_list", true /*Tmpl*/);
+}
+
+bool Util::isSyclBufferLocationType(const QualType &Ty) {
+  const StringRef &Name = "buffer_location";
+  std::array<DeclContextDesc, 4> Scopes = {
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
+      // TODO: this doesn't belong to property namespace, instead it shall be
+      // in its own namespace. Change it, when the actual implementation in SYCL
+      // headers is ready
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "property"},
       Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
   return matchQualifiedTypeName(Ty, Scopes);
 }

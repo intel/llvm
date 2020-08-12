@@ -427,22 +427,6 @@ namespace llvm {
     ///               => VABSDUW((XVNEGSP a), (XVNEGSP b))
     VABSD,
 
-    /// QVFPERM = This corresponds to the QPX qvfperm instruction.
-    QVFPERM,
-
-    /// QVGPCI = This corresponds to the QPX qvgpci instruction.
-    QVGPCI,
-
-    /// QVALIGNI = This corresponds to the QPX qvaligni instruction.
-    QVALIGNI,
-
-    /// QVESPLATI = This corresponds to the QPX qvesplati instruction.
-    QVESPLATI,
-
-    /// QBFLT = Access the underlying QPX floating-point boolean
-    /// representation.
-    QBFLT,
-
     /// FP_EXTEND_HALF(VECTOR, IDX) - Custom extend upper (IDX=0) half or
     /// lower (IDX=1) half of v4f32 to v2f64.
     FP_EXTEND_HALF,
@@ -518,10 +502,6 @@ namespace llvm {
 
     /// Store scalar integers from VSR.
     ST_VSR_SCAL_INT,
-
-    /// QBRC, CHAIN = QVLFSb CHAIN, Ptr
-    /// The 4xf32 load used for v4i1 constants.
-    QVLFSb,
 
     /// ATOMIC_CMP_SWAP - the exact same as the target-independent nodes
     /// except they ensure that the compare input is zero-extended for
@@ -1042,11 +1022,6 @@ namespace llvm {
       }
     };
 
-    bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override {
-      // Addrspacecasts are always noops.
-      return true;
-    }
-
     bool canReuseLoadAddress(SDValue Op, EVT MemVT, ReuseLoadInfo &RLI,
                              SelectionDAG &DAG,
                              ISD::LoadExtType ET = ISD::NON_EXTLOAD) const;
@@ -1117,6 +1092,7 @@ namespace llvm {
     SDValue LowerSHL_PARTS(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSRL_PARTS(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSRA_PARTS(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerFunnelShift(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerVECTOR_SHUFFLE(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerINSERT_VECTOR_ELT(SDValue Op, SelectionDAG &DAG) const;

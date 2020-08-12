@@ -920,6 +920,9 @@ private:
   // FIXME: What about debug intrinsics? This matches old behavior, but
   // doesn't make sense.
   void visitIntrinsicInst(IntrinsicInst &II) {
+    if (II.isDroppable())
+      return;
+
     if (!IsOffsetKnown)
       return PI.setAborted(&II);
 
@@ -1825,7 +1828,7 @@ static bool isVectorPromotionViableForSlice(Partition &P, const Slice &S,
     if (!S.isSplittable())
       return false; // Skip any unsplittable intrinsics.
   } else if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(U->getUser())) {
-    if (!II->isLifetimeStartOrEnd())
+    if (!II->isLifetimeStartOrEnd() && !II->isDroppable())
       return false;
   } else if (U->get()->getType()->getPointerElementType()->isStructTy()) {
     // Disable vector promotion when there are loads or stores of an FCA.
@@ -2058,7 +2061,7 @@ static bool isIntegerWideningViableForSlice(const Slice &S,
     if (!S.isSplittable())
       return false; // Skip any unsplittable intrinsics.
   } else if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(U->getUser())) {
-    if (!II->isLifetimeStartOrEnd())
+    if (!II->isLifetimeStartOrEnd() && !II->isDroppable())
       return false;
   } else {
     return false;
@@ -2778,7 +2781,7 @@ private:
 
     Type *AllocaTy = NewAI.getAllocatedType();
     Type *ScalarTy = AllocaTy->getScalarType();
-    
+
     const bool CanContinue = [&]() {
       if (VecTy || IntTy)
         return true;
@@ -3074,13 +3077,21 @@ private:
   }
 
   bool visitIntrinsicInst(IntrinsicInst &II) {
-    assert(II.isLifetimeStartOrEnd());
+    assert((II.isLifetimeStartOrEnd() || II.isDroppable()) &&
+           "Unexpected intrinsic!");
     LLVM_DEBUG(dbgs() << "    original: " << II << "\n");
-    assert(II.getArgOperand(1) == OldPtr);
 
     // Record this instruction for deletion.
     Pass.DeadInsts.insert(&II);
 
+    if (II.isDroppable()) {
+      assert(II.getIntrinsicID() == Intrinsic::assume && "Expected assume");
+      // TODO For now we forget assumed information, this can be improved.
+      OldPtr->dropDroppableUsesIn(II);
+      return true;
+    }
+
+    assert(II.getArgOperand(1) == OldPtr);
     // Lifetime intrinsics are only promotable if they cover the whole alloca.
     // Therefore, we drop lifetime intrinsics which don't cover the whole
     // alloca.
@@ -4465,10 +4476,8 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
   // Migrate debug information from the old alloca to the new alloca(s)
   // and the individual partitions.
   TinyPtrVector<DbgVariableIntrinsic *> DbgDeclares = FindDbgAddrUses(&AI);
-  if (!DbgDeclares.empty()) {
-    auto *Var = DbgDeclares.front()->getVariable();
-    auto *Expr = DbgDeclares.front()->getExpression();
-    auto VarSize = Var->getSizeInBits();
+  for (DbgVariableIntrinsic *DbgDeclare : DbgDeclares) {
+    auto *Expr = DbgDeclare->getExpression();
     DIBuilder DIB(*AI.getModule(), /*AllowUnresolved*/ false);
     uint64_t AllocaSize =
         DL.getTypeSizeInBits(AI.getAllocatedType()).getFixedSize();
@@ -4499,6 +4508,7 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
         }
 
         // The alloca may be larger than the variable.
+        auto VarSize = DbgDeclare->getVariable()->getSizeInBits();
         if (VarSize) {
           if (Size > *VarSize)
             Size = *VarSize;
@@ -4516,12 +4526,21 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
         }
       }
 
-      // Remove any existing intrinsics describing the same alloca.
-      for (DbgVariableIntrinsic *OldDII : FindDbgAddrUses(Fragment.Alloca))
-        OldDII->eraseFromParent();
+      // Remove any existing intrinsics on the new alloca describing
+      // the variable fragment.
+      for (DbgVariableIntrinsic *OldDII : FindDbgAddrUses(Fragment.Alloca)) {
+        auto SameVariableFragment = [](const DbgVariableIntrinsic *LHS,
+                                       const DbgVariableIntrinsic *RHS) {
+          return LHS->getVariable() == RHS->getVariable() &&
+                 LHS->getDebugLoc()->getInlinedAt() ==
+                     RHS->getDebugLoc()->getInlinedAt();
+        };
+        if (SameVariableFragment(OldDII, DbgDeclare))
+          OldDII->eraseFromParent();
+      }
 
-      DIB.insertDeclare(Fragment.Alloca, Var, FragmentExpr,
-                        DbgDeclares.front()->getDebugLoc(), &AI);
+      DIB.insertDeclare(Fragment.Alloca, DbgDeclare->getVariable(), FragmentExpr,
+                        DbgDeclare->getDebugLoc(), &AI);
     }
   }
   return Changed;

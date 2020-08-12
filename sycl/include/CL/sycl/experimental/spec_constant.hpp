@@ -32,7 +32,10 @@ template <typename T, typename ID = T> class spec_constant {
 private:
   // Implementation defined constructor.
 #ifdef __SYCL_DEVICE_ONLY__
+public:
   spec_constant() {}
+
+private:
 #else
   spec_constant(T Cst) : Val(Cst) {}
 #endif

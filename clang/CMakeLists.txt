@@ -114,10 +114,6 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   option(CLANG_ENABLE_BOOTSTRAP "Generate the clang bootstrap target" OFF)
   option(LLVM_ENABLE_LIBXML2 "Use libxml2 if available." ON)
 
-  if(LLVM_ENABLE_ZLIB)
-    find_package(ZLIB)
-  endif()
-
   include(AddLLVM)
   include(TableGen)
   include(HandleLLVMOptions)
@@ -125,6 +121,8 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   include(LLVMDistributionSupport)
 
   set(PACKAGE_VERSION "${LLVM_PACKAGE_VERSION}")
+  set(BUG_REPORT_URL "${LLVM_PACKAGE_BUGREPORT}" CACHE STRING
+    "Default URL where bug reports are to be submitted.")
 
   if (NOT DEFINED LLVM_INCLUDE_TESTS)
     set(LLVM_INCLUDE_TESTS ON)
@@ -261,7 +259,7 @@ set(DEFAULT_SYSROOT "" CACHE STRING
 
 set(ENABLE_LINKER_BUILD_ID OFF CACHE BOOL "pass --build-id to ld")
 
-set(ENABLE_X86_RELAX_RELOCATIONS OFF CACHE BOOL
+set(ENABLE_X86_RELAX_RELOCATIONS ON CACHE BOOL
     "enable x86 relax relocations by default")
 
 set(ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER FALSE CACHE BOOL
@@ -426,15 +424,15 @@ if (APPLE)
     RESULT_VARIABLE HAD_ERROR
     OUTPUT_VARIABLE LD_V_OUTPUT
   )
-  if (NOT HAD_ERROR)
-    if ("${LD_V_OUTPUT}" MATCHES ".*ld64-([0-9.]+).*")
-      string(REGEX REPLACE ".*ld64-([0-9.]+).*" "\\1" HOST_LINK_VERSION ${LD_V_OUTPUT})
-    elseif ("${LD_V_OUTPUT}" MATCHES "[^0-9]*([0-9.]+).*")
-      string(REGEX REPLACE "[^0-9]*([0-9.]+).*" "\\1" HOST_LINK_VERSION ${LD_V_OUTPUT})
-    endif()
-  else()
+  if (HAD_ERROR)
     message(FATAL_ERROR "${CMAKE_LINKER} failed with status ${HAD_ERROR}")
   endif()
+  if ("${LD_V_OUTPUT}" MATCHES ".*ld64-([0-9.]+).*")
+    string(REGEX REPLACE ".*ld64-([0-9.]+).*" "\\1" HOST_LINK_VERSION ${LD_V_OUTPUT})
+  elseif ("${LD_V_OUTPUT}" MATCHES "[^0-9]*([0-9.]+).*")
+    string(REGEX REPLACE "[^0-9]*([0-9.]+).*" "\\1" HOST_LINK_VERSION ${LD_V_OUTPUT})
+  endif()
+  message(STATUS "Host linker version: ${HOST_LINK_VERSION}")
 endif()
 
 include(CMakeParseArguments)
@@ -759,6 +757,14 @@ if (CLANG_ENABLE_BOOTSTRAP)
     -DCMAKE_C_COMPILER=${LLVM_RUNTIME_OUTPUT_INTDIR}/${C_COMPILER}
     -DCMAKE_ASM_COMPILER=${LLVM_RUNTIME_OUTPUT_INTDIR}/${C_COMPILER}
     -DCMAKE_ASM_COMPILER_ID=Clang)
+
+  # cmake requires CMAKE_LINKER to be specified if the compiler is MSVC-like,
+  # otherwise it defaults the linker to be link.exe.
+  if(BOOTSTRAP_LLVM_ENABLE_LLD)
+    if((WIN32 AND NOT BOOTSTRAP_CMAKE_SYSTEM_NAME) OR BOOTSTRAP_CMAKE_SYSTEM_NAME STREQUAL "Windows")
+      set(${CLANG_STAGE}_LINKER -DCMAKE_LINKER=${LLVM_RUNTIME_OUTPUT_INTDIR}/lld-link${CMAKE_EXECUTABLE_SUFFIX})
+    endif()
+  endif()
 
   if(BOOTSTRAP_CMAKE_SYSTEM_NAME)
     set(${CLANG_STAGE}_CONFIG -DLLVM_CONFIG_PATH=${LLVM_RUNTIME_OUTPUT_INTDIR}/llvm-config)

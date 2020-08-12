@@ -116,6 +116,16 @@ public:
         getNative());
   }
 
+  /// Indicates if all of the SYCL devices on this platform have the
+  /// given feature.
+  ///
+  /// \param Aspect is one of the values in Table 4.20 of the SYCL 2020
+  /// Provisional Spec.
+  ///
+  /// \return true if all of the SYCL devices on this platform have the
+  /// given feature.
+  bool has(aspect Aspect) const;
+
 private:
   pi_native_handle getNative() const;
 

@@ -5257,6 +5257,8 @@ static const ARMVectorIntrinsicInfo AArch64SISDIntrinsicMap[] = {
   NEONMAP1(vcvtd_n_f64_u64, aarch64_neon_vcvtfxu2fp, AddRetType | Add1ArgType),
   NEONMAP1(vcvtd_n_s64_f64, aarch64_neon_vcvtfp2fxs, AddRetType | Add1ArgType),
   NEONMAP1(vcvtd_n_u64_f64, aarch64_neon_vcvtfp2fxu, AddRetType | Add1ArgType),
+  NEONMAP1(vcvtd_s64_f64, aarch64_neon_fcvtzs, AddRetType | Add1ArgType),
+  NEONMAP1(vcvtd_u64_f64, aarch64_neon_fcvtzu, AddRetType | Add1ArgType),
   NEONMAP1(vcvth_bf16_f32, aarch64_neon_bfcvt, 0),
   NEONMAP1(vcvtmd_s64_f64, aarch64_neon_fcvtms, AddRetType | Add1ArgType),
   NEONMAP1(vcvtmd_u64_f64, aarch64_neon_fcvtmu, AddRetType | Add1ArgType),
@@ -5274,6 +5276,8 @@ static const ARMVectorIntrinsicInfo AArch64SISDIntrinsicMap[] = {
   NEONMAP1(vcvts_n_f32_u32, aarch64_neon_vcvtfxu2fp, AddRetType | Add1ArgType),
   NEONMAP1(vcvts_n_s32_f32, aarch64_neon_vcvtfp2fxs, AddRetType | Add1ArgType),
   NEONMAP1(vcvts_n_u32_f32, aarch64_neon_vcvtfp2fxu, AddRetType | Add1ArgType),
+  NEONMAP1(vcvts_s32_f32, aarch64_neon_fcvtzs, AddRetType | Add1ArgType),
+  NEONMAP1(vcvts_u32_f32, aarch64_neon_fcvtzu, AddRetType | Add1ArgType),
   NEONMAP1(vcvtxd_f32_f64, aarch64_sisd_fcvtxn, 0),
   NEONMAP1(vmaxnmv_f32, aarch64_neon_fmaxnmv, AddRetType | Add1ArgType),
   NEONMAP1(vmaxnmvq_f32, aarch64_neon_fmaxnmv, AddRetType | Add1ArgType),
@@ -5432,6 +5436,10 @@ static const ARMVectorIntrinsicInfo AArch64SISDIntrinsicMap[] = {
   NEONMAP1(vcvth_n_s64_f16, aarch64_neon_vcvtfp2fxs, AddRetType | Add1ArgType),
   NEONMAP1(vcvth_n_u32_f16, aarch64_neon_vcvtfp2fxu, AddRetType | Add1ArgType),
   NEONMAP1(vcvth_n_u64_f16, aarch64_neon_vcvtfp2fxu, AddRetType | Add1ArgType),
+  NEONMAP1(vcvth_s32_f16, aarch64_neon_fcvtzs, AddRetType | Add1ArgType),
+  NEONMAP1(vcvth_s64_f16, aarch64_neon_fcvtzs, AddRetType | Add1ArgType),
+  NEONMAP1(vcvth_u32_f16, aarch64_neon_fcvtzu, AddRetType | Add1ArgType),
+  NEONMAP1(vcvth_u64_f16, aarch64_neon_fcvtzu, AddRetType | Add1ArgType),
   NEONMAP1(vcvtmh_s32_f16, aarch64_neon_fcvtms, AddRetType | Add1ArgType),
   NEONMAP1(vcvtmh_s64_f16, aarch64_neon_fcvtms, AddRetType | Add1ArgType),
   NEONMAP1(vcvtmh_u32_f16, aarch64_neon_fcvtmu, AddRetType | Add1ArgType),
@@ -9001,21 +9009,6 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
     Value *Ptr = Builder.CreateBitCast(Ops[0], Int128PTy);
     return Builder.CreateDefaultAlignedStore(EmitScalarExpr(E->getArg(1)), Ptr);
   }
-  case NEON::BI__builtin_neon_vcvts_u32_f32:
-  case NEON::BI__builtin_neon_vcvtd_u64_f64:
-    usgn = true;
-    LLVM_FALLTHROUGH;
-  case NEON::BI__builtin_neon_vcvts_s32_f32:
-  case NEON::BI__builtin_neon_vcvtd_s64_f64: {
-    Ops.push_back(EmitScalarExpr(E->getArg(0)));
-    bool Is64 = Ops[0]->getType()->getPrimitiveSizeInBits() == 64;
-    llvm::Type *InTy = Is64 ? Int64Ty : Int32Ty;
-    llvm::Type *FTy = Is64 ? DoubleTy : FloatTy;
-    Ops[0] = Builder.CreateBitCast(Ops[0], FTy);
-    if (usgn)
-      return Builder.CreateFPToUI(Ops[0], InTy);
-    return Builder.CreateFPToSI(Ops[0], InTy);
-  }
   case NEON::BI__builtin_neon_vcvts_f32_u32:
   case NEON::BI__builtin_neon_vcvtd_f64_u64:
     usgn = true;
@@ -9053,44 +9046,16 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
       return Builder.CreateUIToFP(Ops[0], FTy);
     return Builder.CreateSIToFP(Ops[0], FTy);
   }
-  case NEON::BI__builtin_neon_vcvth_u16_f16:
-    usgn = true;
-    LLVM_FALLTHROUGH;
-  case NEON::BI__builtin_neon_vcvth_s16_f16: {
-    Ops.push_back(EmitScalarExpr(E->getArg(0)));
-    Ops[0] = Builder.CreateBitCast(Ops[0], HalfTy);
-    if (usgn)
-      return Builder.CreateFPToUI(Ops[0], Int16Ty);
-    return Builder.CreateFPToSI(Ops[0], Int16Ty);
-  }
-  case NEON::BI__builtin_neon_vcvth_u32_f16:
-    usgn = true;
-    LLVM_FALLTHROUGH;
-  case NEON::BI__builtin_neon_vcvth_s32_f16: {
-    Ops.push_back(EmitScalarExpr(E->getArg(0)));
-    Ops[0] = Builder.CreateBitCast(Ops[0], HalfTy);
-    if (usgn)
-      return Builder.CreateFPToUI(Ops[0], Int32Ty);
-    return Builder.CreateFPToSI(Ops[0], Int32Ty);
-  }
-  case NEON::BI__builtin_neon_vcvth_u64_f16:
-    usgn = true;
-    LLVM_FALLTHROUGH;
-  case NEON::BI__builtin_neon_vcvth_s64_f16: {
-    Ops.push_back(EmitScalarExpr(E->getArg(0)));
-    Ops[0] = Builder.CreateBitCast(Ops[0], HalfTy);
-    if (usgn)
-      return Builder.CreateFPToUI(Ops[0], Int64Ty);
-    return Builder.CreateFPToSI(Ops[0], Int64Ty);
-  }
   case NEON::BI__builtin_neon_vcvtah_u16_f16:
   case NEON::BI__builtin_neon_vcvtmh_u16_f16:
   case NEON::BI__builtin_neon_vcvtnh_u16_f16:
   case NEON::BI__builtin_neon_vcvtph_u16_f16:
+  case NEON::BI__builtin_neon_vcvth_u16_f16:
   case NEON::BI__builtin_neon_vcvtah_s16_f16:
   case NEON::BI__builtin_neon_vcvtmh_s16_f16:
   case NEON::BI__builtin_neon_vcvtnh_s16_f16:
-  case NEON::BI__builtin_neon_vcvtph_s16_f16: {
+  case NEON::BI__builtin_neon_vcvtph_s16_f16:
+  case NEON::BI__builtin_neon_vcvth_s16_f16: {
     unsigned Int;
     llvm::Type* InTy = Int32Ty;
     llvm::Type* FTy  = HalfTy;
@@ -9106,6 +9071,8 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
       Int = Intrinsic::aarch64_neon_fcvtnu; break;
     case NEON::BI__builtin_neon_vcvtph_u16_f16:
       Int = Intrinsic::aarch64_neon_fcvtpu; break;
+    case NEON::BI__builtin_neon_vcvth_u16_f16:
+      Int = Intrinsic::aarch64_neon_fcvtzu; break;
     case NEON::BI__builtin_neon_vcvtah_s16_f16:
       Int = Intrinsic::aarch64_neon_fcvtas; break;
     case NEON::BI__builtin_neon_vcvtmh_s16_f16:
@@ -9114,6 +9081,8 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
       Int = Intrinsic::aarch64_neon_fcvtns; break;
     case NEON::BI__builtin_neon_vcvtph_s16_f16:
       Int = Intrinsic::aarch64_neon_fcvtps; break;
+    case NEON::BI__builtin_neon_vcvth_s16_f16:
+      Int = Intrinsic::aarch64_neon_fcvtzs; break;
     }
     Ops[0] = EmitNeonCall(CGM.getIntrinsic(Int, Tys), Ops, "fcvt");
     return Builder.CreateTrunc(Ops[0], Int16Ty);
@@ -10154,10 +10123,10 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
   case NEON::BI__builtin_neon_vcvtq_u64_v:
   case NEON::BI__builtin_neon_vcvtq_s16_v:
   case NEON::BI__builtin_neon_vcvtq_u16_v: {
-    Ops[0] = Builder.CreateBitCast(Ops[0], GetFloatNeonType(this, Type));
-    if (usgn)
-      return Builder.CreateFPToUI(Ops[0], Ty);
-    return Builder.CreateFPToSI(Ops[0], Ty);
+    Int =
+        usgn ? Intrinsic::aarch64_neon_fcvtzu : Intrinsic::aarch64_neon_fcvtzs;
+    llvm::Type *Tys[2] = {Ty, GetFloatNeonType(this, Type)};
+    return EmitNeonCall(CGM.getIntrinsic(Int, Tys), Ops, "vcvtz");
   }
   case NEON::BI__builtin_neon_vcvta_s16_v:
   case NEON::BI__builtin_neon_vcvta_u16_v:
@@ -10958,8 +10927,15 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
 Value *CodeGenFunction::EmitBPFBuiltinExpr(unsigned BuiltinID,
                                            const CallExpr *E) {
   assert((BuiltinID == BPF::BI__builtin_preserve_field_info ||
-          BuiltinID == BPF::BI__builtin_btf_type_id) &&
+          BuiltinID == BPF::BI__builtin_btf_type_id ||
+          BuiltinID == BPF::BI__builtin_preserve_type_info ||
+          BuiltinID == BPF::BI__builtin_preserve_enum_value) &&
          "unexpected BPF builtin");
+
+  // A sequence number, injected into IR builtin functions, to
+  // prevent CSE given the only difference of the funciton
+  // may just be the debuginfo metadata.
+  static uint32_t BuiltinSeqNum;
 
   switch (BuiltinID) {
   default:
@@ -10991,65 +10967,65 @@ Value *CodeGenFunction::EmitBPFBuiltinExpr(unsigned BuiltinID,
         {FieldAddr->getType()});
     return Builder.CreateCall(FnGetFieldInfo, {FieldAddr, InfoKind});
   }
-  case BPF::BI__builtin_btf_type_id: {
-    Value *FieldVal = nullptr;
-
-    // The LValue cannot be converted Value in order to be used as the function
-    // parameter. If it is a structure, it is the "alloca" result of the LValue
-    // (a pointer) is used in the parameter. If it is a simple type,
-    // the value will be loaded from its corresponding "alloca" and used as
-    // the parameter. In our case, let us just get a pointer of the LValue
-    // since we do not really use the parameter. The purpose of parameter
-    // is to prevent the generated IR llvm.bpf.btf.type.id intrinsic call,
-    // which carries metadata, from being changed.
-    bool IsLValue = E->getArg(0)->isLValue();
-    if (IsLValue)
-      FieldVal = EmitLValue(E->getArg(0)).getPointer(*this);
-    else
-      FieldVal = EmitScalarExpr(E->getArg(0));
-
+  case BPF::BI__builtin_btf_type_id:
+  case BPF::BI__builtin_preserve_type_info: {
     if (!getDebugInfo()) {
-      CGM.Error(E->getExprLoc(), "using __builtin_btf_type_id() without -g");
+      CGM.Error(E->getExprLoc(), "using builtin function without -g");
       return nullptr;
     }
 
-    // Generate debuginfo type for the first argument.
-    llvm::DIType *DbgInfo =
-        getDebugInfo()->getOrCreateStandaloneType(E->getArg(0)->getType(),
-                                                  E->getArg(0)->getExprLoc());
+    const Expr *Arg0 = E->getArg(0);
+    llvm::DIType *DbgInfo = getDebugInfo()->getOrCreateStandaloneType(
+        Arg0->getType(), Arg0->getExprLoc());
 
     ConstantInt *Flag = cast<ConstantInt>(EmitScalarExpr(E->getArg(1)));
     Value *FlagValue = ConstantInt::get(Int64Ty, Flag->getSExtValue());
+    Value *SeqNumVal = ConstantInt::get(Int32Ty, BuiltinSeqNum++);
 
-    // Built the IR for the btf_type_id intrinsic.
-    //
-    // In the above, we converted LValue argument to a pointer to LValue.
-    // For example, the following
-    //   int v;
-    //   C1: __builtin_btf_type_id(v, flag);
-    // will be converted to
-    //   L1: llvm.bpf.btf.type.id(&v, flag)
-    // This makes it hard to differentiate from
-    //   C2: __builtin_btf_type_id(&v, flag);
-    // to
-    //   L2: llvm.bpf.btf.type.id(&v, flag)
-    //
-    // If both C1 and C2 are present in the code, the llvm may later
-    // on do CSE on L1 and L2, which will result in incorrect tagged types.
-    //
-    // The C1->L1 transformation only happens if the argument of
-    // __builtin_btf_type_id() is a LValue. So Let us put whether
-    // the argument is an LValue or not into generated IR. This should
-    // prevent potential CSE from causing debuginfo type loss.
-    //
-    // The generated IR intrinsics will hence look like
-    //   L1: llvm.bpf.btf.type.id(&v, 1, flag) !di_type_for_{v};
-    //   L2: llvm.bpf.btf.type.id(&v, 0, flag) !di_type_for_{&v};
-    Constant *CV = ConstantInt::get(IntTy, IsLValue);
-    llvm::Function *FnBtfTypeId = llvm::Intrinsic::getDeclaration(
-        &CGM.getModule(), llvm::Intrinsic::bpf_btf_type_id,
-        {FieldVal->getType(), CV->getType()});
-    CallInst *Fn = Builder.CreateCall(FnBtfTypeId, {FieldVal, CV, FlagValue});
+    llvm::Function *FnDecl;
+    if (BuiltinID == BPF::BI__builtin_btf_type_id)
+      FnDecl = llvm::Intrinsic::getDeclaration(
+          &CGM.getModule(), llvm::Intrinsic::bpf_btf_type_id, {});
+    else
+      FnDecl = llvm::Intrinsic::getDeclaration(
+          &CGM.getModule(), llvm::Intrinsic::bpf_preserve_type_info, {});
+    CallInst *Fn = Builder.CreateCall(FnDecl, {SeqNumVal, FlagValue});
+    Fn->setMetadata(LLVMContext::MD_preserve_access_index, DbgInfo);
+    return Fn;
+  }
+  case BPF::BI__builtin_preserve_enum_value: {
+    if (!getDebugInfo()) {
+      CGM.Error(E->getExprLoc(), "using builtin function without -g");
+      return nullptr;
+    }
+
+    const Expr *Arg0 = E->getArg(0);
+    llvm::DIType *DbgInfo = getDebugInfo()->getOrCreateStandaloneType(
+        Arg0->getType(), Arg0->getExprLoc());
+
+    // Find enumerator
+    const auto *UO = cast<UnaryOperator>(Arg0->IgnoreParens());
+    const auto *CE = cast<CStyleCastExpr>(UO->getSubExpr());
+    const auto *DR = cast<DeclRefExpr>(CE->getSubExpr());
+    const auto *Enumerator = cast<EnumConstantDecl>(DR->getDecl());
+
+    auto &InitVal = Enumerator->getInitVal();
+    std::string InitValStr;
+    if (InitVal.isNegative() || InitVal > uint64_t(INT64_MAX))
+      InitValStr = std::to_string(InitVal.getSExtValue());
+    else
+      InitValStr = std::to_string(InitVal.getZExtValue());
+    std::string EnumStr = Enumerator->getNameAsString() + ":" + InitValStr;
+    Value *EnumStrVal = Builder.CreateGlobalStringPtr(EnumStr);
+
+    ConstantInt *Flag = cast<ConstantInt>(EmitScalarExpr(E->getArg(1)));
+    Value *FlagValue = ConstantInt::get(Int64Ty, Flag->getSExtValue());
+    Value *SeqNumVal = ConstantInt::get(Int32Ty, BuiltinSeqNum++);
+
+    llvm::Function *IntrinsicFn = llvm::Intrinsic::getDeclaration(
+        &CGM.getModule(), llvm::Intrinsic::bpf_preserve_enum_value, {});
+    CallInst *Fn =
+        Builder.CreateCall(IntrinsicFn, {SeqNumVal, EnumStrVal, FlagValue});
     Fn->setMetadata(LLVMContext::MD_preserve_access_index, DbgInfo);
     return Fn;
   }
@@ -16534,39 +16510,15 @@ Value *CodeGenFunction::EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
         CGM.getIntrinsic(IntNo, {ConvertType(E->getType()), Low->getType()});
     return Builder.CreateCall(Callee, {Low, High});
   }
-  case WebAssembly::BI__builtin_wasm_widen_low_s_i16x8_i8x16:
-  case WebAssembly::BI__builtin_wasm_widen_high_s_i16x8_i8x16:
-  case WebAssembly::BI__builtin_wasm_widen_low_u_i16x8_i8x16:
-  case WebAssembly::BI__builtin_wasm_widen_high_u_i16x8_i8x16:
-  case WebAssembly::BI__builtin_wasm_widen_low_s_i32x4_i16x8:
-  case WebAssembly::BI__builtin_wasm_widen_high_s_i32x4_i16x8:
-  case WebAssembly::BI__builtin_wasm_widen_low_u_i32x4_i16x8:
-  case WebAssembly::BI__builtin_wasm_widen_high_u_i32x4_i16x8: {
-    Value *Vec = EmitScalarExpr(E->getArg(0));
-    unsigned IntNo;
-    switch (BuiltinID) {
-    case WebAssembly::BI__builtin_wasm_widen_low_s_i16x8_i8x16:
-    case WebAssembly::BI__builtin_wasm_widen_low_s_i32x4_i16x8:
-      IntNo = Intrinsic::wasm_widen_low_signed;
-      break;
-    case WebAssembly::BI__builtin_wasm_widen_high_s_i16x8_i8x16:
-    case WebAssembly::BI__builtin_wasm_widen_high_s_i32x4_i16x8:
-      IntNo = Intrinsic::wasm_widen_high_signed;
-      break;
-    case WebAssembly::BI__builtin_wasm_widen_low_u_i16x8_i8x16:
-    case WebAssembly::BI__builtin_wasm_widen_low_u_i32x4_i16x8:
-      IntNo = Intrinsic::wasm_widen_low_unsigned;
-      break;
-    case WebAssembly::BI__builtin_wasm_widen_high_u_i16x8_i8x16:
-    case WebAssembly::BI__builtin_wasm_widen_high_u_i32x4_i16x8:
-      IntNo = Intrinsic::wasm_widen_high_unsigned;
-      break;
-    default:
-      llvm_unreachable("unexpected builtin ID");
-    }
-    Function *Callee =
-        CGM.getIntrinsic(IntNo, {ConvertType(E->getType()), Vec->getType()});
-    return Builder.CreateCall(Callee, Vec);
+  case WebAssembly::BI__builtin_wasm_load32_zero: {
+    Value *Ptr = EmitScalarExpr(E->getArg(0));
+    Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_load32_zero);
+    return Builder.CreateCall(Callee, {Ptr});
+  }
+  case WebAssembly::BI__builtin_wasm_load64_zero: {
+    Value *Ptr = EmitScalarExpr(E->getArg(0));
+    Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_load64_zero);
+    return Builder.CreateCall(Callee, {Ptr});
   }
   case WebAssembly::BI__builtin_wasm_shuffle_v8x16: {
     Value *Ops[18];

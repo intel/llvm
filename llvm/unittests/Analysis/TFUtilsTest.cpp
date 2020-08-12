@@ -37,15 +37,14 @@ TEST(TFUtilsTest, NoModel) {
 TEST(TFUtilsTest, LoadAndExecuteTest) {
   // We use the ir2native model for test. We know it has one feature of
   // dimension (1, 214)
-  std::vector<std::string> InputNames{"serving_default_input_1"};
-  std::vector<std::string> OutputName{"StatefulPartitionedCall"};
   const static int64_t KnownSize = 214;
+  std::vector<TensorSpec> InputSpecs{TensorSpec::createSpec<int32_t>(
+      "serving_default_input_1", {1, KnownSize})};
+  std::vector<TensorSpec> OutputSpecs{
+      TensorSpec::createSpec<float>("StatefulPartitionedCall", {1})};
 
-  TFModelEvaluator Evaluator(getModelPath(), InputNames, OutputName);
-  static const std::vector<int64_t> Dim{1, KnownSize};
-
+  TFModelEvaluator Evaluator(getModelPath(), InputSpecs, OutputSpecs);
   EXPECT_TRUE(Evaluator.isValid());
-  Evaluator.initInput<int32_t>(0, Dim);
 
   int32_t *V = Evaluator.getInput<int32_t>(0);
   // Fill it up with 1's, we know the output.
@@ -57,6 +56,8 @@ TEST(TFUtilsTest, LoadAndExecuteTest) {
     EXPECT_TRUE(ER.hasValue());
     float Ret = *ER->getTensorValue<float>(0);
     EXPECT_EQ(static_cast<size_t>(Ret), 80);
+    EXPECT_EQ(ER->getUntypedTensorValue(0),
+              reinterpret_cast<const void *>(ER->getTensorValue<float>(0)));
   }
   // The input vector should be unchanged
   for (auto I = 0; I < KnownSize; ++I) {
@@ -77,15 +78,14 @@ TEST(TFUtilsTest, LoadAndExecuteTest) {
 TEST(TFUtilsTest, EvalError) {
   // We use the ir2native model for test. We know it has one feature of
   // dimension (1, 214)
-  std::vector<std::string> InputNames{"serving_default_input_1"};
-  std::vector<std::string> OutputName{"StatefulPartitionedCall"};
   const static int64_t KnownSize = 213;
+  std::vector<TensorSpec> InputSpecs{TensorSpec::createSpec<int32_t>(
+      "serving_default_input_1", {1, KnownSize})};
+  std::vector<TensorSpec> OutputSpecs{
+      TensorSpec::createSpec<float>("StatefulPartitionedCall", {1})};
 
-  TFModelEvaluator Evaluator(getModelPath(), InputNames, OutputName);
-  static const std::vector<int64_t> Dim{1, KnownSize};
-
+  TFModelEvaluator Evaluator(getModelPath(), InputSpecs, OutputSpecs);
   EXPECT_TRUE(Evaluator.isValid());
-  Evaluator.initInput<int32_t>(0, Dim);
 
   int32_t *V = Evaluator.getInput<int32_t>(0);
   // Fill it up with 1's, we know the output.
@@ -95,4 +95,48 @@ TEST(TFUtilsTest, EvalError) {
   auto ER = Evaluator.evaluate();
   EXPECT_FALSE(ER.hasValue());
   EXPECT_FALSE(Evaluator.isValid());
+}
+
+TEST(TFUtilsTest, JSONParsing) {
+  auto Value = json::parse(
+      R"({"name": "tensor_name", 
+        "port": 2, 
+        "type": "int32", 
+        "shape":[1,4]
+        })");
+  EXPECT_TRUE(!!Value);
+  LLVMContext Ctx;
+  Optional<TensorSpec> Spec = getTensorSpecFromJSON(Ctx, *Value);
+  EXPECT_TRUE(Spec.hasValue());
+  EXPECT_EQ(*Spec, TensorSpec::createSpec<int32_t>("tensor_name", {1, 4}, 2));
+}
+
+TEST(TFUtilsTest, JSONParsingInvalidTensorType) {
+  auto Value = json::parse(
+      R"(
+        {"name": "tensor_name", 
+        "port": 2, 
+        "type": "no such type", 
+        "shape":[1,4]
+        }
+      )");
+  EXPECT_TRUE(!!Value);
+  LLVMContext Ctx;
+  auto Spec = getTensorSpecFromJSON(Ctx, *Value);
+  EXPECT_FALSE(Spec.hasValue());
+}
+
+TEST(TFUtilsTest, TensorSpecSizesAndTypes) {
+  auto Spec1D = TensorSpec::createSpec<int16_t>("Hi1", {1});
+  auto Spec2D = TensorSpec::createSpec<int16_t>("Hi2", {1, 1});
+  auto Spec1DLarge = TensorSpec::createSpec<float>("Hi3", {10});
+  auto Spec3DLarge = TensorSpec::createSpec<float>("Hi3", {2, 4, 10});
+  EXPECT_TRUE(Spec1D.isElementType<int16_t>());
+  EXPECT_FALSE(Spec3DLarge.isElementType<double>());
+  EXPECT_EQ(Spec1D.getElementCount(), 1);
+  EXPECT_EQ(Spec2D.getElementCount(), 1);
+  EXPECT_EQ(Spec1DLarge.getElementCount(), 10);
+  EXPECT_EQ(Spec3DLarge.getElementCount(), 80);
+  EXPECT_EQ(Spec3DLarge.getElementByteSize(), sizeof(float));
+  EXPECT_EQ(Spec1D.getElementByteSize(), sizeof(int16_t));
 }

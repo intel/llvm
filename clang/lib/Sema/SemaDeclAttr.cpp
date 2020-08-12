@@ -3798,15 +3798,15 @@ static void handleTransparentUnionAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
         S.Context.getTypeAlign(FieldType) > FirstAlign) {
       // Warn if we drop the attribute.
       bool isSize = S.Context.getTypeSize(FieldType) != FirstSize;
-      unsigned FieldBits = isSize? S.Context.getTypeSize(FieldType)
-                                 : S.Context.getTypeAlign(FieldType);
+      unsigned FieldBits = isSize ? S.Context.getTypeSize(FieldType)
+                                  : S.Context.getTypeAlign(FieldType);
       S.Diag(Field->getLocation(),
-          diag::warn_transparent_union_attribute_field_size_align)
-        << isSize << Field->getDeclName() << FieldBits;
-      unsigned FirstBits = isSize? FirstSize : FirstAlign;
+             diag::warn_transparent_union_attribute_field_size_align)
+          << isSize << *Field << FieldBits;
+      unsigned FirstBits = isSize ? FirstSize : FirstAlign;
       S.Diag(FirstField->getLocation(),
              diag::note_transparent_union_first_field_size_align)
-        << isSize << FirstBits;
+          << isSize << FirstBits;
       return;
     }
   }
@@ -7188,15 +7188,16 @@ static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   const FunctionTemplateDecl *FT = FD->getDescribedFunctionTemplate();
   assert(FT && "Function template is expected");
 
-  // Function template must have at least two template parameters.
+  // Function template must have at least two template parameters so it
+  // can be used in OpenCL kernel generation.
   const TemplateParameterList *TL = FT->getTemplateParameters();
-  if (TL->size() < 2) {
+  if (S.LangOpts.SYCLIsDevice && TL->size() < 2) {
     S.Diag(FT->getLocation(), diag::warn_sycl_kernel_num_of_template_params);
     return;
   }
 
-  // Template parameters must be typenames.
-  for (unsigned I = 0; I < 2; ++I) {
+  // The first two template parameters must be typenames.
+  for (unsigned I = 0; I < 2 && I < TL->size(); ++I) {
     const NamedDecl *TParam = TL->getParam(I);
     if (isa<NonTypeTemplateParmDecl>(TParam)) {
       S.Diag(FT->getLocation(),
@@ -7205,8 +7206,8 @@ static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     }
   }
 
-  // Function must have at least one argument.
-  if (getFunctionOrMethodNumParams(D) != 1) {
+  // Function must have at least one parameter.
+  if (getFunctionOrMethodNumParams(D) < 1) {
     S.Diag(FT->getLocation(), diag::warn_sycl_kernel_num_of_function_params);
     return;
   }

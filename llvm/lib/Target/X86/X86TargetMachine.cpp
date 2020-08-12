@@ -56,11 +56,6 @@ static cl::opt<bool> EnableMachineCombinerPass("x86-machine-combiner",
                                cl::desc("Enable the machine combiner pass"),
                                cl::init(true), cl::Hidden);
 
-static cl::opt<bool> EnableCondBrFoldingPass("x86-condbr-folding",
-                               cl::desc("Enable the conditional branch "
-                                        "folding pass"),
-                               cl::init(false), cl::Hidden);
-
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86Target() {
   // Register the target.
   RegisterTargetMachine<X86TargetMachine> X(getTheX86_32Target());
@@ -84,7 +79,6 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86Target() {
   initializeX86SpeculativeLoadHardeningPassPass(PR);
   initializeX86SpeculativeExecutionSideEffectSuppressionPass(PR);
   initializeX86FlagsCopyLoweringPassPass(PR);
-  initializeX86CondBrFoldingPassPass(PR);
   initializeX86LoadValueInjectionLoadHardeningPassPass(PR);
   initializeX86LoadValueInjectionRetHardeningPassPass(PR);
   initializeX86OptimizeLEAPassPass(PR);
@@ -317,6 +311,14 @@ X86TargetMachine::getSubtargetImpl(const Function &F) const {
   return I.get();
 }
 
+bool X86TargetMachine::isNoopAddrSpaceCast(unsigned SrcAS,
+                                           unsigned DestAS) const {
+  assert(SrcAS != DestAS && "Expected different address spaces!");
+  if (getPointerSize(SrcAS) != getPointerSize(DestAS))
+    return false;
+  return SrcAS < 256 && DestAS < 256;
+}
+
 //===----------------------------------------------------------------------===//
 // X86 TTI query.
 //===----------------------------------------------------------------------===//
@@ -456,8 +458,6 @@ bool X86PassConfig::addGlobalInstructionSelect() {
 }
 
 bool X86PassConfig::addILPOpts() {
-  if (EnableCondBrFoldingPass)
-    addPass(createX86CondBrFolding());
   addPass(&EarlyIfConverterID);
   if (EnableMachineCombinerPass)
     addPass(&MachineCombinerID);

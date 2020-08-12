@@ -114,6 +114,20 @@ pi_result getInfoArray(size_t array_length, size_t param_value_size,
                      array_length * sizeof(T), memcpy);
 }
 
+template <typename T, typename RetType>
+pi_result getInfoArray(size_t array_length, size_t param_value_size,
+                       void *param_value, size_t *param_value_size_ret,
+                       T *value) {
+  if (param_value) {
+    memset(param_value, 0, param_value_size);
+    for (uint32_t I = 0; I < array_length; I++)
+      ((RetType *)param_value)[I] = (RetType)value[I];
+  }
+  if (param_value_size_ret)
+    *param_value_size_ret = array_length * sizeof(RetType);
+  return PI_SUCCESS;
+}
+
 template <>
 pi_result getInfo<const char *>(size_t param_value_size, void *param_value,
                                 size_t *param_value_size_ret,
@@ -424,8 +438,33 @@ void _pi_event::deleteZeEventList(ze_event_handle_t *ZeEventList) {
 
 extern "C" {
 
-// Forward declararitons
+// Forward declarations
 decltype(piEventCreate) piEventCreate;
+
+static pi_result compileOrBuild(pi_program Program, pi_uint32 NumDevices,
+                                const pi_device *DeviceList,
+                                const char *Options);
+static pi_result copyModule(ze_device_handle_t ZeDevice,
+                            ze_module_handle_t SrcMod,
+                            ze_module_handle_t *DestMod);
+
+// Forward declarations for mock implementations of Level Zero APIs that
+// are not yet available in the driver.
+// TODO: Remove these mock definitions when they are supported in the driver.
+enum ze_module_property_flag_t { ZE_MODULE_PROPERTY_FLAG_IMPORTS = ZE_BIT(0) };
+
+struct ze_module_properties_t {
+  ze_module_property_flag_t flags;
+};
+
+static ze_result_t zeModuleDynamicLink(uint32_t numModules,
+                                       ze_module_handle_t *phModules,
+                                       ze_module_build_log_handle_t *phLinkLog);
+
+static ze_result_t
+zeModuleGetProperties(ze_module_handle_t hModule,
+                      ze_module_properties_t *pModuleProperties);
+// End forward declarations for mock Level Zero APIs
 
 std::once_flag OnceFlag;
 
@@ -1061,9 +1100,10 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     // ze_device_compute_properties.subGroupSizes is in uint32_t whereas the
     // expected return is size_t datatype. size_t can be 8 bytes of data.
-    return getInfoArray(Device->ZeDeviceComputeProperties.numSubGroupSizes,
-                        ParamValueSize, ParamValue, ParamValueSizeRet,
-                        Device->ZeDeviceComputeProperties.subGroupSizes);
+    return getInfoArray<uint32_t, size_t>(
+        Device->ZeDeviceComputeProperties.numSubGroupSizes, ParamValueSize,
+        ParamValue, ParamValueSizeRet,
+        Device->ZeDeviceComputeProperties.subGroupSizes);
   }
   case PI_DEVICE_INFO_IL_VERSION: {
     // Set to a space separated list of IL version strings of the form
@@ -1655,25 +1695,22 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   return PI_SUCCESS;
 }
 
-pi_result piProgramCreate(pi_context Context, const void *IL, size_t Length,
-                          pi_program *Program) {
+pi_result piProgramCreate(pi_context Context, const void *ILBytes,
+                          size_t Length, pi_program *Program) {
 
-  assert(Context);
-  assert(Program);
+  if (!Context)
+    return PI_INVALID_CONTEXT;
+  if (!ILBytes || !Length)
+    return PI_INVALID_VALUE;
+  if (!Program)
+    return PI_INVALID_VALUE;
 
   // NOTE: the Level Zero module creation is also building the program, so we
   // are deferring it until the program is ready to be built in piProgramBuild
   // and piProgramCompile. Also it is only then we know the build options.
-  //
-  ze_module_desc_t ZeModuleDesc = {};
-  ZeModuleDesc.version = ZE_MODULE_DESC_VERSION_CURRENT;
-  ZeModuleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
-  ZeModuleDesc.inputSize = Length;
-  ZeModuleDesc.pInputModule = new uint8_t[Length];
-  memcpy(const_cast<uint8_t *>(ZeModuleDesc.pInputModule), IL, Length);
 
   try {
-    *Program = new _pi_program(nullptr, ZeModuleDesc, Context);
+    *Program = new _pi_program(Context, ILBytes, Length, _pi_program::IL);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1687,37 +1724,43 @@ pi_result piProgramCreateWithBinary(pi_context Context, pi_uint32 NumDevices,
                                     const size_t *Lengths,
                                     const unsigned char **Binaries,
                                     pi_int32 *BinaryStatus,
-                                    pi_program *RetProgram) {
+                                    pi_program *Program) {
 
-  // This must be for the single device in this context.
+  if (!Context)
+    return PI_INVALID_CONTEXT;
+  if (!DeviceList || !NumDevices)
+    return PI_INVALID_VALUE;
+  if (!Binaries || !Lengths || !Binaries[0] || !Lengths[0])
+    return PI_INVALID_VALUE;
+  if (!Program)
+    return PI_INVALID_VALUE;
+
+  // For now we support only one device.
   assert(NumDevices == 1);
-  assert(Context);
-  assert(RetProgram);
-  assert(DeviceList && DeviceList[0] == Context->Device);
+  if (DeviceList[0] != Context->Device)
+    return PI_INVALID_DEVICE;
 
-  // Check the binary too.
-  assert(Lengths && Lengths[0] != 0);
-  assert(Binaries && Binaries[0] != nullptr);
   size_t Length = Lengths[0];
-  auto Binary = pi_cast<const uint8_t *>(Binaries[0]);
+  auto Binary = Binaries[0];
 
-  ze_module_desc_t ZeModuleDesc = {};
-  ZeModuleDesc.version = ZE_MODULE_DESC_VERSION_CURRENT;
-  ZeModuleDesc.format = ZE_MODULE_FORMAT_NATIVE;
-  ZeModuleDesc.inputSize = Length;
-  ZeModuleDesc.pInputModule = new uint8_t[Length];
-  memcpy(const_cast<uint8_t *>(ZeModuleDesc.pInputModule), Binary, Length);
+  // In OpenCL, clCreateProgramWithBinary() can be used to load any of the
+  // following: "program executable", "compiled program", or "library of
+  // compiled programs".  In addition, the loaded program can be either
+  // IL (SPIR-v) or native device code.  For now, we assume that
+  // piProgramCreateWithBinary() is only used to load a "program executable"
+  // as native device code.
+  //
+  // If we wanted to support all the same cases as OpenCL, we would need to
+  // somehow examine the binary image to distinguish the cases.  Alternatively,
+  // we could change the PI interface and have the caller pass additional
+  // information to distinguish the cases.
 
   try {
-    *RetProgram = new _pi_program(nullptr, ZeModuleDesc, Context);
+    *Program = new _pi_program(Context, Binary, Length, _pi_program::Native);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return PI_ERROR_UNKNOWN;
-  }
-
-  if (BinaryStatus) {
-    *BinaryStatus = PI_SUCCESS;
   }
   return PI_SUCCESS;
 }
@@ -1746,37 +1789,111 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
   case PI_PROGRAM_INFO_DEVICES:
     return ReturnValue(Program->Context->Device);
   case PI_PROGRAM_INFO_BINARY_SIZES: {
-    size_t SzBinary = 0;
-    ZE_CALL(zeModuleGetNativeBinary(Program->ZeModule, &SzBinary, nullptr));
-    // This is an array of 1 element, initialize if it were scalar.
+    size_t SzBinary;
+    if (Program->State == _pi_program::IL ||
+        Program->State == _pi_program::Native) {
+      SzBinary = Program->CodeLength;
+    } else {
+      assert(Program->State == _pi_program::Object ||
+             Program->State == _pi_program::Exe ||
+             Program->State == _pi_program::LinkedExe);
+
+      // If the program is in LinkedExe state it may contain several modules.
+      // We cannot handle this case because each module's contents is in its
+      // own address range, discontiguous from the others.  The
+      // PI_PROGRAM_INFO_BINARY_SIZES API assume the entire linked program is
+      // one contiguous region, which is not the case for LinkedExe program
+      // in Level Zero.  Therefore, this API is unimplemented when the Program
+      // has more than one module.
+      _pi_program::ModuleIterator ModIt(Program);
+      assert(!ModIt.Done());
+      if (ModIt.Count() > 1) {
+        die("piProgramGetInfo: PI_PROGRAM_INFO_BINARY_SIZES not implemented "
+            "for linked programs");
+      }
+      ZE_CALL(zeModuleGetNativeBinary(*ModIt, &SzBinary, nullptr));
+    }
+    // This is an array of 1 element, initialized as if it were scalar.
     return ReturnValue(size_t{SzBinary});
   }
   case PI_PROGRAM_INFO_BINARIES: {
-    size_t SzBinary = 0;
+    // The caller sets "ParamValue" to an array of pointers, one for each
+    // device.  Since Level Zero supports only one device, there is only one
+    // pointer.  If the pointer is NULL, we don't do anything.  Otherwise, we
+    // copy the program's binary image to the buffer at that pointer.
     uint8_t **PBinary = pi_cast<uint8_t **>(ParamValue);
-    ZE_CALL(zeModuleGetNativeBinary(Program->ZeModule, &SzBinary, PBinary[0]));
+    if (!PBinary[0])
+      break;
+    if (Program->State == _pi_program::IL ||
+        Program->State == _pi_program::Native) {
+      std::memcpy(PBinary[0], Program->Code.get(), Program->CodeLength);
+    } else {
+      assert(Program->State == _pi_program::Object ||
+             Program->State == _pi_program::Exe ||
+             Program->State == _pi_program::LinkedExe);
+
+      _pi_program::ModuleIterator ModIt(Program);
+      assert(!ModIt.Done());
+      if (ModIt.Count() > 1) {
+        die("piProgramGetInfo: PI_PROGRAM_INFO_BINARIES not implemented for "
+            "linked programs");
+      }
+      size_t SzBinary = 0;
+      ZE_CALL(zeModuleGetNativeBinary(*ModIt, &SzBinary, PBinary[0]));
+    }
     break;
   }
   case PI_PROGRAM_INFO_NUM_KERNELS: {
-    uint32_t NumKernels = 0;
-    ZE_CALL(zeModuleGetKernelNames(Program->ZeModule, &NumKernels, nullptr));
+    uint32_t NumKernels;
+    if (Program->State == _pi_program::IL ||
+        Program->State == _pi_program::Native ||
+        Program->State == _pi_program::Object) {
+      // The OpenCL spec says to return CL_INVALID_PROGRAM_EXECUTABLE in this
+      // case, but there is no corresponding PI error code.
+      return PI_INVALID_OPERATION;
+    } else {
+      assert(Program->State == _pi_program::Exe ||
+             Program->State == _pi_program::LinkedExe);
+
+      NumKernels = 0;
+      _pi_program::ModuleIterator ModIt(Program);
+      while (!ModIt.Done()) {
+        uint32_t Num;
+        ZE_CALL(zeModuleGetKernelNames(*ModIt, &Num, nullptr));
+        NumKernels += Num;
+        ModIt++;
+      }
+    }
     return ReturnValue(size_t{NumKernels});
   }
   case PI_PROGRAM_INFO_KERNEL_NAMES:
     try {
-      // There are extra allocations/copying here dictated by the difference
-      // in Level Zero and PI interfaces.
-      uint32_t Count = 0;
-      ZE_CALL(zeModuleGetKernelNames(Program->ZeModule, &Count, nullptr));
-      char **PNames = new char *[Count];
-      ZE_CALL(zeModuleGetKernelNames(Program->ZeModule, &Count,
-                                     const_cast<const char **>(PNames)));
       std::string PINames{""};
-      for (uint32_t I = 0; I < Count; ++I) {
-        PINames += (I > 0 ? ";" : "");
-        PINames += PNames[I];
+      if (Program->State == _pi_program::IL ||
+          Program->State == _pi_program::Native ||
+          Program->State == _pi_program::Object) {
+        // The OpenCL spec says to return CL_INVALID_PROGRAM_EXECUTABLE in this
+        // case, but there is no corresponding PI error code.
+        return PI_INVALID_OPERATION;
+      } else {
+        assert(Program->State == _pi_program::Exe ||
+               Program->State == _pi_program::LinkedExe);
+
+        bool First = true;
+        _pi_program::ModuleIterator ModIt(Program);
+        while (!ModIt.Done()) {
+          uint32_t Count = 0;
+          ZE_CALL(zeModuleGetKernelNames(*ModIt, &Count, nullptr));
+          std::unique_ptr<const char *[]> PNames(new const char *[Count]);
+          ZE_CALL(zeModuleGetKernelNames(*ModIt, &Count, PNames.get()));
+          for (uint32_t I = 0; I < Count; ++I) {
+            PINames += (!First ? ";" : "");
+            PINames += PNames[I];
+            First = false;
+          }
+          ModIt++;
+        }
       }
-      delete[] PNames;
       return ReturnValue(PINames.c_str());
     } catch (const std::bad_alloc &) {
       return PI_OUT_OF_HOST_MEMORY;
@@ -1797,11 +1914,102 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
                         void (*PFnNotify)(pi_program Program, void *UserData),
                         void *UserData, pi_program *RetProgram) {
 
-  // TODO: Level Zero does not [yet] support linking so dummy implementation
-  // here.
-  assert(NumInputPrograms == 1 && InputPrograms);
-  assert(RetProgram);
-  *RetProgram = InputPrograms[0];
+  // We only support one device with Level Zero.
+  assert(NumDevices == 1);
+  assert(DeviceList && DeviceList[0] == Context->Device);
+  assert(!PFnNotify && !UserData);
+
+  // Validate input parameters.
+  if (NumInputPrograms == 0 || InputPrograms == nullptr)
+    return PI_INVALID_VALUE;
+  for (pi_uint32 I = 0; I < NumInputPrograms; I++) {
+    if (InputPrograms[I]->State != _pi_program::Object) {
+      return PI_INVALID_OPERATION;
+    }
+    assert(InputPrograms[I]->ZeModule);
+  }
+
+  // Linking modules on Level Zero is different from OpenCL.  With Level Zero,
+  // each input object module already has native code loaded onto the device.
+  // Linking two modules together causes the importing module to be changed
+  // such that its native code points to an address in the exporting module.
+  // As a result, a module that imports symbols can only be linked into one
+  // executable at a time.  By contrast, modules that export symbols are not
+  // changed, so they can be safely linked into multiple executables
+  // simultaneously.
+  //
+  // Level Zero linking also differs from OpenCL because a link operation does
+  // not create a new module that represents the linked executable.  Instead,
+  // we must keep track of all the input modules and refer to the entire list
+  // whenever we want to know something about the executable.
+
+  // This vector hold the Level Zero modules that we will actually link
+  // together.  This may be different from "InputPrograms" because some of
+  // those modules may import symbols and already be linked into other
+  // executables.  In such a case, we must make a copy of the module before we
+  // can link it again.
+  std::vector<_pi_program::LinkedReleaser> Inputs;
+  try {
+    Inputs.reserve(NumInputPrograms);
+
+    // We do several things in this loop.
+    //
+    // 1. We identify any modules that need to be copied because they import
+    //    symbols and are already linked into some other program.
+    // 2. For any module that does not need to be copied, we bump its reference
+    //    count because we will hold a reference to it.
+    // 3. We create a vector of Level Zero modules, which we can pass to the
+    //    zeModuleDynamicLink() API.
+    std::vector<ze_module_handle_t> ZeHandles;
+    ZeHandles.reserve(NumInputPrograms);
+    for (pi_uint32 I = 0; I < NumInputPrograms; I++) {
+      pi_program Input = InputPrograms[I];
+      if (Input->HasImports) {
+        std::unique_lock<std::mutex> Guard(Input->MutexHasImportsAndIsLinked);
+        if (!Input->HasImportsAndIsLinked) {
+          // This module imports symbols, but it isn't currently linked with
+          // any other module.  Grab the flag to indicate that it is now
+          // linked.
+          piProgramRetain(Input);
+          Input->HasImportsAndIsLinked = true;
+        } else {
+          // This module imports symbols and is also linked with another module
+          // already, so it needs to be copied.  We expect this to be quite
+          // rare since linking is mostly used to link against libraries which
+          // only export symbols.
+          Guard.unlock();
+          ze_module_handle_t ZeModule;
+          pi_result res =
+              copyModule(Context->Device->ZeDevice, Input->ZeModule, &ZeModule);
+          if (res != PI_SUCCESS) {
+            return res;
+          }
+          Input = new _pi_program(Input->Context, ZeModule, _pi_program::Object,
+                                  Input->HasImports);
+          Input->HasImportsAndIsLinked = true;
+        }
+      } else {
+        piProgramRetain(Input);
+      }
+      Inputs.emplace_back(Input);
+      ZeHandles.push_back(Input->ZeModule);
+    }
+
+    // Link all the modules together.  If this fails (or if we catch an
+    // exception below), we need to release the reference counts on the input
+    // modules, delete any copies, etc.
+    ze_module_build_log_handle_t ZeBuildLog;
+    ZE_CALL(
+        zeModuleDynamicLink(ZeHandles.size(), ZeHandles.data(), &ZeBuildLog));
+
+    // Construct a new program object to represent the linked executable.  This
+    // new object holds a reference to all the input programs.
+    *RetProgram = new _pi_program(Context, std::move(Inputs), ZeBuildLog);
+  } catch (const std::bad_alloc &) {
+    return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
   return PI_SUCCESS;
 }
 
@@ -1811,36 +2019,79 @@ pi_result piProgramCompile(
     const pi_program *InputHeaders, const char **HeaderIncludeNames,
     void (*PFnNotify)(pi_program Program, void *UserData), void *UserData) {
 
-  // Assert on unsupported arguments.
-  assert(NumInputHeaders == 0);
-  assert(!InputHeaders);
+  // The OpenCL spec says this should return CL_INVALID_PROGRAM, but there is
+  // no corresponding PI error code.
+  if (!Program)
+    return PI_INVALID_OPERATION;
 
-  // There is no support for linking yet in Level Zero so "compile" actually
-  // does the "build".
-  return piProgramBuild(Program, NumDevices, DeviceList, Options, PFnNotify,
-                        UserData);
+  // It's only valid to compile a program created from IL (we don't support
+  // programs created from source code).
+  //
+  // The OpenCL spec says that the header parameters are ignored when compiling
+  // IL programs, so we don't validate them.
+  if (Program->State != _pi_program::IL)
+    return PI_INVALID_OPERATION;
+
+  // These aren't supported.
+  assert(!PFnNotify && !UserData);
+
+  pi_result res = compileOrBuild(Program, NumDevices, DeviceList, Options);
+  if (res != PI_SUCCESS)
+    return res;
+
+  Program->State = _pi_program::Object;
+  return PI_SUCCESS;
 }
 
 pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
                          const pi_device *DeviceList, const char *Options,
                          void (*PFnNotify)(pi_program Program, void *UserData),
                          void *UserData) {
-  assert(Program);
-  assert(NumDevices == 1);
-  assert(DeviceList && DeviceList[0] == Program->Context->Device);
-  assert(!PFnNotify);
-  assert(!UserData);
 
-  // Check that the program wasn't already built.
-  assert(!Program->ZeModule);
+  // The OpenCL spec says this should return CL_INVALID_PROGRAM, but there is
+  // no corresponding PI error code.
+  if (!Program)
+    return PI_INVALID_OPERATION;
 
-  // Translate collected specialization constants.
+  // It is legal to build a program created from either IL or from native
+  // device code.
+  if (Program->State != _pi_program::IL &&
+      Program->State != _pi_program::Native)
+    return PI_INVALID_OPERATION;
+
+  // These aren't supported.
+  assert(!PFnNotify && !UserData);
+
+  pi_result res = compileOrBuild(Program, NumDevices, DeviceList, Options);
+  if (res != PI_SUCCESS)
+    return res;
+
+  Program->State = _pi_program::Exe;
+  return PI_SUCCESS;
+}
+
+// Perform common operations for compiling or building a program.
+static pi_result compileOrBuild(pi_program Program, pi_uint32 NumDevices,
+                                const pi_device *DeviceList,
+                                const char *Options) {
+
+  if ((NumDevices && !DeviceList) || (!NumDevices && DeviceList))
+    return PI_INVALID_VALUE;
+
+  // We only support one device with Level Zero.
+  assert(NumDevices == 1 && DeviceList);
+
+  // We should have either IL or native device code.
+  assert(Program->Code);
+
+  // Specialization constants are used only if the program was created from
+  // IL.  Translate them to the Level Zero format.
   ze_module_constants_t ZeSpecConstants = {};
-  std::vector<uint32_t> ZeSpecContantsIds(Program->ZeSpecConstants.size());
-  std::vector<uint64_t> ZeSpecContantsValues(Program->ZeSpecConstants.size());
-  {
-    std::lock_guard<std::mutex> ZeSpecConstantsMutexGuard(
-        Program->ZeSpecConstantsMutex);
+  if (Program->State == _pi_program::IL) {
+    std::lock_guard<std::mutex> Guard(Program->MutexZeSpecConstants);
+
+    std::vector<uint32_t> ZeSpecContantsIds(Program->ZeSpecConstants.size());
+    std::vector<uint64_t> ZeSpecContantsValues(Program->ZeSpecConstants.size());
     ZeSpecConstants.numConstants = Program->ZeSpecConstants.size();
     auto ZeSpecContantsIdsIt = ZeSpecContantsIds.begin();
     auto ZeSpecContantsValuesIt = ZeSpecContantsValues.begin();
@@ -1854,14 +2105,34 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
     ZeSpecConstants.pConstantValues = ZeSpecContantsValues.data();
   }
 
-  // Complete the module's descriptor
-  Program->ZeModuleDesc.pBuildFlags = Options;
-  Program->ZeModuleDesc.pConstants = &ZeSpecConstants;
+  // Ask Level Zero to build and load the native code onto the device.
+  ze_module_desc_t ZeModuleDesc = {};
+  ZeModuleDesc.version = ZE_MODULE_DESC_VERSION_CURRENT;
+  ZeModuleDesc.format = (Program->State == _pi_program::IL)
+                            ? ZE_MODULE_FORMAT_IL_SPIRV
+                            : ZE_MODULE_FORMAT_NATIVE;
+  ZeModuleDesc.inputSize = Program->CodeLength;
+  ZeModuleDesc.pInputModule = Program->Code.get();
+  ZeModuleDesc.pBuildFlags = Options;
+  ZeModuleDesc.pConstants = &ZeSpecConstants;
 
-  ze_device_handle_t ZeDevice = Program->Context->Device->ZeDevice;
-  ZE_CALL(zeModuleCreate(ZeDevice, &Program->ZeModuleDesc, &Program->ZeModule,
-                         &Program->ZeBuildLog));
+  ze_device_handle_t ZeDevice = DeviceList[0]->ZeDevice;
+  ze_module_handle_t ZeModule;
+  ze_module_build_log_handle_t ZeBuildLog;
+  ZE_CALL(zeModuleCreate(ZeDevice, &ZeModuleDesc, &ZeModule, &ZeBuildLog));
 
+  // Check if this module imports any symbols, which we need to know if we
+  // end up linking this module later.  See comments in piProgramLink() for
+  // details.
+  ze_module_properties_t ZeModuleProps;
+  ZE_CALL(zeModuleGetProperties(ZeModule, &ZeModuleProps));
+  Program->HasImports = (ZeModuleProps.flags & ZE_MODULE_PROPERTY_FLAG_IMPORTS);
+
+  // We no longer need the IL / native code.
+  // The caller must set the State to Object or Exe as appropriate.
+  Program->Code.reset();
+  Program->ZeModule = ZeModule;
+  Program->ZeBuildLog = ZeBuildLog;
   return PI_SUCCESS;
 }
 
@@ -1872,11 +2143,14 @@ pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   if (ParamName == CL_PROGRAM_BINARY_TYPE) {
-    // TODO: is this the only supported binary type in Level Zero?
-    // We should probably return CL_PROGRAM_BINARY_TYPE_NONE if asked
-    // before the program was compiled.
-    return ReturnValue(
-        cl_program_binary_type{CL_PROGRAM_BINARY_TYPE_EXECUTABLE});
+    cl_program_binary_type Type = CL_PROGRAM_BINARY_TYPE_NONE;
+    if (Program->State == _pi_program::Object) {
+      Type = CL_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
+    } else if (Program->State == _pi_program::Exe ||
+               Program->State == _pi_program::LinkedExe) {
+      Type = CL_PROGRAM_BINARY_TYPE_EXECUTABLE;
+    }
+    return ReturnValue(cl_program_binary_type{Type});
   }
   if (ParamName == CL_PROGRAM_BUILD_OPTIONS) {
     // TODO: how to get module build options out of Level Zero?
@@ -1886,7 +2160,10 @@ pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
     // with piProgramRegister?
     return ReturnValue("");
   } else if (ParamName == CL_PROGRAM_BUILD_LOG) {
-    assert(Program->ZeBuildLog);
+    // The OpenCL spec says an empty string is returned if there was no
+    // previous Compile, Build, or Link.
+    if (!Program->ZeBuildLog)
+      return ReturnValue("");
     size_t LogSize = ParamValueSize;
     ZE_CALL(zeModuleBuildLogGetString(Program->ZeBuildLog, &LogSize,
                                       pi_cast<char *>(ParamValue)));
@@ -1910,10 +2187,6 @@ pi_result piProgramRelease(pi_program Program) {
   assert(Program);
   assert((Program->RefCount > 0) && "Program is already released.");
   if (--(Program->RefCount) == 0) {
-    delete[] Program->ZeModuleDesc.pInputModule;
-    if (Program->ZeBuildLog)
-      zeModuleBuildLogDestroy(Program->ZeBuildLog);
-    // TODO: call zeModuleDestroy for non-interop Level Zero modules
     delete Program;
   }
   return PI_SUCCESS;
@@ -1925,8 +2198,28 @@ pi_result piextProgramGetNativeHandle(pi_program Program,
   assert(NativeHandle);
 
   auto ZeModule = pi_cast<ze_module_handle_t *>(NativeHandle);
-  // Extract the Level Zero module handle from the given PI program
-  *ZeModule = Program->ZeModule;
+
+  switch (Program->State) {
+  case _pi_program::Object:
+  case _pi_program::Exe:
+  case _pi_program::LinkedExe: {
+    _pi_program::ModuleIterator ModIt(Program);
+    assert(!ModIt.Done());
+    if (ModIt.Count() > 1) {
+      // Programs in LinkedExe state could have several corresponding
+      // Level Zero modules, so there is no right answer in this case.
+      //
+      // TODO: Maybe we should return PI_INVALID_OPERATION instead here?
+      die("piextProgramGetNativeHandle: Not implemented for linked programs");
+    }
+    *ZeModule = *ModIt;
+    break;
+  }
+
+  default:
+    return PI_INVALID_OPERATION;
+  }
+
   return PI_SUCCESS;
 }
 
@@ -1939,20 +2232,12 @@ pi_result piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
 
   auto ZeModule = pi_cast<ze_module_handle_t>(NativeHandle);
 
-  // Create PI program from the given Level Zero module handle.
-  //
-  // TODO: We don't have the real Level Zero module descriptor with
-  // which it was created, but that's only needed for zeModuleCreate,
-  // which we don't expect to be called on the interop program.
-  //
-  ze_module_desc_t ZeModuleDesc = {};
-  ZeModuleDesc.version = ZE_MODULE_DESC_VERSION_CURRENT;
-  ZeModuleDesc.format = ZE_MODULE_FORMAT_NATIVE;
-  ZeModuleDesc.inputSize = 0;
-  ZeModuleDesc.pInputModule = nullptr;
+  // We assume here that programs created from a native handle always
+  // represent a fully linked executable (state Exe) and not an unlinked
+  // executable (state Object).
 
   try {
-    *Program = new _pi_program(ZeModule, ZeModuleDesc, Context);
+    *Program = new _pi_program(Context, ZeModule, _pi_program::Exe);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1961,24 +2246,117 @@ pi_result piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
   return PI_SUCCESS;
 }
 
+_pi_program::~_pi_program() {
+  if (ZeModule) {
+    ZE_CALL_NOCHECK(zeModuleDestroy(ZeModule));
+  }
+  if (ZeBuildLog) {
+    ZE_CALL_NOCHECK(zeModuleBuildLogDestroy(ZeBuildLog));
+  }
+}
+
+_pi_program::LinkedReleaser::~LinkedReleaser() {
+  if (Prog->HasImports) {
+    std::lock_guard<std::mutex> Guard(Prog->MutexHasImportsAndIsLinked);
+    if (Prog->HasImportsAndIsLinked)
+      Prog->HasImportsAndIsLinked = false;
+  }
+  piProgramRelease(Prog);
+}
+
+// Create a copy of a Level Zero module by extracting the native code and
+// creating a new module from that native code.
+static pi_result copyModule(ze_device_handle_t ZeDevice,
+                            ze_module_handle_t SrcMod,
+                            ze_module_handle_t *DestMod) {
+  size_t Length;
+  ZE_CALL(zeModuleGetNativeBinary(SrcMod, &Length, nullptr));
+
+  std::unique_ptr<uint8_t[]> Code(new uint8_t[Length]);
+  ZE_CALL(zeModuleGetNativeBinary(SrcMod, &Length, Code.get()));
+
+  ze_module_desc_t ZeModuleDesc = {};
+  ZeModuleDesc.version = ZE_MODULE_DESC_VERSION_CURRENT;
+  ZeModuleDesc.format = ZE_MODULE_FORMAT_NATIVE;
+  ZeModuleDesc.inputSize = Length;
+  ZeModuleDesc.pInputModule = Code.get();
+  ZeModuleDesc.pBuildFlags = nullptr;
+  ZeModuleDesc.pConstants = nullptr;
+
+  ze_module_handle_t ZeModule;
+  ZE_CALL(zeModuleCreate(ZeDevice, &ZeModuleDesc, &ZeModule, nullptr));
+  *DestMod = ZeModule;
+  return PI_SUCCESS;
+}
+
+// TODO: Remove this mock implementation once the Level Zero driver provides
+// the real implementation.
+static ze_result_t
+zeModuleDynamicLink(uint32_t numModules, ze_module_handle_t *phModules,
+                    ze_module_build_log_handle_t *phLinkLog) {
+
+  // The mock implementation can only handle the degenerate case where there
+  // is only a single module that is "linked" to itself.  There is nothing to
+  // do in this degenerate case.
+  if (numModules > 1) {
+    die("piProgramLink: Program Linking is not supported yet in Level0");
+  }
+
+  // The mock does not support the link log.
+  if (phLinkLog)
+    *phLinkLog = nullptr;
+  return ZE_RESULT_SUCCESS;
+}
+
+// TODO: Remove this mock implementation once the Level Zero driver provides
+// the real implementation.
+static ze_result_t
+zeModuleGetProperties(ze_module_handle_t hModule,
+                      ze_module_properties_t *pModuleProperties) {
+
+  // The mock implementation assumes that the module has imported symbols.
+  // This is a conservative guess which may result in unnecessary calls to
+  // copyModule(), but it is always correct.
+  pModuleProperties->flags = ZE_MODULE_PROPERTY_FLAG_IMPORTS;
+  return ZE_RESULT_SUCCESS;
+}
+
 pi_result piKernelCreate(pi_program Program, const char *KernelName,
                          pi_kernel *RetKernel) {
 
   assert(Program);
   assert(RetKernel);
   assert(KernelName);
+
+  // The OpenCL spec actually says this should return
+  // CL_INVALID_PROGRAM_EXECUTABLE, but there is no
+  // corresponding PI error code.
+  if (Program->State != _pi_program::Exe &&
+      Program->State != _pi_program::LinkedExe) {
+    return PI_INVALID_OPERATION;
+  }
+
   ze_kernel_desc_t ZeKernelDesc = {};
   ZeKernelDesc.version = ZE_KERNEL_DESC_VERSION_CURRENT;
   ZeKernelDesc.flags = ZE_KERNEL_FLAG_NONE;
   ZeKernelDesc.pKernelName = KernelName;
 
+  // Search for the kernel name in each module.
   ze_kernel_handle_t ZeKernel;
-  ZE_CALL(zeKernelCreate(pi_cast<ze_module_handle_t>(Program->ZeModule),
-                         &ZeKernelDesc, &ZeKernel));
+  ze_result_t ZeResult = ZE_RESULT_ERROR_INVALID_KERNEL_NAME;
+  _pi_program::ModuleIterator ModIt(Program);
+  while (!ModIt.Done()) {
+    ZeResult =
+        ZE_CALL_NOCHECK(zeKernelCreate(*ModIt, &ZeKernelDesc, &ZeKernel));
+    if (ZeResult != ZE_RESULT_ERROR_INVALID_KERNEL_NAME)
+      break;
+    ModIt++;
+  }
+  if (ZeResult != ZE_RESULT_SUCCESS)
+    return mapError(ZeResult);
 
   try {
-    auto ZePiKernel = new _pi_kernel(ZeKernel, Program, KernelName);
-    *RetKernel = pi_cast<pi_kernel>(ZePiKernel);
+    *RetKernel = new _pi_kernel(ZeKernel, Program, KernelName);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -3108,7 +3486,8 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   // piEnqueueMemBufferMap, but can only do so after the above copy
   // is completed. Instead of waiting for It here (blocking), we shall
   // do so in piEventRelease called for the pi_event tracking the unmap.
-  (*Event)->CommandData = MemObj->MapHostPtr ? nullptr : MappedPtr;
+  if (Event)
+    (*Event)->CommandData = MemObj->MapHostPtr ? nullptr : MappedPtr;
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
@@ -3394,10 +3773,24 @@ pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
                                         const char *FunctionName,
                                         pi_uint64 *FunctionPointerRet) {
   assert(Program != nullptr);
-  ZE_CALL(zeModuleGetFunctionPointer(
-      Program->ZeModule, FunctionName,
-      reinterpret_cast<void **>(FunctionPointerRet)));
-  return PI_SUCCESS;
+
+  if (Program->State != _pi_program::Exe &&
+      Program->State != _pi_program::LinkedExe) {
+    return PI_INVALID_OPERATION;
+  }
+
+  // Search for the function name in each module.
+  ze_result_t ZeResult = ZE_RESULT_ERROR_INVALID_FUNCTION_NAME;
+  _pi_program::ModuleIterator ModIt(Program);
+  while (!ModIt.Done()) {
+    ZeResult = ZE_CALL_NOCHECK(zeModuleGetFunctionPointer(
+        *ModIt, FunctionName, reinterpret_cast<void **>(FunctionPointerRet)));
+    if (ZeResult != ZE_RESULT_ERROR_INVALID_FUNCTION_NAME)
+      break;
+    ModIt++;
+  }
+
+  return mapError(ZeResult);
 }
 
 pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
@@ -3758,11 +4151,10 @@ pi_result piextProgramSetSpecializationConstant(pi_program Prog,
                                                 const void *SpecValue) {
   // Level Zero sets spec constants when creating modules,
   // so save them for when program is built.
-  std::lock_guard<std::mutex> ZeSpecConstantsMutexGuard(
-      Prog->ZeSpecConstantsMutex);
+  std::lock_guard<std::mutex> Guard(Prog->MutexZeSpecConstants);
 
   // Pass SpecValue pointer. Spec constant value is retrieved
-  // by Level-Zero when creating the modul
+  // by Level Zero when creating the module.
   //
   // NOTE: SpecSize is unused in Level Zero, the size is known from SPIR-V by
   // SpecID.

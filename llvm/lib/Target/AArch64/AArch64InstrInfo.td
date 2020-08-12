@@ -994,8 +994,8 @@ let Predicates = [HasPA] in {
   defm PAC : SignAuth<0b000, 0b010, "pac">;
   defm AUT : SignAuth<0b001, 0b011, "aut">;
 
-  def XPACI : SignAuthZero<0b100, 0b00, "xpaci">;
-  def XPACD : SignAuthZero<0b100, 0b01, "xpacd">;
+  def XPACI : ClearAuth<0, "xpaci">;
+  def XPACD : ClearAuth<1, "xpacd">;
   def PACGA : SignAuthTwoOperand<0b1100, "pacga", null_frag>;
 
   // Combined Instructions
@@ -1030,7 +1030,7 @@ let Predicates = [HasPA] in {
 }
 
 // v8.3a floating point conversion for javascript
-let Predicates = [HasJS, HasFPARMv8] in
+let Predicates = [HasJS, HasFPARMv8], Defs = [NZCV] in
 def FJCVTZS  : BaseFPToIntegerUnscaled<0b01, 0b11, 0b110, FPR64, GPR32,
                                       "fjcvtzs",
                                       [(set GPR32:$Rd,
@@ -1039,7 +1039,7 @@ def FJCVTZS  : BaseFPToIntegerUnscaled<0b01, 0b11, 0b110, FPR64, GPR32,
 } // HasJS, HasFPARMv8
 
 // v8.4 Flag manipulation instructions
-let Predicates = [HasFMI] in {
+let Predicates = [HasFMI], Defs = [NZCV], Uses = [NZCV] in {
 def CFINV : SimpleSystemI<0, (ins), "cfinv", "">, Sched<[WriteSys]> {
   let Inst{20-5} = 0b0000001000000000;
 }
@@ -4483,6 +4483,10 @@ def : Pat<(v1i64 (int_aarch64_neon_fcvtps (v1f64 FPR64:$Rn))),
           (FCVTPSv1i64 FPR64:$Rn)>;
 def : Pat<(v1i64 (int_aarch64_neon_fcvtpu (v1f64 FPR64:$Rn))),
           (FCVTPUv1i64 FPR64:$Rn)>;
+def : Pat<(v1i64 (int_aarch64_neon_fcvtzs (v1f64 FPR64:$Rn))),
+          (FCVTZSv1i64 FPR64:$Rn)>;
+def : Pat<(v1i64 (int_aarch64_neon_fcvtzu (v1f64 FPR64:$Rn))),
+          (FCVTZUv1i64 FPR64:$Rn)>;
 
 def : Pat<(f16 (int_aarch64_neon_frecpe (f16 FPR16:$Rn))),
           (FRECPEv1f16 FPR16:$Rn)>;

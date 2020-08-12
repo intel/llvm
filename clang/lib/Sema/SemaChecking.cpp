@@ -1274,11 +1274,8 @@ static bool SemaBuiltinPipePackets(Sema &S, CallExpr *Call) {
 // \return True if a semantic error has been found, false otherwise.
 static bool SemaOpenCLBuiltinToAddr(Sema &S, unsigned BuiltinID,
                                     CallExpr *Call) {
-  if (Call->getNumArgs() != 1) {
-    S.Diag(Call->getBeginLoc(), diag::err_opencl_builtin_to_addr_arg_num)
-        << Call->getDirectCallee() << Call->getSourceRange();
+  if (checkArgCount(S, Call, 1))
     return true;
-  }
 
   auto RT = Call->getArg(0)->getType();
   if (!RT->isPointerType() || RT->getPointeeType()
@@ -2585,52 +2582,151 @@ bool Sema::CheckAArch64BuiltinFunctionCall(const TargetInfo &TI,
   return SemaBuiltinConstantArgRange(TheCall, i, l, u + l);
 }
 
-bool Sema::CheckBPFBuiltinFunctionCall(unsigned BuiltinID,
-                                       CallExpr *TheCall) {
-  assert((BuiltinID == BPF::BI__builtin_preserve_field_info ||
-          BuiltinID == BPF::BI__builtin_btf_type_id) &&
-         "unexpected ARM builtin");
-
-  if (checkArgCount(*this, TheCall, 2))
-    return true;
-
-  Expr *Arg;
-  if (BuiltinID == BPF::BI__builtin_btf_type_id) {
-    // The second argument needs to be a constant int
-    Arg = TheCall->getArg(1);
-    if (!Arg->isIntegerConstantExpr(Context)) {
-      Diag(Arg->getBeginLoc(), diag::err_btf_type_id_not_const)
-          << 2 << Arg->getSourceRange();
-      return true;
-    }
-
-    TheCall->setType(Context.UnsignedIntTy);
+static bool isValidBPFPreserveFieldInfoArg(Expr *Arg) {
+  if (Arg->getType()->getAsPlaceholderType())
     return false;
-  }
 
   // The first argument needs to be a record field access.
   // If it is an array element access, we delay decision
   // to BPF backend to check whether the access is a
   // field access or not.
-  Arg = TheCall->getArg(0);
-  if (Arg->getType()->getAsPlaceholderType() ||
-      (Arg->IgnoreParens()->getObjectKind() != OK_BitField &&
-       !dyn_cast<MemberExpr>(Arg->IgnoreParens()) &&
-       !dyn_cast<ArraySubscriptExpr>(Arg->IgnoreParens()))) {
-    Diag(Arg->getBeginLoc(), diag::err_preserve_field_info_not_field)
-        << 1 << Arg->getSourceRange();
+  return (Arg->IgnoreParens()->getObjectKind() == OK_BitField ||
+          dyn_cast<MemberExpr>(Arg->IgnoreParens()) ||
+          dyn_cast<ArraySubscriptExpr>(Arg->IgnoreParens()));
+}
+
+static bool isValidBPFPreserveTypeInfoArg(Expr *Arg) {
+  QualType ArgType = Arg->getType();
+  if (ArgType->getAsPlaceholderType())
+    return false;
+
+  // for TYPE_EXISTENCE/TYPE_SIZEOF reloc type
+  // format:
+  //   1. __builtin_preserve_type_info(*(<type> *)0, flag);
+  //   2. <type> var;
+  //      __builtin_preserve_type_info(var, flag);
+  if (!dyn_cast<DeclRefExpr>(Arg->IgnoreParens()) &&
+      !dyn_cast<UnaryOperator>(Arg->IgnoreParens()))
+    return false;
+
+  // Typedef type.
+  if (ArgType->getAs<TypedefType>())
     return true;
+
+  // Record type or Enum type.
+  const Type *Ty = ArgType->getUnqualifiedDesugaredType();
+  if (const auto *RT = Ty->getAs<RecordType>()) {
+    if (!RT->getDecl()->getDeclName().isEmpty())
+      return true;
+  } else if (const auto *ET = Ty->getAs<EnumType>()) {
+    if (!ET->getDecl()->getDeclName().isEmpty())
+      return true;
   }
+
+  return false;
+}
+
+static bool isValidBPFPreserveEnumValueArg(Expr *Arg) {
+  QualType ArgType = Arg->getType();
+  if (ArgType->getAsPlaceholderType())
+    return false;
+
+  // for ENUM_VALUE_EXISTENCE/ENUM_VALUE reloc type
+  // format:
+  //   __builtin_preserve_enum_value(*(<enum_type> *)<enum_value>,
+  //                                 flag);
+  const auto *UO = dyn_cast<UnaryOperator>(Arg->IgnoreParens());
+  if (!UO)
+    return false;
+
+  const auto *CE = dyn_cast<CStyleCastExpr>(UO->getSubExpr());
+  if (!CE || CE->getCastKind() != CK_IntegralToPointer)
+    return false;
+
+  // The integer must be from an EnumConstantDecl.
+  const auto *DR = dyn_cast<DeclRefExpr>(CE->getSubExpr());
+  if (!DR)
+    return false;
+
+  const EnumConstantDecl *Enumerator =
+      dyn_cast<EnumConstantDecl>(DR->getDecl());
+  if (!Enumerator)
+    return false;
+
+  // The type must be EnumType.
+  const Type *Ty = ArgType->getUnqualifiedDesugaredType();
+  const auto *ET = Ty->getAs<EnumType>();
+  if (!ET)
+    return false;
+
+  // The enum value must be supported.
+  for (auto *EDI : ET->getDecl()->enumerators()) {
+    if (EDI == Enumerator)
+      return true;
+  }
+
+  return false;
+}
+
+bool Sema::CheckBPFBuiltinFunctionCall(unsigned BuiltinID,
+                                       CallExpr *TheCall) {
+  assert((BuiltinID == BPF::BI__builtin_preserve_field_info ||
+          BuiltinID == BPF::BI__builtin_btf_type_id ||
+          BuiltinID == BPF::BI__builtin_preserve_type_info ||
+          BuiltinID == BPF::BI__builtin_preserve_enum_value) &&
+         "unexpected BPF builtin");
+
+  if (checkArgCount(*this, TheCall, 2))
+    return true;
 
   // The second argument needs to be a constant int
-  Arg = TheCall->getArg(1);
-  if (!Arg->isIntegerConstantExpr(Context)) {
-    Diag(Arg->getBeginLoc(), diag::err_preserve_field_info_not_const)
-        << 2 << Arg->getSourceRange();
+  Expr *Arg = TheCall->getArg(1);
+  Optional<llvm::APSInt> Value = Arg->getIntegerConstantExpr(Context);
+  diag::kind kind;
+  if (!Value) {
+    if (BuiltinID == BPF::BI__builtin_preserve_field_info)
+      kind = diag::err_preserve_field_info_not_const;
+    else if (BuiltinID == BPF::BI__builtin_btf_type_id)
+      kind = diag::err_btf_type_id_not_const;
+    else if (BuiltinID == BPF::BI__builtin_preserve_type_info)
+      kind = diag::err_preserve_type_info_not_const;
+    else
+      kind = diag::err_preserve_enum_value_not_const;
+    Diag(Arg->getBeginLoc(), kind) << 2 << Arg->getSourceRange();
     return true;
   }
 
-  TheCall->setType(Context.UnsignedIntTy);
+  // The first argument
+  Arg = TheCall->getArg(0);
+  bool InvalidArg = false;
+  bool ReturnUnsignedInt = true;
+  if (BuiltinID == BPF::BI__builtin_preserve_field_info) {
+    if (!isValidBPFPreserveFieldInfoArg(Arg)) {
+      InvalidArg = true;
+      kind = diag::err_preserve_field_info_not_field;
+    }
+  } else if (BuiltinID == BPF::BI__builtin_preserve_type_info) {
+    if (!isValidBPFPreserveTypeInfoArg(Arg)) {
+      InvalidArg = true;
+      kind = diag::err_preserve_type_info_invalid;
+    }
+  } else if (BuiltinID == BPF::BI__builtin_preserve_enum_value) {
+    if (!isValidBPFPreserveEnumValueArg(Arg)) {
+      InvalidArg = true;
+      kind = diag::err_preserve_enum_value_invalid;
+    }
+    ReturnUnsignedInt = false;
+  }
+
+  if (InvalidArg) {
+    Diag(Arg->getBeginLoc(), kind) << 1 << Arg->getSourceRange();
+    return true;
+  }
+
+  if (ReturnUnsignedInt)
+    TheCall->setType(Context.UnsignedIntTy);
+  else
+    TheCall->setType(Context.UnsignedLongTy);
   return false;
 }
 
@@ -5708,21 +5804,8 @@ bool Sema::SemaBuiltinVAStart(unsigned BuiltinID, CallExpr *TheCall) {
   if (checkVAStartABI(*this, BuiltinID, Fn))
     return true;
 
-  if (TheCall->getNumArgs() > 2) {
-    Diag(TheCall->getArg(2)->getBeginLoc(),
-         diag::err_typecheck_call_too_many_args)
-        << 0 /*function call*/ << 2 << TheCall->getNumArgs()
-        << Fn->getSourceRange()
-        << SourceRange(TheCall->getArg(2)->getBeginLoc(),
-                       (*(TheCall->arg_end() - 1))->getEndLoc());
+  if (checkArgCount(*this, TheCall, 2))
     return true;
-  }
-
-  if (TheCall->getNumArgs() < 2) {
-    return Diag(TheCall->getEndLoc(),
-                diag::err_typecheck_call_too_few_args_at_least)
-           << 0 /*function call*/ << 2 << TheCall->getNumArgs();
-  }
 
   // Type-check the first argument normally.
   if (checkBuiltinArgument(*this, TheCall, 0))
@@ -5832,15 +5915,8 @@ bool Sema::SemaBuiltinVAStartARMMicrosoft(CallExpr *Call) {
 /// SemaBuiltinUnorderedCompare - Handle functions like __builtin_isgreater and
 /// friends.  This is declared to take (...), so we have to check everything.
 bool Sema::SemaBuiltinUnorderedCompare(CallExpr *TheCall) {
-  if (TheCall->getNumArgs() < 2)
-    return Diag(TheCall->getEndLoc(), diag::err_typecheck_call_too_few_args)
-           << 0 << 2 << TheCall->getNumArgs() /*function call*/;
-  if (TheCall->getNumArgs() > 2)
-    return Diag(TheCall->getArg(2)->getBeginLoc(),
-                diag::err_typecheck_call_too_many_args)
-           << 0 /*function call*/ << 2 << TheCall->getNumArgs()
-           << SourceRange(TheCall->getArg(2)->getBeginLoc(),
-                          (*(TheCall->arg_end() - 1))->getEndLoc());
+  if (checkArgCount(*this, TheCall, 2))
+    return true;
 
   ExprResult OrigArg0 = TheCall->getArg(0);
   ExprResult OrigArg1 = TheCall->getArg(1);
@@ -5878,15 +5954,8 @@ bool Sema::SemaBuiltinUnorderedCompare(CallExpr *TheCall) {
 /// to check everything. We expect the last argument to be a floating point
 /// value.
 bool Sema::SemaBuiltinFPClassification(CallExpr *TheCall, unsigned NumArgs) {
-  if (TheCall->getNumArgs() < NumArgs)
-    return Diag(TheCall->getEndLoc(), diag::err_typecheck_call_too_few_args)
-           << 0 << NumArgs << TheCall->getNumArgs() /*function call*/;
-  if (TheCall->getNumArgs() > NumArgs)
-    return Diag(TheCall->getArg(NumArgs)->getBeginLoc(),
-                diag::err_typecheck_call_too_many_args)
-           << 0 /*function call*/ << NumArgs << TheCall->getNumArgs()
-           << SourceRange(TheCall->getArg(NumArgs)->getBeginLoc(),
-                          (*(TheCall->arg_end() - 1))->getEndLoc());
+  if (checkArgCount(*this, TheCall, NumArgs))
+    return true;
 
   // __builtin_fpclassify is the only case where NumArgs != 1, so we can count
   // on all preceding parameters just being int.  Try all of those.
@@ -5990,17 +6059,8 @@ bool Sema::SemaBuiltinComplex(CallExpr *TheCall) {
 // vector short vec_xxsldwi(vector short, vector short, int);
 bool Sema::SemaBuiltinVSX(CallExpr *TheCall) {
   unsigned ExpectedNumArgs = 3;
-  if (TheCall->getNumArgs() < ExpectedNumArgs)
-    return Diag(TheCall->getEndLoc(),
-                diag::err_typecheck_call_too_few_args_at_least)
-           << 0 /*function call*/ << ExpectedNumArgs << TheCall->getNumArgs()
-           << TheCall->getSourceRange();
-
-  if (TheCall->getNumArgs() > ExpectedNumArgs)
-    return Diag(TheCall->getEndLoc(),
-                diag::err_typecheck_call_too_many_args_at_most)
-           << 0 /*function call*/ << ExpectedNumArgs << TheCall->getNumArgs()
-           << TheCall->getSourceRange();
+  if (checkArgCount(*this, TheCall, ExpectedNumArgs))
+    return true;
 
   // Check the third argument is a compile time constant
   if (!TheCall->getArg(2)->isIntegerConstantExpr(Context))
@@ -11103,7 +11163,7 @@ static bool AnalyzeBitFieldAssignment(Sema &S, FieldDecl *Bitfield, Expr *Init,
         BitfieldEnumDecl->getNumPositiveBits() > 0 &&
         BitfieldEnumDecl->getNumNegativeBits() == 0) {
       S.Diag(InitLoc, diag::warn_no_underlying_type_specified_for_enum_bitfield)
-        << BitfieldEnumDecl->getNameAsString();
+          << BitfieldEnumDecl;
     }
   }
 
@@ -14098,8 +14158,7 @@ void Sema::CheckArrayAccess(const Expr *BaseExpr, const Expr *IndexExpr,
 
   if (ND)
     DiagRuntimeBehavior(ND->getBeginLoc(), BaseExpr,
-                        PDiag(diag::note_array_declared_here)
-                            << ND->getDeclName());
+                        PDiag(diag::note_array_declared_here) << ND);
 }
 
 void Sema::CheckArrayAccess(const Expr *expr) {
