@@ -1,40 +1,6 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s -o %t.out
-// RUN: FileCheck -input-file=%t.h %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -I %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
-// This test checks the integration header generated when
-// the kernel argument is union.
-
-// CHECK: #include <CL/sycl/detail/kernel_desc.hpp>
-
-// CHECK: class kernel_A;
-
-// CHECK: __SYCL_INLINE_NAMESPACE(cl) {
-// CHECK-NEXT: namespace sycl {
-// CHECK-NEXT: namespace detail {
-
-// CHECK: static constexpr
-// CHECK-NEXT: const char* const kernel_names[] = {
-// CHECK-NEXT:   "_ZTSZ4mainE8kernel_A"
-// CHECK-NEXT: };
-
-// CHECK: static constexpr
-// CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {
-// CHECK-NEXT:   //--- _ZTSZ4mainE8kernel_A
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 12, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 1, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 4 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 8 },
-// CHECK-EMPTY:
-// CHECK-NEXT:};
-
-// CHECK: static constexpr
-// CHECK-NEXT: const unsigned kernel_signature_start[] = {
-// CHECK-NEXT:  0 // _ZTSZ4mainE8kernel_A
-// CHECK-NEXT: };
-
-// CHECK: template <> struct KernelInfo<class kernel_A> {
+// This test checks a kernel argument that is union with both array and non-array fields.
 
 #include "sycl.hpp"
 
@@ -60,3 +26,16 @@ int main() {
         float local = obj.FldArr[2];
       });
 }
+
+// CHECK kernel_A parameters
+// CHECK: define spir_kernel void @{{.*}}kernel_A(%union.{{.*}}.MyUnion* byval(%union.{{.*}}.MyUnion) align 4 [[MEM_ARG:%[a-zA-Z0-9_]+]])
+
+// Check lambda object alloca
+// CHECK: [[LOCAL_OBJECT:%0]] = alloca %"class.{{.*}}.anon", align 4
+
+// CHECK: [[L_STRUCT_ADDR:%[a-zA-Z0-9_]+]] = getelementptr inbounds %"class.{{.*}}.anon", %"class.{{.*}}.anon"* [[LOCAL_OBJECT]], i32 0, i32 0
+// CHECK: [[MEMCPY_DST:%[0-9a-zA-Z_]+]] = bitcast %union.{{.*}}MyUnion* [[L_STRUCT_ADDR]] to i8*
+// CHECK: [[MEMCPY_SRC:%[0-9a-zA-Z_]+]] = bitcast %union.{{.*}}MyUnion* [[MEM_ARG]] to i8*
+// CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 4 [[MEMCPY_DST]], i8* align 4 [[MEMCPY_SRC]], i64 12, i1 false)
+// CHECK: [[ACC_CAST1:%[0-9]+]] = addrspacecast %"class.{{.*}}.anon"* [[LOCAL_OBJECT]] to %"class.{{.*}}.anon" addrspace(4)*
+// CHECK: call spir_func void @{{.*}}(%"class.{{.*}}.anon" addrspace(4)* [[ACC_CAST1]])

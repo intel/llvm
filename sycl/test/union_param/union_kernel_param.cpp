@@ -30,11 +30,12 @@ public:
 
 int main(int argc, char **argv) {
   TestUnion x;
+  x.mydouble = 5.0;
   bool isError = false;
 
-  auto q = queue(gpu_selector{});
-  q.submit([&](handler &cgh) {
-    cgh.parallel_for(range<1>(10), [=](id<1> i) { x.mydouble = 5.0; });
+  cl::sycl::queue queue;
+  queue.submit([&](cl::sycl::handler &cgh) {
+    cgh.single_task<class test>([=]() { x.mydouble });
   });
 
   if (x.mydouble != 5.0) {
@@ -43,7 +44,7 @@ int main(int argc, char **argv) {
       std::cout << " Error !!!"
                 << "\n";
     else
-      std::cout << " Results match !!!"
+      std::cout << " Result matchs !!!"
                 << "\n";
   }
   return 0;

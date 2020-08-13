@@ -44,14 +44,10 @@ int main() {
 }
 
 // Check kernel_A parameters
-// CHECK: FunctionDecl {{.*}}kernel_A{{.*}} 'void (union MyUnion, int, int, int, float, char, int)'
+// CHECK: FunctionDecl {{.*}}kernel_A{{.*}} 'void (union MyUnion)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'union MyUnion':'MyUnion'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_a 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_a 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_a 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_b 'float'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_c 'char'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_d 'int'
+
+// Check kernel_A inits
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
 // CHECK-NEXT: VarDecl {{.*}} cinit
@@ -59,48 +55,20 @@ int main() {
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'union MyUnion':'MyUnion' 'void (const MyUnion &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyUnion'
 // CHECK-NEXT: DeclRefExpr {{.*}} 'union MyUnion':'MyUnion' lvalue ParmVar {{.*}} '_arg_' 'union MyUnion':'MyUnion'
-// CHECK-NEXT: InitListExpr {{.*}} 'MyUnion::MyStruct'
-// CHECK-NEXT: InitListExpr {{.*}} 'int [3]'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_a' 'int'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_a' 'int'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_a' 'int'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'float' lvalue ParmVar {{.*}} '_arg_b' 'float'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'char' lvalue ParmVar {{.*}} '_arg_c' 'char'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_d' 'int'
 
 // Check kernel_B parameters
-// CHECK: FunctionDecl {{.*}}kernel_B{{.*}} 'void (union MyUnion, int, int, int, float, char, int)'
+// CHECK: FunctionDecl {{.*}}kernel_B{{.*}} 'void (union MyUnion, int)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_union_mem 'union MyUnion':'MyStruct::MyUnion'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_a 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_a 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_a 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_b 'float'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_c 'char'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_d 'int'
+
+// Check kernel_B inits
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
 // CHECK-NEXT: VarDecl {{.*}} cinit
 // CHECK-NEXT: InitListExpr
+// CHECK-NEXT: InitListExpr {{.*}} 'MyStruct'
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'union MyUnion':'MyStruct::MyUnion' 'void (const MyStruct::MyUnion &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyStruct::MyUnion'
 // CHECK-NEXT: DeclRefExpr {{.*}} 'union MyUnion':'MyStruct::MyUnion' lvalue ParmVar {{.*}} '_arg_union_mem' 'union MyUnion':'MyStruct::MyUnion'
-// CHECK-NEXT: InitListExpr {{.*}} 'int [3]'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_a' 'int'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_a' 'int'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_a' 'int'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'float' lvalue ParmVar {{.*}} '_arg_b' 'float'
-// CHECK-NEXT: InitListExpr {{.*}} 'MyStruct'
-// CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'char' lvalue ParmVar {{.*}} '_arg_c' 'char'
 // CHECK-NEXT: ImplicitCastExpr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_d' 'int'

@@ -25,11 +25,8 @@ int main() {
 }
 
 // Check kernel parameters
-// CHECK: FunctionDecl {{.*}}kernel{{.*}} 'void (MyUnion, int, char, float)'
+// CHECK: FunctionDecl {{.*}}kernel{{.*}} 'void (MyUnion)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ 'MyUnion'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_x 'int'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_y 'char'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_cuda 'float'
 
 // Check kernel inits
 // CHECK-NEXT: CompoundStmt
@@ -39,9 +36,3 @@ int main() {
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'MyUnion' 'void (const MyUnion &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyUnion'
 // CHECK-NEXT: DeclRefExpr {{.*}} 'MyUnion' lvalue ParmVar {{.*}} '_arg_' 'MyUnion'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_x' 'int'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'char'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'char' lvalue ParmVar {{.*}} '_arg_y' 'char'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'float'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'float' lvalue ParmVar {{.*}} '_arg_cuda' 'float'

@@ -867,9 +867,9 @@ public:
 
   // Base case, only calls these when filtered.
   template <typename... FilteredHandlers, typename ParentTy>
-  void VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
-                  const CXXRecordDecl *Wrapper,
-                  FilteredHandlers &... handlers) {
+  void VisitUnion(FilteredHandlers &... handlers,
+                  const CXXRecordDecl *Owner, ParentTy &Parent,
+                  const CXXRecordDecl *Wrapper) {
     (void)std::initializer_list<int>{
         (handlers.enterUnion(Owner, Parent), 0)...};
     VisitRecordHelper(Wrapper, Wrapper->fields(), handlers...);
@@ -880,23 +880,23 @@ public:
   template <typename... FilteredHandlers, typename ParentTy,
             typename CurHandler, typename... Handlers>
   std::enable_if_t<!CurHandler::VisitUnionBody>
-  VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
-             const CXXRecordDecl *Wrapper,
-             FilteredHandlers &... filtered_handlers, CurHandler &cur_handler,
+  VisitUnion(FilteredHandlers &... filtered_handlers,
+             const CXXRecordDecl *Owner, ParentTy &Parent,
+             const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
              Handlers &... handlers) {
-    VisitUnion<FilteredHandlers...>(Owner, Parent, Wrapper,
-                                    filtered_handlers..., handlers...);
+    VisitUnion<FilteredHandlers...>(filtered_handlers..., Owner, Parent,
+		                    Wrapper, handlers...);
   }
 
   template <typename... FilteredHandlers, typename ParentTy,
             typename CurHandler, typename... Handlers>
   std::enable_if_t<CurHandler::VisitUnionBody>
-  VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
-             const CXXRecordDecl *Wrapper,
-             FilteredHandlers &... filtered_handlers, CurHandler &cur_handler,
+  VisitUnion(FilteredHandlers &... filtered_handlers,
+             const CXXRecordDecl *Owner, ParentTy &Parent,
+             const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
              Handlers &... handlers) {
     VisitUnion<FilteredHandlers..., CurHandler>(
-        Owner, Parent, Wrapper, filtered_handlers..., cur_handler, handlers...);
+        filtered_handlers..., cur_handler, Owner, Parent, Wrapper, handlers...);
   }
 
   template <typename... Handlers>
@@ -1028,6 +1028,7 @@ protected:
   SyclKernelFieldHandler(Sema &S) : SemaRef(S) {}
 
 public:
+  static constexpr const bool VisitUnionBody = false;
   // Mark these virtual so that we can use override in the implementer classes,
   // despite virtual dispatch never being used.
 
@@ -1096,7 +1097,6 @@ public:
 class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   bool IsInvalid = false;
   DiagnosticsEngine &Diag;
-  static constexpr const bool VisitUnionBody = false;
   // Check whether the object should be disallowed from being copied to kernel.
   // Return true if not copyable, false if copyable.
   bool checkNotCopyableToKernel(const FieldDecl *FD, const QualType &FieldTy) {
@@ -1253,16 +1253,16 @@ public:
 
 // A type to check the validity of passing union with accessor/sampler/stream
 // member as a kernel argument types.
-class SyclKernelUnionBodyChecker : public SyclKernelFieldHandler {
-  static constexpr const bool VisitUnionBody = true;
+class SyclKernelUnionChecker : public SyclKernelFieldHandler {
   int UnionCount = 0;
   bool IsInvalid = false;
   DiagnosticsEngine &Diag;
 
 public:
-  SyclKernelUnionBodyChecker(Sema &S)
+  SyclKernelUnionChecker(Sema &S)
       : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {}
   bool isValid() { return !IsInvalid; }
+  static constexpr const bool VisitUnionBody = true;
 
   bool enterUnion(const CXXRecordDecl *RD, FieldDecl *FD) {
     ++UnionCount;
@@ -1286,12 +1286,11 @@ public:
   /*bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
     if (UnionCount) {
       IsInvalid = true;
-      Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type);
+      Diag.Report(BS.getBeginLoc(), diag::err_bad_kernel_param_type)
           << FieldTy;
     }
     return isValid();
   }*/
-
   bool handleSyclSamplerType(FieldDecl *FD, QualType FieldTy) final {
     if (UnionCount) {
       IsInvalid = true;
@@ -2154,14 +2153,14 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
       }
   }
 
-  SyclKernelFieldChecker Checker(*this);
-  SyclKernelUnionBodyChecker Checker1(*this);
+  SyclKernelFieldChecker FieldChecker(*this);
+  SyclKernelUnionChecker UnionChecker(*this);
   KernelObjVisitor Visitor{*this};
   DiagnosingSYCLKernel = true;
-  Visitor.VisitRecordBases(KernelObj, Checker, Checker1);
-  Visitor.VisitRecordFields(KernelObj, Checker, Checker1);
+  Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker);
+  Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker);
   DiagnosingSYCLKernel = false;
-  if (!Checker.isValid())
+  if (!FieldChecker.isValid() || !UnionChecker.isValid())
     KernelFunc->setInvalidDecl();
 }
 
