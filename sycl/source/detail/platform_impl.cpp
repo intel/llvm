@@ -38,7 +38,7 @@ get_or_make_shared_platform(RT::PiPlatform PiPlatform, plugin Plugin) {
 
   // Otherwise make the impl
   auto Res = std::make_shared<platform_impl>(PiPlatform, Plugin);
-  platform_impl_map.emplace(PiPlatform,Res);
+  platform_impl_map.emplace(PiPlatform, Res);
 
   return Res;
 }
