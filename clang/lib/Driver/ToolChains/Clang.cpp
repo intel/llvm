@@ -4147,6 +4147,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-Wno-sycl-strict");
     }
   }
+  if (IsSYCL || UseSYCLTriple) {
+    // Set options for both host and device
+    if (Arg *A = Args.getLastArg(options::OPT_fsycl_id_queries_fit_in_int,
+                                 options::OPT_fno_sycl_id_queries_fit_in_int))
+      A->render(Args, CmdArgs);
+  }
 
   if (IsSYCL) {
     if (SYCLStdArg) {
