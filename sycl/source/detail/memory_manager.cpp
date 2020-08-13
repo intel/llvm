@@ -280,7 +280,8 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
           Queue, DstMem,
           /*blocking_write=*/CL_FALSE, &DstOffset[0], &SrcOffset[0],
           &DstAccessRange[0], BufferRowPitch, BufferSlicePitch, HostRowPitch,
-          HostSlicePitch, SrcMem, DepEvents.size(), DepEvents.data(), &OutEvent);
+          HostSlicePitch, SrcMem, DepEvents.size(), DepEvents.data(),
+          &OutEvent);
     }
   } else {
     size_t InputRowPitch = (1 == DimDst) ? 0 : DstSize[0];
@@ -288,8 +289,8 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
     Plugin.call<PiApiKind::piEnqueueMemImageWrite>(
         Queue, DstMem,
         /*blocking_write=*/CL_FALSE, &DstOffset[0], &DstAccessRange[0],
-        InputRowPitch, InputSlicePitch, SrcMem, DepEvents.size(), DepEvents.data(),
-        &OutEvent);
+        InputRowPitch, InputSlicePitch, SrcMem, DepEvents.size(),
+        DepEvents.data(), &OutEvent);
   }
 }
 
@@ -329,7 +330,8 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
           Queue, SrcMem,
           /*blocking_read=*/CL_FALSE, &SrcOffset[0], &DstOffset[0],
           &SrcAccessRange[0], BufferRowPitch, BufferSlicePitch, HostRowPitch,
-          HostSlicePitch, DstMem, DepEvents.size(), DepEvents.data(), &OutEvent);
+          HostSlicePitch, DstMem, DepEvents.size(), DepEvents.data(),
+          &OutEvent);
     }
   } else {
     size_t RowPitch = (1 == DimSrc) ? 0 : SrcSize[0];
@@ -518,8 +520,8 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
   const detail::plugin &Plugin = Queue->getPlugin();
   Plugin.call<PiApiKind::piEnqueueMemBufferMap>(
       Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), CL_FALSE, Flags,
-      AccessOffset[0], BytesToMap, DepEvents.size(),
-      DepEvents.data(), &OutEvent, &MappedPtr);
+      AccessOffset[0], BytesToMap, DepEvents.size(), DepEvents.data(),
+      &OutEvent, &MappedPtr);
   return MappedPtr;
 }
 
