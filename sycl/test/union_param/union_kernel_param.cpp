@@ -30,6 +30,7 @@ public:
 
 int main(int argc, char **argv) {
   TestUnion x;
+  bool isError = false;
 
   auto q = queue(gpu_selector{});
   q.submit([&](handler &cgh) {
