@@ -5,7 +5,7 @@
 // RUNx: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-//==-union_kernel_param.cpp-Checks passing structs as kernel params--------==//
+//==-union_kernel_param.cpp-Checks passing unionss as kernel params--------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -28,7 +28,7 @@ public:
   TestUnion() { mydouble = 0.0; };
 };
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   TestUnion x;
 
   auto q = queue(gpu_selector{});
