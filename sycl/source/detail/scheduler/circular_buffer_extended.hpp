@@ -13,6 +13,7 @@
 
 #include <cstddef>
 #include <deque>
+#include <unordered_map>
 #include <utility>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -22,7 +23,7 @@ namespace detail {
 class CircularBufferExtended {
 public:
   using GenericCommandsT = CircularBuffer<Command *>;
-  using HostAccessorCommandsT = std::deque<Command *>;
+  using HostAccessorCommandsT = std::unordered_map<std::deque<Command *>>;
   using IfGenericIsFullF = std::function<void(Command *, GenericCommandsT &)>;
 
   template <bool IsConst>
@@ -30,9 +31,9 @@ public:
 
   using value_type = Command *;
   using pointer = value_type *;
-  using const_pointer = const pointer;
+  using const_pointer = const value_type *;
   using reference = value_type &;
-  using const_reference = const reference;
+  using const_reference = const value_type &;
 
   using iterator = typename IteratorT<false>;
   using const_iterator = typename IteratorT<true>;
@@ -47,14 +48,21 @@ public:
     return iterator{*this, MHostAccessorCommands.end()};
   }
 
-  void push_back(value_type Cmd) {
-    // if EmptyCommand .. add to HA
-    if (Cmd->getType() == Command::EMPTY_TASK &&
-        Cmd->MBlockReason == Command::BlockReason::HostAccessor) {
-      addHostAccessorCommand(static_cast<EmptyCommand *>(Cmd));
-    } else
-      addGenericCommand(Cmd);
+  const_iterator cbegin() const {
+    return const_iteratorr{*this, MGenericCommands.begin()};
   }
+
+  const_iterator cend() const {
+    return const_iterator{*this, MHostAccessorCommands.end()};
+  }
+
+  void push_back(value_type Cmd);
+
+  // erases range [first, last)
+  void erase(iterator &first, iterator &last);
+
+  // return number of removed elements
+  size_t remove(value_type Cmd);
 
 private:
   friend struct IteratorT<true>;
@@ -64,37 +72,100 @@ private:
   HostAccessorCommandsT MHostAccessorCommands;
   IfGenericIsFullF MIfGenericIsFull;
 
-  void addHostAccessorCommand(EmptyCommand *Cmd) {
-    // TODO
-  }
+  void addHostAccessorCommand(EmptyCommand *Cmd);
+  void addGenericCommand(value_type Cmd);
 
-  void addGenericCommand(value_type Cmd) {
-    if (MGenericCommands.full())
-      MIfGenericIsFull(Cmd, MGenericCommands);
 
-    MGenericCommands.push_back(Cmd);
-    ++(Cmd->MLeafCounter);
-  }
-
-public:
   template <bool IsConst, typename T>
   struct ConstRef;
 
   template<typename T> struct ConstRef<true, T> {
-    using RefT = const T &;
+    using type = const T &;
   };
 
   template<typename T> struct ConstRef<false, T> {
-    using RefT = T &;
+    using type = T &;
   };
 
+  template <bool IsConst>
+  struct HostAccessorIt {
+    using HostT = typename ConstRef<IsConst, HostAccessorCommandsT>::type;
+    using MapItT = HostAccessorCommandsT::iterator;
+    using ValueItT = HostAccessorCommandsT::mapped_type::iterator;
+
+    HostT MHost;
+    MapItT MMapIt;
+    ValueItT MValueIt;
+
+    HostAccessorIt(HostT Host, MapItT MapIt) : MHost{Host}, MMapIt{MapIt} {
+      if (MMapIt != MHost.end())
+        MValueIt = MMapIt->second.begin();
+    }
+
+    HostAccessorIt(const HostAccessorIt<IsConst> &Other)
+      : MHost{Other.MHost}, MMapIt{Other.MMapIt}, MValueIt{Other.MValueIt} {}
+
+    HostAccessorIt(HostAccessorIt<IsConst> &&Other)
+      : MHost{Other.MHost}, MMapIt{Other.MMapIt}, MValueIt{Other.MValueIt} {}
+
+    value_type operator*() {
+      return *MValueIt;
+    }
+
+    value_type operator*() const {
+      return *MValueIt;
+    }
+
+    // pre-increment
+    HostAccessorIt<IsConst> &operator++() {
+      increment();
+      return *this;
+    }
+
+    // post-increment
+    HostAccessorIt<IsConst> operator++(int) {
+      HostAccessorIt<IsConst> Result = *this;
+      increment();
+
+      return Result;
+    }
+
+  private:
+    // return true if in the very end or the increment happened
+    inline bool incrementMapItIfNeeded() {
+      if (MValueIt == MMapIt->second.end()) {
+        ++MMapIt;
+
+        if (MMapIt != MHost.end())
+          MValueIt = MMapIt->second.begin();
+
+        return true;
+      }
+
+      return false;
+    }
+
+    void increment() {
+      if (MMapIt == MHost.end())
+        return;
+
+      if (incrementMapItIfNeeded())
+        return;
+
+      ++MValueIt;
+
+      incrementMapItIfNeeded();
+    }
+  };
+
+public:
   // iterate over generic commands in the first place and over host accessors
   // later on
   template <bool IsConst>
   struct IteratorT {
-    using HostT = typename ConstRef<IsConst, CircularBufferExtended>::RefT;
+    using HostT = typename ConstRef<IsConst, CircularBufferExtended>::type;
     using GCItT = GenericCommandsT::iterator;
-    using HACIt = HostAccessorCommandsT::iterator;
+    using HACIt = HostAccessorIt;
 
     HostT MHost;
     GCItT MGCIt;
@@ -132,7 +203,7 @@ public:
     // post-increment
     IteratorT<IsConst> operator++(int) {
       IteratorT<IsConst> Other(*this);
-      Other.increment();
+      increment();
 
       return Other;
     }
@@ -145,6 +216,8 @@ public:
         return *MHACIt;
 
       assert(false);
+
+      return nullptr;
     }
 
   private:
