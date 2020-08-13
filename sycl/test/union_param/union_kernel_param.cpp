@@ -5,7 +5,7 @@
 // RUNx: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-//==-union_kernel_param.cpp-Checks passing unionss as kernel params--------==//
+//==-union_kernel_param.cpp-Checks passing unions as kernel params--------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -35,7 +35,7 @@ int main(int argc, char **argv) {
 
   cl::sycl::queue queue;
   queue.submit([&](cl::sycl::handler &cgh) {
-    cgh.single_task<class test>([=]() { x.mydouble });
+    cgh.single_task<class test>([=]() { x.mydouble; });
   });
 
   if (x.mydouble != 5.0) {
