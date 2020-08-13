@@ -270,7 +270,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
       Plugin.call<PiApiKind::piEnqueueMemBufferWrite>(
           Queue, DstMem,
           /*blocking_write=*/CL_FALSE, DstOffset[0], DstAccessRange[0],
-          SrcMem + SrcOffset[0], DepEvents.size(), &DepEvents[0], &OutEvent);
+          SrcMem + SrcOffset[0], DepEvents.size(), DepEvents.data(), &OutEvent);
     } else {
       size_t BufferRowPitch = (1 == DimDst) ? 0 : DstSize[0];
       size_t BufferSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
@@ -280,7 +280,8 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
           Queue, DstMem,
           /*blocking_write=*/CL_FALSE, &DstOffset[0], &SrcOffset[0],
           &DstAccessRange[0], BufferRowPitch, BufferSlicePitch, HostRowPitch,
-          HostSlicePitch, SrcMem, DepEvents.size(), &DepEvents[0], &OutEvent);
+          HostSlicePitch, SrcMem, DepEvents.size(), DepEvents.data(),
+          &OutEvent);
     }
   } else {
     size_t InputRowPitch = (1 == DimDst) ? 0 : DstSize[0];
@@ -288,8 +289,8 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
     Plugin.call<PiApiKind::piEnqueueMemImageWrite>(
         Queue, DstMem,
         /*blocking_write=*/CL_FALSE, &DstOffset[0], &DstAccessRange[0],
-        InputRowPitch, InputSlicePitch, SrcMem, DepEvents.size(), &DepEvents[0],
-        &OutEvent);
+        InputRowPitch, InputSlicePitch, SrcMem, DepEvents.size(),
+        DepEvents.data(), &OutEvent);
   }
 }
 
@@ -318,7 +319,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
       Plugin.call<PiApiKind::piEnqueueMemBufferRead>(
           Queue, SrcMem,
           /*blocking_read=*/CL_FALSE, SrcOffset[0], SrcAccessRange[0],
-          DstMem + DstOffset[0], DepEvents.size(), &DepEvents[0], &OutEvent);
+          DstMem + DstOffset[0], DepEvents.size(), DepEvents.data(), &OutEvent);
     } else {
       size_t BufferRowPitch = (1 == DimSrc) ? 0 : SrcSize[0];
       size_t BufferSlicePitch = (3 == DimSrc) ? SrcSize[0] * SrcSize[1] : 0;
@@ -329,14 +330,15 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
           Queue, SrcMem,
           /*blocking_read=*/CL_FALSE, &SrcOffset[0], &DstOffset[0],
           &SrcAccessRange[0], BufferRowPitch, BufferSlicePitch, HostRowPitch,
-          HostSlicePitch, DstMem, DepEvents.size(), &DepEvents[0], &OutEvent);
+          HostSlicePitch, DstMem, DepEvents.size(), DepEvents.data(),
+          &OutEvent);
     }
   } else {
     size_t RowPitch = (1 == DimSrc) ? 0 : SrcSize[0];
     size_t SlicePitch = (3 == DimSrc) ? SrcSize[0] * SrcSize[1] : 0;
     Plugin.call<PiApiKind::piEnqueueMemImageRead>(
         Queue, SrcMem, CL_FALSE, &SrcOffset[0], &SrcAccessRange[0], RowPitch,
-        SlicePitch, DstMem, DepEvents.size(), &DepEvents[0], &OutEvent);
+        SlicePitch, DstMem, DepEvents.size(), DepEvents.data(), &OutEvent);
   }
 }
 
@@ -361,7 +363,7 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
     if (1 == DimDst && 1 == DimSrc) {
       Plugin.call<PiApiKind::piEnqueueMemBufferCopy>(
           Queue, SrcMem, DstMem, SrcOffset[0], DstOffset[0], SrcAccessRange[0],
-          DepEvents.size(), &DepEvents[0], &OutEvent);
+          DepEvents.size(), DepEvents.data(), &OutEvent);
     } else {
       size_t SrcRowPitch = (1 == DimSrc) ? 0 : SrcSize[0];
       size_t SrcSlicePitch =
@@ -374,12 +376,12 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
       Plugin.call<PiApiKind::piEnqueueMemBufferCopyRect>(
           Queue, SrcMem, DstMem, &SrcOffset[0], &DstOffset[0],
           &SrcAccessRange[0], SrcRowPitch, SrcSlicePitch, DstRowPitch,
-          DstSlicePitch, DepEvents.size(), &DepEvents[0], &OutEvent);
+          DstSlicePitch, DepEvents.size(), DepEvents.data(), &OutEvent);
     }
   } else {
     Plugin.call<PiApiKind::piEnqueueMemImageCopy>(
         Queue, SrcMem, DstMem, &SrcOffset[0], &DstOffset[0], &SrcAccessRange[0],
-        DepEvents.size(), &DepEvents[0], &OutEvent);
+        DepEvents.size(), DepEvents.data(), &OutEvent);
   }
 }
 
@@ -465,7 +467,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
       Plugin.call<PiApiKind::piEnqueueMemBufferFill>(
           Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), Pattern, PatternSize,
           Offset[0] * ElementSize, Range[0] * ElementSize, DepEvents.size(),
-          &DepEvents[0], &OutEvent);
+          DepEvents.data(), &OutEvent);
       return;
     }
     throw runtime_error("Not supported configuration of fill requested",
@@ -473,7 +475,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
   } else {
     Plugin.call<PiApiKind::piEnqueueMemImageFill>(
         Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), Pattern, &Offset[0],
-        &Range[0], DepEvents.size(), &DepEvents[0], &OutEvent);
+        &Range[0], DepEvents.size(), DepEvents.data(), &OutEvent);
   }
 }
 
@@ -518,8 +520,8 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
   const detail::plugin &Plugin = Queue->getPlugin();
   Plugin.call<PiApiKind::piEnqueueMemBufferMap>(
       Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), CL_FALSE, Flags,
-      AccessOffset[0], BytesToMap, DepEvents.size(),
-      DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent, &MappedPtr);
+      AccessOffset[0], BytesToMap, DepEvents.size(), DepEvents.data(),
+      &OutEvent, &MappedPtr);
   return MappedPtr;
 }
 
@@ -534,7 +536,7 @@ void MemoryManager::unmap(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
   const detail::plugin &Plugin = Queue->getPlugin();
   Plugin.call<PiApiKind::piEnqueueMemUnmap>(
       Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), MappedPtr,
-      DepEvents.size(), DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent);
+      DepEvents.size(), DepEvents.data(), &OutEvent);
 }
 
 void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
@@ -556,7 +558,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
     Plugin.call<PiApiKind::piextUSMEnqueueMemcpy>(SrcQueue->getHandleRef(),
                                                   /* blocking */ false, DstMem,
                                                   SrcMem, Len, DepEvents.size(),
-                                                  &DepEvents[0], &OutEvent);
+                                                  DepEvents.data(), &OutEvent);
   }
 }
 
@@ -577,7 +579,7 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
     const detail::plugin &Plugin = Queue->getPlugin();
     Plugin.call<PiApiKind::piextUSMEnqueueMemset>(
         Queue->getHandleRef(), Mem, Pattern, Length, DepEvents.size(),
-        &DepEvents[0], &OutEvent);
+        DepEvents.data(), &OutEvent);
   }
 }
 
@@ -592,7 +594,7 @@ void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
     const detail::plugin &Plugin = Queue->getPlugin();
     Plugin.call<PiApiKind::piextUSMEnqueuePrefetch>(
         Queue->getHandleRef(), Mem, Length, PI_USM_MIGRATION_TBD0,
-        DepEvents.size(), &DepEvents[0], &OutEvent);
+        DepEvents.size(), DepEvents.data(), &OutEvent);
   }
 }
 
