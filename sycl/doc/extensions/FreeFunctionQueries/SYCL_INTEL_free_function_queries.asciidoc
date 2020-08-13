@@ -59,9 +59,39 @@ This extension is written against the SYCL 2020 Provisional specification, Revis
 
 == Overview
 
-The extension allows to get `item`, `nd_item`, `group`, `sub_group` instances globally
+The extension allows to get `id`, `item`, `nd_item`, `group`, `sub_group` instances globally
 
 == Modifications of SYCL 2020 provisional specification
+
+=== Changes in 4.10.1.3 (id class)
+
+==== Changes in synopsis
+
+===== Add the following free function
+
+[source,c++,multiptr,linenums]
+----
+template <int dimensions>
+id<dimensions> this_id();
+----
+
+===== Add the table with free functions description
+
+|===
+a|
+[source,c++,multiptr,linenums]
+----
+template <int dimensions>
+id<dimensions> this_id();
+---- a|
+Returns the `id` instance representing the current work item in a `range`. The prerequisites:
+
+* `dimensions` value passed to `this_id` function shall match `dimensions` value passed to the `range` when the `parallel_for` is called
+
+* shall only be invoked within the `parallel_for` with `range` or `nd_range` as the argument.
+
+If prerequisites are not fulfilled the behavior is undefined
+|===
 
 === Changes in 4.10.1.4 (item class)
 
@@ -71,7 +101,7 @@ The extension allows to get `item`, `nd_item`, `group`, `sub_group` instances gl
 
 [source,c++,multiptr,linenums]
 ----
-template <int dimensions, bool with_offset>
+template <int dimensions>
 item<dimensions> this_item();
 ----
 
@@ -81,16 +111,14 @@ item<dimensions> this_item();
 a|
 [source,c++,multiptr,linenums]
 ----
-template <int dimensions, bool with_offset>
+template <int dimensions>
 item<dimensions> this_item();
 ---- a|
 Returns the `item` instance representing the current work item in a `range`. The prerequisites:
 
 * `dimensions` value passed to `this_item` function shall match `dimensions` value passed to the `range` when the `parallel_for` is called
 
-* Function can be called only if `item` is explictly specified as the kernel parameter or the kernel parameter is generic (e.g. lambda with `auto` parameter). `with_offset` shall have the same value as for `item` specified as the kernel parameter. For the kernel with generic parameter `with_offset shall be `true`
-
-* shall only be invoked within the `parallel_for` with `range` or `nd_range` as the argument. `with_offset` shall be `true` if `parallel_for` is called with `nd_range`
+* shall only be invoked within the `parallel_for` with `range` or `nd_range` as the argument
 
 If prerequisites are not fulfilled the behavior is undefined
 |===
@@ -148,7 +176,7 @@ group<dimensions> this_group();
 ---- a|
 Returns the `group` instance representing the particular work-group within the parallel execution. The prerequisites:
 
-* `dimensions` value passed to `this_group` function shall match `dimensions` value passed to the `range` when the `parallel_for_work_group` is called
+* `dimensions` value passed to `this_group` function shall match `dimensions` value passed to the `range` when the `parallel_for` is called
 
 * shall only be called from within the `parallel_for` with `nd_range` as the argument
 
