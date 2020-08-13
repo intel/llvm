@@ -717,7 +717,6 @@ static const CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
   return KernelParamTy->getAsCXXRecordDecl();
 }
 
-
 /// Creates a kernel parameter descriptor
 /// \param Src  field declaration to construct name from
 /// \param Ty   the desired parameter type
