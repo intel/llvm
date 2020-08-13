@@ -832,12 +832,8 @@ public:
       VisitRecord(Owner, ArrayField, ElementTy->getAsCXXRecordDecl(),
                   handlers...);
     else if (ElementTy->isUnionType())
-      // TODO: This check is still necessary I think?! Array seems to handle
-      // this differently (see above) for structs I think.
-      // if (KF_FOR_EACH(handleUnionType, Field, FieldTy)) {
       VisitUnion(Owner, ArrayField, ElementTy->getAsCXXRecordDecl(),
                  handlers...);
-    //}
     else if (ElementTy->isArrayType())
       VisitArrayElements(ArrayField, ElementTy, handlers...);
     else if (ElementTy->isScalarType())
@@ -1250,8 +1246,8 @@ public:
   }
 };
 
-// A type to check the validity of passing union with accessor/sampler/stream
-// member as a kernel argument types.
+// A type to check the validity of passing union with
+// pointer/accessor/sampler/stream member as a kernel argument types.
 class SyclKernelUnionChecker : public SyclKernelFieldHandler {
   int UnionCount = 0;
   bool IsInvalid = false;
@@ -1282,14 +1278,25 @@ public:
     return isValid();
   }
 
-  /*bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
+  bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
     if (UnionCount) {
       IsInvalid = true;
-      Diag.Report(BS.getBeginLoc(), diag::err_bad_kernel_param_type)
+      Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type)
           << FieldTy;
     }
     return isValid();
-  }*/
+  }
+
+  bool handleSyclAccessorType(const CXXBaseSpecifier &BS,
+                              QualType FieldTy) final {
+    if (UnionCount) {
+       IsInvalid = true;
+       Diag.Report(BS.getBeginLoc(), diag::err_bad_kernel_param_type)
+           << FieldTy;
+    }
+    return isValid();
+  }
+
   bool handleSyclSamplerType(FieldDecl *FD, QualType FieldTy) final {
     if (UnionCount) {
       IsInvalid = true;
@@ -1298,14 +1305,25 @@ public:
     }
     return isValid();
   }
-  /*bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
+
+  bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
     if (UnionCount) {
       IsInvalid = true;
       Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type)
           << FieldTy;
     }
     return isValid();
-  }*/
+  }
+
+  bool handleSyclStreamType(const CXXBaseSpecifier &BS,
+                            QualType FieldTy) final {
+    if (UnionCount) {
+       IsInvalid = true;
+       Diag.Report(BS.getBeginLoc(), diag::err_bad_kernel_param_type)
+           << FieldTy;
+    }
+    return isValid();
+  }
 };
 
 // A type to Create and own the FunctionDecl for the kernel.
