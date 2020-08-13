@@ -1096,7 +1096,7 @@ public:
 class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   bool IsInvalid = false;
   DiagnosticsEngine &Diag;
-
+  static constexpr const bool VisitUnionBody = false;
   // Check whether the object should be disallowed from being copied to kernel.
   // Return true if not copyable, false if copyable.
   bool checkNotCopyableToKernel(const FieldDecl *FD, const QualType &FieldTy) {
@@ -1283,14 +1283,14 @@ public:
     return isValid();
   }
 
-  bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
+  /*bool handleSyclAccessorType(const CXXBaseSpecifier &BS, QualType FieldTy) final {
     if (UnionCount) {
       IsInvalid = true;
-      Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type)
+      Diag.Report(BS.getBeginLoc(), diag::err_bad_kernel_param_type);
           << FieldTy;
     }
     return isValid();
-  }
+  }*/
 
   bool handleSyclSamplerType(FieldDecl *FD, QualType FieldTy) final {
     if (UnionCount) {
@@ -1300,14 +1300,14 @@ public:
     }
     return isValid();
   }
-  bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
+  /*bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
     if (UnionCount) {
       IsInvalid = true;
       Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type)
           << FieldTy;
     }
     return isValid();
-  }
+  }*/
 };
 
 // A type to Create and own the FunctionDecl for the kernel.
@@ -2155,11 +2155,11 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   }
 
   SyclKernelFieldChecker Checker(*this);
-
+  SyclKernelUnionBodyChecker Checker1(*this);
   KernelObjVisitor Visitor{*this};
   DiagnosingSYCLKernel = true;
-  Visitor.VisitRecordBases(KernelObj, Checker);
-  Visitor.VisitRecordFields(KernelObj, Checker);
+  Visitor.VisitRecordBases(KernelObj, Checker, Checker1);
+  Visitor.VisitRecordFields(KernelObj, Checker, Checker1);
   DiagnosingSYCLKernel = false;
   if (!Checker.isValid())
     KernelFunc->setInvalidDecl();

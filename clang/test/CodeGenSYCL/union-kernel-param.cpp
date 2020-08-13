@@ -6,7 +6,7 @@
 
 // CHECK: #include <CL/sycl/detail/kernel_desc.hpp>
 
-// CHECK: class MyKernel;
+// CHECK: class kernel_A;
 
 // CHECK: __SYCL_INLINE_NAMESPACE(cl) {
 // CHECK-NEXT: namespace sycl {
@@ -14,57 +14,49 @@
 
 // CHECK: static constexpr
 // CHECK-NEXT: const char* const kernel_names[] = {
-// CHECK-NEXT:   "_ZTSZZ5test0vENK3$_0clERN2cl4sycl7handlerEE8MyKernel"
+// CHECK-NEXT:   "_ZTSZ4mainE8kernel_A"
 // CHECK-NEXT: };
 
 // CHECK: static constexpr
 // CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {
-// CHECK-NEXT:   //--- _ZTSZZ5test0vENK3$_0clERN2cl4sycl7handlerEE8MyKernel
-// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 12, 16 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 16 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 16 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 16 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 16 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 16 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 20 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 24 },
+// CHECK-NEXT:   //--- _ZTSZ4mainE8kernel_A
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 12, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 1, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 4 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 8 },
 // CHECK-EMPTY:
 // CHECK-NEXT:};
 
 // CHECK: static constexpr
 // CHECK-NEXT: const unsigned kernel_signature_start[] = {
-// CHECK-NEXT:  0 // _ZTSZZ5test0vENK3$_0clERN2cl4sycl7handlerEE8MyKernel
+// CHECK-NEXT:  0 // _ZTSZ4mainE8kernel_A
 // CHECK-NEXT: };
 
-// CHECK: template <> struct KernelInfo<class MyKernel> {
+// CHECK: template <> struct KernelInfo<class kernel_A> {
 
 #include "sycl.hpp"
 
 using namespace cl::sycl;
 
-union MyNestedUnion {
-  int FldArr[1];
-  float FldFloat;
-};
-
 union MyUnion {
   int FldInt;
-  MyNestedUnion FldUnion;
-  int FldArr[3];
+  char FldChar;
+  float FldArr[3];
 };
 
-MyUnion GlobS;
+template <typename name, typename Func>
+__attribute__((sycl_kernel)) void a_kernel(Func kernelFunc) {
+  kernelFunc();
+}
 
-bool test0() {
-  MyUnion S = GlobS;
-  MyUnion S0 = {0};
-  {
-    buffer<MyUnion, 1> Buf(&S0, range<1>(1));
-    queue myQueue;
-    myQueue.submit([&](handler &cgh) {
-      auto B = Buf.get_access<access::mode::write>(cgh);
-      cgh.single_task<class MyKernel>([=] { B; S; });
-    });
-  }
+int main() {
+
+  MyUnion obj;
+
+  a_kernel<class kernel_A>(
+      [=]() {
+        float local = obj.FldArr[2];
+      });
 }
