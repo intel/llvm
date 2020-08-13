@@ -44,8 +44,8 @@ Version
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2020-07-09
-| Revision           | 7
+| Last Modified Date | 2020-08-13
+| Revision           | 6
 |========================================
 
 Dependencies
@@ -75,6 +75,8 @@ OpExtension "SPV_INTEL_vector_compute"
 
 Modifications to the SPIR-V Specification, Version 1.5, Revision 2, Unified
 ---------------------------------------------------------------------------
+
+Modify Section 2.2.2, Types, add *OpTypeBufferSurfaceINTEL* to the list of _Opaque Types_
 
 Modify Section 3.6, Execution Mode, add the following rows to the Execution Mode table:
 
@@ -136,6 +138,11 @@ Apply to a variable to specify byte offset in general register file.
 
 See the client API specification for more detail.
 | *VectorComputeINTEL* | <<Literal, 'Literal'>> _Offset_
+| 6085 | *SingleElementVectorINTEL* +
+Apply to a 'Scalar' type to indicate that the type represents a single-element vector type in the high-level language.
+
+See the client API specification for more detail.
+| *VectorComputeINTEL* |
 |====
 
 Modify the description of *Volatile* decoration, add the following text: +
@@ -149,12 +156,26 @@ Modify Section 3.31, Capability, add the following rows the 'Capability' table:
 |====
   2+^| Capability      |     Implicitly Declares    | Enabled by Extension
 | 5617 | *VectorComputeINTEL* +
-Enables the use of *Private* storage class, *SharedLocalMemorySizeINTEL* execution mode and *VectorComputeFunctionINTEL*, *VectorComputeVariableINTEL*, *StackCallINTEL*, *SIMTCallINTEL*, *FuncParamIOKindINTEL* and *GlobalVariableOffsetINTEL* decorations.
+Enables the use of *Private* storage class, *SharedLocalMemorySizeINTEL* execution mode and *VectorComputeFunctionINTEL*, *VectorComputeVariableINTEL*, *StackCallINTEL*, *SIMTCallINTEL*, *FuncParamIOKindINTEL*, *GlobalVariableOffsetINTEL*
+*SingleElementVectorINTEL* decorations and *OpTypeBufferSurfaceINTEL* type.
 |*VectorAnyINTEL* | *SPV_INTEL_vector_compute*
 | 5619 | *VectorAnyINTEL* +
 Uses OpTypeVector to declare vectors with any number of components.
 || *SPV_INTEL_vector_compute*
 |====
+--
+
+Modify Section 3.36.6. Type-Declaration Instructions,  add the end of type instructions list:
+--
+[cols="1,1,1",width="60%"]
+|=====
+2+|*OpTypeBufferSurfaceINTEL* +
+ +
+Delare a buffer surface type. This type is opaque: values of this type have no defined physical size or bit pattern.
+|Capability: +
+*VectorComputeINTEL*
+| 2 | 6086 | 'Result <id>'
+|=====
 --
 
 Issues
@@ -174,4 +195,5 @@ Revision History
 |3|2020-05-06|Mariusz Merecki|Removed *VectorComputeKernelINTEL*, *KernelArgumentTypeINTEL* and *KernelArgumentDescINTEL*. Added *VectorComputeFunctionINTEL*.
 |4|2020-06-03|Mariusz Merecki|Added *VectorAnyINTEL*, *VectorComputeVariableINTEL*, *FuncParamIOKindINTEL* and *GlobalVariableOffsetINTEL*. Added updates for the *Volatile* decoration and *Private* storage class descriptions.
 |5|2020-07-09|Mariusz Merecki|Added *SIMTCallINTEL* decoration.
+|6|2020-08-13|Mariusz Merecki|Added *OpTypeBufferSurfaceINTEL* type and *SingleElementVectorINTEL* decoration.
 |========================================
