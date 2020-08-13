@@ -867,9 +867,8 @@ public:
 
   // Base case, only calls these when filtered.
   template <typename... FilteredHandlers, typename ParentTy>
-  void VisitUnion(FilteredHandlers &... handlers,
-                  const CXXRecordDecl *Owner, ParentTy &Parent,
-                  const CXXRecordDecl *Wrapper) {
+  void VisitUnion(FilteredHandlers &... handlers, const CXXRecordDecl *Owner,
+                  ParentTy &Parent, const CXXRecordDecl *Wrapper) {
     (void)std::initializer_list<int>{
         (handlers.enterUnion(Owner, Parent), 0)...};
     VisitRecordHelper(Wrapper, Wrapper->fields(), handlers...);
@@ -885,7 +884,7 @@ public:
              const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
              Handlers &... handlers) {
     VisitUnion<FilteredHandlers...>(filtered_handlers..., Owner, Parent,
-		                    Wrapper, handlers...);
+                                    Wrapper, handlers...);
   }
 
   template <typename... FilteredHandlers, typename ParentTy,
