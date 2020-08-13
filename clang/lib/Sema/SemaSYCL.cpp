@@ -1283,10 +1283,10 @@ public:
     return isValid();
   }
 
-  /*bool handleSyclAccessorType(const CXXBaseSpecifier &BS, QualType FieldTy) final {
+  /*bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
     if (UnionCount) {
       IsInvalid = true;
-      Diag.Report(BS.getBeginLoc(), diag::err_bad_kernel_param_type);
+      Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type);
           << FieldTy;
     }
     return isValid();

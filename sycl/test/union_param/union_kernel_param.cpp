@@ -14,31 +14,27 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
-#include <stdlib.h>
 #include <iostream>
+#include <stdlib.h>
 
 using namespace cl::sycl;
 
 union TestUnion {
-  public:
+public:
   int myint;
   char mychar;
   double mydouble;
 
-TestUnion() 
-{mydouble = 0.0;} 
-;
+  TestUnion() { mydouble = 0.0; };
 };
 
 int main(int argc, char** argv) {
-TestUnion x;
+  TestUnion x;
 
-auto q = queue(gpu_selector{});
-q.submit([&](handler& cgh) {
-cgh.parallel_for(range<1>(10), [=](id<1> i) 
-{x.mydouble = 5.0;} 
-); // task
-}); // queue
+  auto q = queue(gpu_selector{});
+  q.submit([&](handler &cgh) {
+    cgh.parallel_for(range<1>(10), [=](id<1> i) { x.mydouble = 5.0; });
+  });
 
   if (x.mydouble != 5.0) {
     isError = true;
@@ -46,8 +42,8 @@ cgh.parallel_for(range<1>(10), [=](id<1> i)
       std::cout << " Error !!!"
                 << "\n";
     else
-    std::cout << " Results match !!!"
-              << "\n";
+      std::cout << " Results match !!!"
+                << "\n";
   }
-return 0;
- }
+  return 0;
+}

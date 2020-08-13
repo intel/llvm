@@ -17,7 +17,7 @@ __attribute__((sycl_kernel)) void a_kernel(Func kernelFunc) {
 
 int main() {
   MyUnion accel;
-  
+
   a_kernel<class kernel>(
       [=]() {
         float local = accel.cuda;
