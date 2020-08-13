@@ -1580,7 +1580,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
       // generating the initializers, we have to 'unwrap' the pointer.
       if (MemberExprBases.size() > 2) {
         CXXRecordDecl *WrapperStruct = ParamType->getAsCXXRecordDecl();
-        // Pointer field wrapped inside wrapper_struct
+        // Pointer field wrapped inside __wrapper_class
         FieldDecl *Pointer = *(WrapperStruct->field_begin());
         DRE = BuildMemberExpr(DRE, Pointer);
         ModifiedType = Pointer->getType();
