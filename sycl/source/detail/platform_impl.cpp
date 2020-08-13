@@ -15,30 +15,30 @@
 
 #include <algorithm>
 #include <cstring>
-#include <map>
 #include <regex>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-static std::map<RT::PiDevice, std::shared_ptr<device_impl>> device_impl_map;
-static std::mutex device_impl_map_mutex;
-static device host_device;
+std::map<RT::PiPlatform, std::shared_ptr<platform_impl>> platform_impl_map;
+std::mutex platform_impl_map_mutex;
+device host_device;
+platform host_platform;
 
-static std::shared_ptr<device_impl>
-get_or_make_shared(RT::PiDevice PiDevice,
-                   std::shared_ptr<platform_impl> PlatformImpl) {
-  const std::lock_guard<std::mutex> guard(device_impl_map_mutex);
+static std::shared_ptr<platform_impl>
+get_or_make_shared_platform(RT::PiPlatform PiPlatform, plugin Plugin) {
+  const std::lock_guard<std::mutex> guard(platform_impl_map_mutex);
 
   // If we've already seen this device, return the impl
-  if (auto Impl = device_impl_map[PiDevice]) {
-    return Impl;
+  auto Value = platform_impl_map.find(PiPlatform);
+  if (Value != platform_impl_map.end()) {
+    return Value->second;
   }
 
   // Otherwise make the impl
-  auto Res = std::make_shared<device_impl>(PiDevice, PlatformImpl);
-  device_impl_map[PiDevice] = Res;
+  auto Res = std::make_shared<platform_impl>(PiPlatform, Plugin);
+  platform_impl_map.emplace(PiPlatform,Res);
 
   return Res;
 }
@@ -87,7 +87,7 @@ vector_class<platform> platform_impl::get_platforms() {
 
       for (const auto &PiPlatform : PiPlatforms) {
         platform Platform = detail::createSyclObjFromImpl<platform>(
-            std::make_shared<platform_impl>(PiPlatform, Plugins[i]));
+            get_or_make_shared_platform(PiPlatform, Plugins[i]));
         // Skip platforms which do not contain requested device types
         if (!Platform.get_devices(ForcedType).empty() &&
             !IsBannedPlatform(Platform))
@@ -97,7 +97,7 @@ vector_class<platform> platform_impl::get_platforms() {
   }
 
   // The host platform should always be available.
-  Platforms.emplace_back(platform());
+  Platforms.emplace_back(host_platform);
 
   return Platforms;
 }
@@ -250,6 +250,23 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
   PiDevices.resize(InsertIDx);
 }
 
+std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
+    RT::PiDevice PiDevice, std::shared_ptr<platform_impl> PlatformImpl) {
+  const std::lock_guard<std::mutex> guard(*MDeviceMapMutex);
+
+  // If we've already seen this device, return the impl
+  auto Value = MDeviceMap.find(PiDevice);
+  if (Value != MDeviceMap.end()) {
+    return Value->second;
+  }
+
+  // Otherwise make the impl
+  auto Res = std::make_shared<device_impl>(PiDevice, PlatformImpl);
+  MDeviceMap.emplace(PiDevice, Res);
+
+  return Res;
+}
+
 vector_class<device>
 platform_impl::get_devices(info::device_type DeviceType) const {
   vector_class<device> Res;
@@ -282,12 +299,13 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
     filterAllowList(PiDevices, MPlatform, this->getPlugin());
 
-  auto PlatformImpl = std::make_shared<platform_impl>(*this);
-  std::transform(PiDevices.begin(), PiDevices.end(), std::back_inserter(Res),
-                 [this, PlatformImpl](const RT::PiDevice &PiDevice) -> device {
-                   return detail::createSyclObjFromImpl<device>(
-                       get_or_make_shared(PiDevice, PlatformImpl));
-                 });
+  auto PlatformImpl = get_or_make_shared_platform(MPlatform, *MPlugin);
+  std::transform(
+      PiDevices.begin(), PiDevices.end(), std::back_inserter(Res),
+      [this, PlatformImpl](const RT::PiDevice &PiDevice) -> device {
+        return detail::createSyclObjFromImpl<device>(
+            PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl));
+      });
 
   return Res;
 }

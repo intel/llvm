@@ -19,7 +19,9 @@
 using namespace cl::sycl;
 
 int main() {
+  std::cout << "Creating q1" << std::endl;
   queue q1;
+  std::cout << "Creating q2" << std::endl;
   queue q2;
 
   // Default selector picks the same device every time.

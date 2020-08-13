@@ -14,6 +14,8 @@
 #include <detail/platform_info.hpp>
 #include <detail/plugin.hpp>
 
+#include <map>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
@@ -36,11 +38,13 @@ public:
   /// \param APlatform is a raw plug-in platform handle.
   /// \param APlugin is a plug-in handle.
   explicit platform_impl(RT::PiPlatform APlatform, const plugin &APlugin)
-      : MPlatform(APlatform), MPlugin(std::make_shared<plugin>(APlugin)) {}
+      : MPlatform(APlatform), MPlugin(std::make_shared<plugin>(APlugin)),
+        MDeviceMapMutex(std::make_shared<std::mutex>()) {}
 
   explicit platform_impl(RT::PiPlatform APlatform,
                          std::shared_ptr<plugin> APlugin)
-      : MPlatform(APlatform), MPlugin(APlugin) {}
+      : MPlatform(APlatform), MPlugin(APlugin),
+        MDeviceMapMutex(std::make_shared<std::mutex>()) {}
 
   ~platform_impl() = default;
 
@@ -138,9 +142,25 @@ public:
   bool has(aspect Aspect) const;
 
 private:
+  /// Queries the device_impl cache to either return a shared_ptr
+  /// for the device_impl corresponding to the PiDevice or add
+  /// a new entry to the cache
+  ///
+  /// \param PiDevice is the PiDevice whose impl is requested
+  ///
+  /// \param PlatormImpl is the Platform for that Device
+  ///
+  /// \return a shared_ptr<device_impl> corresponding to the device
+  std::shared_ptr<device_impl>
+  getOrMakeDeviceImpl(RT::PiDevice PiDevice,
+                      std::shared_ptr<platform_impl> PlatformImpl);
+
+private:
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;
   std::shared_ptr<plugin> MPlugin;
+  std::map<RT::PiDevice, std::shared_ptr<device_impl>> MDeviceMap;
+  std::shared_ptr<std::mutex> MDeviceMapMutex;
 };
 } // namespace detail
 } // namespace sycl
