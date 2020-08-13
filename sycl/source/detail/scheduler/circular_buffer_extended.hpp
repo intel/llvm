@@ -20,10 +20,13 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+class MemObjRecord;
+
 class CircularBufferExtended {
 public:
   using GenericCommandsT = CircularBuffer<Command *>;
-  using HostAccessorCommandsT = std::unordered_map<std::deque<Command *>>;
+  using HostAccessorCommandsT =
+      std::unordered_map<MemObjRecord *, std::deque<Command *>>;
   using IfGenericIsFullF = std::function<void(Command *, GenericCommandsT &)>;
 
   template <bool IsConst>

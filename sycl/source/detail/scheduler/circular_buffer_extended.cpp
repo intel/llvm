@@ -38,6 +38,14 @@ void CircularBufferExtended::push_back(value_type Cmd) {
 
 void CircularBufferExtended::addHostAccessorCommand(EmptyCommand *Cmd) {
   // TODO
+  // 1. find list of commands for the same MemObj. => List
+  // 2. find the oldest command with doOverlap() = true amongsth the List
+  //      => OldCmd
+  // 3.1  If OldCmd != null:
+  //          Put a dependency in the same way as we would for generic commands
+  //          when circular buffer is full.
+  // 3.2  If OldCmd == null:
+  //          Put cmd to the List
 }
 
 void CircularBufferExtended::addGenericCommand(Command *Cmd) {
