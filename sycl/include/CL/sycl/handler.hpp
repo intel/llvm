@@ -33,7 +33,8 @@
 #include <memory>
 #include <type_traits>
 
-#if !CL_SYCL_LANGUAGE_VERSION || CL_SYCL_LANGUAGE_VERSION < 2020
+// CL_SYCL_LANGUAGE_VERSION is 4 digit year followed by 2 digit revision
+#if !CL_SYCL_LANGUAGE_VERSION || CL_SYCL_LANGUAGE_VERSION < 202001
 #define __SYCL_NONCONST_FUNCTOR__
 #endif
 
