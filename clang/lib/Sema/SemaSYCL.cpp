@@ -1290,9 +1290,8 @@ public:
   bool handleSyclAccessorType(const CXXBaseSpecifier &BS,
                               QualType FieldTy) final {
     if (UnionCount) {
-       IsInvalid = true;
-       Diag.Report(BS.getBeginLoc(), diag::err_bad_kernel_param_type)
-           << FieldTy;
+      IsInvalid = true;
+      Diag.Report(BS.getBeginLoc(), diag::err_bad_kernel_param_type) << FieldTy;
     }
     return isValid();
   }
@@ -1318,9 +1317,8 @@ public:
   bool handleSyclStreamType(const CXXBaseSpecifier &BS,
                             QualType FieldTy) final {
     if (UnionCount) {
-       IsInvalid = true;
-       Diag.Report(BS.getBeginLoc(), diag::err_bad_kernel_param_type)
-           << FieldTy;
+      IsInvalid = true;
+      Diag.Report(BS.getBeginLoc(), diag::err_bad_kernel_param_type) << FieldTy;
     }
     return isValid();
   }
