@@ -863,8 +863,9 @@ public:
 
   // Base case, only calls these when filtered.
   template <typename... FilteredHandlers, typename ParentTy>
-  void VisitUnion(FilteredHandlers &... handlers, const CXXRecordDecl *Owner,
-                  ParentTy &Parent, const CXXRecordDecl *Wrapper) {
+  std::enable_if_t<(sizeof...(FilteredHandlers) > 0)>
+  VisitUnion(FilteredHandlers &... handlers, const CXXRecordDecl *Owner,
+             ParentTy &Parent, const CXXRecordDecl *Wrapper) {
     (void)std::initializer_list<int>{
         (handlers.enterUnion(Owner, Parent), 0)...};
     VisitRecordHelper(Wrapper, Wrapper->fields(), handlers...);
@@ -877,11 +878,10 @@ public:
   void VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
                   const CXXRecordDecl *Wrapper) {}
 
-  // Add overloads including the base case when
-  // sizeof...(FilteredHandlers) > 0.
   template <typename... FilteredHandlers, typename ParentTy,
             typename CurHandler, typename... Handlers>
-  std::enable_if_t<!CurHandler::VisitUnionBody>
+  std::enable_if_t<!CurHandler::VisitUnionBody &&
+  (sizeof...(FilteredHandlers) > 0)>
   VisitUnion(FilteredHandlers &... filtered_handlers,
              const CXXRecordDecl *Owner, ParentTy &Parent,
              const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
@@ -892,7 +892,8 @@ public:
 
   template <typename... FilteredHandlers, typename ParentTy,
             typename CurHandler, typename... Handlers>
-  std::enable_if_t<CurHandler::VisitUnionBody>
+  std::enable_if_t<CurHandler::VisitUnionBody &&
+  (sizeof...(FilteredHandlers) > 0)>
   VisitUnion(FilteredHandlers &... filtered_handlers,
              const CXXRecordDecl *Owner, ParentTy &Parent,
              const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
