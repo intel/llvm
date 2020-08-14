@@ -54,7 +54,32 @@ func @f() -> !shape.shape {
   // CHECK: shape.const_shape [7, 2] : !shape.shape
   %0 = shape.const_shape [1, 2] : !shape.shape
   %1 = shape.const_shape [7, 1] : !shape.shape
+  %2 = shape.broadcast %0, %1 : !shape.shape, !shape.shape -> !shape.shape
+  return %2 : !shape.shape
+}
+
+// -----
+
+// Basic case including extent tensors.
+// CHECK-LABEL: @broadcast
+func @broadcast() -> tensor<?xindex> {
+  // CHECK: shape.const_shape [7, 2] : tensor<?xindex>
+  %0 = shape.const_shape [1, 2] : tensor<?xindex>
+  %1 = shape.const_shape [7, 1] : tensor<?xindex>
   %2 = shape.broadcast %0, %1
+      : tensor<?xindex>, tensor<?xindex> -> tensor<?xindex>
+  return %2 : tensor<?xindex>
+}
+
+// -----
+
+// Basic case including extent tensors.
+// CHECK-LABEL: @broadcast
+func @broadcast() -> !shape.shape {
+  // CHECK: shape.const_shape [7, 2] : !shape.shape
+  %0 = shape.const_shape [1, 2] : tensor<?xindex>
+  %1 = shape.const_shape [7, 1] : tensor<?xindex>
+  %2 = shape.broadcast %0, %1 : tensor<?xindex>, tensor<?xindex> -> !shape.shape
   return %2 : !shape.shape
 }
 
@@ -65,7 +90,7 @@ func @f() -> !shape.shape {
 func @f(%arg0 : !shape.shape) -> !shape.shape {
   // CHECK: return %arg0
   %0 = shape.const_shape [] : !shape.shape
-  %1 = shape.broadcast %arg0, %0
+  %1 = shape.broadcast %arg0, %0 : !shape.shape, !shape.shape -> !shape.shape
   return %1 : !shape.shape
 }
 
@@ -76,7 +101,7 @@ func @f(%arg0 : !shape.shape) -> !shape.shape {
 func @f(%arg0 : !shape.shape) -> !shape.shape {
   // CHECK: return %arg0
   %0 = shape.const_shape [] : !shape.shape
-  %1 = shape.broadcast %0, %arg0
+  %1 = shape.broadcast %0, %arg0 : !shape.shape, !shape.shape -> !shape.shape
   return %1 : !shape.shape
 }
 
@@ -89,7 +114,7 @@ func @f() -> !shape.shape {
   // CHECK: return %[[CST]]
   %0 = shape.const_shape [] : !shape.shape
   %1 = shape.const_shape [1, 2, 3] : !shape.shape
-  %2 = shape.broadcast %0, %1
+  %2 = shape.broadcast %0, %1 : !shape.shape, !shape.shape -> !shape.shape
   return %2 : !shape.shape
 }
 
@@ -101,7 +126,7 @@ func @f() -> !shape.shape {
   // CHECK: shape.broadcast
   %0 = shape.const_shape [2] : !shape.shape
   %1 = shape.const_shape [7] : !shape.shape
-  %2 = shape.broadcast %0, %1
+  %2 = shape.broadcast %0, %1 : !shape.shape, !shape.shape -> !shape.shape
   return %2 : !shape.shape
 }
 
@@ -124,7 +149,7 @@ func @f() -> !shape.shape {
 func @f() -> tensor<2xindex> {
   // CHECK: constant dense<[0, 1]> : tensor<2xindex>
   %cs = shape.const_shape [0, 1] : !shape.shape
-  %0 = shape.to_extent_tensor %cs : tensor<2xindex>
+  %0 = shape.to_extent_tensor %cs : !shape.shape -> tensor<2xindex>
   return %0 : tensor<2xindex>
 }
 
@@ -159,7 +184,7 @@ func @const_size_to_index() -> index {
   // CHECK-NOT: shape.index_cast
   %cs = shape.const_size 123
   // CHECK: constant 123 : index
-  %ci = shape.size_to_index %cs
+  %ci = shape.size_to_index %cs : !shape.size
   return %ci : index
 }
 
@@ -185,7 +210,7 @@ func @const_index_to_size_to_index() -> index {
   %cs0 = shape.index_to_size %ci0
   // CHECK: %[[CI:.*]] = constant 123 : index
   // CHECK-NEXT: return %[[CI]] : index
-  %ci1 = shape.size_to_index %cs0
+  %ci1 = shape.size_to_index %cs0 : !shape.size
   return %ci1 : index
 }
 
@@ -195,7 +220,7 @@ func @const_index_to_size_to_index() -> index {
 // CHECK-LABEL: func @nonfoldable_size_to_index
 func @nonfoldable_size_to_index(%cs : !shape.size) -> index {
   // CHECK: shape.size_to_index
-  %ci = shape.size_to_index %cs
+  %ci = shape.size_to_index %cs : !shape.size
   return %ci : index
 }
 
@@ -217,7 +242,7 @@ func @num_elements() -> !shape.size {
   // CHECK-NOT: shape.const_shape
   %shape = shape.const_shape [4, 5, 6] : !shape.shape
   // CHECK-NOT: shape.num_elements
-  %num_elements = shape.num_elements %shape
+  %num_elements = shape.num_elements %shape : !shape.shape -> !shape.size
   // CHECK: %[[NUM:.*]] = shape.const_size 120
   // CHECK-NEXT: return %[[NUM]] : !shape.size
   return %num_elements : !shape.size
@@ -229,7 +254,7 @@ func @num_elements() -> !shape.size {
 // CHECK-LABEL: func @nonfoldable_num_elements
 func @nonfoldable_num_elements(%shape : !shape.shape) -> !shape.size {
   // CHECK-NOT: shape.const_{{.*}}
-  %num_elements = shape.num_elements %shape
+  %num_elements = shape.num_elements %shape : !shape.shape -> !shape.size
   return %num_elements : !shape.size
 }
 
@@ -403,7 +428,7 @@ func @f(%arg : !shape.shape) -> !shape.shape {
   // CHECK-NEXT: %[[CS:.*]] = shape.const_shape
   // CHECK-NEXT: return %[[CS]]
   %0 = shape.const_shape [2, 3, 4] : !shape.shape
-  %1 = shape.any %0, %arg : !shape.shape
+  %1 = "shape.any"(%0, %arg) : (!shape.shape, !shape.shape) -> !shape.shape
   return %1 : !shape.shape
 }
 
@@ -415,7 +440,7 @@ func @f(%arg : tensor<?xindex>) -> tensor<?xindex> {
   // CHECK-NEXT: %[[CS:.*]] = shape.const_shape [2, 3, 4] : tensor<?xindex>
   // CHECK-NEXT: return %[[CS]] : tensor<?xindex>
   %0 = shape.const_shape [2, 3, 4] : tensor<?xindex>
-  %1 = shape.any %0, %arg : tensor<?xindex>
+  %1 = "shape.any"(%0, %arg) : (tensor<?xindex>, tensor<?xindex>) -> tensor<?xindex>
   return %1 : tensor<?xindex>
 }
 
@@ -424,9 +449,9 @@ func @f(%arg : tensor<?xindex>) -> tensor<?xindex> {
 // Folding of any with partially constant operands is not yet implemented.
 // CHECK-LABEL: func @f
 func @f(%arg0 : !shape.shape, %arg1 : !shape.shape) -> !shape.shape {
-  // CHECK-NEXT: %[[CS:.*]] = shape.any
+  // CHECK-NEXT: %[[CS:.*]] = "shape.any"
   // CHECK-NEXT: return %[[CS]]
-  %1 = shape.any %arg0, %arg1 : !shape.shape
+  %1 = "shape.any"(%arg0, %arg1) : (!shape.shape, !shape.shape) -> !shape.shape
   return %1 : !shape.shape
 }
 
@@ -619,7 +644,7 @@ func @dont_canonicalize_rank(%arg : tensor<*xf32>) -> index {
 func @index_to_size_to_index(%index : index) -> index {
   // CHECK: return %[[IDX]] : index
   %size = shape.index_to_size %index
-  %result = shape.size_to_index %size
+  %result = shape.size_to_index %size : !shape.size
   return %result : index
 }
 
@@ -630,7 +655,7 @@ func @index_to_size_to_index(%index : index) -> index {
 // CHECK-SAME: (%[[SIZE:.*]]: !shape.size) -> !shape.size
 func @size_to_index_to_size(%size : !shape.size) -> !shape.size {
   // CHECK: return %[[SIZE]] : !shape.size
-  %idx = shape.size_to_index %size
+  %idx = shape.size_to_index %size : !shape.size
   %result = shape.index_to_size %idx
   return %result : !shape.size
 }
@@ -733,4 +758,63 @@ func @shape_eq_do_not_fold(%a : !shape.shape) -> i1 {
   %b = shape.const_shape [4, 5, 6] : !shape.shape
   %result = shape.shape_eq %a, %b : !shape.shape, !shape.shape
   return %result : i1
+}
+
+// -----
+
+// Fold `mul` for constant sizes.
+// CHECK-LABEL: @fold_mul_size
+func @fold_mul_size() -> !shape.size {
+  // CHECK: %[[RESULT:.*]] = shape.const_size 6
+  // CHECK: return %[[RESULT]] : !shape.size
+  %c2 = shape.const_size 2
+  %c3 = shape.const_size 3
+  %result = shape.mul %c2, %c3 : !shape.size, !shape.size -> !shape.size
+  return %result : !shape.size
+}
+
+// -----
+
+// Fold `mul` for constant indices.
+// CHECK-LABEL: @fold_mul_index
+func @fold_mul_index() -> index {
+  // CHECK: %[[RESULT:.*]] = constant 6 : index
+  // CHECK: return %[[RESULT]] : index
+  %c2 = constant 2 : index
+  %c3 = constant 3 : index
+  %result = shape.mul %c2, %c3 : index, index -> index
+  return %result : index
+}
+
+// -----
+
+// Fold `mul` for mixed constants.
+// CHECK-LABEL: @fold_mul_mixed
+func @fold_mul_mixed() -> !shape.size {
+  // CHECK: %[[RESULT:.*]] = shape.const_size 6
+  // CHECK: return %[[RESULT]] : !shape.size
+  %c2 = shape.const_size 2
+  %c3 = constant 3 : index
+  %result = shape.mul %c2, %c3 : !shape.size, index -> !shape.size
+  return %result : !shape.size
+}
+
+// -----
+
+// Fold index_cast when already on index.
+// CHECK-LABEL: @fold_index_cast_on_index
+func @fold_index_cast_on_index(%arg: index) -> index {
+  // CHECK-NOT: size_to_index
+  %casted = shape.size_to_index %arg : index
+  return %casted : index
+}
+
+// -----
+
+// Fold to_extent_tensor when already on tensor.
+// CHECK-LABEL: @fold_to_extent_tensor_on_tensor
+func @fold_to_extent_tensor_on_tensor(%arg: tensor<?xindex>) -> tensor<?xindex> {
+  // CHECK-NOT: to_extent_tensor
+  %casted = shape.to_extent_tensor %arg : tensor<?xindex> -> tensor<?xindex>
+  return %casted : tensor<?xindex>
 }

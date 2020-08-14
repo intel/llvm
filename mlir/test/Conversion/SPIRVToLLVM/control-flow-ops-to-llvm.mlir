@@ -66,17 +66,54 @@ spv.module Logical GLSL450 {
   ^inner_false(%arg3: i32, %arg4: i32):
     spv.Return
   }
+
+  spv.func @cond_branch_with_weights(%cond: i1) -> () "None" {
+    // CHECK: llvm.cond_br %{{.*}} weights(dense<[1, 2]> : vector<2xi32>), ^bb1, ^bb2
+    spv.BranchConditional %cond [1, 2], ^true, ^false
+  // CHECK: ^bb1:
+  ^true:
+    spv.Return
+  // CHECK: ^bb2:
+  ^false:
+    spv.Return
+  }
 }
 
 // -----
 
+//===----------------------------------------------------------------------===//
+// spv.loop
+//===----------------------------------------------------------------------===//
+
 spv.module Logical GLSL450 {
-  spv.func @cond_branch_with_weights(%cond: i1) -> () "None" {
-    // expected-error@+1 {{failed to legalize operation 'spv.BranchConditional' that was explicitly marked illegal}}
-    spv.BranchConditional %cond [1, 2], ^true, ^false
-  ^true:
-    spv.Return
-  ^false:
+  // CHECK-LABEL: @infinite_loop
+  spv.func @infinite_loop(%count : i32) -> () "None" {
+    // CHECK:   llvm.br ^[[BB1:.*]]
+    // CHECK: ^[[BB1]]:
+    // CHECK:   %[[COND:.*]] = llvm.mlir.constant(true) : !llvm.i1
+    // CHECK:   llvm.cond_br %[[COND]], ^[[BB2:.*]], ^[[BB4:.*]]
+    // CHECK: ^[[BB2]]:
+    // CHECK:   llvm.br ^[[BB3:.*]]
+    // CHECK: ^[[BB3]]:
+    // CHECK:   llvm.br ^[[BB1:.*]]
+    // CHECK: ^[[BB4]]:
+    // CHECK:   llvm.br ^[[BB5:.*]]
+    // CHECK: ^[[BB5]]:
+    // CHECK:   llvm.return
+    spv.loop {
+      spv.Branch ^header
+    ^header:
+      %cond = spv.constant true
+      spv.BranchConditional %cond, ^body, ^merge
+    ^body:
+      // Do nothing
+      spv.Branch ^continue
+    ^continue:
+      // Do nothing
+      spv.Branch ^header
+    ^merge:
+      spv._merge
+    }
     spv.Return
   }
 }

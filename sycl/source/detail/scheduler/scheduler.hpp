@@ -166,6 +166,9 @@
 /// clReleaseContext(ContextCPU);
 /// \endcode
 
+// For testing purposes
+class MockScheduler;
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -576,6 +579,8 @@ protected:
     friend class Command;
 
   private:
+    friend class ::MockScheduler;
+
     /// Searches for suitable alloca in memory record.
     ///
     /// If none found, creates new one.

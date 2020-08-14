@@ -29,6 +29,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
+#include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/StackProtector.h"
@@ -222,8 +223,9 @@ ArrayRef<Register> IRTranslator::getOrCreateVRegs(const Value &Val) {
 }
 
 int IRTranslator::getOrCreateFrameIndex(const AllocaInst &AI) {
-  if (FrameIndices.find(&AI) != FrameIndices.end())
-    return FrameIndices[&AI];
+  auto MapEntry = FrameIndices.find(&AI);
+  if (MapEntry != FrameIndices.end())
+    return MapEntry->second;
 
   uint64_t ElementSize = DL->getTypeAllocSize(AI.getAllocatedType());
   uint64_t Size =
@@ -291,24 +293,6 @@ bool IRTranslator::translateBinaryOp(unsigned Opcode, const User &U,
 
   MIRBuilder.buildInstr(Opcode, {Res}, {Op0, Op1}, Flags);
   return true;
-}
-
-bool IRTranslator::translateFSub(const User &U, MachineIRBuilder &MIRBuilder) {
-  // -0.0 - X --> G_FNEG
-  if (isa<Constant>(U.getOperand(0)) &&
-      U.getOperand(0) == ConstantFP::getZeroValueForNegation(U.getType())) {
-    Register Op1 = getOrCreateVReg(*U.getOperand(1));
-    Register Res = getOrCreateVReg(U);
-    uint16_t Flags = 0;
-    if (isa<Instruction>(U)) {
-      const Instruction &I = cast<Instruction>(U);
-      Flags = MachineInstr::copyFlagsFromInstruction(I);
-    }
-    // Negate the last operand of the FSUB
-    MIRBuilder.buildFNeg(Res, Op1, Flags);
-    return true;
-  }
-  return translateBinaryOp(TargetOpcode::G_FSUB, U, MIRBuilder);
 }
 
 bool IRTranslator::translateFNeg(const User &U, MachineIRBuilder &MIRBuilder) {
@@ -1214,6 +1198,16 @@ bool IRTranslator::translateOverflowIntrinsic(const CallInst &CI, unsigned Op,
   return true;
 }
 
+bool IRTranslator::translateFixedPointIntrinsic(unsigned Op, const CallInst &CI,
+                                                MachineIRBuilder &MIRBuilder) {
+  Register Dst = getOrCreateVReg(CI);
+  Register Src0 = getOrCreateVReg(*CI.getOperand(0));
+  Register Src1 = getOrCreateVReg(*CI.getOperand(1));
+  uint64_t Scale = cast<ConstantInt>(CI.getOperand(2))->getZExtValue();
+  MIRBuilder.buildInstr(Op, {Dst}, { Src0, Src1, Scale });
+  return true;
+}
+
 unsigned IRTranslator::getSimpleIntrinsicOpcode(Intrinsic::ID ID) {
   switch (ID) {
     default:
@@ -1270,6 +1264,8 @@ unsigned IRTranslator::getSimpleIntrinsicOpcode(Intrinsic::ID ID) {
       return TargetOpcode::G_FRINT;
     case Intrinsic::round:
       return TargetOpcode::G_INTRINSIC_ROUND;
+    case Intrinsic::roundeven:
+      return TargetOpcode::G_INTRINSIC_ROUNDEVEN;
     case Intrinsic::sin:
       return TargetOpcode::G_FSIN;
     case Intrinsic::sqrt:
@@ -1280,6 +1276,8 @@ unsigned IRTranslator::getSimpleIntrinsicOpcode(Intrinsic::ID ID) {
       return TargetOpcode::G_READCYCLECOUNTER;
     case Intrinsic::ptrmask:
       return TargetOpcode::G_PTRMASK;
+    case Intrinsic::lrint:
+      return TargetOpcode::G_INTRINSIC_LRINT;
   }
   return Intrinsic::not_intrinsic;
 }
@@ -1372,7 +1370,7 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
     // Get the underlying objects for the location passed on the lifetime
     // marker.
     SmallVector<const Value *, 4> Allocas;
-    GetUnderlyingObjects(CI.getArgOperand(1), Allocas, *DL);
+    getUnderlyingObjects(CI.getArgOperand(1), Allocas);
 
     // Iterate over each underlying object, creating lifetime markers for each
     // static alloca. Quit if we find a non-static alloca.
@@ -1494,6 +1492,22 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
     return translateBinaryOp(TargetOpcode::G_SMIN, CI, MIRBuilder);
   case Intrinsic::smax:
     return translateBinaryOp(TargetOpcode::G_SMAX, CI, MIRBuilder);
+  case Intrinsic::smul_fix:
+    return translateFixedPointIntrinsic(TargetOpcode::G_SMULFIX, CI, MIRBuilder);
+  case Intrinsic::umul_fix:
+    return translateFixedPointIntrinsic(TargetOpcode::G_UMULFIX, CI, MIRBuilder);
+  case Intrinsic::smul_fix_sat:
+    return translateFixedPointIntrinsic(TargetOpcode::G_SMULFIXSAT, CI, MIRBuilder);
+  case Intrinsic::umul_fix_sat:
+    return translateFixedPointIntrinsic(TargetOpcode::G_UMULFIXSAT, CI, MIRBuilder);
+  case Intrinsic::sdiv_fix:
+    return translateFixedPointIntrinsic(TargetOpcode::G_SDIVFIX, CI, MIRBuilder);
+  case Intrinsic::udiv_fix:
+    return translateFixedPointIntrinsic(TargetOpcode::G_UDIVFIX, CI, MIRBuilder);
+  case Intrinsic::sdiv_fix_sat:
+    return translateFixedPointIntrinsic(TargetOpcode::G_SDIVFIXSAT, CI, MIRBuilder);
+  case Intrinsic::udiv_fix_sat:
+    return translateFixedPointIntrinsic(TargetOpcode::G_UDIVFIXSAT, CI, MIRBuilder);
   case Intrinsic::fmuladd: {
     const TargetMachine &TM = MF->getTarget();
     const TargetLowering &TLI = *MF->getSubtarget().getTargetLowering();
@@ -1517,6 +1531,18 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
     }
     return true;
   }
+  case Intrinsic::convert_from_fp16:
+    // FIXME: This intrinsic should probably be removed from the IR.
+    MIRBuilder.buildFPExt(getOrCreateVReg(CI),
+                          getOrCreateVReg(*CI.getArgOperand(0)),
+                          MachineInstr::copyFlagsFromInstruction(CI));
+    return true;
+  case Intrinsic::convert_to_fp16:
+    // FIXME: This intrinsic should probably be removed from the IR.
+    MIRBuilder.buildFPTrunc(getOrCreateVReg(CI),
+                            getOrCreateVReg(*CI.getArgOperand(0)),
+                            MachineInstr::copyFlagsFromInstruction(CI));
+    return true;
   case Intrinsic::memcpy:
   case Intrinsic::memmove:
   case Intrinsic::memset:
@@ -1603,6 +1629,16 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
   }
   case Intrinsic::invariant_end:
     return true;
+  case Intrinsic::expect:
+  case Intrinsic::annotation:
+  case Intrinsic::ptr_annotation:
+  case Intrinsic::launder_invariant_group:
+  case Intrinsic::strip_invariant_group: {
+    // Drop the intrinsic, but forward the value.
+    MIRBuilder.buildCopy(getOrCreateVReg(CI),
+                         getOrCreateVReg(*CI.getArgOperand(0)));
+    return true;
+  }
   case Intrinsic::assume:
   case Intrinsic::var_annotation:
   case Intrinsic::sideeffect:
@@ -1621,6 +1657,33 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
     MIRBuilder.buildInstr(TargetOpcode::G_WRITE_REGISTER)
       .addMetadata(cast<MDNode>(cast<MetadataAsValue>(Arg)->getMetadata()))
       .addUse(getOrCreateVReg(*CI.getArgOperand(1)));
+    return true;
+  }
+  case Intrinsic::localescape: {
+    MachineBasicBlock &EntryMBB = MF->front();
+    StringRef EscapedName = GlobalValue::dropLLVMManglingEscape(MF->getName());
+
+    // Directly emit some LOCAL_ESCAPE machine instrs. Label assignment emission
+    // is the same on all targets.
+    for (unsigned Idx = 0, E = CI.getNumArgOperands(); Idx < E; ++Idx) {
+      Value *Arg = CI.getArgOperand(Idx)->stripPointerCasts();
+      if (isa<ConstantPointerNull>(Arg))
+        continue; // Skip null pointers. They represent a hole in index space.
+
+      int FI = getOrCreateFrameIndex(*cast<AllocaInst>(Arg));
+      MCSymbol *FrameAllocSym =
+          MF->getMMI().getContext().getOrCreateFrameAllocSymbol(EscapedName,
+                                                                Idx);
+
+      // This should be inserted at the start of the entry block.
+      auto LocalEscape =
+          MIRBuilder.buildInstrNoInsert(TargetOpcode::LOCAL_ESCAPE)
+              .addSym(FrameAllocSym)
+              .addFrameIndex(FI);
+
+      EntryMBB.insert(EntryMBB.begin(), LocalEscape);
+    }
+
     return true;
   }
 #define INSTRUCTION(NAME, NARG, ROUND_MODE, INTRINSIC)  \
@@ -1732,10 +1795,6 @@ bool IRTranslator::translateCall(const User &U, MachineIRBuilder &MIRBuilder) {
     MIB->copyIRFlags(CI);
 
   for (auto &Arg : enumerate(CI.arg_operands())) {
-    // Some intrinsics take metadata parameters. Reject them.
-    if (isa<MetadataAsValue>(Arg.value()))
-      return false;
-
     // If this is required to be an immediate, don't materialize it in a
     // register.
     if (CI.paramHasAttr(Arg.index(), Attribute::ImmArg)) {
@@ -1748,6 +1807,11 @@ bool IRTranslator::translateCall(const User &U, MachineIRBuilder &MIRBuilder) {
       } else {
         MIB.addFPImm(cast<ConstantFP>(Arg.value()));
       }
+    } else if (auto MD = dyn_cast<MetadataAsValue>(Arg.value())) {
+      auto *MDN = dyn_cast<MDNode>(MD->getMetadata());
+      if (!MDN) // This was probably an MDString.
+        return false;
+      MIB.addMetadata(MDN);
     } else {
       ArrayRef<Register> VRegs = getOrCreateVRegs(*Arg.value());
       if (VRegs.size() > 1)

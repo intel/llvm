@@ -16597,6 +16597,58 @@ static inline __ATTRS_o_ai void vec_xst(vector unsigned __int128 __vec,
 }
 #endif
 
+/* vec_xst_trunc */
+
+#if defined(__POWER10_VECTOR__) && defined(__VSX__)
+static inline __ATTRS_o_ai void vec_xst_trunc(vector signed __int128 __vec,
+                                              signed long long __offset,
+                                              signed char *__ptr) {
+  *(__ptr + __offset) = (signed char)__vec[0];
+}
+
+static inline __ATTRS_o_ai void vec_xst_trunc(vector unsigned __int128 __vec,
+                                              signed long long __offset,
+                                              unsigned char *__ptr) {
+  *(__ptr + __offset) = (unsigned char)__vec[0];
+}
+
+static inline __ATTRS_o_ai void vec_xst_trunc(vector signed __int128 __vec,
+                                              signed long long __offset,
+                                              signed short *__ptr) {
+  *(__ptr + __offset) = (signed short)__vec[0];
+}
+
+static inline __ATTRS_o_ai void vec_xst_trunc(vector unsigned __int128 __vec,
+                                              signed long long __offset,
+                                              unsigned short *__ptr) {
+  *(__ptr + __offset) = (unsigned short)__vec[0];
+}
+
+static inline __ATTRS_o_ai void vec_xst_trunc(vector signed __int128 __vec,
+                                              signed long long __offset,
+                                              signed int *__ptr) {
+  *(__ptr + __offset) = (signed int)__vec[0];
+}
+
+static inline __ATTRS_o_ai void vec_xst_trunc(vector unsigned __int128 __vec,
+                                              signed long long __offset,
+                                              unsigned int *__ptr) {
+  *(__ptr + __offset) = (unsigned int)__vec[0];
+}
+
+static inline __ATTRS_o_ai void vec_xst_trunc(vector signed __int128 __vec,
+                                              signed long long __offset,
+                                              signed long long *__ptr) {
+  *(__ptr + __offset) = (signed long long)__vec[0];
+}
+
+static inline __ATTRS_o_ai void vec_xst_trunc(vector unsigned __int128 __vec,
+                                              signed long long __offset,
+                                              unsigned long long *__ptr) {
+  *(__ptr + __offset) = (unsigned long long)__vec[0];
+}
+#endif
+
 /* vec_xst_be */
 
 #ifdef __LITTLE_ENDIAN__
@@ -16879,6 +16931,28 @@ vec_cntlzm(vector unsigned long long __a, vector unsigned long long __b) {
 static __inline__ vector unsigned long long __ATTRS_o_ai
 vec_cnttzm(vector unsigned long long __a, vector unsigned long long __b) {
   return __builtin_altivec_vctzdm(__a, __b);
+}
+
+/* vec_mod */
+
+static __inline__ vector signed int __ATTRS_o_ai
+vec_mod(vector signed int __a, vector signed int __b) {
+  return __a % __b;
+}
+
+static __inline__ vector unsigned int __ATTRS_o_ai
+vec_mod(vector unsigned int __a, vector unsigned int __b) {
+  return __a % __b;
+}
+
+static __inline__ vector signed long long __ATTRS_o_ai
+vec_mod(vector signed long long __a, vector signed long long __b) {
+  return __a % __b;
+}
+
+static __inline__ vector unsigned long long __ATTRS_o_ai
+vec_mod(vector unsigned long long __a, vector unsigned long long __b) {
+  return __a % __b;
 }
 
 /* vec_sldbi */

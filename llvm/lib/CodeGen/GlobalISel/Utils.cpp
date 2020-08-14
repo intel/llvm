@@ -180,6 +180,14 @@ bool llvm::canReplaceReg(Register DstReg, Register SrcReg,
 
 bool llvm::isTriviallyDead(const MachineInstr &MI,
                            const MachineRegisterInfo &MRI) {
+  // FIXME: This logical is mostly duplicated with
+  // DeadMachineInstructionElim::isDead. Why is LOCAL_ESCAPE not considered in
+  // MachineInstr::isLabel?
+
+  // Don't delete frame allocation labels.
+  if (MI.getOpcode() == TargetOpcode::LOCAL_ESCAPE)
+    return false;
+
   // If we can move an instruction, we can remove it.  Otherwise, it has
   // a side-effect of some sort.
   bool SawStore = false;
@@ -489,6 +497,40 @@ Align llvm::inferAlignFromPtrInfo(MachineFunction &MF,
   return Align(1);
 }
 
+Register llvm::getFunctionLiveInPhysReg(MachineFunction &MF,
+                                        const TargetInstrInfo &TII,
+                                        MCRegister PhysReg,
+                                        const TargetRegisterClass &RC,
+                                        LLT RegTy) {
+  DebugLoc DL; // FIXME: Is no location the right choice?
+  MachineBasicBlock &EntryMBB = MF.front();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  Register LiveIn = MRI.getLiveInVirtReg(PhysReg);
+  if (LiveIn) {
+    MachineInstr *Def = MRI.getVRegDef(LiveIn);
+    if (Def) {
+      // FIXME: Should the verifier check this is in the entry block?
+      assert(Def->getParent() == &EntryMBB && "live-in copy not in entry block");
+      return LiveIn;
+    }
+
+    // It's possible the incoming argument register and copy was added during
+    // lowering, but later deleted due to being/becoming dead. If this happens,
+    // re-insert the copy.
+  } else {
+    // The live in register was not present, so add it.
+    LiveIn = MF.addLiveIn(PhysReg, &RC);
+    if (RegTy.isValid())
+      MRI.setType(LiveIn, RegTy);
+  }
+
+  BuildMI(EntryMBB, EntryMBB.begin(), DL, TII.get(TargetOpcode::COPY), LiveIn)
+    .addReg(PhysReg);
+  if (!EntryMBB.isLiveIn(PhysReg))
+    EntryMBB.addLiveIn(PhysReg);
+  return LiveIn;
+}
+
 Optional<APInt> llvm::ConstantFoldExtOp(unsigned Opcode, const Register Op1,
                                         uint64_t Imm,
                                         const MachineRegisterInfo &MRI) {
@@ -603,4 +645,25 @@ LLT llvm::getGCDType(LLT OrigTy, LLT TargetTy) {
 
   unsigned GCD = greatestCommonDivisor(OrigSize, TargetSize);
   return LLT::scalar(GCD);
+}
+
+Optional<int> llvm::getSplatIndex(MachineInstr &MI) {
+  assert(MI.getOpcode() == TargetOpcode::G_SHUFFLE_VECTOR &&
+         "Only G_SHUFFLE_VECTOR can have a splat index!");
+  ArrayRef<int> Mask = MI.getOperand(3).getShuffleMask();
+  auto FirstDefinedIdx = find_if(Mask, [](int Elt) { return Elt >= 0; });
+
+  // If all elements are undefined, this shuffle can be considered a splat.
+  // Return 0 for better potential for callers to simplify.
+  if (FirstDefinedIdx == Mask.end())
+    return 0;
+
+  // Make sure all remaining elements are either undef or the same
+  // as the first non-undef value.
+  int SplatValue = *FirstDefinedIdx;
+  if (any_of(make_range(std::next(FirstDefinedIdx), Mask.end()),
+             [&SplatValue](int Elt) { return Elt >= 0 && Elt != SplatValue; }))
+    return None;
+
+  return SplatValue;
 }

@@ -43,6 +43,7 @@
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/MapVector.h"
@@ -1004,6 +1005,9 @@ public:
   // Implicitly-declared type 'struct _GUID'.
   mutable TagDecl *MSGuidTagDecl = nullptr;
 
+  /// Keep track of CUDA/HIP static device variables referenced by host code.
+  llvm::DenseSet<const VarDecl *> CUDAStaticDeviceVarReferencedByHost;
+
   ASTContext(LangOptions &LOpts, SourceManager &SM, IdentifierTable &idents,
              SelectorTable &sels, Builtin::Context &builtins);
   ASTContext(const ASTContext &) = delete;
@@ -1464,8 +1468,16 @@ public:
   void getInjectedTemplateArgs(const TemplateParameterList *Params,
                                SmallVectorImpl<TemplateArgument> &Args);
 
+  /// Form a pack expansion type with the given pattern.
+  /// \param NumExpansions The number of expansions for the pack, if known.
+  /// \param ExpectPackInType If \c false, we should not expect \p Pattern to
+  ///        contain an unexpanded pack. This only makes sense if the pack
+  ///        expansion is used in a context where the arity is inferred from
+  ///        elsewhere, such as if the pattern contains a placeholder type or
+  ///        if this is the canonical type of another pack expansion type.
   QualType getPackExpansionType(QualType Pattern,
-                                Optional<unsigned> NumExpansions);
+                                Optional<unsigned> NumExpansions,
+                                bool ExpectPackInType = true);
 
   QualType getObjCInterfaceType(const ObjCInterfaceDecl *Decl,
                                 ObjCInterfaceDecl *PrevDecl = nullptr) const;
@@ -3026,6 +3038,9 @@ public:
 
   /// Return a new OMPTraitInfo object owned by this context.
   OMPTraitInfo &getNewOMPTraitInfo();
+
+  /// Whether a C++ static variable should be externalized.
+  bool shouldExternalizeStaticVar(const Decl *D) const;
 
 private:
   /// All OMPTraitInfo objects live in this collection, one per

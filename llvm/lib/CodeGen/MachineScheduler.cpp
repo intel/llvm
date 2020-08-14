@@ -1298,7 +1298,7 @@ void ScheduleDAGMILive::computeDFSResult() {
 /// The cyclic path estimation identifies a def-use pair that crosses the back
 /// edge and considers the depth and height of the nodes. For example, consider
 /// the following instruction sequence where each instruction has unit latency
-/// and defines an epomymous virtual register:
+/// and defines an eponymous virtual register:
 ///
 /// a->b(a,c)->c(b)->d(c)->exit
 ///
@@ -1653,7 +1653,13 @@ void BaseMemOpClusterMutation::apply(ScheduleDAGInstrs *DAG) {
 
     unsigned ChainPredID = DAG->SUnits.size();
     for (const SDep &Pred : SU.Preds) {
-      if (Pred.isCtrl() && !Pred.isArtificial()) {
+      // We only want to cluster the mem ops that have the same ctrl(non-data)
+      // pred so that they didn't have ctrl dependency for each other. But for
+      // store instrs, we can still cluster them if the pred is load instr.
+      if ((Pred.isCtrl() &&
+           (IsLoad ||
+            (Pred.getSUnit() && Pred.getSUnit()->getInstr()->mayStore()))) &&
+          !Pred.isArtificial()) {
         ChainPredID = Pred.getSUnit()->NodeNum;
         break;
       }

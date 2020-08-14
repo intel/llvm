@@ -53,7 +53,6 @@ set(LLVM_TEST_DEPENDS
           bugpoint
           count
           file-table-tform
-          extract
           llc
           lli
           lli-child-target
@@ -124,6 +123,7 @@ set(LLVM_TEST_DEPENDS
           sancov
           sanstats
           sycl-post-link
+          split-file
           verify-uselistorder
           yaml-bench
           yaml2obj

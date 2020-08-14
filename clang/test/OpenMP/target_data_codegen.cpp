@@ -256,10 +256,16 @@ ST<int> gb;
 double gc[100];
 
 // PRESENT=0x1000 | TARGET_PARAM=0x20 | TO=0x1 = 0x1021
-// CK1A: [[MTYPE00:@.+]] = {{.+}}constant [1 x i64] [i64 [[#0x1021]]]
+// CK1A: [[MTYPE00Begin:@.+]] = {{.+}}constant [1 x i64] [i64 [[#0x1021]]]
+
+// TARGET_PARAM=0x20 | TO=0x1 = 0x21
+// CK1A: [[MTYPE00End:@.+]] = {{.+}}constant [1 x i64] [i64 [[#0x21]]]
 
 // PRESENT=0x1000 | CLOSE=0x400 | TARGET_PARAM=0x20 | ALWAYS=0x4 | TO=0x1 = 0x1425
-// CK1A: [[MTYPE01:@.+]] = {{.+}}constant [1 x i64] [i64 [[#0x1425]]]
+// CK1A: [[MTYPE01Begin:@.+]] = {{.+}}constant [1 x i64] [i64 [[#0x1425]]]
+
+// CLOSE=0x400 | TARGET_PARAM=0x20 | ALWAYS=0x4 | TO=0x1 = 0x425
+// CK1A: [[MTYPE01End:@.+]] = {{.+}}constant [1 x i64] [i64 [[#0x425]]]
 
 // CK1A-LABEL: _Z3fooi
 void foo(int arg) {
@@ -267,7 +273,7 @@ void foo(int arg) {
   float lb[arg];
 
   // Region 00
-  // CK1A-DAG: call void @__tgt_target_data_begin_mapper(i64 -1, i32 1, i8** [[GEPBP:%.+]], i8** [[GEPP:%.+]], i[[sz:32|64]]* [[GEPS:%.+]], {{.+}}getelementptr {{.+}}[1 x i{{.+}}]* [[MTYPE00]]{{.+}})
+  // CK1A-DAG: call void @__tgt_target_data_begin_mapper(i64 -1, i32 1, i8** [[GEPBP:%.+]], i8** [[GEPP:%.+]], i[[sz:32|64]]* [[GEPS:%.+]], {{.+}}getelementptr {{.+}}[1 x i{{.+}}]* [[MTYPE00Begin]]{{.+}})
   // CK1A-DAG: [[GEPBP]] = getelementptr inbounds {{.+}}[[BP:%[^,]+]]
   // CK1A-DAG: [[GEPP]] = getelementptr inbounds {{.+}}[[P:%[^,]+]]
   // CK1A-DAG: [[GEPS]] = getelementptr inbounds {{.+}}[[S:%[^,]+]]
@@ -285,7 +291,7 @@ void foo(int arg) {
   // CK1A-32-DAG: [[CSVAL032]] = mul nuw i32 %{{[^,]+}}, 4
   // CK1A: %{{.+}} = add nsw i32 %{{[^,]+}}, 1
 
-  // CK1A-DAG: call void @__tgt_target_data_end_mapper(i64 -1, i32 1, i8** [[GEPBP:%.+]], i8** [[GEPP:%.+]], i[[sz]]* [[GEPS:%.+]], {{.+}}getelementptr {{.+}}[1 x i{{.+}}]* [[MTYPE00]]{{.+}})
+  // CK1A-DAG: call void @__tgt_target_data_end_mapper(i64 -1, i32 1, i8** [[GEPBP:%.+]], i8** [[GEPP:%.+]], i[[sz]]* [[GEPS:%.+]], {{.+}}getelementptr {{.+}}[1 x i{{.+}}]* [[MTYPE00End]]{{.+}})
   // CK1A-DAG: [[GEPBP]] = getelementptr inbounds {{.+}}[[BP]]
   // CK1A-DAG: [[GEPP]] = getelementptr inbounds {{.+}}[[P]]
   // CK1A-DAG: [[GEPS]] = getelementptr inbounds {{.+}}[[S]]
@@ -293,7 +299,7 @@ void foo(int arg) {
   {++arg;}
 
   // Region 01
-  // CK1A-DAG: call void @__tgt_target_data_begin_mapper(i64 -1, i32 1, i8** [[GEPBP:%.+]], i8** [[GEPP:%.+]], i[[sz]]* [[GEPS:%.+]], {{.+}}getelementptr {{.+}}[1 x i{{.+}}]* [[MTYPE01]]{{.+}})
+  // CK1A-DAG: call void @__tgt_target_data_begin_mapper(i64 -1, i32 1, i8** [[GEPBP:%.+]], i8** [[GEPP:%.+]], i[[sz]]* [[GEPS:%.+]], {{.+}}getelementptr {{.+}}[1 x i{{.+}}]* [[MTYPE01Begin]]{{.+}})
   // CK1A-DAG: [[GEPBP]] = getelementptr inbounds {{.+}}[[BP:%[^,]+]]
   // CK1A-DAG: [[GEPP]] = getelementptr inbounds {{.+}}[[P:%[^,]+]]
   // CK1A-DAG: [[GEPS]] = getelementptr inbounds {{.+}}[[S:%[^,]+]]
@@ -311,7 +317,7 @@ void foo(int arg) {
   // CK1A-32-DAG: [[CSVAL032]] = mul nuw i32 %{{[^,]+}}, 4
   // CK1A: %{{.+}} = add nsw i32 %{{[^,]+}}, 1
 
-  // CK1A-DAG: call void @__tgt_target_data_end_mapper(i64 -1, i32 1, i8** [[GEPBP:%.+]], i8** [[GEPP:%.+]], i[[sz]]* [[GEPS:%.+]], {{.+}}getelementptr {{.+}}[1 x i{{.+}}]* [[MTYPE01]]{{.+}})
+  // CK1A-DAG: call void @__tgt_target_data_end_mapper(i64 -1, i32 1, i8** [[GEPBP:%.+]], i8** [[GEPP:%.+]], i[[sz]]* [[GEPS:%.+]], {{.+}}getelementptr {{.+}}[1 x i{{.+}}]* [[MTYPE01End]]{{.+}})
   // CK1A-DAG: [[GEPBP]] = getelementptr inbounds {{.+}}[[BP]]
   // CK1A-DAG: [[GEPP]] = getelementptr inbounds {{.+}}[[P]]
   // CK1A-DAG: [[GEPS]] = getelementptr inbounds {{.+}}[[S]]
@@ -555,7 +561,7 @@ struct S2 {
 
 void test_close_modifier(int arg) {
   S2 *ps;
-  // CK5: private unnamed_addr constant [6 x i64] [i64 1059, i64 32, i64 562949953422339, i64 562949953421328, i64 16, i64 1043]
+  // CK5: private unnamed_addr constant [5 x i64] [i64 1059, i64 32, i64 562949953421328, i64 16, i64 1043]
   #pragma omp target data map(close,tofrom: arg, ps->ps->ps->ps->s)
   {
     ++(arg);
@@ -634,20 +640,17 @@ void test_present_modifier(int arg) {
   // Make sure the struct picks up present even if another element of the struct
   // doesn't have present.
 
-  // CK8: private unnamed_addr constant [15 x i64]
+  // CK8: private unnamed_addr constant [11 x i64]
 
   // ps1
   //
   // PRESENT=0x1000 | TARGET_PARAM=0x20 = 0x1020
   // MEMBER_OF_1=0x1000000000000 | FROM=0x2 | TO=0x1 = 0x1000000000003
-  // MEMBER_OF_1=0x1000000000000 | PTR_AND_OBJ=0x10 | FROM=0x2 | TO=0x1 = 0x1000000000013
-  // MEMBER_OF_1=0x1000000000000 | PRESENT=0x1000 | FROM=0x2 | TO=0x1 = 0x1000000001003
   // MEMBER_OF_1=0x1000000000000 | PRESENT=0x1000 | PTR_AND_OBJ=0x10 = 0x1000000001010
   // PRESENT=0x1000 | PTR_AND_OBJ=0x10 = 0x1010
   // PRESENT=0x1000 | PTR_AND_OBJ=0x10 | FROM=0x2 | TO=0x1 = 0x1013
   //
   // CK8-SAME: {{^}} [i64 [[#0x1020]], i64 [[#0x1000000000003]],
-  // CK8-SAME: {{^}} i64 [[#0x1000000000013]], i64 [[#0x1000000001003]],
   // CK8-SAME: {{^}} i64 [[#0x1000000001010]], i64 [[#0x1010]], i64 [[#0x1013]],
 
   // arg
@@ -659,16 +662,13 @@ void test_present_modifier(int arg) {
   // ps2
   //
   // PRESENT=0x1000 | TARGET_PARAM=0x20 = 0x1020
-  // MEMBER_OF_9=0x9000000000000 | PRESENT=0x1000 | FROM=0x2 | TO=0x1 = 0x9000000001003
-  // MEMBER_OF_9=0x9000000000000 | PRESENT=0x1000 | PTR_AND_OBJ=0x10 | FROM=0x2 | TO=0x1 = 0x9000000001013
-  // MEMBER_OF_9=0x9000000000000 | FROM=0x2 | TO=0x1 = 0x9000000000003
-  // MEMBER_OF_9=0x9000000000000 | PTR_AND_OBJ=0x10 = 0x9000000000010
+  // MEMBER_OF_7=0x7000000000000 | PRESENT=0x1000 | FROM=0x2 | TO=0x1 = 0x7000000001003
+  // MEMBER_OF_7=0x7000000000000 | PTR_AND_OBJ=0x10 = 0x7000000000010
   // PTR_AND_OBJ=0x10 = 0x10
   // PTR_AND_OBJ=0x10 | FROM=0x2 | TO=0x1 = 0x13
   //
-  // CK8-SAME: {{^}} i64 [[#0x1020]], i64 [[#0x9000000001003]],
-  // CK8-SAME: {{^}} i64 [[#0x9000000001013]], i64 [[#0x9000000000003]],
-  // CK8-SAME: {{^}} i64 [[#0x9000000000010]], i64 [[#0x10]], i64 [[#0x13]]]
+  // CK8-SAME: {{^}} i64 [[#0x1020]], i64 [[#0x7000000001003]],
+  // CK8-SAME: {{^}} i64 [[#0x7000000000010]], i64 [[#0x10]], i64 [[#0x13]]]
   #pragma omp target data map(tofrom: ps1->s) \
                           map(present,tofrom: arg, ps1->ps->ps->ps->s, ps2->s) \
                           map(tofrom: ps2->ps->ps->ps->s)

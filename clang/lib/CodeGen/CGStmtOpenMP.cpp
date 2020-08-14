@@ -1707,9 +1707,11 @@ void CodeGenFunction::EmitOMPParallelDirective(const OMPParallelDirective &S) {
 
     CGCapturedStmtInfo CGSI(*CS, CR_OpenMP);
     CodeGenFunction::CGCapturedStmtRAII CapInfoRAII(*this, &CGSI);
-    Builder.restoreIP(OMPBuilder.CreateParallel(Builder, BodyGenCB, PrivCB,
-                                                FiniCB, IfCond, NumThreads,
-                                                ProcBind, S.hasCancel()));
+    llvm::OpenMPIRBuilder::InsertPointTy AllocaIP(
+        AllocaInsertPt->getParent(), AllocaInsertPt->getIterator());
+    Builder.restoreIP(
+        OMPBuilder.CreateParallel(Builder, AllocaIP, BodyGenCB, PrivCB, FiniCB,
+                                  IfCond, NumThreads, ProcBind, S.hasCancel()));
     return;
   }
 
@@ -6037,7 +6039,8 @@ void CodeGenFunction::EmitOMPUseDeviceAddrClause(
 // Generate the instructions for '#pragma omp target data' directive.
 void CodeGenFunction::EmitOMPTargetDataDirective(
     const OMPTargetDataDirective &S) {
-  CGOpenMPRuntime::TargetDataInfo Info(/*RequiresDevicePointerInfo=*/true);
+  CGOpenMPRuntime::TargetDataInfo Info(/*RequiresDevicePointerInfo=*/true,
+                                       /*SeparateBeginEndCalls=*/true);
 
   // Create a pre/post action to signal the privatization of the device pointer.
   // This action can be replaced by the OpenMP runtime code generation to

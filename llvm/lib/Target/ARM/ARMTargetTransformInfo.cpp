@@ -166,7 +166,7 @@ ARMTTIImpl::instCombineIntrinsic(InstCombiner &IC, IntrinsicInst &II) const {
       if (auto *CI = dyn_cast<ConstantInt>(XorMask)) {
         if (CI->getValue().trunc(16).isAllOnesValue()) {
           auto TrueVector = IC.Builder.CreateVectorSplat(
-              cast<VectorType>(II.getType())->getNumElements(),
+              cast<FixedVectorType>(II.getType())->getNumElements(),
               IC.Builder.getTrue());
           return BinaryOperator::Create(Instruction::Xor, ArgArg, TrueVector);
         }
@@ -300,7 +300,20 @@ int ARMTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx, const APInt &Im
   return getIntImmCost(Imm, Ty, CostKind);
 }
 
+int ARMTTIImpl::getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind) {
+  if (CostKind == TTI::TCK_RecipThroughput &&
+      (ST->hasNEON() || ST->hasMVEIntegerOps())) {
+    // FIXME: The vectorizer is highly sensistive to the cost of these
+    // instructions, which suggests that it may be using the costs incorrectly.
+    // But, for now, just make them free to avoid performance regressions for
+    // vector targets.
+    return 0;
+  }
+  return BaseT::getCFInstrCost(Opcode, CostKind);
+}
+
 int ARMTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
+                                 TTI::CastContextHint CCH,
                                  TTI::TargetCostKind CostKind,
                                  const Instruction *I) {
   int ISD = TLI->InstructionOpcodeToISD(Opcode);
@@ -312,15 +325,35 @@ int ARMTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
       return Cost == 0 ? 0 : 1;
     return Cost;
   };
+  auto IsLegalFPType = [this](EVT VT) {
+    EVT EltVT = VT.getScalarType();
+    return (EltVT == MVT::f32 && ST->hasVFP2Base()) ||
+            (EltVT == MVT::f64 && ST->hasFP64()) ||
+            (EltVT == MVT::f16 && ST->hasFullFP16());
+  };
 
   EVT SrcTy = TLI->getValueType(DL, Src);
   EVT DstTy = TLI->getValueType(DL, Dst);
 
   if (!SrcTy.isSimple() || !DstTy.isSimple())
-    return AdjustCost(BaseT::getCastInstrCost(Opcode, Dst, Src, CostKind, I));
+    return AdjustCost(
+        BaseT::getCastInstrCost(Opcode, Dst, Src, CCH, CostKind, I));
 
-  // The extend of a load is free
-  if (I && isa<LoadInst>(I->getOperand(0))) {
+  // Extending masked load/Truncating masked stores is expensive because we
+  // currently don't split them. This means that we'll likely end up
+  // loading/storing each element individually (hence the high cost).
+  if ((ST->hasMVEIntegerOps() &&
+       (Opcode == Instruction::Trunc || Opcode == Instruction::ZExt ||
+        Opcode == Instruction::SExt)) ||
+      (ST->hasMVEFloatOps() &&
+       (Opcode == Instruction::FPExt || Opcode == Instruction::FPTrunc) &&
+       IsLegalFPType(SrcTy) && IsLegalFPType(DstTy)))
+    if (CCH == TTI::CastContextHint::Masked && DstTy.getSizeInBits() > 128)
+      return 2 * DstTy.getVectorNumElements() * ST->getMVEVectorCostFactor();
+
+  // The extend of other kinds of load is free
+  if (CCH == TTI::CastContextHint::Normal ||
+      CCH == TTI::CastContextHint::Masked) {
     static const TypeConversionCostTblEntry LoadConversionTbl[] = {
         {ISD::SIGN_EXTEND, MVT::i32, MVT::i16, 0},
         {ISD::ZERO_EXTEND, MVT::i32, MVT::i16, 0},
@@ -374,11 +407,9 @@ int ARMTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
                                      DstTy.getSimpleVT(), SrcTy.getSimpleVT()))
         return AdjustCost(Entry->Cost * ST->getMVEVectorCostFactor());
     }
-  }
 
-  // The truncate of a store is free. This is the mirror of extends above.
-  if (I && I->hasOneUse() && isa<StoreInst>(*I->user_begin())) {
-    static const TypeConversionCostTblEntry MVELoadConversionTbl[] = {
+    // The truncate of a store is free. This is the mirror of extends above.
+    static const TypeConversionCostTblEntry MVEStoreConversionTbl[] = {
         {ISD::TRUNCATE, MVT::v4i32, MVT::v4i16, 0},
         {ISD::TRUNCATE, MVT::v4i32, MVT::v4i8, 0},
         {ISD::TRUNCATE, MVT::v8i16, MVT::v8i8, 0},
@@ -388,19 +419,19 @@ int ARMTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
     };
     if (SrcTy.isVector() && ST->hasMVEIntegerOps()) {
       if (const auto *Entry =
-              ConvertCostTableLookup(MVELoadConversionTbl, ISD, SrcTy.getSimpleVT(),
-                                     DstTy.getSimpleVT()))
+              ConvertCostTableLookup(MVEStoreConversionTbl, ISD,
+                                     SrcTy.getSimpleVT(), DstTy.getSimpleVT()))
         return AdjustCost(Entry->Cost * ST->getMVEVectorCostFactor());
     }
 
-    static const TypeConversionCostTblEntry MVEFLoadConversionTbl[] = {
+    static const TypeConversionCostTblEntry MVEFStoreConversionTbl[] = {
         {ISD::FP_ROUND, MVT::v4f32, MVT::v4f16, 1},
         {ISD::FP_ROUND, MVT::v8f32, MVT::v8f16, 3},
     };
     if (SrcTy.isVector() && ST->hasMVEFloatOps()) {
       if (const auto *Entry =
-              ConvertCostTableLookup(MVEFLoadConversionTbl, ISD, SrcTy.getSimpleVT(),
-                                     DstTy.getSimpleVT()))
+              ConvertCostTableLookup(MVEFStoreConversionTbl, ISD,
+                                     SrcTy.getSimpleVT(), DstTy.getSimpleVT()))
         return AdjustCost(Entry->Cost * ST->getMVEVectorCostFactor());
     }
   }
@@ -636,14 +667,8 @@ int ARMTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
     int Lanes = 1;
     if (SrcTy.isFixedLengthVector())
       Lanes = SrcTy.getVectorNumElements();
-    auto IsLegal = [this](EVT VT) {
-      EVT EltVT = VT.getScalarType();
-      return (EltVT == MVT::f32 && ST->hasVFP2Base()) ||
-             (EltVT == MVT::f64 && ST->hasFP64()) ||
-             (EltVT == MVT::f16 && ST->hasFullFP16());
-    };
 
-    if (IsLegal(SrcTy) && IsLegal(DstTy))
+    if (IsLegalFPType(SrcTy) && IsLegalFPType(DstTy))
       return Lanes;
     else
       return Lanes * CallCost;
@@ -672,7 +697,7 @@ int ARMTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
                      ? ST->getMVEVectorCostFactor()
                      : 1;
   return AdjustCost(
-    BaseCost * BaseT::getCastInstrCost(Opcode, Dst, Src, CostKind, I));
+      BaseCost * BaseT::getCastInstrCost(Opcode, Dst, Src, CCH, CostKind, I));
 }
 
 int ARMTTIImpl::getVectorInstrCost(unsigned Opcode, Type *ValTy,

@@ -238,6 +238,10 @@ locateASTReferent(SourceLocation CurLoc, const syntax::Token *TouchedIdentifier,
   llvm::DenseMap<SymbolID, size_t> ResultIndex;
 
   auto AddResultDecl = [&](const NamedDecl *D) {
+    // FIXME: Canonical declarations of some symbols might refer to built-in
+    // decls with possibly-invalid source locations (e.g. global new operator).
+    // In such cases we should pick up a redecl with valid source location
+    // instead of failing.
     D = llvm::cast<NamedDecl>(D->getCanonicalDecl());
     auto Loc =
         makeLocation(AST.getASTContext(), nameLocation(*D, SM), MainFilePath);
@@ -405,15 +409,17 @@ locateSymbolTextually(const SpelledWord &Word, ParsedAST &AST,
       log("locateSymbolNamedTextuallyAt: {0}", MaybeDeclLoc.takeError());
       return;
     }
-    Location DeclLoc = *MaybeDeclLoc;
-    Location DefLoc;
+    LocatedSymbol Located;
+    Located.PreferredDeclaration = *MaybeDeclLoc;
+    Located.Name = (Sym.Name + Sym.TemplateSpecializationArgs).str();
     if (Sym.Definition) {
       auto MaybeDefLoc = indexToLSPLocation(Sym.Definition, MainFilePath);
       if (!MaybeDefLoc) {
         log("locateSymbolNamedTextuallyAt: {0}", MaybeDefLoc.takeError());
         return;
       }
-      DefLoc = *MaybeDefLoc;
+      Located.PreferredDeclaration = *MaybeDefLoc;
+      Located.Definition = *MaybeDefLoc;
     }
 
     if (ScoredResults.size() >= 3) {
@@ -423,11 +429,6 @@ locateSymbolTextually(const SpelledWord &Word, ParsedAST &AST,
       TooMany = true;
       return;
     }
-
-    LocatedSymbol Located;
-    Located.Name = (Sym.Name + Sym.TemplateSpecializationArgs).str();
-    Located.PreferredDeclaration = bool(Sym.Definition) ? DefLoc : DeclLoc;
-    Located.Definition = DefLoc;
 
     SymbolQualitySignals Quality;
     Quality.merge(Sym);
@@ -518,7 +519,7 @@ const syntax::Token *findNearbyIdentifier(const SpelledWord &Word,
   // Find where the word occurred in the token stream, to search forward & back.
   auto *I = llvm::partition_point(SpelledTokens, [&](const syntax::Token &T) {
     assert(SM.getFileID(T.location()) == SM.getFileID(Word.Location));
-    return T.location() >= Word.Location; // Comparison OK: same file.
+    return T.location() < Word.Location; // Comparison OK: same file.
   });
   // Search for matches after the cursor.
   for (const syntax::Token &Tok : llvm::makeArrayRef(I, SpelledTokens.end()))

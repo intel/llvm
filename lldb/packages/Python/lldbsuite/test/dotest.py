@@ -241,7 +241,7 @@ def parseOptionsAndInitTestdirs():
         do_help = True
 
     if args.compiler:
-        configuration.compiler = os.path.realpath(args.compiler)
+        configuration.compiler = os.path.abspath(args.compiler)
         if not is_exe(configuration.compiler):
             configuration.compiler = which(args.compiler)
         if not is_exe(configuration.compiler):
@@ -461,13 +461,12 @@ def setupSysPath():
     if "DOTEST_PROFILE" in os.environ and "DOTEST_SCRIPT_DIR" in os.environ:
         scriptPath = os.environ["DOTEST_SCRIPT_DIR"]
     else:
-        scriptPath = os.path.dirname(os.path.realpath(__file__))
+        scriptPath = os.path.dirname(os.path.abspath(__file__))
     if not scriptPath.endswith('test'):
         print("This script expects to reside in lldb's test directory.")
         sys.exit(-1)
 
     os.environ["LLDB_TEST"] = scriptPath
-    os.environ["LLDB_TEST_SRC"] = lldbsuite.lldb_test_root
 
     # Set up the root build directory.
     if not configuration.test_build_dir:

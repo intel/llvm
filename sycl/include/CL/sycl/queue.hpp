@@ -320,6 +320,9 @@ public:
   template <typename PropertyT> PropertyT get_property() const;
 
   /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if \param Dest is nullptr. The behavior is undefined if \param Ptr
+  /// is invalid.
   ///
   /// \param Ptr is a USM pointer to the memory to fill.
   /// \param Value is a value to be set. Value is cast as an unsigned char.
@@ -329,6 +332,9 @@ public:
 
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
   ///
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Src is a USM pointer to the source memory.

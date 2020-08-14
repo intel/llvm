@@ -1509,7 +1509,8 @@ bool hasLoopMetadata(const Module *M) {
 bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
   switch (II->getIntrinsicID()) {
   case Intrinsic::fabs:
-  case Intrinsic::ceil: {
+  case Intrinsic::ceil:
+  case Intrinsic::maxnum: {
     Type *Ty = II->getType();
     if (II->getArgOperand(0)->getType() != Ty)
       return false;
