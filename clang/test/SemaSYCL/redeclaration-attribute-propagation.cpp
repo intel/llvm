@@ -1,21 +1,34 @@
-// RUN: %clang %s -fsyntax-only -Xclang -ast-dump -fsycl-device-only | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl -fsycl-is-device -triple spir64 -verify
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl -fsycl-is-device -triple spir64 -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl -fsycl-is-device -triple spir64 | FileCheck %s
 
+#ifndef TRIGGER_ERROR
 [[intelfpga::no_global_work_offset]] // expected-no-diagnostics
 void
-func();
+func1();
 
-[[intelfpga::max_work_group_size(8, 8, 8)]] // expected-no-diagnostics
-void
-func();
+[[intelfpga::max_work_group_size(4, 4, 4)]] void func1();
 
-[[cl::reqd_work_group_size(4, 4, 4)]] // expected-no-diagnostics
+[[cl::reqd_work_group_size(2, 2, 2)]] void func1() {}
+
+#else
+[[intelfpga::max_work_group_size(4, 4, 4)]] // expected-note {{conflicting attribute is here}}
 void
-func() {}
+func2();
+
+[[cl::reqd_work_group_size(8, 8, 8)]] // expected-note {{conflicting attribute is here}}
+void
+func2() {}
+#endif
 
 template <typename Name, typename Type>
 [[clang::sycl_kernel]] void __my_kernel__(Type bar) {
   bar();
-  func();
+#ifndef TRIGGER_ERROR
+  func1();
+#else
+  func2();
+#endif
 }
 
 template <typename Name, typename Type>
@@ -24,10 +37,14 @@ void parallel_for(Type func) {
 }
 
 void invoke_foo2() {
+#ifndef TRIGGER_ERROR
   // CHECK-LABEL:  FunctionDecl {{.*}} invoke_foo2 'void ()'
   // CHECK:  `-FunctionDecl {{.*}} _ZTSZ11invoke_foo2vE10KernelName 'void ()'
-  // CHECK:  -SYCLIntelMaxWorkGroupSizeAttr {{.*}} Inherited 8 8 8
+  // CHECK:  -SYCLIntelMaxWorkGroupSizeAttr {{.*}} Inherited 4 4 4
   // CHECK:  -SYCLIntelNoGlobalWorkOffsetAttr {{.*}} Inherited Enabled
-  // CHECK:  `-ReqdWorkGroupSizeAttr {{.*}} 4 4 4
+  // CHECK:  `-ReqdWorkGroupSizeAttr {{.*}} 2 2 2
   parallel_for<class KernelName>([]() {});
+#else
+  parallel_for<class KernelName>([]() {}); // expected-error {{conflicting attributes applied to a SYCL kernel or SYCL_EXTERNAL function}}
+#endif
 }
