@@ -8,9 +8,8 @@
 
 #include <CL/sycl.hpp>
 #include <iostream>
-#include <stdlib.h>
 
-using namespace cl::sycl;
+using namespace std;
 
 union TestUnion {
 public:
@@ -25,7 +24,6 @@ int main(int argc, char **argv) {
   TestUnion x;
   x.mydouble = 5.0;
   double mydouble = 0.0;
-  bool isError = false;
 
   cl::sycl::queue queue;
   {
@@ -37,13 +35,8 @@ int main(int argc, char **argv) {
   }
 
   if (mydouble != 5.0) {
-    isError = true;
-    if (isError)
-      std::cout << " Error !!!"
-                << "\n";
-    else
-      std::cout << " Result matches !!!"
-                << "\n";
+    printf("FAILED\nmydouble = %d\n", mydouble);
+    return 1;
   }
   return 0;
 }
