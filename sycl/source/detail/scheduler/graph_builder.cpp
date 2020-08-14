@@ -32,17 +32,10 @@ namespace detail {
 /// This information can be used to prove that executing two kernels that
 /// work on different parts of the memory object in parallel is legal.
 static bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
-  size_t LHSStart = LHS->MOffsetInBytes;
-  size_t LHSEnd = LHSStart + LHS->MAccessRange.size() * LHS->MElemSize;
-
-  size_t RHSStart = RHS->MOffsetInBytes;
-  size_t RHSEnd = RHSStart + RHS->MAccessRange.size() * RHS->MElemSize;
-
-  if (LHSStart < RHSStart) {
-    return (RHSStart < LHSEnd) && (LHSEnd <= RHSEnd);
-  } else {
-    return (LHSStart < RHSEnd) && (RHSEnd <= LHSEnd);
-  }
+  return (LHS->MOffsetInBytes + LHS->MAccessRange.size() * LHS->MElemSize >=
+          RHS->MOffsetInBytes) ||
+         (RHS->MOffsetInBytes + RHS->MAccessRange.size() * RHS->MElemSize >=
+          LHS->MOffsetInBytes);
 }
 
 static bool sameCtx(const ContextImplPtr &LHS, const ContextImplPtr &RHS) {
@@ -225,7 +218,7 @@ void Scheduler::GraphBuilder::addNodeToLeaves(MemObjRecord *Record,
                                     ? Record->MReadLeaves
                                     : Record->MWriteLeaves};
   Leaves.push_back(Cmd, Record);
-  ++(Cmd->MLeafCounter);
+  ++Cmd->MLeafCounter;
 }
 
 UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
