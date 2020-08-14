@@ -32,5 +32,12 @@ int main() {
   return 0;
 }
 
-// CHECK: define spir_kernel void @{{.*}}structs{{.*}}(i32 addrspace(1)* %_arg_F1, float addrspace(1)* %_arg_F2, float addrspace(1)* %_arg_F)
-// CHECK: define spir_kernel void @{{.*}}lambdas{{.*}}(float addrspace(1)* %_arg_)
+// CHECK: %[[WRAPPER_F1:[a-zA-Z0-9_.]+]] = type { i32 addrspace(1)* }
+// CHECK: %[[WRAPPER_F2:[a-zA-Z0-9_.]+]] = type { float addrspace(1)* }
+// CHECK: %[[WRAPPER_F:[a-zA-Z0-9_.]+]] = type { float addrspace(1)* }
+// CHECK: %[[WRAPPER_LAMBDA_PTR:[a-zA-Z0-9_.]+]] = type { float addrspace(1)* }
+// CHECK: define spir_kernel void @{{.*}}structs
+// CHECK-SAME: %[[WRAPPER_F1]]* byval(%[[WRAPPER_F1]]) align 8 %_arg_F1,
+// CHECK-SAME: %[[WRAPPER_F2]]* byval(%[[WRAPPER_F2]]) align 8 %_arg_F2,
+// CHECK-SAME: %[[WRAPPER_F]]* byval(%[[WRAPPER_F]]) align 8 %_arg_F
+// CHECK: define spir_kernel void @{{.*}}lambdas{{.*}}(%[[WRAPPER_LAMBDA_PTR]]* byval(%[[WRAPPER_LAMBDA_PTR]]) align 8 %_arg_)
