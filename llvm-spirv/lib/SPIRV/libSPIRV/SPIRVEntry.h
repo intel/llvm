@@ -304,6 +304,7 @@ public:
   getMemberDecorationStringLiteral(Decoration Kind,
                                    SPIRVWord MemberNumber) const;
   std::set<SPIRVWord> getDecorate(Decoration Kind, size_t Index = 0) const;
+  std::vector<SPIRVDecorate const *> getDecorations(Decoration Kind) const;
   bool hasId() const { return !(Attrib & SPIRVEA_NOID); }
   bool hasLine() const { return Line != nullptr; }
   bool hasLinkageType() const;
