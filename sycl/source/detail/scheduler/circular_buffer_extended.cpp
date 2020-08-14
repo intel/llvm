@@ -46,26 +46,7 @@ size_t CircularBufferExtended::remove(value_type Cmd) {
   }
 
   // host accessor commands part
-  size_t RemovedCount = 0;
-
-  HostAccessorIt<false> It{
-      &MHostAccessorCommands, MHostAccessorCommands.begin()};
-  HostAccessorIt<false> End{
-      &MHostAccessorCommands, MHostAccessorCommands.end()};
-
-  while (It != End) {
-    auto Next = It;
-    ++It;
-
-    if (*It == Cmd) {
-      eraseHostAccessorCommand(static_cast<EmptyCommand *>(Cmd));
-      ++RemovedCount;
-    }
-
-    It = Next;
-  }
-
-  return RemovedCount;
+  return eraseHostAccessorCommand(static_cast<EmptyCommand *>(Cmd));
 }
 
 void CircularBufferExtended::push_back(value_type Cmd, MemObjRecord *Record) {
@@ -83,36 +64,32 @@ CircularBufferExtended::toVector() const {
 
   Result.insert(Result.end(), MGenericCommands.begin(), MGenericCommands.end());
 
-  for (const auto &It : MHostAccessorCommandsXRef)
-    Result.push_back(It.first);
+  for (EmptyCommand *Cmd : MHostAccessorCommands)
+    Result.push_back(Cmd);
 
   return Result;
 }
 
 void CircularBufferExtended::addHostAccessorCommand(
     EmptyCommand *Cmd, MemObjRecord *Record) {
-//  MemObjRecord *Record = Scheduler::getMemObjRecord(Cmd->getRequirement());
-
-  // 1. find list of commands for the same MemObj. => List
-  HostAccessorCommandListT &List = MHostAccessorCommands[Record];
-
-  // 2. find the oldest command with doOverlap() = true amongst the List
+  // 1. find the oldest command with doOverlap() = true amongst the List
   //      => OldCmd
   HostAccessorCommandSingleXRefT OldCmdIt;
 
   if (Cmd->getRequirement()->MAccessMode == cl::sycl::access::mode::read)
-    OldCmdIt = List.end();
+    OldCmdIt = MHostAccessorCommands.end();
   else
-    OldCmdIt = std::find_if(List.begin(), List.end(),
+    OldCmdIt = std::find_if(
+        MHostAccessorCommands.begin(), MHostAccessorCommands.end(),
         [&] (const EmptyCommand * Test) -> bool {
           return doOverlap(Test->getRequirement(), Cmd->getRequirement());
         }
     );
 
-  // 3.1  If OldCmd != null:
+  // 2.1  If OldCmd != null:
   //          Put a dependency in the same way as we would for generic commands
   //          when circular buffer is full.
-  if (OldCmdIt != List.end()) {
+  if (OldCmdIt != MHostAccessorCommands.end()) {
     // allocate dependency
     MAllocateDependency(Cmd, *OldCmdIt, Record);
 
@@ -120,7 +97,7 @@ void CircularBufferExtended::addHostAccessorCommand(
     eraseHostAccessorCommand(static_cast<EmptyCommand *>(*OldCmdIt));
   }
 
-  // 3.2  If OldCmd == null:
+  // 2.2  If OldCmd == null:
   //          Put cmd to the List
   insertHostAccessorCommand(Cmd);
 }
@@ -134,29 +111,18 @@ void CircularBufferExtended::addGenericCommand(
 }
 
 void CircularBufferExtended::insertHostAccessorCommand(EmptyCommand *Cmd) {
-  MemObjRecord *Record = Scheduler::getMemObjRecord(Cmd->getRequirement());
-
-  HostAccessorCommandListT &List = MHostAccessorCommands[Record];
-  MHostAccessorCommandsXRef[Cmd] = List.insert(List.end(), Cmd);
+  MHostAccessorCommandsXRef[Cmd] = MHostAccessorCommands.insert(
+      MHostAccessorCommands.end(), Cmd);
 }
 
-void CircularBufferExtended::eraseHostAccessorCommand(EmptyCommand *Cmd) {
-  MemObjRecord *Record = Scheduler::getMemObjRecord(Cmd->getRequirement());
-
-  HostAccessorCommandsT::iterator It = MHostAccessorCommands.find(Record);
-  assert(It != MHostAccessorCommands.end());
-
-  HostAccessorCommandListT &List = It->second;
-
+size_t CircularBufferExtended::eraseHostAccessorCommand(EmptyCommand *Cmd) {
   auto XRefIt = MHostAccessorCommandsXRef.find(Cmd);
-  assert(XRefIt != MHostAccessorCommandsXRef.end());
 
-  List.erase(XRefIt->second);
-  MHostAccessorCommandsXRef.erase(XRefIt);
+  if (XRefIt == MHostAccessorCommandsXRef.end())
+    return 0;
 
-  if (List.empty()) {
-    MHostAccessorCommands.erase(It);
-  }
+  MHostAccessorCommands.erase(XRefIt->second);
+  return 1;
 }
 
 } // namespace detail
