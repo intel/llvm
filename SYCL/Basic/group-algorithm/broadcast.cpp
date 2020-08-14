@@ -11,8 +11,9 @@
 #include <algorithm>
 #include <cassert>
 #include <numeric>
+#include "ns_compat.h"
 using namespace sycl;
-using namespace sycl::intel;
+using namespace sycl::ONEAPI;
 
 class broadcast_kernel;
 

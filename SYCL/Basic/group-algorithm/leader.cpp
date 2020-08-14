@@ -9,8 +9,9 @@
 
 #include <CL/sycl.hpp>
 #include <cassert>
+#include "ns_compat.h"
 using namespace sycl;
-using namespace sycl::intel;
+using namespace sycl::ONEAPI;
 
 class leader_kernel;
 

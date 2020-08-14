@@ -12,8 +12,9 @@
 #include <cassert>
 #include <limits>
 #include <numeric>
+#include "ns_compat.h"
 using namespace sycl;
-using namespace sycl::intel;
+using namespace sycl::ONEAPI;
 
 template <class BinaryOperation>
 class reduce_kernel;

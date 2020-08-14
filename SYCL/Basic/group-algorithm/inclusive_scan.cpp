@@ -13,8 +13,9 @@
 #include <limits>
 #include <numeric>
 #include <vector>
+#include "ns_compat.h"
 using namespace sycl;
-using namespace sycl::intel;
+using namespace sycl::ONEAPI;
 
 template <class BinaryOperation, int TestNumber>
 class inclusive_scan_kernel;

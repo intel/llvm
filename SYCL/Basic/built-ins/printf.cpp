@@ -11,6 +11,14 @@
 #include <cstdint>
 #include <iostream>
 
+/* https://github.com/intel/llvm/pull/2246: namespace compatibility mode*/
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace intel {};
+namespace ONEAPI {
+  using namespace cl::sycl::intel;
+}}};
+
 using namespace cl::sycl;
 
 // According to OpenCL C spec, the format string must be in constant address
@@ -40,7 +48,7 @@ int main() {
     Queue.submit([&](handler &CGH) {
       CGH.single_task<class integral>([=]() {
         // String
-        intel::experimental::printf(format_hello_world);
+        ONEAPI::experimental::printf(format_hello_world);
         // Due to a bug in Intel CPU Runtime for OpenCL on Windows, information
         // printed using such format strings (without %-specifiers) might
         // appear in different order if output is redirected to a file or
@@ -49,8 +57,8 @@ int main() {
         // CHECK: {{(Hello, World!)?}}
 
         // Integral types
-        intel::experimental::printf(format_int, (int32_t)123);
-        intel::experimental::printf(format_int, (int32_t)-123);
+        ONEAPI::experimental::printf(format_int, (int32_t)123);
+        ONEAPI::experimental::printf(format_int, (int32_t)-123);
         // CHECK: 123
         // CHECK-NEXT: -123
 
@@ -59,8 +67,8 @@ int main() {
           // You can declare format string in non-global scope, but in this case
           // static keyword is required
           static const CONSTANT char format[] = "%f\n";
-          intel::experimental::printf(format, 33.4f);
-          intel::experimental::printf(format, -33.4f);
+          ONEAPI::experimental::printf(format, 33.4f);
+          ONEAPI::experimental::printf(format, -33.4f);
         }
         // CHECK-NEXT: 33.4
         // CHECK-NEXT: -33.4
@@ -72,21 +80,21 @@ int main() {
         using ocl_int4 = cl::sycl::vec<int, 4>::vector_t;
         {
           static const CONSTANT char format[] = "%v4d\n";
-          intel::experimental::printf(format, (ocl_int4)v4);
+          ONEAPI::experimental::printf(format, (ocl_int4)v4);
         }
 
         // However, you are still able to print them by-element:
         {
-          intel::experimental::printf(format_vec, (int32_t)v4.w(),
+          ONEAPI::experimental::printf(format_vec, (int32_t)v4.w(),
                                       (int32_t)v4.z(), (int32_t)v4.y(),
                                       (int32_t)v4.x());
         }
 #else
         // On host side you always have to print them by-element:
-        intel::experimental::printf(format_vec, (int32_t)v4.x(),
+        ONEAPI::experimental::printf(format_vec, (int32_t)v4.x(),
                                     (int32_t)v4.y(), (int32_t)v4.z(),
                                     (int32_t)v4.w());
-        intel::experimental::printf(format_vec, (int32_t)v4.w(),
+        ONEAPI::experimental::printf(format_vec, (int32_t)v4.w(),
                                     (int32_t)v4.z(), (int32_t)v4.y(),
                                     (int32_t)v4.x());
 #endif // __SYCL_DEVICE_ONLY__
@@ -99,7 +107,7 @@ int main() {
         // According to OpenCL spec, argument should be a void pointer
         {
           static const CONSTANT char format[] = "%p\n";
-          intel::experimental::printf(format, (void *)Ptr);
+          ONEAPI::experimental::printf(format, (void *)Ptr);
         }
         // CHECK-NEXT: {{(0x)?[0-9a-fA-F]+$}}
       });
@@ -110,7 +118,7 @@ int main() {
     Queue.submit([&](handler &CGH) {
       CGH.parallel_for<class stream_string>(range<1>(10), [=](id<1> i) {
         // cast to uint64_t to be sure that we pass 64-bit unsigned value
-        intel::experimental::printf(format_hello_world_2, (uint64_t)i.get(0));
+        ONEAPI::experimental::printf(format_hello_world_2, (uint64_t)i.get(0));
       });
     });
     Queue.wait();
