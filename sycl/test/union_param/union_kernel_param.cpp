@@ -7,9 +7,7 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 #include <CL/sycl.hpp>
-#include <iostream>
-
-using namespace std;
+#include <cstdio>
 
 union TestUnion {
 public:
