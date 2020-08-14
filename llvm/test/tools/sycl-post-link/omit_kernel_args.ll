@@ -35,9 +35,9 @@ declare void @bar(i8)
 
 ; CHECK-PROP: [SYCL/kernel param opt]
 ; // Base64 encoding in the prop file (including 8 bytes length):
-; CHECK-PROP-NEXT: SpirKernel1=2|CAAAAAAAAAQA
+; CHECK-PROP-NEXT-DAG: SpirKernel1=2|CAAAAAAAAAQA
 ; // Base64 encoding in the prop file (including 8 bytes length):
-; CHECK-PROP-NEXT: SpirKernel2=2|LAAAAAAAAAgfGA
+; CHECK-PROP-NEXT-DAG: SpirKernel2=2|LAAAAAAAAAgfGA
 
 ; CHECK-TABLE: [Code|Properties]
 ; CHECK-TABLE-NEXT: {{.*}}files_0.prop

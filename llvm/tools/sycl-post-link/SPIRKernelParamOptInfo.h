@@ -13,17 +13,15 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/BitVector.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
 
-#include <map>
-#include <string>
-
 namespace llvm {
 
 // the StringRef key refers to a function name
-using SPIRKernelParamOptInfoBaseTy = std::map<StringRef, BitVector>;
+using SPIRKernelParamOptInfoBaseTy = DenseMap<StringRef, BitVector>;
 
 class SPIRKernelParamOptInfo : public SPIRKernelParamOptInfoBaseTy {
 public:
