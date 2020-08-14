@@ -894,22 +894,20 @@ public:
         filtered_handlers..., cur_handler, Owner, Parent, Wrapper, handlers...);
   }
 
-  template <typename ParentTy,
-            typename CurHandler, typename... Handlers>
+  template <typename ParentTy, typename CurHandler, typename... Handlers>
   std::enable_if_t<!CurHandler::VisitUnionBody>
   VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
-             const CXXRecordDecl *Wrapper,
-             CurHandler &cur_handler, Handlers &... handlers) {
-    VisitUnion(Owner, Parent, Wrapper,  handlers...);
+             const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
+             Handlers &... handlers) {
+    VisitUnion(Owner, Parent, Wrapper, handlers...);
   }
 
-  template <typename ParentTy,
-            typename CurHandler, typename... Handlers>
+  template <typename ParentTy, typename CurHandler, typename... Handlers>
   std::enable_if_t<CurHandler::VisitUnionBody>
   VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
-             const CXXRecordDecl *Wrapper,
-             CurHandler &cur_handler, Handlers &... handlers) {
-     VisitUnion<CurHandler>(cur_handler, Owner, Parent, Wrapper, handlers...);
+             const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
+             Handlers &... handlers) {
+    VisitUnion<CurHandler>(cur_handler, Owner, Parent, Wrapper, handlers...);
   }
 
   template <typename... Handlers>
@@ -1301,7 +1299,7 @@ public:
     if (UnionCount) {
       IsInvalid = true;
       Diag.Report(BS.getBeginLoc(), diag::err_bad_union_kernel_param_members)
-	  << FieldTy;
+          << FieldTy;
     }
     return isValid();
   }
@@ -1310,6 +1308,16 @@ public:
     if (UnionCount) {
       IsInvalid = true;
       Diag.Report(FD->getLocation(), diag::err_bad_union_kernel_param_members)
+          << FieldTy;
+    }
+    return isValid();
+  }
+
+  bool handleSyclSamplerType(const CXXBaseSpecifier &BS,
+                             QualType FieldTy) final {
+    if (UnionCount) {
+      IsInvalid = true;
+      Diag.Report(BS.getBeginLoc(), diag::err_bad_union_kernel_param_members)
           << FieldTy;
     }
     return isValid();
