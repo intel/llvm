@@ -1,12 +1,13 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %t.out
-// RUN: env SYCL_DEVICE_TRIPLE=cpu %t.out
-// RUN: env SYCL_DEVICE_TRIPLE=gpu:level0 %t.out
-// RUN: env SYCL_DEVICE_TRIPLE=gpu:opencl %t.out
-// RUN: env SYCL_DEVICE_TRIPLE=cpu,gpu:level0 %t.out
+// RUN: env SYCL_DEVICE_TRIPLES=cpu %t.out
+// RUN: env SYCL_DEVICE_TRIPLES=gpu:level0 %t.out
+// RUN: env SYCL_DEVICE_TRIPLES=gpu:opencl %t.out
+// RUN: env SYCL_DEVICE_TRIPLES=cpu,gpu:level0 %t.out
+// RUN: env SYCL_DEVICE_TRIPLES=acc:opencl:0 %t.out
 //
 // Checks if only specified device types can be acquired from select_device
-// when SYCL_DEVICE_TRIPLE is set
+// when SYCL_DEVICE_TRIPLES is set
 // Checks that no device is selected when no device of desired type is
 // available.
 // UNSUPPORTED: windows
@@ -17,13 +18,13 @@
 using namespace cl::sycl;
 
 int main() {
-  const char *envVal = std::getenv("SYCL_DEVICE_TRIPLE");
+  const char *envVal = std::getenv("SYCL_DEVICE_TRIPLES");
   std::string forcedPIs;
   if (envVal) {
-    std::cout << "SYCL_DEVICE_TRIPLE=" << envVal << std::endl;
+    std::cout << "SYCL_DEVICE_TRIPLES=" << envVal << std::endl;
     forcedPIs = envVal;
   }
-  if (!envVal || forcedPIs.find("gpu:level0") != std::string::npos) {
+  if (!envVal || forcedPIs.find("gpu:level_zero") != std::string::npos) {
     default_selector ds;
     device d = ds.select_device();
     std::cout << "Level-zero GPU Device is found: " << std::boolalpha
@@ -46,7 +47,7 @@ int main() {
     device d = hs.select_device();
     std::cout << "HOST device is found: " << d.is_host() << std::endl;
   }
-  if (!envVal || forcedPIs.find("accelerator") != std::string::npos) {
+  if (!envVal || forcedPIs.find("acc") != std::string::npos) {
     accelerator_selector as;
     device d = as.select_device();
     std::cout << "ACC device is found: " << d.is_accelerator() << std::endl;

@@ -11,8 +11,8 @@
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/device_triple.hpp>
 #include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/triple.hpp>
 
 #include <algorithm>
 #include <array>
@@ -165,115 +165,29 @@ public:
   }
 };
 
-template <> class SYCLConfig<SYCL_DEVICE_TRIPLE> {
-  using BaseT = SYCLConfigBase<SYCL_DEVICE_TRIPLE>;
+template <> class SYCLConfig<SYCL_DEVICE_TRIPLES> {
+  using BaseT = SYCLConfigBase<SYCL_DEVICE_TRIPLES>;
 
 public:
-  static std::vector<triple> *get() {
+  static device_triple_list *get() {
     static bool Initialized = false;
-    static std::string String;
-    static std::vector<triple> TripleList;
+    static device_triple_list *TripleList = nullptr;
 
     // Configuration parameters are processed only once, like reading a string
     // from environment and converting it into a typed object.
     if (Initialized) {
-      if (TripleList.size()) {
-        return &TripleList;
-      } else {
-        return nullptr;
-      }
+      return TripleList;
     }
-
-    const std::array<std::pair<std::string, info::device_type>, 5>
-        SyclDeviceTypeMap = {{{"host", info::device_type::host},
-                              {"cpu", info::device_type::cpu},
-                              {"gpu", info::device_type::gpu},
-                              {"acc", info::device_type::accelerator},
-                              {"*", info::device_type::all}}};
-    const std::array<std::pair<std::string, backend>, 4> SyclBeMap = {
-        {{"opencl", backend::opencl},
-         {"level0", backend::level_zero},
-         {"level_zero", backend::level_zero},
-         {"cuda", backend::cuda}}};
 
     Initialized = true;
     const char *ValStr = BaseT::getRawValue();
     if (ValStr) {
-      String = ValStr;
-      std::transform(String.begin(), String.end(), String.begin(), ::tolower);
-      bool MoreTriple = true;
-      size_t Pos = 0;
-      while (MoreTriple) {
-        MoreTriple = false;
-        triple Trp;
-        // device_type is required entry
-        auto It = std::find_if(
-            std::begin(SyclDeviceTypeMap), std::end(SyclDeviceTypeMap),
-            [=,
-             &Pos](const std::pair<std::string, info::device_type> &element) {
-              size_t Found = String.find(element.first, Pos);
-              if (Found != std::string::npos) {
-                Pos = Found;
-                return true;
-              }
-              return false;
-            });
-        if (It == SyclDeviceTypeMap.end())
-          pi::die("Invalid device_type. "
-                  "Valid values are host/cpu/gpu/acc/*");
-
-        // initialize optional entries with default values
-        if (It->second == info::device_type::gpu) {
-          Trp = {It->second, backend::level_zero, DEVICE_NUM_UNSPECIFIED};
-        } else {
-          Trp = {It->second, backend::opencl, DEVICE_NUM_UNSPECIFIED};
-        }
-
-        // update optional entries, backend
-        size_t ColonPos = String.find(":", Pos);
-        size_t CommaPos = String.find(",", Pos);
-
-        if (ColonPos != std::string::npos) {
-          Pos = ColonPos + 1;
-          if ((CommaPos != std::string::npos && ColonPos < CommaPos) ||
-              (CommaPos == std::string::npos)) {
-            auto It = std::find_if(
-                std::begin(SyclBeMap), std::end(SyclBeMap),
-                [=, &Pos](const std::pair<std::string, backend> &element) {
-                  size_t Found = String.find(element.first, Pos);
-                  if (Found != std::string::npos) {
-                    Pos = Found;
-                    return true;
-                  }
-                  return false;
-                });
-            if (It == SyclBeMap.end())
-              pi::die("Invalid backend. "
-                      "Valid values are opencl/level0/cuda");
-            Trp.Backend = It->second;
-          }
-
-          // update optional entry, device number
-          ColonPos = String.find(":", Pos);
-          if (ColonPos != std::string::npos) {
-            Pos = ColonPos + 1;
-            if ((CommaPos != std::string::npos && ColonPos < CommaPos) ||
-                (CommaPos == std::string::npos)) {
-              Trp.DeviceNum = atoi(String.c_str() + Pos);
-            }
-          }
-        }
-        TripleList.push_back(Trp);
-
-        if (CommaPos != std::string::npos) {
-          MoreTriple = true;
-          Pos = CommaPos + 1;
-        }
-      } // end of while
-    } else {
-      return nullptr;
+      std::string TripleString = ValStr;
+      std::transform(TripleString.begin(), TripleString.end(),
+                     TripleString.begin(), ::tolower);
+      TripleList = new device_triple_list(TripleString);
     }
-    return &TripleList;
+    return TripleList;
   }
 };
 

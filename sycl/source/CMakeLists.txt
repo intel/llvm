@@ -140,6 +140,7 @@ set(SYCL_SOURCES
     "context.cpp"
     "device.cpp"
     "device_selector.cpp"
+    "device_triple.cpp"
     "event.cpp"
     "exception.cpp"
     "exception_list.cpp"
