@@ -1,5 +1,4 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
-// expected-no-diagnostics
 
 // This test checks that compiler generates correct kernel arguments for
 // union without array.

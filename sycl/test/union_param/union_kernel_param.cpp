@@ -1,17 +1,10 @@
+// This test checks kernel execution with union type as kernel parameters.
+
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
-// TODO: Uncomment once test is fixed on GPU
-// RUNx: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-
-//==-union_kernel_param.cpp-Checks passing unions as kernel params--------==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
 #include <iostream>
@@ -31,14 +24,19 @@ public:
 int main(int argc, char **argv) {
   TestUnion x;
   x.mydouble = 5.0;
+  double mydouble = 0.0
   bool isError = false;
 
   cl::sycl::queue queue;
-  queue.submit([&](cl::sycl::handler &cgh) {
-    cgh.single_task<class test>([=]() { x.mydouble; });
-  });
+  {
+    cl::sycl::buffer<double, 1> buf(&mydouble, 1);
+    queue.submit([&](cl::sycl::handler &cgh) {
+      auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+      cgh.single_task<class test>([=]() { acc[0] = x.mydouble; });
+    });
+  }
 
-  if (x.mydouble != 5.0) {
+  if (mydouble != 5.0) {
     isError = true;
     if (isError)
       std::cout << " Error !!!"

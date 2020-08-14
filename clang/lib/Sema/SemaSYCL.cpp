@@ -894,6 +894,24 @@ public:
         filtered_handlers..., cur_handler, Owner, Parent, Wrapper, handlers...);
   }
 
+  template <typename ParentTy,
+            typename CurHandler, typename... Handlers>
+  std::enable_if_t<!CurHandler::VisitUnionBody>
+  VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
+             const CXXRecordDecl *Wrapper,
+             CurHandler &cur_handler, Handlers &... handlers) {
+    VisitUnion(Owner, Parent, Wrapper,  handlers...);
+  }
+
+  template <typename ParentTy,
+            typename CurHandler, typename... Handlers>
+  std::enable_if_t<CurHandler::VisitUnionBody>
+  VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
+             const CXXRecordDecl *Wrapper,
+             CurHandler &cur_handler, Handlers &... handlers) {
+     VisitUnion<CurHandler>(cur_handler, Owner, Parent, Wrapper, handlers...);
+  }
+
   template <typename... Handlers>
   void VisitRecordHelper(const CXXRecordDecl *Owner,
                          clang::CXXRecordDecl::base_class_const_range Range,
@@ -1246,8 +1264,8 @@ public:
   }
 };
 
-// A type to check the validity of passing union with
-// pointer/accessor/sampler/stream member as a kernel argument types.
+// A type to check the validity of accessing accessor/sampler/stream
+// types as kernel parameters inside union.
 class SyclKernelUnionChecker : public SyclKernelFieldHandler {
   int UnionCount = 0;
   bool IsInvalid = false;
@@ -1269,19 +1287,10 @@ public:
     return true;
   }
 
-  bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
-    if (UnionCount) {
-      IsInvalid = true;
-      Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type)
-          << FieldTy;
-    }
-    return isValid();
-  }
-
   bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
     if (UnionCount) {
       IsInvalid = true;
-      Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type)
+      Diag.Report(FD->getLocation(), diag::err_bad_union_kernel_param_members)
           << FieldTy;
     }
     return isValid();
@@ -1291,7 +1300,8 @@ public:
                               QualType FieldTy) final {
     if (UnionCount) {
       IsInvalid = true;
-      Diag.Report(BS.getBeginLoc(), diag::err_bad_kernel_param_type) << FieldTy;
+      Diag.Report(BS.getBeginLoc(), diag::err_bad_union_kernel_param_members)
+	  << FieldTy;
     }
     return isValid();
   }
@@ -1299,7 +1309,7 @@ public:
   bool handleSyclSamplerType(FieldDecl *FD, QualType FieldTy) final {
     if (UnionCount) {
       IsInvalid = true;
-      Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type)
+      Diag.Report(FD->getLocation(), diag::err_bad_union_kernel_param_members)
           << FieldTy;
     }
     return isValid();
@@ -1308,7 +1318,7 @@ public:
   bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
     if (UnionCount) {
       IsInvalid = true;
-      Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type)
+      Diag.Report(FD->getLocation(), diag::err_bad_union_kernel_param_members)
           << FieldTy;
     }
     return isValid();
@@ -1318,7 +1328,8 @@ public:
                             QualType FieldTy) final {
     if (UnionCount) {
       IsInvalid = true;
-      Diag.Report(BS.getBeginLoc(), diag::err_bad_kernel_param_type) << FieldTy;
+      Diag.Report(BS.getBeginLoc(), diag::err_bad_union_kernel_param_members)
+          << FieldTy;
     }
     return isValid();
   }

@@ -31,10 +31,6 @@
 
 // CHECK: template <> struct KernelInfo<class kernel_A> {
 
-#include "sycl.hpp"
-
-using namespace cl::sycl;
-
 union MyUnion {
   int FldInt;
   char FldChar;
