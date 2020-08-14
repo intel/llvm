@@ -33,8 +33,8 @@
 #include <memory>
 #include <type_traits>
 
-// CL_SYCL_LANGUAGE_VERSION is 4 digit year followed by 2 digit revision
-#if !CL_SYCL_LANGUAGE_VERSION || CL_SYCL_LANGUAGE_VERSION < 202001
+// SYCL_LANGUAGE_VERSION is 4 digit year followed by 2 digit revision
+#if !SYCL_LANGUAGE_VERSION || SYCL_LANGUAGE_VERSION < 202001
 #define __SYCL_NONCONST_FUNCTOR__
 #endif
 
@@ -812,7 +812,7 @@ public:
   template <typename T> struct ShouldEnableSetArg {
     static constexpr bool value =
         std::is_trivially_copyable<detail::remove_reference_t<T>>::value
-#if CL_SYCL_LANGUAGE_VERSION && CL_SYCL_LANGUAGE_VERSION <= 121
+#if SYCL_LANGUAGE_VERSION && SYCL_LANGUAGE_VERSION <= 201707
             && std::is_standard_layout<detail::remove_reference_t<T>>::value
 #endif
         || is_same_type<sampler, T>::value // Sampler
