@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
       std::cout << " Error !!!"
                 << "\n";
     else
-      std::cout << " Result matchs !!!"
+      std::cout << " Result matches !!!"
                 << "\n";
   }
   return 0;
