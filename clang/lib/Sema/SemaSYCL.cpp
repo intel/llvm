@@ -872,6 +872,13 @@ public:
         (handlers.leaveUnion(Owner, Parent), 0)...};
   }
 
+  // Handle empty base case.
+  template <typename ParentTy>
+  void VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
+                  const CXXRecordDecl *Wrapper) {}
+
+  // Add overloads including the base case when
+  // sizeof...(FilteredHandlers) > 0.
   template <typename... FilteredHandlers, typename ParentTy,
             typename CurHandler, typename... Handlers>
   std::enable_if_t<!CurHandler::VisitUnionBody>
@@ -894,6 +901,8 @@ public:
         filtered_handlers..., cur_handler, Owner, Parent, Wrapper, handlers...);
   }
 
+  // Add overloads without having filtered-handlers
+  // to handle leading-empty argument packs.
   template <typename ParentTy, typename CurHandler, typename... Handlers>
   std::enable_if_t<!CurHandler::VisitUnionBody>
   VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
@@ -1275,6 +1284,14 @@ public:
   bool isValid() { return !IsInvalid; }
   static constexpr const bool VisitUnionBody = true;
 
+  bool checkType(SourceLocation Loc, QualType Ty) {
+    if (UnionCount) {
+      IsInvalid = true;
+      Diag.Report(Loc, diag::err_bad_union_kernel_param_members) << Ty;
+    }
+    return isValid();
+  }
+
   bool enterUnion(const CXXRecordDecl *RD, FieldDecl *FD) {
     ++UnionCount;
     return true;
@@ -1286,60 +1303,30 @@ public:
   }
 
   bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
-    if (UnionCount) {
-      IsInvalid = true;
-      Diag.Report(FD->getLocation(), diag::err_bad_union_kernel_param_members)
-          << FieldTy;
-    }
-    return isValid();
+    return checkType(FD->getLocation(), FieldTy);
   }
 
   bool handleSyclAccessorType(const CXXBaseSpecifier &BS,
                               QualType FieldTy) final {
-    if (UnionCount) {
-      IsInvalid = true;
-      Diag.Report(BS.getBeginLoc(), diag::err_bad_union_kernel_param_members)
-          << FieldTy;
-    }
-    return isValid();
+    return checkType(BS.getBeginLoc(), FieldTy);
   }
 
   bool handleSyclSamplerType(FieldDecl *FD, QualType FieldTy) final {
-    if (UnionCount) {
-      IsInvalid = true;
-      Diag.Report(FD->getLocation(), diag::err_bad_union_kernel_param_members)
-          << FieldTy;
-    }
-    return isValid();
+    return checkType(FD->getLocation(), FieldTy);
   }
 
   bool handleSyclSamplerType(const CXXBaseSpecifier &BS,
                              QualType FieldTy) final {
-    if (UnionCount) {
-      IsInvalid = true;
-      Diag.Report(BS.getBeginLoc(), diag::err_bad_union_kernel_param_members)
-          << FieldTy;
-    }
-    return isValid();
+    return checkType(BS.getBeginLoc(), FieldTy);
   }
 
   bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
-    if (UnionCount) {
-      IsInvalid = true;
-      Diag.Report(FD->getLocation(), diag::err_bad_union_kernel_param_members)
-          << FieldTy;
-    }
-    return isValid();
+    return checkType(FD->getLocation(), FieldTy);
   }
 
   bool handleSyclStreamType(const CXXBaseSpecifier &BS,
                             QualType FieldTy) final {
-    if (UnionCount) {
-      IsInvalid = true;
-      Diag.Report(BS.getBeginLoc(), diag::err_bad_union_kernel_param_members)
-          << FieldTy;
-    }
-    return isValid();
+    return checkType(BS.getBeginLoc(), FieldTy);
   }
 };
 
