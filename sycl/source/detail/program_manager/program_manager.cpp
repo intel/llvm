@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -857,11 +858,14 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
 
 static ProgramManager::KernelArgMask
 createKernelArgMask(const std::vector<unsigned char> &Bytes) {
-  int SizeInBits = Bytes[0];
+  const int NBytesForSize = 8;
+  std::uint64_t SizeInBits = 0;
+  for (int I = 0; I < NBytesForSize; ++I)
+    SizeInBits |= static_cast<std::uint64_t>(Bytes[I]) << I * CHAR_BIT;
 
   ProgramManager::KernelArgMask Result;
-  for (int I = SizeInBits - 1; I >= 0; --I) {
-    unsigned char Byte = Bytes[Bytes.size() - 1 - (I / CHAR_BIT)];
+  for (std::uint64_t I = 0; I < SizeInBits; ++I) {
+    unsigned char Byte = Bytes[NBytesForSize + (I / CHAR_BIT)];
     Result.push_back(Byte & (1 << (I % CHAR_BIT)));
   }
 

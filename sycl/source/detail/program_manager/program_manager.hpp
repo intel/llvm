@@ -58,6 +58,7 @@ enum class DeviceLibExt : std::uint32_t {
 // that is necessary for no interoperability cases with lambda.
 class ProgramManager {
 public:
+  // TODO use a custom dynamic bitset instead to make initialization simpler.
   using KernelArgMask = std::vector<bool>;
 
   // Returns the single instance of the program manager for the entire
