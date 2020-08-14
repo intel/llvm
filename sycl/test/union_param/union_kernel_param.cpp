@@ -24,7 +24,7 @@ public:
 int main(int argc, char **argv) {
   TestUnion x;
   x.mydouble = 5.0;
-  double mydouble = 0.0
+  double mydouble = 0.0;
   bool isError = false;
 
   cl::sycl::queue queue;
