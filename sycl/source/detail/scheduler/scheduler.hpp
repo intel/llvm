@@ -10,7 +10,8 @@
 
 #include <CL/sycl/detail/cg.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
-#include <detail/circular_buffer.hpp>
+//#include <detail/circular_buffer.hpp>
+#include <detail/scheduler/circular_buffer_extended.hpp>
 #include <detail/scheduler/commands.hpp>
 
 #include <cstddef>
@@ -189,18 +190,21 @@ using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 ///
 /// \ingroup sycl_graph
 struct MemObjRecord {
-  MemObjRecord(ContextImplPtr CurContext, std::size_t LeafLimit)
-      : MReadLeaves{LeafLimit}, MWriteLeaves{LeafLimit}, MCurContext{
-                                                             CurContext} {}
+  MemObjRecord(ContextImplPtr CurContext, std::size_t LeafLimit,
+               CircularBufferExtended::IfGenericIsFullF IfGenericIsFull,
+               CircularBufferExtended::AllocateDependencyF AllocateDependency)
+      : MReadLeaves{LeafLimit, IfGenericIsFull, AllocateDependency},
+        MWriteLeaves{LeafLimit, IfGenericIsFull, AllocateDependency},
+        MCurContext{CurContext} {}
 
   // Contains all allocation commands for the memory object.
   std::vector<AllocaCommandBase *> MAllocaCommands;
 
   // Contains latest read only commands working with memory object.
-  CircularBuffer<Command *> MReadLeaves;
+  CircularBufferExtended MReadLeaves;
 
   // Contains latest write commands working with memory object.
-  CircularBuffer<Command *> MWriteLeaves;
+  CircularBufferExtended MWriteLeaves;
 
   // The context which has the latest state of the memory object.
   ContextImplPtr MCurContext;
@@ -428,6 +432,8 @@ public:
   std::vector<EventImplPtr> getWaitList(EventImplPtr Event);
 
   QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
+
+  static MemObjRecord *getMemObjRecord(const Requirement *const Req);
 
 protected:
   Scheduler();

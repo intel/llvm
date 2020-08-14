@@ -12,7 +12,8 @@
 #include <detail/scheduler/commands.hpp>
 
 #include <cstddef>
-#include <deque>
+#include <list>
+#include <map>
 #include <unordered_map>
 #include <utility>
 
@@ -22,12 +23,31 @@ namespace detail {
 
 class MemObjRecord;
 
+/// A wrapper for CircularBuffer class along with collection for host accessor's
+/// EmptyCommands. This class is introduced to overcome the problem with a lot
+/// of host accessors for the same memory object. The problem arises even when
+/// all the host accessors are read-only and their ranges intersect somehow.
+///
+/// Inside the class there is a classical CircularBuffer for generic commands.
+/// Also, it contains proper data structures for storing host accessors'
+/// EmptyCommands. Cross-referencing data structures are employed for
+/// quick enough navigation amongst stored EmptyCommands.
+/// IteratorT subclass allows for iterating and dereferencing. Though, it's not
+/// guaranteed to work with std::remove as host accessors' commands are stored
+/// in a map. Hence, the CircularBufferExtended class provides a viable solution
+/// with its own remove method.
 class CircularBufferExtended {
 public:
   using GenericCommandsT = CircularBuffer<Command *>;
+  using HostAccessorCommandListT = std::list<EmptyCommand *>;
   using HostAccessorCommandsT =
-      std::unordered_map<MemObjRecord *, std::deque<Command *>>;
-  using IfGenericIsFullF = std::function<void(Command *, GenericCommandsT &)>;
+      std::unordered_map<MemObjRecord *, HostAccessorCommandListT>;
+
+  using IfGenericIsFullF =
+      std::function<void(Command *, MemObjRecord *, GenericCommandsT &)>;
+  // Make first command depend on the second
+  using AllocateDependencyF =
+      std::function<void(Command *, Command *, MemObjRecord *)>;
 
   template <bool IsConst>
   struct IteratorT;
@@ -38,46 +58,91 @@ public:
   using reference = value_type &;
   using const_reference = const value_type &;
 
-  using iterator = typename IteratorT<false>;
-  using const_iterator = typename IteratorT<true>;
+  using iterator = IteratorT<false>;
+  using const_iterator = IteratorT<true>;
 
-  explicit CircularBufferExtended(std::size_t Capacity, IfGenericIsFullF &&F);
+  CircularBufferExtended(std::size_t GenericCommandsCapacity,
+                         IfGenericIsFullF IfGenericIsFull,
+                         AllocateDependencyF AllocateDependency)
+      : MGenericCommands{GenericCommandsCapacity},
+        MIfGenericIsFull{std::move(IfGenericIsFull)},
+        MAllocateDependency{std::move(AllocateDependency)}
+  {}
 
   iterator begin() {
     return iterator{*this, MGenericCommands.begin()};
   }
 
   iterator end() {
-    return iterator{*this, MHostAccessorCommands.end()};
+    return iterator{*this, endHostAccessor()};
   }
 
   const_iterator cbegin() const {
-    return const_iteratorr{*this, MGenericCommands.begin()};
+    return const_iterator{*this, MGenericCommands.begin()};
   }
 
   const_iterator cend() const {
-    return const_iterator{*this, MHostAccessorCommands.end()};
+    return const_iterator{*this, endHostAccessor()};
   }
 
-  void push_back(value_type Cmd);
+  void push_back(value_type Cmd, MemObjRecord *Record);
 
-  // erases range [first, last)
-  void erase(iterator &first, iterator &last);
-
-  // return number of removed elements
+  /// Replacement for std::remove with subsequent call to erase(newEnd, end()).
+  /// This function is introduced here due to complexity of iterator.
+  /// \returns number of removed elements
   size_t remove(value_type Cmd);
 
+  std::vector<value_type> toVector() const;
+
+  size_t genericCommandsCapacity() const {
+    return MGenericCommands.capacity();
+  };
+
+  const GenericCommandsT &getGenericCommands() const {
+    return MGenericCommands;
+  }
+
 private:
-  friend struct IteratorT<true>;
-  friend struct IteratorT<false>;
+  using HostAccessorCommandSingleXRefT = HostAccessorCommandListT::iterator;
+  // Unordered map would suit here better. Though, its iterators are invalidated
+  // upon rehash. Ordered map's iterators, here however, are not invalidated
+  // upon rebalance operation.
+  using HostAccessorCommandXRefT =
+      std::map<EmptyCommand *, HostAccessorCommandSingleXRefT>;
+  template <bool IsConst>
+  struct HostAccessorIt;
+
 
   GenericCommandsT MGenericCommands;
+  // main storage for host accessor comands:
+  // mem object record -> list of EmptyCommands
   HostAccessorCommandsT MHostAccessorCommands;
+  // cross-reference map: EmptyCommand -> iterator in list in main storage
+  HostAccessorCommandXRefT MHostAccessorCommandsXRef;
+
   IfGenericIsFullF MIfGenericIsFull;
+  AllocateDependencyF MAllocateDependency;
 
-  void addHostAccessorCommand(EmptyCommand *Cmd);
-  void addGenericCommand(value_type Cmd);
+  void addGenericCommand(value_type Cmd, MemObjRecord *Record);
+  void addHostAccessorCommand(EmptyCommand *Cmd, MemObjRecord *Record);
 
+  // inserts a command to the end of list for its mem object
+  void insertHostAccessorCommand(EmptyCommand *Cmd);
+  void eraseHostAccessorCommand(EmptyCommand *Cmd);
+
+  HostAccessorIt<false> endHostAccessor() {
+    return HostAccessorIt<false>(
+        &MHostAccessorCommands, MHostAccessorCommands.end());
+  }
+
+  HostAccessorIt<true> endHostAccessor() const {
+    return HostAccessorIt<true>(
+        &MHostAccessorCommands, MHostAccessorCommands.end());
+  }
+
+  // for access to struct ConstRef.
+  friend struct IteratorT<true>;
+  friend struct IteratorT<false>;
 
   template <bool IsConst, typename T>
   struct ConstRef;
@@ -90,18 +155,47 @@ private:
     using type = T &;
   };
 
+
+  template <bool IsConst, typename T>
+  struct ConstPtr;
+
+  template<typename T> struct ConstPtr<true, T> {
+    using type = const T *;
+  };
+
+  template<typename T> struct ConstPtr<false, T> {
+    using type = T *;
+  };
+
+
+  template <bool IsConst, typename T>
+  struct ConstIterator;
+
+  template<typename T> struct ConstIterator<true, T> {
+    using type = typename T::const_iterator;
+  };
+
+  template<typename T> struct ConstIterator<false, T> {
+    using type = typename T::iterator;
+  };
+
+
   template <bool IsConst>
   struct HostAccessorIt {
-    using HostT = typename ConstRef<IsConst, HostAccessorCommandsT>::type;
-    using MapItT = HostAccessorCommandsT::iterator;
-    using ValueItT = HostAccessorCommandsT::mapped_type::iterator;
+    using HostT = typename ConstPtr<IsConst, HostAccessorCommandsT>::type;
+    using MapItT = typename ConstIterator<IsConst, HostAccessorCommandsT>::type;
+    using ValueItT =
+        typename ConstIterator<IsConst,
+                               HostAccessorCommandsT::mapped_type>::type;
 
     HostT MHost;
     MapItT MMapIt;
     ValueItT MValueIt;
 
+    HostAccessorIt() : MHost{nullptr} {}
+
     HostAccessorIt(HostT Host, MapItT MapIt) : MHost{Host}, MMapIt{MapIt} {
-      if (MMapIt != MHost.end())
+      if (MMapIt != MHost->end())
         MValueIt = MMapIt->second.begin();
     }
 
@@ -112,25 +206,60 @@ private:
       : MHost{Other.MHost}, MMapIt{Other.MMapIt}, MValueIt{Other.MValueIt} {}
 
     value_type operator*() {
+      assert(MHost);
       return *MValueIt;
     }
 
     value_type operator*() const {
+      assert(MHost);
       return *MValueIt;
     }
 
     // pre-increment
     HostAccessorIt<IsConst> &operator++() {
+      assert(MHost);
       increment();
       return *this;
     }
 
     // post-increment
     HostAccessorIt<IsConst> operator++(int) {
+      assert(MHost);
       HostAccessorIt<IsConst> Result = *this;
       increment();
 
       return Result;
+    }
+
+    bool operator==(const HostAccessorIt<IsConst> &Rhs) const {
+      return MHost && MHost == Rhs.MHost && MMapIt == Rhs.MMapIt &&
+          (MMapIt == MHost->end() || MValueIt == Rhs.MValueIt);
+    }
+
+    bool operator!=(const HostAccessorIt<IsConst> &Rhs) const {
+      return !MHost || MHost != Rhs.MHost || MMapIt != Rhs.MMapIt ||
+          (MMapIt != MHost->end() && Rhs.MMapIt != Rhs.MHost->end() && 
+           MValueIt != Rhs.MValueIt);
+    }
+
+    HostAccessorIt<IsConst> &operator=(const HostAccessorIt<IsConst> &Other) {
+      MHost = Other.MHost;
+      MMapIt = Other.MMapIt;
+
+      if (MMapIt != MHost->end())
+        MValueIt = Other.MValueIt;
+
+      return *this;
+    }
+
+    HostAccessorIt<IsConst> &operator=(HostAccessorIt<IsConst> &&Other) {
+      MHost = Other.MHost;
+      MMapIt = std::move(Other.MMapIt);
+
+      if (MMapIt != MHost->end())
+        MValueIt = std::move(Other.MValueIt);
+
+      return *this;
     }
 
   private:
@@ -139,7 +268,7 @@ private:
       if (MValueIt == MMapIt->second.end()) {
         ++MMapIt;
 
-        if (MMapIt != MHost.end())
+        if (MMapIt != MHost->end())
           MValueIt = MMapIt->second.begin();
 
         return true;
@@ -149,7 +278,7 @@ private:
     }
 
     void increment() {
-      if (MMapIt == MHost.end())
+      if (MMapIt == MHost->end())
         return;
 
       if (incrementMapItIfNeeded())
@@ -167,8 +296,8 @@ public:
   template <bool IsConst>
   struct IteratorT {
     using HostT = typename ConstRef<IsConst, CircularBufferExtended>::type;
-    using GCItT = GenericCommandsT::iterator;
-    using HACIt = HostAccessorIt;
+    using GCItT = typename ConstIterator<IsConst, GenericCommandsT>::type;
+    using HACItT = HostAccessorIt<IsConst>;
 
     HostT MHost;
     GCItT MGCIt;
@@ -176,25 +305,31 @@ public:
 
     bool MGenericIsActive;
 
-    IteratorT(HostT &Host, GCItT &GCIt)
+    IteratorT(HostT Host, GCItT GCIt)
         : MHost(Host), MGCIt{std::move(GCIt)}, MGenericIsActive{true} {}
 
-    IteratorT(HostT &Host, HACItT &HACIt)
+    IteratorT(HostT Host, HACItT HACIt)
         : MHost(Host), MHACIt{std::move(HACIt)}, MGenericIsActive{false} {}
 
     IteratorT(const IteratorT<IsConst> &Other)
-        : MHost(Other.MHost), MGCIt(Other.MGCIt), MHACIt(Other.MHACIt),
+        : MHost{Other.MHost}, MGCIt(Other.MGCIt), MHACIt(Other.MHACIt),
           MGenericIsActive(Other.MGenericIsActive) {}
 
     IteratorT(IteratorT<IsConst> &&Other)
-        : MHost(std::move(Other.MHost)), MGCIt(std::move(Other.MGCIt)),
+        : MHost{Other.MHost}, MGCIt(std::move(Other.MGCIt)),
           MHACIt(std::move(Other.MHACIt)),
           MGenericIsActive(Other.MGenericIsActive) {}
 
-    bool operator==(const IteratorT &Rhs) const {
+    bool operator==(const IteratorT<IsConst> &Rhs) const {
       return &MHost == &Rhs.MHost && MGenericIsActive == Rhs.MGenericIsActive &&
           ((MGenericIsActive && MGCIt == Rhs.MGCIt) ||
            (!MGenericIsActive && MHACIt == Rhs.MHACIt));
+    }
+
+    bool operator!=(const IteratorT<IsConst> &Rhs) const {
+      return &MHost != &Rhs.MHost || MGenericIsActive != Rhs.MGenericIsActive ||
+          ((MGenericIsActive && MGCIt != Rhs.MGCIt) ||
+           (!MGenericIsActive && MHACIt != Rhs.MHACIt));
     }
 
     // pre-increment
@@ -215,7 +350,7 @@ public:
       if (MGenericIsActive && MGCIt != MHost.MGenericCommands.end())
         return *MGCIt;
 
-      if (!MGenericIsActive && MHACIt != MHost.MHostAccessorCommands.end())
+      if (!MGenericIsActive && MHACIt != MHost.endHostAccessor())
         return *MHACIt;
 
       assert(false);
@@ -228,7 +363,8 @@ public:
       if (MGenericIsActive) {
         if (MGCIt == MHost.MGenericCommands.end()) {
           MGenericIsActive = false;
-          MHACIt = MHost.MHostAccessorCommands.begin();
+          MHACIt = HACItT{&MHost.MHostAccessorCommands,
+                          MHost.MHostAccessorCommands.begin()};
           return;
         }
 
@@ -238,7 +374,7 @@ public:
 
       assert(MGCIt == MHost.MGenericCommands.end());
 
-      if (MHACIt == MHost.MHostAccessorCommands.end())
+      if (MHACIt == MHost.endHostAccessor())
         return;
 
       ++MHACIt;

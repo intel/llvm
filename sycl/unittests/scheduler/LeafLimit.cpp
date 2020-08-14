@@ -28,7 +28,7 @@ TEST_F(SchedulerTest, LeafLimit) {
 
   // Create commands that will be added as leaves exceeding the limit by 1
   std::vector<MockCommand *> LeavesToAdd;
-  for (std::size_t i = 0; i < Rec->MWriteLeaves.capacity() + 1; ++i) {
+  for (std::size_t i = 0; i < Rec->MWriteLeaves.genericCommandsCapacity() + 1; ++i) {
     LeavesToAdd.push_back(
         new MockCommand(detail::getSyclObjImpl(MQueue), MockReq));
   }
@@ -43,7 +43,8 @@ TEST_F(SchedulerTest, LeafLimit) {
   }
   // Check that the oldest leaf has been removed from the leaf list
   // and added as a dependency of the newest one instead
-  const detail::CircularBuffer<detail::Command *> &Leaves = Rec->MWriteLeaves;
+  const detail::CircularBuffer<detail::Command *> &Leaves =
+      Rec->MWriteLeaves.getGenericCommands();
   ASSERT_TRUE(std::find(Leaves.begin(), Leaves.end(), LeavesToAdd.front()) ==
               Leaves.end());
   for (std::size_t i = 1; i < LeavesToAdd.size(); ++i) {

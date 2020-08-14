@@ -54,9 +54,16 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
       detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
       /*PropList=*/{}));
 
+  auto IfGenericIsFull = [](
+      cl::sycl::detail::Command *, cl::sycl::detail::MemObjRecord *,
+      cl::sycl::detail::CircularBuffer<cl::sycl::detail::Command *> &) {};
+  auto AllocaDep = [](cl::sycl::detail::Command *,
+                      cl::sycl::detail::Command *,
+                      cl::sycl::detail::MemObjRecord *) {};
+
   std::shared_ptr<cl::sycl::detail::MemObjRecord> Record{
       new cl::sycl::detail::MemObjRecord(DefaultHostQueue->getContextImplPtr(),
-                                         10)};
+                                         10, IfGenericIsFull, AllocaDep)};
 
   MemObjMock MemObj(Record);
   Req.MSYCLMemObj = &MemObj;
@@ -68,7 +75,7 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   MockCommand DepDepCmd(DefaultHostQueue, Req);
   DepCmd.MDeps.push_back({&DepDepCmd, DepDepCmd.getRequirement(), &AllocaCmd1});
   DepDepCmd.MUsers.insert(&DepCmd);
-  Record->MWriteLeaves.push_back(&DepCmd);
+  Record->MWriteLeaves.push_back(&DepCmd, Record.get());
 
   MockScheduler MS;
   cl::sycl::detail::Command *AllocaCmd2 =

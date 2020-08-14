@@ -170,8 +170,35 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
     return Record;
 
   const size_t LeafLimit = 8;
+  CircularBufferExtended::IfGenericIsFullF IfGenericIsFull =
+      [this](Command *Cmd, MemObjRecord *Record,
+             CircularBuffer<Command *> &Leaves) {
+        Command *OldLeaf = Leaves.front();
+        // TODO this is a workaround for duplicate leaves, remove once fixed
+        if (OldLeaf == Cmd)
+          return;
+        // Add the old leaf as a dependency for the new one by duplicating one
+        // of the requirements for the current record
+        DepDesc Dep = findDepForRecord(Cmd, Record);
+        Dep.MDepCommand = OldLeaf;
+        Cmd->addDep(Dep);
+        OldLeaf->addUser(Cmd);
+        --(OldLeaf->MLeafCounter);
+      };
+  CircularBufferExtended::AllocateDependencyF AllocateDependency =
+      [this](Command *Dependant, Command *Dependency, MemObjRecord *Record) {
+        // Add the old leaf as a dependency for the new one by duplicating one
+        // of the requirements for the current record
+        DepDesc Dep = findDepForRecord(Dependant, Record);
+        Dep.MDepCommand = Dependency;
+        Dependant->addDep(Dep);
+        Dependency->addUser(Dependant);
+        --(Dependency->MLeafCounter);
+      };
+
   MemObject->MRecord.reset(
-      new MemObjRecord{Queue->getContextImplPtr(), LeafLimit});
+      new MemObjRecord{Queue->getContextImplPtr(), LeafLimit,
+                       IfGenericIsFull, AllocateDependency});
 
   MMemObjs.push_back(MemObject);
   return MemObject->MRecord.get();
@@ -186,38 +213,18 @@ void Scheduler::GraphBuilder::updateLeaves(const std::set<Command *> &Cmds,
     return;
 
   for (Command *Cmd : Cmds) {
-    auto NewEnd = std::remove(Record->MReadLeaves.begin(),
-                              Record->MReadLeaves.end(), Cmd);
-    Cmd->MLeafCounter -= std::distance(NewEnd, Record->MReadLeaves.end());
-    Record->MReadLeaves.erase(NewEnd, Record->MReadLeaves.end());
-
-    NewEnd = std::remove(Record->MWriteLeaves.begin(),
-                         Record->MWriteLeaves.end(), Cmd);
-    Cmd->MLeafCounter -= std::distance(NewEnd, Record->MWriteLeaves.end());
-    Record->MWriteLeaves.erase(NewEnd, Record->MWriteLeaves.end());
+    Cmd->MLeafCounter -= Record->MReadLeaves.remove(Cmd);
+    Cmd->MLeafCounter -= Record->MWriteLeaves.remove(Cmd);
   }
 }
 
 void Scheduler::GraphBuilder::addNodeToLeaves(MemObjRecord *Record,
                                               Command *Cmd,
                                               access::mode AccessMode) {
-  CircularBuffer<Command *> &Leaves{AccessMode == access::mode::read
-                                        ? Record->MReadLeaves
-                                        : Record->MWriteLeaves};
-  if (Leaves.full()) {
-    Command *OldLeaf = Leaves.front();
-    // TODO this is a workaround for duplicate leaves, remove once fixed
-    if (OldLeaf == Cmd)
-      return;
-    // Add the old leaf as a dependency for the new one by duplicating one of
-    // the requirements for the current record
-    DepDesc Dep = findDepForRecord(Cmd, Record);
-    Dep.MDepCommand = OldLeaf;
-    Cmd->addDep(Dep);
-    OldLeaf->addUser(Cmd);
-    --(OldLeaf->MLeafCounter);
-  }
-  Leaves.push_back(Cmd);
+  CircularBufferExtended &Leaves{AccessMode == access::mode::read
+                                    ? Record->MReadLeaves
+                                    : Record->MWriteLeaves};
+  Leaves.push_back(Cmd, Record);
   ++(Cmd->MLeafCounter);
 }
 
@@ -485,12 +492,13 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record,
   std::vector<Command *> Visited;
   const bool ReadOnlyReq = Req->MAccessMode == access::mode::read;
 
-  std::vector<Command *> ToAnalyze{Record->MWriteLeaves.begin(),
-                                   Record->MWriteLeaves.end()};
+  std::vector<Command *> ToAnalyze{std::move(Record->MWriteLeaves.toVector())};
 
-  if (!ReadOnlyReq)
-    ToAnalyze.insert(ToAnalyze.begin(), Record->MReadLeaves.begin(),
-                     Record->MReadLeaves.end());
+  if (!ReadOnlyReq) {
+    std::vector<Command *> V{std::move(Record->MWriteLeaves.toVector())};
+
+    ToAnalyze.insert(ToAnalyze.begin(), V.begin(), V.end());
+  }
 
   while (!ToAnalyze.empty()) {
     Command *DepCmd = ToAnalyze.back();
@@ -657,7 +665,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
     }
 
     Record->MAllocaCommands.push_back(AllocaCmd);
-    Record->MWriteLeaves.push_back(AllocaCmd);
+    Record->MWriteLeaves.push_back(AllocaCmd, Record);
     ++(AllocaCmd->MLeafCounter);
   }
   return AllocaCmd;
