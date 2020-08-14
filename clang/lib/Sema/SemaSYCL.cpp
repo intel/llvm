@@ -882,6 +882,7 @@ public:
             typename CurHandler, typename... Handlers>
   std::enable_if_t<!CurHandler::VisitUnionBody &&
   (sizeof...(FilteredHandlers) > 0)>
+                   (sizeof...(FilteredHandlers) > 0)>
   VisitUnion(FilteredHandlers &... filtered_handlers,
              const CXXRecordDecl *Owner, ParentTy &Parent,
              const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
@@ -892,8 +893,8 @@ public:
 
   template <typename... FilteredHandlers, typename ParentTy,
             typename CurHandler, typename... Handlers>
-  std::enable_if_t<CurHandler::VisitUnionBody &&
   (sizeof...(FilteredHandlers) > 0)>
+                   (sizeof...(FilteredHandlers) > 0)>
   VisitUnion(FilteredHandlers &... filtered_handlers,
              const CXXRecordDecl *Owner, ParentTy &Parent,
              const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
