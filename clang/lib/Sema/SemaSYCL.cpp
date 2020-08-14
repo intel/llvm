@@ -880,25 +880,24 @@ public:
 
   template <typename... FilteredHandlers, typename ParentTy,
             typename CurHandler, typename... Handlers>
-  std::enable_if_t<!CurHandler::VisitUnionBody &&
-  (sizeof...(FilteredHandlers) > 0)>
-                   (sizeof...(FilteredHandlers) > 0)>
-  VisitUnion(FilteredHandlers &... filtered_handlers,
-             const CXXRecordDecl *Owner, ParentTy &Parent,
-             const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
-             Handlers &... handlers) {
+      std::enable_if_t<!CurHandler::VisitUnionBody &&
+                       (sizeof...(FilteredHandlers) > 0)>
+      VisitUnion(FilteredHandlers &... filtered_handlers,
+                 const CXXRecordDecl *Owner, ParentTy &Parent,
+                 const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
+                 Handlers &... handlers) {
     VisitUnion<FilteredHandlers...>(filtered_handlers..., Owner, Parent,
                                     Wrapper, handlers...);
   }
 
   template <typename... FilteredHandlers, typename ParentTy,
             typename CurHandler, typename... Handlers>
-  (sizeof...(FilteredHandlers) > 0)>
-                   (sizeof...(FilteredHandlers) > 0)>
-  VisitUnion(FilteredHandlers &... filtered_handlers,
-             const CXXRecordDecl *Owner, ParentTy &Parent,
-             const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
-             Handlers &... handlers) {
+      std::enable_if_t<CurHandler::VisitUnionBody &&
+                       (sizeof...(FilteredHandlers) > 0)>
+      VisitUnion(FilteredHandlers &... filtered_handlers,
+                 const CXXRecordDecl *Owner, ParentTy &Parent,
+                 const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
+                 Handlers &... handlers) {
     VisitUnion<FilteredHandlers..., CurHandler>(
         filtered_handlers..., cur_handler, Owner, Parent, Wrapper, handlers...);
   }
