@@ -832,6 +832,7 @@ public:
       return getSet(ExtensionID::SPV_KHR_float_controls);
     case CapabilityRoundToInfinityINTEL:
     case CapabilityFloatingPointModeINTEL:
+    case CapabilityFunctionFloatControlINTEL:
       return getSet(ExtensionID::SPV_INTEL_float_controls2);
     case CapabilityVectorComputeINTEL:
     case CapabilityVectorAnyINTEL:
