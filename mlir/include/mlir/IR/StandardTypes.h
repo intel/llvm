@@ -564,7 +564,6 @@ public:
   // TODO: merge these two special values in a single one used everywhere.
   // Unfortunately, uses of `-1` have crept deep into the codebase now and are
   // hard to track.
-  static constexpr int64_t kDynamicSize = -1;
   static int64_t getDynamicStrideOrOffset() {
     return ShapedType::kDynamicStrideOrOffset;
   }
@@ -633,10 +632,10 @@ public:
 
   /// Get or create a new TupleType with the provided element types. Assumes the
   /// arguments define a well-formed type.
-  static TupleType get(ArrayRef<Type> elementTypes, MLIRContext *context);
+  static TupleType get(TypeRange elementTypes, MLIRContext *context);
 
   /// Get or create an empty tuple type.
-  static TupleType get(MLIRContext *context) { return get({}, context); }
+  static TupleType get(MLIRContext *context);
 
   /// Return the elements types for this tuple.
   ArrayRef<Type> getTypes() const;

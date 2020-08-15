@@ -114,6 +114,7 @@ class MTBUF_Real <MTBUF_Pseudo ps> :
   let isCodeGenOnly = 0;
 
   // copy relevant pseudo op flags
+  let UseNamedOperandTable = ps.UseNamedOperandTable;
   let SubtargetPredicate = ps.SubtargetPredicate;
   let AsmMatchConverter  = ps.AsmMatchConverter;
   let Constraints        = ps.Constraints;
@@ -1006,7 +1007,7 @@ defm BUFFER_ATOMIC_DEC_X2 : MUBUF_Pseudo_Atomics <
 
 let SubtargetPredicate = HasGFX10_BEncoding in
 defm BUFFER_ATOMIC_CSUB : MUBUF_Pseudo_Atomics_RTN <
-  "buffer_atomic_csub", VGPR_32, i32, atomic_csub_global_32
+  "buffer_atomic_csub", VGPR_32, i32, int_amdgcn_global_atomic_csub
 >;
 
 let SubtargetPredicate = isGFX8GFX9 in {
@@ -1367,6 +1368,7 @@ multiclass BufferAtomicPatterns<SDPatternOperator name, ValueType vt,
 }
 
 defm : BufferAtomicPatterns<SIbuffer_atomic_swap, i32, "BUFFER_ATOMIC_SWAP">;
+defm : BufferAtomicPatterns<SIbuffer_atomic_swap, f32, "BUFFER_ATOMIC_SWAP">;
 defm : BufferAtomicPatterns<SIbuffer_atomic_add, i32, "BUFFER_ATOMIC_ADD">;
 defm : BufferAtomicPatterns<SIbuffer_atomic_sub, i32, "BUFFER_ATOMIC_SUB">;
 defm : BufferAtomicPatterns<SIbuffer_atomic_smin, i32, "BUFFER_ATOMIC_SMIN">;
@@ -1431,7 +1433,7 @@ multiclass BufferAtomicPatterns_NO_RTN<SDPatternOperator name, ValueType vt,
 
 let SubtargetPredicate = HasAtomicFaddInsts in {
 defm : BufferAtomicPatterns_NO_RTN<SIbuffer_atomic_fadd, f32, "BUFFER_ATOMIC_ADD_F32">;
-defm : BufferAtomicPatterns_NO_RTN<SIbuffer_atomic_pk_fadd, v2f16, "BUFFER_ATOMIC_PK_ADD_F16">;
+defm : BufferAtomicPatterns_NO_RTN<SIbuffer_atomic_fadd, v2f16, "BUFFER_ATOMIC_PK_ADD_F16">;
 }
 
 def : GCNPat<

@@ -30,10 +30,13 @@
 #include <string>
 #include <vector>
 
-#ifdef __GNUG__
+#ifdef __has_include
+#if __has_include(<cxxabi.h>)
+#define __SYCL_ENABLE_GNU_DEMANGLING
 #include <cstdlib>
 #include <cxxabi.h>
 #include <memory>
+#endif
 #endif
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -49,7 +52,7 @@ namespace detail {
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
 #endif
 
-#ifdef __GNUG__
+#ifdef __SYCL_ENABLE_GNU_DEMANGLING
 struct DemangleHandle {
   char *p;
   DemangleHandle(char *ptr) : p(ptr) {}
@@ -1196,12 +1199,8 @@ AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
   throw runtime_error("Alloca for command not found", PI_INVALID_OPERATION);
 }
 
-void ExecCGCommand::flushStreams() {
-  assert(MCommandGroup->getType() == CG::KERNEL && "Expected kernel");
-  for (auto StreamImplPtr :
-       ((CGExecKernel *)MCommandGroup.get())->getStreams()) {
-    StreamImplPtr->flush();
-  }
+vector_class<StreamImplPtr> ExecCGCommand::getStreams() const {
+  return ((CGExecKernel *)MCommandGroup.get())->getStreams();
 }
 
 cl_int UpdateHostRequirementCommand::enqueueImp() {

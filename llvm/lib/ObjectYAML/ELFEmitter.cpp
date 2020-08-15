@@ -355,7 +355,7 @@ ELFState<ELFT>::ELFState(ELFYAML::Object &D, yaml::ErrorHandler EH)
   if (Doc.Symbols)
     ImplicitSections.push_back(".symtab");
   if (Doc.DWARF)
-    for (StringRef DebugSecName : Doc.DWARF->getUsedSectionNames()) {
+    for (StringRef DebugSecName : Doc.DWARF->getNonEmptySectionNames()) {
       std::string SecName = ("." + DebugSecName).str();
       ImplicitSections.push_back(StringRef(SecName).copy(StringAlloc));
     }
@@ -551,6 +551,8 @@ static void overrideFields(ELFYAML::Section *From, typename ELFT::Shdr &To) {
     To.sh_offset = *From->ShOffset;
   if (From->ShSize)
     To.sh_size = *From->ShSize;
+  if (From->ShType)
+    To.sh_type = *From->ShType;
 }
 
 template <class ELFT>
@@ -931,7 +933,7 @@ void ELFState<ELFT>::initStrtabSectionHeader(Elf_Shdr &SHeader, StringRef Name,
 }
 
 static bool shouldEmitDWARF(DWARFYAML::Data &DWARF, StringRef Name) {
-  SetVector<StringRef> DebugSecNames = DWARF.getUsedSectionNames();
+  SetVector<StringRef> DebugSecNames = DWARF.getNonEmptySectionNames();
   return Name.consume_front(".") && DebugSecNames.count(Name);
 }
 
@@ -947,41 +949,9 @@ Expected<uint64_t> emitDWARF(typename ELFT::Shdr &SHeader, StringRef Name,
     return 0;
 
   uint64_t BeginOffset = CBA.tell();
-  Error Err = Error::success();
-  cantFail(std::move(Err));
 
-  if (Name == ".debug_str")
-    Err = DWARFYAML::emitDebugStr(*OS, DWARF);
-  else if (Name == ".debug_aranges")
-    Err = DWARFYAML::emitDebugAranges(*OS, DWARF);
-  else if (Name == ".debug_ranges")
-    Err = DWARFYAML::emitDebugRanges(*OS, DWARF);
-  else if (Name == ".debug_line")
-    Err = DWARFYAML::emitDebugLine(*OS, DWARF);
-  else if (Name == ".debug_addr")
-    Err = DWARFYAML::emitDebugAddr(*OS, DWARF);
-  else if (Name == ".debug_abbrev")
-    Err = DWARFYAML::emitDebugAbbrev(*OS, DWARF);
-  else if (Name == ".debug_info")
-    Err = DWARFYAML::emitDebugInfo(*OS, DWARF);
-  else if (Name == ".debug_pubnames")
-    Err = DWARFYAML::emitPubSection(*OS, *DWARF.PubNames, DWARF.IsLittleEndian);
-  else if (Name == ".debug_pubtypes")
-    Err = DWARFYAML::emitPubSection(*OS, *DWARF.PubTypes, DWARF.IsLittleEndian);
-  else if (Name == ".debug_gnu_pubnames")
-    Err = DWARFYAML::emitPubSection(*OS, *DWARF.GNUPubNames,
-                                    DWARF.IsLittleEndian, /*IsGNUStyle=*/true);
-  else if (Name == ".debug_gnu_pubtypes")
-    Err = DWARFYAML::emitPubSection(*OS, *DWARF.GNUPubTypes,
-                                    DWARF.IsLittleEndian, /*IsGNUStyle=*/true);
-  else if (Name == ".debug_str_offsets")
-    Err = DWARFYAML::emitDebugStrOffsets(*OS, DWARF);
-  else if (Name == ".debug_rnglists")
-    Err = DWARFYAML::emitDebugRnglists(*OS, DWARF);
-  else
-    llvm_unreachable("unexpected emitDWARF() call");
-
-  if (Err)
+  auto EmitFunc = DWARFYAML::getDWARFEmitterByName(Name.substr(1));
+  if (Error Err = EmitFunc(*OS, DWARF))
     return std::move(Err);
 
   return CBA.tell() - BeginOffset;

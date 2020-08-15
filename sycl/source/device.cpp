@@ -31,7 +31,8 @@ device::device() : impl(std::make_shared<detail::device_impl>()) {}
 
 device::device(cl_device_id deviceId)
     : impl(std::make_shared<detail::device_impl>(
-          detail::pi::cast<pi_native_handle>(deviceId), *RT::GlobalPlugin)) {
+          detail::pi::cast<pi_native_handle>(deviceId),
+          RT::getPlugin<backend::opencl>())) {
   // The implementation constructor takes ownership of the native handle so we
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
   clRetainDevice(deviceId);
@@ -136,6 +137,8 @@ device::get_info() const {
 #undef PARAM_TRAITS_SPEC
 
 pi_native_handle device::getNative() const { return impl->getNative(); }
+
+bool device::has(aspect Aspect) const { return impl->has(Aspect); }
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

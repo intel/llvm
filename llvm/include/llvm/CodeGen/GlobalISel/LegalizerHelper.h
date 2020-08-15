@@ -154,6 +154,10 @@ public:
   /// def by inserting a G_BITCAST from \p CastTy
   void bitcastDst(MachineInstr &MI, LLT CastTy, unsigned OpIdx);
 
+  /// Widen \p OrigReg to \p WideTy by merging to a wider type, padding with
+  /// G_IMPLICIT_DEF, and producing dead results.
+  Register widenWithUnmerge(LLT WideTy, Register OrigReg);
+
 private:
   LegalizeResult
   widenScalarMergeValues(MachineInstr &MI, unsigned TypeIdx, LLT WideTy);
@@ -228,7 +232,23 @@ private:
                          ArrayRef<Register> Src1Regs,
                          ArrayRef<Register> Src2Regs, LLT NarrowTy);
 
+  void changeOpcode(MachineInstr &MI, unsigned NewOpcode);
+
 public:
+  /// Return the alignment to use for a stack temporary object with the given
+  /// type.
+  Align getStackTemporaryAlignment(LLT Type, Align MinAlign = Align()) const;
+
+  /// Create a stack temporary based on the size in bytes and the alignment
+  MachineInstrBuilder createStackTemporary(TypeSize Bytes, Align Alignment,
+                                           MachinePointerInfo &PtrInfo);
+
+  /// Get a pointer to vector element \p Index located in memory for a vector of
+  /// type \p VecTy starting at a base address of \p VecPtr. If \p Index is out
+  /// of bounds the returned pointer is unspecified, but will be within the
+  /// vector bounds.
+  Register getVectorElementPointer(Register VecPtr, LLT VecTy, Register Index);
+
   LegalizeResult fewerElementsVectorImplicitDef(MachineInstr &MI,
                                                 unsigned TypeIdx, LLT NarrowTy);
 
@@ -291,7 +311,13 @@ public:
   LegalizeResult narrowScalarCTTZ(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
   LegalizeResult narrowScalarCTPOP(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
 
+  /// Perform Bitcast legalize action on G_EXTRACT_VECTOR_ELT.
+  LegalizeResult bitcastExtractVectorElt(MachineInstr &MI, unsigned TypeIdx,
+                                         LLT CastTy);
+
   LegalizeResult lowerBitcast(MachineInstr &MI);
+  LegalizeResult lowerLoad(MachineInstr &MI);
+  LegalizeResult lowerStore(MachineInstr &MI);
   LegalizeResult lowerBitCount(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
 
   LegalizeResult lowerU64ToF32BitOps(MachineInstr &MI);
@@ -312,6 +338,7 @@ public:
   LegalizeResult lowerFFloor(MachineInstr &MI);
   LegalizeResult lowerMergeValues(MachineInstr &MI);
   LegalizeResult lowerUnmergeValues(MachineInstr &MI);
+  LegalizeResult lowerExtractVectorElt(MachineInstr &MI);
   LegalizeResult lowerShuffleVector(MachineInstr &MI);
   LegalizeResult lowerDynStackAlloc(MachineInstr &MI);
   LegalizeResult lowerExtract(MachineInstr &MI);

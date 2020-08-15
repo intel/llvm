@@ -456,6 +456,30 @@
 # CHECK-BE: vinsdrx 1, 2, 3                       # encoding: [0x10,0x22,0x1b,0xcf]
 # CHECK-LE: vinsdrx 1, 2, 3                       # encoding: [0xcf,0x1b,0x22,0x10]
             vinsdrx 1, 2, 3
+# CHECK-BE: vextdubvlx 1, 2, 3, 3                 # encoding: [0x10,0x22,0x18,0xd8]
+# CHECK-LE: vextdubvlx 1, 2, 3, 3                 # encoding: [0xd8,0x18,0x22,0x10]
+            vextdubvlx 1, 2, 3, 3
+# CHECK-BE: vextdubvrx 1, 2, 3, 3                 # encoding: [0x10,0x22,0x18,0xd9]
+# CHECK-LE: vextdubvrx 1, 2, 3, 3                 # encoding: [0xd9,0x18,0x22,0x10]
+            vextdubvrx 1, 2, 3, 3
+# CHECK-BE: vextduhvlx 1, 2, 3, 3                 # encoding: [0x10,0x22,0x18,0xda]
+# CHECK-LE: vextduhvlx 1, 2, 3, 3                 # encoding: [0xda,0x18,0x22,0x10]
+            vextduhvlx 1, 2, 3, 3
+# CHECK-BE: vextduhvrx 1, 2, 3, 3                 # encoding: [0x10,0x22,0x18,0xdb]
+# CHECK-LE: vextduhvrx 1, 2, 3, 3                 # encoding: [0xdb,0x18,0x22,0x10]
+            vextduhvrx 1, 2, 3, 3
+# CHECK-BE: vextduwvlx 1, 2, 3, 3                 # encoding: [0x10,0x22,0x18,0xdc]
+# CHECK-LE: vextduwvlx 1, 2, 3, 3                 # encoding: [0xdc,0x18,0x22,0x10]
+            vextduwvlx 1, 2, 3, 3
+# CHECK-BE: vextduwvrx 1, 2, 3, 3                 # encoding: [0x10,0x22,0x18,0xdd]
+# CHECK-LE: vextduwvrx 1, 2, 3, 3                 # encoding: [0xdd,0x18,0x22,0x10]
+            vextduwvrx 1, 2, 3, 3
+# CHECK-BE: vextddvlx 1, 2, 3, 3                  # encoding: [0x10,0x22,0x18,0xde]
+# CHECK-LE: vextddvlx 1, 2, 3, 3                  # encoding: [0xde,0x18,0x22,0x10]
+            vextddvlx 1, 2, 3, 3
+# CHECK-BE: vextddvrx 1, 2, 3, 3                  # encoding: [0x10,0x22,0x18,0xdf]
+# CHECK-LE: vextddvrx 1, 2, 3, 3                  # encoding: [0xdf,0x18,0x22,0x10]
+            vextddvrx 1, 2, 3, 3
 # CHECK-BE: lxvrbx 32, 1, 2                       # encoding: [0x7c,0x01,0x10,0x1b]
 # CHECK-LE: lxvrbx 32, 1, 2                       # encoding: [0x1b,0x10,0x01,0x7c]
             lxvrbx 32, 1, 2
@@ -561,3 +585,24 @@
 # CHECK-BE: xscvsqqp 8, 28                        # encoding: [0xfd,0x0b,0xe6,0x88]
 # CHECK-LE: xscvsqqp 8, 28                        # encoding: [0x88,0xe6,0x0b,0xfd]
             xscvsqqp 8, 28
+# CHECK-BE: vstribr 2, 2                          # encoding: [0x10,0x41,0x10,0x0d]
+# CHECK-LE: vstribr 2, 2                          # encoding: [0x0d,0x10,0x41,0x10]
+            vstribr 2, 2
+# CHECK-BE: vstribl 2, 2                          # encoding: [0x10,0x40,0x10,0x0d]
+# CHECK-LE: vstribl 2, 2                          # encoding: [0x0d,0x10,0x40,0x10]
+            vstribl 2, 2
+# CHECK-BE: vstrihr 2, 2                          # encoding: [0x10,0x43,0x10,0x0d]
+# CHECK-LE: vstrihr 2, 2                          # encoding: [0x0d,0x10,0x43,0x10]
+            vstrihr 2, 2
+# CHECK-BE: vstribr. 2, 2                         # encoding: [0x10,0x41,0x14,0x0d]
+# CHECK-LE: vstribr. 2, 2                         # encoding: [0x0d,0x14,0x41,0x10]
+            vstribr. 2, 2
+# CHECK-BE: vstribl. 2, 2                         # encoding: [0x10,0x40,0x14,0x0d]
+# CHECK-LE: vstribl. 2, 2                         # encoding: [0x0d,0x14,0x40,0x10]
+            vstribl. 2, 2
+# CHECK-BE: vstrihr. 2, 2                         # encoding: [0x10,0x43,0x14,0x0d]
+# CHECK-LE: vstrihr. 2, 2                         # encoding: [0x0d,0x14,0x43,0x10]
+            vstrihr. 2, 2
+# CHECK-BE: vstrihl. 2, 2                         # encoding: [0x10,0x42,0x14,0x0d]
+# CHECK-LE: vstrihl. 2, 2                         # encoding: [0x0d,0x14,0x42,0x10]
+            vstrihl. 2, 2

@@ -1163,6 +1163,16 @@ def TestTypeConsumerOp : TEST_Op<"type_consumer">,
 def TestValidOp : TEST_Op<"valid", [Terminator]>,
   Arguments<(ins Variadic<AnyType>)>;
 
+def TestMergeBlocksOp : TEST_Op<"merge_blocks"> {
+  let summary = "merge_blocks operation";
+  let description = [{
+    Test op with multiple blocks that are merged with Dialect Conversion"
+  }];
+
+  let regions = (region AnyRegion:$body);
+  let results = (outs Variadic<AnyType>:$result);
+}
+
 //===----------------------------------------------------------------------===//
 // Test parser.
 //===----------------------------------------------------------------------===//
@@ -1381,6 +1391,17 @@ def FormatInferVariadicTypeFromNonVariadic
   let assemblyFormat = "$operands attr-dict `:` type($result)";
 }
 
+def FormatOptionalUnitAttr : TEST_Op<"format_optional_unit_attribute"> {
+  let arguments = (ins UnitAttr:$is_optional);
+  let assemblyFormat = "(`is_optional` $is_optional^)? attr-dict";
+}
+
+def FormatOptionalUnitAttrNoElide
+    : TEST_Op<"format_optional_unit_attribute_no_elide"> {
+  let arguments = (ins UnitAttr:$is_optional);
+  let assemblyFormat = "($is_optional^)? attr-dict";
+}
+
 //===----------------------------------------------------------------------===//
 // AllTypesMatch type inference
 //===----------------------------------------------------------------------===//
@@ -1471,6 +1492,38 @@ def RegionIfOp : TEST_Op<"region_if",
     }
     OperandRange getSuccessorEntryOperands(unsigned index);
   }];
+}
+
+//===----------------------------------------------------------------------===//
+// Test TableGen generated build() methods
+//===----------------------------------------------------------------------===//
+
+def TableGenConstant : TEST_Op<"tblgen_constant"> {
+  let results = (outs AnyType);
+}
+
+// No variadic args or results.
+def TableGenBuildOp0 : TEST_Op<"tblgen_build_0"> {
+  let arguments = (ins AnyType:$value);
+  let results = (outs AnyType:$result);
+}
+
+// Sigle variadic arg and single variadic results.
+def TableGenBuildOp1 : TEST_Op<"tblgen_build_1"> {
+  let arguments = (ins Variadic<AnyType>:$inputs);
+  let results = (outs Variadic<AnyType>:$results);
+}
+
+// Single variadic arg and non-variadic results.
+def TableGenBuildOp2 : TEST_Op<"tblgen_build_2"> {
+  let arguments = (ins Variadic<AnyType>:$inputs);
+  let results = (outs AnyType:$result);
+}
+
+// Single variadic arg and multiple variadic results.
+def TableGenBuildOp3 : TEST_Op<"tblgen_build_3", [SameVariadicResultSize]> {
+  let arguments = (ins Variadic<AnyType>:$inputs);
+  let results = (outs Variadic<AnyType>:$resultA, Variadic<AnyType>:$resultB);
 }
 
 #endif // TEST_OPS

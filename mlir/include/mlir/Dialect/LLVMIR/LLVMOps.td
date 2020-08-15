@@ -61,9 +61,8 @@ def LLVM_VoidResultTypeOpBuilder : OpBuilder<
   [{
     auto llvmType = resultType.dyn_cast<LLVM::LLVMType>(); (void)llvmType;
     assert(llvmType && "result must be an LLVM type");
-    assert(llvmType.getUnderlyingType() &&
-            llvmType.getUnderlyingType()->isVoidTy() &&
-            "for zero-result operands, only 'void' is accepted as result type");
+    assert(llvmType.isVoidTy() &&
+           "for zero-result operands, only 'void' is accepted as result type");
     build(builder, result, operands, attributes);
   }]>;
 
@@ -235,6 +234,19 @@ class MemoryOpWithAlignmentBase {
   }];
 }
 
+// Code definition that is used for nontemporal metadata creation.
+class MemoryOpWithAlignmentAndAttributes : MemoryOpWithAlignmentBase {
+  code setNonTemporalMetadataCode = [{
+    if ($nontemporal) {
+      llvm::Module *module = builder.GetInsertBlock()->getModule();
+      llvm::MDNode *metadata = llvm::MDNode::get(
+          inst->getContext(), llvm::ConstantAsMetadata::get(
+              builder.getInt32(1)));
+      inst->setMetadata(module->getMDKindID("nontemporal"), metadata);
+    }
+  }];
+}
+
 // Memory-related operations.
 def LLVM_AllocaOp :
     MemoryOpWithAlignmentBase,
@@ -266,52 +278,49 @@ def LLVM_GEPOp : LLVM_OneResultOp<"getelementptr", [NoSideEffect]>,
   }];
 }
 def LLVM_LoadOp :
-    MemoryOpWithAlignmentBase,
+    MemoryOpWithAlignmentAndAttributes,
     LLVM_OneResultOp<"load">,
-    Arguments<(ins LLVM_Type:$addr, OptionalAttr<I64Attr>:$alignment)> {
+    Arguments<(ins LLVM_Type:$addr,
+                   OptionalAttr<I64Attr>:$alignment,
+                   UnitAttr:$volatile_,
+                   UnitAttr:$nontemporal)> {
   string llvmBuilder = [{
-    auto *inst = builder.CreateLoad($addr);
-  }] # setAlignmentCode # [{
+    auto *inst = builder.CreateLoad($addr, $volatile_);
+  }] # setAlignmentCode # setNonTemporalMetadataCode # [{
     $res = inst;
   }];
   let builders = [OpBuilder<
-    "OpBuilder &b, OperationState &result, Value addr, unsigned alignment = 0",
+    "OpBuilder &b, OperationState &result, Value addr, "
+    "unsigned alignment = 0, bool isVolatile = false, "
+    "bool isNonTemporal = false",
     [{
       auto type = addr.getType().cast<LLVM::LLVMType>().getPointerElementTy();
-      build(b, result, type, addr, alignment);
+      build(b, result, type, addr, alignment, isVolatile, isNonTemporal);
     }]>,
     OpBuilder<
     "OpBuilder &b, OperationState &result, Type t, Value addr, "
-    "unsigned alignment = 0",
-    [{
-      if (alignment == 0)
-        return build(b, result, t, addr, IntegerAttr());
-      build(b, result, t, addr, b.getI64IntegerAttr(alignment));
-    }]>];
+    "unsigned alignment = 0, bool isVolatile = false, "
+    "bool isNonTemporal = false">];
   let parser = [{ return parseLoadOp(parser, result); }];
   let printer = [{ printLoadOp(p, *this); }];
   let verifier = alignmentVerifierCode;
 }
 def LLVM_StoreOp :
-    MemoryOpWithAlignmentBase,
+    MemoryOpWithAlignmentAndAttributes,
     LLVM_ZeroResultOp<"store">,
     Arguments<(ins LLVM_Type:$value,
                    LLVM_Type:$addr,
-                   OptionalAttr<I64Attr>:$alignment)> {
+                   OptionalAttr<I64Attr>:$alignment,
+                   UnitAttr:$volatile_,
+                   UnitAttr:$nontemporal)> {
   string llvmBuilder = [{
-    auto *inst = builder.CreateStore($value, $addr);
-  }] # setAlignmentCode;
-  let builders = [
-    OpBuilder<
+    auto *inst = builder.CreateStore($value, $addr, $volatile_);
+  }] # setAlignmentCode # setNonTemporalMetadataCode;
+  let builders = [OpBuilder<
     "OpBuilder &b, OperationState &result, Value value, Value addr, "
-    "unsigned alignment = 0",
-    [{
-      if (alignment == 0)
-        return build(b, result, ArrayRef<Type>{}, value, addr, IntegerAttr());
-      build(b, result, ArrayRef<Type>{}, value, addr, 
-            b.getI64IntegerAttr(alignment));
-    }]
-  >];
+    "unsigned alignment = 0, bool isVolatile = false, "
+    "bool isNonTemporal = false">
+    ];
   let parser = [{ return parseStoreOp(parser, result); }];
   let printer = [{ printStoreOp(p, *this); }];
   let verifier = alignmentVerifierCode;
@@ -467,7 +476,7 @@ def LLVM_ShuffleVectorOp
   let verifier = [{
     auto wrappedVectorType1 = v1().getType().cast<LLVM::LLVMType>();
     auto wrappedVectorType2 = v2().getType().cast<LLVM::LLVMType>();
-    if (!wrappedVectorType2.getUnderlyingType()->isVectorTy())
+    if (!wrappedVectorType2.isVectorTy())
       return emitOpError("expected LLVM IR Dialect vector type for operand #2");
     if (wrappedVectorType1.getVectorElementType() !=
         wrappedVectorType2.getVectorElementType())
@@ -755,10 +764,10 @@ def LLVM_LLVMFuncOp
           .getValue().cast<LLVMType>();
     }
     bool isVarArg() {
-      return getType().getUnderlyingType()->isFunctionVarArg();
+      return getType().isFunctionVarArg();
     }
 
-    // Hook for OpTrait::FunctionLike, returns the number of function arguments.
+    // Hook for OpTrait::FunctionLike, returns the number of function arguments`.
     // Depends on the type attribute being correct as checked by verifyType.
     unsigned getNumFuncArguments();
 
@@ -843,6 +852,7 @@ def LLVM_ExpOp : LLVM_UnaryIntrinsicOp<"exp">;
 def LLVM_Exp2Op : LLVM_UnaryIntrinsicOp<"exp2">;
 def LLVM_FAbsOp : LLVM_UnaryIntrinsicOp<"fabs">;
 def LLVM_FCeilOp : LLVM_UnaryIntrinsicOp<"ceil">;
+def LLVM_FFloorOp : LLVM_UnaryIntrinsicOp<"floor">;
 def LLVM_FMAOp : LLVM_TernarySameArgsIntrinsicOp<"fma">;
 def LLVM_FMulAddOp : LLVM_TernarySameArgsIntrinsicOp<"fmuladd">;
 def LLVM_Log10Op : LLVM_UnaryIntrinsicOp<"log10">;
@@ -856,6 +866,10 @@ def LLVM_SqrtOp : LLVM_UnaryIntrinsicOp<"sqrt">;
 def LLVM_PowOp : LLVM_BinarySameArgsIntrinsicOp<"pow">;
 def LLVM_BitReverseOp : LLVM_UnaryIntrinsicOp<"bitreverse">;
 def LLVM_CtPopOp : LLVM_UnaryIntrinsicOp<"ctpop">;
+def LLVM_MaxNumOp : LLVM_BinarySameArgsIntrinsicOp<"maxnum">;
+def LLVM_MinNumOp : LLVM_BinarySameArgsIntrinsicOp<"minnum">;
+def LLVM_SMaxOp : LLVM_BinarySameArgsIntrinsicOp<"smax">;
+def LLVM_SMinOp : LLVM_BinarySameArgsIntrinsicOp<"smin">;
 
 def LLVM_MemcpyOp : LLVM_ZeroResultIntrOp<"memcpy", [0, 1, 2]>,
                     Arguments<(ins LLVM_Type:$dst, LLVM_Type:$src,
@@ -1027,6 +1041,16 @@ def LLVM_masked_scatter
   let assemblyFormat = "$value `,` $ptrs `,` $mask attr-dict `:` "
     "type($value) `,` type($mask) `into` type($ptrs)";
 }
+
+/// Create a call to Masked Expand Load intrinsic.
+def LLVM_masked_expandload
+    : LLVM_IntrOp<"masked.expandload", [0], [], [], 1>,
+      Arguments<(ins LLVM_Type, LLVM_Type, LLVM_Type)>;
+
+/// Create a call to Masked Compress Store intrinsic.
+def LLVM_masked_compressstore
+    : LLVM_IntrOp<"masked.compressstore", [], [0], [], 0>,
+    Arguments<(ins LLVM_Type, LLVM_Type, LLVM_Type)>;
 
 //
 // Atomic operations.

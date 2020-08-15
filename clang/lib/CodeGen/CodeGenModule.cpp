@@ -19,6 +19,7 @@
 #include "CGObjCRuntime.h"
 #include "CGOpenCLRuntime.h"
 #include "CGOpenMPRuntime.h"
+#include "CGOpenMPRuntimeAMDGCN.h"
 #include "CGOpenMPRuntimeNVPTX.h"
 #include "CGSYCLRuntime.h"
 #include "CodeGenFunction.h"
@@ -217,6 +218,11 @@ void CodeGenModule::createOpenMPRuntime() {
     assert(getLangOpts().OpenMPIsDevice &&
            "OpenMP NVPTX is only prepared to deal with device code.");
     OpenMPRuntime.reset(new CGOpenMPRuntimeNVPTX(*this));
+    break;
+  case llvm::Triple::amdgcn:
+    assert(getLangOpts().OpenMPIsDevice &&
+           "OpenMP AMDGCN is only prepared to deal with device code.");
+    OpenMPRuntime.reset(new CGOpenMPRuntimeAMDGCN(*this));
     break;
   default:
     if (LangOpts.OpenMPSimd)
@@ -1413,6 +1419,9 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
   // MDNode for the kernel argument names.
   SmallVector<llvm::Metadata *, 8> argNames;
 
+  // MDNode for the intel_buffer_location attribute.
+  SmallVector<llvm::Metadata *, 8> argSYCLBufferLocationAttr;
+
   if (FD && CGF)
     for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i) {
       const ParmVarDecl *parm = FD->getParamDecl(i);
@@ -1536,6 +1545,14 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
 
       // Get argument name.
       argNames.push_back(llvm::MDString::get(VMContext, parm->getName()));
+
+      auto *SYCLBufferLocationAttr =
+          parm->getAttr<SYCLIntelBufferLocationAttr>();
+      argSYCLBufferLocationAttr.push_back(
+          (SYCLBufferLocationAttr)
+              ? llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(
+                    SYCLBufferLocationAttr->getLocationID()))
+              : llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(-1)));
     }
 
   Fn->setMetadata("kernel_arg_addr_space",
@@ -1551,6 +1568,9 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
   if (getCodeGenOpts().EmitOpenCLArgMetadata)
     Fn->setMetadata("kernel_arg_name",
                     llvm::MDNode::get(VMContext, argNames));
+  if (LangOpts.SYCLIsDevice)
+    Fn->setMetadata("kernel_arg_buffer_location",
+                    llvm::MDNode::get(VMContext, argSYCLBufferLocationAttr));
 }
 
 /// Determines whether the language options require us to model

@@ -63,15 +63,6 @@ add_lit_testsuites(SYCL-DEPLOY ${CMAKE_CURRENT_SOURCE_DIR}
   EXCLUDE_FROM_CHECK_ALL
   )
 
-add_lit_target(check-sycl-inline-asm
-  "Running lit suite ${CMAKE_CURRENT_SOURCE_DIR}/feature-tests/inline-asm"
-  "feature-tests/inline-asm"
-  ARGS ${RT_TEST_ARGS}
-  PARAMS "SYCL_BE=PI_OPENCL"
-  DEPENDS ${SYCL_TEST_DEPS}
-  )
-set_target_properties(check-sycl-inline-asm PROPERTIES FOLDER "SYCL tests")
-
 add_lit_testsuite(check-sycl-opencl "Running the SYCL regression tests for OpenCL"
   ${CMAKE_CURRENT_BINARY_DIR}
   ARGS ${RT_TEST_ARGS}

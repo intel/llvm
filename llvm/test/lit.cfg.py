@@ -130,7 +130,6 @@ config.substitutions.append(
 config.llvm_locstats_used = os.path.exists(llvm_locstats_tool)
 
 tools = [
-    ToolSubst('%extract', FindTool('extract')),
     ToolSubst('%lli', FindTool('lli'), post='.', extra_args=lli_args),
     ToolSubst('%llc_dwarf', FindTool('llc'), extra_args=llc_args),
     ToolSubst('%go', config.go_executable, unresolved='ignore'),
@@ -142,6 +141,7 @@ tools = [
     ToolSubst('%llvm-objcopy', FindTool('llvm-objcopy')),
     ToolSubst('%llvm-strip', FindTool('llvm-strip')),
     ToolSubst('%llvm-install-name-tool', FindTool('llvm-install-name-tool')),
+    ToolSubst('%split-file', FindTool('split-file')),
 ]
 
 # FIXME: Why do we have both `lli` and `%lli` that do slightly different things?

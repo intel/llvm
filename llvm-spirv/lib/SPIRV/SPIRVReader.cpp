@@ -550,7 +550,7 @@ std::string SPIRVToLLVM::transTypeToOCLTypeName(SPIRVType *T, bool IsSigned) {
     case 64:
       return Prefix + "long";
     default:
-      llvm_unreachable("invalid integer size");
+      // Arbitrary precision integer
       return Prefix + std::string("int") + T->getIntegerBitWidth() + "_t";
     }
   } break;
@@ -1743,11 +1743,13 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     StoreInst *SI = nullptr;
     auto *Src = transValue(BS->getSrc(), F, BB);
     auto *Dst = transValue(BS->getDst(), F, BB);
-    // An intrinsic call may have been generated for the source variable.
+    // A pointer annotation may have been generated for the source variable.
     if (Use *SingleUse = Src->getSingleUndroppableUse()) {
       if (auto *II = dyn_cast<IntrinsicInst>(SingleUse->getUser())) {
-        // Overwrite the future store operand with the intrinsic call result.
-        Src = II;
+        if (II->getIntrinsicID() == Intrinsic::ptr_annotation &&
+            II->getType() == Src->getType())
+          // Overwrite the future store operand with the intrinsic call result.
+          Src = II;
       }
     }
     bool isVolatile = BS->SPIRVMemoryAccess::isVolatile();
@@ -2446,6 +2448,68 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto *IntrinsicCall = Builder.CreateIntrinsic(IID, RetTy, Args);
     return mapValue(BV, IntrinsicCall);
   }
+
+  case OpFixedSqrtINTEL:
+  case OpFixedRecipINTEL:
+  case OpFixedRsqrtINTEL:
+  case OpFixedSinINTEL:
+  case OpFixedCosINTEL:
+  case OpFixedSinCosINTEL:
+  case OpFixedSinPiINTEL:
+  case OpFixedCosPiINTEL:
+  case OpFixedSinCosPiINTEL:
+  case OpFixedLogINTEL:
+  case OpFixedExpINTEL:
+    return mapValue(
+        BV, transFixedPointInst(static_cast<SPIRVInstruction *>(BV), BB));
+
+  case OpArbitraryFloatCastINTEL:
+  case OpArbitraryFloatCastFromIntINTEL:
+  case OpArbitraryFloatCastToIntINTEL:
+  case OpArbitraryFloatRecipINTEL:
+  case OpArbitraryFloatRSqrtINTEL:
+  case OpArbitraryFloatCbrtINTEL:
+  case OpArbitraryFloatSqrtINTEL:
+  case OpArbitraryFloatLogINTEL:
+  case OpArbitraryFloatLog2INTEL:
+  case OpArbitraryFloatLog10INTEL:
+  case OpArbitraryFloatLog1pINTEL:
+  case OpArbitraryFloatExpINTEL:
+  case OpArbitraryFloatExp2INTEL:
+  case OpArbitraryFloatExp10INTEL:
+  case OpArbitraryFloatExpm1INTEL:
+  case OpArbitraryFloatSinINTEL:
+  case OpArbitraryFloatCosINTEL:
+  case OpArbitraryFloatSinCosINTEL:
+  case OpArbitraryFloatSinPiINTEL:
+  case OpArbitraryFloatCosPiINTEL:
+  case OpArbitraryFloatSinCosPiINTEL:
+  case OpArbitraryFloatASinINTEL:
+  case OpArbitraryFloatASinPiINTEL:
+  case OpArbitraryFloatACosINTEL:
+  case OpArbitraryFloatACosPiINTEL:
+  case OpArbitraryFloatATanINTEL:
+  case OpArbitraryFloatATanPiINTEL:
+    return mapValue(BV,
+                    transArbFloatInst(static_cast<SPIRVInstruction *>(BV), BB));
+
+  case OpArbitraryFloatAddINTEL:
+  case OpArbitraryFloatSubINTEL:
+  case OpArbitraryFloatMulINTEL:
+  case OpArbitraryFloatDivINTEL:
+  case OpArbitraryFloatGTINTEL:
+  case OpArbitraryFloatGEINTEL:
+  case OpArbitraryFloatLTINTEL:
+  case OpArbitraryFloatLEINTEL:
+  case OpArbitraryFloatEQINTEL:
+  case OpArbitraryFloatHypotINTEL:
+  case OpArbitraryFloatATan2INTEL:
+  case OpArbitraryFloatPowINTEL:
+  case OpArbitraryFloatPowRINTEL:
+  case OpArbitraryFloatPowNINTEL:
+    return mapValue(
+        BV, transArbFloatInst(static_cast<SPIRVInstruction *>(BV), BB, true));
+
   default: {
     auto OC = BV->getOpCode();
     if (isSPIRVCmpInstTransToLLVMInst(static_cast<SPIRVInstruction *>(BV))) {
@@ -2468,6 +2532,173 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         BV, transSPIRVBuiltinFromInst(static_cast<SPIRVInstruction *>(BV), BB));
   }
   }
+}
+
+// Get meaningful suffix for adding at the end of the function name to avoid
+// ascending numerical suffixes. It is useful in situations, where the same
+// function is called twice or more in one basic block. So, the function name is
+// formed in the following way: [FuncName].[ReturnTy].[InputTy]
+static std::string getFuncAPIntSuffix(const Type *RetTy, const Type *In1Ty,
+                                      const Type *In2Ty = nullptr) {
+  std::stringstream Suffix;
+  Suffix << ".i" << RetTy->getIntegerBitWidth() << ".i"
+         << In1Ty->getIntegerBitWidth();
+  if (In2Ty)
+    Suffix << ".i" << In2Ty->getIntegerBitWidth();
+  return Suffix.str();
+}
+
+CallInst *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI,
+                                           BasicBlock *BB) {
+  // LLVM fixed point functions return value:
+  // iN (arbitrary precision integer of N bits length)
+  // Arguments:
+  // A(iN), S(i1), I(i32), rI(i32), Quantization(i32), Overflow(i32)
+
+  // SPIR-V fixed point instruction contains:
+  // <id>ResTy Res<id> In<id> Literal S Literal I Literal rI Literal Q Literal O
+
+  Type *RetTy = transType(BI->getType());
+
+  auto Inst = static_cast<SPIRVFixedPointIntelInst *>(BI);
+  Type *InTy = transType(Inst->getOperand(0)->getType());
+
+  IntegerType *Int32Ty = IntegerType::get(*Context, 32);
+  IntegerType *Int1Ty = IntegerType::get(*Context, 1);
+
+  SmallVector<Type *, 7> ArgTys = {InTy,    Int1Ty,  Int32Ty,
+                                   Int32Ty, Int32Ty, Int32Ty};
+  FunctionType *FT = FunctionType::get(RetTy, ArgTys, false);
+
+  Op OpCode = Inst->getOpCode();
+  std::string FuncName =
+      SPIRVFixedPointIntelMap::rmap(OpCode) + getFuncAPIntSuffix(RetTy, InTy);
+
+  FunctionCallee FCallee = M->getOrInsertFunction(FuncName, FT);
+
+  auto *Fn = cast<Function>(FCallee.getCallee());
+  Fn->setCallingConv(CallingConv::SPIR_FUNC);
+  if (isFuncNoUnwind())
+    Fn->addFnAttr(Attribute::NoUnwind);
+
+  // Words contain:
+  // In<id> Literal S Literal I Literal rI Literal Q Literal O
+  auto Words = Inst->getOpWords();
+  std::vector<Value *> Args = {
+      transValue(Inst->getOperand(0), BB->getParent(), BB) /* A - input */,
+      ConstantInt::get(Int1Ty, Words[1]) /* S - indicator of signedness */,
+      ConstantInt::get(Int32Ty,
+                       Words[2]) /* I - fixed-point location of the input */,
+      ConstantInt::get(Int32Ty,
+                       Words[3]) /* rI - fixed-point location of the result*/,
+      ConstantInt::get(Int32Ty, Words[4]) /* Quantization mode */,
+      ConstantInt::get(Int32Ty, Words[5]) /* Overflow mode */};
+
+  return CallInst::Create(FCallee, Args, "", BB);
+}
+
+CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
+                                         bool IsBinaryInst) {
+  // Format of instructions Add, Sub, Mul, Div, Hypot, ATan2, Pow, PowR:
+  //   LLVM arbitrary floating point functions return value:
+  //       iN (arbitrary precision integer of N bits length)
+  //   Arguments: A(iN), MA(i32), B(iN), MB(i32), Mout(i32),
+  //              EnableSubnormals(i32), RoundingMode(i32),
+  //              RoundingAccuracy(i32)
+  //   where A, B and return values are of arbitrary precision integer type.
+  //   SPIR-V arbitrary floating point instruction layout:
+  //   <id>ResTy Res<id> A<id> Literal MA B<id> Literal MB Literal Mout
+  //       Literal EnableSubnormals Literal RoundingMode
+  //       Literal RoundingAccuracy
+
+  // Format of instructions GT, GE, LT, LE, EQ:
+  //   LLVM arbitrary floating point functions return value: Bool
+  //   Arguments: A(iN), MA(i32), B(iN), MB(i32)
+  //   where A and B are of arbitrary precision integer type.
+  //   SPIR-V arbitrary floating point instruction layout:
+  //   <id>ResTy Res<id> A<id> Literal MA B<id> Literal MB
+
+  // Format of instruction PowN:
+  //   LLVM arbitrary floating point functions return value: iN
+  //   Arguments: A(iN), MA(i32), B(iN), Mout(i32), EnableSubnormals(i32),
+  //              RoundingMode(i32), RoundingAccuracy(i32)
+  //   where A, B and return values are of arbitrary precision integer type.
+  //   SPIR-V arbitrary floating point instruction layout:
+  //   <id>ResTy Res<id> A<id> Literal MA B<id> Literal Mout
+  //       Literal EnableSubnormals Literal RoundingMode
+  //       Literal RoundingAccuracy
+
+  // Format of instruction CastFromInt:
+  //   LLVM arbitrary floating point functions return value: iN
+  //   Arguments: A(iN), Mout(i32), EnableSubnormals(i32),
+  //              RoundingMode(i32), RoundingAccuracy(i32)
+  //   where A and return values are of arbitrary precision integer type.
+  //   SPIR-V arbitrary floating point instruction layout:
+  //   <id>ResTy Res<id> A<id> Literal Mout Literal EnableSubnormals
+  //       Literal RoundingMode Literal RoundingAccuracy
+
+  // Format of instruction CastToInt:
+  //   LLVM arbitrary floating point functions return value: iN
+  //   Arguments: A(iN), MA(i32), EnableSubnormals(i32), RoundingMode(i32),
+  //              RoundingAccuracy(i32)
+  //   where A and return values are of arbitrary precision integer type.
+  //   SPIR-V arbitrary floating point instruction layout:
+  //   <id>ResTy Res<id> A<id> Literal MA Literal EnableSubnormals
+  //       Literal RoundingMode Literal RoundingAccuracy
+
+  // Format of other instructions:
+  //   LLVM arbitrary floating point functions return value: iN
+  //   Arguments: A(iN), MA(i32), Mout(i32), EnableSubnormals(i32),
+  //              RoundingMode(i32), RoundingAccuracy(i32)
+  //   where A and return values are of arbitrary precision integer type.
+  //   SPIR-V arbitrary floating point instruction layout:
+  //   <id>ResTy Res<id> A<id> Literal MA Literal Mout Literal EnableSubnormals
+  //       Literal RoundingMode Literal RoundingAccuracy
+
+  Type *RetTy = transType(BI->getType());
+  IntegerType *Int32Ty = IntegerType::get(*Context, 32);
+
+  auto Inst = static_cast<SPIRVArbFloatIntelInst *>(BI);
+
+  Type *ATy = transType(Inst->getOperand(0)->getType());
+  Type *BTy = nullptr;
+
+  // Words contain:
+  // A<id> [Literal MA] [B<id>] [Literal MB] [Literal Mout]
+  //   [Literal EnableSubnormals Literal RoundingMode Literal RoundingAccuracy]
+  const std::vector<SPIRVWord> Words = Inst->getOpWords();
+  auto WordsItr = Words.begin() + 1; /* Skip word for A input id */
+
+  SmallVector<Type *, 8> ArgTys = {ATy, Int32Ty};
+  std::vector<Value *> Args = {
+      transValue(Inst->getOperand(0), BB->getParent(), BB) /* A - input */,
+      ConstantInt::get(Int32Ty, *WordsItr++) /* MA/Mout - width of mantissa */};
+
+  if (IsBinaryInst) {
+    /* B - input */
+    BTy = transType(Inst->getOperand(2)->getType());
+    ArgTys.push_back(BTy);
+    Args.push_back(transValue(Inst->getOperand(2), BB->getParent(), BB));
+    ++WordsItr; /* Skip word for B input id */
+  }
+
+  std::fill_n(std::back_inserter(ArgTys), Words.end() - WordsItr, Int32Ty);
+  std::transform(WordsItr, Words.end(), std::back_inserter(Args),
+                 [Int32Ty](const SPIRVWord &Word) {
+                   return ConstantInt::get(Int32Ty, Word);
+                 });
+
+  FunctionType *FT = FunctionType::get(RetTy, ArgTys, false);
+  std::string FuncName = SPIRVArbFloatIntelMap::rmap(Inst->getOpCode()) +
+                         getFuncAPIntSuffix(RetTy, ATy, BTy);
+  FunctionCallee FCallee = M->getOrInsertFunction(FuncName, FT);
+
+  auto *Func = cast<Function>(FCallee.getCallee());
+  Func->setCallingConv(CallingConv::SPIR_FUNC);
+  if (isFuncNoUnwind())
+    Func->addFnAttr(Attribute::NoUnwind);
+
+  return CallInst::Create(Func, Args, "", BB);
 }
 
 template <class SourceTy, class FuncTy>

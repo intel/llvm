@@ -32,6 +32,46 @@ define amdgpu_kernel void @fmuladd_f16(half addrspace(1)* %out, half addrspace(1
   ret void
 }
 
+; GCN-LABEL: {{^}}fmul_fadd_f16:
+; VI-FLUSH: v_mac_f16_e32 {{v[0-9]+, v[0-9]+, v[0-9]+}}
+
+; VI-DENORM-CONTRACT: v_fma_f16 {{v[0-9]+, v[0-9]+, v[0-9]+}}
+
+; GFX10-FLUSH:  v_mul_f16_e32
+; GFX10-FLUSH:  v_add_f16_e32
+; GFX10-DENORM-CONTRACT: v_fmac_f16_e32 {{v[0-9]+, v[0-9]+, v[0-9]+}}
+
+define amdgpu_kernel void @fmul_fadd_f16(half addrspace(1)* %out, half addrspace(1)* %in1,
+                         half addrspace(1)* %in2, half addrspace(1)* %in3) #0 {
+  %r0 = load half, half addrspace(1)* %in1
+  %r1 = load half, half addrspace(1)* %in2
+  %r2 = load half, half addrspace(1)* %in3
+  %mul = fmul half %r0, %r1
+  %add = fadd half %mul, %r2
+  store half %add, half addrspace(1)* %out
+  ret void
+}
+
+; GCN-LABEL: {{^}}fmul_fadd_contract_f16:
+; VI-FLUSH: v_mac_f16_e32 {{v[0-9]+, v[0-9]+, v[0-9]+}}
+
+; VI-DENORM: v_fma_f16 {{v[0-9]+, v[0-9]+, v[0-9]+}}
+
+; GFX10-FLUSH:  v_mul_f16_e32
+; GFX10-FLUSH:  v_add_f16_e32
+; GFX10-DENORM: v_fmac_f16_e32 {{v[0-9]+, v[0-9]+, v[0-9]+}}
+
+define amdgpu_kernel void @fmul_fadd_contract_f16(half addrspace(1)* %out, half addrspace(1)* %in1,
+                         half addrspace(1)* %in2, half addrspace(1)* %in3) #0 {
+  %r0 = load half, half addrspace(1)* %in1
+  %r1 = load half, half addrspace(1)* %in2
+  %r2 = load half, half addrspace(1)* %in3
+  %mul = fmul half %r0, %r1
+  %add = fadd contract half %mul, %r2
+  store half %add, half addrspace(1)* %out
+  ret void
+}
+
 ; GCN-LABEL: {{^}}fmuladd_2.0_a_b_f16
 ; GCN: {{buffer|flat|global}}_load_ushort [[R1:v[0-9]+]],
 ; GCN: {{buffer|flat|global}}_load_ushort [[R2:v[0-9]+]],
@@ -216,7 +256,7 @@ define amdgpu_kernel void @fmuladd_neg_2.0_neg_a_b_f16(half addrspace(1)* %out, 
   %r1 = load volatile half, half addrspace(1)* %gep.0
   %r2 = load volatile half, half addrspace(1)* %gep.1
 
-  %r1.fneg = fsub half -0.000000e+00, %r1
+  %r1.fneg = fneg half %r1
 
   %r3 = tail call half @llvm.fmuladd.f16(half -2.0, half %r1.fneg, half %r2)
   store half %r3, half addrspace(1)* %gep.out
@@ -247,7 +287,7 @@ define amdgpu_kernel void @fmuladd_2.0_neg_a_b_f16(half addrspace(1)* %out, half
   %r1 = load volatile half, half addrspace(1)* %gep.0
   %r2 = load volatile half, half addrspace(1)* %gep.1
 
-  %r1.fneg = fsub half -0.000000e+00, %r1
+  %r1.fneg = fneg half %r1
 
   %r3 = tail call half @llvm.fmuladd.f16(half 2.0, half %r1.fneg, half %r2)
   store half %r3, half addrspace(1)* %gep.out
@@ -272,7 +312,7 @@ define amdgpu_kernel void @fmuladd_2.0_a_neg_b_f16(half addrspace(1)* %out, half
   %r1 = load volatile half, half addrspace(1)* %gep.0
   %r2 = load volatile half, half addrspace(1)* %gep.1
 
-  %r2.fneg = fsub half -0.000000e+00, %r2
+  %r2.fneg = fneg half %r2
 
   %r3 = tail call half @llvm.fmuladd.f16(half 2.0, half %r1, half %r2.fneg)
   store half %r3, half addrspace(1)* %gep.out
@@ -454,8 +494,8 @@ define amdgpu_kernel void @neg_neg_mad_f16(half addrspace(1)* noalias nocapture 
   %a = load volatile half, half addrspace(1)* %gep0, align 2
   %b = load volatile half, half addrspace(1)* %gep1, align 2
   %c = load volatile half, half addrspace(1)* %gep2, align 2
-  %nega = fsub half -0.000000e+00, %a
-  %negb = fsub half -0.000000e+00, %b
+  %nega = fneg half %a
+  %negb = fneg half %b
   %mul = fmul half %nega, %negb
   %sub = fadd half %mul, %c
   store half %sub, half addrspace(1)* %outgep, align 2

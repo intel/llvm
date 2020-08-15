@@ -165,6 +165,50 @@ struct OCLBuiltinTransInfo {
 namespace kOCLBuiltinName {
 const static char All[] = "all";
 const static char Any[] = "any";
+#define _SPIRV_OP(x, y)                                                        \
+  const static char ArbitraryFloat##x##INTEL[] = "intel_arbitrary_float_" #y;
+_SPIRV_OP(Cast, cast)
+_SPIRV_OP(CastFromInt, cast_from_int)
+_SPIRV_OP(CastToInt, cast_to_int)
+_SPIRV_OP(Add, add)
+_SPIRV_OP(Sub, sub)
+_SPIRV_OP(Mul, mul)
+_SPIRV_OP(Div, div)
+_SPIRV_OP(GT, gt)
+_SPIRV_OP(GE, ge)
+_SPIRV_OP(LT, lt)
+_SPIRV_OP(LE, le)
+_SPIRV_OP(EQ, eq)
+_SPIRV_OP(Recip, recip)
+_SPIRV_OP(RSqrt, rsqrt)
+_SPIRV_OP(Cbrt, cbrt)
+_SPIRV_OP(Hypot, hypot)
+_SPIRV_OP(Sqrt, sqrt)
+_SPIRV_OP(Log, log)
+_SPIRV_OP(Log2, log2)
+_SPIRV_OP(Log10, log10)
+_SPIRV_OP(Log1p, log1p)
+_SPIRV_OP(Exp, exp)
+_SPIRV_OP(Exp2, exp2)
+_SPIRV_OP(Exp10, exp10)
+_SPIRV_OP(Expm1, expm1)
+_SPIRV_OP(Sin, sin)
+_SPIRV_OP(Cos, cos)
+_SPIRV_OP(SinCos, sincos)
+_SPIRV_OP(SinPi, sinpi)
+_SPIRV_OP(CosPi, cospi)
+_SPIRV_OP(SinCosPi, sincospi)
+_SPIRV_OP(ASin, asin)
+_SPIRV_OP(ASinPi, asinpi)
+_SPIRV_OP(ACos, acos)
+_SPIRV_OP(ACosPi, acospi)
+_SPIRV_OP(ATan, atan)
+_SPIRV_OP(ATanPi, atanpi)
+_SPIRV_OP(ATan2, atan2)
+_SPIRV_OP(Pow, pow)
+_SPIRV_OP(PowR, powr)
+_SPIRV_OP(PowN, pown)
+#undef _SPIRV_OP
 const static char AsyncWorkGroupCopy[] = "async_work_group_copy";
 const static char AsyncWorkGroupStridedCopy[] = "async_work_group_strided_copy";
 const static char AtomPrefix[] = "atom_";
@@ -184,6 +228,17 @@ const static char Clamp[] = "clamp";
 const static char ConvertPrefix[] = "convert_";
 const static char Dot[] = "dot";
 const static char EnqueueKernel[] = "enqueue_kernel";
+const static char FixedSqrtINTEL[] = "intel_arbitrary_fixed_sqrt";
+const static char FixedRecipINTEL[] = "intel_arbitrary_fixed_recip";
+const static char FixedRsqrtINTEL[] = "intel_arbitrary_fixed_rsqrt";
+const static char FixedSinINTEL[] = "intel_arbitrary_fixed_sin";
+const static char FixedCosINTEL[] = "intel_arbitrary_fixed_cos";
+const static char FixedSinCosINTEL[] = "intel_arbitrary_fixed_sincos";
+const static char FixedSinPiINTEL[] = "intel_arbitrary_fixed_sinpi";
+const static char FixedCosPiINTEL[] = "intel_arbitrary_fixed_cospi";
+const static char FixedSinCosPiINTEL[] = "intel_arbitrary_fixed_sincospi";
+const static char FixedLogINTEL[] = "intel_arbitrary_fixed_log";
+const static char FixedExpINTEL[] = "intel_arbitrary_fixed_exp";
 const static char FMax[] = "fmax";
 const static char FMin[] = "fmin";
 const static char FPGARegIntel[] = "__builtin_intel_fpga_reg";
@@ -591,6 +646,76 @@ typedef SPIRVMap<std::string, Op, SPIRVSubgroupsAVCIntelInst>
     OCLSPIRVSubgroupAVCIntelBuiltinMap;
 
 typedef SPIRVMap<AtomicRMWInst::BinOp, Op> LLVMSPIRVAtomicRmwOpCodeMap;
+
+class SPIRVFixedPointIntelInst;
+template <>
+inline void SPIRVMap<std::string, Op, SPIRVFixedPointIntelInst>::init() {
+#define _SPIRV_OP(x, y) add("intel_arbitrary_fixed_" #x, OpFixed##y##INTEL);
+  _SPIRV_OP(sqrt, Sqrt)
+  _SPIRV_OP(recip, Recip)
+  _SPIRV_OP(rsqrt, Rsqrt)
+  _SPIRV_OP(sin, Sin)
+  _SPIRV_OP(cos, Cos)
+  _SPIRV_OP(sincos, SinCos)
+  _SPIRV_OP(sinpi, SinPi)
+  _SPIRV_OP(cospi, CosPi)
+  _SPIRV_OP(sincospi, SinCosPi)
+  _SPIRV_OP(log, Log)
+  _SPIRV_OP(exp, Exp)
+#undef _SPIRV_OP
+}
+typedef SPIRVMap<std::string, Op, SPIRVFixedPointIntelInst>
+    SPIRVFixedPointIntelMap;
+
+class SPIRVArbFloatIntelInst;
+template <>
+inline void SPIRVMap<std::string, Op, SPIRVArbFloatIntelInst>::init() {
+#define _SPIRV_OP(x, y)                                                        \
+  add("intel_arbitrary_float_" #y, OpArbitraryFloat##x##INTEL);
+  _SPIRV_OP(Cast, cast)
+  _SPIRV_OP(CastFromInt, cast_from_int)
+  _SPIRV_OP(CastToInt, cast_to_int)
+  _SPIRV_OP(Add, add)
+  _SPIRV_OP(Sub, sub)
+  _SPIRV_OP(Mul, mul)
+  _SPIRV_OP(Div, div)
+  _SPIRV_OP(GT, gt)
+  _SPIRV_OP(GE, ge)
+  _SPIRV_OP(LT, lt)
+  _SPIRV_OP(LE, le)
+  _SPIRV_OP(EQ, eq)
+  _SPIRV_OP(Recip, recip)
+  _SPIRV_OP(RSqrt, rsqrt)
+  _SPIRV_OP(Cbrt, cbrt)
+  _SPIRV_OP(Hypot, hypot)
+  _SPIRV_OP(Sqrt, sqrt)
+  _SPIRV_OP(Log, log)
+  _SPIRV_OP(Log2, log2)
+  _SPIRV_OP(Log10, log10)
+  _SPIRV_OP(Log1p, log1p)
+  _SPIRV_OP(Exp, exp)
+  _SPIRV_OP(Exp2, exp2)
+  _SPIRV_OP(Exp10, exp10)
+  _SPIRV_OP(Expm1, expm1)
+  _SPIRV_OP(Sin, sin)
+  _SPIRV_OP(Cos, cos)
+  _SPIRV_OP(SinCos, sincos)
+  _SPIRV_OP(SinPi, sinpi)
+  _SPIRV_OP(CosPi, cospi)
+  _SPIRV_OP(SinCosPi, sincospi)
+  _SPIRV_OP(ASin, asin)
+  _SPIRV_OP(ASinPi, asinpi)
+  _SPIRV_OP(ACos, acos)
+  _SPIRV_OP(ACosPi, acospi)
+  _SPIRV_OP(ATan, atan)
+  _SPIRV_OP(ATanPi, atanpi)
+  _SPIRV_OP(ATan2, atan2)
+  _SPIRV_OP(Pow, pow)
+  _SPIRV_OP(PowR, powr)
+  _SPIRV_OP(PowN, pown)
+#undef _SPIRV_OP
+}
+typedef SPIRVMap<std::string, Op, SPIRVArbFloatIntelInst> SPIRVArbFloatIntelMap;
 
 } // namespace SPIRV
 

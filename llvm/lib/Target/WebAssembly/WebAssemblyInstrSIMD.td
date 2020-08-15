@@ -163,6 +163,43 @@ defm : LoadPatGlobalAddrOffOnly<types[0], !cast<PatFrag>(exts[0]#types[1]),
                                 "LOAD_EXTEND"#exts[1]#"_"#types[0]>;
 }
 
+// Load lane into zero vector
+multiclass SIMDLoadZero<ValueType vec_t, string name, bits<32> simdop> {
+  let mayLoad = 1, UseNamedOperandTable = 1 in {
+  defm LOAD_ZERO_#vec_t#_A32 :
+    SIMD_I<(outs V128:$dst),
+           (ins P2Align:$p2align, offset32_op:$off, I32:$addr),
+           (outs), (ins P2Align:$p2align, offset32_op:$off), [],
+           name#"\t$dst, ${off}(${addr})$p2align",
+           name#"\t$off$p2align", simdop>;
+  defm LOAD_ZERO_#vec_t#_A64 :
+    SIMD_I<(outs V128:$dst),
+           (ins P2Align:$p2align, offset64_op:$off, I64:$addr),
+           (outs), (ins P2Align:$p2align, offset64_op:$off), [],
+           name#"\t$dst, ${off}(${addr})$p2align",
+           name#"\t$off$p2align", simdop>;
+  } // mayLoad = 1, UseNamedOperandTable = 1
+}
+
+// TODO: Also support v4f32 and v2f64 once the instructions are merged
+// to the proposal
+defm "" : SIMDLoadZero<v4i32, "v128.load32_zero", 252>;
+defm "" : SIMDLoadZero<v2i64, "v128.load64_zero", 253>;
+
+defm : LoadPatNoOffset<v4i32, int_wasm_load32_zero, "LOAD_ZERO_v4i32">;
+defm : LoadPatNoOffset<v2i64, int_wasm_load64_zero, "LOAD_ZERO_v2i64">;
+
+defm : LoadPatImmOff<v4i32, int_wasm_load32_zero, regPlusImm, "LOAD_ZERO_v4i32">;
+defm : LoadPatImmOff<v2i64, int_wasm_load64_zero, regPlusImm, "LOAD_ZERO_v2i64">;
+
+defm : LoadPatImmOff<v4i32, int_wasm_load32_zero, or_is_add, "LOAD_ZERO_v4i32">;
+defm : LoadPatImmOff<v2i64, int_wasm_load64_zero, or_is_add, "LOAD_ZERO_v2i64">;
+
+defm : LoadPatOffsetOnly<v4i32, int_wasm_load32_zero, "LOAD_ZERO_v4i32">;
+defm : LoadPatOffsetOnly<v2i64, int_wasm_load64_zero, "LOAD_ZERO_v2i64">;
+
+defm : LoadPatGlobalAddrOffOnly<v4i32, int_wasm_load32_zero, "LOAD_ZERO_v4i32">;
+defm : LoadPatGlobalAddrOffOnly<v2i64, int_wasm_load64_zero, "LOAD_ZERO_v2i64">;
 
 // Store: v128.store
 let mayStore = 1, UseNamedOperandTable = 1 in {
@@ -800,7 +837,7 @@ let isCommutable = 1 in
 defm DOT : SIMD_I<(outs V128:$dst), (ins V128:$lhs, V128:$rhs), (outs), (ins),
                   [(set V128:$dst, (int_wasm_dot V128:$lhs, V128:$rhs))],
                   "i32x4.dot_i16x8_s\t$dst, $lhs, $rhs", "i32x4.dot_i16x8_s",
-                  180>;
+                  186>;
 
 //===----------------------------------------------------------------------===//
 // Floating-point unary arithmetic
@@ -885,16 +922,28 @@ defm "" : SIMDConvert<v4i32, v4f32, fp_to_uint, "i32x4.trunc_sat_f32x4_u", 249>;
 defm "" : SIMDConvert<v4f32, v4i32, sint_to_fp, "f32x4.convert_i32x4_s", 250>;
 defm "" : SIMDConvert<v4f32, v4i32, uint_to_fp, "f32x4.convert_i32x4_u", 251>;
 
+// Lower llvm.wasm.trunc.saturate.* to saturating instructions
+def : Pat<(v4i32 (int_wasm_trunc_saturate_signed (v4f32 V128:$src))),
+          (fp_to_sint_v4i32_v4f32 (v4f32 V128:$src))>;
+def : Pat<(v4i32 (int_wasm_trunc_saturate_unsigned (v4f32 V128:$src))),
+          (fp_to_uint_v4i32_v4f32 (v4f32 V128:$src))>;
+
 // Widening operations
+def widen_t : SDTypeProfile<1, 1, [SDTCisVec<0>, SDTCisVec<1>]>;
+def widen_low_s : SDNode<"WebAssemblyISD::WIDEN_LOW_S", widen_t>;
+def widen_high_s : SDNode<"WebAssemblyISD::WIDEN_HIGH_S", widen_t>;
+def widen_low_u : SDNode<"WebAssemblyISD::WIDEN_LOW_U", widen_t>;
+def widen_high_u : SDNode<"WebAssemblyISD::WIDEN_HIGH_U", widen_t>;
+
 multiclass SIMDWiden<ValueType vec_t, string vec, ValueType arg_t, string arg,
                      bits<32> baseInst> {
-  defm "" : SIMDConvert<vec_t, arg_t, int_wasm_widen_low_signed,
+  defm "" : SIMDConvert<vec_t, arg_t, widen_low_s,
                         vec#".widen_low_"#arg#"_s", baseInst>;
-  defm "" : SIMDConvert<vec_t, arg_t, int_wasm_widen_high_signed,
+  defm "" : SIMDConvert<vec_t, arg_t, widen_high_s,
                         vec#".widen_high_"#arg#"_s", !add(baseInst, 1)>;
-  defm "" : SIMDConvert<vec_t, arg_t, int_wasm_widen_low_unsigned,
+  defm "" : SIMDConvert<vec_t, arg_t, widen_low_u,
                         vec#".widen_low_"#arg#"_u", !add(baseInst, 2)>;
-  defm "" : SIMDConvert<vec_t, arg_t, int_wasm_widen_high_unsigned,
+  defm "" : SIMDConvert<vec_t, arg_t, widen_high_u,
                         vec#".widen_high_"#arg#"_u", !add(baseInst, 3)>;
 }
 
@@ -921,11 +970,95 @@ multiclass SIMDNarrow<ValueType vec_t, string vec, ValueType arg_t, string arg,
 defm "" : SIMDNarrow<v16i8, "i8x16", v8i16, "i16x8", 101>;
 defm "" : SIMDNarrow<v8i16, "i16x8", v4i32, "i32x4", 133>;
 
-// Lower llvm.wasm.trunc.saturate.* to saturating instructions
-def : Pat<(v4i32 (int_wasm_trunc_saturate_signed (v4f32 V128:$src))),
-          (fp_to_sint_v4i32_v4f32 (v4f32 V128:$src))>;
-def : Pat<(v4i32 (int_wasm_trunc_saturate_unsigned (v4f32 V128:$src))),
-          (fp_to_uint_v4i32_v4f32 (v4f32 V128:$src))>;
+// Use narrowing operations for truncating stores. Since the narrowing
+// operations are saturating instead of truncating, we need to mask
+// the stored values first.
+// TODO: Use consts instead of splats
+def store_v8i8_trunc_v8i16 :
+  OutPatFrag<(ops node:$val),
+             (EXTRACT_LANE_v2i64
+               (NARROW_U_v16i8
+                 (AND_v4i32 (SPLAT_v4i32 (CONST_I32 0x00ff00ff)), node:$val),
+                 node:$val // Unused input
+               ),
+               0
+             )>;
+
+def store_v4i16_trunc_v4i32 :
+  OutPatFrag<(ops node:$val),
+             (EXTRACT_LANE_v2i64
+               (NARROW_U_v8i16
+                 (AND_v4i32 (SPLAT_v4i32 (CONST_I32 0x0000ffff)), node:$val),
+                 node:$val // Unused input
+               ),
+               0
+             )>;
+
+// Store patterns adapted from WebAssemblyInstrMemory.td
+multiclass NarrowingStorePatNoOffset<ValueType ty, PatFrag node,
+                                     OutPatFrag out> {
+  def : Pat<(node ty:$val, I32:$addr),
+            (STORE_I64_A32 0, 0, I32:$addr, (i64 (out ty:$val)))>,
+        Requires<[HasAddr32]>;
+  def : Pat<(node ty:$val, I64:$addr),
+            (STORE_I64_A64 0, 0, I64:$addr, (i64 (out ty:$val)))>,
+        Requires<[HasAddr64]>;
+}
+
+defm : NarrowingStorePatNoOffset<v8i16, truncstorevi8, store_v8i8_trunc_v8i16>;
+defm : NarrowingStorePatNoOffset<v4i32, truncstorevi16,
+                                 store_v4i16_trunc_v4i32>;
+
+multiclass NarrowingStorePatImmOff<ValueType ty, PatFrag kind,
+                                   PatFrag operand, OutPatFrag out> {
+  def : Pat<(kind ty:$val, (operand I32:$addr, imm:$off)),
+            (STORE_I64_A32 0, imm:$off, I32:$addr, (i64 (out ty:$val)))>,
+        Requires<[HasAddr32]>;
+  def : Pat<(kind ty:$val, (operand I64:$addr, imm:$off)),
+            (STORE_I64_A64 0, imm:$off, I64:$addr, (i64 (out ty:$val)))>,
+        Requires<[HasAddr64]>;
+}
+
+defm : NarrowingStorePatImmOff<v8i16, truncstorevi8, regPlusImm,
+                               store_v8i8_trunc_v8i16>;
+defm : NarrowingStorePatImmOff<v4i32, truncstorevi16, regPlusImm,
+                               store_v4i16_trunc_v4i32>;
+defm : NarrowingStorePatImmOff<v8i16, truncstorevi8, or_is_add,
+                               store_v8i8_trunc_v8i16>;
+defm : NarrowingStorePatImmOff<v4i32, truncstorevi16, or_is_add,
+                               store_v4i16_trunc_v4i32>;
+
+multiclass NarrowingStorePatOffsetOnly<ValueType ty, PatFrag kind,
+                                       OutPatFrag out> {
+  def : Pat<(kind ty:$val, imm:$off),
+            (STORE_I64_A32 0, imm:$off, (CONST_I32 0), (i64 (out ty:$val)))>,
+        Requires<[HasAddr32]>;
+  def : Pat<(kind ty:$val, imm:$off),
+            (STORE_I64_A64 0, imm:$off, (CONST_I64 0), (i64 (out ty:$val)))>,
+        Requires<[HasAddr64]>;
+}
+
+defm : NarrowingStorePatOffsetOnly<v8i16, truncstorevi8,
+                                   store_v8i8_trunc_v8i16>;
+defm : NarrowingStorePatOffsetOnly<v4i32, truncstorevi16,
+                                   store_v4i16_trunc_v4i32>;
+
+multiclass NarrowingStorePatGlobalAddrOffOnly<ValueType ty, PatFrag kind,
+                                              OutPatFrag out> {
+  def : Pat<(kind ty:$val, (WebAssemblywrapper tglobaladdr:$off)),
+            (STORE_I64_A32
+              0, tglobaladdr:$off, (CONST_I32 0), (i64 (out ty:$val)))>,
+        Requires<[IsNotPIC, HasAddr32]>;
+  def : Pat<(kind ty:$val, (WebAssemblywrapper tglobaladdr:$off)),
+            (STORE_I64_A64
+              0, tglobaladdr:$off, (CONST_I64 0), (i64 (out ty:$val)))>,
+        Requires<[IsNotPIC, HasAddr64]>;
+}
+
+defm : NarrowingStorePatGlobalAddrOffOnly<v8i16, truncstorevi8,
+                                          store_v8i8_trunc_v8i16>;
+defm : NarrowingStorePatGlobalAddrOffOnly<v4i32, truncstorevi16,
+                                          store_v4i16_trunc_v4i32>;
 
 // Bitcasts are nops
 // Matching bitcast t1 to t1 causes strange errors, so avoid repeating types
@@ -942,20 +1075,21 @@ def : Pat<(t1 (bitconvert (t2 V128:$v))), (t1 V128:$v)>;
 // Quasi-Fused Multiply- Add and Subtract (QFMA/QFMS)
 //===----------------------------------------------------------------------===//
 
-multiclass SIMDQFM<ValueType vec_t, string vec, bits<32> baseInst> {
+multiclass SIMDQFM<ValueType vec_t, string vec, bits<32> simdopA,
+                   bits<32> simdopS> {
   defm QFMA_#vec_t :
     SIMD_I<(outs V128:$dst), (ins V128:$a, V128:$b, V128:$c),
            (outs), (ins),
            [(set (vec_t V128:$dst),
              (int_wasm_qfma (vec_t V128:$a), (vec_t V128:$b), (vec_t V128:$c)))],
-           vec#".qfma\t$dst, $a, $b, $c", vec#".qfma", baseInst>;
+           vec#".qfma\t$dst, $a, $b, $c", vec#".qfma", simdopA>;
   defm QFMS_#vec_t :
     SIMD_I<(outs V128:$dst), (ins V128:$a, V128:$b, V128:$c),
            (outs), (ins),
            [(set (vec_t V128:$dst),
              (int_wasm_qfms (vec_t V128:$a), (vec_t V128:$b), (vec_t V128:$c)))],
-           vec#".qfms\t$dst, $a, $b, $c", vec#".qfms", !add(baseInst, 1)>;
+           vec#".qfms\t$dst, $a, $b, $c", vec#".qfms", simdopS>;
 }
 
-defm "" : SIMDQFM<v4f32, "f32x4", 252>;
-defm "" : SIMDQFM<v2f64, "f64x2", 254>;
+defm "" : SIMDQFM<v4f32, "f32x4", 180, 212>;
+defm "" : SIMDQFM<v2f64, "f64x2", 254, 255>;

@@ -35,6 +35,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <cstdlib>
+#include <memory>
 
 using namespace clang;
 
@@ -59,22 +60,25 @@ protected:
     class BuildSyntaxTree : public ASTConsumer {
     public:
       BuildSyntaxTree(syntax::TranslationUnit *&Root,
+                      std::unique_ptr<syntax::TokenBuffer> &TB,
                       std::unique_ptr<syntax::Arena> &Arena,
                       std::unique_ptr<syntax::TokenCollector> Tokens)
-          : Root(Root), Arena(Arena), Tokens(std::move(Tokens)) {
+          : Root(Root), TB(TB), Arena(Arena), Tokens(std::move(Tokens)) {
         assert(this->Tokens);
       }
 
       void HandleTranslationUnit(ASTContext &Ctx) override {
-        Arena = std::make_unique<syntax::Arena>(Ctx.getSourceManager(),
-                                                Ctx.getLangOpts(),
-                                                std::move(*Tokens).consume());
+        TB =
+            std::make_unique<syntax::TokenBuffer>(std::move(*Tokens).consume());
         Tokens = nullptr; // make sure we fail if this gets called twice.
+        Arena = std::make_unique<syntax::Arena>(Ctx.getSourceManager(),
+                                                Ctx.getLangOpts(), *TB);
         Root = syntax::buildSyntaxTree(*Arena, *Ctx.getTranslationUnitDecl());
       }
 
     private:
       syntax::TranslationUnit *&Root;
+      std::unique_ptr<syntax::TokenBuffer> &TB;
       std::unique_ptr<syntax::Arena> &Arena;
       std::unique_ptr<syntax::TokenCollector> Tokens;
     };
@@ -82,20 +86,22 @@ protected:
     class BuildSyntaxTreeAction : public ASTFrontendAction {
     public:
       BuildSyntaxTreeAction(syntax::TranslationUnit *&Root,
+                            std::unique_ptr<syntax::TokenBuffer> &TB,
                             std::unique_ptr<syntax::Arena> &Arena)
-          : Root(Root), Arena(Arena) {}
+          : Root(Root), TB(TB), Arena(Arena) {}
 
       std::unique_ptr<ASTConsumer>
       CreateASTConsumer(CompilerInstance &CI, StringRef InFile) override {
         // We start recording the tokens, ast consumer will take on the result.
         auto Tokens =
             std::make_unique<syntax::TokenCollector>(CI.getPreprocessor());
-        return std::make_unique<BuildSyntaxTree>(Root, Arena,
+        return std::make_unique<BuildSyntaxTree>(Root, TB, Arena,
                                                  std::move(Tokens));
       }
 
     private:
       syntax::TranslationUnit *&Root;
+      std::unique_ptr<syntax::TokenBuffer> &TB;
       std::unique_ptr<syntax::Arena> &Arena;
     };
 
@@ -132,7 +138,7 @@ protected:
     Compiler.setSourceManager(SourceMgr.get());
 
     syntax::TranslationUnit *Root = nullptr;
-    BuildSyntaxTreeAction Recorder(Root, this->Arena);
+    BuildSyntaxTreeAction Recorder(Root, this->TB, this->Arena);
 
     // Action could not be executed but the frontend didn't identify any errors
     // in the code ==> problem in setting up the action.
@@ -204,6 +210,7 @@ protected:
       new SourceManager(*Diags, *FileMgr);
   std::shared_ptr<CompilerInvocation> Invocation;
   // Set after calling buildTree().
+  std::unique_ptr<syntax::TokenBuffer> TB;
   std::unique_ptr<syntax::Arena> Arena;
 };
 
@@ -2322,16 +2329,17 @@ struct X {
   friend bool operator<(const X&, const X&);
   friend X operator<<(X&, const X&);
   X operator,(X&);
-  // TODO: Fix crash on member function pointer and add a test for `->*`
-  // TODO: Unbox operators in syntax tree. 
+  X operator->*(int);
+  // TODO: Unbox operators in syntax tree.
   // Represent operators by `+` instead of `IdExpression-UnqualifiedId-+`
 };
-void test(X x, X y) {
+void test(X x, X y, X* xp, int X::* pmi) {
   x = y;
   x + y;
   x < y;
   x << y;
   x, y;
+  xp->*pmi;
 }
 )cpp",
       R"txt(
@@ -2430,6 +2438,17 @@ void test(X x, X y) {
 | | |   |   `-&
 | | |   `-)
 | | `-;
+| |-SimpleDeclaration
+| | |-X
+| | |-SimpleDeclarator
+| | | |-operator
+| | | |-->*
+| | | `-ParametersAndQualifiers
+| | |   |-(
+| | |   |-SimpleDeclaration
+| | |   | `-int
+| | |   `-)
+| | `-;
 | |-}
 | `-;
 `-SimpleDeclaration
@@ -2447,6 +2466,21 @@ void test(X x, X y) {
   |   | |-X
   |   | `-SimpleDeclarator
   |   |   `-y
+  |   |-,
+  |   |-SimpleDeclaration
+  |   | |-X
+  |   | `-SimpleDeclarator
+  |   |   |-*
+  |   |   `-xp
+  |   |-,
+  |   |-SimpleDeclaration
+  |   | |-int
+  |   | `-SimpleDeclarator
+  |   |   |-MemberPointer
+  |   |   | |-X
+  |   |   | |-::
+  |   |   | `-*
+  |   |   `-pmi
   |   `-)
   `-CompoundStatement
     |-{
@@ -2510,6 +2544,16 @@ void test(X x, X y) {
     | | `-IdExpression
     | |   `-UnqualifiedId
     | |     `-y
+    | `-;
+    |-ExpressionStatement
+    | |-BinaryOperatorExpression
+    | | |-IdExpression
+    | | | `-UnqualifiedId
+    | | |   `-xp
+    | | |-->*
+    | | `-IdExpression
+    | |   `-UnqualifiedId
+    | |     `-pmi
     | `-;
     `-}
 )txt"));
@@ -4063,6 +4107,99 @@ const int X::* b;
   | | |-::
   | | `-*
   | `-b
+  `-;
+)txt"));
+}
+
+TEST_P(SyntaxTreeTest, MemberFunctionPointer) {
+  if (!GetParam().isCXX()) {
+    return;
+  }
+  EXPECT_TRUE(treeDumpEqual(
+      R"cpp(
+struct X {
+  struct Y {};
+};
+void (X::*xp)();
+void (X::**xpp)(const int*);
+// FIXME: Generate the right syntax tree for this type,
+// i.e. create a syntax node for the outer member pointer
+void (X::Y::*xyp)(const int*, char);
+)cpp",
+      R"txt(
+*: TranslationUnit
+|-SimpleDeclaration
+| |-struct
+| |-X
+| |-{
+| |-SimpleDeclaration
+| | |-struct
+| | |-Y
+| | |-{
+| | |-}
+| | `-;
+| |-}
+| `-;
+|-SimpleDeclaration
+| |-void
+| |-SimpleDeclarator
+| | |-ParenDeclarator
+| | | |-(
+| | | |-MemberPointer
+| | | | |-X
+| | | | |-::
+| | | | `-*
+| | | |-xp
+| | | `-)
+| | `-ParametersAndQualifiers
+| |   |-(
+| |   `-)
+| `-;
+|-SimpleDeclaration
+| |-void
+| |-SimpleDeclarator
+| | |-ParenDeclarator
+| | | |-(
+| | | |-MemberPointer
+| | | | |-X
+| | | | |-::
+| | | | `-*
+| | | |-*
+| | | |-xpp
+| | | `-)
+| | `-ParametersAndQualifiers
+| |   |-(
+| |   |-SimpleDeclaration
+| |   | |-const
+| |   | |-int
+| |   | `-SimpleDeclarator
+| |   |   `-*
+| |   `-)
+| `-;
+`-SimpleDeclaration
+  |-void
+  |-SimpleDeclarator
+  | |-ParenDeclarator
+  | | |-(
+  | | |-X
+  | | |-::
+  | | |-MemberPointer
+  | | | |-Y
+  | | | |-::
+  | | | `-*
+  | | |-xyp
+  | | `-)
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   |-SimpleDeclaration
+  |   | |-const
+  |   | |-int
+  |   | `-SimpleDeclarator
+  |   |   `-*
+  |   |-,
+  |   |-SimpleDeclaration
+  |   | `-char
+  |   `-)
   `-;
 )txt"));
 }

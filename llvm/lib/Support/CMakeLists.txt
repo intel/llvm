@@ -63,6 +63,7 @@ add_llvm_component_library(LLVMSupport
   ARMAttributeParser.cpp
   ARMWinEH.cpp
   Allocator.cpp
+  Base64.cpp
   BinaryStreamError.cpp
   BinaryStreamReader.cpp
   BinaryStreamRef.cpp
@@ -202,8 +203,11 @@ add_llvm_component_library(LLVMSupport
 set(llvm_system_libs ${system_libs})
 
 if(LLVM_ENABLE_ZLIB)
-  string(TOUPPER ${CMAKE_BUILD_TYPE} build_type)
-  get_property(zlib_library TARGET ZLIB::ZLIB PROPERTY LOCATION_${build_type})
+  # CMAKE_BUILD_TYPE is only meaningful to single-configuration generators.
+  if(CMAKE_BUILD_TYPE)
+    string(TOUPPER ${CMAKE_BUILD_TYPE} build_type)
+    get_property(zlib_library TARGET ZLIB::ZLIB PROPERTY LOCATION_${build_type})
+  endif()
   if(NOT zlib_library)
     get_property(zlib_library TARGET ZLIB::ZLIB PROPERTY LOCATION)
   endif()

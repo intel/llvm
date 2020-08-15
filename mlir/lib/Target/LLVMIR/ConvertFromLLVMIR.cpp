@@ -16,6 +16,7 @@
 #include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Target/LLVMIR.h"
+#include "mlir/Target/LLVMIR/TypeTranslation.h"
 #include "mlir/Translation.h"
 
 #include "llvm/IR/Attributes.h"
@@ -48,7 +49,8 @@ class Importer {
 public:
   Importer(MLIRContext *context, ModuleOp module)
       : b(context), context(context), module(module),
-        unknownLoc(FileLineColLoc::get("imported-bitcode", 0, 0, context)) {
+        unknownLoc(FileLineColLoc::get("imported-bitcode", 0, 0, context)),
+        typeTranslator(*context) {
     b.setInsertionPointToStart(module.getBody());
     dialect = context->getRegisteredDialect<LLVMDialect>();
   }
@@ -129,6 +131,8 @@ private:
   Location unknownLoc;
   /// Cached dialect.
   LLVMDialect *dialect;
+  /// The stateful type translator (contains named structs).
+  LLVM::TypeFromLLVMIRTranslator typeTranslator;
 };
 } // namespace
 
@@ -149,79 +153,16 @@ Location Importer::processDebugLoc(const llvm::DebugLoc &loc,
 }
 
 LLVMType Importer::processType(llvm::Type *type) {
-  switch (type->getTypeID()) {
-  case llvm::Type::FloatTyID:
-    return LLVMType::getFloatTy(dialect);
-  case llvm::Type::DoubleTyID:
-    return LLVMType::getDoubleTy(dialect);
-  case llvm::Type::IntegerTyID:
-    return LLVMType::getIntNTy(dialect, type->getIntegerBitWidth());
-  case llvm::Type::PointerTyID: {
-    LLVMType elementType = processType(type->getPointerElementType());
-    if (!elementType)
-      return nullptr;
-    return elementType.getPointerTo(type->getPointerAddressSpace());
-  }
-  case llvm::Type::ArrayTyID: {
-    LLVMType elementType = processType(type->getArrayElementType());
-    if (!elementType)
-      return nullptr;
-    return LLVMType::getArrayTy(elementType, type->getArrayNumElements());
-  }
-  case llvm::Type::ScalableVectorTyID: {
-    emitError(unknownLoc) << "scalable vector types not supported";
-    return nullptr;
-  }
-  case llvm::Type::FixedVectorTyID: {
-    auto *typeVTy = llvm::cast<llvm::FixedVectorType>(type);
-    LLVMType elementType = processType(typeVTy->getElementType());
-    if (!elementType)
-      return nullptr;
-    return LLVMType::getVectorTy(elementType, typeVTy->getNumElements());
-  }
-  case llvm::Type::VoidTyID:
-    return LLVMType::getVoidTy(dialect);
-  case llvm::Type::FP128TyID:
-    return LLVMType::getFP128Ty(dialect);
-  case llvm::Type::X86_FP80TyID:
-    return LLVMType::getX86_FP80Ty(dialect);
-  case llvm::Type::StructTyID: {
-    SmallVector<LLVMType, 4> elementTypes;
-    elementTypes.reserve(type->getStructNumElements());
-    for (unsigned i = 0, e = type->getStructNumElements(); i != e; ++i) {
-      LLVMType ty = processType(type->getStructElementType(i));
-      if (!ty)
-        return nullptr;
-      elementTypes.push_back(ty);
-    }
-    return LLVMType::getStructTy(dialect, elementTypes,
-                                 cast<llvm::StructType>(type)->isPacked());
-  }
-  case llvm::Type::FunctionTyID: {
-    llvm::FunctionType *fty = cast<llvm::FunctionType>(type);
-    SmallVector<LLVMType, 4> paramTypes;
-    for (unsigned i = 0, e = fty->getNumParams(); i != e; ++i) {
-      LLVMType ty = processType(fty->getParamType(i));
-      if (!ty)
-        return nullptr;
-      paramTypes.push_back(ty);
-    }
-    LLVMType result = processType(fty->getReturnType());
-    if (!result)
-      return nullptr;
+  if (LLVMType result = typeTranslator.translateType(type))
+    return result;
 
-    return LLVMType::getFunctionTy(result, paramTypes, fty->isVarArg());
-  }
-  default: {
-    // FIXME: Diagnostic should be able to natively handle types that have
-    // operator<<(raw_ostream&) defined.
-    std::string s;
-    llvm::raw_string_ostream os(s);
-    os << *type;
-    emitError(unknownLoc) << "unhandled type: " << os.str();
-    return nullptr;
-  }
-  }
+  // FIXME: Diagnostic should be able to natively handle types that have
+  // operator<<(raw_ostream&) defined.
+  std::string s;
+  llvm::raw_string_ostream os(s);
+  os << *type;
+  emitError(unknownLoc) << "unhandled type: " << os.str();
+  return nullptr;
 }
 
 // We only need integers, floats, doubles, and vectors and tensors thereof for
@@ -234,18 +175,17 @@ Type Importer::getStdTypeForAttr(LLVMType type) {
     return nullptr;
 
   if (type.isIntegerTy())
-    return b.getIntegerType(type.getUnderlyingType()->getIntegerBitWidth());
+    return b.getIntegerType(type.getIntegerBitWidth());
 
-  if (type.getUnderlyingType()->isFloatTy())
+  if (type.isFloatTy())
     return b.getF32Type();
 
-  if (type.getUnderlyingType()->isDoubleTy())
+  if (type.isDoubleTy())
     return b.getF64Type();
 
   // LLVM vectors can only contain scalars.
   if (type.isVectorTy()) {
-    auto numElements = llvm::cast<llvm::VectorType>(type.getUnderlyingType())
-                           ->getElementCount();
+    auto numElements = type.getVectorElementCount();
     if (numElements.Scalable) {
       emitError(unknownLoc) << "scalable vectors not supported";
       return nullptr;
@@ -270,9 +210,7 @@ Type Importer::getStdTypeForAttr(LLVMType type) {
     // attribute type.
     if (type.getArrayElementType().isVectorTy()) {
       LLVMType vectorType = type.getArrayElementType();
-      auto numElements =
-          llvm::cast<llvm::VectorType>(vectorType.getUnderlyingType())
-              ->getElementCount();
+      auto numElements = vectorType.getVectorElementCount();
       if (numElements.Scalable) {
         emitError(unknownLoc) << "scalable vectors not supported";
         return nullptr;

@@ -320,6 +320,7 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::FNEARBYINT, MVT::f32, Custom);
   setOperationAction(ISD::FNEARBYINT, MVT::f64, Custom);
 
+  setOperationAction(ISD::FREM, MVT::f16, Custom);
   setOperationAction(ISD::FREM, MVT::f32, Custom);
   setOperationAction(ISD::FREM, MVT::f64, Custom);
 
@@ -2079,20 +2080,19 @@ SDValue AMDGPUTargetLowering::LowerSDIVREM(SDValue Op,
   return DAG.getMergeValues(Res, DL);
 }
 
-// (frem x, y) -> (fsub x, (fmul (ftrunc (fdiv x, y)), y))
+// (frem x, y) -> (fma (fneg (ftrunc (fdiv x, y))), y, x)
 SDValue AMDGPUTargetLowering::LowerFREM(SDValue Op, SelectionDAG &DAG) const {
   SDLoc SL(Op);
   EVT VT = Op.getValueType();
+  auto Flags = Op->getFlags();
   SDValue X = Op.getOperand(0);
   SDValue Y = Op.getOperand(1);
 
-  // TODO: Should this propagate fast-math-flags?
-
-  SDValue Div = DAG.getNode(ISD::FDIV, SL, VT, X, Y);
-  SDValue Floor = DAG.getNode(ISD::FTRUNC, SL, VT, Div);
-  SDValue Mul = DAG.getNode(ISD::FMUL, SL, VT, Floor, Y);
-
-  return DAG.getNode(ISD::FSUB, SL, VT, X, Mul);
+  SDValue Div = DAG.getNode(ISD::FDIV, SL, VT, X, Y, Flags);
+  SDValue Trunc = DAG.getNode(ISD::FTRUNC, SL, VT, Div, Flags);
+  SDValue Neg = DAG.getNode(ISD::FNEG, SL, VT, Trunc, Flags);
+  // TODO: For f32 use FMAD instead if !hasFastFMA32?
+  return DAG.getNode(ISD::FMA, SL, VT, Neg, Y, X, Flags);
 }
 
 SDValue AMDGPUTargetLowering::LowerFCEIL(SDValue Op, SelectionDAG &DAG) const {
@@ -3795,8 +3795,15 @@ SDValue AMDGPUTargetLowering::performFNegCombine(SDNode *N,
     SDValue Res = DAG.getNode(AMDGPUISD::FMED3, SL, VT, Ops, N0->getFlags());
     if (Res.getOpcode() != AMDGPUISD::FMED3)
       return SDValue(); // Op got folded away.
-    if (!N0.hasOneUse())
-      DAG.ReplaceAllUsesWith(N0, DAG.getNode(ISD::FNEG, SL, VT, Res));
+
+    if (!N0.hasOneUse()) {
+      SDValue Neg = DAG.getNode(ISD::FNEG, SL, VT, Res);
+      DAG.ReplaceAllUsesWith(N0, Neg);
+
+      for (SDNode *U : Neg->uses())
+        DCI.AddToWorklist(U);
+    }
+
     return Res;
   }
   case ISD::FP_EXTEND:
@@ -4336,7 +4343,6 @@ const char* AMDGPUTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(ATOMIC_DEC)
   NODE_NAME_CASE(ATOMIC_LOAD_FMIN)
   NODE_NAME_CASE(ATOMIC_LOAD_FMAX)
-  NODE_NAME_CASE(ATOMIC_LOAD_CSUB)
   NODE_NAME_CASE(BUFFER_LOAD)
   NODE_NAME_CASE(BUFFER_LOAD_UBYTE)
   NODE_NAME_CASE(BUFFER_LOAD_USHORT)
@@ -4365,8 +4371,6 @@ const char* AMDGPUTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(BUFFER_ATOMIC_CMPSWAP)
   NODE_NAME_CASE(BUFFER_ATOMIC_CSUB)
   NODE_NAME_CASE(BUFFER_ATOMIC_FADD)
-  NODE_NAME_CASE(BUFFER_ATOMIC_PK_FADD)
-  NODE_NAME_CASE(ATOMIC_PK_FADD)
 
   case AMDGPUISD::LAST_AMDGPU_ISD_NUMBER: break;
   }

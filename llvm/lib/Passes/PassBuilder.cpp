@@ -106,6 +106,7 @@
 #include "llvm/Transforms/Instrumentation/BoundsChecking.h"
 #include "llvm/Transforms/Instrumentation/CGProfile.h"
 #include "llvm/Transforms/Instrumentation/ControlHeightReduction.h"
+#include "llvm/Transforms/Instrumentation/DataFlowSanitizer.h"
 #include "llvm/Transforms/Instrumentation/GCOVProfiler.h"
 #include "llvm/Transforms/Instrumentation/HWAddressSanitizer.h"
 #include "llvm/Transforms/Instrumentation/InstrOrderFile.h"
@@ -185,6 +186,7 @@
 #include "llvm/Transforms/Utils/LCSSA.h"
 #include "llvm/Transforms/Utils/LibCallsShrinkWrap.h"
 #include "llvm/Transforms/Utils/LoopSimplify.h"
+#include "llvm/Transforms/Utils/LoopVersioning.h"
 #include "llvm/Transforms/Utils/LowerInvoke.h"
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 #include "llvm/Transforms/Utils/NameAnonGlobals.h"
@@ -1144,11 +1146,14 @@ ModulePassManager PassBuilder::buildModuleOptimizationPipeline(
   // convert to more optimized IR using more aggressive simplify CFG options.
   // The extra sinking transform can create larger basic blocks, so do this
   // before SLP vectorization.
-  OptimizePM.addPass(SimplifyCFGPass(SimplifyCFGOptions().
-                                     forwardSwitchCondToPhi(true).
-                                     convertSwitchToLookupTable(true).
-                                     needCanonicalLoops(false).
-                                     sinkCommonInsts(true)));
+  // FIXME: study whether hoisting and/or sinking of common instructions should
+  //        be delayed until after SLP vectorizer.
+  OptimizePM.addPass(SimplifyCFGPass(SimplifyCFGOptions()
+                                         .forwardSwitchCondToPhi(true)
+                                         .convertSwitchToLookupTable(true)
+                                         .needCanonicalLoops(false)
+                                         .hoistCommonInsts(true)
+                                         .sinkCommonInsts(true)));
 
   // Optimize parallel scalar instruction chains into SIMD instructions.
   if (PTO.SLPVectorization)

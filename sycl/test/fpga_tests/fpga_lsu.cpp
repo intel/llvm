@@ -1,4 +1,7 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// TODO: Enable compilation w/o -fno-sycl-early-optimizations option.
+// See https://github.com/intel/llvm/issues/2264 for more details.
+
+// RUN: %clangxx -fsycl -fno-sycl-early-optimizations %s -o %t.out
 // RUNx: %ACC_RUN_PLACEHOLDER %t.out
 //==----------------- fpga_lsu.cpp - SYCL FPGA LSU test --------------------==//
 //

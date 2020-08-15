@@ -71,54 +71,19 @@ struct InlineEvent {
 /// lines up with how TF SequenceExample represents it.
 class TrainingLogger final {
 public:
-  TrainingLogger() {
-    for (size_t I = 0; I < NumberOfFeatures; ++I) {
-      Features.push_back(InlineFeatures());
-    }
-  }
+  TrainingLogger();
 
   /// Log one inlining event.
   void logInlineEvent(const InlineEvent &Event,
-                      const MLModelRunner &ModelRunner) {
-    for (size_t I = 0; I < NumberOfFeatures; ++I) {
-      Features[I].push_back(ModelRunner.getFeature(I));
-    }
-    Decisions.push_back(Event.AdvisedDecision);
-    Effects.push_back(Event.Effect);
-    Rewards.push_back(Event.Reward);
-    DefaultDecisions.push_back(Event.DefaultDecision);
-  }
+                      const MLModelRunner &ModelRunner);
 
-  void printTensor(raw_fd_ostream &OutFile) {
-    if (DefaultDecisions.empty())
-      return;
-    OutFile << "feature_lists: {\n";
-
-    for (size_t I = 0; I < Features.size(); I++) {
-      writeTensor(OutFile, FeatureNameMap.at(I), Features[I]);
-    }
-    writeTensor(OutFile, DefaultDecisionName, DefaultDecisions);
-    writeTensor(OutFile, DecisionName, Decisions);
-    writeTensor(OutFile, RewardName, Rewards);
-
-    OutFile << "}\n";
-  }
+  /// Print the stored tensors.
+  void print(raw_fd_ostream &OutFile);
 
 private:
   template <typename T>
   void writeTensor(raw_fd_ostream &OutFile, StringRef TensorName,
-                   const std::vector<T> &Tensor) {
-    OutFile << "  feature_list: {\n";
-    OutFile << "    key: "
-            << "\"" << TensorName << "\" ";
-    OutFile << "value: {\n";
-    for (const auto &Feature : Tensor) {
-      OutFile << "      feature: { int64_list: { value: [" << Feature
-              << "] } }\n";
-    }
-    OutFile << "    }\n";
-    OutFile << "  }\n";
-  }
+                   const std::vector<T> &Tensor);
 
   std::vector<InlineFeatures> Features;
   std::vector<bool> DefaultDecisions;
@@ -298,37 +263,62 @@ public:
 private:
   std::unique_ptr<TFModelEvaluator> Evaluator;
 
-  // The training framework needs some additional features, that just need to
-  // be set to 0.
-  struct TensorSpec {
-    std::string Name;
-    std::function<void(TFModelEvaluator *, size_t Index,
-                       const std::vector<int64_t> &Dim)>
-        Initializer;
-  };
-
+  // The training framework needs some additional features.
   const std::vector<TensorSpec> TrainingOnlyFeatures{
-      {"inlining_default",
-       [](TFModelEvaluator *Evaluator, size_t Index,
-          const std::vector<int64_t> &Dim) {
-         Evaluator->initInput<int64_t>(Index, Dim);
-       }},
-      {"discount",
-       [](TFModelEvaluator *Evaluator, size_t Index,
-          const std::vector<int64_t> &Dim) {
-         Evaluator->initInput<float>(Index, Dim);
-       }},
-      {"reward",
-       [](TFModelEvaluator *Evaluator, size_t Index,
-          const std::vector<int64_t> &Dim) {
-         Evaluator->initInput<float>(Index, Dim);
-       }},
-      {"step_type", [](TFModelEvaluator *Evaluator, size_t Index,
-                       const std::vector<int64_t> &Dim) {
-         Evaluator->initInput<int32_t>(Index, Dim);
-       }}};
+      TensorSpec::createSpec<int64_t>(TFFeedPrefix + "inlining_default", {1}),
+      TensorSpec::createSpec<float>(TFFeedPrefix + "discount", {1}),
+      TensorSpec::createSpec<float>(TFFeedPrefix + "reward", {1}),
+      TensorSpec::createSpec<int32_t>(TFFeedPrefix + "step_type", {1})};
 };
 } // namespace
+
+TrainingLogger::TrainingLogger() {
+  for (size_t I = 0; I < NumberOfFeatures; ++I) {
+    Features.push_back(InlineFeatures());
+  }
+}
+
+/// Log one inlining event.
+void TrainingLogger::logInlineEvent(const InlineEvent &Event,
+                                    const MLModelRunner &ModelRunner) {
+  for (size_t I = 0; I < NumberOfFeatures; ++I) {
+    Features[I].push_back(ModelRunner.getFeature(I));
+  }
+  Decisions.push_back(Event.AdvisedDecision);
+  Effects.push_back(Event.Effect);
+  Rewards.push_back(Event.Reward);
+  DefaultDecisions.push_back(Event.DefaultDecision);
+}
+
+void TrainingLogger::print(raw_fd_ostream &OutFile) {
+  if (DefaultDecisions.empty())
+    return;
+  OutFile << "feature_lists: {\n";
+
+  for (size_t I = 0; I < Features.size(); I++) {
+    writeTensor(OutFile, FeatureNameMap.at(I), Features[I]);
+  }
+  writeTensor(OutFile, DefaultDecisionName, DefaultDecisions);
+  writeTensor(OutFile, DecisionName, Decisions);
+  writeTensor(OutFile, RewardName, Rewards);
+
+  OutFile << "}\n";
+}
+
+template <typename T>
+void TrainingLogger::writeTensor(raw_fd_ostream &OutFile, StringRef TensorName,
+                                 const std::vector<T> &Tensor) {
+  OutFile << "  feature_list: {\n";
+  OutFile << "    key: "
+          << "\"" << TensorName << "\" ";
+  OutFile << "value: {\n";
+  for (const auto &Feature : Tensor) {
+    OutFile << "      feature: { int64_list: { value: [" << Feature
+            << "] } }\n";
+  }
+  OutFile << "    }\n";
+  OutFile << "  }\n";
+}
 
 DevelopmentModeMLInlineAdvisor::DevelopmentModeMLInlineAdvisor(
     Module &M, ModuleAnalysisManager &MAM,
@@ -347,7 +337,7 @@ DevelopmentModeMLInlineAdvisor::~DevelopmentModeMLInlineAdvisor() {
     return;
   std::error_code ErrorCode;
   raw_fd_ostream OutFile(TrainingLog, ErrorCode);
-  Logger.printTensor(OutFile);
+  Logger.print(OutFile);
 }
 
 size_t
@@ -409,32 +399,21 @@ size_t DevelopmentModeMLInlineAdvisor::getTotalSizeEstimate() {
 ModelUnderTrainingRunner::ModelUnderTrainingRunner(LLVMContext &Ctx,
                                                    const std::string &ModelPath)
     : MLModelRunner(Ctx) {
-  std::vector<std::string> InputNames;
-  std::vector<std::string> OutputNames;
+  std::vector<TensorSpec> InputSpecs;
+  std::vector<TensorSpec> OutputSpecs;
   for (size_t I = 0; I < NumberOfFeatures; ++I)
-    InputNames.push_back(TFFeedPrefix + FeatureNameMap[I]);
-  for (size_t I = 0; I < TrainingOnlyFeatures.size(); ++I)
-    InputNames.push_back(TFFeedPrefix + TrainingOnlyFeatures[I].Name);
-  OutputNames.push_back(TFDecisionName);
+    InputSpecs.push_back(
+        TensorSpec::createSpec<int64_t>(TFFeedPrefix + FeatureNameMap[I], {1}));
+  InputSpecs.insert(InputSpecs.end(), TrainingOnlyFeatures.begin(),
+                    TrainingOnlyFeatures.end());
+  OutputSpecs.push_back(TensorSpec::createSpec<int64_t>(TFDecisionName, {1}));
 
   Evaluator =
-      std::make_unique<TFModelEvaluator>(ModelPath, InputNames, OutputNames);
+      std::make_unique<TFModelEvaluator>(ModelPath, InputSpecs, OutputSpecs);
   if (!Evaluator || !Evaluator->isValid()) {
     Ctx.emitError("Failed to create inliner saved model evaluator");
     Evaluator.reset();
     return;
-  }
-
-  static const std::vector<int64_t> Dim{1};
-
-  size_t InputIndex = 0;
-  for (; InputIndex < NumberOfFeatures; ++InputIndex) {
-    Evaluator->initInput<int64_t>(InputIndex, Dim);
-  }
-
-  for (; InputIndex < InputNames.size(); ++InputIndex) {
-    TrainingOnlyFeatures[InputIndex - NumberOfFeatures].Initializer(
-        Evaluator.get(), InputIndex, Dim);
   }
 }
 

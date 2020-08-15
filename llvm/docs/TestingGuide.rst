@@ -273,18 +273,18 @@ Extra files
 
 If your test requires extra files besides the file containing the ``RUN:`` lines
 and the extra files are small, consider specifying them in the same file and
-using ``extract`` to extract them. For example,
+using ``split-file`` to extract them. For example,
 
 .. code-block:: llvm
 
-  ; RUN: extract b %s -o %tb.ll
-  ; RUN: extract a %s | llvm-link - %tb.ll -S | FileCheck %s
+  ; RUN: split-file %s %t
+  ; RUN: llvm-link -S %t/a.ll %t/b.ll | FileCheck %s
 
   ; CHECK: ...
 
-  ;--- a
+  ;--- a.ll
   ...
-  ;--- b
+  ;--- b.ll
   ...
 
 The parts are separated by the regex ``^(.|//)--- <part>``. By default the

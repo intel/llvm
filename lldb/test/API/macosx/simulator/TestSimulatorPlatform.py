@@ -25,20 +25,10 @@ class TestSimulatorPlatformLaunching(TestBase):
 
     def check_debugserver(self, log, expected_platform, expected_version):
         """scan the debugserver packet log"""
-        logfile = open(log, "r")
-        dylib_info = None
-        response = False
-        for line in logfile:
-            if response:
-                while line[0] != '$':
-                    line = line[1:]
-                line = line[1:]
-                # Unescape '}'.
-                dylib_info = json.loads(line.replace('}]','}')[:-4])
-                response = False
-            if 'send packet: $jGetLoadedDynamicLibrariesInfos:{' in line:
-                response = True
-
+        process_info = lldbutil.packetlog_get_process_info(log)
+        self.assertTrue('ostype' in process_info)
+        self.assertEquals(process_info['ostype'], expected_platform)
+        dylib_info = lldbutil.packetlog_get_dylib_info(log)
         self.assertTrue(dylib_info)
         aout_info = None
         for image in dylib_info['images']:

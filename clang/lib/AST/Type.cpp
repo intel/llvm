@@ -308,10 +308,8 @@ ConstantMatrixType::ConstantMatrixType(QualType matrixType, unsigned nRows,
 ConstantMatrixType::ConstantMatrixType(TypeClass tc, QualType matrixType,
                                        unsigned nRows, unsigned nColumns,
                                        QualType canonType)
-    : MatrixType(tc, matrixType, canonType) {
-  ConstantMatrixTypeBits.NumRows = nRows;
-  ConstantMatrixTypeBits.NumColumns = nColumns;
-}
+    : MatrixType(tc, matrixType, canonType), NumRows(nRows),
+      NumColumns(nColumns) {}
 
 DependentSizedMatrixType::DependentSizedMatrixType(
     const ASTContext &CTX, QualType ElementType, QualType CanonicalType,
@@ -1186,9 +1184,6 @@ public:
                            T->getTypeConstraintConcept(),
                            T->getTypeConstraintArguments());
   }
-
-  // FIXME: Non-trivial to implement, but important for C++
-  SUGARED_TYPE_CLASS(PackExpansion)
 
   QualType VisitObjCObjectType(const ObjCObjectType *T) {
     QualType baseType = recurse(T->getBaseType());
@@ -3352,6 +3347,12 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID,
                                 const ASTContext &Ctx) {
   Profile(ID, getReturnType(), param_type_begin(), getNumParams(),
           getExtProtoInfo(), Ctx, isCanonicalUnqualified());
+}
+
+TypedefType::TypedefType(TypeClass tc, const TypedefNameDecl *D, QualType can)
+    : Type(tc, can, D->getUnderlyingType()->getDependence()),
+      Decl(const_cast<TypedefNameDecl *>(D)) {
+  assert(!isa<TypedefType>(can) && "Invalid canonical type");
 }
 
 QualType TypedefType::desugar() const {
