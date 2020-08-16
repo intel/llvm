@@ -1,9 +1,10 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %t.out
+// RUN: env SYCL_DEVICE_TRIPLES="*" %t.out
 // RUN: env SYCL_DEVICE_TRIPLES=cpu %t.out
-// RUN: env SYCL_DEVICE_TRIPLES=gpu:level0 %t.out
+// RUN: env SYCL_DEVICE_TRIPLES=gpu:level_zero %t.out
 // RUN: env SYCL_DEVICE_TRIPLES=gpu:opencl %t.out
-// RUN: env SYCL_DEVICE_TRIPLES=cpu,gpu:level0 %t.out
+// RUN: env SYCL_DEVICE_TRIPLES=cpu,gpu:level_zero %t.out
 // RUN: env SYCL_DEVICE_TRIPLES=acc:opencl:0 %t.out
 //
 // Checks if only specified device types can be acquired from select_device
@@ -24,19 +25,22 @@ int main() {
     std::cout << "SYCL_DEVICE_TRIPLES=" << envVal << std::endl;
     forcedPIs = envVal;
   }
-  if (!envVal || forcedPIs.find("gpu:level_zero") != std::string::npos) {
+  if (!envVal || forcedPIs == "*" ||
+      forcedPIs.find("gpu:level_zero") != std::string::npos) {
     default_selector ds;
     device d = ds.select_device();
     std::cout << "Level-zero GPU Device is found: " << std::boolalpha
               << d.is_gpu() << std::endl;
   }
-  if (!envVal || forcedPIs.find("gpu:opencl") != std::string::npos) {
+  if (!envVal || forcedPIs == "*" ||
+      forcedPIs.find("gpu:opencl") != std::string::npos) {
     gpu_selector gs;
     device d = gs.select_device();
     std::cout << "OpenCL GPU Device is found: " << std::boolalpha << d.is_gpu()
               << std::endl;
   }
-  if (!envVal || forcedPIs.find("cpu") != std::string::npos) {
+  if (!envVal || forcedPIs == "*" ||
+      forcedPIs.find("cpu") != std::string::npos) {
     cpu_selector cs;
     device d = cs.select_device();
     std::cout << "CPU device is found: " << d.is_cpu() << std::endl;
@@ -47,7 +51,8 @@ int main() {
     device d = hs.select_device();
     std::cout << "HOST device is found: " << d.is_host() << std::endl;
   }
-  if (!envVal || forcedPIs.find("acc") != std::string::npos) {
+  if (!envVal || forcedPIs == "*" ||
+      forcedPIs.find("acc") != std::string::npos) {
     accelerator_selector as;
     device d = as.select_device();
     std::cout << "ACC device is found: " << d.is_accelerator() << std::endl;

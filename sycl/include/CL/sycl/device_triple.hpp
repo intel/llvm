@@ -68,6 +68,9 @@ inline std::ostream &operator<<(std::ostream &Out, const device_triple &Trp) {
     break;
   case backend::cuda:
     Out << std::string("cuda");
+    break;
+  case backend::all:
+    Out << std::string("*");
   }
   if (Trp.DeviceNum != Trp.DEVICE_NUM_UNSPECIFIED) {
     Out << std::string(":") << Trp.DeviceNum;

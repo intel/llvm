@@ -23,9 +23,9 @@ device_triple::device_triple(std::string &TripleString) {
                             {"*", info::device_type::all}}};
   const std::array<std::pair<std::string, backend>, 4> SyclBeMap = {
       {{"opencl", backend::opencl},
-       {"level0", backend::level_zero},
        {"level_zero", backend::level_zero},
-       {"cuda", backend::cuda}}};
+       {"cuda", backend::cuda},
+       {"*", backend::all}}};
 
   // device_type is a required entry
   size_t Pos = 0;
@@ -46,7 +46,9 @@ device_triple::device_triple(std::string &TripleString) {
 
   DeviceType = It->second;
   // initialize optional entries with default values
-  if (DeviceType == info::device_type::gpu) {
+  if (DeviceType == info::device_type::all) {
+    Backend = backend::all;
+  } else if (DeviceType == info::device_type::gpu) {
     Backend = backend::level_zero;
   } else {
     Backend = backend::opencl;
@@ -69,7 +71,7 @@ device_triple::device_triple(std::string &TripleString) {
                      });
     if (It == SyclBeMap.end())
       throw cl::sycl::invalid_parameter_error(
-          "Invalid backend. Valid values are opencl/level0/cuda",
+          "Invalid backend. Valid values are opencl/level_zero/cuda/*",
           PI_INVALID_VALUE);
     Backend = It->second;
   }
@@ -77,7 +79,12 @@ device_triple::device_triple(std::string &TripleString) {
   // update the optional 3rd entry, device number
   ColonPos = TripleString.find(":", Pos);
   if (ColonPos != std::string::npos && (ColonPos + 1) < TripleString.size()) {
-    DeviceNum = stoi(TripleString.substr(ColonPos + 1));
+    try {
+      DeviceNum = stoi(TripleString.substr(ColonPos + 1));
+    } catch (...) {
+      throw cl::sycl::invalid_parameter_error(
+          "Invalid device number. An integer is needed.", PI_INVALID_VALUE);
+    }
   }
 }
 

@@ -226,13 +226,17 @@ bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
     bool LevelZeroFound = false;
     bool CudaFound = false;
     for (const device_triple &Trp : Triples) {
-      if (!OpenCLFound && Trp.getBackend() == backend::opencl) {
+      backend Backend = Trp.getBackend();
+      if (!OpenCLFound &&
+          (Backend == backend::opencl || Backend == backend::all)) {
         PluginNames.emplace_back(OPENCL_PLUGIN_NAME, backend::opencl);
         OpenCLFound = true;
-      } else if (!LevelZeroFound && Trp.getBackend() == backend::level_zero) {
+      } else if (!LevelZeroFound &&
+                 (Backend == backend::level_zero || Backend == backend::all)) {
         PluginNames.emplace_back(LEVEL_ZERO_PLUGIN_NAME, backend::level_zero);
         LevelZeroFound = true;
-      } else if (!CudaFound && Trp.getBackend() == backend::cuda) {
+      } else if (!CudaFound &&
+                 (Backend == backend::cuda || Backend == backend::all)) {
         PluginNames.emplace_back(CUDA_PLUGIN_NAME, backend::cuda);
         CudaFound = true;
       }
