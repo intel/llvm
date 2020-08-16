@@ -758,7 +758,7 @@ public:
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget>
   void require(accessor<DataT, Dims, AccMode, AccTarget,
-                        access::placeholder::true_t> &Acc) {
+                        access::placeholder::true_t> Acc) {
 #ifndef __SYCL_DEVICE_ONLY__
     associateWithHandler(&Acc, AccTarget);
 #else
