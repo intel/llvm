@@ -36,31 +36,33 @@ static bool isDeviceOfPreferredSyclBe(const device &Device) {
 //   the device type.
 // 'deviceNum' is the index in the vector of devices returned from
 //    sycl::platform::get_devices().
-device device_selector::select_device(info::device_type deviceType, backend be,
-                                      unsigned deviceNum) const {
+device device_selector::select_device(info::device_type DeviceType, backend BE,
+                                      unsigned DeviceNum) const {
   // return if a requested deviceType is found
-  if (deviceType != info::device_type::all) {
-    if (deviceType == info::device_type::host) {
+  if (DeviceType != info::device_type::all) {
+    if (DeviceType == info::device_type::host) {
       return device{};
     }
 
-    const vector_class<detail::plugin> &plugins = RT::initialize();
-    for (unsigned int i = 0; i < plugins.size(); i++) {
-      pi_uint32 numPlatforms = 0;
-      plugins[i].call<detail::PiApiKind::piPlatformsGet>(0, nullptr,
-                                                         &numPlatforms);
-      if (numPlatforms) {
-        vector_class<RT::PiPlatform> piPlatforms(numPlatforms);
-        plugins[i].call<detail::PiApiKind::piPlatformsGet>(
-            numPlatforms, piPlatforms.data(), nullptr);
-        for (const auto &piPlatform : piPlatforms) {
-          platform pltf = detail::createSyclObjFromImpl<platform>(
-              std::make_shared<detail::platform_impl>(piPlatform, plugins[i]));
-          if (!pltf.is_host() && be == pltf.get_backend()) {
-            vector_class<device> devices = pltf.get_devices(deviceType);
-            if (devices.size() > 0) {
-              assert(deviceNum < devices.size());
-              return devices[deviceNum];
+    const vector_class<detail::plugin> &Plugins = RT::initialize();
+    for (const detail::plugin &Plugin : Plugins) {
+      pi_uint32 NumPlatforms = 0;
+      Plugin.call<detail::PiApiKind::piPlatformsGet>(0, nullptr, &NumPlatforms);
+      if (NumPlatforms) {
+        vector_class<RT::PiPlatform> PiPlatforms(NumPlatforms);
+        Plugin.call<detail::PiApiKind::piPlatformsGet>(
+            NumPlatforms, PiPlatforms.data(), nullptr);
+        for (const auto &PiPlatform : PiPlatforms) {
+          platform Pltf = detail::createSyclObjFromImpl<platform>(
+              std::make_shared<detail::platform_impl>(PiPlatform, Plugin));
+          backend Backend = Pltf.get_backend();
+          if (!Pltf.is_host() && (BE == backend::all || BE == Backend)) {
+            vector_class<device> Devices = Pltf.get_devices(DeviceType);
+            if (Devices.size() > 0) {
+              if (DeviceNum >= Devices.size())
+                throw cl::sycl::invalid_parameter_error("Invalid DeviceNum",
+                                                        PI_INVALID_VALUE);
+              return Devices[DeviceNum];
             }
           }
         }
@@ -116,7 +118,7 @@ device device_selector::select_device(info::device_type deviceType, backend be,
                 << "SYCL_PI_TRACE[all]: "
                 << "  device: " << DeviceName << std::endl;
     }
-    if (deviceType != info::device_type::all) {
+    if (DeviceType != info::device_type::all) {
       std::cout
           << "WARNING: Requested device with backend & deviceNum is not found";
       std::cout << std::endl
