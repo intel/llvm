@@ -1663,7 +1663,7 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     // Handle potential gaps in set arguments (e. g. if some of them are set
     // on the user side).
     for (int Idx = LastIndex + 1; Idx < Arg.MIndex; ++Idx)
-      if (EliminatedArgMask.empty() || !EliminatedArgMask[Arg.MIndex])
+      if (EliminatedArgMask.empty() || !EliminatedArgMask[Idx])
         ++NextTrueIndex;
     LastIndex = Arg.MIndex;
 
