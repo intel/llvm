@@ -162,10 +162,28 @@ public:
   ///
   /// \return the host platform impl
   static std::shared_ptr<platform_impl> getHostPlatformImpl();
+
+  /// Queries the cache to see if the specified PiPlatform has been seen
+  /// before.  If so, return the cached platform_impl, otherwise create a new
+  /// one and cache it.
+  ///
+  /// \param PiPlatform is the PI Platform handle representing the platform
+  /// \param Plugin is the PI plugin providing the backend for the platform
+  /// \return the platform_impl representing the PI platform
   static std::shared_ptr<platform_impl>
-  getOrMakePlatformImpl(RT::PiPlatform, const plugin &Plugin);
+  getOrMakePlatformImpl(RT::PiPlatform PiPlatform, const plugin &Plugin);
+
+  /// Queries the cache for the specified platform based on an input device.
+  /// If found, returns the the cached platform_impl, otherwise creates a new
+  /// one and caches it.
+  ///
+  /// \param PiDevice is the PI device handle for the device whose platform is
+  /// desired
+  /// \param Plugin is the PI plugin providing the backend for the device and
+  /// platform
+  /// \return the platform_impl that contains the input device
   static std::shared_ptr<platform_impl>
-  getPlatformFromPiDevice(RT::PiDevice, const plugin &Plugin);
+  getPlatformFromPiDevice(RT::PiDevice PiDevice, const plugin &Plugin);
 
 private:
   bool MHostPlatform = false;
