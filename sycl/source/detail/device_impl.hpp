@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#pragma once
+
 
 #include <CL/sycl/aspects.hpp>
 #include <CL/sycl/detail/pi.hpp>
@@ -216,7 +216,7 @@ public:
   ///
   /// \return the host device_impl singleton
   static std::shared_ptr<device_impl> getHostDeviceImpl();
-  
+
 private:
   explicit device_impl(pi_native_handle InteropDevice, RT::PiDevice Device,
                        PlatformImplPtr Platform, const plugin &Plugin);
