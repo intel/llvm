@@ -100,7 +100,7 @@ public:
       llvm_unreachable("must be BYTE_ARRAY value");
     SizeTy Res = 0;
 
-    for (auto I = 0; I < sizeof(SizeTy); ++I)
+    for (size_t I = 0; I < sizeof(SizeTy); ++I)
       Res |= (SizeTy)Val.ByteArrayVal[I] << (8 * I);
     return Res;
   }
