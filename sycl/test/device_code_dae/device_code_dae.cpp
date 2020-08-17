@@ -1,5 +1,7 @@
 // NOTE A temporary test before this compilation flow is enabled by default in
 // driver
+// UNSUPPORTED: cuda
+// CUDA does not support SPIR-V.
 // RUN: %clangxx -fsycl-device-only -Xclang -fenable-sycl-dae -Xclang -fsycl-int-header=int_header.h %s -c -o device_code.bc -I %sycl_include -Wno-sycl-strict
 // RUN: %clangxx -include int_header.h -g -c %s -o host_code.o -I %sycl_include -Wno-sycl-strict
 // RUN: llvm-link -o=linked_device_code.bc device_code.bc
