@@ -3,10 +3,6 @@
 // This test checks that compiler generates correct kernel arguments for
 // unions containing Arrays.
 
-#include <sycl.hpp>
-
-using namespace cl::sycl;
-
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void a_kernel(Func kernelFunc) {
   kernelFunc();

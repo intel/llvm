@@ -3,10 +3,6 @@
 // This test checks that compiler generates correct kernel arguments for
 // a struct-with-an-array-of-unions and a array-of-struct-with-a-union.
 
-#include <sycl.hpp>
-
-using namespace cl::sycl;
-
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void a_kernel(Func kernelFunc) {
   kernelFunc();
