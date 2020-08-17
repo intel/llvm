@@ -428,20 +428,26 @@ std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
   }
   Out << P.Prop->Name << "=";
 
-  if (P.Prop->Type == PI_PROPERTY_TYPE_UINT32) {
+  switch (P.Prop->Type) {
+  case PI_PROPERTY_TYPE_UINT32:
     Out << P.asUint32();
-  } else if (P.Prop->Type == PI_PROPERTY_TYPE_BYTE_ARRAY) {
-    std::vector<unsigned char> ByteArray = P.asByteArray();
+    break;
+  case PI_PROPERTY_TYPE_BYTE_ARRAY: {
+    ByteArray BA = P.asByteArray();
     std::ios_base::fmtflags FlagsBackup = Out.flags();
     Out << std::hex;
-    for (auto Byte : ByteArray) {
-      Out << "0x" << static_cast<unsigned int>(Byte) << " ";
+    for (const auto &Byte : BA) {
+      Out << "0x" << Byte << " ";
     }
     Out.flags(FlagsBackup);
-  } else if (P.Prop->Type == PI_PROPERTY_TYPE_STRING) {
+    break;
+  }
+  case PI_PROPERTY_TYPE_STRING:
     Out << P.asCString();
-  } else {
+    break;
+  default:
     assert(false && "Unsupported property");
+    return Out;
   }
   return Out;
 }
@@ -498,11 +504,11 @@ pi_uint32 DeviceBinaryProperty::asUint32() const {
   return sycl::detail::pi::asUint32(&Prop->ValSize);
 }
 
-std::vector<unsigned char> DeviceBinaryProperty::asByteArray() const {
+ByteArray DeviceBinaryProperty::asByteArray() const {
   assert(Prop->Type == PI_PROPERTY_TYPE_BYTE_ARRAY && "property type mismatch");
   assert(Prop->ValSize > 0 && "property size mismatch");
-  const auto *Data = pi::cast<const unsigned char *>(Prop->ValAddr);
-  return {Data, Data + Prop->ValSize};
+  const auto *Data = pi::cast<const std::uint8_t *>(Prop->ValAddr);
+  return {Data, Prop->ValSize};
 }
 
 const char *DeviceBinaryProperty::asCString() const {

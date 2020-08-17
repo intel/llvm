@@ -857,16 +857,17 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
 }
 
 static ProgramManager::KernelArgMask
-createKernelArgMask(const std::vector<unsigned char> &Bytes) {
+createKernelArgMask(const pi::ByteArray &Bytes) {
   const int NBytesForSize = 8;
+  const int NBitsInElement = 8;
   std::uint64_t SizeInBits = 0;
   for (int I = 0; I < NBytesForSize; ++I)
-    SizeInBits |= static_cast<std::uint64_t>(Bytes[I]) << I * CHAR_BIT;
+    SizeInBits |= static_cast<std::uint64_t>(Bytes[I]) << I * NBitsInElement;
 
   ProgramManager::KernelArgMask Result;
   for (std::uint64_t I = 0; I < SizeInBits; ++I) {
-    unsigned char Byte = Bytes[NBytesForSize + (I / CHAR_BIT)];
-    Result.push_back(Byte & (1 << (I % CHAR_BIT)));
+    std::uint8_t Byte = Bytes[NBytesForSize + (I / NBitsInElement)];
+    Result.push_back(Byte & (1 << (I % NBitsInElement)));
   }
 
   return Result;
@@ -1050,9 +1051,12 @@ uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
     return 0xFFFFFFFF;
 }
 
+// TODO consider another approach with storing the masks in the integration
+// header instead.
 ProgramManager::KernelArgMask ProgramManager::getEliminatedKernelArgMask(
     OSModuleHandle M, const context &Context, pi::PiProgram NativePrg,
     const string_class &KernelName, bool KnownProgram) {
+  // If instructed to use a spv file, assume no eliminated arguments.
   if (m_UseSpvFile && M == OSUtil::ExeModuleHandle)
     return {};
 

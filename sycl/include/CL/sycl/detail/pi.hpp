@@ -20,6 +20,7 @@
 #include <CL/sycl/detail/pi.h>
 
 #include <cassert>
+#include <cstdint>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -198,6 +199,22 @@ void printArgs(Arg0 arg0, Args... args) {
   pi::printArgs(std::forward<Args>(args)...);
 }
 
+// A wrapper for passing around byte array properties
+class ByteArray {
+public:
+  using ConstIterator = const std::uint8_t *;
+
+  ByteArray(const std::uint8_t *Ptr, std::size_t Size) : Ptr{Ptr}, Size{Size} {}
+  const std::uint8_t &operator[](std::size_t Idx) const { return Ptr[Idx]; }
+  std::size_t size() const { return Size; }
+  ConstIterator begin() const { return Ptr; }
+  ConstIterator end() const { return Ptr + Size; }
+
+private:
+  const std::uint8_t *Ptr;
+  const std::size_t Size;
+};
+
 // C++ wrapper over the _pi_device_binary_property_struct structure.
 class DeviceBinaryProperty {
 public:
@@ -205,7 +222,7 @@ public:
       : Prop(Prop) {}
 
   pi_uint32 asUint32() const;
-  std::vector<unsigned char> asByteArray() const;
+  ByteArray asByteArray() const;
   const char *asCString() const;
 
 protected:

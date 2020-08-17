@@ -1649,15 +1649,24 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     CGExecKernel *ExecKernel, RT::PiKernel Kernel, NDRDescT &NDRDesc,
     std::vector<RT::PiEvent> &RawEvents, RT::PiEvent &Event,
     ProgramManager::KernelArgMask EliminatedArgMask) {
-  assert(EliminatedArgMask.empty() ||
-         EliminatedArgMask.size() == ExecKernel->MArgs.size());
   vector_class<ArgDesc> &Args = ExecKernel->MArgs;
+  // TODO this is not necessary as long as we can guarantee that the arguments
+  // are already sorted (e. g. handle the sorting in handler if necessary due
+  // to set_arg(...) usage).
   std::sort(Args.begin(), Args.end(), [](const ArgDesc &A, const ArgDesc &B) {
     return A.MIndex < B.MIndex;
   });
+  int LastIndex = -1;
   int NextTrueIndex = 0;
   const detail::plugin &Plugin = MQueue->getPlugin();
   for (ArgDesc &Arg : ExecKernel->MArgs) {
+    // Handle potential gaps in set arguments (e. g. if some of them are set
+    // on the user side).
+    for (int Idx = LastIndex + 1; Idx < Arg.MIndex; ++Idx)
+      if (EliminatedArgMask.empty() || !EliminatedArgMask[Arg.MIndex])
+        ++NextTrueIndex;
+    LastIndex = Arg.MIndex;
+
     if (!EliminatedArgMask.empty() && EliminatedArgMask[Arg.MIndex])
       continue;
     switch (Arg.MType) {
