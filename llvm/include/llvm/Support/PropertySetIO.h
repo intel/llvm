@@ -51,8 +51,14 @@ namespace util {
 // container.
 class PropertyValue {
 public:
+  // Type of the size of the value. Value size gets serialized along with the
+  // value data in some cases for later reading at runtime, so size_t is not
+  // suitable as its size varies.
+  using SizeTy = uint64_t;
+  using byte = uint8_t;
+
   // Defines supported property types
-  enum Type { first = 0, NONE = first, UINT32, last = UINT32 };
+  enum Type { first = 0, NONE = first, UINT32, BYTE_ARRAY, last = BYTE_ARRAY };
 
   // Translates C++ type to the corresponding type tag.
   template <typename T> static Type getTypeTag();
@@ -64,37 +70,85 @@ public:
     return static_cast<Type>(T);
   }
 
+  ~PropertyValue() {
+    if ((getType() == BYTE_ARRAY) && Val.ByteArrayVal)
+      delete[] Val.ByteArrayVal;
+  }
+
   PropertyValue() = default;
   PropertyValue(Type T) : Ty(T) {}
 
   PropertyValue(uint32_t Val) : Ty(UINT32), Val({Val}) {}
-  PropertyValue(const PropertyValue &P) = default;
-  PropertyValue(PropertyValue &&P) = default;
+  PropertyValue(const byte *Data, SizeTy DataBitSize);
+  PropertyValue(const PropertyValue &P);
+  PropertyValue(PropertyValue &&P);
 
-  PropertyValue &operator=(PropertyValue &&P) = default;
+  PropertyValue &operator=(PropertyValue &&P);
 
-  PropertyValue &operator=(const PropertyValue &P) = default;
+  PropertyValue &operator=(const PropertyValue &P);
 
   // get property value as unsigned 32-bit integer
   uint32_t asUint32() const {
-    assert(Ty == UINT32);
+    if (Ty != UINT32)
+      llvm_unreachable("must be UINT32 value");
     return Val.UInt32Val;
+  }
+
+  // Get raw data size in bits.
+  SizeTy getByteArraySizeInBits() const {
+    if (Ty != BYTE_ARRAY)
+      llvm_unreachable("must be BYTE_ARRAY value");
+    SizeTy Res = 0;
+
+    for (size_t I = 0; I < sizeof(SizeTy); ++I)
+      Res |= (SizeTy)Val.ByteArrayVal[I] << (8 * I);
+    return Res;
+  }
+
+  // Get byte array data size in bytes.
+  SizeTy getByteArraySize() const {
+    SizeTy SizeInBits = getByteArraySizeInBits();
+    constexpr unsigned int MASK = 0x7;
+    return ((SizeInBits + MASK) & ~MASK) / 8;
+  }
+
+  // Get byte array data size in bytes, including the leading bytes encoding the
+  // size.
+  SizeTy getRawByteArraySize() const {
+    return getByteArraySize() + sizeof(SizeTy);
+  }
+
+  // Get byte array data including the leading bytes encoding the size.
+  const byte *asRawByteArray() const {
+    if (Ty != BYTE_ARRAY)
+      llvm_unreachable("must be BYTE_ARRAY value");
+    return Val.ByteArrayVal;
+  }
+
+  // Get byte array data excluding the leading bytes encoding the size.
+  const byte *asByteArray() const {
+    if (Ty != BYTE_ARRAY)
+      llvm_unreachable("must be BYTE_ARRAY value");
+    return Val.ByteArrayVal + sizeof(SizeTy);
   }
 
   bool isValid() const { return getType() != NONE; }
 
   // set property value; the 'T' type must be convertible to a property type tag
   template <typename T> void set(T V) {
-    assert(getTypeTag<T>() == Ty);
+    if (getTypeTag<T>() != Ty)
+      llvm_unreachable("invalid type tag for this operation");
     getValueRef<T>() = V;
   }
 
   Type getType() const { return Ty; }
 
-  size_t size() const {
+  SizeTy size() const {
     switch (Ty) {
     case UINT32:
       return sizeof(Val.UInt32Val);
+    case BYTE_ARRAY:
+      return getRawByteArraySize();
     default:
       llvm_unreachable_internal("unsupported property type");
     }
@@ -102,14 +156,16 @@ public:
 
 private:
   template <typename T> T &getValueRef();
+  void copy(const PropertyValue &P);
 
   Type Ty = NONE;
+  // TODO: replace this union with std::variant when uplifting to C++17
   union {
     uint32_t UInt32Val;
+    // Holds first sizeof(size_t) bytes of size followed by actual raw data.
+    byte *ByteArrayVal;
   } Val;
 };
-
-std::ostream &operator<<(std::ostream &Out, const PropertyValue &V);
 
 // A property set. Preserves insertion order when iterating elements.
 using PropertySet = MapVector<StringRef, PropertyValue>;
@@ -124,6 +180,7 @@ public:
   static constexpr char SYCL_SPECIALIZATION_CONSTANTS[] =
       "SYCL/specialization constants";
   static constexpr char SYCL_DEVICELIB_REQ_MASK[] = "SYCL/devicelib req mask";
+  static constexpr char SYCL_KERNEL_PARAM_OPT_INFO[] = "SYCL/kernel param opt";
 
   // Function for bulk addition of an entire property set under given category
   // (property set name).

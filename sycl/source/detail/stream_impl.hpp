@@ -38,12 +38,12 @@ public:
   }
 
   // Method to provide an atomic access to the offset in the global stream
-  // buffer
+  // buffer and offset in the flush buffer
   GlobalOffsetAccessorT accessGlobalOffset(handler &CGH) {
     auto OffsetSubBuf = buffer<char, 1>(Buf, id<1>(0), range<1>(OffsetSize));
-    auto ReinterpretedBuf = OffsetSubBuf.reinterpret<unsigned, 1>(range<1>(1));
+    auto ReinterpretedBuf = OffsetSubBuf.reinterpret<unsigned, 1>(range<1>(2));
     return ReinterpretedBuf.get_access<cl::sycl::access::mode::atomic>(
-        CGH, range<1>(1), id<1>(0));
+        CGH, range<1>(2), id<1>(0));
   }
 
   // Copy stream buffer to the host and print the contents
@@ -61,10 +61,9 @@ private:
   // statement till the semicolon
   unsigned MaxStatementSize_;
 
-  // Size of the variable which is used as an offset in the stream buffer.
   // Additinonal memory is allocated in the beginning of the stream buffer for
-  // this variable.
-  static const size_t OffsetSize = sizeof(unsigned);
+  // 2 variables: offset in the stream buffer and offset in the flush buffer.
+  static const size_t OffsetSize = 2 * sizeof(unsigned);
 
   // Vector on the host side which is used to initialize the stream buffer
   std::vector<char> Data;

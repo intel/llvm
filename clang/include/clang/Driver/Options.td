@@ -1881,6 +1881,12 @@ def fsycl_device_code_split_EQ : Joined<["-"], "fsycl-device-code-split=">,
 def fsycl_device_code_split : Flag<["-"], "fsycl-device-code-split">, Alias<fsycl_device_code_split_EQ>,
   AliasArgs<["per_source"]>, Flags<[CC1Option, CoreOption]>,
   HelpText<"Perform SYCL device code split in the per_source mode i.e. create a device code module for each source (translation unit)">;
+def fsycl_id_queries_fit_in_int : Flag<["-"], "fsycl-id-queries-fit-in-int">,
+  Flags<[CC1Option, CoreOption]>, HelpText<"Assume that SYCL ID queries fit "
+  "within MAX_INT.">;
+def fno_sycl_id_queries_fit_in_int : Flag<["-"], "fno-sycl-id-queries-fit-in-int">,
+  Flags<[CC1Option, CoreOption]>, HelpText<"Do not assume that SYCL ID queries "
+  "fit within MAX_INT.">;
 def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Use LLVM bitcode instead of SPIR-V in fat objects">;
 def fno_sycl_use_bitcode : Flag<["-"], "fno-sycl-use-bitcode">,
@@ -3544,7 +3550,7 @@ def fsycl_esimd : Flag<["-"], "fsycl-explicit-simd">, Group<sycl_Group>, Flags<[
   HelpText<"Enable SYCL explicit SIMD extension">;
 def fno_sycl_esimd : Flag<["-"], "fno-sycl-explicit-simd">, Group<sycl_Group>,
   HelpText<"Disable SYCL explicit SIMD extension">, Flags<[NoArgumentUnused, CoreOption]>;
-defm sycl_std_optimizations : OptOutFFlag<"sycl-std-optimizations", "Enable", "Disable", " standard optimization pipeline for SYCL device compiler">;
+defm sycl_early_optimizations : OptOutFFlag<"sycl-early-optimizations", "Enable", "Disable", " standard optimization pipeline for SYCL device compiler">;
 
 //===----------------------------------------------------------------------===//
 // CC1 Options
