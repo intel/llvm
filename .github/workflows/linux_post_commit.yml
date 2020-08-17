@@ -23,7 +23,7 @@ jobs:
          CONFIG=${{ matrix.config }}
          case $CONFIG in
              Default)
-                 export ARGS=""
+                 export ARGS="--stl-assertions"
                  ;;
              SharedLibs)
                  export ARGS="--shared-libs"
