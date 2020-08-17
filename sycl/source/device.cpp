@@ -27,7 +27,7 @@ void force_type(info::device_type &t, const info::device_type &ft) {
 }
 } // namespace detail
 
-device::device() : impl(std::make_shared<detail::device_impl>()) {}
+device::device() : impl(detail::device_impl::getHostDeviceImpl()) {}
 
 device::device(cl_device_id deviceId)
     : impl(std::make_shared<detail::device_impl>(

@@ -21,26 +21,55 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-std::map<RT::PiPlatform, std::shared_ptr<platform_impl>> platform_impl_map;
-std::mutex platform_impl_map_mutex;
-device host_device;
-platform host_platform;
+using PlatformImplPtr = std::shared_ptr<platform_impl>;
 
-static std::shared_ptr<platform_impl>
-get_or_make_shared_platform(RT::PiPlatform PiPlatform, plugin Plugin) {
-  const std::lock_guard<std::mutex> guard(platform_impl_map_mutex);
+PlatformImplPtr platform_impl::getHostPlatformImpl() {
+  static PlatformImplPtr HostImpl;
+  static std::once_flag HostImplInit;
 
-  // If we've already seen this device, return the impl
-  auto Value = platform_impl_map.find(PiPlatform);
-  if (Value != platform_impl_map.end()) {
-    return Value->second;
+  std::call_once(HostImplInit, []() {
+    HostImpl = std::make_shared<platform_impl>(platform_impl());
+  });
+
+  return HostImpl;
+}
+
+PlatformImplPtr platform_impl::getOrMakePlatformImpl(RT::PiPlatform PiPlatform,
+                                                     const plugin &Plugin) {
+  static std::shared_ptr<std::map<RT::PiPlatform, PlatformImplPtr>> PlatformMap;
+  static std::shared_ptr<std::mutex> PlatformMapMutex;
+  static std::once_flag PlatformMapInit;
+
+  std::call_once(PlatformMapInit, []() {
+    PlatformMap = std::make_shared<std::map<RT::PiPlatform, PlatformImplPtr>>();
+    PlatformMapMutex = std::make_shared<std::mutex>();
+  });
+
+  PlatformImplPtr Result;
+  {
+    const std::lock_guard<std::mutex> guard(*PlatformMapMutex);
+
+    // If we've already seen this platform, return the impl
+    auto Value = PlatformMap->find(PiPlatform);
+    if (Value != PlatformMap->end()) {
+      return Value->second;
+    }
+
+    // Otherwise make the impl
+    Result = std::make_shared<platform_impl>(PiPlatform, Plugin);
+    PlatformMap->emplace(PiPlatform, Result);
   }
 
-  // Otherwise make the impl
-  auto Res = std::make_shared<platform_impl>(PiPlatform, Plugin);
-  platform_impl_map.emplace(PiPlatform, Res);
+  return Result;
+}
 
-  return Res;
+PlatformImplPtr platform_impl::getPlatformFromPiDevice(RT::PiDevice PiDevice,
+                                                       const plugin &Plugin) {
+  RT::PiPlatform plt = nullptr; // TODO catch an exception and put it to list
+  // of asynchronous exceptions
+  Plugin.call<PiApiKind::piDeviceGetInfo>(PiDevice, PI_DEVICE_INFO_PLATFORM,
+                                          sizeof(plt), &plt, nullptr);
+  return getOrMakePlatformImpl(plt, Plugin);
 }
 
 static bool IsBannedPlatform(platform Platform) {
@@ -87,7 +116,7 @@ vector_class<platform> platform_impl::get_platforms() {
 
       for (const auto &PiPlatform : PiPlatforms) {
         platform Platform = detail::createSyclObjFromImpl<platform>(
-            get_or_make_shared_platform(PiPlatform, Plugins[i]));
+            getOrMakePlatformImpl(PiPlatform, Plugins[i]));
         // Skip platforms which do not contain requested device types
         if (!Platform.get_devices(ForcedType).empty() &&
             !IsBannedPlatform(Platform))
@@ -97,7 +126,7 @@ vector_class<platform> platform_impl::get_platforms() {
   }
 
   // The host platform should always be available.
-  Platforms.emplace_back(host_platform);
+  Platforms.emplace_back(platform());
 
   return Platforms;
 }
@@ -105,7 +134,6 @@ vector_class<platform> platform_impl::get_platforms() {
 struct DevDescT {
   const char *devName = nullptr;
   int devNameSize = 0;
-
   const char *devDriverVer = nullptr;
   int devDriverVerSize = 0;
 
@@ -272,7 +300,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   vector_class<device> Res;
   if (is_host() && (DeviceType == info::device_type::host ||
                     DeviceType == info::device_type::all)) {
-    Res.push_back(host_device);
+    Res.push_back(device());
   }
 
   // If any DeviceType other than host was requested for host platform,
@@ -299,7 +327,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
     filterAllowList(PiDevices, MPlatform, this->getPlugin());
 
-  auto PlatformImpl = get_or_make_shared_platform(MPlatform, *MPlugin);
+  auto PlatformImpl = getOrMakePlatformImpl(MPlatform, *MPlugin);
   std::transform(
       PiDevices.begin(), PiDevices.end(), std::back_inserter(Res),
       [this, PlatformImpl](const RT::PiDevice &PiDevice) -> device {

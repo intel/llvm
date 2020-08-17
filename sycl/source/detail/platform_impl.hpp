@@ -141,7 +141,7 @@ public:
   /// given feature.
   bool has(aspect Aspect) const;
 
-private:
+
   /// Queries the device_impl cache to either return a shared_ptr
   /// for the device_impl corresponding to the PiDevice or add
   /// a new entry to the cache
@@ -155,6 +155,18 @@ private:
   getOrMakeDeviceImpl(RT::PiDevice PiDevice,
                       std::shared_ptr<platform_impl> PlatformImpl);
 
+  /// Static functions that help maintain platform uniquess and
+  /// equality of comparison
+
+  /// Returns the host platform impl
+  ///
+  /// \return the host platform impl
+  static std::shared_ptr<platform_impl> getHostPlatformImpl();
+  static std::shared_ptr<platform_impl>
+  getOrMakePlatformImpl(RT::PiPlatform, const plugin &Plugin);
+  static std::shared_ptr<platform_impl>
+  getPlatformFromPiDevice(RT::PiDevice, const plugin &Plugin);
+
 private:
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;
@@ -162,6 +174,8 @@ private:
   std::map<RT::PiDevice, std::shared_ptr<device_impl>> MDeviceMap;
   std::shared_ptr<std::mutex> MDeviceMapMutex;
 };
+
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
