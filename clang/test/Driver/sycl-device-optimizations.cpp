@@ -8,7 +8,9 @@
 
 /// Check "-fno-sycl-early-optimizations" is passed to the front-end:
 // RUN:   %clang -### -fsycl -fno-sycl-early-optimizations %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-NO-SYCL-STD-OPTS %s
+// RUN:   | FileCheck -check-prefix=CHECK-NO-SYCL-EARLY-OPTS %s
 // RUN:   %clang -### -fsycl -fsycl-device-only -fno-sycl-early-optimizations %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-NO-SYCL-STD-OPTS %s
-// CHECK-NO-SYCL-STD-OPTS: "-fno-sycl-early-optimizations"
+// RUN:   | FileCheck -check-prefix=CHECK-NO-SYCL-EARLY-OPTS %s
+// RUN:   %clang -### -fsycl -fintelfpga %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-NO-SYCL-EARLY-OPTS %s
+// CHECK-NO-SYCL-EARLY-OPTS: "-fno-sycl-early-optimizations"
