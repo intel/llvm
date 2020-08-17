@@ -21,7 +21,7 @@ platform::platform() : impl(std::make_shared<detail::platform_impl>()) {}
 platform::platform(cl_platform_id PlatformId)
     : impl(std::make_shared<detail::platform_impl>(
           detail::pi::cast<detail::RT::PiPlatform>(PlatformId),
-          RT::GlobalPlugin)) {}
+          RT::getPlugin<backend::opencl>())) {}
 
 platform::platform(const device_selector &dev_selector) {
   *this = dev_selector.select_device().get_platform();
@@ -52,6 +52,8 @@ platform::get_info() const {
 }
 
 pi_native_handle platform::getNative() const { return impl->getNative(); }
+
+bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
   template __SYCL_EXPORT ret_type                                              \

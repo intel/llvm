@@ -139,18 +139,16 @@ __SYCL_EXPORT device getDeviceFromHandler(handler &);
 #if defined(__SYCL_ID_QUERIES_FIT_IN_INT__)
 template <typename T> struct NotIntMsg;
 
-// TODO reword for "`fsycl-id-queries-fit-in-int' optimization flag." when
-// implemented
 template <int Dims> struct NotIntMsg<range<Dims>> {
-  constexpr static char *Msg = "Provided range is out of integer limits. "
-                               "Pass `-U__SYCL_ID_QUERIES_FIT_IN_INT__' to "
-                               "disable range check.";
+  constexpr static const char *Msg =
+      "Provided range is out of integer limits. Pass "
+      "`-fno-sycl-id-queries-fit-in-int' to disable range check.";
 };
 
 template <int Dims> struct NotIntMsg<id<Dims>> {
-  constexpr static char *Msg = "Provided offset is out of integer limits. "
-                               "Pass `-U__SYCL_ID_QUERIES_FIT_IN_INT__' to "
-                               "disable offset check.";
+  constexpr static const char *Msg =
+      "Provided offset is out of integer limits. Pass "
+      "`-fno-sycl-id-queries-fit-in-int' to disable offset check.";
 };
 #endif
 
@@ -1732,6 +1730,9 @@ public:
 
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
   ///
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Src is a USM pointer to the source memory.
@@ -1739,6 +1740,9 @@ public:
   void memcpy(void *Dest, const void *Src, size_t Count);
 
   /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if \param Dest is nullptr. The behavior is undefined if \param Dest
+  /// is invalid.
   ///
   /// \param Dest is a USM pointer to the memory to fill.
   /// \param Value is a value to be set. Value is cast as an unsigned char.

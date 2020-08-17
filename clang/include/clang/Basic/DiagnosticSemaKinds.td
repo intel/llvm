@@ -10794,9 +10794,12 @@ def err_multiversion_duplicate : Error<
   "multiversioned function redeclarations require identical target attributes">;
 def err_multiversion_noproto : Error<
   "multiversioned function must have a prototype">;
-def err_multiversion_no_other_attrs : Error<
+def err_multiversion_disallowed_other_attr : Error<
   "attribute '%select{target|cpu_specific|cpu_dispatch}0' multiversioning cannot be combined"
-  " with other attributes">;
+  " with attribute %1">;
+def err_multiversion_mismatched_attrs
+    : Error<"attributes on multiversioned functions must all match, attribute "
+            "%0 %select{is missing|has different arguments}1">;
 def err_multiversion_diff : Error<
   "multiversioned function declaration has a different %select{calling convention"
   "|return type|constexpr specification|inline specification|storage class|"
@@ -10905,6 +10908,14 @@ def err_preserve_field_info_not_const: Error<
   "__builtin_preserve_field_info argument %0 not a constant">;
 def err_btf_type_id_not_const: Error<
   "__builtin_btf_type_id argument %0 not a constant">;
+def err_preserve_type_info_invalid : Error<
+  "__builtin_preserve_type_info argument %0 invalid">;
+def err_preserve_type_info_not_const: Error<
+  "__builtin_preserve_type_info argument %0 not a constant">;
+def err_preserve_enum_value_invalid : Error<
+  "__builtin_preserve_enum_value argument %0 invalid">;
+def err_preserve_enum_value_not_const: Error<
+  "__builtin_preserve_enum_value argument %0 not a constant">;
 
 def err_bit_cast_non_trivially_copyable : Error<
   "__builtin_bit_cast %select{source|destination}0 type must be trivially copyable">;
@@ -10919,8 +10930,8 @@ def warn_sycl_kernel_invalid_template_param_type : Warning<
   "template parameter of a function template with the 'sycl_kernel' attribute"
   " cannot be a non-type template parameter">, InGroup<IgnoredAttributes>;
 def warn_sycl_kernel_num_of_function_params : Warning<
-  "function template with 'sycl_kernel' attribute must have a single parameter">,
-  InGroup<IgnoredAttributes>;
+  "function template with 'sycl_kernel' attribute must have at least one"
+  " parameter">, InGroup<IgnoredAttributes>;
 def warn_sycl_kernel_return_type : Warning<
   "function template with 'sycl_kernel' attribute must have a 'void' return type">,
   InGroup<IgnoredAttributes>;
@@ -10937,6 +10948,8 @@ def err_sycl_kernel_incorrectly_named : Error<
   "|needs to have a globally-visible name"
   "|name is invalid. Unscoped enum requires fixed underlying type"
   "}0">;
+def err_sycl_kernel_not_function_object
+    : Error<"kernel parameter must be a lambda or function object">;
 def err_sycl_restrict : Error<
   "SYCL kernel cannot "
 "%select{use a non-const global variable"
@@ -10980,6 +10993,16 @@ def warn_boolean_attribute_argument_is_not_valid: Warning<
 def err_sycl_attibute_cannot_be_applied_here
     : Error<"%0 attribute cannot be applied to a "
             "static function or function in an anonymous namespace">;
+def err_sycl_compiletime_property_duplication : Error<
+  "Can't apply %0 property twice to the same accessor">;
+def err_sycl_invalid_property_list_param_number : Error<
+  "%0 must have exactly one template parameter">;
+def err_sycl_invalid_accessor_property_template_param : Error<
+  "Fifth template parameter of the accessor must be of a property_list type">;
+def err_sycl_invalid_property_list_template_param : Error<
+  "%select{property_list|property_list pack argument|buffer_location}0 "
+  "template parameter must be a "
+  "%select{parameter pack|type|non-negative integer}1">;
 def warn_sycl_attibute_function_raw_ptr
     : Warning<"SYCL 1.2.1 specification does not allow %0 attribute applied "
               "to a function with a raw pointer "

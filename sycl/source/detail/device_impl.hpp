@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/aspects.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/device_info.hpp>
@@ -202,6 +203,14 @@ public:
   ///
   /// \return a native handle.
   pi_native_handle getNative() const;
+
+  /// Indicates if the SYCL device has the given feature.
+  ///
+  /// \param Aspect is one of the values in Table 4.20 of the SYCL 2020
+  /// Provisional Spec.
+  //
+  /// \return true if the SYCL device has the given feature.
+  bool has(aspect Aspect) const;
 
 private:
   explicit device_impl(pi_native_handle InteropDevice, RT::PiDevice Device,
