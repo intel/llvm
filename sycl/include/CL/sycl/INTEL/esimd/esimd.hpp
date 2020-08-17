@@ -10,12 +10,12 @@
 
 #pragma once
 
-#include <CL/sycl/intel/esimd/detail/esimd_intrin.hpp>
-#include <CL/sycl/intel/esimd/detail/esimd_types.hpp>
+#include <CL/sycl/INTEL/esimd/detail/esimd_intrin.hpp>
+#include <CL/sycl/INTEL/esimd/detail/esimd_types.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace intel {
+namespace INTEL {
 namespace gpu {
 
 //
@@ -444,14 +444,14 @@ ESIMD_INLINE simd<U, n> convert(simd<T, n> val) {
 }
 
 } // namespace gpu
-} // namespace intel
+} // namespace INTEL
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 #ifndef __SYCL_DEVICE_ONLY__
 template <typename Ty, int N>
 std::ostream &operator<<(std::ostream &OS,
-                         const sycl::intel::gpu::simd<Ty, N> &V) {
+                         const sycl::INTEL::gpu::simd<Ty, N> &V) {
   OS << "{";
   for (int I = 0; I < N; I++) {
     OS << V[I];

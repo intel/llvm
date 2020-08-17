@@ -11,12 +11,12 @@
 
 #pragma once
 
-#include <CL/sycl/intel/esimd/detail/esimd_host_util.hpp>
-#include <CL/sycl/intel/esimd/detail/esimd_types.hpp>
-#include <CL/sycl/intel/esimd/esimd_enum.hpp>
+#include <CL/sycl/INTEL/esimd/detail/esimd_host_util.hpp>
+#include <CL/sycl/INTEL/esimd/detail/esimd_types.hpp>
+#include <CL/sycl/INTEL/esimd/esimd_enum.hpp>
 #include <cstdint>
 
-using sycl::intel::gpu::vector_type_t;
+using sycl::INTEL::gpu::vector_type_t;
 
 // saturation intrinsics
 template <typename T0, typename T1, int SZ>
@@ -210,39 +210,39 @@ SYCL_EXTERNAL vector_type_t<T1, N> __esimd_dp4a(vector_type_t<T2, N> src0,
 
 // Reduction functions
 template <typename Ty, int N>
-SYCL_EXTERNAL sycl::intel::gpu::vector_type_t<Ty, N>
-__esimd_reduced_fmax(sycl::intel::gpu::vector_type_t<Ty, N> src1,
-                     sycl::intel::gpu::vector_type_t<Ty, N> src2);
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty, N>
+__esimd_reduced_fmax(sycl::INTEL::gpu::vector_type_t<Ty, N> src1,
+                     sycl::INTEL::gpu::vector_type_t<Ty, N> src2);
 
 template <typename Ty, int N>
-SYCL_EXTERNAL sycl::intel::gpu::vector_type_t<Ty, N>
-__esimd_reduced_umax(sycl::intel::gpu::vector_type_t<Ty, N> src1,
-                     sycl::intel::gpu::vector_type_t<Ty, N> src2);
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty, N>
+__esimd_reduced_umax(sycl::INTEL::gpu::vector_type_t<Ty, N> src1,
+                     sycl::INTEL::gpu::vector_type_t<Ty, N> src2);
 
 template <typename Ty, int N>
-SYCL_EXTERNAL sycl::intel::gpu::vector_type_t<Ty, N>
-__esimd_reduced_smax(sycl::intel::gpu::vector_type_t<Ty, N> src1,
-                     sycl::intel::gpu::vector_type_t<Ty, N> src2);
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty, N>
+__esimd_reduced_smax(sycl::INTEL::gpu::vector_type_t<Ty, N> src1,
+                     sycl::INTEL::gpu::vector_type_t<Ty, N> src2);
 
 template <typename Ty, int N>
-SYCL_EXTERNAL sycl::intel::gpu::vector_type_t<Ty, N>
-__esimd_reduced_fmin(sycl::intel::gpu::vector_type_t<Ty, N> src1,
-                     sycl::intel::gpu::vector_type_t<Ty, N> src2);
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty, N>
+__esimd_reduced_fmin(sycl::INTEL::gpu::vector_type_t<Ty, N> src1,
+                     sycl::INTEL::gpu::vector_type_t<Ty, N> src2);
 
 template <typename Ty, int N>
-SYCL_EXTERNAL sycl::intel::gpu::vector_type_t<Ty, N>
-__esimd_reduced_umin(sycl::intel::gpu::vector_type_t<Ty, N> src1,
-                     sycl::intel::gpu::vector_type_t<Ty, N> src2);
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty, N>
+__esimd_reduced_umin(sycl::INTEL::gpu::vector_type_t<Ty, N> src1,
+                     sycl::INTEL::gpu::vector_type_t<Ty, N> src2);
 
 template <typename Ty, int N>
-sycl::intel::gpu::vector_type_t<Ty, N> SYCL_EXTERNAL
-__esimd_reduced_smin(sycl::intel::gpu::vector_type_t<Ty, N> src1,
-                     sycl::intel::gpu::vector_type_t<Ty, N> src2);
+sycl::INTEL::gpu::vector_type_t<Ty, N> SYCL_EXTERNAL
+__esimd_reduced_smin(sycl::INTEL::gpu::vector_type_t<Ty, N> src1,
+                     sycl::INTEL::gpu::vector_type_t<Ty, N> src2);
 
 template <typename Ty, int N>
-SYCL_EXTERNAL sycl::intel::gpu::vector_type_t<Ty, N>
-__esimd_dp4(sycl::intel::gpu::vector_type_t<Ty, N> v1,
-            sycl::intel::gpu::vector_type_t<Ty, N> v2);
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty, N>
+__esimd_dp4(sycl::INTEL::gpu::vector_type_t<Ty, N> v1,
+            sycl::INTEL::gpu::vector_type_t<Ty, N> v2);
 
 #ifndef __SYCL_DEVICE_ONLY__
 
@@ -1096,10 +1096,10 @@ SYCL_EXTERNAL vector_type_t<T1, N> __esimd_dp4a(vector_type_t<T2, N> src0,
 };
 
 template <typename Ty, int N>
-SYCL_EXTERNAL sycl::intel::gpu::vector_type_t<Ty, N>
-__esimd_reduced_max(sycl::intel::gpu::vector_type_t<Ty, N> src1,
-                    sycl::intel::gpu::vector_type_t<Ty, N> src2) {
-  sycl::intel::gpu::vector_type_t<Ty, N> retv;
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty, N>
+__esimd_reduced_max(sycl::INTEL::gpu::vector_type_t<Ty, N> src1,
+                    sycl::INTEL::gpu::vector_type_t<Ty, N> src2) {
+  sycl::INTEL::gpu::vector_type_t<Ty, N> retv;
   for (int I = 0; I < N; I++) {
     if (src1[I] >= src2[I]) {
       retv[I] = src1[I];
@@ -1111,31 +1111,31 @@ __esimd_reduced_max(sycl::intel::gpu::vector_type_t<Ty, N> src1,
 }
 
 template <typename Ty, int N>
-SYCL_EXTERNAL sycl::intel::gpu::vector_type_t<Ty, N>
-__esimd_reduced_fmax(sycl::intel::gpu::vector_type_t<Ty, N> src1,
-                     sycl::intel::gpu::vector_type_t<Ty, N> src2) {
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty, N>
+__esimd_reduced_fmax(sycl::INTEL::gpu::vector_type_t<Ty, N> src1,
+                     sycl::INTEL::gpu::vector_type_t<Ty, N> src2) {
   return __esimd_reduced_max<Ty, N>(src1, src2);
 }
 
 template <typename Ty, int N>
-SYCL_EXTERNAL sycl::intel::gpu::vector_type_t<Ty, N>
-__esimd_reduced_umax(sycl::intel::gpu::vector_type_t<Ty, N> src1,
-                     sycl::intel::gpu::vector_type_t<Ty, N> src2) {
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty, N>
+__esimd_reduced_umax(sycl::INTEL::gpu::vector_type_t<Ty, N> src1,
+                     sycl::INTEL::gpu::vector_type_t<Ty, N> src2) {
   return __esimd_reduced_max<Ty, N>(src1, src2);
 }
 
 template <typename Ty, int N>
-SYCL_EXTERNAL sycl::intel::gpu::vector_type_t<Ty, N>
-__esimd_reduced_smax(sycl::intel::gpu::vector_type_t<Ty, N> src1,
-                     sycl::intel::gpu::vector_type_t<Ty, N> src2) {
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty, N>
+__esimd_reduced_smax(sycl::INTEL::gpu::vector_type_t<Ty, N> src1,
+                     sycl::INTEL::gpu::vector_type_t<Ty, N> src2) {
   return __esimd_reduced_max<Ty, N>(src1, src2);
 }
 
 template <typename Ty, int N>
-SYCL_EXTERNAL sycl::intel::gpu::vector_type_t<Ty, N>
-__esimd_reduced_min(sycl::intel::gpu::vector_type_t<Ty, N> src1,
-                    sycl::intel::gpu::vector_type_t<Ty, N> src2) {
-  sycl::intel::gpu::vector_type_t<Ty, N> retv;
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty, N>
+__esimd_reduced_min(sycl::INTEL::gpu::vector_type_t<Ty, N> src1,
+                    sycl::INTEL::gpu::vector_type_t<Ty, N> src2) {
+  sycl::INTEL::gpu::vector_type_t<Ty, N> retv;
   for (int I = 0; I < N; I++) {
     if (src1[I] <= src2[I]) {
       retv[I] = src1[I];
@@ -1147,23 +1147,23 @@ __esimd_reduced_min(sycl::intel::gpu::vector_type_t<Ty, N> src1,
 }
 
 template <typename Ty, int N>
-SYCL_EXTERNAL sycl::intel::gpu::vector_type_t<Ty, N>
-__esimd_reduced_fmin(sycl::intel::gpu::vector_type_t<Ty, N> src1,
-                     sycl::intel::gpu::vector_type_t<Ty, N> src2) {
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty, N>
+__esimd_reduced_fmin(sycl::INTEL::gpu::vector_type_t<Ty, N> src1,
+                     sycl::INTEL::gpu::vector_type_t<Ty, N> src2) {
   return __esimd_reduced_min<Ty, N>(src1, src2);
 }
 
 template <typename Ty, int N>
-SYCL_EXTERNAL sycl::intel::gpu::vector_type_t<Ty, N>
-__esimd_reduced_umin(sycl::intel::gpu::vector_type_t<Ty, N> src1,
-                     sycl::intel::gpu::vector_type_t<Ty, N> src2) {
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty, N>
+__esimd_reduced_umin(sycl::INTEL::gpu::vector_type_t<Ty, N> src1,
+                     sycl::INTEL::gpu::vector_type_t<Ty, N> src2) {
   return __esimd_reduced_min<Ty, N>(src1, src2);
 }
 
 template <typename Ty, int N>
-SYCL_EXTERNAL sycl::intel::gpu::vector_type_t<Ty, N>
-__esimd_reduced_smin(sycl::intel::gpu::vector_type_t<Ty, N> src1,
-                     sycl::intel::gpu::vector_type_t<Ty, N> src2) {
+SYCL_EXTERNAL sycl::INTEL::gpu::vector_type_t<Ty, N>
+__esimd_reduced_smin(sycl::INTEL::gpu::vector_type_t<Ty, N> src1,
+                     sycl::INTEL::gpu::vector_type_t<Ty, N> src2) {
   return __esimd_reduced_min<Ty, N>(src1, src2);
 }
 

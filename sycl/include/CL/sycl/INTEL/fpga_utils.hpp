@@ -13,7 +13,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace intel {
+namespace INTEL {
 
 template <template <int32_t> class Type, class T>
 struct MatchType : std::is_same<Type<T::value>, T> {};
@@ -28,6 +28,6 @@ struct GetValue<Type, T1, T...> {
       std::conditional<MatchType<Type, T1>::value, T1,
                        GetValue<Type, T...>>::type::value;
 };
-} // namespace intel
+} // namespace INTEL
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

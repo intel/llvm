@@ -1,4 +1,4 @@
-#include <CL/sycl/intel/fpga_extensions.hpp>
+#include <CL/sycl/INTEL/fpga_extensions.hpp>
 
 namespace intelfpga {
 template <unsigned ID> struct ethernet_pipe_id {
@@ -6,7 +6,7 @@ template <unsigned ID> struct ethernet_pipe_id {
 };
 
 using ethernet_read_pipe =
-    sycl::intel::kernel_readable_io_pipe<ethernet_pipe_id<0>, int, 0>;
+    sycl::INTEL::kernel_readable_io_pipe<ethernet_pipe_id<0>, int, 0>;
 using ethernet_write_pipe =
-    sycl::intel::kernel_writeable_io_pipe<ethernet_pipe_id<1>, int, 0>;
+    sycl::INTEL::kernel_writeable_io_pipe<ethernet_pipe_id<1>, int, 0>;
 } // namespace intelfpga

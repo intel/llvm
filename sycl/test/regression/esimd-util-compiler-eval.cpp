@@ -2,7 +2,7 @@
 // This test checks compile-time evaluation of functions from esimd_util.hpp
 
 #include "CL/sycl.hpp"
-#include "CL/sycl/intel/esimd/esimd.hpp"
+#include "CL/sycl/INTEL/esimd/esimd.hpp"
 
 static_assert(__esimd::getNextPowerOf2<0>() == 0, "");
 static_assert(__esimd::getNextPowerOf2<1>() == 1, "");
