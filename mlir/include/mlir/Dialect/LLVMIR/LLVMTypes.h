@@ -61,7 +61,7 @@ class LLVMIntegerType;
 /// Similarly to other MLIR types, LLVM dialect types are owned by the MLIR
 /// context, have an immutable identifier (for most types except identified
 /// structs, the entire type is the identifier) and are thread-safe.
-class LLVMType : public Type::TypeBase<LLVMType, Type, TypeStorage> {
+class LLVMType : public Type {
 public:
   enum Kind {
     // Keep non-parametric types contiguous in the enum.
@@ -92,7 +92,7 @@ public:
   };
 
   /// Inherit base constructors.
-  using Base::Base;
+  using Type::Type;
 
   /// Support for PointerLikeTypeTraits.
   using Type::getAsOpaquePointer;
@@ -101,9 +101,7 @@ public:
   }
 
   /// Support for isa/cast.
-  static bool kindof(unsigned kind) {
-    return FIRST_NEW_LLVM_TYPE <= kind && kind <= LAST_NEW_LLVM_TYPE;
-  }
+  static bool classof(Type type);
 
   LLVMDialect &getDialect();
 
@@ -144,7 +142,6 @@ public:
   LLVMType getPointerTo(unsigned addrSpace = 0);
   LLVMType getPointerElementTy();
   bool isPointerTy();
-  static bool isValidPointerElementType(LLVMType type);
 
   /// Struct type utilities.
   LLVMType getStructElementType(unsigned i);
@@ -152,32 +149,32 @@ public:
   bool isStructTy();
 
   /// Utilities used to generate floating point types.
-  static LLVMType getDoubleTy(LLVMDialect *dialect);
-  static LLVMType getFloatTy(LLVMDialect *dialect);
-  static LLVMType getBFloatTy(LLVMDialect *dialect);
-  static LLVMType getHalfTy(LLVMDialect *dialect);
-  static LLVMType getFP128Ty(LLVMDialect *dialect);
-  static LLVMType getX86_FP80Ty(LLVMDialect *dialect);
+  static LLVMType getDoubleTy(MLIRContext *context);
+  static LLVMType getFloatTy(MLIRContext *context);
+  static LLVMType getBFloatTy(MLIRContext *context);
+  static LLVMType getHalfTy(MLIRContext *context);
+  static LLVMType getFP128Ty(MLIRContext *context);
+  static LLVMType getX86_FP80Ty(MLIRContext *context);
 
   /// Utilities used to generate integer types.
-  static LLVMType getIntNTy(LLVMDialect *dialect, unsigned numBits);
-  static LLVMType getInt1Ty(LLVMDialect *dialect) {
-    return getIntNTy(dialect, /*numBits=*/1);
+  static LLVMType getIntNTy(MLIRContext *context, unsigned numBits);
+  static LLVMType getInt1Ty(MLIRContext *context) {
+    return getIntNTy(context, /*numBits=*/1);
   }
-  static LLVMType getInt8Ty(LLVMDialect *dialect) {
-    return getIntNTy(dialect, /*numBits=*/8);
+  static LLVMType getInt8Ty(MLIRContext *context) {
+    return getIntNTy(context, /*numBits=*/8);
   }
-  static LLVMType getInt8PtrTy(LLVMDialect *dialect) {
-    return getInt8Ty(dialect).getPointerTo();
+  static LLVMType getInt8PtrTy(MLIRContext *context) {
+    return getInt8Ty(context).getPointerTo();
   }
-  static LLVMType getInt16Ty(LLVMDialect *dialect) {
-    return getIntNTy(dialect, /*numBits=*/16);
+  static LLVMType getInt16Ty(MLIRContext *context) {
+    return getIntNTy(context, /*numBits=*/16);
   }
-  static LLVMType getInt32Ty(LLVMDialect *dialect) {
-    return getIntNTy(dialect, /*numBits=*/32);
+  static LLVMType getInt32Ty(MLIRContext *context) {
+    return getIntNTy(context, /*numBits=*/32);
   }
-  static LLVMType getInt64Ty(LLVMDialect *dialect) {
-    return getIntNTy(dialect, /*numBits=*/64);
+  static LLVMType getInt64Ty(MLIRContext *context) {
+    return getIntNTy(context, /*numBits=*/64);
   }
 
   /// Utilities used to generate other miscellaneous types.
@@ -187,33 +184,33 @@ public:
   static LLVMType getFunctionTy(LLVMType result, bool isVarArg) {
     return getFunctionTy(result, llvm::None, isVarArg);
   }
-  static LLVMType getStructTy(LLVMDialect *dialect, ArrayRef<LLVMType> elements,
+  static LLVMType getStructTy(MLIRContext *context, ArrayRef<LLVMType> elements,
                               bool isPacked = false);
-  static LLVMType getStructTy(LLVMDialect *dialect, bool isPacked = false) {
-    return getStructTy(dialect, llvm::None, isPacked);
+  static LLVMType getStructTy(MLIRContext *context, bool isPacked = false) {
+    return getStructTy(context, llvm::None, isPacked);
   }
   template <typename... Args>
   static typename std::enable_if<llvm::are_base_of<LLVMType, Args...>::value,
                                  LLVMType>::type
   getStructTy(LLVMType elt1, Args... elts) {
     SmallVector<LLVMType, 8> fields({elt1, elts...});
-    return getStructTy(&elt1.getDialect(), fields);
+    return getStructTy(elt1.getContext(), fields);
   }
   static LLVMType getVectorTy(LLVMType elementType, unsigned numElements);
 
   /// Void type utilities.
-  static LLVMType getVoidTy(LLVMDialect *dialect);
+  static LLVMType getVoidTy(MLIRContext *context);
   bool isVoidTy();
 
   // Creation and setting of LLVM's identified struct types
-  static LLVMType createStructTy(LLVMDialect *dialect,
+  static LLVMType createStructTy(MLIRContext *context,
                                  ArrayRef<LLVMType> elements,
                                  Optional<StringRef> name,
                                  bool isPacked = false);
 
-  static LLVMType createStructTy(LLVMDialect *dialect,
+  static LLVMType createStructTy(MLIRContext *context,
                                  Optional<StringRef> name) {
-    return createStructTy(dialect, llvm::None, name);
+    return createStructTy(context, llvm::None, name);
   }
 
   static LLVMType createStructTy(ArrayRef<LLVMType> elements,
@@ -222,7 +219,7 @@ public:
     assert(!elements.empty() &&
            "This method may not be invoked with an empty list");
     LLVMType ele0 = elements.front();
-    return createStructTy(&ele0.getDialect(), elements, name, isPacked);
+    return createStructTy(ele0.getContext(), elements, name, isPacked);
   }
 
   template <typename... Args>
@@ -231,7 +228,7 @@ public:
   createStructTy(StringRef name, LLVMType elt1, Args... elts) {
     SmallVector<LLVMType, 8> fields({elt1, elts...});
     Optional<StringRef> opt_name(name);
-    return createStructTy(&elt1.getDialect(), fields, opt_name);
+    return createStructTy(elt1.getContext(), fields, opt_name);
   }
 
   static LLVMType setStructTyBody(LLVMType structType,
@@ -256,7 +253,6 @@ public:
   class ClassName : public Type::TypeBase<ClassName, LLVMType, TypeStorage> {  \
   public:                                                                      \
     using Base::Base;                                                          \
-    static bool kindof(unsigned kind) { return kind == Kind; }                 \
     static ClassName get(MLIRContext *context) {                               \
       return Base::get(context, Kind);                                         \
     }                                                                          \
@@ -290,18 +286,25 @@ public:
   /// Inherit base constructors.
   using Base::Base;
 
-  /// Support for isa/cast.
-  static bool kindof(unsigned kind) { return kind == LLVMType::ArrayType; }
+  /// Checks if the given type can be used inside an array type.
+  static bool isValidElementType(LLVMType type);
 
   /// Gets or creates an instance of LLVM dialect array type containing
   /// `numElements` of `elementType`, in the same context as `elementType`.
   static LLVMArrayType get(LLVMType elementType, unsigned numElements);
+  static LLVMArrayType getChecked(Location loc, LLVMType elementType,
+                                  unsigned numElements);
 
   /// Returns the element type of the array.
   LLVMType getElementType();
 
   /// Returns the number of elements in the array type.
   unsigned getNumElements();
+
+  /// Verifies that the type about to be constructed is well-formed.
+  static LogicalResult verifyConstructionInvariants(Location loc,
+                                                    LLVMType elementType,
+                                                    unsigned numElements);
 };
 
 //===----------------------------------------------------------------------===//
@@ -318,13 +321,22 @@ public:
   /// Inherit base constructors.
   using Base::Base;
 
-  /// Support for isa/cast.
-  static bool kindof(unsigned kind) { return kind == LLVMType::FunctionType; }
+  /// Checks if the given type can be used an argument in a function type.
+  static bool isValidArgumentType(LLVMType type);
+
+  /// Checks if the given type can be used as a result in a function type.
+  static bool isValidResultType(LLVMType type);
+
+  /// Returns whether the function is variadic.
+  bool isVarArg();
 
   /// Gets or creates an instance of LLVM dialect function in the same context
   /// as the `result` type.
   static LLVMFunctionType get(LLVMType result, ArrayRef<LLVMType> arguments,
                               bool isVarArg = false);
+  static LLVMFunctionType getChecked(Location loc, LLVMType result,
+                                     ArrayRef<LLVMType> arguments,
+                                     bool isVarArg = false);
 
   /// Returns the result type of the function.
   LLVMType getReturnType();
@@ -335,12 +347,14 @@ public:
   /// Returns `i`-th argument of the function. Asserts on out-of-bounds.
   LLVMType getParamType(unsigned i);
 
-  /// Returns whether the function is variadic.
-  bool isVarArg();
-
   /// Returns a list of argument types of the function.
   ArrayRef<LLVMType> getParams();
   ArrayRef<LLVMType> params() { return getParams(); }
+
+  /// Verifies that the type about to be constructed is well-formed.
+  static LogicalResult
+  verifyConstructionInvariants(Location loc, LLVMType result,
+                               ArrayRef<LLVMType> arguments, bool);
 };
 
 //===----------------------------------------------------------------------===//
@@ -354,15 +368,17 @@ public:
   /// Inherit base constructor.
   using Base::Base;
 
-  /// Support for isa/cast.
-  static bool kindof(unsigned kind) { return kind == LLVMType::IntegerType; }
-
   /// Gets or creates an instance of the integer of the specified `bitwidth` in
   /// the given context.
   static LLVMIntegerType get(MLIRContext *ctx, unsigned bitwidth);
+  static LLVMIntegerType getChecked(Location loc, unsigned bitwidth);
 
   /// Returns the bitwidth of this integer type.
   unsigned getBitWidth();
+
+  /// Verifies that the type about to be constructed is well-formed.
+  static LogicalResult verifyConstructionInvariants(Location loc,
+                                                    unsigned bitwidth);
 };
 
 //===----------------------------------------------------------------------===//
@@ -378,19 +394,25 @@ public:
   /// Inherit base constructors.
   using Base::Base;
 
-  /// Support for isa/cast.
-  static bool kindof(unsigned kind) { return kind == LLVMType::PointerType; }
+  /// Checks if the given type can have a pointer type pointing to it.
+  static bool isValidElementType(LLVMType type);
 
   /// Gets or creates an instance of LLVM dialect pointer type pointing to an
   /// object of `pointee` type in the given address space. The pointer type is
   /// created in the same context as `pointee`.
   static LLVMPointerType get(LLVMType pointee, unsigned addressSpace = 0);
+  static LLVMPointerType getChecked(Location loc, LLVMType pointee,
+                                    unsigned addressSpace = 0);
 
   /// Returns the pointed-to type.
   LLVMType getElementType();
 
   /// Returns the address space of the pointer.
   unsigned getAddressSpace();
+
+  /// Verifies that the type about to be constructed is well-formed.
+  static LogicalResult verifyConstructionInvariants(Location loc,
+                                                    LLVMType pointee, unsigned);
 };
 
 //===----------------------------------------------------------------------===//
@@ -427,8 +449,8 @@ public:
   /// Inherit base construtors.
   using Base::Base;
 
-  /// Support for isa/cast.
-  static bool kindof(unsigned kind) { return kind == LLVMType::StructType; }
+  /// Checks if the given type can be contained in a structure type.
+  static bool isValidElementType(LLVMType type);
 
   /// Gets or creates an identified struct with the given name in the provided
   /// context. Note that unlike llvm::StructType::create, this function will
@@ -436,12 +458,16 @@ public:
   /// in the context. Instead, it will just return the existing struct,
   /// similarly to the rest of MLIR type ::get methods.
   static LLVMStructType getIdentified(MLIRContext *context, StringRef name);
+  static LLVMStructType getIdentifiedChecked(Location loc, StringRef name);
 
   /// Gets or creates a literal struct with the given body in the provided
   /// context.
   static LLVMStructType getLiteral(MLIRContext *context,
                                    ArrayRef<LLVMType> types,
                                    bool isPacked = false);
+  static LLVMStructType getLiteralChecked(Location loc,
+                                          ArrayRef<LLVMType> types,
+                                          bool isPacked = false);
 
   /// Gets or creates an intentionally-opaque identified struct. Such a struct
   /// cannot have its body set. To create an opaque struct with a mutable body,
@@ -450,6 +476,7 @@ public:
   /// already exists in the context. Instead, it will just return the existing
   /// struct, similarly to the rest of MLIR type ::get methods.
   static LLVMStructType getOpaque(StringRef name, MLIRContext *context);
+  static LLVMStructType getOpaqueChecked(Location loc, StringRef name);
 
   /// Set the body of an identified struct. Returns failure if the body could
   /// not be set, e.g. if the struct already has a body or if it was marked as
@@ -476,6 +503,11 @@ public:
 
   /// Returns the list of element types contained in a non-opaque struct.
   ArrayRef<LLVMType> getBody();
+
+  /// Verifies that the type about to be constructed is well-formed.
+  static LogicalResult verifyConstructionInvariants(Location, StringRef, bool);
+  static LogicalResult
+  verifyConstructionInvariants(Location loc, ArrayRef<LLVMType> types, bool);
 };
 
 //===----------------------------------------------------------------------===//
@@ -485,23 +517,27 @@ public:
 /// LLVM dialect vector type, represents a sequence of elements that can be
 /// processed as one, typically in SIMD context. This is a base class for fixed
 /// and scalable vectors.
-class LLVMVectorType : public Type::TypeBase<LLVMVectorType, LLVMType,
-                                             detail::LLVMTypeAndSizeStorage> {
+class LLVMVectorType : public LLVMType {
 public:
   /// Inherit base constructor.
-  using Base::Base;
+  using LLVMType::LLVMType;
 
-  /// Support for isa/cast.
-  static bool kindof(unsigned kind) {
-    return kind == LLVMType::FixedVectorType ||
-           kind == LLVMType::ScalableVectorType;
-  }
+  /// Support type casting functionality.
+  static bool classof(Type type);
+
+  /// Checks if the given type can be used in a vector type.
+  static bool isValidElementType(LLVMType type);
 
   /// Returns the element type of the vector.
   LLVMType getElementType();
 
   /// Returns the number of elements in the vector.
   llvm::ElementCount getElementCount();
+
+  /// Verifies that the type about to be constructed is well-formed.
+  static LogicalResult verifyConstructionInvariants(Location loc,
+                                                    LLVMType elementType,
+                                                    unsigned numElements);
 };
 
 //===----------------------------------------------------------------------===//
@@ -516,15 +552,13 @@ class LLVMFixedVectorType
 public:
   /// Inherit base constructor.
   using Base::Base;
-
-  /// Support for isa/cast.
-  static bool kindof(unsigned kind) {
-    return kind == LLVMType::FixedVectorType;
-  }
+  using LLVMVectorType::verifyConstructionInvariants;
 
   /// Gets or creates a fixed vector type containing `numElements` of
   /// `elementType` in the same context as `elementType`.
   static LLVMFixedVectorType get(LLVMType elementType, unsigned numElements);
+  static LLVMFixedVectorType getChecked(Location loc, LLVMType elementType,
+                                        unsigned numElements);
 
   /// Returns the number of elements in the fixed vector.
   unsigned getNumElements();
@@ -543,16 +577,14 @@ class LLVMScalableVectorType
 public:
   /// Inherit base constructor.
   using Base::Base;
-
-  /// Support for isa/cast.
-  static bool kindof(unsigned kind) {
-    return kind == LLVMType::ScalableVectorType;
-  }
+  using LLVMVectorType::verifyConstructionInvariants;
 
   /// Gets or creates a scalable vector type containing a non-zero multiple of
   /// `minNumElements` of `elementType` in the same context as `elementType`.
   static LLVMScalableVectorType get(LLVMType elementType,
                                     unsigned minNumElements);
+  static LLVMScalableVectorType getChecked(Location loc, LLVMType elementType,
+                                           unsigned minNumElements);
 
   /// Returns the scaling factor of the number of elements in the vector. The
   /// vector contains at least the resulting number of elements, or any non-zero

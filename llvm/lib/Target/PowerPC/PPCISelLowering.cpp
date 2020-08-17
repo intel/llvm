@@ -121,6 +121,11 @@ cl::desc("don't always align innermost loop to 32 bytes on ppc"), cl::Hidden);
 static cl::opt<bool> UseAbsoluteJumpTables("ppc-use-absolute-jumptables",
 cl::desc("use absolute jump tables on ppc"), cl::Hidden);
 
+static cl::opt<bool> EnablePPCPCRelTLS(
+    "enable-ppc-pcrel-tls",
+    cl::desc("enable the use of PC relative memops in TLS instructions on PPC"),
+    cl::Hidden);
+
 STATISTIC(NumTailCalls, "Number of tail calls");
 STATISTIC(NumSiblingCalls, "Number of sibling calls");
 STATISTIC(ShufflesHandledWithVPERM, "Number of shuffles lowered to a VPERM");
@@ -418,6 +423,16 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
   // PowerPC wants to optimize integer setcc a bit
   if (!Subtarget.useCRBits())
     setOperationAction(ISD::SETCC, MVT::i32, Custom);
+
+  if (Subtarget.hasFPU()) {
+    setOperationAction(ISD::STRICT_FSETCC, MVT::f32, Legal);
+    setOperationAction(ISD::STRICT_FSETCC, MVT::f64, Legal);
+    setOperationAction(ISD::STRICT_FSETCC, MVT::f128, Legal);
+
+    setOperationAction(ISD::STRICT_FSETCCS, MVT::f32, Legal);
+    setOperationAction(ISD::STRICT_FSETCCS, MVT::f64, Legal);
+    setOperationAction(ISD::STRICT_FSETCCS, MVT::f128, Legal);
+  }
 
   // PowerPC does not have BRCOND which requires SetCC
   if (!Subtarget.useCRBits())
@@ -2910,6 +2925,9 @@ SDValue PPCTargetLowering::LowerGlobalTLSAddress(SDValue Op,
   // which is the most useful form.  Eventually support for small and
   // large models could be added if users need it, at the cost of
   // additional complexity.
+  if (Subtarget.isUsingPCRelativeCalls() && !EnablePPCPCRelTLS)
+    report_fatal_error("Thread local storage is not supported with pc-relative"
+                       " addressing - please compile with -mno-pcrel");
   GlobalAddressSDNode *GA = cast<GlobalAddressSDNode>(Op);
   if (DAG.getTarget().useEmulatedTLS())
     return LowerToTLSEmulatedModel(GA, DAG);
@@ -5141,19 +5159,6 @@ static SDValue transformCallee(const SDValue &Callee, SelectionDAG &DAG,
     MCSymbolXCOFF *S =
         cast<MCSymbolXCOFF>(TLOF->getFunctionEntryPointSymbol(GV, TM));
 
-    if (GV->isDeclaration() && !S->hasRepresentedCsectSet()) {
-      // On AIX, an undefined symbol needs to be associated with a
-      // MCSectionXCOFF to get the correct storage mapping class.
-      // In this case, XCOFF::XMC_PR.
-      const XCOFF::StorageClass SC =
-          TargetLoweringObjectFileXCOFF::getStorageClassForGlobal(GV);
-      auto &Context = DAG.getMachineFunction().getMMI().getContext();
-      MCSectionXCOFF *Sec = Context.getXCOFFSection(
-          S->getSymbolTableName(), XCOFF::XMC_PR, XCOFF::XTY_ER, SC,
-          SectionKind::getMetadata());
-      S->setRepresentedCsect(Sec);
-    }
-
     MVT PtrVT = DAG.getTargetLoweringInfo().getPointerTy(DAG.getDataLayout());
     return DAG.getMCSymbol(S, PtrVT);
   };
@@ -5181,14 +5186,17 @@ static SDValue transformCallee(const SDValue &Callee, SelectionDAG &DAG,
 
       // On AIX, direct function calls reference the symbol for the function's
       // entry point, which is named by prepending a "." before the function's
-      // C-linkage name.
-      const auto getFunctionEntryPointSymbol = [&](StringRef SymName) {
+      // C-linkage name. A Qualname is returned here because an external
+      // function entry point is a csect with XTY_ER property.
+      const auto getExternalFunctionEntryPointSymbol = [&](StringRef SymName) {
         auto &Context = DAG.getMachineFunction().getMMI().getContext();
-        return cast<MCSymbolXCOFF>(
-            Context.getOrCreateSymbol(Twine(".") + Twine(SymName)));
+        MCSectionXCOFF *Sec = Context.getXCOFFSection(
+            (Twine(".") + Twine(SymName)).str(), XCOFF::XMC_PR, XCOFF::XTY_ER,
+            SectionKind::getMetadata());
+        return Sec->getQualNameSymbol();
       };
 
-      SymName = getFunctionEntryPointSymbol(SymName)->getName().data();
+      SymName = getExternalFunctionEntryPointSymbol(SymName)->getName().data();
     }
     return DAG.getTargetExternalSymbol(SymName, Callee.getValueType(),
                                        UsePlt ? PPCII::MO_PLT : 0);
@@ -7089,10 +7097,10 @@ SDValue PPCTargetLowering::LowerFormalArguments_AIX(
         // to extracting the value from the register directly, and elide the
         // stores when the arguments address is not taken, but that will need to
         // be future work.
-        SDValue Store =
-            DAG.getStore(CopyFrom.getValue(1), dl, CopyFrom,
-                         DAG.getObjectPtrOffset(dl, FIN, Offset),
-                         MachinePointerInfo::getFixedStack(MF, FI, Offset));
+        SDValue Store = DAG.getStore(
+            CopyFrom.getValue(1), dl, CopyFrom,
+            DAG.getObjectPtrOffset(dl, FIN, TypeSize::Fixed(Offset)),
+            MachinePointerInfo::getFixedStack(MF, FI, Offset));
 
         MemOps.push_back(Store);
       };
@@ -7289,11 +7297,12 @@ SDValue PPCTargetLowering::LowerCall_AIX(
       }
 
       auto GetLoad = [&](EVT VT, unsigned LoadOffset) {
-        return DAG.getExtLoad(ISD::ZEXTLOAD, dl, PtrVT, Chain,
-                              (LoadOffset != 0)
-                                  ? DAG.getObjectPtrOffset(dl, Arg, LoadOffset)
-                                  : Arg,
-                              MachinePointerInfo(), VT);
+        return DAG.getExtLoad(
+            ISD::ZEXTLOAD, dl, PtrVT, Chain,
+            (LoadOffset != 0)
+                ? DAG.getObjectPtrOffset(dl, Arg, TypeSize::Fixed(LoadOffset))
+                : Arg,
+            MachinePointerInfo(), VT);
       };
 
       unsigned LoadOffset = 0;
@@ -7323,9 +7332,11 @@ SDValue PPCTargetLowering::LowerCall_AIX(
         // Only memcpy the bytes that don't pass in register.
         MemcpyFlags.setByValSize(ByValSize - LoadOffset);
         Chain = CallSeqStart = createMemcpyOutsideCallSeq(
-            (LoadOffset != 0) ? DAG.getObjectPtrOffset(dl, Arg, LoadOffset)
-                              : Arg,
-            DAG.getObjectPtrOffset(dl, StackPtr, ByValVA.getLocMemOffset()),
+            (LoadOffset != 0)
+                ? DAG.getObjectPtrOffset(dl, Arg, TypeSize::Fixed(LoadOffset))
+                : Arg,
+            DAG.getObjectPtrOffset(dl, StackPtr,
+                                   TypeSize::Fixed(ByValVA.getLocMemOffset())),
             CallSeqStart, MemcpyFlags, DAG, dl);
         continue;
       }
@@ -12117,6 +12128,20 @@ PPCTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
       .addReg(NewFPSCRReg)
       .addImm(0)
       .addImm(0);
+  } else if (MI.getOpcode() == PPC::SETFLM) {
+    DebugLoc Dl = MI.getDebugLoc();
+
+    // Result of setflm is previous FPSCR content, so we need to save it first.
+    Register OldFPSCRReg = MI.getOperand(0).getReg();
+    BuildMI(*BB, MI, Dl, TII->get(PPC::MFFS), OldFPSCRReg);
+
+    // Put bits in 32:63 to FPSCR.
+    Register NewFPSCRReg = MI.getOperand(1).getReg();
+    BuildMI(*BB, MI, Dl, TII->get(PPC::MTFSF))
+        .addImm(255)
+        .addReg(NewFPSCRReg)
+        .addImm(0)
+        .addImm(0);
   } else if (MI.getOpcode() == PPC::PROBED_ALLOCA_32 ||
              MI.getOpcode() == PPC::PROBED_ALLOCA_64) {
     return emitProbedAlloca(MI, BB);

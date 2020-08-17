@@ -129,9 +129,10 @@ LogicalResult getMemRefAlignment(LLVMTypeConverter &typeConverter, T op,
   // TODO: this should use the MLIR data layout when it becomes available and
   // stop depending on translation.
   LLVM::LLVMDialect *dialect = typeConverter.getDialect();
-  align = LLVM::TypeToLLVMIRTranslator(dialect->getLLVMContext())
+  llvm::LLVMContext llvmContext;
+  align = LLVM::TypeToLLVMIRTranslator(llvmContext)
               .getPreferredAlignment(elementTy.cast<LLVM::LLVMType>(),
-                                     dialect->getLLVMModule().getDataLayout());
+                                     dialect->getDataLayout());
   return success();
 }
 
@@ -715,7 +716,7 @@ public:
 
     // Remaining extraction of element from 1-D LLVM vector
     auto position = positionAttrs.back().cast<IntegerAttr>();
-    auto i64Type = LLVM::LLVMType::getInt64Ty(typeConverter.getDialect());
+    auto i64Type = LLVM::LLVMType::getInt64Ty(rewriter.getContext());
     auto constant = rewriter.create<LLVM::ConstantOp>(loc, i64Type, position);
     extracted =
         rewriter.create<LLVM::ExtractElementOp>(loc, extracted, constant);
@@ -832,7 +833,7 @@ public:
     }
 
     // Insertion of an element into a 1-D LLVM vector.
-    auto i64Type = LLVM::LLVMType::getInt64Ty(typeConverter.getDialect());
+    auto i64Type = LLVM::LLVMType::getInt64Ty(rewriter.getContext());
     auto constant = rewriter.create<LLVM::ConstantOp>(loc, i64Type, position);
     Value inserted = rewriter.create<LLVM::InsertElementOp>(
         loc, typeConverter.convertType(oneDVectorType), extracted,
@@ -1074,7 +1075,7 @@ public:
     if (failed(successStrides) || !isContiguous)
       return failure();
 
-    auto int64Ty = LLVM::LLVMType::getInt64Ty(typeConverter.getDialect());
+    auto int64Ty = LLVM::LLVMType::getInt64Ty(rewriter.getContext());
 
     // Create descriptor.
     auto desc = MemRefDescriptor::undef(rewriter, loc, llvmTargetDescriptorTy);
@@ -1146,13 +1147,35 @@ public:
     Type i64Type = rewriter.getIntegerType(64);
     MemRefType memRefType = xferOp.getMemRefType();
 
+    if (auto memrefVectorElementType =
+            memRefType.getElementType().dyn_cast<VectorType>()) {
+      // Memref has vector element type.
+      if (memrefVectorElementType.getElementType() !=
+          xferOp.getVectorType().getElementType())
+        return failure();
+#ifndef NDEBUG
+      // Check that memref vector type is a suffix of 'vectorType.
+      unsigned memrefVecEltRank = memrefVectorElementType.getRank();
+      unsigned resultVecRank = xferOp.getVectorType().getRank();
+      assert(memrefVecEltRank <= resultVecRank);
+      // TODO: Move this to isSuffix in Vector/Utils.h.
+      unsigned rankOffset = resultVecRank - memrefVecEltRank;
+      auto memrefVecEltShape = memrefVectorElementType.getShape();
+      auto resultVecShape = xferOp.getVectorType().getShape();
+      for (unsigned i = 0; i < memrefVecEltRank; ++i)
+        assert(memrefVecEltShape[i] != resultVecShape[rankOffset + i] &&
+               "memref vector element shape should match suffix of vector "
+               "result shape.");
+#endif // ifndef NDEBUG
+    }
+
     // 1. Get the source/dst address as an LLVM vector pointer.
     //    The vector pointer would always be on address space 0, therefore
     //    addrspacecast shall be used when source/dst memrefs are not on
     //    address space 0.
     // TODO: support alignment when possible.
     Value dataPtr = getDataPtr(loc, memRefType, adaptor.memref(),
-                               adaptor.indices(), rewriter, getModule());
+                               adaptor.indices(), rewriter);
     auto vecTy =
         toLLVMTy(xferOp.getVectorType()).template cast<LLVM::LLVMType>();
     Value vectorDataPtr;
@@ -1263,11 +1286,10 @@ private:
                  int64_t rank) const {
     Location loc = op->getLoc();
     if (rank == 0) {
-      if (value.getType() ==
-          LLVM::LLVMType::getInt1Ty(typeConverter.getDialect())) {
+      if (value.getType() == LLVM::LLVMType::getInt1Ty(rewriter.getContext())) {
         // Convert i1 (bool) to i32 so we can use the print_i32 method.
         // This avoids the need for a print_i1 method with an unclear ABI.
-        auto i32Type = LLVM::LLVMType::getInt32Ty(typeConverter.getDialect());
+        auto i32Type = LLVM::LLVMType::getInt32Ty(rewriter.getContext());
         auto trueVal = rewriter.create<ConstantOp>(
             loc, i32Type, rewriter.getI32IntegerAttr(1));
         auto falseVal = rewriter.create<ConstantOp>(
@@ -1303,8 +1325,8 @@ private:
   }
 
   // Helper for printer method declaration (first hit) and lookup.
-  static Operation *getPrint(Operation *op, LLVM::LLVMDialect *dialect,
-                             StringRef name, ArrayRef<LLVM::LLVMType> params) {
+  static Operation *getPrint(Operation *op, StringRef name,
+                             ArrayRef<LLVM::LLVMType> params) {
     auto module = op->getParentOfType<ModuleOp>();
     auto func = module.lookupSymbol<LLVM::LLVMFuncOp>(name);
     if (func)
@@ -1312,49 +1334,46 @@ private:
     OpBuilder moduleBuilder(module.getBodyRegion());
     return moduleBuilder.create<LLVM::LLVMFuncOp>(
         op->getLoc(), name,
-        LLVM::LLVMType::getFunctionTy(LLVM::LLVMType::getVoidTy(dialect),
-                                      params, /*isVarArg=*/false));
+        LLVM::LLVMType::getFunctionTy(
+            LLVM::LLVMType::getVoidTy(op->getContext()), params,
+            /*isVarArg=*/false));
   }
 
   // Helpers for method names.
   Operation *getPrintI32(Operation *op) const {
-    LLVM::LLVMDialect *dialect = typeConverter.getDialect();
-    return getPrint(op, dialect, "print_i32",
-                    LLVM::LLVMType::getInt32Ty(dialect));
+    return getPrint(op, "print_i32",
+                    LLVM::LLVMType::getInt32Ty(op->getContext()));
   }
   Operation *getPrintI64(Operation *op) const {
-    LLVM::LLVMDialect *dialect = typeConverter.getDialect();
-    return getPrint(op, dialect, "print_i64",
-                    LLVM::LLVMType::getInt64Ty(dialect));
+    return getPrint(op, "print_i64",
+                    LLVM::LLVMType::getInt64Ty(op->getContext()));
   }
   Operation *getPrintFloat(Operation *op) const {
-    LLVM::LLVMDialect *dialect = typeConverter.getDialect();
-    return getPrint(op, dialect, "print_f32",
-                    LLVM::LLVMType::getFloatTy(dialect));
+    return getPrint(op, "print_f32",
+                    LLVM::LLVMType::getFloatTy(op->getContext()));
   }
   Operation *getPrintDouble(Operation *op) const {
-    LLVM::LLVMDialect *dialect = typeConverter.getDialect();
-    return getPrint(op, dialect, "print_f64",
-                    LLVM::LLVMType::getDoubleTy(dialect));
+    return getPrint(op, "print_f64",
+                    LLVM::LLVMType::getDoubleTy(op->getContext()));
   }
   Operation *getPrintOpen(Operation *op) const {
-    return getPrint(op, typeConverter.getDialect(), "print_open", {});
+    return getPrint(op, "print_open", {});
   }
   Operation *getPrintClose(Operation *op) const {
-    return getPrint(op, typeConverter.getDialect(), "print_close", {});
+    return getPrint(op, "print_close", {});
   }
   Operation *getPrintComma(Operation *op) const {
-    return getPrint(op, typeConverter.getDialect(), "print_comma", {});
+    return getPrint(op, "print_comma", {});
   }
   Operation *getPrintNewline(Operation *op) const {
-    return getPrint(op, typeConverter.getDialect(), "print_newline", {});
+    return getPrint(op, "print_newline", {});
   }
 };
 
 /// Progressive lowering of ExtractStridedSliceOp to either:
-///   1. extractelement + insertelement for the 1-D case
-///   2. extract + optional strided_slice + insert for the n-D case.
-class VectorStridedSliceOpConversion
+///   1. express single offset extract as a direct shuffle.
+///   2. extract + lower rank strided_slice + insert for the n-D case.
+class VectorExtractStridedSliceOpConversion
     : public OpRewritePattern<ExtractStridedSliceOp> {
 public:
   using OpRewritePattern<ExtractStridedSliceOp>::OpRewritePattern;
@@ -1374,21 +1393,34 @@ public:
     auto loc = op.getLoc();
     auto elemType = dstType.getElementType();
     assert(elemType.isSignlessIntOrIndexOrFloat());
+
+    // Single offset can be more efficiently shuffled.
+    if (op.offsets().getValue().size() == 1) {
+      SmallVector<int64_t, 4> offsets;
+      offsets.reserve(size);
+      for (int64_t off = offset, e = offset + size * stride; off < e;
+           off += stride)
+        offsets.push_back(off);
+      rewriter.replaceOpWithNewOp<ShuffleOp>(op, dstType, op.vector(),
+                                             op.vector(),
+                                             rewriter.getI64ArrayAttr(offsets));
+      return success();
+    }
+
+    // Extract/insert on a lower ranked extract strided slice op.
     Value zero = rewriter.create<ConstantOp>(loc, elemType,
                                              rewriter.getZeroAttr(elemType));
     Value res = rewriter.create<SplatOp>(loc, dstType, zero);
     for (int64_t off = offset, e = offset + size * stride, idx = 0; off < e;
          off += stride, ++idx) {
-      Value extracted = extractOne(rewriter, loc, op.vector(), off);
-      if (op.offsets().getValue().size() > 1) {
-        extracted = rewriter.create<ExtractStridedSliceOp>(
-            loc, extracted, getI64SubArray(op.offsets(), /* dropFront=*/1),
-            getI64SubArray(op.sizes(), /* dropFront=*/1),
-            getI64SubArray(op.strides(), /* dropFront=*/1));
-      }
+      Value one = extractOne(rewriter, loc, op.vector(), off);
+      Value extracted = rewriter.create<ExtractStridedSliceOp>(
+          loc, one, getI64SubArray(op.offsets(), /* dropFront=*/1),
+          getI64SubArray(op.sizes(), /* dropFront=*/1),
+          getI64SubArray(op.strides(), /* dropFront=*/1));
       res = insertOne(rewriter, loc, extracted, res, idx);
     }
-    rewriter.replaceOp(op, {res});
+    rewriter.replaceOp(op, res);
     return success();
   }
   /// This pattern creates recursive ExtractStridedSliceOp, but the recursion is
@@ -1407,7 +1439,7 @@ void mlir::populateVectorToLLVMConversionPatterns(
   patterns.insert<VectorFMAOpNDRewritePattern,
                   VectorInsertStridedSliceOpDifferentRankRewritePattern,
                   VectorInsertStridedSliceOpSameRankRewritePattern,
-                  VectorStridedSliceOpConversion>(ctx);
+                  VectorExtractStridedSliceOpConversion>(ctx);
   patterns.insert<VectorReductionOpConversion>(
       ctx, converter, reassociateFPReductions);
   patterns

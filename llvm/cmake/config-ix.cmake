@@ -9,6 +9,7 @@ include(CheckSymbolExists)
 include(CheckFunctionExists)
 include(CheckStructHasMember)
 include(CheckCCompilerFlag)
+include(CMakePushCheckState)
 
 include(CheckCompilerVersion)
 include(HandleLLVMStdlib)
@@ -114,18 +115,30 @@ if(HAVE_LIBPTHREAD)
   set(LLVM_PTHREAD_LIB ${CMAKE_THREAD_LIBS_INIT})
 endif()
 
+if(LLVM_ENABLE_ZLIB)
+  if(LLVM_ENABLE_ZLIB STREQUAL FORCE_ON)
+    find_package(ZLIB REQUIRED)
+  elseif(NOT LLVM_USE_SANITIZER MATCHES "Memory.*")
+    find_package(ZLIB)
+  endif()
+  if(ZLIB_FOUND)
+    # Check if zlib we found is usable; for example, we may have found a 32-bit
+    # library on a 64-bit system which would result in a link-time failure.
+    cmake_push_check_state()
+    set(CMAKE_REQUIRED_INCLUDES ${ZLIB_INCLUDE_DIRS})
+    set(CMAKE_REQUIRED_LIBRARIES ${ZLIB_LIBRARY})
+    check_symbol_exists(compress2 zlib.h HAVE_ZLIB)
+    cmake_pop_check_state()
+    if(LLVM_ENABLE_ZLIB STREQUAL FORCE_ON AND NOT HAVE_ZLIB)
+      message(FATAL_ERROR "Failed to configure zlib")
+    endif()
+  endif()
+  set(LLVM_ENABLE_ZLIB "${HAVE_ZLIB}")
+endif()
+
 # Don't look for these libraries if we're using MSan, since uninstrumented third
 # party code may call MSan interceptors like strlen, leading to false positives.
 if(NOT LLVM_USE_SANITIZER MATCHES "Memory.*")
-  if(LLVM_ENABLE_ZLIB)
-    if(LLVM_ENABLE_ZLIB STREQUAL FORCE_ON)
-      find_package(ZLIB REQUIRED)
-    else()
-      find_package(ZLIB)
-    endif()
-    set(LLVM_ENABLE_ZLIB "${ZLIB_FOUND}")
-  endif()
-
   # Don't look for these libraries on Windows.
   if (NOT PURE_WINDOWS)
     # Skip libedit if using ASan as it contains memory leaks.
@@ -164,8 +177,6 @@ if(NOT LLVM_USE_SANITIZER MATCHES "Memory.*")
       endif()
     endif()
   endif()
-else()
-  set(LLVM_ENABLE_ZLIB FALSE)
 endif()
 
 if (LLVM_ENABLE_LIBXML2 STREQUAL "FORCE_ON" AND NOT LLVM_LIBXML2_ENABLED)
