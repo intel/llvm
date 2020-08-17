@@ -141,7 +141,6 @@ public:
   /// given feature.
   bool has(aspect Aspect) const;
 
-
   /// Queries the device_impl cache to either return a shared_ptr
   /// for the device_impl corresponding to the PiDevice or add
   /// a new entry to the cache
@@ -192,7 +191,6 @@ private:
   std::map<RT::PiDevice, std::shared_ptr<device_impl>> MDeviceMap;
   std::shared_ptr<std::mutex> MDeviceMapMutex;
 };
-
 
 } // namespace detail
 } // namespace sycl

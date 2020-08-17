@@ -142,8 +142,7 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
   std::for_each(SubDevices.begin(), SubDevices.end(),
                 [&res, this](const RT::PiDevice &a_pi_device) {
                   device sycl_device = detail::createSyclObjFromImpl<device>(
-                    MPlatform->getOrMakeDeviceImpl(a_pi_device, MPlatform));
-//                      std::make_shared<device_impl>(a_pi_device, MPlatform));
+                      MPlatform->getOrMakeDeviceImpl(a_pi_device, MPlatform));
                   res.push_back(sycl_device);
                 });
   return res;
