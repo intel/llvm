@@ -13,6 +13,9 @@ def do_compile(args):
     except NotImplementedError:
         cpu_count = DEFAULT_CPU_COUNT
 
+    if args.build_parallelism:
+        cpu_count = int(args.build_parallelism)
+
     # Get absolute path to source directory
     if args.src_dir:
       abs_src_dir = os.path.abspath(args.src_dir)
@@ -51,6 +54,7 @@ def main():
                         help="builder directory, which is the directory contains source and build directories")
     parser.add_argument("-s", "--src-dir", metavar="SRC_DIR", help="source directory")
     parser.add_argument("-o", "--obj-dir", metavar="OBJ_DIR", help="build directory")
+    parser.add_argument("-j", "--build-parallelism", metavar="BUILD_PARALLELISM", help="build parallelism")
 
     args = parser.parse_args()
 

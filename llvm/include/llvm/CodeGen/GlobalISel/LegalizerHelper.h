@@ -154,6 +154,10 @@ public:
   /// def by inserting a G_BITCAST from \p CastTy
   void bitcastDst(MachineInstr &MI, LLT CastTy, unsigned OpIdx);
 
+  /// Widen \p OrigReg to \p WideTy by merging to a wider type, padding with
+  /// G_IMPLICIT_DEF, and producing dead results.
+  Register widenWithUnmerge(LLT WideTy, Register OrigReg);
+
 private:
   LegalizeResult
   widenScalarMergeValues(MachineInstr &MI, unsigned TypeIdx, LLT WideTy);
@@ -307,7 +311,13 @@ public:
   LegalizeResult narrowScalarCTTZ(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
   LegalizeResult narrowScalarCTPOP(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
 
+  /// Perform Bitcast legalize action on G_EXTRACT_VECTOR_ELT.
+  LegalizeResult bitcastExtractVectorElt(MachineInstr &MI, unsigned TypeIdx,
+                                         LLT CastTy);
+
   LegalizeResult lowerBitcast(MachineInstr &MI);
+  LegalizeResult lowerLoad(MachineInstr &MI);
+  LegalizeResult lowerStore(MachineInstr &MI);
   LegalizeResult lowerBitCount(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
 
   LegalizeResult lowerU64ToF32BitOps(MachineInstr &MI);

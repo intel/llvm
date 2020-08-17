@@ -16,6 +16,7 @@
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/program_impl.hpp>
@@ -330,7 +331,7 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
           : createBinaryProgram(Ctx, RawImg.BinaryStart, ImgSize);
 
   {
-    auto LockGuard = Ctx->getKernelProgramCache().acquireCachedPrograms();
+    std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
     // associate the PI program with the image it was created for
     NativePrograms[Res] = &Img;
   }
@@ -380,7 +381,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
     // If device image is not SPIRV, DeviceLibReqMask will be 0 which means
     // no fallback device library will be linked.
     uint32_t DeviceLibReqMask = 0;
-    if (Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV)
+    if (Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV &&
+        !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
     const std::vector<device> &Devices = ContextImpl->getDevices();
@@ -982,8 +984,7 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
   if (!Img) {
     // caller hasn't provided the image object - find it
     { // make sure NativePrograms map access is synchronized
-      ContextImplPtr Ctx = getSyclObjImpl(Prg.get_context());
-      auto LockGuard = Ctx->getKernelProgramCache().acquireCachedPrograms();
+      std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
       auto It = NativePrograms.find(NativePrg);
       if (It == NativePrograms.end())
         throw sycl::ONEAPI::experimental::spec_const_error(

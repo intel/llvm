@@ -4080,7 +4080,8 @@ class OffloadingActionBuilder final {
         A->claim();
         auto ParsedArg = Opts.ParseOneArg(Args, Index);
         // TODO: Support --no-cuda-gpu-arch, --{,no-}cuda-gpu-arch=all.
-        if (ParsedArg->getOption().matches(options::OPT_offload_arch_EQ)) {
+        if (ParsedArg &&
+            ParsedArg->getOption().matches(options::OPT_offload_arch_EQ)) {
           ParsedArg->claim();
           GpuArchList.push_back(StringToCudaArch(ParsedArg->getValue(0)));
         }
@@ -6110,10 +6111,20 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   }
 
   SmallString<128> BasePath(BaseInput);
+  SmallString<128> ExternalPath("");
   StringRef BaseName;
 
   // Dsymutil actions should use the full path.
-  if (isa<DsymutilJobAction>(JA) || isa<VerifyJobAction>(JA))
+  if (isa<DsymutilJobAction>(JA) && C.getArgs().hasArg(options::OPT_dsym_dir)) {
+    ExternalPath += C.getArgs().getLastArg(options::OPT_dsym_dir)->getValue();
+    // We use posix style here because the tests (specifically
+    // darwin-dsymutil.c) demonstrate that posix style paths are acceptable
+    // even on Windows and if we don't then the similar test covering this
+    // fails.
+    llvm::sys::path::append(ExternalPath, llvm::sys::path::Style::posix,
+                            llvm::sys::path::filename(BasePath));
+    BaseName = ExternalPath;
+  } else if (isa<DsymutilJobAction>(JA) || isa<VerifyJobAction>(JA))
     BaseName = BasePath;
   else
     BaseName = llvm::sys::path::filename(BasePath);

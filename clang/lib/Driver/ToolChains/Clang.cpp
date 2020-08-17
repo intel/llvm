@@ -4102,6 +4102,16 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasFlag(options::OPT_fsycl_esimd, options::OPT_fno_sycl_esimd,
                      false))
       CmdArgs.push_back("-fsycl-explicit-simd");
+
+    if (!Args.hasFlag(options::OPT_fsycl_early_optimizations,
+                      options::OPT_fno_sycl_early_optimizations, true))
+      CmdArgs.push_back("-fno-sycl-early-optimizations");
+    else if (RawTriple.isSPIR()) {
+      // Set `sycl-opt` option to configure LLVM passes for SPIR target
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-sycl-opt");
+    }
+
     // Pass the triple of host when doing SYCL
     auto AuxT = llvm::Triple(llvm::sys::getProcessTriple());
     std::string NormalizedTriple = AuxT.normalize();
@@ -4136,6 +4146,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // along with marking the same function with explicit SYCL_EXTERNAL
       CmdArgs.push_back("-Wno-sycl-strict");
     }
+  }
+  if (IsSYCL || UseSYCLTriple) {
+    // Set options for both host and device
+    if (Arg *A = Args.getLastArg(options::OPT_fsycl_id_queries_fit_in_int,
+                                 options::OPT_fno_sycl_id_queries_fit_in_int))
+      A->render(Args, CmdArgs);
   }
 
   if (IsSYCL) {

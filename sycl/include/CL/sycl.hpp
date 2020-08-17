@@ -15,6 +15,7 @@
 #include <CL/sycl/ONEAPI/reduction.hpp>
 #include <CL/sycl/ONEAPI/sub_group.hpp>
 #include <CL/sycl/accessor.hpp>
+#include <CL/sycl/aspects.hpp>
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/backend.hpp>
 #include <CL/sycl/buffer.hpp>

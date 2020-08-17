@@ -918,6 +918,15 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
   if (LangOpts.SYCLIsDevice && CodeGenOpts.DisableLLVMPasses)
     PerModulePasses.add(createDeadCodeEliminationPass());
 
+  // Eliminate dead arguments from SPIR kernels in SYCL environment.
+  // 1. Run DAE when LLVM optimizations are applied as well.
+  // 2. We cannot run DAE for ESIMD since the pointers to SPIR kernel
+  //    functions are saved in !genx.kernels metadata.
+  // 3. DAE pass temporary guarded under option.
+  if (LangOpts.SYCLIsDevice && !CodeGenOpts.DisableLLVMPasses &&
+      !LangOpts.SYCLExplicitSIMD && LangOpts.EnableDAEInSpirKernels)
+    PerModulePasses.add(createDeadArgEliminationSYCLPass());
+
   if (LangOpts.SYCLIsDevice && LangOpts.SYCLExplicitSIMD)
     PerModulePasses.add(createGenXSPIRVWriterAdaptorPass());
 

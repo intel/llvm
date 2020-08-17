@@ -397,7 +397,12 @@ def I_ : Flag<["-"], "I-">, Group<I_Group>,
              "remove current directory from include path">;
 def I : JoinedOrSeparate<["-"], "I">, Group<I_Group>,
     Flags<[CC1Option,CC1AsOption]>, MetaVarName<"<dir>">,
-    HelpText<"Add directory to include search path">;
+    HelpText<"Add directory to include search path. If there are multiple -I "
+             "options, these directories are searched in the order they are "
+             "given before the standard system directories are searched. "
+             "If the same directory is in the SYSTEM include search paths, for "
+             "example if also specified with -isystem, the -I option will be "
+             "ignored">;
 def L : JoinedOrSeparate<["-"], "L">, Flags<[RenderJoined]>, Group<Link_Group>,
     MetaVarName<"<dir>">, HelpText<"Add directory to library search path">;
 def MD : Flag<["-"], "MD">, Group<M_Group>,
@@ -691,6 +696,9 @@ def dependency_dot : Separate<["-"], "dependency-dot">, Flags<[CC1Option]>,
   HelpText<"Filename to write DOT-formatted header dependencies to">;
 def module_dependency_dir : Separate<["-"], "module-dependency-dir">,
   Flags<[CC1Option]>, HelpText<"Directory to dump module dependencies to">;
+def dsym_dir : JoinedOrSeparate<["-"], "dsym-dir">,
+  Flags<[DriverOption, RenderAsInput]>,
+  HelpText<"Directory to output dSYM's (if any) to">, MetaVarName<"<dir>">;
 def dumpmachine : Flag<["-"], "dumpmachine">;
 def dumpspecs : Flag<["-"], "dumpspecs">, Flags<[Unsupported]>;
 def dumpversion : Flag<["-"], "dumpversion">;
@@ -1263,7 +1271,7 @@ def finline_functions : Flag<["-"], "finline-functions">, Group<f_clang_Group>, 
 def finline_hint_functions: Flag<["-"], "finline-hint-functions">, Group<f_clang_Group>, Flags<[CC1Option]>,
   HelpText<"Inline functions which are (explicitly or implicitly) marked inline">;
 def finline : Flag<["-"], "finline">, Group<clang_ignored_f_Group>;
-def fglobal_isel : Flag<["-"], "fglobal-isel">, Group<f_clang_Group>, 
+def fglobal_isel : Flag<["-"], "fglobal-isel">, Group<f_clang_Group>,
   HelpText<"Enables the global instruction selector">;
 def fexperimental_isel : Flag<["-"], "fexperimental-isel">, Group<f_clang_Group>,
   Alias<fglobal_isel>;
@@ -1362,7 +1370,7 @@ def flto_EQ : Joined<["-"], "flto=">, Flags<[CoreOption, CC1Option]>, Group<f_Gr
   HelpText<"Set LTO mode to either 'full' or 'thin'">, Values<"thin,full">;
 def flto : Flag<["-"], "flto">, Flags<[CoreOption, CC1Option]>, Group<f_Group>,
   HelpText<"Enable LTO in 'full' mode">;
-def fno_lto : Flag<["-"], "fno-lto">, Group<f_Group>,
+def fno_lto : Flag<["-"], "fno-lto">, Flags<[CoreOption, CC1Option]>, Group<f_Group>,
   HelpText<"Disable LTO mode (default)">;
 def flto_jobs_EQ : Joined<["-"], "flto-jobs=">,
   Flags<[CC1Option]>, Group<f_Group>,
@@ -1866,6 +1874,12 @@ def fsycl_device_code_split_EQ : Joined<["-"], "fsycl-device-code-split=">,
 def fsycl_device_code_split : Flag<["-"], "fsycl-device-code-split">, Alias<fsycl_device_code_split_EQ>,
   AliasArgs<["per_source"]>, Flags<[CC1Option, CoreOption]>,
   HelpText<"Perform SYCL device code split in the per_source mode i.e. create a device code module for each source (translation unit)">;
+def fsycl_id_queries_fit_in_int : Flag<["-"], "fsycl-id-queries-fit-in-int">,
+  Flags<[CC1Option, CoreOption]>, HelpText<"Assume that SYCL ID queries fit "
+  "within MAX_INT.">;
+def fno_sycl_id_queries_fit_in_int : Flag<["-"], "fno-sycl-id-queries-fit-in-int">,
+  Flags<[CC1Option, CoreOption]>, HelpText<"Do not assume that SYCL ID queries "
+  "fit within MAX_INT.">;
 def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Use LLVM bitcode instead of SPIR-V in fat objects">;
 def fno_sycl_use_bitcode : Flag<["-"], "fno-sycl-use-bitcode">,
@@ -3530,6 +3544,7 @@ def fsycl_esimd : Flag<["-"], "fsycl-explicit-simd">, Group<sycl_Group>, Flags<[
   HelpText<"Enable SYCL explicit SIMD extension">;
 def fno_sycl_esimd : Flag<["-"], "fno-sycl-explicit-simd">, Group<sycl_Group>,
   HelpText<"Disable SYCL explicit SIMD extension">, Flags<[NoArgumentUnused, CoreOption]>;
+defm sycl_early_optimizations : OptOutFFlag<"sycl-early-optimizations", "Enable", "Disable", " standard optimization pipeline for SYCL device compiler">;
 
 //===----------------------------------------------------------------------===//
 // CC1 Options
@@ -4454,8 +4469,8 @@ def fsycl_std_layout_kernel_params: Flag<["-"], "fsycl-std-layout-kernel-params"
 def fsycl_allow_func_ptr : Flag<["-"], "fsycl-allow-func-ptr">,
   HelpText<"Allow function pointers in SYCL device.">;
 def fno_sycl_allow_func_ptr : Flag<["-"], "fno-sycl-allow-func-ptr">;
-def fsycl_enable_optimizations: Flag<["-"], "fsycl-enable-optimizations">,
-  HelpText<"Experimental flag enabling standard optimization in the front-end.">;
+def fenable_sycl_dae : Flag<["-"], "fenable-sycl-dae">,
+  HelpText<"Enable Dead Argument Elimination in SPIR kernels">;
 
 } // let Flags = [CC1Option]
 
