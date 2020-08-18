@@ -6198,7 +6198,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       HeaderOpt += Output.getFilename();
       CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
     }
-    CmdArgs.push_back("-fsycl-unnamed-lambda");
+    if (Args.hasArg(options::OPT_fsycl_unnamed_lambda))
+      CmdArgs.push_back("-fsycl-unnamed-lambda");
 
     // Enable generation of USM address spaces as opt-in.
     // __ENABLE_USM_ADDR_SPACE__ will be used during compilation of SYCL headers
