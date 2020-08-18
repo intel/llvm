@@ -1102,7 +1102,7 @@ void KernelObjVisitor::VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
   // Don't continue descending if none of the handlers 'care'. This could be 'if
   // constexpr' starting in C++17.  Until then, we have to count on the
   // optimizer to realize "if (false)" is a dead branch.
-  if (AnyTrue<Handlers::VisitUnionBody...>::value)
+  if (AnyTrue<Handlers::VisitUnionBody...>::Value)
     VisitUnionImpl(
         Owner, Parent, Wrapper,
         HandlerFilter<Handlers::VisitUnionBody, Handlers>(handlers).Handler...);
