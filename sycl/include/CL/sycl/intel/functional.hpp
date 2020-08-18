@@ -53,6 +53,7 @@ template <> struct maximum<void> {
 #endif
 
 template <typename T = void> using plus = std::plus<T>;
+template <typename T = void> using multiplies = std::multiplies<T>;
 template <typename T = void> using bit_or = std::bit_or<T>;
 template <typename T = void> using bit_xor = std::bit_xor<T>;
 template <typename T = void> using bit_and = std::bit_and<T>;
@@ -102,6 +103,16 @@ __SYCL_CALC_OVERLOAD(GroupOpFP, FMax, intel::maximum<T>)
 __SYCL_CALC_OVERLOAD(GroupOpISigned, IAdd, intel::plus<T>)
 __SYCL_CALC_OVERLOAD(GroupOpIUnsigned, IAdd, intel::plus<T>)
 __SYCL_CALC_OVERLOAD(GroupOpFP, FAdd, intel::plus<T>)
+
+__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformIMul, intel::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformIMul, intel::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, NonUniformFMul, intel::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseOr, intel::bit_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseOr, intel::bit_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseXor, intel::bit_xor<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseXor, intel::bit_xor<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseAnd, intel::bit_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseAnd, intel::bit_and<T>)
 
 #undef __SYCL_CALC_OVERLOAD
 

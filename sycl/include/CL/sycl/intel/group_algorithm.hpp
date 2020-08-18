@@ -84,17 +84,39 @@ template <typename T, typename V> struct identity<T, intel::plus<V>> {
 };
 
 template <typename T, typename V> struct identity<T, intel::minimum<V>> {
-  static constexpr T value = (std::numeric_limits<T>::max)();
+  static constexpr T value = std::numeric_limits<T>::has_infinity
+                                 ? std::numeric_limits<T>::infinity()
+                                 : (std::numeric_limits<T>::max)();
 };
 
 template <typename T, typename V> struct identity<T, intel::maximum<V>> {
-  static constexpr T value = std::numeric_limits<T>::lowest();
+  static constexpr T value =
+      std::numeric_limits<T>::has_infinity
+          ? static_cast<T>(-std::numeric_limits<T>::infinity())
+          : std::numeric_limits<T>::lowest();
+};
+
+template <typename T, typename V> struct identity<T, intel::multiplies<V>> {
+  static constexpr T value = static_cast<T>(1);
+};
+
+template <typename T, typename V> struct identity<T, intel::bit_or<V>> {
+  static constexpr T value = 0;
+};
+
+template <typename T, typename V> struct identity<T, intel::bit_xor<V>> {
+  static constexpr T value = 0;
+};
+
+template <typename T, typename V> struct identity<T, intel::bit_and<V>> {
+  static constexpr T value = ~static_cast<T>(0);
 };
 
 template <typename T>
 using native_op_list =
     type_list<intel::plus<T>, intel::bit_or<T>, intel::bit_xor<T>,
-              intel::bit_and<T>, intel::maximum<T>, intel::minimum<T>>;
+              intel::bit_and<T>, intel::maximum<T>, intel::minimum<T>,
+              intel::multiplies<T>>;
 
 template <typename T, typename BinaryOperation> struct is_native_op {
   static constexpr bool value =
