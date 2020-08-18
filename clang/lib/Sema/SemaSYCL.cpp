@@ -784,6 +784,16 @@ template <typename T> using bind_param_t = typename bind_param<T>::type;
 class KernelObjVisitor {
   Sema &SemaRef;
 
+  template <typename ParentTy, typename... Handlers>
+  void VisitUnionImpl(const CXXRecordDecl *Owner, ParentTy &Parent,
+                      const CXXRecordDecl *Wrapper, Handlers &... handlers) {
+    (void)std::initializer_list<int>{
+        (handlers.enterUnion(Owner, Parent), 0)...};
+    VisitRecordHelper(Wrapper, Wrapper->fields(), handlers...);
+    (void)std::initializer_list<int>{
+        (handlers.leaveUnion(Owner, Parent), 0)...};
+  }
+
 public:
   KernelObjVisitor(Sema &S) : SemaRef(S) {}
 
@@ -860,65 +870,9 @@ public:
   template <typename ParentTy, typename... Handlers>
   void VisitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
                    const CXXRecordDecl *Wrapper, Handlers &... handlers);
-
-  // Base case, only calls these when filtered.
-  template <typename... FilteredHandlers, typename ParentTy>
-  std::enable_if_t<(sizeof...(FilteredHandlers) > 0)>
-  VisitUnion(FilteredHandlers &... handlers, const CXXRecordDecl *Owner,
-             ParentTy &Parent, const CXXRecordDecl *Wrapper) {
-    (void)std::initializer_list<int>{
-        (handlers.enterUnion(Owner, Parent), 0)...};
-    VisitRecordHelper(Wrapper, Wrapper->fields(), handlers...);
-    (void)std::initializer_list<int>{
-        (handlers.leaveUnion(Owner, Parent), 0)...};
-  }
-
-  // Handle empty base case.
-  template <typename ParentTy>
+  template <typename ParentTy, typename... Handlers>
   void VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
-                  const CXXRecordDecl *Wrapper) {}
-
-  template <typename... FilteredHandlers, typename ParentTy,
-            typename CurHandler, typename... Handlers>
-  std::enable_if_t<!CurHandler::VisitUnionBody &&
-                   (sizeof...(FilteredHandlers) > 0)>
-  VisitUnion(FilteredHandlers &... filtered_handlers,
-             const CXXRecordDecl *Owner, ParentTy &Parent,
-             const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
-             Handlers &... handlers) {
-    VisitUnion<FilteredHandlers...>(filtered_handlers..., Owner, Parent,
-                                    Wrapper, handlers...);
-  }
-
-  template <typename... FilteredHandlers, typename ParentTy,
-            typename CurHandler, typename... Handlers>
-  std::enable_if_t<CurHandler::VisitUnionBody &&
-                   (sizeof...(FilteredHandlers) > 0)>
-  VisitUnion(FilteredHandlers &... filtered_handlers,
-             const CXXRecordDecl *Owner, ParentTy &Parent,
-             const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
-             Handlers &... handlers) {
-    VisitUnion<FilteredHandlers..., CurHandler>(
-        filtered_handlers..., cur_handler, Owner, Parent, Wrapper, handlers...);
-  }
-
-  // Add overloads without having filtered-handlers
-  // to handle leading-empty argument packs.
-  template <typename ParentTy, typename CurHandler, typename... Handlers>
-  std::enable_if_t<!CurHandler::VisitUnionBody>
-  VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
-             const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
-             Handlers &... handlers) {
-    VisitUnion(Owner, Parent, Wrapper, handlers...);
-  }
-
-  template <typename ParentTy, typename CurHandler, typename... Handlers>
-  std::enable_if_t<CurHandler::VisitUnionBody>
-  VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
-             const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
-             Handlers &... handlers) {
-    VisitUnion<CurHandler>(cur_handler, Owner, Parent, Wrapper, handlers...);
-  }
+                  const CXXRecordDecl *Wrapper, Handlers &... handlers);
 
   template <typename... Handlers>
   void VisitRecordHelper(const CXXRecordDecl *Owner,
@@ -1043,11 +997,7 @@ void KernelObjVisitor::VisitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
 
 // A base type that the SYCL OpenCL Kernel construction task uses to implement
 // individual tasks.
-class SyclKernelFieldHandler {
-protected:
-  Sema &SemaRef;
-  SyclKernelFieldHandler(Sema &S) : SemaRef(S) {}
-
+class SyclKernelFieldHandlerBase {
 public:
   static constexpr const bool VisitUnionBody = false;
   // Mark these virtual so that we can use override in the implementer classes,
@@ -1111,8 +1061,52 @@ public:
   virtual bool nextElement(QualType) { return true; }
   virtual bool leaveArray(FieldDecl *, QualType, int64_t) { return true; }
 
-  virtual ~SyclKernelFieldHandler() = default;
+  virtual ~SyclKernelFieldHandlerBase() = default;
 };
+
+// A class to act as the direct base for all the SYCL OpenCL Kernel construction
+// tasks that contains a reference to Sema (and potentially any other
+// universally required data).
+class SyclKernelFieldHandler : public SyclKernelFieldHandlerBase {
+protected:
+  Sema &SemaRef;
+  SyclKernelFieldHandler(Sema &S) : SemaRef(S) {}
+};
+
+// A class to represent the 'do nothing' case for filtering purposes.
+class SyclEmptyHandler final : public SyclKernelFieldHandlerBase {};
+SyclEmptyHandler GlobalEmptyHandler;
+
+template <bool Keep, typename H> struct HandlerFilter;
+template <typename H> struct HandlerFilter<true, H> {
+  H &Handler;
+  HandlerFilter(H &Handler) : Handler(Handler) {}
+};
+template <typename H> struct HandlerFilter<false, H> {
+  SyclEmptyHandler &Handler = GlobalEmptyHandler;
+  HandlerFilter(H &Handler) {}
+};
+
+template <bool B, bool... Rest> struct AnyTrue;
+
+template <bool B> struct AnyTrue<B> { static constexpr bool value = B; };
+
+template <bool B, bool... Rest> struct AnyTrue {
+  static constexpr bool value = B || AnyTrue<Rest...>::value;
+};
+
+template <typename ParentTy, typename... Handlers>
+void KernelObjVisitor::VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
+                                  const CXXRecordDecl *Wrapper,
+                                  Handlers &... handlers) {
+  // Don't continue descending if none of the handlers 'care'. This could be 'if
+  // constexpr' starting in C++17.  Until then, we have to count on the
+  // optimizer to realize "if (false)" is a dead branch.
+  if (AnyTrue<Handlers::VisitUnionBody...>::value)
+    VisitUnionImpl(
+        Owner, Parent, Wrapper,
+        HandlerFilter<Handlers::VisitUnionBody, Handlers>(handlers).Handler...);
+}
 
 // A type to check the validity of all of the argument types.
 class SyclKernelFieldChecker : public SyclKernelFieldHandler {
