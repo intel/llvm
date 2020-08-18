@@ -38,6 +38,10 @@ def do_configure(args):
         libclc_targets_to_build = 'nvptx64--;nvptx64--nvidiacl'
         sycl_build_pi_cuda = 'ON'
 
+    # replace not append, so ARM ^ X86
+    if args.arm:
+        llvm_targets_to_build = 'ARM;AArch64'
+
     if args.no_werror:
         sycl_werror = 'OFF'
 
@@ -128,6 +132,7 @@ def main():
     parser.add_argument("-t", "--build-type",
                         metavar="BUILD_TYPE", default="Release", help="build type: Debug, Release")
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
+    parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
     parser.add_argument("--system-ocl", action='store_true', help="use OpenCL deps from system (no download)")

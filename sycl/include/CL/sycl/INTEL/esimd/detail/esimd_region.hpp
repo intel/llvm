@@ -17,7 +17,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace intel {
+namespace INTEL {
 namespace gpu {
 
 // The common base type of region types.
@@ -114,6 +114,6 @@ template <typename T, typename U> T getBaseRegion(std::pair<T, U> Reg) {
 }
 
 } // namespace gpu
-} // namespace intel
+} // namespace INTEL
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

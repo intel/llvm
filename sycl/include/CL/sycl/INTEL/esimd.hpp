@@ -10,10 +10,10 @@
 
 #pragma once
 
-#include <CL/sycl/intel/esimd/esimd.hpp>
-#include <CL/sycl/intel/esimd/esimd_math.hpp>
-#include <CL/sycl/intel/esimd/esimd_memory.hpp>
-#include <CL/sycl/intel/esimd/esimd_view.hpp>
+#include <CL/sycl/INTEL/esimd/esimd.hpp>
+#include <CL/sycl/INTEL/esimd/esimd_math.hpp>
+#include <CL/sycl/INTEL/esimd/esimd_memory.hpp>
+#include <CL/sycl/INTEL/esimd/esimd_view.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define SYCL_ESIMD_KERNEL __attribute__((sycl_explicit_simd))

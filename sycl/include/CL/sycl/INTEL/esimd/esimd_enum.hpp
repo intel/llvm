@@ -15,7 +15,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace intel {
+namespace INTEL {
 namespace gpu {
 
 using uchar = unsigned char;
@@ -106,6 +106,6 @@ enum class CacheHint : uint8_t {
 
 } // namespace gpu
 
-} // namespace intel
+} // namespace INTEL
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

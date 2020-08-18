@@ -10,11 +10,11 @@
 
 #pragma once
 
-#include <CL/sycl/intel/esimd/detail/esimd_types.hpp>
+#include <CL/sycl/INTEL/esimd/detail/esimd_types.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace intel {
+namespace INTEL {
 namespace gpu {
 
 //
@@ -380,6 +380,6 @@ private:
 };
 
 } // namespace gpu
-} // namespace intel
+} // namespace INTEL
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

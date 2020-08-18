@@ -139,18 +139,16 @@ __SYCL_EXPORT device getDeviceFromHandler(handler &);
 #if defined(__SYCL_ID_QUERIES_FIT_IN_INT__)
 template <typename T> struct NotIntMsg;
 
-// TODO reword for "`fsycl-id-queries-fit-in-int' optimization flag." when
-// implemented
 template <int Dims> struct NotIntMsg<range<Dims>> {
-  constexpr static char *Msg = "Provided range is out of integer limits. "
-                               "Pass `-U__SYCL_ID_QUERIES_FIT_IN_INT__' to "
-                               "disable range check.";
+  constexpr static const char *Msg =
+      "Provided range is out of integer limits. Pass "
+      "`-fno-sycl-id-queries-fit-in-int' to disable range check.";
 };
 
 template <int Dims> struct NotIntMsg<id<Dims>> {
-  constexpr static char *Msg = "Provided offset is out of integer limits. "
-                               "Pass `-U__SYCL_ID_QUERIES_FIT_IN_INT__' to "
-                               "disable offset check.";
+  constexpr static const char *Msg =
+      "Provided offset is out of integer limits. Pass "
+      "`-fno-sycl-id-queries-fit-in-int' to disable offset check.";
 };
 #endif
 
@@ -759,8 +757,9 @@ public:
   /// \param Acc is a SYCL accessor describing required memory region.
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget>
-  void require(accessor<DataT, Dims, AccMode, AccTarget,
-                        access::placeholder::true_t> &Acc) {
+  void
+  require(accessor<DataT, Dims, AccMode, AccTarget, access::placeholder::true_t>
+              Acc) {
 #ifndef __SYCL_DEVICE_ONLY__
     associateWithHandler(&Acc, AccTarget);
 #else

@@ -9736,6 +9736,8 @@ def warn_opencl_generic_address_space_arg : Warning<
   "passing non-generic address space pointer to %0"
   " may cause dynamic conversion affecting performance">,
   InGroup<Conversion>, DefaultIgnore;
+def err_bad_union_kernel_param_members : Error<
+  "%0 cannot be used inside a union kernel parameter">;
 
 // OpenCL v2.0 s6.13.6 -- Builtin Pipe Functions
 def err_opencl_builtin_pipe_first_arg : Error<
@@ -10949,6 +10951,8 @@ def err_sycl_kernel_incorrectly_named : Error<
   "|name is invalid. Unscoped enum requires fixed underlying type"
   "|name cannot be a type in the \"std\" namespace"
   "}0">;
+def err_sycl_kernel_not_function_object
+    : Error<"kernel parameter must be a lambda or function object">;
 def err_sycl_restrict : Error<
   "SYCL kernel cannot "
 "%select{use a non-const global variable"

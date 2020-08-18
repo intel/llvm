@@ -72,6 +72,10 @@ struct _pi_platform {
   // Cache versions info from zeDriverGetProperties.
   std::string ZeDriverVersion;
   std::string ZeDriverApiVersion;
+
+  // Cache pi_devices for reuse
+  std::vector<pi_device> PiDevicesCache;
+  std::mutex PiDevicesCacheMutex;
 };
 
 struct _pi_device : _pi_object {

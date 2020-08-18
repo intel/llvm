@@ -15,12 +15,12 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/intel/esimd.hpp>
+#include <CL/sycl/INTEL/esimd.hpp>
 #include <algorithm>
 #include <iostream>
 
 using namespace cl::sycl;
-using namespace sycl::intel::gpu;
+using namespace sycl::INTEL::gpu;
 using namespace std;
 
 #define LOG2_ELEMENTS 16 // 24
@@ -527,7 +527,7 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
   auto e = pQueue_->submit([&](handler &cgh) {
     cgh.parallel_for<class Sort256>(
         SortGlobalRange * SortLocalRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
-          using namespace sycl::intel::gpu;
+          using namespace sycl::INTEL::gpu;
           cmk_bitonic_sort_256(pInputs, pOutputs, i);
         });
   });
@@ -560,7 +560,7 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
       mergeEvent[k] = pQueue_->submit([&](handler &cgh) {
         cgh.parallel_for<class Merge>(MergeGlobalRange * MergeLocalRange,
                                       [=](id<1> tid) SYCL_ESIMD_KERNEL {
-                                        using namespace sycl::intel::gpu;
+                                        using namespace sycl::INTEL::gpu;
                                         cmk_bitonic_merge(pOutputs, j, i, tid);
                                       });
       });
