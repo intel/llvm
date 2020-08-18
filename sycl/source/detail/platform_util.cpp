@@ -19,8 +19,8 @@
 #endif
 
 #if defined(SYCL_RT_OS_LINUX)
-#include <unistd.h>
 #include <errno.h>
+#include <unistd.h>
 #endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -86,7 +86,7 @@ uint32_t PlatformUtil::getMemCacheLineSize() {
 #elif defined(SYCL_RT_OS_LINUX) && defined(_SC_LEVEL2_DCACHE_LINESIZE)
   long linesize = sysconf(_SC_LEVEL2_DCACHE_LINESIZE);
   if (linesize > 0) {
-      return linesize;
+    return linesize;
   }
 #else
 #warning Your platform is not supported.
@@ -102,7 +102,7 @@ uint64_t PlatformUtil::getMemCacheSize() {
 #elif defined(SYCL_RT_OS_LINUX) && defined(_SC_LEVEL2_DCACHE_SIZE)
   long cachesize = sysconf(_SC_LEVEL2_DCACHE_SIZE);
   if (cachesize > 0) {
-      return cachesize;
+    return cachesize;
   }
 #else
 #warning Your platform is not supported.
