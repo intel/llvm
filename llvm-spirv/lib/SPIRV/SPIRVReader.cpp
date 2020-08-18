@@ -280,8 +280,14 @@ Value *SPIRVToLLVM::mapFunction(SPIRVFunction *BF, Function *F) {
 // %c = extractelement <3 x i64> %b, i32 idx
 // %d = extractelement <3 x i64> %b, i32 idx
 // With:
-// %c = call spir_func i64 @_Z12get_group_idj(idx)
-// %d = call spir_func i64 @_Z12get_group_idj(idx)
+// %0 = call spir_func i64 @_Z13get_global_idj(i32 0) #1
+// %1 = insertelement <3 x i64> undef, i64 %0, i32 0
+// %2 = call spir_func i64 @_Z13get_global_idj(i32 1) #1
+// %3 = insertelement <3 x i64> %1, i64 %2, i32 1
+// %4 = call spir_func i64 @_Z13get_global_idj(i32 2) #1
+// %5 = insertelement <3 x i64> %3, i64 %4, i32 2
+// %c = extractelement <3 x i64> %5, i32 idx
+// %d = extractelement <3 x i64> %5, i32 idx
 bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
                                               SPIRVBuiltinVariableKind Kind) {
   std::string FuncName = SPIRSPIRVBuiltinVariableMap::rmap(Kind);
@@ -321,21 +327,28 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
     I->replaceAllUsesWith(Call);
   };
 
-  // If HasIndexArg is true, we are going over users of the Load instruction,
-  // which are expected to be ExtractElement instructions. The result of the
-  // ExtractElement instructions is considered as a usage of the GV and should
-  // be replaced with Func.
+  // If HasIndexArg is true, we create 3 built-in calls and insertelement to
+  // get 3-element vector filled with ids and replace uses of Load instruction
+  // with this vector.
   // If HasIndexArg is false, the result of the Load instruction is the value
   // which should be replaced with the Func.
   auto FindAndReplace = [&](LoadInst *LD) {
+    std::vector<Value *> Vectors;
     Loads.push_back(LD);
     if (HasIndexArg) {
-      for (auto *LoadUser : LD->users()) {
-        if (auto *Extract = dyn_cast<ExtractElementInst>(LoadUser)) {
-          Extracts.push_back(Extract);
-          Replace({Extract->getIndexOperand()}, Extract);
-        }
+      auto *VecTy = cast<VectorType>(
+          LD->getPointerOperandType()->getPointerElementType());
+      Value *EmptyVec = UndefValue::get(VecTy);
+      Vectors.push_back(EmptyVec);
+      for (unsigned I = 0; I < VecTy->getNumElements(); ++I) {
+        auto *Idx = ConstantInt::get(Type::getInt32Ty(*Context), I);
+        auto *Call = CallInst::Create(Func, {Idx}, "", LD);
+        setAttrByCalledFunc(Call);
+        auto *Insert = InsertElementInst::Create(Vectors.back(), Call, Idx);
+        Insert->insertAfter(Call);
+        Vectors.push_back(Insert);
       }
+      LD->replaceAllUsesWith(Vectors.back());
     } else {
       Replace({}, LD);
     }
