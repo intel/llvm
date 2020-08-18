@@ -13,7 +13,7 @@
 // unconditionally. Using operators specific for spirv 1.3 and higher with
 // -spirv-max-version=1.1 being set by default causes assert/check fails
 // in spirv translator.
-// RUNx: %clangxx -fsycl -fsycl-targets=%sycl_triple -DSPIRV_1_3 %s -o %t.1.3.out
+// RUNx: %clangxx -fsycl -fsycl-targets=%sycl_triple -DSPIRV_1_3 %s -o %t13.out
 
 #include <CL/sycl.hpp>
 #include <algorithm>
