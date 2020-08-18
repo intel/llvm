@@ -1739,17 +1739,55 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     InitExprs.push_back(MemberInit.get());
   }
 
+  int getDims() {
+    int Dims = 0;
+    for (int i = MemberExprBases.size() - 1; i >= 0; --i) {
+      if (!isa<ArraySubscriptExpr>(MemberExprBases[i]))
+        break;
+      ++Dims;
+    }
+    return Dims;
+  }
+
+  int64_t getArrayIndex(int i) {
+    ArraySubscriptExpr *LastArrayRef =
+        cast<ArraySubscriptExpr>(MemberExprBases[i]);
+    Expr *LastIdx = LastArrayRef->getIdx();
+    llvm::APSInt Result;
+    SemaRef.VerifyIntegerConstantExpression(LastIdx, &Result);
+    return Result.getExtValue();
+  }
+
   void createExprForScalarElement(FieldDecl *FD) {
-    InitializedEntity ArrayEntity =
+    llvm::SmallVector<InitializedEntity, 4> InitEntities;
+
+    InitializedEntity MemberEntity =
         InitializedEntity::InitializeMember(FD, &VarEntity);
+    InitializedEntity Entity = InitializedEntity::InitializeElement(
+        SemaRef.getASTContext(), ArrayIndex, MemberEntity);
+    InitEntities.push_back(Entity);
+    // For multi-dimensional arrays, an initialized entity needs to be
+    // generated for each 'dimension'. For example, the initialized entity
+    // for s.array[x][y][z] is constructed using initialized entities for
+    // s.array[x][y], s.array[x] and s.array. InitEntities is used to maintain
+    // this. MemberExprBases is used to get the array index for 'current
+    // dimension'.
+    for (int i = MemberExprBases.size() - 2; i >= 0; --i) {
+      if (!isa<ArraySubscriptExpr>(MemberExprBases[i]))
+        break;
+      InitializedEntity NewEntity = InitializedEntity::InitializeElement(
+          SemaRef.getASTContext(), getArrayIndex(i), InitEntities.back());
+      InitEntities.push_back(NewEntity);
+    }
+
+    ArrayIndex++;
+
     InitializationKind InitKind =
         InitializationKind::CreateCopy(SourceLocation(), SourceLocation());
     Expr *DRE = createInitExpr(FD);
-    InitializedEntity Entity = InitializedEntity::InitializeElement(
-        SemaRef.getASTContext(), ArrayIndex, ArrayEntity);
-    ArrayIndex++;
-    InitializationSequence InitSeq(SemaRef, Entity, InitKind, DRE);
-    ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, DRE);
+    InitializationSequence InitSeq(SemaRef, InitEntities.back(), InitKind, DRE);
+    ExprResult MemberInit =
+        InitSeq.Perform(SemaRef, InitEntities.back(), InitKind, DRE);
     InitExprs.push_back(MemberInit.get());
   }
 
@@ -1763,7 +1801,14 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     Expr *ILE = new (SemaRef.getASTContext())
         InitListExpr(SemaRef.getASTContext(), SourceLocation(), ArrayInitExprs,
                      SourceLocation());
-    ILE->setType(FD->getType());
+    QualType ILEType = FD->getType();
+    for (int i = getDims(); i > 1; i--) {
+      const ConstantArrayType *CAT =
+          SemaRef.getASTContext().getAsConstantArrayType(ILEType);
+      assert(CAT && "Should only be called on constant-size array.");
+      ILEType = CAT->getElementType();
+    }
+    ILE->setType(ILEType);
     InitExprs.push_back(ILE);
   }
 
@@ -2027,15 +2072,13 @@ public:
   }
 
   bool nextElement(QualType ET) final {
-    ArraySubscriptExpr *LastArrayRef =
-        cast<ArraySubscriptExpr>(MemberExprBases.back());
+    // Top of MemberExprBases holds ArraySubscriptExpression of element
+    // we just finished processing.
+    int64_t nextIndex = getArrayIndex((MemberExprBases.size() - 1)) + 1;
     MemberExprBases.pop_back();
-    Expr *LastIdx = LastArrayRef->getIdx();
-    llvm::APSInt Result;
-    SemaRef.VerifyIntegerConstantExpression(LastIdx, &Result);
     Expr *ArrayBase = MemberExprBases.back();
-    ExprResult IndexExpr = SemaRef.ActOnIntegerConstant(
-        SourceLocation(), Result.getExtValue() + 1);
+    ExprResult IndexExpr =
+        SemaRef.ActOnIntegerConstant(SourceLocation(), nextIndex);
     ExprResult ElementBase = SemaRef.CreateBuiltinArraySubscriptExpr(
         ArrayBase, SourceLocation(), IndexExpr.get(), SourceLocation());
     MemberExprBases.push_back(ElementBase.get());
