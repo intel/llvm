@@ -52,7 +52,7 @@ define dso_local spir_func <32 x i32>  @FUNC_3() !sycl_explicit_simd !1 {
 
 define dso_local spir_func <32 x i32>  @FUNC_4() !sycl_explicit_simd !1 {
   %ret_val = call spir_func  <32 x i32>  @_Z33__esimd_flat_block_read_unalignedIjLi32ELN2cm3gen9CacheHintE0ELS2_0EENS1_13__vector_typeIT_XT0_EE4typeEy(i64 0)
-; CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.block.ld.unaligned.v32i32(i64 0)
+; CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.block.ld.unaligned.v32i32.i64(i64 0)
   ret <32 x i32>  %ret_val
 }
 
@@ -60,7 +60,7 @@ define dso_local spir_func void  @FUNC_5() !sycl_explicit_simd !1 {
   %a_1 = alloca  <32 x i32>
   %1 = load  <32 x i32>,  <32 x i32>* %a_1
   call spir_func  void  @_Z24__esimd_flat_block_writeIjLi32ELN2cm3gen9CacheHintE0ELS2_0EEvyNS1_13__vector_typeIT_XT0_EE4typeE(i64 0,  <32 x i32> %1)
-; CHECK: call void @llvm.genx.svm.block.st.v32i32(i64 0, <32 x i32> %{{[0-9a-zA-Z_.]+}})
+; CHECK: call void @llvm.genx.svm.block.st.i64.v32i32(i64 0, <32 x i32> %{{[0-9a-zA-Z_.]+}})
   ret void
 }
 

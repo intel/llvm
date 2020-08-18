@@ -376,6 +376,15 @@ TEST_F(TargetDeclTest, ClassTemplate) {
                {"template<> class Foo<int *>", Rel::TemplateInstantiation},
                {"template <typename T> class Foo<T *>", Rel::TemplatePattern});
 
+  Code = R"cpp(
+    // Template template argument.
+    template<typename T> struct Vector {};
+    template <template <typename> class Container>
+    struct A {};
+    A<[[Vector]]> a;
+  )cpp";
+  EXPECT_DECLS("TemplateArgumentLoc", {"template <typename T> struct Vector"});
+
   Flags.push_back("-std=c++17"); // for CTAD tests
 
   Code = R"cpp(
@@ -746,6 +755,30 @@ TEST_F(TargetDeclTest, ObjC) {
     void test([[Foo]] *p);
   )cpp";
   EXPECT_DECLS("ObjCInterfaceTypeLoc", "@interface Foo");
+
+  Code = R"cpp(// Don't consider implicit interface as the target.
+    @implementation [[Implicit]]
+    @end
+  )cpp";
+  EXPECT_DECLS("ObjCImplementationDecl", "@implementation Implicit");
+
+  Code = R"cpp(
+    @interface Foo
+    @end
+    @implementation [[Foo]]
+    @end
+  )cpp";
+  EXPECT_DECLS("ObjCImplementationDecl", "@interface Foo");
+
+  Code = R"cpp(
+    @interface Foo
+    @end
+    @interface Foo (Ext)
+    @end
+    @implementation [[Foo]] (Ext)
+    @end
+  )cpp";
+  EXPECT_DECLS("ObjCCategoryImplDecl", "@interface Foo(Ext)");
 
   Code = R"cpp(
     @protocol Foo

@@ -41,8 +41,7 @@ define i1 @t0_extrause(i8 %x) {
 
 define i1 @t1(i8 %x) {
 ; CHECK-LABEL: @t1(
-; CHECK-NEXT:    [[NEG_X:%.*]] = sub nsw i8 0, [[X:%.*]]
-; CHECK-NEXT:    [[CMP:%.*]] = icmp sge i8 [[NEG_X]], [[X]]
+; CHECK-NEXT:    [[CMP:%.*]] = icmp slt i8 [[X:%.*]], 1
 ; CHECK-NEXT:    ret i1 [[CMP]]
 ;
   %neg_x = sub nsw i8 0, %x
@@ -52,8 +51,7 @@ define i1 @t1(i8 %x) {
 
 define i1 @t2(i8 %x) {
 ; CHECK-LABEL: @t2(
-; CHECK-NEXT:    [[NEG_X:%.*]] = sub nsw i8 0, [[X:%.*]]
-; CHECK-NEXT:    [[CMP:%.*]] = icmp slt i8 [[NEG_X]], [[X]]
+; CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i8 [[X:%.*]], 0
 ; CHECK-NEXT:    ret i1 [[CMP]]
 ;
   %neg_x = sub nsw i8 0, %x
@@ -63,8 +61,7 @@ define i1 @t2(i8 %x) {
 
 define i1 @t3(i8 %x) {
 ; CHECK-LABEL: @t3(
-; CHECK-NEXT:    [[NEG_X:%.*]] = sub nsw i8 0, [[X:%.*]]
-; CHECK-NEXT:    [[CMP:%.*]] = icmp sle i8 [[NEG_X]], [[X]]
+; CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i8 [[X:%.*]], -1
 ; CHECK-NEXT:    ret i1 [[CMP]]
 ;
   %neg_x = sub nsw i8 0, %x
@@ -74,8 +71,7 @@ define i1 @t3(i8 %x) {
 
 define i1 @t4(i8 %x) {
 ; CHECK-LABEL: @t4(
-; CHECK-NEXT:    [[NEG_X:%.*]] = sub nsw i8 0, [[X:%.*]]
-; CHECK-NEXT:    [[CMP:%.*]] = icmp ugt i8 [[NEG_X]], [[X]]
+; CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i8 [[X:%.*]], 0
 ; CHECK-NEXT:    ret i1 [[CMP]]
 ;
   %neg_x = sub nsw i8 0, %x
@@ -85,8 +81,7 @@ define i1 @t4(i8 %x) {
 
 define i1 @t5(i8 %x) {
 ; CHECK-LABEL: @t5(
-; CHECK-NEXT:    [[NEG_X:%.*]] = sub nsw i8 0, [[X:%.*]]
-; CHECK-NEXT:    [[CMP:%.*]] = icmp uge i8 [[NEG_X]], [[X]]
+; CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i8 [[X:%.*]], -1
 ; CHECK-NEXT:    ret i1 [[CMP]]
 ;
   %neg_x = sub nsw i8 0, %x
@@ -96,8 +91,7 @@ define i1 @t5(i8 %x) {
 
 define i1 @t6(i8 %x) {
 ; CHECK-LABEL: @t6(
-; CHECK-NEXT:    [[NEG_X:%.*]] = sub nsw i8 0, [[X:%.*]]
-; CHECK-NEXT:    [[CMP:%.*]] = icmp ult i8 [[NEG_X]], [[X]]
+; CHECK-NEXT:    [[CMP:%.*]] = icmp slt i8 [[X:%.*]], 0
 ; CHECK-NEXT:    ret i1 [[CMP]]
 ;
   %neg_x = sub nsw i8 0, %x
@@ -107,8 +101,7 @@ define i1 @t6(i8 %x) {
 
 define i1 @t7(i8 %x) {
 ; CHECK-LABEL: @t7(
-; CHECK-NEXT:    [[NEG_X:%.*]] = sub nsw i8 0, [[X:%.*]]
-; CHECK-NEXT:    [[CMP:%.*]] = icmp ule i8 [[NEG_X]], [[X]]
+; CHECK-NEXT:    [[CMP:%.*]] = icmp slt i8 [[X:%.*]], 1
 ; CHECK-NEXT:    ret i1 [[CMP]]
 ;
   %neg_x = sub nsw i8 0, %x
@@ -118,8 +111,7 @@ define i1 @t7(i8 %x) {
 
 define i1 @t8(i8 %x) {
 ; CHECK-LABEL: @t8(
-; CHECK-NEXT:    [[NEG_X:%.*]] = sub nsw i8 0, [[X:%.*]]
-; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i8 [[NEG_X]], [[X]]
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i8 [[X:%.*]], 0
 ; CHECK-NEXT:    ret i1 [[CMP]]
 ;
   %neg_x = sub nsw i8 0, %x
@@ -129,8 +121,7 @@ define i1 @t8(i8 %x) {
 
 define i1 @t9(i8 %x) {
 ; CHECK-LABEL: @t9(
-; CHECK-NEXT:    [[NEG_X:%.*]] = sub nsw i8 0, [[X:%.*]]
-; CHECK-NEXT:    [[CMP:%.*]] = icmp ne i8 [[NEG_X]], [[X]]
+; CHECK-NEXT:    [[CMP:%.*]] = icmp ne i8 [[X:%.*]], 0
 ; CHECK-NEXT:    ret i1 [[CMP]]
 ;
   %neg_x = sub nsw i8 0, %x

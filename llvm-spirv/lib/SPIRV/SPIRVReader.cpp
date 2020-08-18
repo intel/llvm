@@ -1561,6 +1561,14 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return mapValue(BV, transValue(BI, nullptr, nullptr, false));
   }
 
+  case OpConstFunctionPointerINTEL: {
+    SPIRVConstFunctionPointerINTEL *BC =
+        static_cast<SPIRVConstFunctionPointerINTEL *>(BV);
+    SPIRVFunction *F = BC->getFunction();
+    BV->setName(F->getName());
+    return mapValue(BV, transFunction(F));
+  }
+
   case OpUndef:
     return mapValue(BV, UndefValue::get(transType(BV->getType())));
 
@@ -2277,14 +2285,6 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     // Don't set attributes, because at translation time we don't know which
     // function exactly we are calling.
     return mapValue(BV, Call);
-  }
-
-  case OpFunctionPointerINTEL: {
-    SPIRVFunctionPointerINTEL *BC =
-        static_cast<SPIRVFunctionPointerINTEL *>(BV);
-    SPIRVFunction *F = BC->getFunction();
-    BV->setName(F->getName());
-    return mapValue(BV, transFunction(F));
   }
 
   case OpAssumeTrueINTEL: {
@@ -3244,7 +3244,6 @@ bool SPIRVToLLVM::translate() {
     if (BV->getStorageClass() != StorageClassFunction)
       transValue(BV, nullptr, nullptr);
   }
-  transGlobalAnnotations();
 
   // Compile unit might be needed during translation of debug intrinsics.
   for (SPIRVExtInst *EI : BM->getDebugInstVec()) {
@@ -3263,7 +3262,10 @@ bool SPIRVToLLVM::translate() {
 
   for (unsigned I = 0, E = BM->getNumFunctions(); I != E; ++I) {
     transFunction(BM->getFunction(I));
+    transUserSemantic(BM->getFunction(I));
   }
+
+  transGlobalAnnotations();
 
   if (!transMetadata())
     return false;
@@ -3524,6 +3526,38 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
         C, ConstantExpr::getBitCast(GS, Int8PtrTyPrivate),
         UndefValue::get(Int8PtrTyPrivate), UndefValue::get(Int32Ty)};
 
+    GlobalAnnotations.push_back(ConstantStruct::getAnon(Fields));
+  }
+}
+
+// Having UserSemantic decoration on Function is against the spec, but we allow
+// this for various purposes (like prototyping new features when we need to
+// attach some information on function and propagate that through SPIR-V and
+// ect.)
+void SPIRVToLLVM::transUserSemantic(SPIRV::SPIRVFunction *Fun) {
+  auto TransFun = transFunction(Fun);
+  for (auto UsSem : Fun->getDecorationStringLiteral(DecorationUserSemantic)) {
+    auto V = cast<Value>(TransFun);
+    Constant *StrConstant =
+        ConstantDataArray::getString(*Context, StringRef(UsSem));
+    auto *GS = new GlobalVariable(
+        *TransFun->getParent(), StrConstant->getType(),
+        /*IsConstant*/ true, GlobalValue::PrivateLinkage, StrConstant, "");
+
+    GS->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
+    GS->setSection("llvm.metadata");
+
+    Type *ResType = PointerType::getInt8PtrTy(
+        V->getContext(), V->getType()->getPointerAddressSpace());
+    Constant *C =
+        ConstantExpr::getPointerBitCastOrAddrSpaceCast(TransFun, ResType);
+
+    Type *Int8PtrTyPrivate = Type::getInt8PtrTy(*Context, SPIRAS_Private);
+    IntegerType *Int32Ty = Type::getInt32Ty(*Context);
+
+    llvm::Constant *Fields[4] = {
+        C, ConstantExpr::getBitCast(GS, Int8PtrTyPrivate),
+        UndefValue::get(Int8PtrTyPrivate), UndefValue::get(Int32Ty)};
     GlobalAnnotations.push_back(ConstantStruct::getAnon(Fields));
   }
 }
