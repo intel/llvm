@@ -1089,7 +1089,7 @@ template <typename H> struct HandlerFilter<false, H> {
 
 template <bool B, bool... Rest> struct AnyTrue;
 
-template <bool B> struct AnyTrue<B> { static constexpr bool value = B; };
+template <bool B> struct AnyTrue<B> { static constexpr bool Value = B; };
 
 template <bool B, bool... Rest> struct AnyTrue {
   static constexpr bool value = B || AnyTrue<Rest...>::value;
