@@ -4123,6 +4123,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-sycl-opt");
     }
+    // Turn on Dead Parameter Elimination Optimization with early optimizations
+    if (Args.hasFlag(options::OPT_fsycl_early_optimizations,
+                     options::OPT_fno_sycl_early_optimizations, true))
+      CmdArgs.push_back("-fenable-sycl-dae");
 
     // Pass the triple of host when doing SYCL
     auto AuxT = llvm::Triple(llvm::sys::getProcessTriple());
@@ -7807,6 +7811,10 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // OPT_fsycl_device_code_split is not checked as it is an alias to
   // -fsycl-device-code-split=per_source
 
+  // Turn on Dead Parameter Elimination Optimization with early optimizations
+  if (TCArgs.hasFlag(options::OPT_fsycl_early_optimizations,
+                     options::OPT_fno_sycl_early_optimizations, true))
+    addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
   if (JA.getType() == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR
     // transformations (like specialization constant intrinsic lowering) and
