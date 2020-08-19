@@ -2002,16 +2002,15 @@ cl_int ExecCGCommand::enqueueImp() {
       Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
     }
     std::vector<interop_handler::ReqToMem> ReqMemObjs;
-    // Extract the Mem Objects for all Requirements, to ensure they are
-    // available if a user ask for them inside the interop task scope
-    const auto &HandlerReq = ExecInterop->MRequirements;
-    std::for_each(
-        std::begin(HandlerReq), std::end(HandlerReq), [&](Requirement *Req) {
-          AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-          auto MemArg = reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
-          interop_handler::ReqToMem ReqToMem = std::make_pair(Req, MemArg);
-          ReqMemObjs.emplace_back(ReqToMem);
-        });
+    // Extract the Mem Objects for all Requirements, to ensure they are available if
+    // a user ask for them inside the interop task scope
+    const auto& HandlerReq = ExecInterop->MRequirements;
+    std::for_each(std::begin(HandlerReq), std::end(HandlerReq), [&](Requirement *Req) {
+      AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+      auto MemArg = reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
+      interop_handler::ReqToMem ReqToMem = std::make_pair(Req, MemArg);
+      ReqMemObjs.emplace_back(ReqToMem);
+    });
 
     std::sort(std::begin(ReqMemObjs), std::end(ReqMemObjs));
     interop_handler InteropHandler(std::move(ReqMemObjs), MQueue);
