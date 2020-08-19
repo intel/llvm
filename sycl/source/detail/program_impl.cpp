@@ -233,7 +233,7 @@ void program_impl::build_with_kernel_name(string_class KernelName,
     if (is_cacheable_with_options(BuildOptions)) {
       MProgramAndKernelCachingAllowed = true;
       MProgram = ProgramManager::getInstance().getBuiltPIProgram(
-          Module, get_context(), KernelName, this,
+          Module, get_context(), get_devices()[0], KernelName, this,
           /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
       const detail::plugin &Plugin = getPlugin();
       Plugin.call<PiApiKind::piProgramRetain>(MProgram);
@@ -356,7 +356,7 @@ void program_impl::build(const string_class &Options) {
   check_device_feature_support<info::device::is_compiler_available>(MDevices);
   vector_class<RT::PiDevice> Devices(get_pi_devices());
   const detail::plugin &Plugin = getPlugin();
-  ProgramManager::getInstance().flushSpecConstants(*this);
+  ProgramManager::getInstance().flushSpecConstants(*this, get_pi_devices()[0]);
   RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
       MProgram, Devices.size(), Devices.data(), Options.c_str(), nullptr,
       nullptr);
@@ -404,7 +404,8 @@ RT::PiKernel program_impl::get_pi_kernel(const string_class &KernelName) const {
   if (is_cacheable()) {
     std::tie(Kernel, std::ignore) =
         ProgramManager::getInstance().getOrCreateKernel(
-            MProgramModuleHandle, get_context(), KernelName, this);
+            MProgramModuleHandle, get_context(), get_devices()[0], KernelName,
+            this);
     getPlugin().call<PiApiKind::piKernelRetain>(Kernel);
   } else {
     const detail::plugin &Plugin = getPlugin();
@@ -453,9 +454,10 @@ void program_impl::create_pi_program_with_kernel_name(
     bool JITCompilationIsRequired) {
   assert(!MProgram && "This program already has an encapsulated PI program");
   ProgramManager &PM = ProgramManager::getInstance();
-  RTDeviceBinaryImage &Img = PM.getDeviceImage(
-      Module, KernelName, get_context(), JITCompilationIsRequired);
-  MProgram = PM.createPIProgram(Img, get_context());
+  RTDeviceBinaryImage &Img =
+      PM.getDeviceImage(Module, KernelName, get_context(), get_devices()[0],
+                        JITCompilationIsRequired);
+  MProgram = PM.createPIProgram(Img, get_context(), get_devices()[0]);
 }
 
 template <>

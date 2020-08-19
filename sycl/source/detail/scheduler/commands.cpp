@@ -1909,6 +1909,12 @@ cl_int ExecCGCommand::enqueueImp() {
     if (nullptr != ExecKernel->MSyclKernel) {
       assert(ExecKernel->MSyclKernel->get_info<info::kernel::context>() ==
              Context);
+      if (Context.get_devices().size() > 1) {
+        throw feature_not_supported(
+            "multiple devices within a context are not supported with "
+            "sycl::program and sycl::kernel",
+            PI_INVALID_OPERATION);
+      }
       Kernel = ExecKernel->MSyclKernel->getHandleRef();
 
       auto SyclProg = detail::getSyclObjImpl(
@@ -1920,15 +1926,15 @@ cl_int ExecCGCommand::enqueueImp() {
             detail::ProgramManager::getInstance().getOrCreateKernel(
                 ExecKernel->MOSModuleHandle,
                 ExecKernel->MSyclKernel->get_info<info::kernel::context>(),
-                ExecKernel->MKernelName, SyclProg.get());
+                MQueue->get_device(), ExecKernel->MKernelName, SyclProg.get());
         assert(FoundKernel == Kernel);
       } else
         KnownProgram = false;
     } else {
       std::tie(Kernel, KernelMutex) =
           detail::ProgramManager::getInstance().getOrCreateKernel(
-              ExecKernel->MOSModuleHandle, Context, ExecKernel->MKernelName,
-              nullptr);
+              ExecKernel->MOSModuleHandle, Context, MQueue->get_device(),
+              ExecKernel->MKernelName, nullptr);
       MQueue->getPlugin().call<PiApiKind::piKernelGetInfo>(
           Kernel, PI_KERNEL_INFO_PROGRAM, sizeof(RT::PiProgram), &Program,
           nullptr);
@@ -1940,8 +1946,8 @@ cl_int ExecCGCommand::enqueueImp() {
         !ExecKernel->MSyclKernel->isCreatedFromSource()) {
       EliminatedArgMask =
           detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
-              ExecKernel->MOSModuleHandle, Context, Program,
-              ExecKernel->MKernelName, KnownProgram);
+              ExecKernel->MOSModuleHandle, Context, MQueue->get_device(),
+              Program, ExecKernel->MKernelName, KnownProgram);
     }
     if (KernelMutex != nullptr) {
       // For cacheable kernels, we use per-kernel mutex
@@ -1996,15 +2002,16 @@ cl_int ExecCGCommand::enqueueImp() {
       Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
     }
     std::vector<interop_handler::ReqToMem> ReqMemObjs;
-    // Extract the Mem Objects for all Requirements, to ensure they are available if
-    // a user ask for them inside the interop task scope
-    const auto& HandlerReq = ExecInterop->MRequirements;
-    std::for_each(std::begin(HandlerReq), std::end(HandlerReq), [&](Requirement* Req) {
-      AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-      auto MemArg = reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
-      interop_handler::ReqToMem ReqToMem = std::make_pair(Req, MemArg);
-      ReqMemObjs.emplace_back(ReqToMem);
-    });
+    // Extract the Mem Objects for all Requirements, to ensure they are
+    // available if a user ask for them inside the interop task scope
+    const auto &HandlerReq = ExecInterop->MRequirements;
+    std::for_each(
+        std::begin(HandlerReq), std::end(HandlerReq), [&](Requirement *Req) {
+          AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+          auto MemArg = reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
+          interop_handler::ReqToMem ReqToMem = std::make_pair(Req, MemArg);
+          ReqMemObjs.emplace_back(ReqToMem);
+        });
 
     std::sort(std::begin(ReqMemObjs), std::end(ReqMemObjs));
     interop_handler InteropHandler(std::move(ReqMemObjs), MQueue);
