@@ -214,7 +214,7 @@ Dialect *Operation::getDialect() {
 
   // If this operation hasn't been registered or doesn't have abstract
   // operation, try looking up the dialect name in the context.
-  return getContext()->getRegisteredDialect(getName().getDialect());
+  return getContext()->getLoadedDialect(getName().getDialect());
 }
 
 Region *Operation::getParentRegion() {
@@ -575,7 +575,7 @@ LogicalResult Operation::fold(ArrayRef<Attribute> operands,
   if (!interface)
     return failure();
 
-  return interface->Fold(this, operands, results);
+  return interface->fold(this, operands, results);
 }
 
 /// Emit an error with the op name prefixed, like "'dim' op " which is
