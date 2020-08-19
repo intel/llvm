@@ -629,15 +629,17 @@
 // CHK-PHASES-AOT: 9: linker, {8}, image, (host-sycl)
 // CHK-PHASES-AOT: 10: compiler, {3}, ir, (device-sycl)
 // CHK-PHASES-AOT: 11: linker, {10}, ir, (device-sycl)
-// CHK-PHASES-AOT: 12: sycl-post-link, {11}, ir, (device-sycl)
-// CHK-PHASES-AOT: 13: llvm-spirv, {12}, spirv, (device-sycl)
-// CHK-PHASES-CPU: 14: backend-compiler, {13}, image, (device-sycl)
-// CHK-PHASES-GEN: 14: backend-compiler, {13}, image, (device-sycl)
-// CHK-PHASES-FPGA: 14: backend-compiler, {13}, fpga_aocx, (device-sycl)
-// CHK-PHASES-AOT: 15: clang-offload-wrapper, {14}, object, (device-sycl)
-// CHK-PHASES-FPGA: 16: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {15}, image
-// CHK-PHASES-GEN: 16: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64_gen-unknown-unknown-sycldevice)" {15}, image
-// CHK-PHASES-CPU: 16: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64_x86_64-unknown-unknown-sycldevice)" {15}, image
+// CHK-PHASES-AOT: 12: sycl-post-link, {11}, tempfiletable, (device-sycl)
+// CHK-PHASES-AOT: 13: file-table-tform, {12}, tempfilelist, (device-sycl)
+// CHK-PHASES-AOT: 14: llvm-spirv, {13}, tempfilelist, (device-sycl)
+// CHK-PHASES-CPU: 15: backend-compiler, {14}, image, (device-sycl)
+// CHK-PHASES-GEN: 15: backend-compiler, {14}, image, (device-sycl)
+// CHK-PHASES-FPGA: 15: backend-compiler, {14}, fpga_aocx, (device-sycl)
+// CHK-PHASES-AOT: 16: file-table-tform, {12, 15}, tempfiletable, (device-sycl)
+// CHK-PHASES-AOT: 17: clang-offload-wrapper, {16}, object, (device-sycl)
+// CHK-PHASES-FPGA: 18: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {17}, image
+// CHK-PHASES-GEN: 18: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64_gen-unknown-unknown-sycldevice)" {17}, image
+// CHK-PHASES-CPU: 18: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64_x86_64-unknown-unknown-sycldevice)" {17}, image
 
 /// ###########################################################################
 
@@ -660,17 +662,19 @@
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-CPU
 // CHK-TOOLS-AOT: clang{{.*}} "-fsycl-is-device" {{.*}} "-o" "[[OUTPUT1:.+\.bc]]"
 // CHK-TOOLS-AOT: llvm-link{{.*}} "[[OUTPUT1]]" "-o" "[[OUTPUT2:.+\.bc]]"
-// CHK-TOOLS-AOT: sycl-post-link{{.*}} "-o" "[[OUTPUT2_1:.+\.bc]]" "[[OUTPUT2]]"
-// CHK-TOOLS-CPU: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.1" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes" "[[OUTPUT2_1]]"
-// CHK-TOOLS-GEN: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.1" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes" "[[OUTPUT2_1]]"
-// CHK-TOOLS-FPGA-USM-DISABLE: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.1" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes" "[[OUTPUT2_1]]"
-// CHK-TOOLS-FPGA-USM-ENABLE: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "-spirv-max-version=1.1" "-spirv-ext=+all" "[[OUTPUT2_1]]"
+// CHK-TOOLS-AOT: sycl-post-link{{.*}} "-o" "[[OUTPUT2_1:.+]]" "[[OUTPUT2]]"
+// CHK-TOOLS-AOT: file-table-tform{{.*}} "-extract=Code" "-drop_titles" "-o" "[[TFORM_OUT1:.+\.txt]]" "[[OUTPUT2_1]]"
+// CHK-TOOLS-CPU: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+]]" "-spirv-max-version=1.1" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes" "[[TFORM_OUT1]]"
+// CHK-TOOLS-GEN: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+]]" "-spirv-max-version=1.1" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes" "[[TFORM_OUT1]]"
+// CHK-TOOLS-FPGA-USM-DISABLE: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+]]" "-spirv-max-version=1.1" "-spirv-ext=+all,-SPV_INTEL_usm_storage_classes" "[[TFORM_OUT1]]"
+// CHK-TOOLS-FPGA-USM-ENABLE: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+]]" "-spirv-max-version=1.1" "-spirv-ext=+all" "[[TFORM_OUT1]]"
 // CHK-TOOLS-FPGA: aoc{{.*}} "-o" "[[OUTPUT4:.+\.aocx]]" "[[OUTPUT3]]"
 // CHK-TOOLS-GEN: ocloc{{.*}} "-output" "[[OUTPUT4:.+\.out]]" {{.*}} "[[OUTPUT3]]"
 // CHK-TOOLS-CPU: opencl-aot{{.*}} "-o=[[OUTPUT4:.+\.out]]" {{.*}} "[[OUTPUT3]]"
-// CHK-TOOLS-FPGA: clang-offload-wrapper{{.*}} "-o=[[OUTPUT5:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" "-target=spir64_fpga{{.*}}" "-kind=sycl" "[[OUTPUT4]]"
-// CHK-TOOLS-GEN: clang-offload-wrapper{{.*}} "-o=[[OUTPUT5:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" "-target=spir64_gen{{.*}}" "-kind=sycl" "[[OUTPUT4]]"
-// CHK-TOOLS-CPU: clang-offload-wrapper{{.*}} "-o=[[OUTPUT5:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" "-target=spir64_x86_64{{.*}}" "-kind=sycl" "[[OUTPUT4]]"
+// CHK-TOOLS-AOT: file-table-tform{{.*}} "-replace=Code,Code" "-o" "[[TFORM_OUT2:.+]]" "[[OUTPUT2_1]]" "[[OUTPUT4]]"
+// CHK-TOOLS-FPGA: clang-offload-wrapper{{.*}} "-o=[[OUTPUT5:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" "-target=spir64_fpga{{.*}}" "-kind=sycl" "-batch" "[[TFORM_OUT2]]"
+// CHK-TOOLS-GEN: clang-offload-wrapper{{.*}} "-o=[[OUTPUT5:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" "-target=spir64_gen{{.*}}" "-kind=sycl" "-batch" "[[TFORM_OUT2]]"
+// CHK-TOOLS-CPU: clang-offload-wrapper{{.*}} "-o=[[OUTPUT5:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" "-target=spir64_x86_64{{.*}}" "-kind=sycl" "-batch" "[[TFORM_OUT2]]"
 // CHK-TOOLS-AOT: llc{{.*}} "-filetype=obj" "-o" "[[OUTPUT6:.+\.o]]" "[[OUTPUT5]]"
 // CHK-TOOLS-FPGA-USM-DISABLE: clang{{.*}} "-triple" "spir64_fpga-unknown-unknown-sycldevice" {{.*}} "-fsycl-int-header=[[INPUT1:.+\.h]]" "-faddrsig"
 // CHK-TOOLS-FPGA-USM-ENABLE: clang{{.*}} "-triple" "spir64_fpga-unknown-unknown-sycldevice" {{.*}} "-fsycl-int-header=[[INPUT1:.+\.h]]" "-D__ENABLE_USM_ADDR_SPACE__" "-faddrsig"
@@ -792,17 +796,21 @@
 // CHK-PHASE-MULTI-TARG: 20: preprocessor, {19}, cpp-output, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 21: compiler, {20}, ir, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 22: linker, {21}, ir, (device-sycl)
-// CHK-PHASE-MULTI-TARG: 23: sycl-post-link, {22}, ir, (device-sycl)
-// CHK-PHASE-MULTI-TARG: 24: llvm-spirv, {23}, spirv, (device-sycl)
-// CHK-PHASE-MULTI-TARG: 25: backend-compiler, {24}, fpga_aocx, (device-sycl)
-// CHK-PHASE-MULTI-TARG: 26: clang-offload-wrapper, {25}, object, (device-sycl)
-// CHK-PHASE-MULTI-TARG: 27: compiler, {3}, ir, (device-sycl)
-// CHK-PHASE-MULTI-TARG: 28: linker, {27}, ir, (device-sycl)
-// CHK-PHASE-MULTI-TARG: 29: sycl-post-link, {28}, ir, (device-sycl)
-// CHK-PHASE-MULTI-TARG: 30: llvm-spirv, {29}, spirv, (device-sycl)
-// CHK-PHASE-MULTI-TARG: 31: backend-compiler, {30}, image, (device-sycl)
-// CHK-PHASE-MULTI-TARG: 32: clang-offload-wrapper, {31}, object, (device-sycl)
-// CHK-PHASE-MULTI-TARG: 33: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64-unknown-unknown-sycldevice)" {18}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {26}, "device-sycl (spir64_gen-unknown-unknown-sycldevice)" {32}, image
+// CHK-PHASE-MULTI-TARG: 23: sycl-post-link, {22}, tempfiletable, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 24: file-table-tform, {23}, tempfilelist, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 25: llvm-spirv, {24}, tempfilelist, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 26: backend-compiler, {25}, fpga_aocx, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 27: file-table-tform, {23, 26}, tempfiletable, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 28: clang-offload-wrapper, {27}, object, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 29: compiler, {3}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 30: linker, {29}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 31: sycl-post-link, {30}, tempfiletable, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 32: file-table-tform, {31}, tempfilelist, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 33: llvm-spirv, {32}, tempfilelist, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 34: backend-compiler, {33}, image, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 35: file-table-tform, {31, 34}, tempfiletable, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 36: clang-offload-wrapper, {35}, object, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 37: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64-unknown-unknown-sycldevice)" {18}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {28}, "device-sycl (spir64_gen-unknown-unknown-sycldevice)" {36}, image
 
 /// ###########################################################################
 /// Verify that -save-temps does not crash
