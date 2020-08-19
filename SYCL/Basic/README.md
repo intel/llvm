@@ -24,7 +24,7 @@ llvm-lit . --show-tests
 # Run specific test
 llvm-lit <path_to_test>
 # Run tests with parameters
-llvm-lit --param target_devices=host,gpu --param sycl_be=PI_LEVEL0 --param dpcpp_compiler=path/to/clang++ --param dump_ir=True .
+llvm-lit --param target_devices=host,gpu --param sycl_be=PI_LEVEL_ZERO --param dpcpp_compiler=path/to/clang++ --param dump_ir=True .
 ```
 
 Notes:
@@ -36,8 +36,8 @@ Notes:
  - compiler is taken from environment.
 
 # Main parameters
-It is possible to change tets scope my specifying test directory/file in first
-argument to for thelit-runner.py script.
+It is possible to change test scope by specifying test directory/file in first
+argument to for the lit-runner.py script.
 
 ***CMAKE_CXX_COMPILER*** should point to the DPCPP compiler
 
@@ -52,23 +52,23 @@ argument to for thelit-runner.py script.
 Supported sycl_be values:
  - PI_OPENCL - for OpenCL backend;
  - PI_CUDA - for CUDA backend;
- - PI_LEVEL0 - Level Zero backend.
+ - PI_LEVEL_ZERO - Level Zero backend.
 
-***CHECK_SYCL_ALL*** allows select multiple SYCL backends with set of target
+***CHECK_SYCL_ALL*** allows selection of multiple SYCL backends with set of target
 devices per each to be tested iteratively. Value may contain semicolon-
 separated list of configurations. Each configuration includes backend separated
 from comma-separated list of target devices with colon (e.g.
--DCHECK_SYCL_ALL="PI_OPENCL:cpu,host;PI_LEVEL0:gpu,host"). The testing is done
+-DCHECK_SYCL_ALL="PI_OPENCL:cpu,host;PI_LEVEL_ZERO:gpu,host"). The testing is done
 using check-sycl-all target. It is recommended to pass -k0 parameter to build
 command line to avoid break execution on test failures for the first backend.
 
 It is asssumed that all required dependencies (OpenCL runtimes,
 CUDA SDK, AOT compilers, etc) are available in the system.
 
-See examples below for configuring tests targetting different devices:
+See examples below for configuring tests targeting different devices:
  - Multiple backends iterative mode
 ```
-cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DCHECK_SYCL_ALL="PI_OPENCL:acc,gpu,cpu,host;PI_LEVEL0:gpu,host;PI_CUDA:gpu,host" -C../cmake/caches/clang_fsycl.cmake  ..
+cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DCHECK_SYCL_ALL="PI_OPENCL:acc,gpu,cpu,host;PI_LEVEL_ZERO:gpu,host;PI_CUDA:gpu,host" -C../cmake/caches/clang_fsycl.cmake  ..
 ninja -k0 check-sycl-all
 ```
  - SYCL host:
@@ -98,14 +98,14 @@ ninja check
 ```
  - Level Zero GPU
 ```
-cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DSYCL_BE=PI_LEVEL0 -DSYCL_TARGET_DEVICES="gpu" -C../cmake/caches/clang_fsycl.cmake  ..
+cmake -G Ninja  -DTEST_SUITE_COLLECT_CODE_SIZE=OFF  -DTEST_SUITE_COLLECT_COMPILE_TIME=OFF -DTEST_SUITE_SUBDIRS=SYCL  -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> -DSYCL_BE=PI_LEVEL_ZERO -DSYCL_TARGET_DEVICES="gpu" -C../cmake/caches/clang_fsycl.cmake  ..
 ninja check
 ```
 
 # LIT parameters can be passed to LIT executor:
  - **dpcpp_compiler** - full path to dpcpp compiler;
  - **target_device** - comma-separated list of target devices (cpu, gpu, acc, host);
- - **sycl_be** - SYCL backedn to be used (PI_OPENCL, PI_LEVEL, PI_CUDA);
+ - **sycl_be** - SYCL backend to be used (PI_OPENCL, PI_LEVEL_ZERO, PI_CUDA);
  - **dump_ir** - if IR dumping is supported for compiler (True, False);
  - **extra_environment** - comma-separated list of variables with values to be
    added to test environment. Can be also set by LIT_EXTRA_ENVIRONMENT variable
@@ -114,7 +114,6 @@ ninja check
 # LIT features which can be used to configure test execution:
  - **windows**, **linux** - host OS;
  - **cpu**, **gpu**, **host**, **acc** - target devices;
- - **cuda**, **opencl**, **level0** - target backend;
+ - **cuda**, **opencl**, **level_zero** - target backend;
  - **sycl-ls** - sycl-ls tool is available;
- - **dump_ir**: is set to true if compiler supports dumiping IR. Can be set by setting DUMP_IR_SUPPORTED in cmake. Default is false.
-
+ - **dump_ir**: is set to true if compiler supports dumping IR. Can be set by setting DUMP_IR_SUPPORTED in cmake. Default is false.

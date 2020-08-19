@@ -25,7 +25,7 @@ if(CHECK_SYCL_ALL)
       DEPENDS ${TEST_SUITE_TARGETS}
       USES_TERMINAL
     )
-    set_target_properties(check-sycl-${TARGET_BE} PROPERTIES FOLDER "SYCL Level0 tests")
+    set_target_properties(check-sycl-${TARGET_BE} PROPERTIES FOLDER "SYCL Level Zero tests")
     add_dependencies(check-sycl-all check-sycl-${TARGET_BE})
 
   endforeach()

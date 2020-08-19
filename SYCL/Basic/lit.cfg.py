@@ -95,12 +95,12 @@ if ( config.sycl_be == "PI_OPENCL" ):
 elif ( config.sycl_be == "PI_CUDA" ):
     config.available_features.add('cuda')
     cuda = True
-elif ( config.sycl_be == "PI_LEVEL0" ):
-    config.available_features.add('level0')
+elif ( config.sycl_be == "PI_LEVEL_ZERO" ):
+    config.available_features.add('level_zero')
 else:
     lit_config.error("Unknown SYCL BE specified '" +
                      config.sycl_be +
-                     "' supported values are PI_OPENCL, PI_CUDA, PI_LEVEL0")
+                     "' supported values are PI_OPENCL, PI_CUDA, PI_LEVEL_ZERO")
 
 # Configure device-specific substitutions based on availability of corresponding
 # devices/runtimes
@@ -223,4 +223,3 @@ try:
     lit_config.maxIndividualTestTime = 60
 except ImportError:
     pass
-
