@@ -1173,7 +1173,7 @@ void OCL20ToSPIRV::visitCallGetImageSize(CallInst *CI,
         if (DemangledName == kOCLBuiltinName::GetImageDim) {
           if (Desc.Dim == Dim3D) {
             auto ZeroVec = ConstantVector::getSplat(
-                {3, false},
+                ElementCount::get(3, false),
                 Constant::getNullValue(
                     cast<VectorType>(NCI->getType())->getElementType()));
             Constant *Index[] = {getInt32(M, 0), getInt32(M, 1), getInt32(M, 2),
