@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -fsycl-int-header=%t.h -fsyntax-only -verify %s
+// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -fsycl-int-header=%t.h -fsyntax-only -Wno-sycl-2017-compat -verify %s
 
 #include "sycl.hpp"
 
@@ -26,26 +26,26 @@ enum class scoped_enum_no_type_set {
 template <unscoped_enum_int EnumType>
 class dummy_functor_1 {
 public:
-  void operator()() {}
+  void operator()() const {}
 };
 
 // expected-error@+2 {{kernel name is invalid. Unscoped enum requires fixed underlying type}}
 template <unscoped_enum_no_type_set EnumType>
 class dummy_functor_2 {
 public:
-  void operator()() {}
+  void operator()() const {}
 };
 
 template <scoped_enum_int EnumType>
 class dummy_functor_3 {
 public:
-  void operator()() {}
+  void operator()() const {}
 };
 
 template <scoped_enum_no_type_set EnumType>
 class dummy_functor_4 {
 public:
-  void operator()() {}
+  void operator()() const {}
 };
 
 int main() {
