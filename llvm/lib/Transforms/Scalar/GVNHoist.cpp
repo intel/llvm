@@ -605,9 +605,10 @@ private:
         if (safeToHoistScalar(BB, Insn->getParent(), NumBBsOnAllPaths))
           Safe.push_back(CHI);
       } else {
-        MemoryUseOrDef *UD = MSSA->getMemoryAccess(Insn);
-        if (safeToHoistLdSt(BB->getTerminator(), Insn, UD, K, NumBBsOnAllPaths))
-          Safe.push_back(CHI);
+        auto *T = BB->getTerminator();
+        if (MemoryUseOrDef *UD = MSSA->getMemoryAccess(Insn))
+          if (safeToHoistLdSt(T, Insn, UD, K, NumBBsOnAllPaths))
+            Safe.push_back(CHI);
       }
     }
   }
@@ -791,14 +792,14 @@ private:
       }
       // Insert empty CHI node for this VN. This is used to factor out
       // basic blocks where the ANTIC can potentially change.
-      for (auto IDFB : IDFBlocks) {
+      CHIArg EmptyChi = {VN, nullptr, nullptr};
+      for (auto *IDFBB : IDFBlocks) {
         for (unsigned i = 0; i < V.size(); ++i) {
-          CHIArg C = {VN, nullptr, nullptr};
-           // Ignore spurious PDFs.
-          if (DT->properlyDominates(IDFB, V[i]->getParent())) {
-            OutValue[IDFB].push_back(C);
-            LLVM_DEBUG(dbgs() << "\nInsertion a CHI for BB: " << IDFB->getName()
-                              << ", for Insn: " << *V[i]);
+          // Ignore spurious PDFs.
+          if (DT->properlyDominates(IDFBB, V[i]->getParent())) {
+            OutValue[IDFBB].push_back(EmptyChi);
+            LLVM_DEBUG(dbgs() << "\nInserting a CHI for BB: "
+                              << IDFBB->getName() << ", for Insn: " << *V[i]);
           }
         }
       }

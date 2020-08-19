@@ -53,10 +53,8 @@ define <8 x float> @hadd_v8f32a(<8 x float> %a) {
 ;
 ; AVX1_FAST-LABEL: hadd_v8f32a:
 ; AVX1_FAST:       # %bb.0:
-; AVX1_FAST-NEXT:    vextractf128 $1, %ymm0, %xmm1
-; AVX1_FAST-NEXT:    vhaddps %xmm1, %xmm0, %xmm1
-; AVX1_FAST-NEXT:    vhaddps %xmm0, %xmm0, %xmm0
-; AVX1_FAST-NEXT:    vinsertf128 $1, %xmm1, %ymm0, %ymm0
+; AVX1_FAST-NEXT:    vinsertf128 $1, %xmm0, %ymm0, %ymm1
+; AVX1_FAST-NEXT:    vhaddps %ymm0, %ymm1, %ymm0
 ; AVX1_FAST-NEXT:    retq
 ;
 ; AVX2-LABEL: hadd_v8f32a:
@@ -134,10 +132,8 @@ define <8 x float> @hsub_v8f32a(<8 x float> %a) {
 ;
 ; AVX1_FAST-LABEL: hsub_v8f32a:
 ; AVX1_FAST:       # %bb.0:
-; AVX1_FAST-NEXT:    vextractf128 $1, %ymm0, %xmm1
-; AVX1_FAST-NEXT:    vhsubps %xmm1, %xmm0, %xmm1
-; AVX1_FAST-NEXT:    vhsubps %xmm0, %xmm0, %xmm0
-; AVX1_FAST-NEXT:    vinsertf128 $1, %xmm1, %ymm0, %ymm0
+; AVX1_FAST-NEXT:    vinsertf128 $1, %xmm0, %ymm0, %ymm1
+; AVX1_FAST-NEXT:    vhsubps %ymm0, %ymm1, %ymm0
 ; AVX1_FAST-NEXT:    retq
 ;
 ; AVX2-LABEL: hsub_v8f32a:
@@ -855,13 +851,13 @@ define <4 x float> @broadcast_haddps_v4f32(<4 x float> %a0) {
 ; SSSE3-LABEL: broadcast_haddps_v4f32:
 ; SSSE3:       # %bb.0:
 ; SSSE3-NEXT:    haddps %xmm0, %xmm0
-; SSSE3-NEXT:    shufps {{.*#+}} xmm0 = xmm0[0,0,0,0]
+; SSSE3-NEXT:    movsldup {{.*#+}} xmm0 = xmm0[0,0,2,2]
 ; SSSE3-NEXT:    retq
 ;
 ; AVX1-LABEL: broadcast_haddps_v4f32:
 ; AVX1:       # %bb.0:
 ; AVX1-NEXT:    vhaddps %xmm0, %xmm0, %xmm0
-; AVX1-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[0,0,0,0]
+; AVX1-NEXT:    vmovsldup {{.*#+}} xmm0 = xmm0[0,0,2,2]
 ; AVX1-NEXT:    retq
 ;
 ; AVX2-LABEL: broadcast_haddps_v4f32:
@@ -889,9 +885,6 @@ define <4 x float> @PR34724_1(<4 x float> %a, <4 x float> %b) {
 ; SSSE3_FAST-LABEL: PR34724_1:
 ; SSSE3_FAST:       # %bb.0:
 ; SSSE3_FAST-NEXT:    haddps %xmm1, %xmm0
-; SSSE3_FAST-NEXT:    haddps %xmm1, %xmm1
-; SSSE3_FAST-NEXT:    shufps {{.*#+}} xmm1 = xmm1[3,0],xmm0[2,0]
-; SSSE3_FAST-NEXT:    shufps {{.*#+}} xmm0 = xmm0[0,1],xmm1[2,0]
 ; SSSE3_FAST-NEXT:    retq
 ;
 ; AVX1_SLOW-LABEL: PR34724_1:
@@ -942,9 +935,6 @@ define <4 x float> @PR34724_2(<4 x float> %a, <4 x float> %b) {
 ; SSSE3_FAST-LABEL: PR34724_2:
 ; SSSE3_FAST:       # %bb.0:
 ; SSSE3_FAST-NEXT:    haddps %xmm1, %xmm0
-; SSSE3_FAST-NEXT:    haddps %xmm1, %xmm1
-; SSSE3_FAST-NEXT:    shufps {{.*#+}} xmm1 = xmm1[3,0],xmm0[2,0]
-; SSSE3_FAST-NEXT:    shufps {{.*#+}} xmm0 = xmm0[0,1],xmm1[2,0]
 ; SSSE3_FAST-NEXT:    retq
 ;
 ; AVX1_SLOW-LABEL: PR34724_2:

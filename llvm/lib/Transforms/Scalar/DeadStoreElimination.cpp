@@ -107,7 +107,7 @@ static cl::opt<bool>
                     cl::desc("Use the new MemorySSA-backed DSE."));
 
 static cl::opt<unsigned>
-    MemorySSAScanLimit("dse-memoryssa-scanlimit", cl::init(100), cl::Hidden,
+    MemorySSAScanLimit("dse-memoryssa-scanlimit", cl::init(150), cl::Hidden,
                        cl::desc("The number of memory instructions to scan for "
                                 "dead store elimination (default = 100)"));
 
@@ -1743,7 +1743,12 @@ struct DSEState {
   Optional<MemoryAccess *>
   getDomMemoryDef(MemoryDef *KillingDef, MemoryAccess *Current,
                   MemoryLocation DefLoc, bool DefVisibleToCallerBeforeRet,
-                  bool DefVisibleToCallerAfterRet, int &ScanLimit) const {
+                  bool DefVisibleToCallerAfterRet, unsigned &ScanLimit) const {
+    if (ScanLimit == 0) {
+      LLVM_DEBUG(dbgs() << "\n    ...  hit scan limit\n");
+      return None;
+    }
+
     MemoryAccess *DomAccess;
     bool StepAgain;
     LLVM_DEBUG(dbgs() << "  trying to get dominating access for " << *Current
@@ -1782,7 +1787,8 @@ struct DSEState {
     // eliminated if the access is killed along all paths to the exit. Collect
     // the blocks with killing (=completely overwriting MemoryDefs) and check if
     // they cover all paths from DomAccess to any function exit.
-    SmallPtrSet<BasicBlock *, 16> KillingBlocks = {KillingDef->getBlock()};
+    SmallPtrSet<Instruction *, 16> KillingDefs;
+    KillingDefs.insert(KillingDef->getMemoryInst());
     LLVM_DEBUG({
       dbgs() << "  Checking for reads of " << *DomAccess;
       if (isa<MemoryDef>(DomAccess))
@@ -1803,12 +1809,21 @@ struct DSEState {
       MemoryAccess *UseAccess = WorkList[I];
 
       LLVM_DEBUG(dbgs() << "   " << *UseAccess);
-      if (--ScanLimit == 0) {
+      // Bail out if the number of accesses to check exceeds the scan limit.
+      if (ScanLimit < (WorkList.size() - I)) {
         LLVM_DEBUG(dbgs() << "\n    ...  hit scan limit\n");
         return None;
       }
+      --ScanLimit;
 
       if (isa<MemoryPhi>(UseAccess)) {
+        if (any_of(KillingDefs, [this, UseAccess](Instruction *KI) {
+              return DT.properlyDominates(KI->getParent(),
+                                          UseAccess->getBlock());
+            })) {
+          LLVM_DEBUG(dbgs() << " ... skipping, dominated by killing block\n");
+          continue;
+        }
         LLVM_DEBUG(dbgs() << "\n    ... adding PHI uses\n");
         PushMemUses(UseAccess);
         continue;
@@ -1816,6 +1831,13 @@ struct DSEState {
 
       Instruction *UseInst = cast<MemoryUseOrDef>(UseAccess)->getMemoryInst();
       LLVM_DEBUG(dbgs() << " (" << *UseInst << ")\n");
+
+      if (any_of(KillingDefs, [this, UseInst](Instruction *KI) {
+            return DT.dominates(KI, UseInst);
+          })) {
+        LLVM_DEBUG(dbgs() << " ... skipping, dominated by killing def\n");
+        continue;
+      }
 
       if (isNoopIntrinsic(cast<MemoryUseOrDef>(UseAccess))) {
         LLVM_DEBUG(dbgs() << "    ... adding uses of intrinsic\n");
@@ -1861,9 +1883,9 @@ struct DSEState {
             if (PostOrderNumbers.find(MaybeKillingBlock)->second <
                 PostOrderNumbers.find(DomAccess->getBlock())->second) {
 
-              LLVM_DEBUG(dbgs() << "    ... found killing block "
-                                << MaybeKillingBlock->getName() << "\n");
-              KillingBlocks.insert(MaybeKillingBlock);
+              LLVM_DEBUG(dbgs()
+                         << "    ... found killing def " << *UseInst << "\n");
+              KillingDefs.insert(UseInst);
             }
           }
         } else
@@ -1875,8 +1897,12 @@ struct DSEState {
     // that the location is killed (=overwritten) along all paths from DomAccess
     // to the exit.
     if (DefVisibleToCallerAfterRet) {
+      SmallPtrSet<BasicBlock *, 16> KillingBlocks;
+      for (Instruction *KD : KillingDefs)
+        KillingBlocks.insert(KD->getParent());
       assert(!KillingBlocks.empty() &&
              "Expected at least a single killing block");
+
       // Find the common post-dominator of all killing blocks.
       BasicBlock *CommonPred = *KillingBlocks.begin();
       for (auto I = std::next(KillingBlocks.begin()), E = KillingBlocks.end();
@@ -2038,29 +2064,28 @@ struct DSEState {
           !isRemovable(Def->getMemoryInst()))
         continue;
 
-      // TODO: Consider doing the underlying object check first, if it is
-      // beneficial compile-time wise.
-      if (isWriteAtEndOfFunction(Def)) {
-        Instruction *DefI = Def->getMemoryInst();
-        // See through pointer-to-pointer bitcasts
-        SmallVector<const Value *, 4> Pointers;
-        getUnderlyingObjects(getLocForWriteEx(DefI)->Ptr, Pointers);
+      Instruction *DefI = Def->getMemoryInst();
+      SmallVector<const Value *, 4> Pointers;
+      auto DefLoc = getLocForWriteEx(DefI);
+      if (!DefLoc)
+        continue;
+      getUnderlyingObjects(DefLoc->Ptr, Pointers);
 
+      bool CanKill = true;
+      for (const Value *Pointer : Pointers) {
+        if (!InvisibleToCallerAfterRet.count(Pointer)) {
+          CanKill = false;
+          break;
+        }
+      }
+
+      if (CanKill && isWriteAtEndOfFunction(Def)) {
+        // See through pointer-to-pointer bitcasts
         LLVM_DEBUG(dbgs() << "   ... MemoryDef is not accessed until the end "
                              "of the function\n");
-        bool CanKill = true;
-        for (const Value *Pointer : Pointers) {
-          if (!InvisibleToCallerAfterRet.count(Pointer)) {
-            CanKill = false;
-            break;
-          }
-        }
-
-        if (CanKill) {
-          deleteDeadInstruction(DefI);
-          ++NumFastStores;
-          MadeChange = true;
-        }
+        deleteDeadInstruction(DefI);
+        ++NumFastStores;
+        MadeChange = true;
       }
     }
     return MadeChange;
@@ -2154,7 +2179,7 @@ bool eliminateDeadStoresMemorySSA(Function &F, AliasAnalysis &AA,
     LLVM_DEBUG(dbgs() << "Trying to eliminate MemoryDefs killed by "
                       << *KillingDef << " (" << *SI << ")\n");
 
-    int ScanLimit = MemorySSAScanLimit;
+    unsigned ScanLimit = MemorySSAScanLimit;
     // Worklist of MemoryAccesses that may be killed by KillingDef.
     SetVector<MemoryAccess *> ToCheck;
     ToCheck.insert(KillingDef->getDefiningAccess());
@@ -2249,22 +2274,27 @@ bool eliminateDeadStoresMemorySSA(Function &F, AliasAnalysis &AA,
         if (EnablePartialStoreMerging && OR == OW_PartialEarlierWithFullLater) {
           auto *Earlier = dyn_cast<StoreInst>(NI);
           auto *Later = dyn_cast<StoreInst>(SI);
-          if (Constant *Merged = tryToMergePartialOverlappingStores(
-                  Earlier, Later, InstWriteOffset, DepWriteOffset, DL, &AA,
-                  &DT)) {
+          // We are re-using tryToMergePartialOverlappingStores, which requires
+          // Earlier to domiante Later.
+          // TODO: implement tryToMergeParialOverlappingStores using MemorySSA.
+          if (Earlier && Later && DT.dominates(Earlier, Later)) {
+            if (Constant *Merged = tryToMergePartialOverlappingStores(
+                    Earlier, Later, InstWriteOffset, DepWriteOffset, DL, &AA,
+                    &DT)) {
 
-            // Update stored value of earlier store to merged constant.
-            Earlier->setOperand(0, Merged);
-            ++NumModifiedStores;
-            MadeChange = true;
+              // Update stored value of earlier store to merged constant.
+              Earlier->setOperand(0, Merged);
+              ++NumModifiedStores;
+              MadeChange = true;
 
-            // Remove later store and remove any outstanding overlap intervals
-            // for the updated store.
-            State.deleteDeadInstruction(Later);
-            auto I = State.IOLs.find(Earlier->getParent());
-            if (I != State.IOLs.end())
-              I->second.erase(Earlier);
-            break;
+              // Remove later store and remove any outstanding overlap intervals
+              // for the updated store.
+              State.deleteDeadInstruction(Later);
+              auto I = State.IOLs.find(Earlier->getParent());
+              if (I != State.IOLs.end())
+                I->second.erase(Earlier);
+              break;
+            }
           }
         }
 

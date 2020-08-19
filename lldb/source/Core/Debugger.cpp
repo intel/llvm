@@ -346,6 +346,12 @@ bool Debugger::SetUseColor(bool b) {
   return ret;
 }
 
+bool Debugger::GetUseAutosuggestion() const {
+  const uint32_t idx = ePropertyShowAutosuggestion;
+  return m_collection_sp->GetPropertyAtIndexAsBoolean(
+      nullptr, idx, g_debugger_properties[idx].default_uint_value != 0);
+}
+
 bool Debugger::GetUseSourceCache() const {
   const uint32_t idx = ePropertyUseSourceCache;
   return m_collection_sp->GetPropertyAtIndexAsBoolean(
@@ -1158,11 +1164,11 @@ bool Debugger::EnableLog(llvm::StringRef channel,
         flags |= File::eOpenOptionAppend;
       else
         flags |= File::eOpenOptionTruncate;
-      auto file = FileSystem::Instance().Open(
+      llvm::Expected<FileUP> file = FileSystem::Instance().Open(
           FileSpec(log_file), flags, lldb::eFilePermissionsFileDefault, false);
       if (!file) {
-        // FIXME: This gets garbled when called from the log command.
-        error_stream << "Unable to open log file: " << log_file;
+        error_stream << "Unable to open log file '" << log_file
+                     << "': " << llvm::toString(file.takeError()) << "\n";
         return false;
       }
 

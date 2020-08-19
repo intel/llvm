@@ -2037,7 +2037,7 @@ def err_init_conversion_failed : Error<
   "|: different qualifiers (%5 vs %6)"
   "|: different exception specifications}4">;
 def note_forward_class_conversion : Note<"%0 is not defined, but forward "
-  "declared here; conversion would be valid if it's derived from %1">;
+  "declared here; conversion would be valid if it was derived from %1">;
 
 def err_lvalue_to_rvalue_ref : Error<"rvalue reference %diff{to type $ cannot "
   "bind to lvalue of type $|cannot bind to incompatible lvalue}0,1">;
@@ -9519,6 +9519,11 @@ def err_nsconsumed_attribute_mismatch : Error<
 def err_nsreturns_retained_attribute_mismatch : Error<
   "overriding method has mismatched ns_returns_%select{not_retained|retained}0"
   " attributes">;
+def err_nserrordomain_invalid_decl : Error<
+  "domain argument %select{|%1 }0does not refer to global constant">;
+def err_nserrordomain_wrong_type : Error<
+  "domain argument %0 does not point to an NSString constant">;
+
 def warn_nsconsumed_attribute_mismatch : Warning<
   err_nsconsumed_attribute_mismatch.Text>, InGroup<NSConsumedMismatch>;
 def warn_nsreturns_retained_attribute_mismatch : Warning<

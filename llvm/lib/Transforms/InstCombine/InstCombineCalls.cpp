@@ -1199,29 +1199,33 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     break;
   }
   case Intrinsic::copysign: {
-    if (SignBitMustBeZero(II->getArgOperand(1), &TLI)) {
+    Value *Mag = II->getArgOperand(0), *Sign = II->getArgOperand(1);
+    if (SignBitMustBeZero(Sign, &TLI)) {
       // If we know that the sign argument is positive, reduce to FABS:
-      // copysign X, Pos --> fabs X
-      Value *Fabs = Builder.CreateUnaryIntrinsic(Intrinsic::fabs,
-                                                 II->getArgOperand(0), II);
+      // copysign Mag, +Sign --> fabs Mag
+      Value *Fabs = Builder.CreateUnaryIntrinsic(Intrinsic::fabs, Mag, II);
       return replaceInstUsesWith(*II, Fabs);
     }
     // TODO: There should be a ValueTracking sibling like SignBitMustBeOne.
     const APFloat *C;
-    if (match(II->getArgOperand(1), m_APFloat(C)) && C->isNegative()) {
+    if (match(Sign, m_APFloat(C)) && C->isNegative()) {
       // If we know that the sign argument is negative, reduce to FNABS:
-      // copysign X, Neg --> fneg (fabs X)
-      Value *Fabs = Builder.CreateUnaryIntrinsic(Intrinsic::fabs,
-                                                 II->getArgOperand(0), II);
+      // copysign Mag, -Sign --> fneg (fabs Mag)
+      Value *Fabs = Builder.CreateUnaryIntrinsic(Intrinsic::fabs, Mag, II);
       return replaceInstUsesWith(*II, Builder.CreateFNegFMF(Fabs, II));
     }
 
     // Propagate sign argument through nested calls:
-    // copysign X, (copysign ?, SignArg) --> copysign X, SignArg
-    Value *SignArg;
-    if (match(II->getArgOperand(1),
-              m_Intrinsic<Intrinsic::copysign>(m_Value(), m_Value(SignArg))))
-      return replaceOperand(*II, 1, SignArg);
+    // copysign Mag, (copysign ?, X) --> copysign Mag, X
+    Value *X;
+    if (match(Sign, m_Intrinsic<Intrinsic::copysign>(m_Value(), m_Value(X))))
+      return replaceOperand(*II, 1, X);
+
+    // Peek through changes of magnitude's sign-bit. This call rewrites those:
+    // copysign (fabs X), Sign --> copysign X, Sign
+    // copysign (fneg X), Sign --> copysign X, Sign
+    if (match(Mag, m_FAbs(m_Value(X))) || match(Mag, m_FNeg(m_Value(X))))
+      return replaceOperand(*II, 0, X);
 
     break;
   }
@@ -1472,6 +1476,27 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     // Update the cache of affected values for this assumption (we might be
     // here because we just simplified the condition).
     AC.updateAffectedValues(II);
+    break;
+  }
+  case Intrinsic::experimental_gc_statepoint: {
+    auto &GCSP = *cast<GCStatepointInst>(II);
+    // Let's we have the following case:
+    // A = gc.relocate(null)
+    // B = statepoint(A)
+    // C = gc.relocate(A)
+    // A will be substituted with null and its user B will be added to worklist.
+    // Statepoint B is not simplified and if C was considered before it will be
+    // re-considered after simplification of A.
+    // To resolve this case while processing statepoint B we add all gc.relocate
+    // users to worklist to give a chance to be simplified to null.
+    // This is to reduce the number of InstCombine iteration.
+    // Actually C can be transformed on the next iteration.
+    // chains in one iteration.
+    // TODO: we can handle relocation here, it will reduce the number of
+    // relocations to re-consider and also helps to reduce the number of
+    // gc live pointers in statepoint instruction bundle.
+    for (const GCRelocateInst *Reloc : GCSP.getGCRelocates())
+      Worklist.add(const_cast<GCRelocateInst *>(Reloc));
     break;
   }
   case Intrinsic::experimental_gc_relocate: {
