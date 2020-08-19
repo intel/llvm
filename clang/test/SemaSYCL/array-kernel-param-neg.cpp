@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -verify -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fcxx-exceptions -Wno-sycl-2017-compat -verify -fsyntax-only %s
 
 // This test checks if compiler reports compilation error on an attempt to pass
 // an array of non-trivially copyable structs as SYCL kernel parameter or
@@ -20,11 +20,11 @@ class E {
   int i[];
 
 public:
-  int operator()() { return i[0]; }
+  int operator()() const { return i[0]; }
 };
 
 template <typename Name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 }
 

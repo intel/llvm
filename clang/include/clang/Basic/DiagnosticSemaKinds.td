@@ -11026,6 +11026,12 @@ def err_sycl_invalid_property_list_template_param : Error<
   "%select{property_list|property_list pack argument|buffer_location}0 "
   "template parameter must be a "
   "%select{parameter pack|type|non-negative integer}1">;
+def warn_sycl_pass_by_value_deprecated 
+    : Warning<"Passing kernel functions by value is deprecated in SYCL 2020">,
+      InGroup<Sycl2020Compat>;
+def warn_sycl_pass_by_reference_future 
+    : Warning<"Passing of kernel functions by reference is a SYCL 2020 extension">,
+      InGroup<Sycl2017Compat>;
 def warn_sycl_attibute_function_raw_ptr
     : Warning<"SYCL 1.2.1 specification does not allow %0 attribute applied "
               "to a function with a raw pointer "
