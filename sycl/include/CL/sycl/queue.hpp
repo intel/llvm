@@ -319,6 +319,16 @@ public:
   /// property, an invalid_object_error SYCL exception.
   template <typename PropertyT> PropertyT get_property() const;
 
+  /// Fills the specified memory with the specified pattern.
+  ///
+  /// \param Ptr is the pointer to the memory to fill
+  /// \param Pattern is the pattern to fill into the memory.  T should be
+  /// trivially copyable.
+  /// \param Count is the number of times to fill Pattern into Ptr.
+  template <typename T> event fill(void *Ptr, const T &Pattern, size_t Count) {
+    return submit([&](handler &CGH) { CGH.fill<T>(Ptr, Pattern, Count); });
+  }
+
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \param Count is zero. An exception is thrown
   /// if \param Dest is nullptr. The behavior is undefined if \param Ptr

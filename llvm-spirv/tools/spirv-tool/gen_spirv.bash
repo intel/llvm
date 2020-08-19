@@ -73,24 +73,24 @@ echo "
 
 gen() {
 type=$1
-for prefix in SourceLanguage ExecutionModel AddressingModel MemoryModel ExecutionMode StorageClass Dim SamplerAddressingMode SamplerFilterMode ImageFormat \
-  ImageChannelOrder ImageChannelDataType FPRoundingMode LinkageType AccessQualifier FunctionParameterAttribute Decoration BuiltIn Scope GroupOperation \
-  KernelEnqueueFlags Capability; do
-  if [[ "$type" == NameMap ]]; then
+if [[ "$type" == NameMap ]]; then
+  for prefix in LinkageType Decoration BuiltIn Capability; do
     genNameMap $prefix
-  elif [[ "$type" == isValid ]]; then
+  done
+elif [[ "$type" == isValid ]]; then
+  for prefix in SourceLanguage ExecutionModel AddressingModel MemoryModel ExecutionMode StorageClass Dim SamplerAddressingMode SamplerFilterMode ImageFormat \
+      ImageChannelOrder ImageChannelDataType FPRoundingMode LinkageType AccessQualifier FunctionParameterAttribute Decoration BuiltIn Scope GroupOperation \
+      KernelEnqueueFlags Capability; do
     genIsValid $prefix
-  else
-    echo "invalid type \"$type\"."
-    exit
-  fi
-done
-for prefix in ImageOperandsMask FPFastMathModeMask SelectionControlMask LoopControlMask FunctionControlMask MemorySemanticsMask MemoryAccessMask \
-  KernelProfilingInfoMask; do
-  if [[ "$type" == isValid ]]; then
+  done
+  for prefix in ImageOperandsMask FPFastMathModeMask SelectionControlMask LoopControlMask FunctionControlMask MemorySemanticsMask MemoryAccessMask \
+      KernelProfilingInfoMask; do
     genMaskIsValid $prefix
-  fi
-done
+  done
+else
+  echo "invalid type \"$type\"."
+  exit
+fi
 }
 
 ####################

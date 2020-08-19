@@ -12,7 +12,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace intel {
+namespace INTEL {
 
 class platform_selector : public device_selector {
 private:
@@ -20,7 +20,7 @@ private:
 
 public:
   platform_selector(const std::string &platform_name)
-      : device_platform_name(platform_name){}
+      : device_platform_name(platform_name) {}
 
   int operator()(const device &device) const override {
     const platform &pf = device.get_platform();
@@ -39,14 +39,14 @@ static constexpr auto HARDWARE_PLATFORM_NAME =
 
 class fpga_selector : public platform_selector {
 public:
-  fpga_selector() : platform_selector(HARDWARE_PLATFORM_NAME){}
+  fpga_selector() : platform_selector(HARDWARE_PLATFORM_NAME) {}
 };
 
 class fpga_emulator_selector : public platform_selector {
 public:
-  fpga_emulator_selector() : platform_selector(EMULATION_PLATFORM_NAME){}
+  fpga_emulator_selector() : platform_selector(EMULATION_PLATFORM_NAME) {}
 };
 
-} // namespace intel
+} // namespace INTEL
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

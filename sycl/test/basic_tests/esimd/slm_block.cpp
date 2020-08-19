@@ -2,11 +2,11 @@
 // expected-no-diagnostics
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/intel/esimd.hpp>
+#include <CL/sycl/INTEL/esimd.hpp>
 #include <limits>
 #include <utility>
 
-using namespace sycl::intel::gpu;
+using namespace sycl::INTEL::gpu;
 using namespace cl::sycl;
 
 void kernel() __attribute__((sycl_device)) {

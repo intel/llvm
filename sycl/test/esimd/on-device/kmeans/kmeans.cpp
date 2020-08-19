@@ -18,14 +18,14 @@
 #include "point.h"
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/intel/esimd.hpp>
+#include <CL/sycl/INTEL/esimd.hpp>
 #include <fstream>
 #include <iostream>
 #include <string.h>
 #include <vector>
 
 using namespace cl::sycl;
-using namespace sycl::intel::gpu;
+using namespace sycl::INTEL::gpu;
 using namespace std;
 
 // Each HW thread process POINTS_PER_THREAD points. If the total number of
@@ -639,7 +639,7 @@ int main(int argc, char *argv[]) {
     auto e = q.submit([&](cl::sycl::handler &cgh) {
       cgh.parallel_for<class kMeans>(
           GlobalRange * LocalRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
-            using namespace sycl::intel::gpu;
+            using namespace sycl::INTEL::gpu;
             cmk_kmeans((uint *)points, (uint *)centroids, (uint *)accum,
                        NUM_POINTS, finalIter, i, dbgBuf);
           });
@@ -658,7 +658,7 @@ int main(int argc, char *argv[]) {
     auto e1 = q.submit([&](cl::sycl::handler &cgh) {
       cgh.parallel_for<class kAccumRed>(GlobalRange * LocalRange,
                                         [=](id<1> i) SYCL_ESIMD_KERNEL {
-                                          using namespace sycl::intel::gpu;
+                                          using namespace sycl::INTEL::gpu;
                                           cmk_accum_reduction((uint *)accum, i);
                                         });
     });
@@ -670,7 +670,7 @@ int main(int argc, char *argv[]) {
     auto e2 = q.submit([&](cl::sycl::handler &cgh) {
       cgh.parallel_for<class kCompCentroidPos>(
           GlobalRange1 * LocalRange1, [=](id<1> i) SYCL_ESIMD_KERNEL {
-            using namespace sycl::intel::gpu;
+            using namespace sycl::INTEL::gpu;
             cmk_compute_centroid_position((uint *)centroids, (uint *)accum, i,
                                           dbgBuf);
           });

@@ -40,6 +40,8 @@
 ; CHECK-SPIRV: TypeFunction [[HELPER_TYPE_ID:[0-9]+]] [[TYPE_INT32_ID]] [[FOO_PTR_TYPE_ID]] [[TYPE_INT32_ID]]
 ; CHECK-SPIRV: TypePointer [[FOO_PTR_ALLOCA_TYPE_ID:[0-9]+]] {{[0-9]+}} [[FOO_PTR_TYPE_ID]]
 ; CHECK-SPIRV: TypePointer [[TYPE_INT32_ALLOCA_ID:[0-9]+]] {{[0-9]+}} [[TYPE_INT32_ID]]
+; CHECK-SPIRV: FunctionPointerINTEL [[FOO_PTR_TYPE_ID]] [[FOO_PTR_ID:[0-9]+]] [[FOO_ID:[0-9]+]]
+; CHECK-SPIRV: FunctionPointerINTEL [[FOO_PTR_TYPE_ID]] [[BAR_PTR_ID:[0-9]+]] [[BAR_ID:[0-9]+]]
 ;
 ; CHECK-SPIRV: Function {{[0-9]+}} [[HELPER_ID:[0-9]+]] {{[0-9]+}} [[HELPER_TYPE_ID]]
 ; CHECK-SPIRV: FunctionParameter [[FOO_PTR_TYPE_ID]] [[T_PTR_ARG_ID:[0-9]+]]
@@ -53,14 +55,12 @@
 ; CHECK-SPIRV: FunctionPointerCallINTEL [[TYPE_INT32_ID]] [[RESULT:[0-9]+]] [[LOADED_T_PTR]] [[LOADED_INT]]
 ; CHECK-SPIRV: ReturnValue [[RESULT]]
 ;
-; CHECK-SPIRV: Function {{[0-9]+}} [[FOO_ID:[0-9]+]] {{[0-9]+}} [[FOO_TYPE_ID]]
-; CHECK-SPIRV: Function {{[0-9]+}} [[BAR_ID:[0-9]+]] {{[0-9]+}} [[FOO_TYPE_ID]]
+; CHECK-SPIRV: Function {{[0-9]+}} [[FOO_ID]] {{[0-9]+}} [[FOO_TYPE_ID]]
+; CHECK-SPIRV: Function {{[0-9]+}} [[BAR_ID]] {{[0-9]+}} [[FOO_TYPE_ID]]
 ;
 ; CHECK-SPIRV: Function {{[0-9]+}} [[KERNEL_ID]]
 ; CHECK-SPIRV: Variable [[FOO_PTR_ALLOCA_TYPE_ID]] [[F_PTR_ALLOCA_ID:[0-9]+]]
-; CHECK-SPIRV: FunctionPointerINTEL [[FOO_PTR_TYPE_ID]] [[FOO_PTR_ID:[0-9]+]] [[FOO_ID]]
 ; CHECK-SPIRV: Store [[F_PTR_ALLOCA_ID]] [[FOO_PTR_ID]]
-; CHECK-SPIRV: FunctionPointerINTEL [[FOO_PTR_TYPE_ID]] [[BAR_PTR_ID:[0-9]+]] [[BAR_ID]]
 ; CHECK-SPIRV: Store [[F_PTR_ALLOCA_ID]] [[BAR_PTR_ID]]
 ; CHECK-SPIRV: Load [[FOO_PTR_TYPE_ID]] [[LOADED_F_PTR:[0-9]+]] [[F_PTR_ALLOCA_ID]]
 ; CHECK-SPIRV: FunctionCall {{[0-9]+}} {{[0-9]+}} [[HELPER_ID]] [[LOADED_F_PTR]]

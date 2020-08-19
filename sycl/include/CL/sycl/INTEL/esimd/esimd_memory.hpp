@@ -10,17 +10,17 @@
 
 #pragma once
 
+#include <CL/sycl/INTEL/esimd/detail/esimd_memory_intrin.hpp>
+#include <CL/sycl/INTEL/esimd/detail/esimd_types.hpp>
+#include <CL/sycl/INTEL/esimd/detail/esimd_util.hpp>
+#include <CL/sycl/INTEL/esimd/esimd.hpp>
+#include <CL/sycl/INTEL/esimd/esimd_enum.hpp>
 #include <CL/sycl/half_type.hpp>
-#include <CL/sycl/intel/esimd/detail/esimd_memory_intrin.hpp>
-#include <CL/sycl/intel/esimd/detail/esimd_types.hpp>
-#include <CL/sycl/intel/esimd/detail/esimd_util.hpp>
-#include <CL/sycl/intel/esimd/esimd.hpp>
-#include <CL/sycl/intel/esimd/esimd_enum.hpp>
 #include <cstdint>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace intel {
+namespace INTEL {
 namespace gpu {
 
 template <int ElemsPerAddr,
@@ -69,7 +69,7 @@ constexpr unsigned int ElemsPerAddrEncoding() {
 //
 // TODO @keryell
 // {quote}
-// An approach à la https ://github.com/chriskohlhoff/propria from
+// An approach a la https ://github.com/chriskohlhoff/propria from
 // @chriskohlhoff would be to add a property to the pointer, such as
 //
 //    auto result = flat_load(p, offsets);
@@ -644,6 +644,6 @@ SYCL_EXTERNAL void slm_init(uint32_t size) {}
 
 #endif
 } // namespace gpu
-} // namespace intel
+} // namespace INTEL
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

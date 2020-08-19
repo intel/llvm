@@ -5,10 +5,10 @@
 // NOTE: must be run in -O0, as optimizer optimizes away some of the code
 
 #include <CL/sycl.hpp>
+#include <CL/sycl/INTEL/esimd.hpp>
 #include <CL/sycl/detail/image_ocl_types.hpp>
-#include <CL/sycl/intel/esimd.hpp>
 
-using namespace sycl::intel::gpu;
+using namespace sycl::INTEL::gpu;
 
 ESIMD_PRIVATE vector_type_t<int, 32> vc;
 ESIMD_PRIVATE ESIMD_REGISTER(192) simd<int, 16> vg;
@@ -57,9 +57,9 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
   uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
   simd<uint32_t, VL> v00 =
       __esimd_flat_block_read_unaligned<uint32_t, VL>(addr);
-  // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.block.ld.unaligned.v32i32(i64 %{{[0-9a-zA-Z_.]+}})
+  // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.block.ld.unaligned.v32i32.i64(i64 %{{[0-9a-zA-Z_.]+}})
   __esimd_flat_block_write<uint32_t, VL>(addr, v00.data());
-  // CHECK: call void @llvm.genx.svm.block.st.v32i32(i64 %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}})
+  // CHECK: call void @llvm.genx.svm.block.st.i64.v32i32(i64 %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}})
 
   simd<uint32_t, VL> v01 =
       __esimd_flat_read<uint32_t, VL>(v_addr.data(), 0, pred.data());

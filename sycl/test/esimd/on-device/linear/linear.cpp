@@ -16,7 +16,7 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/intel/esimd.hpp>
+#include <CL/sycl/INTEL/esimd.hpp>
 #include <array>
 #include <iostream>
 
@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
 
       cgh.parallel_for<class Test>(
           GlobalRange * LocalRange, [=](item<2> it) SYCL_ESIMD_KERNEL {
-            using namespace sycl::intel::gpu;
+            using namespace sycl::INTEL::gpu;
 
             simd<unsigned char, 8 * 32> vin;
             auto in = vin.format<unsigned char, 8, 32>();
