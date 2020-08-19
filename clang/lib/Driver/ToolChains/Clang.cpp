@@ -4125,7 +4125,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
     // Turn on Dead Parameter Elimination Optimization with early optimizations
     if (Args.hasFlag(options::OPT_fsycl_early_optimizations,
-                     options::OPT_fno_sycl_early_optimizations, true))
+                     options::OPT_fno_sycl_early_optimizations,
+                     !RawTriple.isNVPTX()))
       CmdArgs.push_back("-fenable-sycl-dae");
 
     // Pass the triple of host when doing SYCL
@@ -7813,7 +7814,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Turn on Dead Parameter Elimination Optimization with early optimizations
   if (TCArgs.hasFlag(options::OPT_fsycl_early_optimizations,
-                     options::OPT_fno_sycl_early_optimizations, true))
+                     options::OPT_fno_sycl_early_optimizations,
+                     !getToolChain().getTriple().isNVPTX()))
     addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
   if (JA.getType() == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR
