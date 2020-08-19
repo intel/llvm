@@ -856,13 +856,13 @@ class KernelObjVisitor {
 
   template <typename... Handlers>
   void VisitFirstElement(CXXRecordDecl *Owner, FieldDecl *ArrayField,
-                        QualType ElementTy, Handlers &... handlers) {
+                         QualType ElementTy, Handlers &... handlers) {
     VisitElementImpl(Owner, ArrayField, ElementTy, handlers...);
   }
 
   template <typename... Handlers>
   void VisitNthElement(CXXRecordDecl *Owner, FieldDecl *ArrayField,
-                        QualType ElementTy, Handlers &... handlers);
+                       QualType ElementTy, Handlers &... handlers);
 
   template <typename... Handlers>
   void VisitArrayElements(FieldDecl *FD, QualType FieldTy,
