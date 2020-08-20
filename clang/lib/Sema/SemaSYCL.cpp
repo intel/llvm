@@ -874,7 +874,6 @@ class KernelObjVisitor {
     int64_t ElemCount = CAT->getSize().getSExtValue();
     std::initializer_list<int>{(handlers.enterArray(), 0)...};
 
-
     assert(ElemCount > 0 && "SYCL prohibits 0 sized arrays");
     VisitFirstElement(nullptr, FD, ET, handlers...);
     (void)std::initializer_list<int>{(handlers.nextElement(ET), 0)...};
