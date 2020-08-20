@@ -851,7 +851,7 @@ public:
     std::initializer_list<int>{(handlers.enterArray(), 0)...};
     for (int64_t Count = 0; Count < ElemCount; Count++) {
       VisitElement(nullptr, FD, ET, handlers...);
-      (void)std::initializer_list<int>{(handlers.nextElement(ET), 0)...};
+      (void)std::initializer_list<int>{(handlers.nextElement(ET, Count), 0)...};
     }
     (void)std::initializer_list<int>{
         (handlers.leaveArray(FD, ET, ElemCount), 0)...};
@@ -1108,7 +1108,7 @@ public:
   virtual bool enterField(const CXXRecordDecl *, FieldDecl *) { return true; }
   virtual bool leaveField(const CXXRecordDecl *, FieldDecl *) { return true; }
   virtual bool enterArray() { return true; }
-  virtual bool nextElement(QualType) { return true; }
+  virtual bool nextElement(QualType, int64_t) { return true; }
   virtual bool leaveArray(FieldDecl *, QualType, int64_t) { return true; }
 
   virtual ~SyclKernelFieldHandler() = default;
@@ -1626,7 +1626,6 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   InitializedEntity VarEntity;
   const CXXRecordDecl *KernelObj;
   llvm::SmallVector<Expr *, 16> MemberExprBases;
-  uint64_t ArrayIndex;
   FunctionDecl *KernelCallerFunc;
 
   // Using the statements/init expressions that we've created, this generates
@@ -1761,26 +1760,28 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   void createExprForScalarElement(FieldDecl *FD) {
     llvm::SmallVector<InitializedEntity, 4> InitEntities;
 
-    InitializedEntity MemberEntity =
-        InitializedEntity::InitializeMember(FD, &VarEntity);
-    InitializedEntity Entity = InitializedEntity::InitializeElement(
-        SemaRef.getASTContext(), ArrayIndex, MemberEntity);
-    InitEntities.push_back(Entity);
     // For multi-dimensional arrays, an initialized entity needs to be
     // generated for each 'dimension'. For example, the initialized entity
     // for s.array[x][y][z] is constructed using initialized entities for
     // s.array[x][y], s.array[x] and s.array. InitEntities is used to maintain
-    // this. MemberExprBases is used to get the array index for 'current
-    // dimension'.
-    for (int i = MemberExprBases.size() - 2; i >= 0; --i) {
-      if (!isa<ArraySubscriptExpr>(MemberExprBases[i]))
-        break;
-      InitializedEntity NewEntity = InitializedEntity::InitializeElement(
-          SemaRef.getASTContext(), getArrayIndex(i), InitEntities.back());
-      InitEntities.push_back(NewEntity);
-    }
+    // this.
+    InitializedEntity Entity =
+        InitializedEntity::InitializeMember(FD, &VarEntity);
+    InitEntities.push_back(Entity);
 
-    ArrayIndex++;
+    // Calculate dimension using ArraySubscriptExpressions in MemberExprBases.
+    // Each dimension has an ArraySubscriptExpression (maintains index)
+    // in MemberExprBases. For example, if we are currently handling element
+    // a[0][0][1], the top of stack entries are ArraySubscriptExpressions for
+    // indices 0,0 and 1, with 1 on top.
+    int Dims = getDims();
+    int NIndex = MemberExprBases.size() - 1 - (Dims - 1);
+    for (int i = 0; i < Dims; ++i) {
+      InitializedEntity NewEntity = InitializedEntity::InitializeElement(
+          SemaRef.getASTContext(), getArrayIndex(NIndex), InitEntities.back());
+      InitEntities.push_back(NewEntity);
+      ++NIndex;
+    }
 
     InitializationKind InitKind =
         InitializationKind::CreateCopy(SourceLocation(), SourceLocation());
@@ -2067,14 +2068,14 @@ public:
     ExprResult ElementBase = SemaRef.CreateBuiltinArraySubscriptExpr(
         ArrayBase, SourceLocation(), IndexExpr.get(), SourceLocation());
     MemberExprBases.push_back(ElementBase.get());
-    ArrayIndex = 0;
     return true;
   }
 
-  bool nextElement(QualType ET) final {
+  bool nextElement(QualType ET, int64_t) final {
     // Top of MemberExprBases holds ArraySubscriptExpression of element
-    // we just finished processing.
-    int64_t nextIndex = getArrayIndex((MemberExprBases.size() - 1)) + 1;
+    // we just handled, or the Array base for the dimension we are
+    // currently visiting.
+    int64_t nextIndex = getArrayIndex(MemberExprBases.size() - 1) + 1;
     MemberExprBases.pop_back();
     Expr *ArrayBase = MemberExprBases.back();
     ExprResult IndexExpr =
@@ -2103,6 +2104,7 @@ public:
 class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   SYCLIntegrationHeader &Header;
   int64_t CurOffset = 0;
+  llvm::SmallVector<size_t, 16> ArrayBases;
   int StructDepth = 0;
 
   void addParam(const FieldDecl *FD, QualType ArgTy,
@@ -2249,18 +2251,20 @@ public:
     return true;
   }
 
-  bool nextElement(QualType ET) final {
-    CurOffset += SemaRef.getASTContext().getTypeSizeInChars(ET).getQuantity();
+  bool enterArray() final {
+    ArrayBases.push_back(CurOffset);
     return true;
   }
 
-  bool leaveArray(FieldDecl *, QualType ET, int64_t Count) final {
-    int64_t ArraySize =
-        SemaRef.getASTContext().getTypeSizeInChars(ET).getQuantity();
-    if (!ET->isArrayType()) {
-      ArraySize *= Count;
-    }
-    CurOffset -= ArraySize;
+  bool nextElement(QualType ET, int64_t Index) final {
+    int64_t Size = SemaRef.getASTContext().getTypeSizeInChars(ET).getQuantity();
+    CurOffset = ArrayBases.back() + Size * (Index + 1);
+    return true;
+  }
+
+  bool leaveArray(FieldDecl *, QualType ET, int64_t) final {
+    CurOffset = ArrayBases.back();
+    ArrayBases.pop_back();
     return true;
   }
   using SyclKernelFieldHandler::enterStruct;
