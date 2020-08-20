@@ -4124,7 +4124,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-sycl-opt");
     }
     // Turn on Dead Parameter Elimination Optimization with early optimizations
-    if (Args.hasFlag(options::OPT_fsycl_dead_args_optimization,
+    if (!RawTriple.isNVPTX() &&
+        Args.hasFlag(options::OPT_fsycl_dead_args_optimization,
                      options::OPT_fno_sycl_dead_args_optimization, false))
       CmdArgs.push_back("-fenable-sycl-dae");
 
@@ -7812,7 +7813,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // -fsycl-device-code-split=per_source
 
   // Turn on Dead Parameter Elimination Optimization with early optimizations
-  if (TCArgs.hasFlag(options::OPT_fsycl_dead_args_optimization,
+  if (!getToolChain().getTriple().isNVPTX() &&
+      TCArgs.hasFlag(options::OPT_fsycl_dead_args_optimization,
                      options::OPT_fno_sycl_dead_args_optimization, false))
     addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
   if (JA.getType() == types::TY_LLVM_BC) {
