@@ -85,7 +85,7 @@ class AccessorOpIndex(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return gdb.lookup_type("cl::sycl::id<%s>" % self.depth)
 
-    def get_result_type(self):
+    def get_result_type(self, *args):
         return self.result_type
 
     def __call__(self, obj, arg):

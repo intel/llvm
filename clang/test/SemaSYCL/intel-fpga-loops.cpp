@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -verify -pedantic %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsyntax-only -Wno-sycl-2017-compat -verify -pedantic %s
 
 // Test for Intel FPGA loop attributes applied not to a loop
 void foo() {
@@ -371,7 +371,7 @@ void max_concurrency_dependent() {
 }
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 }
 

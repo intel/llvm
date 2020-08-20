@@ -1783,30 +1783,6 @@ protected:
   SPIRVId CalledValueId;
 };
 
-class SPIRVFunctionPointerINTEL : public SPIRVInstruction {
-  const static Op OC = OpFunctionPointerINTEL;
-  const static SPIRVWord FixedWordCount = 4;
-
-public:
-  SPIRVFunctionPointerINTEL(SPIRVId TheId, SPIRVType *TheType,
-                            SPIRVFunction *TheFunction, SPIRVBasicBlock *BB);
-  SPIRVFunctionPointerINTEL()
-      : SPIRVInstruction(OC), TheFunction(SPIRVID_INVALID) {}
-  SPIRVFunction *getFunction() const { return get<SPIRVFunction>(TheFunction); }
-  _SPIRV_DEF_ENCDEC3(Type, Id, TheFunction)
-  void validate() const override;
-  bool isOperandLiteral(unsigned Index) const override { return false; }
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_function_pointers);
-  }
-  SPIRVCapVec getRequiredCapability() const override {
-    return getVec(CapabilityFunctionPointersINTEL);
-  }
-
-protected:
-  SPIRVId TheFunction;
-};
-
 class SPIRVExtInst : public SPIRVFunctionCallGeneric<OpExtInst, 5> {
 public:
   SPIRVExtInst(SPIRVType *TheType, SPIRVId TheId, SPIRVId TheBuiltinSet,

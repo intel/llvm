@@ -1,4 +1,4 @@
-//==-------------- fpga_lsu.hpp --- SYCL FPGA Reg Extensions ---------------==//
+//==-------------- fpga_lsu.hpp --- SYCL FPGA LSU Extensions ---------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -47,7 +47,7 @@ template <class... mem_access_params> class lsu final {
 public:
   lsu() = delete;
 
-  template <typename T> static T &load(sycl::global_ptr<T> Ptr) {
+  template <typename T> static T load(sycl::global_ptr<T> Ptr) {
     check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
     return *__builtin_intel_fpga_mem((T *)Ptr,
