@@ -58,6 +58,11 @@ bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
   if (!Cmd || Cmd->isSuccessfullyEnqueued())
     return true;
 
+  if (Cmd->isEnqueueBlocked()) {
+    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+    return false;
+  }
+
   // Indicates whether dependency cannot be enqueued
   bool BlockedByDep = false;
 

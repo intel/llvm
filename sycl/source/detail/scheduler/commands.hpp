@@ -130,6 +130,10 @@ public:
     return MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
   }
 
+  bool isEnqueueBlocked() const {
+    return MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked;
+  }
+
   std::shared_ptr<queue_impl> getQueue() const { return MQueue; }
 
   std::shared_ptr<event_impl> getEvent() const { return MEvent; }

@@ -81,7 +81,7 @@ TEST_F(SchedulerTest, DontEnqueueDepsIfOneOfThemIsBlocked) {
 
   EXPECT_CALL(A, enqueue(_, _)).Times(0);
   EXPECT_CALL(B, enqueue(_, _)).Times(1);
-  EXPECT_CALL(C, enqueue(_, _)).Times(1);
+  EXPECT_CALL(C, enqueue(_, _)).Times(0);
   EXPECT_CALL(D, enqueue(_, _)).Times(0);
 
   detail::EnqueueResultT Res;
@@ -110,12 +110,12 @@ TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
   // If A is blocked, we should not try to enqueue B.
 
   EXPECT_CALL(A, enqueue(_, _)).Times(0);
-  EXPECT_CALL(B, enqueue(_, _)).Times(1);
+  EXPECT_CALL(B, enqueue(_, _)).Times(0);
 
   detail::EnqueueResultT Res;
   bool Enqueued = MockScheduler::enqueueCommand(&A, Res, detail::NON_BLOCKING);
   ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
   ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueBlocked, Res.MResult)
       << "Result of enqueueing blocked command should be BLOCKED.\n";
-  ASSERT_EQ(&B, Res.MCmd) << "Expected different failed command.\n";
+  ASSERT_EQ(&A, Res.MCmd) << "Expected different failed command.\n";
 }
