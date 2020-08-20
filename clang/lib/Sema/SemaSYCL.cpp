@@ -917,11 +917,11 @@ class KernelObjVisitor {
       // Handle accessor class as base
       if (Util::isSyclAccessorType(BaseTy)) {
         (void)std::initializer_list<int>{
-            (handlers.handleSyclAccessorType(Base, BaseTy), 0)...};
+            (handlers.handleSyclAccessorType(Owner, Base, BaseTy), 0)...};
       } else if (Util::isSyclStreamType(BaseTy)) {
         // Handle stream class as base
         (void)std::initializer_list<int>{
-            (handlers.handleSyclStreamType(Base, BaseTy), 0)...};
+            (handlers.handleSyclStreamType(Owner, Base, BaseTy), 0)...};
       } else
         // For all other bases, visit the record
         VisitRecord(Owner, Base, BaseTy->getAsCXXRecordDecl(), handlers...);
@@ -1027,22 +1027,26 @@ public:
   // despite virtual dispatch never being used.
 
   // Accessor can be a base class or a field decl, so both must be handled.
-  virtual bool handleSyclAccessorType(const CXXBaseSpecifier &, QualType) {
+  virtual bool handleSyclAccessorType(const CXXRecordDecl *,
+                                      const CXXBaseSpecifier &, QualType) {
     return true;
   }
   virtual bool handleSyclAccessorType(FieldDecl *, QualType) { return true; }
-  virtual bool handleSyclSamplerType(const CXXBaseSpecifier &, QualType) {
+  virtual bool handleSyclSamplerType(const CXXRecordDecl *,
+                                     const CXXBaseSpecifier &, QualType) {
     return true;
   }
   virtual bool handleSyclSamplerType(FieldDecl *, QualType) { return true; }
   virtual bool handleSyclSpecConstantType(FieldDecl *, QualType) {
     return true;
   }
-  virtual bool handleSyclStreamType(const CXXBaseSpecifier &, QualType) {
+  virtual bool handleSyclStreamType(const CXXRecordDecl *,
+                                    const CXXBaseSpecifier &, QualType) {
     return true;
   }
   virtual bool handleSyclStreamType(FieldDecl *, QualType) { return true; }
-  virtual bool handleSyclHalfType(const CXXBaseSpecifier &, QualType) {
+  virtual bool handleSyclHalfType(const CXXRecordDecl *,
+                                  const CXXBaseSpecifier &, QualType) {
     return true;
   }
   virtual bool handleSyclHalfType(FieldDecl *, QualType) { return true; }
@@ -1282,7 +1286,7 @@ public:
     return isValid();
   }
 
-  bool handleSyclAccessorType(const CXXBaseSpecifier &BS,
+  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                               QualType FieldTy) final {
     checkAccessorType(FieldTy, BS.getBeginLoc());
     return isValid();
@@ -1341,7 +1345,7 @@ public:
     return checkType(FD->getLocation(), FieldTy);
   }
 
-  bool handleSyclAccessorType(const CXXBaseSpecifier &BS,
+  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                               QualType FieldTy) final {
     return checkType(BS.getBeginLoc(), FieldTy);
   }
@@ -1350,7 +1354,7 @@ public:
     return checkType(FD->getLocation(), FieldTy);
   }
 
-  bool handleSyclSamplerType(const CXXBaseSpecifier &BS,
+  bool handleSyclSamplerType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                              QualType FieldTy) final {
     return checkType(BS.getBeginLoc(), FieldTy);
   }
@@ -1359,7 +1363,7 @@ public:
     return checkType(FD->getLocation(), FieldTy);
   }
 
-  bool handleSyclStreamType(const CXXBaseSpecifier &BS,
+  bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                             QualType FieldTy) final {
     return checkType(BS.getBeginLoc(), FieldTy);
   }
@@ -1537,7 +1541,7 @@ public:
     return true;
   }
 
-  bool handleSyclAccessorType(const CXXBaseSpecifier &BS,
+  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                               QualType FieldTy) final {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
@@ -1630,7 +1634,8 @@ public:
     return true;
   }
 
-  bool handleSyclStreamType(const CXXBaseSpecifier &, QualType FieldTy) final {
+  bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &,
+                            QualType FieldTy) final {
     // FIXME SYCL stream should be usable as a base type
     // See https://github.com/intel/llvm/issues/1552
     return true;
@@ -1916,7 +1921,8 @@ public:
     return handleSpecialType(FD, Ty);
   }
 
-  bool handleSyclAccessorType(const CXXBaseSpecifier &BS, QualType Ty) final {
+  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                              QualType Ty) final {
     return handleSpecialType(BS, Ty);
   }
 
@@ -1948,7 +1954,8 @@ public:
     return true;
   }
 
-  bool handleSyclStreamType(const CXXBaseSpecifier &BS, QualType Ty) final {
+  bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                            QualType Ty) final {
     // FIXME SYCL stream should be usable as a base type
     // See https://github.com/intel/llvm/issues/1552
     return true;
@@ -2096,6 +2103,17 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   int64_t CurOffset = 0;
   int StructDepth = 0;
 
+  // A series of functions to calculate the change in offset based on the type.
+  int64_t offsetOf(const FieldDecl *FD) const {
+    return SemaRef.getASTContext().getFieldOffset(FD) / 8;
+  }
+
+  int64_t offsetOf(const CXXRecordDecl *RD, const CXXRecordDecl *Base) const {
+    const ASTRecordLayout &Layout =
+        SemaRef.getASTContext().getASTRecordLayout(RD);
+    return Layout.getBaseClassOffset(Base).getQuantity();
+  }
+
   void addParam(const FieldDecl *FD, QualType ArgTy,
                 SYCLIntegrationHeader::kernel_param_kind_t Kind) {
     uint64_t Size;
@@ -2105,7 +2123,7 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
       ArgTy = CAT->getElementType();
     Size = SemaRef.getASTContext().getTypeSizeInChars(ArgTy).getQuantity();
     Header.addParamDesc(Kind, static_cast<unsigned>(Size),
-                        static_cast<unsigned>(CurOffset));
+                        static_cast<unsigned>(CurOffset + offsetOf(FD)));
   }
 
 public:
@@ -2116,7 +2134,8 @@ public:
     Header.startKernel(Name, NameType, StableName, KernelObj->getLocation());
   }
 
-  bool handleSyclAccessorType(const CXXBaseSpecifier &BC,
+  bool handleSyclAccessorType(const CXXRecordDecl *RD,
+                              const CXXBaseSpecifier &BC,
                               QualType FieldTy) final {
     const auto *AccTy =
         cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
@@ -2125,7 +2144,9 @@ public:
     int Dims = static_cast<int>(
         AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
     int Info = getAccessTarget(AccTy) | (Dims << 11);
-    Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info, CurOffset);
+    Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
+                        CurOffset +
+                            offsetOf(RD, BC.getType()->getAsCXXRecordDecl()));
     return true;
   }
 
@@ -2137,7 +2158,8 @@ public:
     int Dims = static_cast<int>(
         AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
     int Info = getAccessTarget(AccTy) | (Dims << 11);
-    Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info, CurOffset);
+    Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
+                        CurOffset + offsetOf(FD));
     return true;
   }
 
@@ -2192,7 +2214,7 @@ public:
     return true;
   }
 
-  bool handleSyclStreamType(const CXXBaseSpecifier &BC,
+  bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &BC,
                             QualType FieldTy) final {
     // FIXME SYCL stream should be usable as a base type
     // See https://github.com/intel/llvm/issues/1552
@@ -2204,39 +2226,25 @@ public:
     return true;
   }
 
-  bool enterStruct(const CXXRecordDecl *, FieldDecl *) final {
+  bool enterStruct(const CXXRecordDecl *, FieldDecl *FD) final {
     ++StructDepth;
+    CurOffset += offsetOf(FD);
     return true;
   }
 
-  bool leaveStruct(const CXXRecordDecl *, FieldDecl *) final {
+  bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD) final {
     --StructDepth;
+    CurOffset -= offsetOf(FD);
     return true;
   }
 
-  bool enterField(const CXXRecordDecl *RD, FieldDecl *FD) final {
-    CurOffset += SemaRef.getASTContext().getFieldOffset(FD) / 8;
+  bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
+    CurOffset += offsetOf(RD, BS.getType()->getAsCXXRecordDecl());
     return true;
   }
 
-  bool leaveField(const CXXRecordDecl *, FieldDecl *FD) final {
-    CurOffset -= SemaRef.getASTContext().getFieldOffset(FD) / 8;
-    return true;
-  }
-
-  bool enterField(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
-    const ASTRecordLayout &Layout =
-        SemaRef.getASTContext().getASTRecordLayout(RD);
-    CurOffset += Layout.getBaseClassOffset(BS.getType()->getAsCXXRecordDecl())
-                     .getQuantity();
-    return true;
-  }
-
-  bool leaveField(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
-    const ASTRecordLayout &Layout =
-        SemaRef.getASTContext().getASTRecordLayout(RD);
-    CurOffset -= Layout.getBaseClassOffset(BS.getType()->getAsCXXRecordDecl())
-                     .getQuantity();
+  bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
+    CurOffset -= offsetOf(RD, BS.getType()->getAsCXXRecordDecl());
     return true;
   }
 
