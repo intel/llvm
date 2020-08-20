@@ -1227,7 +1227,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
 
   void checkBufferLocationType(QualType PropTy, SourceLocation Loc) {
     const auto *PropDecl =
-        dyn_cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
+        cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
     if (PropDecl->getTemplateArgs().size() != 1) {
       SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_param_number)
           << "buffer_location";
