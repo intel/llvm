@@ -880,7 +880,8 @@ class KernelObjVisitor {
 
     for (int64_t Count = 1; Count < ElemCount; Count++) {
       VisitNthElement(nullptr, FD, ET, handlers...);
-      (void)std::initializer_list<int>{(handlers.nextElement(ET, Count + 1), 0)...};
+      (void)std::initializer_list<int>{
+          (handlers.nextElement(ET, Count + 1), 0)...};
     }
 
     (void)std::initializer_list<int>{
