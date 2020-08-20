@@ -86,17 +86,39 @@ template <typename T, typename V> struct identity<T, ONEAPI::plus<V>> {
 };
 
 template <typename T, typename V> struct identity<T, ONEAPI::minimum<V>> {
-  static constexpr T value = (std::numeric_limits<T>::max)();
+  static constexpr T value = std::numeric_limits<T>::has_infinity
+                                 ? std::numeric_limits<T>::infinity()
+                                 : (std::numeric_limits<T>::max)();
 };
 
 template <typename T, typename V> struct identity<T, ONEAPI::maximum<V>> {
-  static constexpr T value = std::numeric_limits<T>::lowest();
+  static constexpr T value =
+      std::numeric_limits<T>::has_infinity
+          ? static_cast<T>(-std::numeric_limits<T>::infinity())
+          : std::numeric_limits<T>::lowest();
+};
+
+template <typename T, typename V> struct identity<T, ONEAPI::multiplies<V>> {
+  static constexpr T value = static_cast<T>(1);
+};
+
+template <typename T, typename V> struct identity<T, ONEAPI::bit_or<V>> {
+  static constexpr T value = 0;
+};
+
+template <typename T, typename V> struct identity<T, ONEAPI::bit_xor<V>> {
+  static constexpr T value = 0;
+};
+
+template <typename T, typename V> struct identity<T, ONEAPI::bit_and<V>> {
+  static constexpr T value = ~static_cast<T>(0);
 };
 
 template <typename T>
 using native_op_list =
     type_list<ONEAPI::plus<T>, ONEAPI::bit_or<T>, ONEAPI::bit_xor<T>,
-              ONEAPI::bit_and<T>, ONEAPI::maximum<T>, ONEAPI::minimum<T>>;
+              ONEAPI::bit_and<T>, ONEAPI::maximum<T>, ONEAPI::minimum<T>,
+              ONEAPI::multiplies<T>>;
 
 template <typename T, typename BinaryOperation> struct is_native_op {
   static constexpr bool value =
