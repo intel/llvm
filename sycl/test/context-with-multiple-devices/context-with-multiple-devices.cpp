@@ -38,9 +38,8 @@ int main() {
   }
 
   for (auto &Queue : QueueList) {
-    Queue.submit([&](sycl::handler &cgh) {
-      cgh.parallel_for(100, [=](auto i) {});
-    });
+    Queue.submit(
+        [&](sycl::handler &cgh) { cgh.parallel_for(100, [=](auto i) {}); });
   }
 
   return 0;

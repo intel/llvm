@@ -387,7 +387,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
         Device.get_info<info::device::parent_device>();
         ContextHasSubDevices = true;
         break;
-      } catch (sycl::invalid_object_error const &E) {
+      } catch (sycl::invalid_object_error const &) {
       }
     }
 
