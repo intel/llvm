@@ -1425,6 +1425,20 @@ Value *SPIRVToLLVM::oclTransConstantPipeStorage(
                             GlobalValue::NotThreadLocal, SPIRAS_Global);
 }
 
+// A pointer annotation may have been generated for the operand. If the operand
+// is used further in IR, it should be replaced with the intrinsic call result.
+// Otherwise, the generated pointer annotation call is left unused.
+static void replaceOperandWithAnnotationIntrinsicCallResult(Value *&V) {
+  if (Use *SingleUse = V->getSingleUndroppableUse()) {
+    if (auto *II = dyn_cast<IntrinsicInst>(SingleUse->getUser())) {
+      if (II->getIntrinsicID() == Intrinsic::ptr_annotation &&
+          II->getType() == V->getType())
+        // Overwrite the future operand with the intrinsic call result.
+        V = II;
+    }
+  }
+}
+
 /// For instructions, this function assumes they are created in order
 /// and appended to the given basic block. An instruction may use a
 /// instruction from another BB which has not been translated. Such
@@ -1764,15 +1778,11 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     StoreInst *SI = nullptr;
     auto *Src = transValue(BS->getSrc(), F, BB);
     auto *Dst = transValue(BS->getDst(), F, BB);
-    // A pointer annotation may have been generated for the source variable.
-    if (Use *SingleUse = Src->getSingleUndroppableUse()) {
-      if (auto *II = dyn_cast<IntrinsicInst>(SingleUse->getUser())) {
-        if (II->getIntrinsicID() == Intrinsic::ptr_annotation &&
-            II->getType() == Src->getType())
-          // Overwrite the future store operand with the intrinsic call result.
-          Src = II;
-      }
-    }
+    // A ptr.annotation may have been generated for the source variable.
+    replaceOperandWithAnnotationIntrinsicCallResult(Src);
+    // A ptr.annotation may have been generated for the destination variable.
+    replaceOperandWithAnnotationIntrinsicCallResult(Dst);
+
     bool isVolatile = BS->SPIRVMemoryAccess::isVolatile();
     uint64_t AlignValue = BS->SPIRVMemoryAccess::getAlignment();
     if (0 == AlignValue)
@@ -1786,7 +1796,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpLoad: {
     SPIRVLoad *BL = static_cast<SPIRVLoad *>(BV);
-    auto V = transValue(BL->getSrc(), F, BB);
+    auto *V = transValue(BL->getSrc(), F, BB);
+    // A ptr.annotation may have been generated for the source variable.
+    replaceOperandWithAnnotationIntrinsicCallResult(V);
+
     Type *Ty = V->getType()->getPointerElementType();
     LoadInst *LI = nullptr;
     uint64_t AlignValue = BL->SPIRVMemoryAccess::getAlignment();
