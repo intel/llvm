@@ -851,7 +851,8 @@ public:
     std::initializer_list<int>{(handlers.enterArray(), 0)...};
     for (int64_t Count = 0; Count < ElemCount; Count++) {
       VisitElement(nullptr, FD, ET, handlers...);
-      (void)std::initializer_list<int>{(handlers.nextElement(ET, Count), 0)...};
+      (void)std::initializer_list<int>{
+          (handlers.nextElement(ET, Count + 1), 0)...};
     }
     (void)std::initializer_list<int>{
         (handlers.leaveArray(FD, ET, ElemCount), 0)...};
@@ -1748,9 +1749,9 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return Dims;
   }
 
-  int64_t getArrayIndex(int i) {
+  int64_t getArrayIndex(int Idx) {
     ArraySubscriptExpr *LastArrayRef =
-        cast<ArraySubscriptExpr>(MemberExprBases[i]);
+        cast<ArraySubscriptExpr>(MemberExprBases[Idx]);
     Expr *LastIdx = LastArrayRef->getIdx();
     llvm::APSInt Result;
     SemaRef.VerifyIntegerConstantExpression(LastIdx, &Result);
@@ -1775,12 +1776,17 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     // a[0][0][1], the top of stack entries are ArraySubscriptExpressions for
     // indices 0,0 and 1, with 1 on top.
     int Dims = getDims();
-    int NIndex = MemberExprBases.size() - 1 - (Dims - 1);
+
+    // MemberExprBasesIdx is used to get the index of each dimension, in correct
+    // order, from MemberExprBases. For example for a[0][0][1], getArrayIndex
+    // will return 0, 0 and then 1.
+    int MemberExprBasesIdx = (MemberExprBases.size() - 1) - (Dims - 1);
     for (int i = 0; i < Dims; ++i) {
       InitializedEntity NewEntity = InitializedEntity::InitializeElement(
-          SemaRef.getASTContext(), getArrayIndex(NIndex), InitEntities.back());
+          SemaRef.getASTContext(), getArrayIndex(MemberExprBasesIdx),
+          InitEntities.back());
       InitEntities.push_back(NewEntity);
-      ++NIndex;
+      ++MemberExprBasesIdx;
     }
 
     InitializationKind InitKind =
@@ -1802,6 +1808,14 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     Expr *ILE = new (SemaRef.getASTContext())
         InitListExpr(SemaRef.getASTContext(), SourceLocation(), ArrayInitExprs,
                      SourceLocation());
+
+    // We need to find the type of the element for which we are generating the
+    // InitListExpr. For example, for a multi-dimensional array say a[2][3][2],
+    // the types for InitListExpr of the array and its 'sub-arrays' are -
+    // int [2][3][2], int [3][2] and int [2]. This loop is used to obtain this
+    // information from MemberExprBases. MemberExprBases holds
+    // ArraySubscriptExprs and the top of stack shows how far we have descended
+    // down the array. getDims() calculates this depth.
     QualType ILEType = FD->getType();
     for (int i = getDims(); i > 1; i--) {
       const ConstantArrayType *CAT =
@@ -2104,7 +2118,7 @@ public:
 class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   SYCLIntegrationHeader &Header;
   int64_t CurOffset = 0;
-  llvm::SmallVector<size_t, 16> ArrayBases;
+  llvm::SmallVector<size_t, 16> ArrayBaseOffsets;
   int StructDepth = 0;
 
   void addParam(const FieldDecl *FD, QualType ArgTy,
@@ -2252,19 +2266,19 @@ public:
   }
 
   bool enterArray() final {
-    ArrayBases.push_back(CurOffset);
+    ArrayBaseOffsets.push_back(CurOffset);
     return true;
   }
 
   bool nextElement(QualType ET, int64_t Index) final {
     int64_t Size = SemaRef.getASTContext().getTypeSizeInChars(ET).getQuantity();
-    CurOffset = ArrayBases.back() + Size * (Index + 1);
+    CurOffset = ArrayBaseOffsets.back() + Size * (Index);
     return true;
   }
 
   bool leaveArray(FieldDecl *, QualType ET, int64_t) final {
-    CurOffset = ArrayBases.back();
-    ArrayBases.pop_back();
+    CurOffset = ArrayBaseOffsets.back();
+    ArrayBaseOffsets.pop_back();
     return true;
   }
   using SyclKernelFieldHandler::enterStruct;
