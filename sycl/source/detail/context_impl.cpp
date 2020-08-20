@@ -87,9 +87,7 @@ context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
     for (auto Dev : DeviceIds) {
       MDevices.emplace_back(createSyclObjFromImpl<device>(
           Platform->getOrMakeDeviceImpl(Dev, Platform)));
-      //          std::make_shared<device_impl>(Dev, Plugin)));
     }
-    // TODO What if m_Devices if empty? m_Devices[0].get_platform()
     MPlatform = Platform;
   }
   // TODO catch an exception and put it to list of asynchronous exceptions

@@ -248,11 +248,8 @@ bool device_impl::has(aspect Aspect) const {
 }
 
 std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {
-  static std::shared_ptr<device_impl> HostImpl;
-  static std::once_flag HostImplInit;
-
-  std::call_once(HostImplInit,
-                 []() { HostImpl = std::make_shared<device_impl>(); });
+  static std::shared_ptr<device_impl> HostImpl =
+      std::make_shared<device_impl>();
 
   return HostImpl;
 }

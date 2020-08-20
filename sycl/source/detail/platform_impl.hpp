@@ -38,13 +38,11 @@ public:
   /// \param APlatform is a raw plug-in platform handle.
   /// \param APlugin is a plug-in handle.
   explicit platform_impl(RT::PiPlatform APlatform, const plugin &APlugin)
-      : MPlatform(APlatform), MPlugin(std::make_shared<plugin>(APlugin)),
-        MDeviceMapMutex(std::make_shared<std::mutex>()) {}
+      : MPlatform(APlatform), MPlugin(std::make_shared<plugin>(APlugin)) {}
 
   explicit platform_impl(RT::PiPlatform APlatform,
                          std::shared_ptr<plugin> APlugin)
-      : MPlatform(APlatform), MPlugin(APlugin),
-        MDeviceMapMutex(std::make_shared<std::mutex>()) {}
+      : MPlatform(APlatform), MPlugin(APlugin) {}
 
   ~platform_impl() = default;
 
@@ -152,7 +150,7 @@ public:
   /// \return a shared_ptr<device_impl> corresponding to the device
   std::shared_ptr<device_impl>
   getOrMakeDeviceImpl(RT::PiDevice PiDevice,
-                      std::shared_ptr<platform_impl> PlatformImpl);
+                      const std::shared_ptr<platform_impl> &PlatformImpl);
 
   /// Static functions that help maintain platform uniquess and
   /// equality of comparison
@@ -188,8 +186,8 @@ private:
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;
   std::shared_ptr<plugin> MPlugin;
-  std::map<RT::PiDevice, std::shared_ptr<device_impl>> MDeviceMap;
-  std::shared_ptr<std::mutex> MDeviceMapMutex;
+  std::vector<std::shared_ptr<device_impl>> MDeviceCache;
+  std::mutex MDeviceMapMutex;
 };
 
 } // namespace detail

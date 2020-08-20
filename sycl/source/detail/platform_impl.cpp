@@ -27,37 +27,31 @@ PlatformImplPtr platform_impl::getHostPlatformImpl() {
   static PlatformImplPtr HostImpl;
   static std::once_flag HostImplInit;
 
-  std::call_once(HostImplInit, []() {
-    HostImpl = std::make_shared<platform_impl>(platform_impl());
-  });
+  std::call_once(HostImplInit,
+                 []() { HostImpl = std::make_shared<platform_impl>(); });
 
   return HostImpl;
 }
 
 PlatformImplPtr platform_impl::getOrMakePlatformImpl(RT::PiPlatform PiPlatform,
                                                      const plugin &Plugin) {
+  static std::vector<PlatformImplPtr> PlatformCache;
   static std::shared_ptr<std::map<RT::PiPlatform, PlatformImplPtr>> PlatformMap;
-  static std::shared_ptr<std::mutex> PlatformMapMutex;
-  static std::once_flag PlatformMapInit;
-
-  std::call_once(PlatformMapInit, []() {
-    PlatformMap = std::make_shared<std::map<RT::PiPlatform, PlatformImplPtr>>();
-    PlatformMapMutex = std::make_shared<std::mutex>();
-  });
+  static std::mutex PlatformMapMutex;
 
   PlatformImplPtr Result;
   {
-    const std::lock_guard<std::mutex> guard(*PlatformMapMutex);
+    const std::lock_guard<std::mutex> guard(PlatformMapMutex);
 
     // If we've already seen this platform, return the impl
-    auto Value = PlatformMap->find(PiPlatform);
-    if (Value != PlatformMap->end()) {
-      return Value->second;
+    for (const auto &PlatImpl : PlatformCache) {
+      if (PlatImpl->getHandleRef() == PiPlatform)
+        return PlatImpl;
     }
 
     // Otherwise make the impl
     Result = std::make_shared<platform_impl>(PiPlatform, Plugin);
-    PlatformMap->emplace(PiPlatform, Result);
+    PlatformCache.emplace_back(Result);
   }
 
   return Result;
@@ -65,11 +59,11 @@ PlatformImplPtr platform_impl::getOrMakePlatformImpl(RT::PiPlatform PiPlatform,
 
 PlatformImplPtr platform_impl::getPlatformFromPiDevice(RT::PiDevice PiDevice,
                                                        const plugin &Plugin) {
-  RT::PiPlatform plt = nullptr; // TODO catch an exception and put it to list
+  RT::PiPlatform Plt = nullptr; // TODO catch an exception and put it to list
   // of asynchronous exceptions
   Plugin.call<PiApiKind::piDeviceGetInfo>(PiDevice, PI_DEVICE_INFO_PLATFORM,
-                                          sizeof(plt), &plt, nullptr);
-  return getOrMakePlatformImpl(plt, Plugin);
+                                          sizeof(Plt), &Plt, nullptr);
+  return getOrMakePlatformImpl(Plt, Plugin);
 }
 
 static bool IsBannedPlatform(platform Platform) {
@@ -279,20 +273,20 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
 }
 
 std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
-    RT::PiDevice PiDevice, std::shared_ptr<platform_impl> PlatformImpl) {
-  const std::lock_guard<std::mutex> guard(*MDeviceMapMutex);
+    RT::PiDevice PiDevice, const std::shared_ptr<platform_impl> &PlatformImpl) {
+  const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
 
   // If we've already seen this device, return the impl
-  auto Value = MDeviceMap.find(PiDevice);
-  if (Value != MDeviceMap.end()) {
-    return Value->second;
+  for (const auto &Device : MDeviceCache) {
+    if (Device->getHandleRef() == PiDevice)
+      return Device;
   }
 
   // Otherwise make the impl
-  auto Res = std::make_shared<device_impl>(PiDevice, PlatformImpl);
-  MDeviceMap.emplace(PiDevice, Res);
+  auto Result = std::make_shared<device_impl>(PiDevice, PlatformImpl);
+  MDeviceCache.emplace_back(Result);
 
-  return Res;
+  return Result;
 }
 
 vector_class<device>
