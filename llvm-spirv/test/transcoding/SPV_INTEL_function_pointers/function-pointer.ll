@@ -24,11 +24,11 @@
 ; CHECK-SPIRV: TypeFunction [[FOO_TYPE_ID:[0-9]+]] [[TYPE_INT_ID]] [[TYPE_INT_ID]]
 ; CHECK-SPIRV: TypePointer [[FOO_PTR_ID:[0-9]+]] {{[0-9]+}} [[FOO_TYPE_ID]]
 ; CHECK-SPIRV: TypePointer [[FOO_PTR_ALLOCA_ID:[0-9]+]] 7 [[FOO_PTR_ID]]
+; CHECK-SPIRV: ConstFunctionPointerINTEL [[FOO_PTR_ID]] [[FOO_PTR:[0-9]+]] [[FOO_ID:[0-9]+]]
 ;
-; CHECK-SPIRV: Function {{[0-9]+}} [[FOO_ID:[0-9]+]] {{[0-9]+}} [[FOO_TYPE_ID]]
+; CHECK-SPIRV: Function {{[0-9]+}} [[FOO_ID]] {{[0-9]+}} [[FOO_TYPE_ID]]
 ; CHECK-SPIRV: Function {{[0-9]+}} [[KERNEL_ID]]
 ; CHECK-SPIRV: Variable [[FOO_PTR_ALLOCA_ID]] [[FOO_PTR_ALLOCA:[0-9]+]]
-; CHECK-SPIRV: FunctionPointerINTEL [[FOO_PTR_ID]] [[FOO_PTR:[0-9]+]] [[FOO_ID]]
 ; CHECK-SPIRV: Store [[FOO_PTR_ALLOCA]] [[FOO_PTR]]
 ; CHECK-SPIRV: Load [[FOO_PTR_ID]] [[LOADED_FOO_PTR:[0-9]+]] [[FOO_PTR_ALLOCA]]
 ; CHECK-SPIRV: FunctionPointerCallINTEL 2 {{[0-9]+}} [[LOADED_FOO_PTR]]

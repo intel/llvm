@@ -3,7 +3,7 @@
 // translated into GenX counterparts (implemented in LowerCM.cpp)
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/intel/esimd.hpp>
+#include <CL/sycl/INTEL/esimd.hpp>
 
 SYCL_EXTERNAL size_t __spirv_GlobalInvocationId_x();
 SYCL_EXTERNAL size_t __spirv_GlobalInvocationId_y();

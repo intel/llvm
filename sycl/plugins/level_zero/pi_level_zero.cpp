@@ -2134,19 +2134,18 @@ static pi_result compileOrBuild(pi_program Program, pi_uint32 NumDevices,
   // Specialization constants are used only if the program was created from
   // IL.  Translate them to the Level Zero format.
   ze_module_constants_t ZeSpecConstants = {};
+  std::vector<uint32_t> ZeSpecContantsIds;
+  std::vector<uint64_t> ZeSpecContantsValues;
   if (Program->State == _pi_program::IL) {
     std::lock_guard<std::mutex> Guard(Program->MutexZeSpecConstants);
 
-    std::vector<uint32_t> ZeSpecContantsIds(Program->ZeSpecConstants.size());
-    std::vector<uint64_t> ZeSpecContantsValues(Program->ZeSpecConstants.size());
     ZeSpecConstants.numConstants = Program->ZeSpecConstants.size();
-    auto ZeSpecContantsIdsIt = ZeSpecContantsIds.begin();
-    auto ZeSpecContantsValuesIt = ZeSpecContantsValues.begin();
+    ZeSpecContantsIds.reserve(ZeSpecConstants.numConstants);
+    ZeSpecContantsValues.reserve(ZeSpecConstants.numConstants);
+
     for (auto &SpecConstant : Program->ZeSpecConstants) {
-      *ZeSpecContantsIdsIt = SpecConstant.first;
-      ZeSpecContantsIdsIt++;
-      *ZeSpecContantsValuesIt = SpecConstant.second;
-      ZeSpecContantsValuesIt++;
+      ZeSpecContantsIds.push_back(SpecConstant.first);
+      ZeSpecContantsValues.push_back(SpecConstant.second);
     }
     ZeSpecConstants.pConstantIds = ZeSpecContantsIds.data();
     ZeSpecConstants.pConstantValues = ZeSpecContantsValues.data();

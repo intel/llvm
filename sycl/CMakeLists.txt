@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 option(SYCL_ENABLE_WERROR "Treat all warnings as errors in SYCL project" OFF)
+option(SYCL_DISABLE_STL_ASSERTIONS "Disable assertions in STL containers" OFF)
 option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
@@ -247,6 +248,17 @@ function( add_common_options LIB_NAME)
 
   endif()
 endfunction(add_common_options)
+
+
+if (LLVM_ENABLE_ASSERTIONS AND NOT SYCL_DISABLE_STL_ASSERTIONS)
+  if(SYCL_USE_LIBCXX)
+    add_definitions(-D_LIBCPP_DEBUG=1)
+    set(SYCL_CLANG_EXTRA_FLAGS "${SYCL_CLANG_EXTRA_FLAGS} -D_LIBCPP_DEBUG=1")
+  else()
+    add_definitions(-D_GLIBCXX_ASSERTIONS=1)
+    set(SYCL_CLANG_EXTRA_FLAGS "${SYCL_CLANG_EXTRA_FLAGS} -D_GLIBCXX_ASSERTIONS=1")
+  endif()
+endif()
 
 set(SYCL_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 

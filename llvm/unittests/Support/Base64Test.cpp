@@ -78,7 +78,7 @@ TEST(Base64Test, RoundTrip) {
                {Arr6, sizeof(Arr6)}, {Arr7, sizeof(Arr7)}, {Arr8, sizeof(Arr8)},
                {Arr9, sizeof(Arr9)}};
 
-  for (auto I = 0; I < sizeof(Tests) / sizeof(Tests[0]); ++I) {
+  for (size_t I = 0; I < sizeof(Tests) / sizeof(Tests[0]); ++I) {
     std::string Encoded;
     size_t Len;
     {

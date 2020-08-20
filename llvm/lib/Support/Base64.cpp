@@ -80,7 +80,7 @@ public:
     size_t Off = 0;
 
     // encode full byte triples
-    for (auto TriB = 0; TriB < SrcSize / 3; ++TriB) {
+    for (size_t TriB = 0; TriB < SrcSize / 3; ++TriB) {
       Off = TriB * 3;
       byte Byte0 = Src[Off++];
       byte Byte1 = Src[Off++];
@@ -116,7 +116,7 @@ public:
     size_t DstOff = 0;
 
     // decode full quads
-    for (auto Qch = 0; Qch < SrcSize / 4; ++Qch, SrcOff += 4, DstOff += 3) {
+    for (size_t Qch = 0; Qch < SrcSize / 4; ++Qch, SrcOff += 4, DstOff += 3) {
       byte Ch[4];
       Expected<bool> TrRes = decode4(Src + SrcOff, Ch);
 

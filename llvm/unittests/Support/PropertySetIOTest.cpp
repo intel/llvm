@@ -51,8 +51,8 @@ TEST(PropertySet, ByteArrayValuesIO) {
   // first 8 bytes are the size in bits (40) of what follows (5 bytes).
 
   auto Content = "[Opt/Param]\n"
-                 "kernel1=2|IAAAAAAAAAQA\n";
-  "kernel2=2|oAAAAAAAAAw///3/wB\n";
+                 "kernel1=2|IAAAAAAAAAQA\n"
+                 "kernel2=2|oAAAAAAAAAw///3/wB\n";
   auto MemBuf = MemoryBuffer::getMemBuffer(Content);
   // Parse a property set registry
   auto PropSetsPtr = PropertySetRegistry::read(MemBuf.get());

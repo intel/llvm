@@ -707,7 +707,14 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
 
 static const CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
   assert(Caller->getNumParams() > 0 && "Insufficient kernel parameters");
-  return Caller->getParamDecl(0)->getType()->getAsCXXRecordDecl();
+
+  QualType KernelParamTy = Caller->getParamDecl(0)->getType();
+  // In SYCL 2020 kernels are now passed by reference.
+  if (KernelParamTy->isReferenceType())
+    return KernelParamTy->getPointeeCXXRecordDecl();
+
+  // SYCL 1.2.1
+  return KernelParamTy->getAsCXXRecordDecl();
 }
 
 /// Creates a kernel parameter descriptor
@@ -784,8 +791,15 @@ template <typename T> using bind_param_t = typename bind_param<T>::type;
 class KernelObjVisitor {
   Sema &SemaRef;
 
-public:
-  KernelObjVisitor(Sema &S) : SemaRef(S) {}
+  template <typename ParentTy, typename... Handlers>
+  void VisitUnionImpl(const CXXRecordDecl *Owner, ParentTy &Parent,
+                      const CXXRecordDecl *Wrapper, Handlers &... handlers) {
+    (void)std::initializer_list<int>{
+        (handlers.enterUnion(Owner, Parent), 0)...};
+    VisitRecordHelper(Wrapper, Wrapper->fields(), handlers...);
+    (void)std::initializer_list<int>{
+        (handlers.leaveUnion(Owner, Parent), 0)...};
+  }
 
   // These enable handler execution only when previous handlers succeed.
   template <typename... Tn>
@@ -831,6 +845,9 @@ public:
     else if (ElementTy->isStructureOrClassType())
       VisitRecord(Owner, ArrayField, ElementTy->getAsCXXRecordDecl(),
                   handlers...);
+    else if (ElementTy->isUnionType())
+      VisitUnion(Owner, ArrayField, ElementTy->getAsCXXRecordDecl(),
+                 handlers...);
     else if (ElementTy->isArrayType())
       VisitArrayElements(ArrayField, ElementTy, handlers...);
     else if (ElementTy->isScalarType())
@@ -857,6 +874,9 @@ public:
   template <typename ParentTy, typename... Handlers>
   void VisitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
                    const CXXRecordDecl *Wrapper, Handlers &... handlers);
+  template <typename ParentTy, typename... Handlers>
+  void VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
+                  const CXXRecordDecl *Wrapper, Handlers &... handlers);
 
   template <typename... Handlers>
   void VisitRecordHelper(const CXXRecordDecl *Owner,
@@ -909,6 +929,9 @@ public:
         (handlers.leaveStruct(Owner, Parent), 0)...};
   }
 
+public:
+  KernelObjVisitor(Sema &S) : SemaRef(S) {}
+
   template <typename... Handlers>
   void VisitRecordBases(const CXXRecordDecl *KernelFunctor,
                         Handlers &... handlers) {
@@ -943,6 +966,11 @@ public:
           CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
           VisitRecord(Owner, Field, RD, handlers...);
         }
+      } else if (FieldTy->isUnionType()) {
+        if (KF_FOR_EACH(handleUnionType, Field, FieldTy)) {
+          CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
+          VisitUnion(Owner, Field, RD, handlers...);
+        }
       } else if (FieldTy->isReferenceType())
         KF_FOR_EACH(handleReferenceType, Field, FieldTy);
       else if (FieldTy->isPointerType())
@@ -976,12 +1004,9 @@ void KernelObjVisitor::VisitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
 
 // A base type that the SYCL OpenCL Kernel construction task uses to implement
 // individual tasks.
-class SyclKernelFieldHandler {
-protected:
-  Sema &SemaRef;
-  SyclKernelFieldHandler(Sema &S) : SemaRef(S) {}
-
+class SyclKernelFieldHandlerBase {
 public:
+  static constexpr const bool VisitUnionBody = false;
   // Mark these virtual so that we can use override in the implementer classes,
   // despite virtual dispatch never being used.
 
@@ -1006,6 +1031,7 @@ public:
   }
   virtual bool handleSyclHalfType(FieldDecl *, QualType) { return true; }
   virtual bool handleStructType(FieldDecl *, QualType) { return true; }
+  virtual bool handleUnionType(FieldDecl *, QualType) { return true; }
   virtual bool handleReferenceType(FieldDecl *, QualType) { return true; }
   virtual bool handlePointerType(FieldDecl *, QualType) { return true; }
   virtual bool handleArrayType(FieldDecl *, QualType) { return true; }
@@ -1025,6 +1051,8 @@ public:
   virtual bool leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &) {
     return true;
   }
+  virtual bool enterUnion(const CXXRecordDecl *, FieldDecl *) { return true; }
+  virtual bool leaveUnion(const CXXRecordDecl *, FieldDecl *) { return true; }
 
   // The following are used for stepping through array elements.
 
@@ -1040,14 +1068,57 @@ public:
   virtual bool nextElement(QualType) { return true; }
   virtual bool leaveArray(FieldDecl *, QualType, int64_t) { return true; }
 
-  virtual ~SyclKernelFieldHandler() = default;
+  virtual ~SyclKernelFieldHandlerBase() = default;
 };
+
+// A class to act as the direct base for all the SYCL OpenCL Kernel construction
+// tasks that contains a reference to Sema (and potentially any other
+// universally required data).
+class SyclKernelFieldHandler : public SyclKernelFieldHandlerBase {
+protected:
+  Sema &SemaRef;
+  SyclKernelFieldHandler(Sema &S) : SemaRef(S) {}
+};
+
+// A class to represent the 'do nothing' case for filtering purposes.
+class SyclEmptyHandler final : public SyclKernelFieldHandlerBase {};
+SyclEmptyHandler GlobalEmptyHandler;
+
+template <bool Keep, typename H> struct HandlerFilter;
+template <typename H> struct HandlerFilter<true, H> {
+  H &Handler;
+  HandlerFilter(H &Handler) : Handler(Handler) {}
+};
+template <typename H> struct HandlerFilter<false, H> {
+  SyclEmptyHandler &Handler = GlobalEmptyHandler;
+  HandlerFilter(H &Handler) {}
+};
+
+template <bool B, bool... Rest> struct AnyTrue;
+
+template <bool B> struct AnyTrue<B> { static constexpr bool Value = B; };
+
+template <bool B, bool... Rest> struct AnyTrue {
+  static constexpr bool Value = B || AnyTrue<Rest...>::Value;
+};
+
+template <typename ParentTy, typename... Handlers>
+void KernelObjVisitor::VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
+                                  const CXXRecordDecl *Wrapper,
+                                  Handlers &... handlers) {
+  // Don't continue descending if none of the handlers 'care'. This could be 'if
+  // constexpr' starting in C++17.  Until then, we have to count on the
+  // optimizer to realize "if (false)" is a dead branch.
+  if (AnyTrue<Handlers::VisitUnionBody...>::Value)
+    VisitUnionImpl(
+        Owner, Parent, Wrapper,
+        HandlerFilter<Handlers::VisitUnionBody, Handlers>(handlers).Handler...);
+}
 
 // A type to check the validity of all of the argument types.
 class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   bool IsInvalid = false;
   DiagnosticsEngine &Diag;
-
   // Check whether the object should be disallowed from being copied to kernel.
   // Return true if not copyable, false if copyable.
   bool checkNotCopyableToKernel(const FieldDecl *FD, const QualType &FieldTy) {
@@ -1199,6 +1270,65 @@ public:
     Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type) << FieldTy;
     IsInvalid = true;
     return isValid();
+  }
+};
+
+// A type to check the validity of accessing accessor/sampler/stream
+// types as kernel parameters inside union.
+class SyclKernelUnionChecker : public SyclKernelFieldHandler {
+  int UnionCount = 0;
+  bool IsInvalid = false;
+  DiagnosticsEngine &Diag;
+
+public:
+  SyclKernelUnionChecker(Sema &S)
+      : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {}
+  bool isValid() { return !IsInvalid; }
+  static constexpr const bool VisitUnionBody = true;
+
+  bool checkType(SourceLocation Loc, QualType Ty) {
+    if (UnionCount) {
+      IsInvalid = true;
+      Diag.Report(Loc, diag::err_bad_union_kernel_param_members) << Ty;
+    }
+    return isValid();
+  }
+
+  bool enterUnion(const CXXRecordDecl *RD, FieldDecl *FD) {
+    ++UnionCount;
+    return true;
+  }
+
+  bool leaveUnion(const CXXRecordDecl *RD, FieldDecl *FD) {
+    --UnionCount;
+    return true;
+  }
+
+  bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
+    return checkType(FD->getLocation(), FieldTy);
+  }
+
+  bool handleSyclAccessorType(const CXXBaseSpecifier &BS,
+                              QualType FieldTy) final {
+    return checkType(BS.getBeginLoc(), FieldTy);
+  }
+
+  bool handleSyclSamplerType(FieldDecl *FD, QualType FieldTy) final {
+    return checkType(FD->getLocation(), FieldTy);
+  }
+
+  bool handleSyclSamplerType(const CXXBaseSpecifier &BS,
+                             QualType FieldTy) final {
+    return checkType(BS.getBeginLoc(), FieldTy);
+  }
+
+  bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
+    return checkType(FD->getLocation(), FieldTy);
+  }
+
+  bool handleSyclStreamType(const CXXBaseSpecifier &BS,
+                            QualType FieldTy) final {
+    return checkType(BS.getBeginLoc(), FieldTy);
   }
 };
 
@@ -1451,6 +1581,10 @@ public:
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
     addParam(FD, FieldTy);
     return true;
+  }
+
+  bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
+    return handleScalarType(FD, FieldTy);
   }
 
   bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
@@ -1805,6 +1939,10 @@ public:
     return true;
   }
 
+  bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
+    return handleScalarType(FD, FieldTy);
+  }
+
   bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
     CXXCastPath BasePath;
     QualType DerivedTy(RD->getTypeForDecl(), 0);
@@ -2012,6 +2150,10 @@ public:
     return true;
   }
 
+  bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
+    return handleScalarType(FD, FieldTy);
+  }
+
   bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
     addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
     return true;
@@ -2105,14 +2247,26 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
       }
   }
 
-  SyclKernelFieldChecker Checker(*this);
+  SyclKernelFieldChecker FieldChecker(*this);
+  SyclKernelUnionChecker UnionChecker(*this);
+  // check that calling kernel conforms to spec
+  QualType KernelParamTy = KernelFunc->getParamDecl(0)->getType();
+  if (KernelParamTy->isReferenceType()) {
+    // passing by reference, so emit warning if not using SYCL 2020
+    if (LangOpts.SYCLVersion < 2020)
+      Diag(KernelFunc->getLocation(), diag::warn_sycl_pass_by_reference_future);
+  } else {
+    // passing by value.  emit warning if using SYCL 2020 or greater
+    if (LangOpts.SYCLVersion > 2017)
+      Diag(KernelFunc->getLocation(), diag::warn_sycl_pass_by_value_deprecated);
+  }
 
   KernelObjVisitor Visitor{*this};
   DiagnosingSYCLKernel = true;
-  Visitor.VisitRecordBases(KernelObj, Checker);
-  Visitor.VisitRecordFields(KernelObj, Checker);
+  Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker);
+  Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker);
   DiagnosingSYCLKernel = false;
-  if (!Checker.isValid())
+  if (!FieldChecker.isValid() || !UnionChecker.isValid())
     KernelFunc->setInvalidDecl();
 }
 

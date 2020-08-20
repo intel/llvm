@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -397,6 +398,10 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
               Img.getLinkOptions(), PiDevices,
               ContextImpl->getCachedLibPrograms(), DeviceLibReqMask);
 
+    {
+      std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
+      NativePrograms[BuiltProgram.get()] = &Img;
+    }
     return BuiltProgram.release();
   };
 
@@ -851,6 +856,23 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
   return Program;
 }
 
+static ProgramManager::KernelArgMask
+createKernelArgMask(const pi::ByteArray &Bytes) {
+  const int NBytesForSize = 8;
+  const int NBitsInElement = 8;
+  std::uint64_t SizeInBits = 0;
+  for (int I = 0; I < NBytesForSize; ++I)
+    SizeInBits |= static_cast<std::uint64_t>(Bytes[I]) << I * NBitsInElement;
+
+  ProgramManager::KernelArgMask Result;
+  for (std::uint64_t I = 0; I < SizeInBits; ++I) {
+    std::uint8_t Byte = Bytes[NBytesForSize + (I / NBitsInElement)];
+    Result.push_back(Byte & (1 << (I % NBitsInElement)));
+  }
+
+  return Result;
+}
+
 void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
 
@@ -860,6 +882,17 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     const _pi_offload_entry EntriesB = RawImg->EntriesBegin;
     const _pi_offload_entry EntriesE = RawImg->EntriesEnd;
     auto Img = make_unique_ptr<RTDeviceBinaryImage>(RawImg, M);
+
+    // Fill the kernel argument mask map
+    const pi::DeviceBinaryImage::PropertyRange &KPOIRange =
+        Img->getKernelParamOptInfo();
+    if (KPOIRange.isAvailable()) {
+      KernelNameToArgMaskMap &ArgMaskMap =
+          m_EliminatedKernelArgMasks[Img.get()];
+      for (const auto &Info : KPOIRange)
+        ArgMaskMap[Info->Name] =
+            createKernelArgMask(pi::DeviceBinaryProperty(Info).asByteArray());
+    }
     // Use the entry information if it's available
     if (EntriesB != EntriesE) {
       // The kernel sets for any pair of images are either disjoint or
@@ -1016,6 +1049,55 @@ uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
     return pi::DeviceBinaryProperty(*(DLMRange.begin())).asUint32();
   else
     return 0xFFFFFFFF;
+}
+
+// TODO consider another approach with storing the masks in the integration
+// header instead.
+ProgramManager::KernelArgMask ProgramManager::getEliminatedKernelArgMask(
+    OSModuleHandle M, const context &Context, pi::PiProgram NativePrg,
+    const string_class &KernelName, bool KnownProgram) {
+  // If instructed to use a spv file, assume no eliminated arguments.
+  if (m_UseSpvFile && M == OSUtil::ExeModuleHandle)
+    return {};
+
+  {
+    std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
+    auto ImgIt = NativePrograms.find(NativePrg);
+    if (ImgIt != NativePrograms.end()) {
+      auto MapIt = m_EliminatedKernelArgMasks.find(ImgIt->second);
+      if (MapIt != m_EliminatedKernelArgMasks.end())
+        return MapIt->second[KernelName];
+      return {};
+    }
+  }
+
+  if (KnownProgram)
+    throw runtime_error("Program is not associated with a binary image",
+                        PI_INVALID_VALUE);
+
+  // If not sure whether the program was built with one of the images, try
+  // finding the binary.
+  // TODO this can backfire in some extreme edge cases where there's a kernel
+  // name collision between our binaries and user-created native programs.
+  KernelSetId KSId;
+  try {
+    KSId = getKernelSetId(M, KernelName);
+  } catch (sycl::runtime_error &e) {
+    // If the kernel name wasn't found, assume that the program wasn't created
+    // from one of our device binary images.
+    if (e.get_cl_code() == PI_INVALID_KERNEL_NAME)
+      return {};
+    std::rethrow_exception(std::current_exception());
+  }
+  RTDeviceBinaryImage &Img = getDeviceImage(M, KSId, Context);
+  {
+    std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
+    NativePrograms[NativePrg] = &Img;
+  }
+  auto MapIt = m_EliminatedKernelArgMasks.find(&Img);
+  if (MapIt != m_EliminatedKernelArgMasks.end())
+    return MapIt->second[KernelName];
+  return {};
 }
 
 } // namespace detail
