@@ -82,7 +82,7 @@ TEST_F(SchedulerTest, DontEnqueueDepsIfOneOfThemIsBlocked) {
   EXPECT_CALL(A, enqueue(_, _)).Times(0);
   EXPECT_CALL(B, enqueue(_, _)).Times(1);
   EXPECT_CALL(C, enqueue(_, _)).Times(1);
-  EXPECT_CALL(D, enqueue(_, _)).Times(1);
+  EXPECT_CALL(D, enqueue(_, _)).Times(0);
 
   detail::EnqueueResultT Res;
   bool Enqueued = MockScheduler::enqueueCommand(&A, Res, detail::NON_BLOCKING);

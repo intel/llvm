@@ -72,11 +72,8 @@ bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
         // result of which will be discarded.
         return false;
       case EnqueueResultT::SyclEnqueueBlocked:
-        // If some dependency is blocked from enqueueing remember that, but
-        // try to enqueue other dependencies(that can be ready for
-        // enqueueing).
-        BlockedByDep = true;
-        break;
+        // If some dependency is blocked do not enqueue other deps.
+        return false;
       }
   }
 
