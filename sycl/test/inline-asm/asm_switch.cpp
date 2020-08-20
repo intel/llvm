@@ -5,21 +5,20 @@
 // RUN: %clangxx -fsycl %s -o %t.ref.out
 // RUN: %t.ref.out
 
-
-
 #include "include/asmhelper.h"
 #include <CL/sycl.hpp>
 
 using dataType = cl::sycl::cl_int;
 
-template <typename T = dataType>
-struct KernelFunctor : WithOutputBuffer<T> {
+template <typename T = dataType> struct KernelFunctor : WithOutputBuffer<T> {
   KernelFunctor(size_t problem_size) : WithOutputBuffer<T>(problem_size) {}
 
   void operator()(cl::sycl::handler &cgh) {
-    auto C = this->getOutputBuffer().template get_access<cl::sycl::access::mode::write>(cgh);
+    auto C = this->getOutputBuffer()
+                 .template get_access<cl::sycl::access::mode::write>(cgh);
     cgh.parallel_for<KernelFunctor<T>>(
-        cl::sycl::range<1>{this->getOutputBufferSize()}, [=](cl::sycl::id<1> wiID) [[cl::intel_reqd_sub_group_size(8)]] {
+        cl::sycl::range<1>{this->getOutputBufferSize()},
+    [=](cl::sycl::id<1> wiID) [[cl::intel_reqd_sub_group_size(8)]] {
           int switch_field = 2;
           int output = 0;
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
@@ -39,8 +38,9 @@ struct KernelFunctor : WithOutputBuffer<T> {
                        "(P3) goto (M1, 1) label2\n"
                        "mov (M1, 8) %0(0,0)<1> 0x7:d\n"
                        "label2:"
-                       : "=rw"(output) : "rw"(switch_field));
-          
+                       : "=rw"(output)
+                       : "rw"(switch_field));
+
 #else
           switch(switch_field){
             case 0:
