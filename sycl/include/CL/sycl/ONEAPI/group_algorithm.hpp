@@ -10,13 +10,15 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
+#include <CL/sycl/ONEAPI/atomic.hpp>
+#include <CL/sycl/ONEAPI/functional.hpp>
+#include <CL/sycl/ONEAPI/sub_group.hpp>
 #include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/group.hpp>
-#include <CL/sycl/intel/functional.hpp>
-#include <CL/sycl/intel/sub_group.hpp>
+#include <CL/sycl/nd_item.hpp>
 
-#ifndef __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__
+#ifndef __DISABLE_SYCL_ONEAPI_GROUP_ALGORITHMS__
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -32,7 +34,7 @@ template <> inline size_t get_local_linear_range<group<3>>(group<3> g) {
   return g.get_local_range(0) * g.get_local_range(1) * g.get_local_range(2);
 }
 template <>
-inline size_t get_local_linear_range<intel::sub_group>(intel::sub_group g) {
+inline size_t get_local_linear_range<ONEAPI::sub_group>(ONEAPI::sub_group g) {
   return g.get_local_range()[0];
 }
 
@@ -53,8 +55,8 @@ __SYCL_GROUP_GET_LOCAL_LINEAR_ID(3);
 #endif // __SYCL_DEVICE_ONLY__
 
 template <>
-inline intel::sub_group::linear_id_type
-get_local_linear_id<intel::sub_group>(intel::sub_group g) {
+inline ONEAPI::sub_group::linear_id_type
+get_local_linear_id<ONEAPI::sub_group>(ONEAPI::sub_group g) {
   return g.get_local_id()[0];
 }
 
@@ -79,44 +81,44 @@ template <> inline id<3> linear_id_to_id(range<3> r, size_t linear_id) {
 
 template <typename T, class BinaryOperation> struct identity {};
 
-template <typename T, typename V> struct identity<T, intel::plus<V>> {
+template <typename T, typename V> struct identity<T, ONEAPI::plus<V>> {
   static constexpr T value = 0;
 };
 
-template <typename T, typename V> struct identity<T, intel::minimum<V>> {
+template <typename T, typename V> struct identity<T, ONEAPI::minimum<V>> {
   static constexpr T value = std::numeric_limits<T>::has_infinity
                                  ? std::numeric_limits<T>::infinity()
                                  : (std::numeric_limits<T>::max)();
 };
 
-template <typename T, typename V> struct identity<T, intel::maximum<V>> {
+template <typename T, typename V> struct identity<T, ONEAPI::maximum<V>> {
   static constexpr T value =
       std::numeric_limits<T>::has_infinity
           ? static_cast<T>(-std::numeric_limits<T>::infinity())
           : std::numeric_limits<T>::lowest();
 };
 
-template <typename T, typename V> struct identity<T, intel::multiplies<V>> {
+template <typename T, typename V> struct identity<T, ONEAPI::multiplies<V>> {
   static constexpr T value = static_cast<T>(1);
 };
 
-template <typename T, typename V> struct identity<T, intel::bit_or<V>> {
+template <typename T, typename V> struct identity<T, ONEAPI::bit_or<V>> {
   static constexpr T value = 0;
 };
 
-template <typename T, typename V> struct identity<T, intel::bit_xor<V>> {
+template <typename T, typename V> struct identity<T, ONEAPI::bit_xor<V>> {
   static constexpr T value = 0;
 };
 
-template <typename T, typename V> struct identity<T, intel::bit_and<V>> {
+template <typename T, typename V> struct identity<T, ONEAPI::bit_and<V>> {
   static constexpr T value = ~static_cast<T>(0);
 };
 
 template <typename T>
 using native_op_list =
-    type_list<intel::plus<T>, intel::bit_or<T>, intel::bit_xor<T>,
-              intel::bit_and<T>, intel::maximum<T>, intel::minimum<T>,
-              intel::multiplies<T>>;
+    type_list<ONEAPI::plus<T>, ONEAPI::bit_or<T>, ONEAPI::bit_xor<T>,
+              ONEAPI::bit_and<T>, ONEAPI::maximum<T>, ONEAPI::minimum<T>,
+              ONEAPI::multiplies<T>>;
 
 template <typename T, typename BinaryOperation> struct is_native_op {
   static constexpr bool value =
@@ -145,7 +147,7 @@ Function for_each(Group g, Ptr first, Ptr last, Function f) {
 
 } // namespace detail
 
-namespace intel {
+namespace ONEAPI {
 
 // EnableIf shorthands for algorithms that depend only on type
 template <typename T>
@@ -191,7 +193,7 @@ using EnableIfIsNonNativeOp = cl::sycl::detail::enable_if_t<
 template <typename Group> bool all_of(Group, bool pred) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAll<Group>(pred);
 #else
@@ -205,7 +207,7 @@ template <typename Group, typename T, class Predicate>
 bool all_of(Group g, T x, Predicate pred) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   return all_of(g, pred(x));
 }
 
@@ -214,7 +216,7 @@ EnableIfIsPointer<Ptr, bool> all_of(Group g, Ptr first, Ptr last,
                                     Predicate pred) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
   bool partial = true;
   sycl::detail::for_each(
@@ -234,7 +236,7 @@ EnableIfIsPointer<Ptr, bool> all_of(Group g, Ptr first, Ptr last,
 template <typename Group> bool any_of(Group, bool pred) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAny<Group>(pred);
 #else
@@ -248,7 +250,7 @@ template <typename Group, typename T, class Predicate>
 bool any_of(Group g, T x, Predicate pred) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   return any_of(g, pred(x));
 }
 
@@ -258,7 +260,7 @@ EnableIfIsPointer<Ptr, bool> any_of(Group g, Ptr first, Ptr last,
 #ifdef __SYCL_DEVICE_ONLY__
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   bool partial = false;
   sycl::detail::for_each(
       g, first, last,
@@ -277,7 +279,7 @@ EnableIfIsPointer<Ptr, bool> any_of(Group g, Ptr first, Ptr last,
 template <typename Group> bool none_of(Group, bool pred) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAll<Group>(!pred);
 #else
@@ -291,7 +293,7 @@ template <typename Group, typename T, class Predicate>
 bool none_of(Group g, T x, Predicate pred) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   return none_of(g, pred(x));
 }
 
@@ -301,7 +303,7 @@ EnableIfIsPointer<Ptr, bool> none_of(Group g, Ptr first, Ptr last,
 #ifdef __SYCL_DEVICE_ONLY__
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   return !any_of(g, first, last, pred);
 #else
   (void)g;
@@ -318,7 +320,7 @@ EnableIfIsTriviallyCopyable<T> broadcast(Group, T x,
                                          typename Group::id_type local_id) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupBroadcast<Group>(x, local_id);
 #else
@@ -334,7 +336,7 @@ EnableIfIsVectorArithmetic<T> broadcast(Group g, T x,
                                         typename Group::id_type local_id) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
   for (int s = 0; s < x.get_size(); ++s) {
@@ -355,7 +357,7 @@ EnableIfIsTriviallyCopyable<T>
 broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
   return broadcast(
       g, x,
@@ -374,7 +376,7 @@ EnableIfIsVectorArithmetic<T>
 broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
   for (int s = 0; s < x.get_size(); ++s) {
@@ -394,7 +396,7 @@ template <typename Group, typename T>
 EnableIfIsTriviallyCopyable<T> broadcast(Group g, T x) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
   return broadcast(g, x, 0);
 #else
@@ -409,7 +411,7 @@ template <typename Group, typename T>
 EnableIfIsVectorArithmetic<T> broadcast(Group g, T x) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
   for (int s = 0; s < x.get_size(); ++s) {
@@ -429,7 +431,7 @@ EnableIfIsScalarArithmeticNativeOp<T, BinaryOperation>
 reduce(Group, T x, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(x, x)), T>::value ||
@@ -451,7 +453,7 @@ EnableIfIsVectorArithmeticNativeOp<T, BinaryOperation>
 reduce(Group g, T x, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(x[0], x[0])),
@@ -471,7 +473,7 @@ EnableIfIsNonNativeOp<T, BinaryOperation> reduce(Group g, T x,
                                                  BinaryOperation op) {
   static_assert(sycl::detail::is_sub_group<Group>::value,
                 "reduce algorithm with user-defined types and operators"
-                "only supports intel::sub_group class.");
+                "only supports ONEAPI::sub_group class.");
   T result = x;
   for (int mask = 1; mask < g.get_max_local_range()[0]; mask *= 2) {
     T tmp = g.shuffle_xor(result, id<1>(mask));
@@ -487,7 +489,7 @@ EnableIfIsScalarArithmeticNativeOp<T, BinaryOperation>
 reduce(Group g, V x, T init, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(init, x)), T>::value ||
@@ -508,7 +510,7 @@ EnableIfIsVectorArithmeticNativeOp<T, BinaryOperation>
 reduce(Group g, V x, T init, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(init[0], x[0])),
@@ -534,7 +536,7 @@ EnableIfIsNonNativeOp<T, BinaryOperation> reduce(Group g, V x, T init,
                                                  BinaryOperation op) {
   static_assert(sycl::detail::is_sub_group<Group>::value,
                 "reduce algorithm with user-defined types and operators"
-                "only supports intel::sub_group class.");
+                "only supports ONEAPI::sub_group class.");
   T result = x;
   for (int mask = 1; mask < g.get_max_local_range()[0]; mask *= 2) {
     T tmp = g.shuffle_xor(result, id<1>(mask));
@@ -550,7 +552,7 @@ EnableIfIsPointer<Ptr, typename Ptr::element_type>
 reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(*first, *first)),
@@ -581,7 +583,7 @@ EnableIfIsPointer<Ptr, T> reduce(Group g, Ptr first, Ptr last, T init,
                                  BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(init, *first)), T>::value ||
@@ -609,7 +611,7 @@ EnableIfIsScalarArithmeticNativeOp<T, BinaryOperation>
 exclusive_scan(Group, T x, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(std::is_same<decltype(binary_op(x, x)), T>::value ||
                     (std::is_same<T, half>::value &&
@@ -630,7 +632,7 @@ EnableIfIsVectorArithmeticNativeOp<T, BinaryOperation>
 exclusive_scan(Group g, T x, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(x[0], x[0])),
@@ -650,7 +652,7 @@ EnableIfIsVectorArithmeticNativeOp<T, BinaryOperation>
 exclusive_scan(Group g, V x, T init, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(init[0], x[0])),
@@ -670,7 +672,7 @@ EnableIfIsScalarArithmeticNativeOp<T, BinaryOperation>
 exclusive_scan(Group g, V x, T init, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(std::is_same<decltype(binary_op(init, x)), T>::value ||
                     (std::is_same<T, half>::value &&
@@ -701,7 +703,7 @@ exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
                BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(*first, *first)), T>::value ||
@@ -763,7 +765,7 @@ EnableIfIsVectorArithmeticNativeOp<T, BinaryOperation>
 inclusive_scan(Group g, T x, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(x[0], x[0])),
@@ -783,7 +785,7 @@ EnableIfIsScalarArithmeticNativeOp<T, BinaryOperation>
 inclusive_scan(Group, T x, BinaryOperation binary_op) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(std::is_same<decltype(binary_op(x, x)), T>::value ||
                     (std::is_same<T, half>::value &&
@@ -804,7 +806,7 @@ EnableIfIsScalarArithmeticNativeOp<T, BinaryOperation>
 inclusive_scan(Group g, V x, BinaryOperation binary_op, T init) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(std::is_same<decltype(binary_op(init, x)), T>::value ||
                     (std::is_same<T, half>::value &&
@@ -827,7 +829,7 @@ EnableIfIsVectorArithmeticNativeOp<T, BinaryOperation>
 inclusive_scan(Group g, V x, BinaryOperation binary_op, T init) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(init[0], x[0])), T>::value ||
@@ -848,7 +850,7 @@ inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                BinaryOperation binary_op, T init) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(init, *first)), T>::value ||
@@ -906,7 +908,7 @@ EnableIfIsPointer<InPtr, OutPtr> inclusive_scan(Group g, InPtr first,
 template <typename Group> bool leader(Group g) {
   static_assert(sycl::detail::is_generic_group<Group>::value,
                 "Group algorithms only support the sycl::group and "
-                "intel::sub_group class.");
+                "ONEAPI::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
   typename Group::linear_id_type linear_id =
       sycl::detail::get_local_linear_id(g);
@@ -918,7 +920,7 @@ template <typename Group> bool leader(Group g) {
 #endif
 }
 
-} // namespace intel
+} // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
-#endif // __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__
+#endif // __DISABLE_SYCL_ONEAPI_GROUP_ALGORITHMS__

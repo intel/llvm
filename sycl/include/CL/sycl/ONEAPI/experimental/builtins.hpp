@@ -18,7 +18,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace intel {
+namespace ONEAPI {
 namespace experimental {
 
 // Provides functionality to print data from kernels in a C way:
@@ -68,7 +68,7 @@ int printf(const CONSTANT_AS char *__format, Args... args) {
 }
 
 } // namespace experimental
-} // namespace intel
+} // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 

@@ -18,9 +18,9 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 template <int Dimensions> class group;
-namespace intel {
+namespace ONEAPI {
 struct sub_group;
-} // namespace intel
+} // namespace ONEAPI
 namespace detail {
 namespace half_impl {
 class half;
@@ -313,7 +313,7 @@ struct is_group<group<Dimensions>> : std::true_type {};
 
 template <typename T> struct is_sub_group : std::false_type {};
 
-template <> struct is_sub_group<intel::sub_group> : std::true_type {};
+template <> struct is_sub_group<ONEAPI::sub_group> : std::true_type {};
 
 template <typename T>
 struct is_generic_group

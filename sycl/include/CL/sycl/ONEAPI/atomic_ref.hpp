@@ -1,4 +1,4 @@
-//==----- atomic_ref.hpp - SYCL_INTEL_extended_atomics atomic_ref ----------==//
+//==----- atomic_ref.hpp - SYCL_ONEAPI_extended_atomics atomic_ref ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,11 +9,11 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
+#include <CL/sycl/ONEAPI/atomic_enums.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/intel/atomic_enums.hpp>
+#include <CL/sycl/detail/spirv.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <atomic>
@@ -27,14 +27,14 @@ namespace sycl {
 template <typename pointerT, access::address_space AddressSpace>
 class multi_ptr;
 
-namespace intel {
+namespace ONEAPI {
 namespace detail {
 
-// Import from detail:: into intel::detail:: to improve readability later
+// Import from detail:: into ONEAPI::detail:: to improve readability later
 using namespace ::cl::sycl::detail;
 
-using memory_order = cl::sycl::intel::memory_order;
-using memory_scope = cl::sycl::intel::memory_scope;
+using memory_order = cl::sycl::ONEAPI::memory_order;
+using memory_scope = cl::sycl::ONEAPI::memory_scope;
 
 template <typename T>
 using IsValidAtomicType =
@@ -127,14 +127,14 @@ class atomic_ref_base {
       detail::IsValidAtomicType<T>::value,
       "Invalid atomic type.  Valid types are arithmetic and pointer types");
   static_assert(!std::is_same<T, bool>::value,
-                "intel::atomic_ref does not support bool type");
+                "ONEAPI::atomic_ref does not support bool type");
   static_assert(!(std::is_same<T, char>::value ||
                   std::is_same<T, signed char>::value ||
                   std::is_same<T, unsigned char>::value),
-                "intel::atomic_ref does not support char type");
+                "ONEAPI::atomic_ref does not support char type");
   static_assert(!(std::is_same<T, short>::value ||
                   std::is_same<T, unsigned short>::value),
-                "intel::atomic_ref does not support short type");
+                "ONEAPI::atomic_ref does not support short type");
   static_assert(detail::IsValidAtomicAddressSpace<AddressSpace>::value,
                 "Invalid atomic address_space.  Valid address spaces are: "
                 "global_space, local_space, global_device_space");
@@ -651,6 +651,6 @@ public:
                                 AddressSpace>::atomic_ref_impl;
 };
 
-} // namespace intel
+} // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

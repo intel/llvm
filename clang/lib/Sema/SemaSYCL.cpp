@@ -707,7 +707,14 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
 
 static const CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
   assert(Caller->getNumParams() > 0 && "Insufficient kernel parameters");
-  return Caller->getParamDecl(0)->getType()->getAsCXXRecordDecl();
+
+  QualType KernelParamTy = Caller->getParamDecl(0)->getType();
+  // In SYCL 2020 kernels are now passed by reference.
+  if (KernelParamTy->isReferenceType())
+    return KernelParamTy->getPointeeCXXRecordDecl();
+
+  // SYCL 1.2.1
+  return KernelParamTy->getAsCXXRecordDecl();
 }
 
 /// Creates a kernel parameter descriptor
@@ -784,8 +791,15 @@ template <typename T> using bind_param_t = typename bind_param<T>::type;
 class KernelObjVisitor {
   Sema &SemaRef;
 
-public:
-  KernelObjVisitor(Sema &S) : SemaRef(S) {}
+  template <typename ParentTy, typename... Handlers>
+  void VisitUnionImpl(const CXXRecordDecl *Owner, ParentTy &Parent,
+                      const CXXRecordDecl *Wrapper, Handlers &... handlers) {
+    (void)std::initializer_list<int>{
+        (handlers.enterUnion(Owner, Parent), 0)...};
+    VisitRecordHelper(Wrapper, Wrapper->fields(), handlers...);
+    (void)std::initializer_list<int>{
+        (handlers.leaveUnion(Owner, Parent), 0)...};
+  }
 
   // These enable handler execution only when previous handlers succeed.
   template <typename... Tn>
@@ -818,8 +832,8 @@ public:
 
   // Implements the 'for-each-visitor'  pattern.
   template <typename... Handlers>
-  void VisitElement(CXXRecordDecl *Owner, FieldDecl *ArrayField,
-                    QualType ElementTy, Handlers &... handlers) {
+  void VisitElementImpl(CXXRecordDecl *Owner, FieldDecl *ArrayField,
+                        QualType ElementTy, Handlers &... handlers) {
     if (Util::isSyclAccessorType(ElementTy))
       KF_FOR_EACH(handleSyclAccessorType, ArrayField, ElementTy);
     else if (Util::isSyclStreamType(ElementTy))
@@ -841,6 +855,16 @@ public:
   }
 
   template <typename... Handlers>
+  void VisitFirstElement(CXXRecordDecl *Owner, FieldDecl *ArrayField,
+                         QualType ElementTy, Handlers &... handlers) {
+    VisitElementImpl(Owner, ArrayField, ElementTy, handlers...);
+  }
+
+  template <typename... Handlers>
+  void VisitNthElement(CXXRecordDecl *Owner, FieldDecl *ArrayField,
+                       QualType ElementTy, Handlers &... handlers);
+
+  template <typename... Handlers>
   void VisitArrayElements(FieldDecl *FD, QualType FieldTy,
                           Handlers &... handlers) {
     const ConstantArrayType *CAT =
@@ -849,76 +873,38 @@ public:
     QualType ET = CAT->getElementType();
     int64_t ElemCount = CAT->getSize().getSExtValue();
     std::initializer_list<int>{(handlers.enterArray(), 0)...};
-    for (int64_t Count = 0; Count < ElemCount; Count++) {
-      VisitElement(nullptr, FD, ET, handlers...);
+
+    assert(ElemCount > 0 && "SYCL prohibits 0 sized arrays");
+    VisitFirstElement(nullptr, FD, ET, handlers...);
+    (void)std::initializer_list<int>{(handlers.nextElement(ET), 0)...};
+
+    for (int64_t Count = 1; Count < ElemCount; Count++) {
+      VisitNthElement(nullptr, FD, ET, handlers...);
       (void)std::initializer_list<int>{(handlers.nextElement(ET), 0)...};
     }
+
     (void)std::initializer_list<int>{
         (handlers.leaveArray(FD, ET, ElemCount), 0)...};
   }
 
+  // Parent contains the FieldDecl or CXXBaseSpecifier that was used to enter
+  // the Wrapper structure that we're currently visiting. Owner is the parent
+  // type (which doesn't exist in cases where it is a FieldDecl in the
+  // 'root'), and Wrapper is the current struct being unwrapped.
   template <typename ParentTy, typename... Handlers>
   void VisitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
-                   const CXXRecordDecl *Wrapper, Handlers &... handlers);
-
-  // Base case, only calls these when filtered.
-  template <typename... FilteredHandlers, typename ParentTy>
-  std::enable_if_t<(sizeof...(FilteredHandlers) > 0)>
-  VisitUnion(FilteredHandlers &... handlers, const CXXRecordDecl *Owner,
-             ParentTy &Parent, const CXXRecordDecl *Wrapper) {
+                   const CXXRecordDecl *Wrapper, Handlers &... handlers) {
     (void)std::initializer_list<int>{
-        (handlers.enterUnion(Owner, Parent), 0)...};
+        (handlers.enterStruct(Owner, Parent), 0)...};
+    VisitRecordHelper(Wrapper, Wrapper->bases(), handlers...);
     VisitRecordHelper(Wrapper, Wrapper->fields(), handlers...);
     (void)std::initializer_list<int>{
-        (handlers.leaveUnion(Owner, Parent), 0)...};
+        (handlers.leaveStruct(Owner, Parent), 0)...};
   }
 
-  // Handle empty base case.
-  template <typename ParentTy>
+  template <typename ParentTy, typename... Handlers>
   void VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
-                  const CXXRecordDecl *Wrapper) {}
-
-  template <typename... FilteredHandlers, typename ParentTy,
-            typename CurHandler, typename... Handlers>
-  std::enable_if_t<!CurHandler::VisitUnionBody &&
-                   (sizeof...(FilteredHandlers) > 0)>
-  VisitUnion(FilteredHandlers &... filtered_handlers,
-             const CXXRecordDecl *Owner, ParentTy &Parent,
-             const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
-             Handlers &... handlers) {
-    VisitUnion<FilteredHandlers...>(filtered_handlers..., Owner, Parent,
-                                    Wrapper, handlers...);
-  }
-
-  template <typename... FilteredHandlers, typename ParentTy,
-            typename CurHandler, typename... Handlers>
-  std::enable_if_t<CurHandler::VisitUnionBody &&
-                   (sizeof...(FilteredHandlers) > 0)>
-  VisitUnion(FilteredHandlers &... filtered_handlers,
-             const CXXRecordDecl *Owner, ParentTy &Parent,
-             const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
-             Handlers &... handlers) {
-    VisitUnion<FilteredHandlers..., CurHandler>(
-        filtered_handlers..., cur_handler, Owner, Parent, Wrapper, handlers...);
-  }
-
-  // Add overloads without having filtered-handlers
-  // to handle leading-empty argument packs.
-  template <typename ParentTy, typename CurHandler, typename... Handlers>
-  std::enable_if_t<!CurHandler::VisitUnionBody>
-  VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
-             const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
-             Handlers &... handlers) {
-    VisitUnion(Owner, Parent, Wrapper, handlers...);
-  }
-
-  template <typename ParentTy, typename CurHandler, typename... Handlers>
-  std::enable_if_t<CurHandler::VisitUnionBody>
-  VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
-             const CXXRecordDecl *Wrapper, CurHandler &cur_handler,
-             Handlers &... handlers) {
-    VisitUnion<CurHandler>(cur_handler, Owner, Parent, Wrapper, handlers...);
-  }
+                  const CXXRecordDecl *Wrapper, Handlers &... handlers);
 
   template <typename... Handlers>
   void VisitRecordHelper(const CXXRecordDecl *Owner,
@@ -931,11 +917,11 @@ public:
       // Handle accessor class as base
       if (Util::isSyclAccessorType(BaseTy)) {
         (void)std::initializer_list<int>{
-            (handlers.handleSyclAccessorType(Base, BaseTy), 0)...};
+            (handlers.handleSyclAccessorType(Owner, Base, BaseTy), 0)...};
       } else if (Util::isSyclStreamType(BaseTy)) {
         // Handle stream class as base
         (void)std::initializer_list<int>{
-            (handlers.handleSyclStreamType(Base, BaseTy), 0)...};
+            (handlers.handleSyclStreamType(Owner, Base, BaseTy), 0)...};
       } else
         // For all other bases, visit the record
         VisitRecord(Owner, Base, BaseTy->getAsCXXRecordDecl(), handlers...);
@@ -970,6 +956,9 @@ public:
     (void)std::initializer_list<int>{
         (handlers.leaveStruct(Owner, Parent), 0)...};
   }
+
+public:
+  KernelObjVisitor(Sema &S) : SemaRef(S) {}
 
   template <typename... Handlers>
   void VisitRecordBases(const CXXRecordDecl *KernelFunctor,
@@ -1027,49 +1016,37 @@ public:
   }
 #undef KF_FOR_EACH
 };
-// Parent contains the FieldDecl or CXXBaseSpecifier that was used to enter
-// the Wrapper structure that we're currently visiting. Owner is the parent
-// type (which doesn't exist in cases where it is a FieldDecl in the
-// 'root'), and Wrapper is the current struct being unwrapped.
-template <typename ParentTy, typename... Handlers>
-void KernelObjVisitor::VisitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
-                                   const CXXRecordDecl *Wrapper,
-                                   Handlers &... handlers) {
-  (void)std::initializer_list<int>{(handlers.enterStruct(Owner, Parent), 0)...};
-  VisitRecordHelper(Wrapper, Wrapper->bases(), handlers...);
-  VisitRecordHelper(Wrapper, Wrapper->fields(), handlers...);
-  (void)std::initializer_list<int>{(handlers.leaveStruct(Owner, Parent), 0)...};
-}
 
 // A base type that the SYCL OpenCL Kernel construction task uses to implement
 // individual tasks.
-class SyclKernelFieldHandler {
-protected:
-  Sema &SemaRef;
-  SyclKernelFieldHandler(Sema &S) : SemaRef(S) {}
-
+class SyclKernelFieldHandlerBase {
 public:
   static constexpr const bool VisitUnionBody = false;
+  static constexpr const bool VisitNthElement = true;
   // Mark these virtual so that we can use override in the implementer classes,
   // despite virtual dispatch never being used.
 
   // Accessor can be a base class or a field decl, so both must be handled.
-  virtual bool handleSyclAccessorType(const CXXBaseSpecifier &, QualType) {
+  virtual bool handleSyclAccessorType(const CXXRecordDecl *,
+                                      const CXXBaseSpecifier &, QualType) {
     return true;
   }
   virtual bool handleSyclAccessorType(FieldDecl *, QualType) { return true; }
-  virtual bool handleSyclSamplerType(const CXXBaseSpecifier &, QualType) {
+  virtual bool handleSyclSamplerType(const CXXRecordDecl *,
+                                     const CXXBaseSpecifier &, QualType) {
     return true;
   }
   virtual bool handleSyclSamplerType(FieldDecl *, QualType) { return true; }
   virtual bool handleSyclSpecConstantType(FieldDecl *, QualType) {
     return true;
   }
-  virtual bool handleSyclStreamType(const CXXBaseSpecifier &, QualType) {
+  virtual bool handleSyclStreamType(const CXXRecordDecl *,
+                                    const CXXBaseSpecifier &, QualType) {
     return true;
   }
   virtual bool handleSyclStreamType(FieldDecl *, QualType) { return true; }
-  virtual bool handleSyclHalfType(const CXXBaseSpecifier &, QualType) {
+  virtual bool handleSyclHalfType(const CXXRecordDecl *,
+                                  const CXXBaseSpecifier &, QualType) {
     return true;
   }
   virtual bool handleSyclHalfType(FieldDecl *, QualType) { return true; }
@@ -1111,8 +1088,67 @@ public:
   virtual bool nextElement(QualType) { return true; }
   virtual bool leaveArray(FieldDecl *, QualType, int64_t) { return true; }
 
-  virtual ~SyclKernelFieldHandler() = default;
+  virtual ~SyclKernelFieldHandlerBase() = default;
 };
+
+// A class to act as the direct base for all the SYCL OpenCL Kernel construction
+// tasks that contains a reference to Sema (and potentially any other
+// universally required data).
+class SyclKernelFieldHandler : public SyclKernelFieldHandlerBase {
+protected:
+  Sema &SemaRef;
+  SyclKernelFieldHandler(Sema &S) : SemaRef(S) {}
+};
+
+// A class to represent the 'do nothing' case for filtering purposes.
+class SyclEmptyHandler final : public SyclKernelFieldHandlerBase {};
+SyclEmptyHandler GlobalEmptyHandler;
+
+template <bool Keep, typename H> struct HandlerFilter;
+template <typename H> struct HandlerFilter<true, H> {
+  H &Handler;
+  HandlerFilter(H &Handler) : Handler(Handler) {}
+};
+template <typename H> struct HandlerFilter<false, H> {
+  SyclEmptyHandler &Handler = GlobalEmptyHandler;
+  HandlerFilter(H &Handler) {}
+};
+
+template <bool B, bool... Rest> struct AnyTrue;
+
+template <bool B> struct AnyTrue<B> { static constexpr bool Value = B; };
+
+template <bool B, bool... Rest> struct AnyTrue {
+  static constexpr bool Value = B || AnyTrue<Rest...>::Value;
+};
+
+template <typename ParentTy, typename... Handlers>
+void KernelObjVisitor::VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
+                                  const CXXRecordDecl *Wrapper,
+                                  Handlers &... handlers) {
+  // Don't continue descending if none of the handlers 'care'. This could be 'if
+  // constexpr' starting in C++17.  Until then, we have to count on the
+  // optimizer to realize "if (false)" is a dead branch.
+  if (AnyTrue<Handlers::VisitUnionBody...>::Value)
+    VisitUnionImpl(
+        Owner, Parent, Wrapper,
+        HandlerFilter<Handlers::VisitUnionBody, Handlers>(handlers).Handler...);
+}
+
+template <typename... Handlers>
+void KernelObjVisitor::VisitNthElement(CXXRecordDecl *Owner,
+                                       FieldDecl *ArrayField,
+                                       QualType ElementTy,
+                                       Handlers &... handlers) {
+  // Don't continue descending if none of the handlers 'care'. This could be 'if
+  // constexpr' starting in C++17.  Until then, we have to count on the
+  // optimizer to realize "if (false)" is a dead branch.
+  if (AnyTrue<Handlers::VisitNthElement...>::Value)
+    VisitElementImpl(
+        Owner, ArrayField, ElementTy,
+        HandlerFilter<Handlers::VisitNthElement, Handlers>(handlers)
+            .Handler...);
+}
 
 // A type to check the validity of all of the argument types.
 class SyclKernelFieldChecker : public SyclKernelFieldHandler {
@@ -1195,7 +1231,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
 
   void checkBufferLocationType(QualType PropTy, SourceLocation Loc) {
     const auto *PropDecl =
-        dyn_cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
+        cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
     if (PropDecl->getTemplateArgs().size() != 1) {
       SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_param_number)
           << "buffer_location";
@@ -1236,6 +1272,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
 public:
   SyclKernelFieldChecker(Sema &S)
       : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {}
+  static constexpr const bool VisitNthElement = false;
   bool isValid() { return !IsInvalid; }
 
   bool handleReferenceType(FieldDecl *FD, QualType FieldTy) final {
@@ -1249,7 +1286,7 @@ public:
     return isValid();
   }
 
-  bool handleSyclAccessorType(const CXXBaseSpecifier &BS,
+  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                               QualType FieldTy) final {
     checkAccessorType(FieldTy, BS.getBeginLoc());
     return isValid();
@@ -1284,6 +1321,7 @@ public:
       : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {}
   bool isValid() { return !IsInvalid; }
   static constexpr const bool VisitUnionBody = true;
+  static constexpr const bool VisitNthElement = false;
 
   bool checkType(SourceLocation Loc, QualType Ty) {
     if (UnionCount) {
@@ -1307,7 +1345,7 @@ public:
     return checkType(FD->getLocation(), FieldTy);
   }
 
-  bool handleSyclAccessorType(const CXXBaseSpecifier &BS,
+  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                               QualType FieldTy) final {
     return checkType(BS.getBeginLoc(), FieldTy);
   }
@@ -1316,7 +1354,7 @@ public:
     return checkType(FD->getLocation(), FieldTy);
   }
 
-  bool handleSyclSamplerType(const CXXBaseSpecifier &BS,
+  bool handleSyclSamplerType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                              QualType FieldTy) final {
     return checkType(BS.getBeginLoc(), FieldTy);
   }
@@ -1325,7 +1363,7 @@ public:
     return checkType(FD->getLocation(), FieldTy);
   }
 
-  bool handleSyclStreamType(const CXXBaseSpecifier &BS,
+  bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                             QualType FieldTy) final {
     return checkType(BS.getBeginLoc(), FieldTy);
   }
@@ -1503,7 +1541,7 @@ public:
     return true;
   }
 
-  bool handleSyclAccessorType(const CXXBaseSpecifier &BS,
+  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                               QualType FieldTy) final {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
@@ -1596,7 +1634,8 @@ public:
     return true;
   }
 
-  bool handleSyclStreamType(const CXXBaseSpecifier &, QualType FieldTy) final {
+  bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &,
+                            QualType FieldTy) final {
     // FIXME SYCL stream should be usable as a base type
     // See https://github.com/intel/llvm/issues/1552
     return true;
@@ -1882,7 +1921,8 @@ public:
     return handleSpecialType(FD, Ty);
   }
 
-  bool handleSyclAccessorType(const CXXBaseSpecifier &BS, QualType Ty) final {
+  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                              QualType Ty) final {
     return handleSpecialType(BS, Ty);
   }
 
@@ -1914,7 +1954,8 @@ public:
     return true;
   }
 
-  bool handleSyclStreamType(const CXXBaseSpecifier &BS, QualType Ty) final {
+  bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                            QualType Ty) final {
     // FIXME SYCL stream should be usable as a base type
     // See https://github.com/intel/llvm/issues/1552
     return true;
@@ -2062,6 +2103,17 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   int64_t CurOffset = 0;
   int StructDepth = 0;
 
+  // A series of functions to calculate the change in offset based on the type.
+  int64_t offsetOf(const FieldDecl *FD) const {
+    return SemaRef.getASTContext().getFieldOffset(FD) / 8;
+  }
+
+  int64_t offsetOf(const CXXRecordDecl *RD, const CXXRecordDecl *Base) const {
+    const ASTRecordLayout &Layout =
+        SemaRef.getASTContext().getASTRecordLayout(RD);
+    return Layout.getBaseClassOffset(Base).getQuantity();
+  }
+
   void addParam(const FieldDecl *FD, QualType ArgTy,
                 SYCLIntegrationHeader::kernel_param_kind_t Kind) {
     uint64_t Size;
@@ -2071,7 +2123,7 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
       ArgTy = CAT->getElementType();
     Size = SemaRef.getASTContext().getTypeSizeInChars(ArgTy).getQuantity();
     Header.addParamDesc(Kind, static_cast<unsigned>(Size),
-                        static_cast<unsigned>(CurOffset));
+                        static_cast<unsigned>(CurOffset + offsetOf(FD)));
   }
 
 public:
@@ -2082,7 +2134,8 @@ public:
     Header.startKernel(Name, NameType, StableName, KernelObj->getLocation());
   }
 
-  bool handleSyclAccessorType(const CXXBaseSpecifier &BC,
+  bool handleSyclAccessorType(const CXXRecordDecl *RD,
+                              const CXXBaseSpecifier &BC,
                               QualType FieldTy) final {
     const auto *AccTy =
         cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
@@ -2091,7 +2144,9 @@ public:
     int Dims = static_cast<int>(
         AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
     int Info = getAccessTarget(AccTy) | (Dims << 11);
-    Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info, CurOffset);
+    Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
+                        CurOffset +
+                            offsetOf(RD, BC.getType()->getAsCXXRecordDecl()));
     return true;
   }
 
@@ -2103,7 +2158,8 @@ public:
     int Dims = static_cast<int>(
         AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
     int Info = getAccessTarget(AccTy) | (Dims << 11);
-    Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info, CurOffset);
+    Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
+                        CurOffset + offsetOf(FD));
     return true;
   }
 
@@ -2158,7 +2214,7 @@ public:
     return true;
   }
 
-  bool handleSyclStreamType(const CXXBaseSpecifier &BC,
+  bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &BC,
                             QualType FieldTy) final {
     // FIXME SYCL stream should be usable as a base type
     // See https://github.com/intel/llvm/issues/1552
@@ -2170,39 +2226,25 @@ public:
     return true;
   }
 
-  bool enterStruct(const CXXRecordDecl *, FieldDecl *) final {
+  bool enterStruct(const CXXRecordDecl *, FieldDecl *FD) final {
     ++StructDepth;
+    CurOffset += offsetOf(FD);
     return true;
   }
 
-  bool leaveStruct(const CXXRecordDecl *, FieldDecl *) final {
+  bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD) final {
     --StructDepth;
+    CurOffset -= offsetOf(FD);
     return true;
   }
 
-  bool enterField(const CXXRecordDecl *RD, FieldDecl *FD) final {
-    CurOffset += SemaRef.getASTContext().getFieldOffset(FD) / 8;
+  bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
+    CurOffset += offsetOf(RD, BS.getType()->getAsCXXRecordDecl());
     return true;
   }
 
-  bool leaveField(const CXXRecordDecl *, FieldDecl *FD) final {
-    CurOffset -= SemaRef.getASTContext().getFieldOffset(FD) / 8;
-    return true;
-  }
-
-  bool enterField(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
-    const ASTRecordLayout &Layout =
-        SemaRef.getASTContext().getASTRecordLayout(RD);
-    CurOffset += Layout.getBaseClassOffset(BS.getType()->getAsCXXRecordDecl())
-                     .getQuantity();
-    return true;
-  }
-
-  bool leaveField(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
-    const ASTRecordLayout &Layout =
-        SemaRef.getASTContext().getASTRecordLayout(RD);
-    CurOffset -= Layout.getBaseClassOffset(BS.getType()->getAsCXXRecordDecl())
-                     .getQuantity();
+  bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
+    CurOffset -= offsetOf(RD, BS.getType()->getAsCXXRecordDecl());
     return true;
   }
 
@@ -2248,6 +2290,18 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
 
   SyclKernelFieldChecker FieldChecker(*this);
   SyclKernelUnionChecker UnionChecker(*this);
+  // check that calling kernel conforms to spec
+  QualType KernelParamTy = KernelFunc->getParamDecl(0)->getType();
+  if (KernelParamTy->isReferenceType()) {
+    // passing by reference, so emit warning if not using SYCL 2020
+    if (LangOpts.SYCLVersion < 2020)
+      Diag(KernelFunc->getLocation(), diag::warn_sycl_pass_by_reference_future);
+  } else {
+    // passing by value.  emit warning if using SYCL 2020 or greater
+    if (LangOpts.SYCLVersion > 2017)
+      Diag(KernelFunc->getLocation(), diag::warn_sycl_pass_by_value_deprecated);
+  }
+
   KernelObjVisitor Visitor{*this};
   DiagnosingSYCLKernel = true;
   Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker);
@@ -3181,9 +3235,10 @@ bool Util::isSyclHalfType(const QualType &Ty) {
 
 bool Util::isSyclSpecConstantType(const QualType &Ty) {
   const StringRef &Name = "spec_constant";
-  std::array<DeclContextDesc, 4> Scopes = {
+  std::array<DeclContextDesc, 5> Scopes = {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "ONEAPI"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "experimental"},
       Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
   return matchQualifiedTypeName(Ty, Scopes);

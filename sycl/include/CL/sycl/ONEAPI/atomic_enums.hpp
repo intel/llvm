@@ -1,4 +1,4 @@
-//==---------------- atomic_enums.hpp - SYCL_INTEL_extended_atomics enums --==//
+//==--------------- atomic_enums.hpp - SYCL_ONEAPI_extended_atomics enums --==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -20,7 +20,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace intel {
+namespace ONEAPI {
 
 enum class memory_order : int {
   relaxed,
@@ -63,7 +63,7 @@ namespace detail {
 // Nested ternary conditions in else branch required for C++11
 #if __cplusplus >= 201402L
 static inline constexpr std::memory_order
-getStdMemoryOrder(::cl::sycl::intel::memory_order order) {
+getStdMemoryOrder(::cl::sycl::ONEAPI::memory_order order) {
   switch (order) {
   case memory_order::relaxed:
     return std::memory_order_relaxed;
@@ -81,7 +81,7 @@ getStdMemoryOrder(::cl::sycl::intel::memory_order order) {
 }
 #else
 static inline constexpr std::memory_order
-getStdMemoryOrder(::cl::sycl::intel::memory_order order) {
+getStdMemoryOrder(::cl::sycl::ONEAPI::memory_order order) {
   return (order == memory_order::relaxed)
              ? std::memory_order_relaxed
              : (order == memory_order::__consume_unsupported)
@@ -98,6 +98,6 @@ getStdMemoryOrder(::cl::sycl::intel::memory_order order) {
 } // namespace detail
 #endif // __SYCL_DEVICE_ONLY__
 
-} // namespace intel
+} // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

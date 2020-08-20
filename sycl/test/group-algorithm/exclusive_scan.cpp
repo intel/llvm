@@ -22,7 +22,7 @@
 #include <numeric>
 #include <vector>
 using namespace sycl;
-using namespace sycl::intel;
+using namespace sycl::ONEAPI;
 
 template <class BinaryOperation, int TestNumber>
 class exclusive_scan_kernel;

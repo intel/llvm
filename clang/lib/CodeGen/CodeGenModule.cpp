@@ -1555,22 +1555,24 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
               : llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(-1)));
     }
 
-  Fn->setMetadata("kernel_arg_addr_space",
-                  llvm::MDNode::get(VMContext, addressQuals));
-  Fn->setMetadata("kernel_arg_access_qual",
-                  llvm::MDNode::get(VMContext, accessQuals));
-  Fn->setMetadata("kernel_arg_type",
-                  llvm::MDNode::get(VMContext, argTypeNames));
-  Fn->setMetadata("kernel_arg_base_type",
-                  llvm::MDNode::get(VMContext, argBaseTypeNames));
-  Fn->setMetadata("kernel_arg_type_qual",
-                  llvm::MDNode::get(VMContext, argTypeQuals));
-  if (getCodeGenOpts().EmitOpenCLArgMetadata)
-    Fn->setMetadata("kernel_arg_name",
-                    llvm::MDNode::get(VMContext, argNames));
-  if (LangOpts.SYCLIsDevice)
+  if (LangOpts.SYCLIsDevice && !LangOpts.SYCLExplicitSIMD)
     Fn->setMetadata("kernel_arg_buffer_location",
                     llvm::MDNode::get(VMContext, argSYCLBufferLocationAttr));
+  else {
+    Fn->setMetadata("kernel_arg_addr_space",
+                    llvm::MDNode::get(VMContext, addressQuals));
+    Fn->setMetadata("kernel_arg_access_qual",
+                    llvm::MDNode::get(VMContext, accessQuals));
+    Fn->setMetadata("kernel_arg_type",
+                    llvm::MDNode::get(VMContext, argTypeNames));
+    Fn->setMetadata("kernel_arg_base_type",
+                    llvm::MDNode::get(VMContext, argBaseTypeNames));
+    Fn->setMetadata("kernel_arg_type_qual",
+                    llvm::MDNode::get(VMContext, argTypeQuals));
+    if (getCodeGenOpts().EmitOpenCLArgMetadata)
+      Fn->setMetadata("kernel_arg_name",
+                      llvm::MDNode::get(VMContext, argNames));
+  }
 }
 
 /// Determines whether the language options require us to model
