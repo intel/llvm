@@ -1555,7 +1555,7 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
               : llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(-1)));
     }
 
-  if (LangOpts.SYCLIsDevice)
+  if (LangOpts.SYCLIsDevice && !LangOpts.SYCLExplicitSIMD)
     Fn->setMetadata("kernel_arg_buffer_location",
                     llvm::MDNode::get(VMContext, argSYCLBufferLocationAttr));
   else {
