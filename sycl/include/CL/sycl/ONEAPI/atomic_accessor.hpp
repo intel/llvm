@@ -1,4 +1,4 @@
-//==--- atomic_accessor.hpp - SYCL_INTEL_extended_atomics atomic_accessor --==//
+//==-- atomic_accessor.hpp - SYCL_ONEAPI_extended_atomics atomic_accessor --==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,13 +8,14 @@
 
 #pragma once
 
+#include <CL/sycl/ONEAPI/atomic_enums.hpp>
+#include <CL/sycl/ONEAPI/atomic_ref.hpp>
 #include <CL/sycl/access/access.hpp>
-#include <CL/sycl/intel/atomic_enums.hpp>
-#include <CL/sycl/intel/atomic_ref.hpp>
+#include <CL/sycl/accessor.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace intel {
+namespace ONEAPI {
 
 #if __cplusplus > 201402L
 
@@ -123,6 +124,6 @@ atomic_accessor(buffer<DataT, Dimensions, AllocatorT>, handler,
 
 #endif
 
-} // namespace intel
+} // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

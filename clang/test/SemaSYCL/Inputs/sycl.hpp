@@ -218,12 +218,12 @@ public:
   }
 };
 
+namespace ONEAPI {
 namespace experimental {
-
 template <typename T, typename ID = T>
 class spec_constant {};
 } // namespace experimental
-
+} // namespace ONEAPI
 } // namespace sycl
 } // namespace cl
 

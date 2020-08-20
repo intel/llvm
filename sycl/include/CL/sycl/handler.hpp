@@ -176,7 +176,7 @@ checkValueRange(const T &V) {
 
 } // namespace detail
 
-namespace intel {
+namespace ONEAPI {
 namespace detail {
 template <typename T, class BinaryOperation, int Dims, bool IsUSM,
           access::mode AccMode, access::placeholder IsPlaceholder>
@@ -205,7 +205,7 @@ __SYCL_EXPORT size_t reduGetMaxWGSize(shared_ptr_class<queue_impl> Queue,
                                       size_t LocalMemBytesPerWorkItem);
 
 } // namespace detail
-} // namespace intel
+} // namespace ONEAPI
 
 /// Command group handler class.
 ///
@@ -1036,8 +1036,8 @@ public:
                       Reduction::has_fast_atomics && !Reduction::is_usm>
   parallel_for(nd_range<Dims> Range, Reduction Redu,
                _KERNELFUNCPARAM(KernelFunc)) {
-    intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
-                                          Redu.getUserAccessor());
+    ONEAPI::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
+                                           Redu.getUserAccessor());
   }
 
   /// Implements parallel_for() accepting nd_range and 1 reduction variable
@@ -1050,8 +1050,8 @@ public:
                       Reduction::has_fast_atomics && Reduction::is_usm>
   parallel_for(nd_range<Dims> Range, Reduction Redu,
                _KERNELFUNCPARAM(KernelFunc)) {
-    intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
-                                          Redu.getUSMPointer());
+    ONEAPI::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
+                                           Redu.getUSMPointer());
   }
 
   /// Implements parallel_for() accepting nd_range and 1 reduction variable
@@ -1072,8 +1072,8 @@ public:
                _KERNELFUNCPARAM(KernelFunc)) {
     shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     auto RWAcc = Redu.getReadWriteScalarAcc(*this);
-    intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
-                                          RWAcc);
+    ONEAPI::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu,
+                                           RWAcc);
     this->finalize();
 
     // Copy from RWAcc to user's reduction accessor.
@@ -1100,7 +1100,7 @@ public:
   /// TODO: Need to handle more than 1 reduction in parallel_for().
   /// TODO: Support HOST. The kernels called by this parallel_for() may use
   /// some functionality that is not yet supported on HOST such as:
-  /// barrier(), and intel::reduce() that also may be used in more
+  /// barrier(), and ONEAPI::reduce() that also may be used in more
   /// optimized implementations waiting for their turn of code-review.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims, typename Reduction>
@@ -1133,14 +1133,14 @@ public:
     // TODO: currently the maximal work group size is determined for the given
     // queue/device, while it may be safer to use queries to the kernel compiled
     // for the device.
-    size_t MaxWGSize = intel::detail::reduGetMaxWGSize(MQueue, OneElemSize);
+    size_t MaxWGSize = ONEAPI::detail::reduGetMaxWGSize(MQueue, OneElemSize);
     if (Range.get_local_range().size() > MaxWGSize)
       throw sycl::runtime_error("The implementation handling parallel_for with"
                                 " reduction requires smaller work group size.",
                                 PI_INVALID_WORK_GROUP_SIZE);
 
     // 1. Call the kernel that includes user's lambda function.
-    intel::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
+    ONEAPI::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
     shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
     this->finalize();
 
@@ -1162,7 +1162,7 @@ public:
       handler AuxHandler(QueueCopy, MIsHost);
       AuxHandler.saveCodeLoc(MCodeLoc);
 
-      NWorkItems = intel::detail::reduAuxCGFunc<KernelName, KernelType>(
+      NWorkItems = ONEAPI::detail::reduAuxCGFunc<KernelName, KernelType>(
           AuxHandler, NWorkItems, MaxWGSize, Redu);
       MLastEvent = AuxHandler.finalize();
     } // end while (NWorkItems > 1)
@@ -1898,7 +1898,7 @@ private:
   // in handler from reduction_impl methods.
   template <typename T, class BinaryOperation, int Dims, bool IsUSM,
             access::mode AccMode, access::placeholder IsPlaceholder>
-  friend class intel::detail::reduction_impl;
+  friend class ONEAPI::detail::reduction_impl;
 
   friend void detail::associateWithHandler(handler &,
                                            detail::AccessorBaseHost *,

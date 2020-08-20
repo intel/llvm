@@ -11,7 +11,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace intel {
+namespace ONEAPI {
 
 template <typename T = void> struct minimum {
   T operator()(const T &lhs, const T &rhs) const {
@@ -57,7 +57,7 @@ template <typename T = void> using bit_or = std::bit_or<T>;
 template <typename T = void> using bit_xor = std::bit_xor<T>;
 template <typename T = void> using bit_and = std::bit_and<T>;
 
-} // namespace intel
+} // namespace ONEAPI
 
 #ifdef __SYCL_DEVICE_ONLY__
 namespace detail {
@@ -93,15 +93,15 @@ struct GroupOpTag<T, detail::enable_if_t<detail::is_sgenfloat<T>::value>> {
     return Ret;                                                                \
   }
 
-__SYCL_CALC_OVERLOAD(GroupOpISigned, SMin, intel::minimum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMin, intel::minimum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpFP, FMin, intel::minimum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpISigned, SMax, intel::maximum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMax, intel::maximum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpFP, FMax, intel::maximum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpISigned, IAdd, intel::plus<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, IAdd, intel::plus<T>)
-__SYCL_CALC_OVERLOAD(GroupOpFP, FAdd, intel::plus<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, SMin, ONEAPI::minimum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMin, ONEAPI::minimum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, FMin, ONEAPI::minimum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, SMax, ONEAPI::maximum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMax, ONEAPI::maximum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, FMax, ONEAPI::maximum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, IAdd, ONEAPI::plus<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, IAdd, ONEAPI::plus<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, FAdd, ONEAPI::plus<T>)
 
 #undef __SYCL_CALC_OVERLOAD
 

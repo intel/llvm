@@ -1,4 +1,4 @@
-//==---------------- atomic.hpp - SYCL_INTEL_extended_atomics --------------==//
+//==--------------- atomic.hpp - SYCL_ONEAPI_extended_atomics --------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/sycl/intel/atomic_accessor.hpp>
-#include <CL/sycl/intel/atomic_enums.hpp>
-#include <CL/sycl/intel/atomic_fence.hpp>
-#include <CL/sycl/intel/atomic_ref.hpp>
+#include <CL/sycl/ONEAPI/atomic_accessor.hpp>
+#include <CL/sycl/ONEAPI/atomic_enums.hpp>
+#include <CL/sycl/ONEAPI/atomic_fence.hpp>
+#include <CL/sycl/ONEAPI/atomic_ref.hpp>
