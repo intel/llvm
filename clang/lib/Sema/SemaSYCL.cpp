@@ -1082,7 +1082,7 @@ public:
   virtual bool enterField(const CXXRecordDecl *, FieldDecl *) { return true; }
   virtual bool leaveField(const CXXRecordDecl *, FieldDecl *) { return true; }
   virtual bool enterArray() { return true; }
-  virtual bool nextElement(QualType, int64_t) { return true; }
+  virtual bool nextElement(QualType, uint64_t) { return true; }
   virtual bool leaveArray(FieldDecl *, QualType, int64_t) { return true; }
 
   virtual ~SyclKernelFieldHandlerBase() = default;
@@ -1814,8 +1814,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     // MemberExprBasesIdx is used to get the index of each dimension, in correct
     // order, from MemberExprBases. For example for a[0][0][1], getArrayIndex
     // will return 0, 0 and then 1.
-    int MemberExprBasesIdx = (MemberExprBases.size() - 1) - (Dims - 1);
-    for (int i = 0; i < Dims; ++i) {
+    int MemberExprBasesIdx = MemberExprBases.size() - Dims;
+    for (int I = 0; I < Dims; ++I) {
       InitializedEntity NewEntity = InitializedEntity::InitializeElement(
           SemaRef.getASTContext(), getArrayIndex(MemberExprBasesIdx),
           InitEntities.back());
@@ -1851,7 +1851,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     // ArraySubscriptExprs and the top of stack shows how far we have descended
     // down the array. getDims() calculates this depth.
     QualType ILEType = FD->getType();
-    for (int i = getDims(); i > 1; i--) {
+    for (int I = getDims(); I > 1; I--) {
       const ConstantArrayType *CAT =
           SemaRef.getASTContext().getAsConstantArrayType(ILEType);
       assert(CAT && "Should only be called on constant-size array.");
@@ -2119,7 +2119,7 @@ public:
     return true;
   }
 
-  bool nextElement(QualType ET, int64_t) final {
+  bool nextElement(QualType ET, uint64_t) final {
     // Top of MemberExprBases holds ArraySubscriptExpression of element
     // we just handled, or the Array base for the dimension we are
     // currently visiting.
@@ -2304,7 +2304,7 @@ public:
     return true;
   }
 
-  bool nextElement(QualType ET, int64_t Index) final {
+  bool nextElement(QualType ET, uint64_t Index) final {
     int64_t Size = SemaRef.getASTContext().getTypeSizeInChars(ET).getQuantity();
     CurOffset = ArrayBaseOffsets.back() + Size * (Index);
     return true;
