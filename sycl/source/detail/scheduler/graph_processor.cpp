@@ -63,29 +63,12 @@ bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
     return false;
   }
 
-  // Indicates whether dependency cannot be enqueued
-  bool BlockedByDep = false;
-
+  // Recursively enqueue all the dependencies first and
+  // exit immediately if any of the commands cannot be enqueued.
   for (DepDesc &Dep : Cmd->MDeps) {
-    const bool Enqueued =
-        enqueueCommand(Dep.MDepCommand, EnqueueResult, Blocking);
-    if (!Enqueued)
-      switch (EnqueueResult.MResult) {
-      case EnqueueResultT::SyclEnqueueFailed:
-      default:
-        // Exit immediately if a command fails to avoid enqueueing commands
-        // result of which will be discarded.
-        return false;
-      case EnqueueResultT::SyclEnqueueBlocked:
-        // If some dependency is blocked do not enqueue other deps.
-        return false;
-      }
+    if (!enqueueCommand(Dep.MDepCommand, EnqueueResult, Blocking))
+      return false;
   }
-
-  // Exit if some command is blocked from enqueueing, the EnqueueResult is set
-  // by the latest dependency which was blocked.
-  if (BlockedByDep)
-    return false;
 
   return Cmd->enqueue(EnqueueResult, Blocking);
 }
