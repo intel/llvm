@@ -4124,9 +4124,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-sycl-opt");
     }
     // Turn on Dead Parameter Elimination Optimization with early optimizations
-    if (Args.hasFlag(options::OPT_fsycl_early_optimizations,
-                     options::OPT_fno_sycl_early_optimizations,
-                     !RawTriple.isNVPTX()))
+    if (Args.hasFlag(options::OPT_fsycl_dead_args_optimization,
+                     options::OPT_fno_sycl_dead_args_optimization, false))
       CmdArgs.push_back("-fenable-sycl-dae");
 
     // Pass the triple of host when doing SYCL
@@ -7813,9 +7812,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // -fsycl-device-code-split=per_source
 
   // Turn on Dead Parameter Elimination Optimization with early optimizations
-  if (TCArgs.hasFlag(options::OPT_fsycl_early_optimizations,
-                     options::OPT_fno_sycl_early_optimizations,
-                     !getToolChain().getTriple().isNVPTX()))
+  if (TCArgs.hasFlag(options::OPT_fsycl_dead_args_optimization,
+                     options::OPT_fno_sycl_dead_args_optimization, false))
     addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
   if (JA.getType() == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR

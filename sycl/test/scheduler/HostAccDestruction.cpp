@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -I %sycl_source_dir %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-dead-args-optimzation -I %sycl_source_dir %s -o %t.out
 // RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
 //==---------------------- HostAccDestruction.cpp --------------------------==//
 //
