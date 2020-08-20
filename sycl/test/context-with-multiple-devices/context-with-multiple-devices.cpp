@@ -10,13 +10,11 @@
 
 #include <CL/sycl.hpp>
 
-using namespace cl::sycl;
-
 void exceptionHandler(sycl::exception_list exceptions) {
   for (std::exception_ptr const &e : exceptions) {
     try {
       std::rethrow_exception(e);
-    } catch (cl::sycl::exception const &e) {
+    } catch (sycl::exception const &e) {
       std::cout << "Caught asynchronous SYCL exception:\n"
                 << e.what() << std::endl;
     }
@@ -24,7 +22,7 @@ void exceptionHandler(sycl::exception_list exceptions) {
 }
 
 int main() {
-  std::vector<sycl::device> DeviceList = sycl::device::get_devices();
+  std::vector DeviceList = sycl::device::get_devices();
 
   // remove host device from the list
   DeviceList.erase(std::remove_if(DeviceList.begin(), DeviceList.end(),
@@ -41,7 +39,7 @@ int main() {
 
   for (auto &Queue : QueueList) {
     Queue.submit([&](sycl::handler &cgh) {
-      cgh.parallel_for(range<1>(100), [=](id<1> i) {});
+      cgh.parallel_for(100, [=](auto i) {});
     });
   }
 

@@ -376,8 +376,31 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
+    bool ContextHasSubDevices = false;
+    const vector_class<device> &Devices = ContextImpl->getDevices();
+    for (const auto &Device : Devices) {
+      try {
+        // Device.get_info<info::device::parent_device>(); should throw
+        // sycl::invalid_object_error exception if Device is not a sub device.
+        // If the exception doesn't throw, it means that context has a sub
+        // device and we can quit the loop.
+        Device.get_info<info::device::parent_device>();
+        ContextHasSubDevices = true;
+        break;
+      } catch (sycl::invalid_object_error const &E) {
+      }
+    }
+
     vector_class<RT::PiDevice> PiDevices;
-    PiDevices.push_back(getRawSyclObjImpl(Device)->getHandleRef());
+    if (ContextHasSubDevices) {
+      PiDevices.resize(Devices.size());
+      std::transform(Devices.begin(), Devices.end(), PiDevices.begin(),
+                     [](const device Dev) {
+                       return getRawSyclObjImpl(Dev)->getHandleRef();
+                     });
+    } else {
+      PiDevices.push_back(getRawSyclObjImpl(Device)->getHandleRef());
+    }
 
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, Img.getCompileOptions(),

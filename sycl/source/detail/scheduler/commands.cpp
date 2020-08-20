@@ -1909,12 +1909,6 @@ cl_int ExecCGCommand::enqueueImp() {
     if (nullptr != ExecKernel->MSyclKernel) {
       assert(ExecKernel->MSyclKernel->get_info<info::kernel::context>() ==
              Context);
-      if (Context.get_devices().size() > 1) {
-        throw feature_not_supported(
-            "multiple devices within a context are not supported with "
-            "sycl::program and sycl::kernel",
-            PI_INVALID_OPERATION);
-      }
       Kernel = ExecKernel->MSyclKernel->getHandleRef();
 
       auto SyclProg = detail::getSyclObjImpl(

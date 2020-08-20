@@ -28,7 +28,14 @@ program_impl::program_impl(ContextImplPtr Context)
 
 program_impl::program_impl(ContextImplPtr Context,
                            vector_class<device> DeviceList)
-    : MContext(Context), MDevices(DeviceList) {}
+    : MContext(Context), MDevices(DeviceList) {
+  if (Context->getDevices().size() > 1) {
+    throw feature_not_supported(
+        "multiple devices within a context are not supported with "
+        "sycl::program and sycl::kernel",
+        PI_INVALID_OPERATION);
+  }
+}
 
 program_impl::program_impl(
     vector_class<shared_ptr_class<program_impl>> ProgramList,
@@ -51,6 +58,12 @@ program_impl::program_impl(
   }
 
   MContext = ProgramList[0]->MContext;
+  if (MContext->getDevices().size() > 1) {
+    throw feature_not_supported(
+        "multiple devices within a context are not supported with "
+        "sycl::program and sycl::kernel",
+        PI_INVALID_OPERATION);
+  }
   MDevices = ProgramList[0]->MDevices;
   vector_class<device> DevicesSorted;
   if (!is_host()) {
@@ -104,6 +117,13 @@ program_impl::program_impl(ContextImplPtr Context,
                            pi_native_handle InteropProgram,
                            RT::PiProgram Program)
     : MProgram(Program), MContext(Context), MLinkable(true) {
+
+  if (Context->getDevices().size() > 1) {
+    throw feature_not_supported(
+        "multiple devices within a context are not supported with "
+        "sycl::program and sycl::kernel",
+        PI_INVALID_OPERATION);
+  }
 
   const detail::plugin &Plugin = getPlugin();
   if (MProgram == nullptr) {
