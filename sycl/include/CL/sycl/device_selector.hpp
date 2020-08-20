@@ -87,5 +87,20 @@ public:
   int operator()(const device &dev) const override;
 };
 
+namespace ONEAPI {
+namespace detail {
+struct filter;
+} // namespace detail
+
+class __SYCL_EXPORT filter_selector : public device_selector {
+public:
+  filter_selector(std::string filter);
+  int operator()(const device &dev) const override;
+private:
+  std::vector<detail::filter> mFilters;
+  default_selector mRanker;
+  size_t mMatchesSeen;
+};
+} // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

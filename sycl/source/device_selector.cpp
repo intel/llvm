@@ -15,6 +15,9 @@
 #include <detail/force_device.hpp>
 // 4.6.1 Device selection class
 
+#include <algorithm>
+#include <cctype>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
@@ -157,5 +160,26 @@ int host_selector::operator()(const device &dev) const {
   return Score;
 }
 
+namespace ONEAPI {
+namespace detail {
+struct filter {
+  backend Backend;
+  device_type DeviceType;
+  size_t MatchNumber;
+};
+} // namespace detail
+
+filter_selector::filter_selector(std::string filter)
+    : mFilters(), mRanker(), mMatchesSeen(0) {
+  // Parse filters separated by ;
+  // Parse each filter for BE, device type, device #
+}
+
+filter_selector::select_device(const device &dev) {
+  // for each filter
+  // if device matches filter, rank
+  // else reject
+}
+} // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
