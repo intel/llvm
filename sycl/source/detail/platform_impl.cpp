@@ -32,7 +32,6 @@ PlatformImplPtr platform_impl::getHostPlatformImpl() {
 PlatformImplPtr platform_impl::getOrMakePlatformImpl(RT::PiPlatform PiPlatform,
                                                      const plugin &Plugin) {
   static std::vector<PlatformImplPtr> PlatformCache;
-  static std::shared_ptr<std::map<RT::PiPlatform, PlatformImplPtr>> PlatformMap;
   static std::mutex PlatformMapMutex;
 
   PlatformImplPtr Result;
