@@ -4,6 +4,7 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 // UNSUPPORTED: level_zero, cuda
 // REQUIRES: opencl
+// REQUIRES: TEMPORARY_DISABLED
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/backend/opencl.hpp>
@@ -240,7 +241,7 @@ void test6() {
     });
     Queue.wait_and_throw();
     assert(!"Expected exception was not caught");
-  } catch (const sycl::exception &ExpectedException) {
+  } catch (sycl::exception &ExpectedException) {
     assert(std::string(ExpectedException.what())
                    .find("memory object out of accessor for specified target "
                          "is not allowed") != std::string::npos &&
