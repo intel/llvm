@@ -24,6 +24,7 @@ config.sycl_threads_lib = '@SYCL_THREADS_LIB@'
 config.extra_environment = lit_config.params.get("extra_environment", "@LIT_EXTRA_ENVIRONMENT@")
 config.cxx_flags = "@CMAKE_CXX_FLAGS@"
 config.c_flags = "@CMAKE_C_FLAGS@"
+config.external_tests = "@SYCL_EXTERNAL_TESTS@"
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)
