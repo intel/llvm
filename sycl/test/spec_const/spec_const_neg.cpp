@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
             << "\n";
   cl::sycl::program program1(q.get_context());
 
-  cl::sycl::experimental::spec_constant<int32_t, MyInt32Const> i32 =
+  cl::sycl::ONEAPI::experimental::spec_constant<int32_t, MyInt32Const> i32 =
       program1.set_spec_constant<MyInt32Const>(10);
 
   std::vector<int> veci(1);
@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
   try {
     // This is an attempt to set a spec constant after the program has been
     // built - spec_const_error should be thrown
-    cl::sycl::experimental::spec_constant<int32_t, MyInt32Const> i32 =
+    cl::sycl::ONEAPI::experimental::spec_constant<int32_t, MyInt32Const> i32 =
         program1.set_spec_constant<MyInt32Const>(10);
 
     cl::sycl::buffer<int, 1> bufi(veci.data(), veci.size());
@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
             acci[0] = i32.get();
           });
     });
-  } catch (cl::sycl::experimental::spec_const_error &sc_err) {
+  } catch (cl::sycl::ONEAPI::experimental::spec_const_error &sc_err) {
     passed = true;
   } catch (cl::sycl::exception &e) {
     std::cout << "*** Exception caught: " << e.what() << "\n";

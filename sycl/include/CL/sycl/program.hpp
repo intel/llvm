@@ -8,11 +8,11 @@
 
 #pragma once
 
+#include <CL/sycl/ONEAPI/experimental/spec_constant.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/experimental/spec_constant.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/stl.hpp>
@@ -307,7 +307,7 @@ public:
   /// \return a specialization constant instance corresponding to given type ID
   ///         passed as a template parameter
   template <typename ID, typename T>
-  experimental::spec_constant<T, ID> set_spec_constant(T Cst) {
+  ONEAPI::experimental::spec_constant<T, ID> set_spec_constant(T Cst) {
     constexpr const char *Name = detail::SpecConstantInfo<ID>::getName();
     static_assert(std::is_integral<T>::value ||
                       std::is_floating_point<T>::value,
@@ -315,10 +315,10 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)Cst;
     (void)Name;
-    return experimental::spec_constant<T, ID>();
+    return ONEAPI::experimental::spec_constant<T, ID>();
 #else
     set_spec_constant_impl(Name, &Cst, sizeof(T));
-    return experimental::spec_constant<T, ID>(Cst);
+    return ONEAPI::experimental::spec_constant<T, ID>(Cst);
 #endif // __SYCL_DEVICE_ONLY__
   }
 

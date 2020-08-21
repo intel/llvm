@@ -33,7 +33,7 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
     auto In = InBuf.template get_access<access::mode::read>(CGH);
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
         Out(OutBuf, CGH);
-    auto Redu = intel::reduction(Out, Identity, BOp);
+    auto Redu = ONEAPI::reduction(Out, Identity, BOp);
 
     range<1> GlobalRange(NWItems);
     range<1> LocalRange(WGSize);
@@ -57,39 +57,39 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
 
 int main() {
   // Check some less standards WG sizes and corner cases first.
-  test<class KernelName_TeSOazfnXqV, int, 0, intel::plus<int>>(0, 2, 2);
-  test<class KernelName_sDrWF, int, 0, intel::plus<int>>(0, 7, 7);
-  test<class KernelName_WClNhs, int, 0, intel::plus<int>>(0, 9, 18);
-  test<class KernelName_dGBzKHqZ, int, 0, intel::plus<int>>(0, 49, 49 * 5);
+  test<class KernelName_TeSOazfnXqV, int, 0, ONEAPI::plus<int>>(0, 2, 2);
+  test<class KernelName_sDrWF, int, 0, ONEAPI::plus<int>>(0, 7, 7);
+  test<class KernelName_WClNhs, int, 0, ONEAPI::plus<int>>(0, 9, 18);
+  test<class KernelName_dGBzKHqZ, int, 0, ONEAPI::plus<int>>(0, 49, 49 * 5);
 
   // Try some power-of-two work-group sizes.
-  test<class KernelName_BBFqAKecrI, int, 0, intel::plus<int>>(0, 2, 64);
-  test<class KernelName_HMUbvvJOFTCETQHk, int, 0, intel::plus<int>>(0, 4, 64);
-  test<class KernelName_JocyLVjSXVPjdkezas, int, 0, intel::plus<int>>(0, 8,
-                                                                      128);
-  test<class KernelName_vXMabsyZtboaYDgkmuW, int, 0, intel::plus<int>>(0, 16,
-                                                                       256);
-  test<class KernelName_jmOMSDBPkCezwz, int, 0, intel::plus<int>>(0, 32, 256);
-  test<class KernelName_BZD, int, 0, intel::plus<int>>(0, 64, 256);
-  test<class KernelName_xAMTrtueBCmu, int, 0, intel::plus<int>>(0, 128, 256);
-  test<class KernelName_iIqMmgijPHeP, int, 0, intel::plus<int>>(0, 256, 256);
+  test<class KernelName_BBFqAKecrI, int, 0, ONEAPI::plus<int>>(0, 2, 64);
+  test<class KernelName_HMUbvvJOFTCETQHk, int, 0, ONEAPI::plus<int>>(0, 4, 64);
+  test<class KernelName_JocyLVjSXVPjdkezas, int, 0, ONEAPI::plus<int>>(0, 8,
+                                                                       128);
+  test<class KernelName_vXMabsyZtboaYDgkmuW, int, 0, ONEAPI::plus<int>>(0, 16,
+                                                                        256);
+  test<class KernelName_jmOMSDBPkCezwz, int, 0, ONEAPI::plus<int>>(0, 32, 256);
+  test<class KernelName_BZD, int, 0, ONEAPI::plus<int>>(0, 64, 256);
+  test<class KernelName_xAMTrtueBCmu, int, 0, ONEAPI::plus<int>>(0, 128, 256);
+  test<class KernelName_iIqMmgijPHeP, int, 0, ONEAPI::plus<int>>(0, 256, 256);
 
   // Check with various operations.
   test<class KernelName_JbXMe, int, 0, std::multiplies<int>>(1, 8, 256);
-  test<class KernelName_yxrYAlH, int, 0, intel::bit_or<int>>(0, 8, 256);
-  test<class KernelName_bclQP, int, 0, intel::bit_xor<int>>(0, 8, 256);
-  test<class KernelName_SEfBIfWrrGb, int, 0, intel::bit_and<int>>(~0, 8, 256);
-  test<class KernelName_dVCBKeW, int, 0, intel::minimum<int>>(
+  test<class KernelName_yxrYAlH, int, 0, ONEAPI::bit_or<int>>(0, 8, 256);
+  test<class KernelName_bclQP, int, 0, ONEAPI::bit_xor<int>>(0, 8, 256);
+  test<class KernelName_SEfBIfWrrGb, int, 0, ONEAPI::bit_and<int>>(~0, 8, 256);
+  test<class KernelName_dVCBKeW, int, 0, ONEAPI::minimum<int>>(
       (std::numeric_limits<int>::max)(), 8, 256);
-  test<class KernelName_kFuGbwFvu, int, 0, intel::maximum<int>>(
+  test<class KernelName_kFuGbwFvu, int, 0, ONEAPI::maximum<int>>(
       (std::numeric_limits<int>::min)(), 8, 256);
 
   // Check with various types.
   test<class KernelName_UjmZVKjKReluws, float, 0, std::multiplies<float>>(1, 8,
                                                                           256);
-  test<class KernelName_OszhECIDUagcinKGeWO, float, 0, intel::minimum<float>>(
+  test<class KernelName_OszhECIDUagcinKGeWO, float, 0, ONEAPI::minimum<float>>(
       getMaximumFPValue<float>(), 8, 256);
-  test<class KernelName_LpCicWZckILZRxZP, float, 0, intel::maximum<float>>(
+  test<class KernelName_LpCicWZckILZRxZP, float, 0, ONEAPI::maximum<float>>(
       getMinimumFPValue<float>(), 8, 256);
 
   // Check with CUSTOM type.

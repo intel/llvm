@@ -13,7 +13,7 @@
 #include <complex>
 #include <numeric>
 using namespace sycl;
-using namespace sycl::intel;
+using namespace sycl::ONEAPI;
 
 template <typename kernel_name, typename InputContainer,
           typename OutputContainer>

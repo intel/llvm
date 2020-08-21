@@ -7,7 +7,8 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 // RUNx: env SYCL_DEVICE_TYPE=HOST %t.out
-// TODO: Enable the test for HOST when it supports intel::reduce() and barrier()
+// TODO: Enable the test for HOST when it supports ONEAPI::reduce() and
+// barrier()
 
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // with reductions initialized with USM var.
@@ -59,7 +60,7 @@ void test(T Identity, size_t WGSize, size_t NWItems, usm::alloc AllocType) {
   // Compute.
   Q.submit([&](handler &CGH) {
     auto In = InBuf.template get_access<access::mode::read>(CGH);
-    auto Redu = intel::reduction(ReduVarPtr, Identity, BOp);
+    auto Redu = ONEAPI::reduction(ReduVarPtr, Identity, BOp);
     range<1> GlobalRange(NWItems);
     range<1> LocalRange(WGSize);
     nd_range<1> NDRange(GlobalRange, LocalRange);
@@ -106,20 +107,20 @@ void testUSM(T Identity, size_t WGSize, size_t NWItems) {
 
 int main() {
   // fast atomics and fast reduce
-  testUSM<class KernelName_ZiHgIpkuqwxFSU, int, 1, intel::plus<int>>(0, 49,
-                                                                     49 * 5);
-  testUSM<class KernelName_CJwo, int, 0, intel::plus<int>>(0, 8, 128);
+  testUSM<class KernelName_ZiHgIpkuqwxFSU, int, 1, ONEAPI::plus<int>>(0, 49,
+                                                                      49 * 5);
+  testUSM<class KernelName_CJwo, int, 0, ONEAPI::plus<int>>(0, 8, 128);
 
   // fast atomics
-  testUSM<class KernelName_EJCJkOXyeXMGswJ, int, 0, intel::bit_or<int>>(0, 7,
-                                                                        7 * 3);
-  testUSM<class KernelName_UyTaqkIExBLbTK, int, 1, intel::bit_or<int>>(0, 4,
-                                                                       128);
+  testUSM<class KernelName_EJCJkOXyeXMGswJ, int, 0, ONEAPI::bit_or<int>>(0, 7,
+                                                                         7 * 3);
+  testUSM<class KernelName_UyTaqkIExBLbTK, int, 1, ONEAPI::bit_or<int>>(0, 4,
+                                                                        128);
 
   // fast reduce
-  testUSM<class KernelName_LUzMqQwFnsozwsg, float, 1, intel::minimum<float>>(
+  testUSM<class KernelName_LUzMqQwFnsozwsg, float, 1, ONEAPI::minimum<float>>(
       getMaximumFPValue<float>(), 5, 5 * 7);
-  testUSM<class KernelName_LGBVwsskb, float, 0, intel::maximum<float>>(
+  testUSM<class KernelName_LGBVwsskb, float, 0, ONEAPI::maximum<float>>(
       getMinimumFPValue<float>(), 4, 128);
 
   // generic algorithm

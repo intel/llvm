@@ -46,7 +46,7 @@ void testKnown(T Identity, BinaryOperation BOp, T A, T B) {
     // This accessor is not really used in this test.
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
         ReduAcc(ReduBuf, CGH);
-    auto Redu = intel::reduction(ReduAcc, BOp);
+    auto Redu = ONEAPI::reduction(ReduAcc, BOp);
     assert(Redu.getIdentity() == Identity && "Failed getIdentity() check().");
     test_reducer(Redu, A, B);
     test_reducer(Redu, Identity, BOp, A, B);
@@ -66,7 +66,7 @@ void testUnknown(T Identity, BinaryOperation BOp, T A, T B) {
     // This accessor is not really used in this test.
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
         ReduAcc(ReduBuf, CGH);
-    auto Redu = intel::reduction(ReduAcc, Identity, BOp);
+    auto Redu = ONEAPI::reduction(ReduAcc, Identity, BOp);
     assert(Redu.getIdentity() == Identity && "Failed getIdentity() check().");
     test_reducer(Redu, Identity, BOp, A, B);
 
@@ -91,32 +91,33 @@ void testBoth(T Identity, BinaryOperation BOp, T A, T B) {
 }
 
 int main() {
-  testBoth<class KernelName_DpWavJTNjhJtrHmLWt, int>(0, intel::plus<int>(), 1,
+  testBoth<class KernelName_DpWavJTNjhJtrHmLWt, int>(0, ONEAPI::plus<int>(), 1,
                                                      7);
   testBoth<class KernelName_MHRtc, int>(1, std::multiplies<int>(), 1, 7);
-  testBoth<class KernelName_eYhurMyKBZvzctmqwUZ, int>(0, intel::bit_or<int>(),
+  testBoth<class KernelName_eYhurMyKBZvzctmqwUZ, int>(0, ONEAPI::bit_or<int>(),
                                                       1, 8);
-  testBoth<class KernelName_DpVPIUBjUMGZEwBFHH, int>(0, intel::bit_xor<int>(),
+  testBoth<class KernelName_DpVPIUBjUMGZEwBFHH, int>(0, ONEAPI::bit_xor<int>(),
                                                      7, 3);
-  testBoth<class KernelName_vGKFactgrkngMXd, int>(~0, intel::bit_and<int>(), 7,
+  testBoth<class KernelName_vGKFactgrkngMXd, int>(~0, ONEAPI::bit_and<int>(), 7,
                                                   3);
   testBoth<class KernelName_GLpknSBxclKWjm, int>(
-      (std::numeric_limits<int>::max)(), intel::minimum<int>(), 7, 3);
+      (std::numeric_limits<int>::max)(), ONEAPI::minimum<int>(), 7, 3);
   testBoth<class KernelName_EvOaOYQ, int>((std::numeric_limits<int>::min)(),
-                                          intel::maximum<int>(), 7, 3);
+                                          ONEAPI::maximum<int>(), 7, 3);
 
-  testBoth<class KernelName_iFbcoTtPeDtUEK, float>(0, intel::plus<float>(), 1,
+  testBoth<class KernelName_iFbcoTtPeDtUEK, float>(0, ONEAPI::plus<float>(), 1,
                                                    7);
   testBoth<class KernelName_PEMJanstdNezDSXnP, float>(
       1, std::multiplies<float>(), 1, 7);
   testBoth<class KernelName_wOEuftXSjCLpoTOMrYHR, float>(
-      getMaximumFPValue<float>(), intel::minimum<float>(), 7, 3);
+      getMaximumFPValue<float>(), ONEAPI::minimum<float>(), 7, 3);
   testBoth<class KernelName_HzFCIZQKeV, float>(getMinimumFPValue<float>(),
-                                               intel::maximum<float>(), 7, 3);
+                                               ONEAPI::maximum<float>(), 7, 3);
 
-  testUnknown<class KernelName_sJOZPgFeiALyqwIWnFP, CustomVec<float>, 0>(
-      CustomVec<float>(0), CustomVecPlus<float>(), CustomVec<float>(1),
-      CustomVec<float>(7));
+  testUnknown<class KernelName_sJOZPgFeiALyqwIWnFP, CustomVec<float>, 0,
+              CustomVecPlus<float>> >
+      (CustomVec<float>(0), CustomVecPlus<float>(), CustomVec<float>(1),
+       CustomVec<float>(7));
   testUnknown<class KernelName_jMA, CustomVec<float>, 1>(
       CustomVec<float>(0), CustomVecPlus<float>(), CustomVec<float>(1),
       CustomVec<float>(7));
