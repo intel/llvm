@@ -209,8 +209,7 @@ private:
   // the underlying program disposed of), so the map can't be used in any way
   // other than binary image lookup with known live PiProgram as the key.
   // NOTE: access is synchronized via the MNativeProgramsMutex
-  std::map<std::pair<pi::PiProgram, pi::PiDevice>, const RTDeviceBinaryImage *>
-      NativePrograms;
+  std::map<pi::PiProgram, const RTDeviceBinaryImage *> NativePrograms;
 
   /// Protects NativePrograms that can be changed by class' methods.
   std::mutex MNativeProgramsMutex;

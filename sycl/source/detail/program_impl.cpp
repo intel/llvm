@@ -474,10 +474,10 @@ void program_impl::create_pi_program_with_kernel_name(
     bool JITCompilationIsRequired) {
   assert(!MProgram && "This program already has an encapsulated PI program");
   ProgramManager &PM = ProgramManager::getInstance();
-  RTDeviceBinaryImage &Img =
-      PM.getDeviceImage(Module, KernelName, get_context(), get_devices()[0],
-                        JITCompilationIsRequired);
-  MProgram = PM.createPIProgram(Img, get_context(), get_devices()[0]);
+  const device FirstDevice = get_devices()[0];
+  RTDeviceBinaryImage &Img = PM.getDeviceImage(
+      Module, KernelName, get_context(), FirstDevice, JITCompilationIsRequired);
+  MProgram = PM.createPIProgram(Img, get_context(), FirstDevice);
 }
 
 template <>
