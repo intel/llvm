@@ -277,9 +277,12 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
       size_t HostRowPitch = (1 == DimSrc) ? 0 : SrcSize[0];
       size_t HostSlicePitch = (3 == DimSrc) ? SrcSize[0] * SrcSize[1] : 0;
 
-      pi_buff_rect_offset_struct BufferOffset{DstOffset[0], DstOffset[1], DstOffset[2]};
-      pi_buff_rect_offset_struct HostOffset{SrcOffset[0], SrcOffset[1], SrcOffset[2]};
-      pi_buff_rect_region_struct RectRegion{DstAccessRange[0], DstAccessRange[1], DstAccessRange[2]};
+      pi_buff_rect_offset_struct BufferOffset{DstOffset[0], DstOffset[1],
+                                              DstOffset[2]};
+      pi_buff_rect_offset_struct HostOffset{SrcOffset[0], SrcOffset[1],
+                                            SrcOffset[2]};
+      pi_buff_rect_region_struct RectRegion{
+          DstAccessRange[0], DstAccessRange[1], DstAccessRange[2]};
 
       Plugin.call<PiApiKind::piEnqueueMemBufferWriteRect>(
           Queue, DstMem,
@@ -291,8 +294,9 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
     size_t InputRowPitch = (1 == DimDst) ? 0 : DstSize[0];
     size_t InputSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
 
-    pi_image_offset_struct Origin{DstOffset[0],DstOffset[1],DstOffset[2]};
-    pi_image_region_struct Region{DstAccessRange[0],DstAccessRange[1],DstAccessRange[2]};
+    pi_image_offset_struct Origin{DstOffset[0], DstOffset[1], DstOffset[2]};
+    pi_image_region_struct Region{DstAccessRange[0], DstAccessRange[1],
+                                  DstAccessRange[2]};
 
     Plugin.call<PiApiKind::piEnqueueMemImageWrite>(
         Queue, DstMem,
@@ -334,9 +338,12 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
       size_t HostRowPitch = (1 == DimDst) ? 0 : DstSize[0];
       size_t HostSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
 
-      pi_buff_rect_offset_struct BufferOffset{SrcOffset[0], SrcOffset[1], SrcOffset[2]};
-      pi_buff_rect_offset_struct HostOffset{DstOffset[0], DstOffset[1], DstOffset[2]};
-      pi_buff_rect_region_struct RectRegion{SrcAccessRange[0], SrcAccessRange[1], SrcAccessRange[2]};
+      pi_buff_rect_offset_struct BufferOffset{SrcOffset[0], SrcOffset[1],
+                                              SrcOffset[2]};
+      pi_buff_rect_offset_struct HostOffset{DstOffset[0], DstOffset[1],
+                                            DstOffset[2]};
+      pi_buff_rect_region_struct RectRegion{
+          SrcAccessRange[0], SrcAccessRange[1], SrcAccessRange[2]};
 
       Plugin.call<PiApiKind::piEnqueueMemBufferReadRect>(
           Queue, SrcMem,
@@ -349,7 +356,8 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
     size_t SlicePitch = (3 == DimSrc) ? SrcSize[0] * SrcSize[1] : 0;
 
     pi_image_offset_struct Offset{SrcOffset[0], SrcOffset[1], SrcOffset[2]};
-    pi_image_region_struct Region{SrcAccessRange[0], SrcAccessRange[1], SrcAccessRange[2]};
+    pi_image_region_struct Region{SrcAccessRange[0], SrcAccessRange[1],
+                                  SrcAccessRange[2]};
 
     Plugin.call<PiApiKind::piEnqueueMemImageRead>(
         Queue, SrcMem, CL_FALSE, &Offset, &Region, RowPitch, SlicePitch, DstMem,
@@ -388,9 +396,12 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
       size_t DstSlicePitch =
           (DimDst > 1) ? DstSize[0] * DstSize[1] : DstSize[0];
 
-      pi_buff_rect_offset_struct SrcOrigin{SrcOffset[0], SrcOffset[1], SrcOffset[2]};
-      pi_buff_rect_offset_struct DstOrigin{DstOffset[0], DstOffset[1], DstOffset[2]};
-      pi_buff_rect_region_struct Region{SrcAccessRange[0], SrcAccessRange[1], SrcAccessRange[2]};
+      pi_buff_rect_offset_struct SrcOrigin{SrcOffset[0], SrcOffset[1],
+                                           SrcOffset[2]};
+      pi_buff_rect_offset_struct DstOrigin{DstOffset[0], DstOffset[1],
+                                           DstOffset[2]};
+      pi_buff_rect_region_struct Region{SrcAccessRange[0], SrcAccessRange[1],
+                                        SrcAccessRange[2]};
 
       Plugin.call<PiApiKind::piEnqueueMemBufferCopyRect>(
           Queue, SrcMem, DstMem, &SrcOrigin, &DstOrigin, &Region, SrcRowPitch,
@@ -400,7 +411,8 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
   } else {
     pi_image_offset_struct SrcOrigin{SrcOffset[0], SrcOffset[1], SrcOffset[2]};
     pi_image_offset_struct DstOrigin{DstOffset[0], DstOffset[1], DstOffset[2]};
-    pi_image_region_struct Region{SrcAccessRange[0], SrcAccessRange[1], SrcAccessRange[2]};
+    pi_image_region_struct Region{SrcAccessRange[0], SrcAccessRange[1],
+                                  SrcAccessRange[2]};
 
     Plugin.call<PiApiKind::piEnqueueMemImageCopy>(
         Queue, SrcMem, DstMem, &SrcOrigin, &DstOrigin, &Region,

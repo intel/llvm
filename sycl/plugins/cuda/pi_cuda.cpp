@@ -3405,10 +3405,10 @@ static pi_result commonEnqueueMemBufferCopyRect(
 pi_result cuda_piEnqueueMemBufferReadRect(
     pi_queue command_queue, pi_mem buffer, pi_bool blocking_read,
     pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
-    pi_buff_rect_region region, size_t buffer_row_pitch, size_t buffer_slice_pitch,
-    size_t host_row_pitch, size_t host_slice_pitch, void *ptr,
-    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    pi_event *event) {
+    pi_buff_rect_region region, size_t buffer_row_pitch,
+    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
+    void *ptr, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
 
   assert(buffer != nullptr);
   assert(command_queue != nullptr);
@@ -3456,10 +3456,10 @@ pi_result cuda_piEnqueueMemBufferReadRect(
 pi_result cuda_piEnqueueMemBufferWriteRect(
     pi_queue command_queue, pi_mem buffer, pi_bool blocking_write,
     pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
-    pi_buff_rect_region region, size_t buffer_row_pitch, size_t buffer_slice_pitch,
-    size_t host_row_pitch, size_t host_slice_pitch, const void *ptr,
-    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    pi_event *event) {
+    pi_buff_rect_region region, size_t buffer_row_pitch,
+    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
+    const void *ptr, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
 
   assert(buffer != nullptr);
   assert(command_queue != nullptr);

@@ -3095,10 +3095,11 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
 
 pi_result piEnqueueMemBufferReadRect(
     pi_queue Queue, pi_mem Buffer, pi_bool BlockingRead,
-    pi_buff_rect_offset BufferOffset, pi_buff_rect_offset HostOffset, pi_buff_rect_region Region,
-    size_t BufferRowPitch, size_t BufferSlicePitch, size_t HostRowPitch,
-    size_t HostSlicePitch, void *Ptr, pi_uint32 NumEventsInWaitList,
-    const pi_event *EventWaitList, pi_event *Event) {
+    pi_buff_rect_offset BufferOffset, pi_buff_rect_offset HostOffset,
+    pi_buff_rect_region Region, size_t BufferRowPitch, size_t BufferSlicePitch,
+    size_t HostRowPitch, size_t HostSlicePitch, void *Ptr,
+    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
+    pi_event *Event) {
 
   assert(Buffer);
   return enqueueMemCopyRectHelper(
@@ -3282,10 +3283,11 @@ pi_result piEnqueueMemBufferWrite(pi_queue Queue, pi_mem Buffer,
 
 pi_result piEnqueueMemBufferWriteRect(
     pi_queue Queue, pi_mem Buffer, pi_bool BlockingWrite,
-     pi_buff_rect_offset BufferOffset, pi_buff_rect_offset HostOffset, pi_buff_rect_region Region,
-    size_t BufferRowPitch, size_t BufferSlicePitch, size_t HostRowPitch,
-    size_t HostSlicePitch, const void *Ptr, pi_uint32 NumEventsInWaitList,
-    const pi_event *EventWaitList, pi_event *Event) {
+    pi_buff_rect_offset BufferOffset, pi_buff_rect_offset HostOffset,
+    pi_buff_rect_region Region, size_t BufferRowPitch, size_t BufferSlicePitch,
+    size_t HostRowPitch, size_t HostSlicePitch, const void *Ptr,
+    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
+    pi_event *Event) {
 
   assert(Buffer);
   return enqueueMemCopyRectHelper(
