@@ -3531,7 +3531,8 @@ def fsycl_esimd : Flag<["-"], "fsycl-explicit-simd">, Group<sycl_Group>, Flags<[
 def fno_sycl_esimd : Flag<["-"], "fno-sycl-explicit-simd">, Group<sycl_Group>,
   HelpText<"Disable SYCL explicit SIMD extension">, Flags<[NoArgumentUnused, CoreOption]>;
 defm sycl_std_optimizations : OptOutFFlag<"sycl-std-optimizations", "Enable", "Disable", " standard optimization pipeline for SYCL device compiler">;
-
+def fno_sycl_devicelib : Flag<["-"], "fno-sycl-devicelib">, Group<sycl_Group>,
+  HelpText<"Disable SYCL device library link with kernel code">, Flags<[NoArgumentUnused, CoreOption]>;
 //===----------------------------------------------------------------------===//
 // CC1 Options
 //===----------------------------------------------------------------------===//

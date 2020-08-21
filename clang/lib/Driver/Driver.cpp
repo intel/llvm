@@ -3924,7 +3924,8 @@ class OffloadingActionBuilder final {
         }
 
         // For SYCL compilation, add SYCL device libraries as default.
-        if (!isNVPTX && !Args.hasArg(options::OPT_fintelfpga)) {
+        if (!isNVPTX && !Args.hasArg(options::OPT_fintelfpga) &&
+            !Args.hasArg(options::OPT_fno_sycl_devicelib)) {
           addSYCLDeviceLibs(
               *TC, LinkObjects, isSpirvAOT,
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
@@ -4008,7 +4009,8 @@ class OffloadingActionBuilder final {
                                         : types::TY_Tempfiletable;
         SYCLPostLinkJobAction *PostLinkDCRAction = nullptr;
         SYCLPostLinkJobAction *PostLinkAction = nullptr;
-        if (isNVPTX || Args.hasArg(options::OPT_fintelfpga)) {
+        if (isNVPTX || Args.hasArg(options::OPT_fintelfpga) ||
+            Args.hasArg(options::OPT_fno_sycl_devicelib)) {
           PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(DeviceLinkAction,
                                                                PostLinkOutType);
         } else {
