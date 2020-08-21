@@ -706,12 +706,44 @@ struct pi_device_binary_struct {
 };
 using pi_device_binary = pi_device_binary_struct *;
 
-// pi_buffer_region structure repeats cl_buffer_region
+// pi_buffer_region structure repeats cl_buffer_region, used for sub buffers.
 struct pi_buffer_region_struct {
   size_t origin;
   size_t size;
 };
 using pi_buffer_region = pi_buffer_region_struct *;
+
+// pi_buff_rect_offset structure is 3D offset argument passed to buffer rect operations (piEnqueuReadBufferRect, etc).
+struct pi_buff_rect_offset_struct {
+  size_t x_bytes;
+  size_t y_scalar;
+  size_t z_scalar;
+};
+using pi_buff_rect_offset = pi_buff_rect_offset_struct *;
+
+// pi_buff_rect_region structure represents size of 3D region passed to buffer rect operations (piEnqueuReadBufferRect, etc).
+struct pi_buff_rect_region_struct {
+  size_t width_bytes;
+  size_t height_scalar;
+  size_t depth_scalar;
+};
+using pi_buff_rect_region = pi_buff_rect_region_struct *;
+
+// pi_image_offset structure is 3D offset argument passed to image operations (piEnqueueMemImageRead, etc).
+struct pi_image_offset_struct {
+  size_t x;
+  size_t y;
+  size_t z;
+};
+using pi_image_offset = pi_image_offset_struct *;
+
+// pi_image_region structure represents size of 3D region passed to image operations (piEnqueueMemImageRead, etc).
+struct pi_image_region_struct {
+  size_t width;
+  size_t height;
+  size_t depth;
+};
+using pi_image_region = pi_image_region_struct *;
 
 // Offload binaries descriptor version supported by this library.
 static const uint16_t PI_DEVICE_BINARIES_VERSION = 1;
@@ -1261,11 +1293,11 @@ __SYCL_EXPORT pi_result piEnqueueMemBufferRead(
 
 __SYCL_EXPORT pi_result piEnqueueMemBufferReadRect(
     pi_queue command_queue, pi_mem buffer, pi_bool blocking_read,
-    const size_t *buffer_offset, const size_t *host_offset,
-    const size_t *region, size_t buffer_row_pitch, size_t buffer_slice_pitch,
-    size_t host_row_pitch, size_t host_slice_pitch, void *ptr,
-    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    pi_event *event);
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch,
+    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
+    void *ptr, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
 
 __SYCL_EXPORT pi_result
 piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
@@ -1275,11 +1307,11 @@ piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
 
 __SYCL_EXPORT pi_result piEnqueueMemBufferWriteRect(
     pi_queue command_queue, pi_mem buffer, pi_bool blocking_write,
-    const size_t *buffer_offset, const size_t *host_offset,
-    const size_t *region, size_t buffer_row_pitch, size_t buffer_slice_pitch,
-    size_t host_row_pitch, size_t host_slice_pitch, const void *ptr,
-    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    pi_event *event);
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch,
+    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
+    const void *ptr, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
 
 __SYCL_EXPORT pi_result
 piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
@@ -1289,7 +1321,7 @@ piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
 
 __SYCL_EXPORT pi_result piEnqueueMemBufferCopyRect(
     pi_queue command_queue, pi_mem src_buffer, pi_mem dst_buffer,
-    const size_t *src_origin, const size_t *dst_origin, const size_t *region,
+    pi_buff_rect_offset src_origin, pi_buff_rect_offset dst_origin, pi_buff_rect_region region,
     size_t src_row_pitch, size_t src_slice_pitch, size_t dst_row_pitch,
     size_t dst_slice_pitch, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event);
@@ -1302,20 +1334,20 @@ piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
 
 __SYCL_EXPORT pi_result piEnqueueMemImageRead(
     pi_queue command_queue, pi_mem image, pi_bool blocking_read,
-    const size_t *origin, const size_t *region, size_t row_pitch,
+    pi_image_offset origin, pi_image_region region, size_t row_pitch,
     size_t slice_pitch, void *ptr, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event);
 
 __SYCL_EXPORT pi_result piEnqueueMemImageWrite(
     pi_queue command_queue, pi_mem image, pi_bool blocking_write,
-    const size_t *origin, const size_t *region, size_t input_row_pitch,
+    pi_image_offset origin, pi_image_region region, size_t input_row_pitch,
     size_t input_slice_pitch, const void *ptr,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event);
 
 __SYCL_EXPORT pi_result piEnqueueMemImageCopy(
     pi_queue command_queue, pi_mem src_image, pi_mem dst_image,
-    const size_t *src_origin, const size_t *dst_origin, const size_t *region,
+    pi_image_offset src_origin, pi_image_offset dst_origin, pi_image_region region,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event);
 
