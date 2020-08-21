@@ -24,11 +24,7 @@ namespace detail {
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
 
 PlatformImplPtr platform_impl::getHostPlatformImpl() {
-  static PlatformImplPtr HostImpl;
-  static std::once_flag HostImplInit;
-
-  std::call_once(HostImplInit,
-                 []() { HostImpl = std::make_shared<platform_impl>(); });
+  static PlatformImplPtr HostImpl = std::make_shared<platform_impl>();
 
   return HostImpl;
 }
@@ -41,7 +37,7 @@ PlatformImplPtr platform_impl::getOrMakePlatformImpl(RT::PiPlatform PiPlatform,
 
   PlatformImplPtr Result;
   {
-    const std::lock_guard<std::mutex> guard(PlatformMapMutex);
+    const std::lock_guard<std::mutex> Guard(PlatformMapMutex);
 
     // If we've already seen this platform, return the impl
     for (const auto &PlatImpl : PlatformCache) {
@@ -277,13 +273,14 @@ std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
 
   // If we've already seen this device, return the impl
-  for (const auto &Device : MDeviceCache) {
+  for (const std::shared_ptr<device_impl> &Device : MDeviceCache) {
     if (Device->getHandleRef() == PiDevice)
       return Device;
   }
 
   // Otherwise make the impl
-  auto Result = std::make_shared<device_impl>(PiDevice, PlatformImpl);
+  std::shared_ptr<device_impl> Result =
+      std::make_shared<device_impl>(PiDevice, PlatformImpl);
   MDeviceCache.emplace_back(Result);
 
   return Result;
@@ -321,7 +318,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
     filterAllowList(PiDevices, MPlatform, this->getPlugin());
 
-  auto PlatformImpl = getOrMakePlatformImpl(MPlatform, *MPlugin);
+  PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MPlatform, *MPlugin);
   std::transform(
       PiDevices.begin(), PiDevices.end(), std::back_inserter(Res),
       [this, PlatformImpl](const RT::PiDevice &PiDevice) -> device {

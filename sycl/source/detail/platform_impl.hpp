@@ -14,8 +14,6 @@
 #include <detail/platform_info.hpp>
 #include <detail/plugin.hpp>
 
-#include <map>
-
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 

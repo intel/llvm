@@ -82,9 +82,9 @@ context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
                                            &DeviceIds[0], nullptr);
 
   if (!DeviceIds.empty()) {
-    auto Platform =
+    std::shared_ptr<detail::platform_impl> Platform =
         platform_impl::getPlatformFromPiDevice(DeviceIds[0], Plugin);
-    for (auto Dev : DeviceIds) {
+    for (RT::PiDevice Dev : DeviceIds) {
       MDevices.emplace_back(createSyclObjFromImpl<device>(
           Platform->getOrMakeDeviceImpl(Dev, Platform)));
     }

@@ -408,7 +408,8 @@ template <> struct get_device_info<device, info::device::parent_device> {
           PI_INVALID_DEVICE);
 
     // Get the platform of this device
-    auto Platform = platform_impl::getPlatformFromPiDevice(dev, Plugin);
+    std::shared_ptr<detail::platform_impl> Platform =
+        platform_impl::getPlatformFromPiDevice(dev, Plugin);
     return createSyclObjFromImpl<device>(
         Platform->getOrMakeDeviceImpl(result, Platform));
   }
