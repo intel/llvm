@@ -5,14 +5,14 @@
 #include <sycl.hpp>
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 
 int main() {
-  cl::sycl::experimental::spec_constant<char, class MyInt32Const> spec_const;
+  cl::sycl::ONEAPI::experimental::spec_constant<char, class MyInt32Const> spec_const;
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write> accessor;
-  // CHECK: FieldDecl {{.*}} implicit referenced 'cl::sycl::experimental::spec_constant<char, class MyInt32Const>'
+  // CHECK: FieldDecl {{.*}} implicit referenced 'cl::sycl::ONEAPI::experimental::spec_constant<char, class MyInt32Const>'
   // CHECK: FieldDecl {{.*}} implicit referenced 'cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write>'
   kernel<class MyKernel>([spec_const, accessor]() {});
   return 0;

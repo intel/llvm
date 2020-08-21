@@ -16,7 +16,7 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/intel/esimd.hpp>
+#include <CL/sycl/INTEL/esimd.hpp>
 
 #include <iostream>
 
@@ -51,7 +51,7 @@ int main() {
 
       cgh.parallel_for<class Test>(
           range<1>(1), [=](sycl::id<1> i) SYCL_ESIMD_KERNEL {
-            using namespace sycl::intel::gpu;
+            using namespace sycl::INTEL::gpu;
             unsigned int offset = 0;
             for (int k = 0; k < VL / 16; k++) {
               simd<Ty, 16> var = block_load<Ty, 16>(acc0, offset);

@@ -15,7 +15,7 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/intel/esimd.hpp>
+#include <CL/sycl/INTEL/esimd.hpp>
 #include <iostream>
 
 using namespace cl::sycl;
@@ -62,7 +62,7 @@ int main(void) {
 
       cgh.parallel_for<class Test>(
           GlobalRange * LocalRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
-            using namespace sycl::intel::gpu;
+            using namespace sycl::INTEL::gpu;
 
             constexpr int ESIZE = sizeof(int);
             int x = i * ESIZE * VL;

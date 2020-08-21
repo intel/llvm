@@ -14,11 +14,11 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/intel/esimd.hpp>
+#include <CL/sycl/INTEL/esimd.hpp>
 #include <iostream>
 
 using namespace cl::sycl;
-using namespace sycl::intel::gpu;
+using namespace sycl::INTEL::gpu;
 
 #define LOCAL_SIZE 4
 #define GLOBAL_SIZE 6

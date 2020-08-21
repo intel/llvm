@@ -252,6 +252,11 @@ LANGOPT(SYCLVersion       , 32, 0, "Version of the SYCL standard used")
 LANGOPT(DeclareSPIRVBuiltins, 1, 0, "Declare SPIR-V builtin functions")
 LANGOPT(SYCLExplicitSIMD  , 1, 0, "SYCL compilation with explicit SIMD extension")
 LANGOPT(EnableDAEInSpirKernels , 1, 0, "Enable Dead Argument Elimination in SPIR kernels")
+LANGOPT(
+    SYCLValueFitInMaxInt, 1, 0,
+    "SYCL compiler assumes value fits within MAX_INT for member function of "
+    "get/operator[], get_id/operator[] and get_global_id/get_global_linear_id "
+    "in SYCL class id, iterm and nd_iterm")
 
 LANGOPT(HIPUseNewLaunchAPI, 1, 0, "Use new kernel launching API for HIP")
 

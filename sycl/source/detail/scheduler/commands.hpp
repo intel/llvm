@@ -19,6 +19,7 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/detail/cg.hpp>
+#include <detail/program_manager/program_manager.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -499,10 +500,10 @@ private:
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
-  pi_result SetKernelParamsAndLaunch(CGExecKernel *ExecKernel,
-                                     RT::PiKernel Kernel, NDRDescT &NDRDesc,
-                                     std::vector<RT::PiEvent> &RawEvents,
-                                     RT::PiEvent &Event);
+  pi_result SetKernelParamsAndLaunch(
+      CGExecKernel *ExecKernel, RT::PiKernel Kernel, NDRDescT &NDRDesc,
+      std::vector<RT::PiEvent> &RawEvents, RT::PiEvent &Event,
+      ProgramManager::KernelArgMask EliminatedArgMask);
 
   std::unique_ptr<detail::CG> MCommandGroup;
 

@@ -20,18 +20,18 @@ class MyDoubleConst;
 
 int main() {
   // Create specialization constants.
-  cl::sycl::experimental::spec_constant<bool, MyBoolConst> i1(false);
-  cl::sycl::experimental::spec_constant<char, MyInt8Const> i8(0);
-  cl::sycl::experimental::spec_constant<unsigned char, MyUInt8Const> ui8(0);
-  cl::sycl::experimental::spec_constant<short, MyInt16Const> i16(0);
-  cl::sycl::experimental::spec_constant<unsigned short, MyUInt16Const> ui16(0);
-  cl::sycl::experimental::spec_constant<int, MyInt32Const> i32(0);
+  cl::sycl::ONEAPI::experimental::spec_constant<bool, MyBoolConst> i1(false);
+  cl::sycl::ONEAPI::experimental::spec_constant<char, MyInt8Const> i8(0);
+  cl::sycl::ONEAPI::experimental::spec_constant<unsigned char, MyUInt8Const> ui8(0);
+  cl::sycl::ONEAPI::experimental::spec_constant<short, MyInt16Const> i16(0);
+  cl::sycl::ONEAPI::experimental::spec_constant<unsigned short, MyUInt16Const> ui16(0);
+  cl::sycl::ONEAPI::experimental::spec_constant<int, MyInt32Const> i32(0);
   // Constant used twice, but there must be single entry in the int header,
   // otherwise compilation error would be issued.
-  cl::sycl::experimental::spec_constant<int, MyInt32Const> i32_1(0);
-  cl::sycl::experimental::spec_constant<unsigned int, MyUInt32Const> ui32(0);
-  cl::sycl::experimental::spec_constant<float, MyFloatConst> f32(0);
-  cl::sycl::experimental::spec_constant<double, MyDoubleConst> f64(0);
+  cl::sycl::ONEAPI::experimental::spec_constant<int, MyInt32Const> i32_1(0);
+  cl::sycl::ONEAPI::experimental::spec_constant<unsigned int, MyUInt32Const> ui32(0);
+  cl::sycl::ONEAPI::experimental::spec_constant<float, MyFloatConst> f32(0);
+  cl::sycl::ONEAPI::experimental::spec_constant<double, MyDoubleConst> f64(0);
 
   double val;
   double *ptr = &val; // to avoid "unused" warnings

@@ -14,7 +14,7 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/intel/esimd.hpp>
+#include <CL/sycl/INTEL/esimd.hpp>
 #include <iostream>
 
 using namespace cl::sycl;
@@ -54,7 +54,7 @@ int main(void) {
       auto PC = bufc.get_access<access::mode::write>(cgh);
       cgh.parallel_for<class Test>(
           GlobalRange * LocalRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
-            using namespace sycl::intel::gpu;
+            using namespace sycl::INTEL::gpu;
             unsigned int offset = i * VL * sizeof(float);
             simd<float, VL> va = block_load<float, VL>(PA, offset);
             simd<float, VL> vb = block_load<float, VL>(PB, offset);

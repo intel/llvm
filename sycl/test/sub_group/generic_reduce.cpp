@@ -1,11 +1,11 @@
-// TODO: Enable compilation w/o -fno-sycl-std-optimizations option.
+// TODO: Enable compilation w/o -fno-sycl-early-optimizations option.
 // See https://github.com/intel/llvm/issues/2264 for more details.
 
 // UNSUPPORTED: cuda
 // CUDA compilation and runtime do not yet support sub-groups.
 //
-// RUN: %clangxx -fsycl -fno-sycl-std-optimizations -fsycl-unnamed-lambda -std=c++14 %s -o %t.out
-// RUN: %clangxx -fsycl -fno-sycl-std-optimizations -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple -std=c++14 -D SG_GPU %s -o %t_gpu.out
+// RUN: %clangxx -fsycl -fno-sycl-early-optimizations -fsycl-unnamed-lambda -std=c++14 %s -o %t.out
+// RUN: %clangxx -fsycl -fno-sycl-early-optimizations -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple -std=c++14 -D SG_GPU %s -o %t_gpu.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
@@ -27,19 +27,18 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
     Queue.submit([&](handler &cgh) {
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       auto acc = buf.template get_access<access::mode::read_write>(cgh);
-      cgh.parallel_for(
-          NdRange, [=](nd_item<1> NdItem) {
-            intel::sub_group sg = NdItem.get_sub_group();
-            if (skip_init) {
-              acc[NdItem.get_global_id(0)] =
-                  reduce(sg, T(NdItem.get_global_id(0)), op);
-            } else {
-              acc[NdItem.get_global_id(0)] =
-                  reduce(sg, T(NdItem.get_global_id(0)), init, op);
-            }
-            if (NdItem.get_global_id(0) == 0)
-              sgsizeacc[0] = sg.get_max_local_range()[0];
-          });
+      cgh.parallel_for(NdRange, [=](nd_item<1> NdItem) {
+        ONEAPI::sub_group sg = NdItem.get_sub_group();
+        if (skip_init) {
+          acc[NdItem.get_global_id(0)] =
+              reduce(sg, T(NdItem.get_global_id(0)), op);
+        } else {
+          acc[NdItem.get_global_id(0)] =
+              reduce(sg, T(NdItem.get_global_id(0)), init, op);
+        }
+        if (NdItem.get_global_id(0) == 0)
+          sgsizeacc[0] = sg.get_max_local_range()[0];
+      });
     });
     auto acc = buf.template get_access<access::mode::read_write>();
     auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>();
@@ -81,8 +80,8 @@ int main() {
   // Test user-defined type
   // Use complex as a proxy for this
   using UDT = std::complex<float>;
-  check_op<UDT>(Queue, UDT(L, L), intel::plus<UDT>(), false, G, L);
-  check_op<UDT>(Queue, UDT(0, 0), intel::plus<UDT>(), true, G, L);
+  check_op<UDT>(Queue, UDT(L, L), ONEAPI::plus<UDT>(), false, G, L);
+  check_op<UDT>(Queue, UDT(0, 0), ONEAPI::plus<UDT>(), true, G, L);
 
   // Test user-defined operator
   auto UDOp = [=](const auto &lhs, const auto &rhs) { return lhs + rhs; };

@@ -13,13 +13,13 @@
 
 #include "esimd_test_utils.hpp"
 #include <CL/sycl.hpp>
-#include <CL/sycl/intel/esimd.hpp>
+#include <CL/sycl/INTEL/esimd.hpp>
 #include <array>
 #include <iostream>
 #include <memory>
 
 using namespace cl::sycl;
-using namespace sycl::intel::gpu;
+using namespace sycl::INTEL::gpu;
 
 #ifdef _SIM_MODE_
 #define CRUNCH 32

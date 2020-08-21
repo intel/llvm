@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include <CL/sycl.hpp>
-#include <CL/sycl/intel/fpga_extensions.hpp>
+#include <CL/sycl/INTEL/fpga_extensions.hpp>
 #include <iostream>
 
 // Size of an array passing through a pipe
@@ -27,12 +27,11 @@ class nb_pipe;
 }
 
 // For non-blocking template pipes
-template<int N>
-class templ_nb_pipe;
+template <int N> class templ_nb_pipe;
 
 // For non-blocking multiple pipes
-template<int N>
-using PipeMulNb = cl::sycl::intel::pipe<class templ_nb_pipe<N>, int>;
+template <int N>
+using PipeMulNb = cl::sycl::INTEL::pipe<class templ_nb_pipe<N>, int>;
 
 // For simple blocking pipes with explicit type
 class some_bl_pipe;
@@ -43,25 +42,22 @@ class bl_pipe;
 }
 
 // For blocking template pipes
-template<int N>
-class templ_bl_pipe;
+template <int N> class templ_bl_pipe;
 
 // For blocking multiple pipes
-template<int N>
-using PipeMulBl = cl::sycl::intel::pipe<class templ_bl_pipe<N>, int>;
+template <int N>
+using PipeMulBl = cl::sycl::INTEL::pipe<class templ_bl_pipe<N>, int>;
 
 // Kernel names
-template <int TestNumber, int KernelNumber = 0>
-class writer;
-template <int TestNumber, int KernelNumber = 0>
-class reader;
+template <int TestNumber, int KernelNumber = 0> class writer;
+template <int TestNumber, int KernelNumber = 0> class reader;
 
 // Test for simple non-blocking pipes
-template<typename PipeName, int TestNumber>
+template <typename PipeName, int TestNumber>
 int test_simple_nb_pipe(cl::sycl::queue Queue) {
   int data[] = {0};
 
-  using Pipe = cl::sycl::intel::pipe<PipeName, int>;
+  using Pipe = cl::sycl::INTEL::pipe<PipeName, int>;
 
   cl::sycl::buffer<int, 1> readBuf(data, 1);
   Queue.submit([&](cl::sycl::handler &cgh) {
@@ -97,8 +93,7 @@ int test_simple_nb_pipe(cl::sycl::queue Queue) {
 }
 
 // Test for multiple non-blocking pipes
-template<int TestNumber>
-int test_multiple_nb_pipe(cl::sycl::queue Queue) {
+template <int TestNumber> int test_multiple_nb_pipe(cl::sycl::queue Queue) {
   int data[] = {0};
 
   Queue.submit([&](cl::sycl::handler &cgh) {
@@ -149,10 +144,9 @@ int test_multiple_nb_pipe(cl::sycl::queue Queue) {
 }
 
 // Test for array passing through a non-blocking pipe
-template<int TestNumber>
-int test_array_th_nb_pipe(cl::sycl::queue Queue) {
+template <int TestNumber> int test_array_th_nb_pipe(cl::sycl::queue Queue) {
   int data[N] = {0};
-  using AnotherNbPipe = cl::sycl::intel::pipe<class another_nb_pipe, int>;
+  using AnotherNbPipe = cl::sycl::INTEL::pipe<class another_nb_pipe, int>;
 
   Queue.submit([&](cl::sycl::handler &cgh) {
     cgh.single_task<class writer<TestNumber>>([=]() {
@@ -190,11 +184,11 @@ int test_array_th_nb_pipe(cl::sycl::queue Queue) {
 }
 
 // Test for simple blocking pipes
-template<typename PipeName, int TestNumber>
+template <typename PipeName, int TestNumber>
 int test_simple_bl_pipe(cl::sycl::queue Queue) {
   int data[] = {0};
 
-  using Pipe = cl::sycl::intel::pipe<PipeName, int>;
+  using Pipe = cl::sycl::INTEL::pipe<PipeName, int>;
 
   cl::sycl::buffer<int, 1> readBuf(data, 1);
   Queue.submit([&](cl::sycl::handler &cgh) {
@@ -224,8 +218,7 @@ int test_simple_bl_pipe(cl::sycl::queue Queue) {
 }
 
 // Test for multiple blocking pipes
-template<int TestNumber>
-int test_multiple_bl_pipe(cl::sycl::queue Queue) {
+template <int TestNumber> int test_multiple_bl_pipe(cl::sycl::queue Queue) {
   int data[] = {0};
 
   Queue.submit([&](cl::sycl::handler &cgh) {
@@ -261,10 +254,9 @@ int test_multiple_bl_pipe(cl::sycl::queue Queue) {
 }
 
 // Test for array passing through a blocking pipe
-template<int TestNumber>
-int test_array_th_bl_pipe(cl::sycl::queue Queue) {
+template <int TestNumber> int test_array_th_bl_pipe(cl::sycl::queue Queue) {
   int data[N] = {0};
-  using AnotherBlPipe = cl::sycl::intel::pipe<class another_bl_pipe, int>;
+  using AnotherBlPipe = cl::sycl::INTEL::pipe<class another_bl_pipe, int>;
 
   Queue.submit([&](cl::sycl::handler &cgh) {
     cgh.single_task<class writer<TestNumber>>([=]() {
