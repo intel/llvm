@@ -814,7 +814,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     //
     std::string SupportedExtensions;
 
-    // cl_khr_il_program - OpenCL 2.0 KHR extension for SPIRV support. Core
+    // cl_khr_il_program - OpenCL 2.0 KHR extension for SPIR-V support. Core
     //   feature in >OpenCL 2.1
     // cl_khr_subgroups - Extension adds support for implementation-controlled
     //   subgroups.

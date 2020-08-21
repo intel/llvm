@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-explicit-simd -fsycl-device-only -O0 -S -emit-llvm -x c++ %s -o - | FileCheck %s
-// This test checks that all SPIRV intrinsics are correctly
+// This test checks that all SPIR-V intrinsics are correctly
 // translated into GenX counterparts (implemented in LowerCM.cpp)
 
 #include <CL/sycl.hpp>
