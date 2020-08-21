@@ -115,9 +115,8 @@ int main() {
                                                ONEAPI::maximum<float>(), 7, 3);
 
   testUnknown<class KernelName_sJOZPgFeiALyqwIWnFP, CustomVec<float>, 0,
-              CustomVecPlus<float>> >
-      (CustomVec<float>(0), CustomVecPlus<float>(), CustomVec<float>(1),
-       CustomVec<float>(7));
+              CustomVecPlus<float>>(CustomVec<float>(0), CustomVecPlus<float>(),
+                                    CustomVec<float>(1), CustomVec<float>(7));
   testUnknown<class KernelName_jMA, CustomVec<float>, 1>(
       CustomVec<float>(0), CustomVecPlus<float>(), CustomVec<float>(1),
       CustomVec<float>(7));

@@ -105,7 +105,8 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
 int main() {
   test<class KernelName_lAx, int, 0, ONEAPI::plus<int>>(0, 2, 2);
   test<class KernelName_eVBkBK, int, 1, ONEAPI::plus<int>>(0, 7, 7);
-  test<class KernelName_vMSyszeYKJbaXATnPL, int, 0, ONEAPI::plus<int>>(0, 2, 64);
+  test<class KernelName_vMSyszeYKJbaXATnPL, int, 0, ONEAPI::plus<int>>(0, 2,
+                                                                       64);
   test<class KernelName_UPKnfG, short, 1, ONEAPI::plus<short>>(0, 16, 256);
 
   std::cout << "Test passed\n";

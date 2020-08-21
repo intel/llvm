@@ -42,12 +42,13 @@ void check_pointer(queue &Queue, size_t G = 256, size_t L = 64) {
       auto acc_xor = buf_xor.template get_access<access::mode::read_write>(cgh);
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
 
-      cgh.parallel_for<SpecializationKernelName>(NdRange, [=](nd_item<1> NdItem) {
-        ONEAPI::sub_group SG = NdItem.get_sub_group();
-        uint32_t wggid = NdItem.get_global_id(0);
-        uint32_t sgid = SG.get_group_id().get(0);
-        if (wggid == 0)
-          sgsizeacc[0] = SG.get_max_local_range()[0];
+      cgh.parallel_for<SpecializationKernelName>(
+          NdRange, [=](nd_item<1> NdItem) {
+            ONEAPI::sub_group SG = NdItem.get_sub_group();
+            uint32_t wggid = NdItem.get_global_id(0);
+            uint32_t sgid = SG.get_group_id().get(0);
+            if (wggid == 0)
+              sgsizeacc[0] = SG.get_max_local_range()[0];
 
             T *ptr = static_cast<T *>(0x0) + wggid;
 
@@ -143,12 +144,13 @@ void check_struct(queue &Queue, Generator &Gen, size_t G = 256, size_t L = 64) {
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       auto in = buf_in.template get_access<access::mode::read>(cgh);
 
-      cgh.parallel_for<SpecializationKernelName>(NdRange, [=](nd_item<1> NdItem) {
-        ONEAPI::sub_group SG = NdItem.get_sub_group();
-        uint32_t wggid = NdItem.get_global_id(0);
-        uint32_t sgid = SG.get_group_id().get(0);
-        if (wggid == 0)
-          sgsizeacc[0] = SG.get_max_local_range()[0];
+      cgh.parallel_for<SpecializationKernelName>(
+          NdRange, [=](nd_item<1> NdItem) {
+            ONEAPI::sub_group SG = NdItem.get_sub_group();
+            uint32_t wggid = NdItem.get_global_id(0);
+            uint32_t sgid = SG.get_group_id().get(0);
+            if (wggid == 0)
+              sgsizeacc[0] = SG.get_max_local_range()[0];
 
             T val = in[wggid];
 
