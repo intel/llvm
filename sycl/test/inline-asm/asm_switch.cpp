@@ -1,26 +1,26 @@
 // UNSUPPORTED: cuda
 // REQUIRES: gpu,linux
 // RUN: %clangxx -fsycl %s -DINLINE_ASM -o %t.out
-// RUN: %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %clangxx -fsycl %s -o %t.ref.out
-// RUN: %t.ref.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.ref.out
 
 #include "include/asmhelper.h"
 #include <CL/sycl.hpp>
 
-using dataType = cl::sycl::cl_int;
+using DataType = cl::sycl::cl_int;
 
-template <typename T = dataType> struct KernelFunctor : WithOutputBuffer<T> {
-  KernelFunctor(size_t problem_size) : WithOutputBuffer<T>(problem_size) {}
+template <typename T = DataType> struct KernelFunctor : WithOutputBuffer<T> {
+  KernelFunctor(size_t ProblemSize) : WithOutputBuffer<T>(ProblemSize) {}
 
-  void operator()(cl::sycl::handler &cgh) {
+  void operator()(cl::sycl::handler &CGH) {
     auto C = this->getOutputBuffer()
-                 .template get_access<cl::sycl::access::mode::write>(cgh);
-    cgh.parallel_for<KernelFunctor<T>>(
+                 .template get_access<cl::sycl::access::mode::write>(CGH);
+    CGH.parallel_for<KernelFunctor<T>>(
         cl::sycl::range<1>{this->getOutputBufferSize()},
     [=](cl::sycl::id<1> wiID) [[cl::intel_reqd_sub_group_size(8)]] {
-          int switch_field = 2;
-          int output = 0;
+          int switchField = 2;
+          int Output = 0;
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
           asm volatile(".decl P1 v_type=P num_elts=1\n"
                        ".decl P2 v_type=P num_elts=1\n"
@@ -38,33 +38,33 @@ template <typename T = dataType> struct KernelFunctor : WithOutputBuffer<T> {
                        "(P3) goto (M1, 1) label2\n"
                        "mov (M1, 8) %0(0,0)<1> 0x7:d\n"
                        "label2:"
-                       : "=rw"(output)
-                       : "rw"(switch_field));
+                       : "=rw"(Output)
+                       : "rw"(switchField));
 
 #else
-          switch(switch_field){
+          switch(switchField){
             case 0:
-              output = 9;
+              Output = 9;
               break;
             case 1:
-              output = 8;
+              Output = 8;
               break;
             case 2:
-              output = 7;
+              Output = 7;
               break;
           }
 #endif
-          C[wiID] = output;
+          C[wiID] = Output;
         });
   }
 };
 
 int main() {
-  KernelFunctor<> f(DEFAULT_PROBLEM_SIZE);
-  if (!launchInlineASMTest(f))
+  KernelFunctor<> Functor(DEFAULT_PROBLEM_SIZE);
+  if (!launchInlineASMTest(Functor))
     return 0;
 
-  if (verify_all_the_same(f.getOutputBufferData(), 7))
+  if (verify_all_the_same(Functor.getOutputBufferData(), 7))
     return 0;
 
   return 1;

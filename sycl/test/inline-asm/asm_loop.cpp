@@ -1,9 +1,9 @@
 // UNSUPPORTED: cuda
 // REQUIRES: gpu,linux
 // RUN: %clangxx -fsycl %s -DINLINE_ASM -o %t.out
-// RUN: %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %clangxx -fsycl %s -o %t.ref.out
-// RUN: %t.ref.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.ref.out
 
 #include "include/asmhelper.h"
 #include <CL/sycl.hpp>
@@ -11,23 +11,23 @@
 #include <iostream>
 #include <vector>
 
-using dataType = cl::sycl::cl_int;
+using DataType = cl::sycl::cl_int;
 
-template <typename T = dataType>
+template <typename T = DataType>
 struct KernelFunctor : WithInputBuffers<T, 2>, WithOutputBuffer<T> {
   KernelFunctor(const std::vector<T> &input1, const std::vector<T> &input2)
       : WithInputBuffers<T, 2>(input1, input2), WithOutputBuffer<T>(
                                                     input1.size()) {}
 
-  void operator()(cl::sycl::handler &cgh) {
+  void operator()(cl::sycl::handler &CGH) {
     auto A = this->getInputBuffer(0)
-                 .template get_access<cl::sycl::access::mode::read>(cgh);
+                 .template get_access<cl::sycl::access::mode::read>(CGH);
     auto B = this->getInputBuffer(1)
-                 .template get_access<cl::sycl::access::mode::read>(cgh);
+                 .template get_access<cl::sycl::access::mode::read>(CGH);
     auto C = this->getOutputBuffer()
-                 .template get_access<cl::sycl::access::mode::write>(cgh);
+                 .template get_access<cl::sycl::access::mode::write>(CGH);
 
-    cgh.parallel_for<KernelFunctor<T>>(
+    CGH.parallel_for<KernelFunctor<T>>(
         cl::sycl::range<1>{this->getOutputBufferSize()},
     [=](cl::sycl::id<1> wiID) [[cl::intel_reqd_sub_group_size(8)]] {
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
@@ -58,22 +58,22 @@ struct KernelFunctor : WithInputBuffers<T, 2>, WithOutputBuffer<T> {
 };
 
 int main() {
-  std::vector<dataType> inputA(DEFAULT_PROBLEM_SIZE),
+  std::vector<DataType> InputA(DEFAULT_PROBLEM_SIZE),
       inputB(DEFAULT_PROBLEM_SIZE);
   for (int i = 0; i < DEFAULT_PROBLEM_SIZE; i++) {
-    inputA[i] = i;
-    inputB[i] = 2 * i;
+    InputA[i] = i;
+    InputB[i] = 2 * i;
   }
 
-  KernelFunctor<> f(inputA, inputB);
-  if (!launchInlineASMTest(f))
+  KernelFunctor<> Functor(InputA, InputB);
+  if (!launchInlineASMTest(Functor))
     return 0;
 
-  auto &C = f.getOutputBufferData();
+  auto &C = Functor.getOutputBufferData();
   for (int i = 0; i < DEFAULT_PROBLEM_SIZE; i++) {
-    if (C[i] != inputA[i] * inputB[i]) {
+    if (C[i] != InputA[i] * InputB[i]) {
       std::cerr << "At index: " << i << ". ";
-      std::cerr << C[i] << " != " << inputA[i] * inputB[i] << "\n";
+      std::cerr << C[i] << " != " << InputA[i] * InputB[i] << "\n";
       return 1;
     }
   }
