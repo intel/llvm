@@ -506,7 +506,7 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
     const char *SCName = (*SCIt)->Name;
     auto SCEntry = SpecConstRegistry.find(SCName);
     if (SCEntry == SpecConstRegistry.end())
-      // spec constant has not been set in user code - SPIRV will use default
+      // spec constant has not been set in user code - SPIR-V will use default
       continue;
     const spec_constant_impl &SC = SCEntry->second;
     assert(SC.isSet() && "uninitialized spec constant");

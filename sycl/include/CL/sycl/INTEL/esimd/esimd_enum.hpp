@@ -26,8 +26,8 @@ using uint = unsigned int;
 // Mark a function being nodebug.
 #define ESIMD_NODEBUG __attribute__((nodebug))
 // Mark a "ESIMD global": accessible from all functions in current translation
-// unit, separate copy per subgroup (work-item), mapped to SPIRV private storage
-// class.
+// unit, separate copy per subgroup (work-item), mapped to SPIR-V private
+// storage class.
 #define ESIMD_PRIVATE __attribute__((opencl_private))
 // Bind a ESIMD global variable to a specific register.
 #define ESIMD_REGISTER(n) __attribute__((register_num(n)))

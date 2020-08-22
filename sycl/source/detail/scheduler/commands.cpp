@@ -1628,7 +1628,7 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
   NDR.set(NDR.Dims, nd_range<3>(NDR.NumWorkGroups * WGSize, WGSize));
 }
 
-// We have the following mapping between dimensions with SPIRV builtins:
+// We have the following mapping between dimensions with SPIR-V builtins:
 // 1D: id[0] -> x
 // 2D: id[0] -> y, id[1] -> x
 // 3D: id[0] -> z, id[1] -> y, id[2] -> x

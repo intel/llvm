@@ -9,7 +9,7 @@
 // Based on:
 // https://github.com/codeplaysoftware/standards-proposals/blob/master/spec-constant/index.md
 // TODO:
-// 1) implement the SPIRV interop part of the proposal
+// 1) implement the SPIR-V interop part of the proposal
 // 2) support arbitrary spec constant type; only primitive types are
 //    supported currently
 // 3) move to the new upcoming spec constant specification (then 1 above is not
