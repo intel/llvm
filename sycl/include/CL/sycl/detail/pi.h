@@ -714,7 +714,7 @@ struct pi_buffer_region_struct {
 using pi_buffer_region = pi_buffer_region_struct *;
 
 // pi_buff_rect_offset structure is 3D offset argument passed to buffer rect
-// operations (piEnqueuReadBufferRect, etc).
+// operations (piEnqueueMemBufferCopyRect, etc).
 struct pi_buff_rect_offset_struct {
   size_t x_bytes;
   size_t y_scalar;
