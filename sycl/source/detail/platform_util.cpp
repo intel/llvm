@@ -84,9 +84,9 @@ uint32_t PlatformUtil::getMemCacheLineSize() {
   cpuid(CPUInfo, 0x80000006);
   return CPUInfo[2] & 0xff;
 #elif defined(SYCL_RT_OS_LINUX) && defined(_SC_LEVEL2_DCACHE_LINESIZE)
-  long linesize = sysconf(_SC_LEVEL2_DCACHE_LINESIZE);
-  if (linesize > 0) {
-    return linesize;
+  long lineSize = sysconf(_SC_LEVEL2_DCACHE_LINESIZE);
+  if (lineSize > 0) {
+    return lineSize;
   }
 #else
 #warning Your platform is not supported.
@@ -100,9 +100,9 @@ uint64_t PlatformUtil::getMemCacheSize() {
   cpuid(CPUInfo, 0x80000006);
   return static_cast<uint64_t>(CPUInfo[2] >> 16) * 1024;
 #elif defined(SYCL_RT_OS_LINUX) && defined(_SC_LEVEL2_DCACHE_SIZE)
-  long cachesize = sysconf(_SC_LEVEL2_DCACHE_SIZE);
-  if (cachesize > 0) {
-    return cachesize;
+  long cacheSize = sysconf(_SC_LEVEL2_DCACHE_SIZE);
+  if (cacheSize > 0) {
+    return cacheSize;
   }
 #else
 #warning Your platform is not supported.
