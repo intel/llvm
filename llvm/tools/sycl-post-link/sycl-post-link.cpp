@@ -644,7 +644,8 @@ int main(int argc, char **argv) {
   // any other functionalities such as code split...
   bool DoSplit = (SplitMode.getNumOccurrences() > 0) && !DeadCodeRemoval;
   bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
-  bool DoParamInfo = EmitKernelParamInfo.getNumOccurrences() > 0 && !DeadCodeRemoval;
+  bool DoParamInfo =
+      EmitKernelParamInfo.getNumOccurrences() > 0 && !DeadCodeRemoval;
 
   if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo) {
     errs() << "no actions specified; try --help for usage info\n";
