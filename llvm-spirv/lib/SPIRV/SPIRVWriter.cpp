@@ -964,6 +964,7 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
     return spv::LoopControlMaskNone;
 
   size_t LoopControl = spv::LoopControlMaskNone;
+  std::vector<std::pair<SPIRVWord, SPIRVWord>> ParametersToSort;
 
   // Unlike with most of the cases, some loop metadata specifications
   // can occur multiple times - for these, all correspondent tokens
@@ -988,13 +989,13 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
       else if (S == "llvm.loop.unroll.count" &&
                !(LoopControl & LoopControlDontUnrollMask)) {
         size_t I = getMDOperandAsInt(Node, 1);
-        Parameters.push_back(I);
+        ParametersToSort.emplace_back(spv::LoopControlPartialCountMask, I);
         LoopControl |= spv::LoopControlPartialCountMask;
       } else if (S == "llvm.loop.ivdep.enable")
         LoopControl |= spv::LoopControlDependencyInfiniteMask;
       else if (S == "llvm.loop.ivdep.safelen") {
         size_t I = getMDOperandAsInt(Node, 1);
-        Parameters.push_back(I);
+        ParametersToSort.emplace_back(spv::LoopControlDependencyLengthMask, I);
         LoopControl |= spv::LoopControlDependencyLengthMask;
       } else if (BM->isAllowedToUseExtension(
                      ExtensionID::SPV_INTEL_fpga_loop_controls)) {
@@ -1003,13 +1004,15 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           size_t I = getMDOperandAsInt(Node, 1);
-          Parameters.push_back(I);
+          ParametersToSort.emplace_back(
+              spv::LoopControlInitiationIntervalINTELMask, I);
           LoopControl |= spv::LoopControlInitiationIntervalINTELMask;
         } else if (S == "llvm.loop.max_concurrency.count") {
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           size_t I = getMDOperandAsInt(Node, 1);
-          Parameters.push_back(I);
+          ParametersToSort.emplace_back(spv::LoopControlMaxConcurrencyINTELMask,
+                                        I);
           LoopControl |= spv::LoopControlMaxConcurrencyINTELMask;
         } else if (S == "llvm.loop.parallel_access_indices") {
           // Intel FPGA IVDep loop attribute
@@ -1027,7 +1030,8 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           size_t I = getMDOperandAsInt(Node, 1);
-          Parameters.push_back(I);
+          ParametersToSort.emplace_back(spv::LoopControlPipelineEnableINTELMask,
+                                        I);
           LoopControl |= spv::LoopControlPipelineEnableINTELMask;
         } else if (S == "llvm.loop.coalesce.enable") {
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
@@ -1037,19 +1041,22 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           size_t I = getMDOperandAsInt(Node, 1);
-          Parameters.push_back(I);
+          ParametersToSort.emplace_back(spv::LoopControlLoopCoalesceINTELMask,
+                                        I);
           LoopControl |= spv::LoopControlLoopCoalesceINTELMask;
         } else if (S == "llvm.loop.max_interleaving.count") {
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           size_t I = getMDOperandAsInt(Node, 1);
-          Parameters.push_back(I);
+          ParametersToSort.emplace_back(
+              spv::LoopControlMaxInterleavingINTELMask, I);
           LoopControl |= spv::LoopControlMaxInterleavingINTELMask;
         } else if (S == "llvm.loop.intel.speculated.iterations.count") {
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           size_t I = getMDOperandAsInt(Node, 1);
-          Parameters.push_back(I);
+          ParametersToSort.emplace_back(
+              spv::LoopControlSpeculatedIterationsINTELMask, I);
           LoopControl |= spv::LoopControlSpeculatedIterationsINTELMask;
         }
       }
@@ -1061,15 +1068,26 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
   if (!DependencyArrayParameters.empty()) {
     // The first parameter states the number of <array, safelen> pairs to be
     // listed
-    Parameters.push_back(DependencyArrayParameters.size());
+    ParametersToSort.emplace_back(spv::LoopControlDependencyArrayINTELMask,
+                                  DependencyArrayParameters.size());
     for (auto &ArraySflnPair : DependencyArrayParameters) {
-      Parameters.push_back(ArraySflnPair.first);
-      Parameters.push_back(ArraySflnPair.second);
+      ParametersToSort.emplace_back(spv::LoopControlDependencyArrayINTELMask,
+                                    ArraySflnPair.first);
+      ParametersToSort.emplace_back(spv::LoopControlDependencyArrayINTELMask,
+                                    ArraySflnPair.second);
     }
     BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
     BM->addCapability(CapabilityFPGALoopControlsINTEL);
     LoopControl |= spv::LoopControlDependencyArrayINTELMask;
   }
+
+  std::sort(ParametersToSort.begin(), ParametersToSort.end(),
+            [](const std::pair<SPIRVWord, SPIRVWord> &CompareLeft,
+               const std::pair<SPIRVWord, SPIRVWord> &CompareRight) {
+              return CompareLeft.first < CompareRight.first;
+            });
+  for (auto Param : ParametersToSort)
+    Parameters.push_back(Param.second);
 
   return static_cast<spv::LoopControlMask>(LoopControl);
 }
