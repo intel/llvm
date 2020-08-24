@@ -121,12 +121,13 @@ public:
     return Type->getRequiredCapability();
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    SPIRVExtSet EV;
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    llvm::Optional<ExtensionID> EV;
     if (!hasType())
       return EV;
-    EV = Type->getRequiredExtensions();
-    assert(!Module || Module->isAllowedToUseExtensions(EV));
+    EV = Type->getRequiredExtension();
+    assert(Module &&
+           (!EV.hasValue() || Module->isAllowedToUseExtension(EV.getValue())));
     return EV;
   }
 

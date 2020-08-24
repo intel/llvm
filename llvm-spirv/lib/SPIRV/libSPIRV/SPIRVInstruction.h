@@ -879,8 +879,8 @@ public:
     return getVec(CapabilityFPGARegINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_fpga_reg);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_fpga_reg;
   }
 
 protected:
@@ -1680,8 +1680,8 @@ public:
     return getVec(CapabilityUnstructuredLoopControlsINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_unstructured_loop_controls);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_unstructured_loop_controls;
   }
 
   void setWordCount(SPIRVWord TheWordCount) override {
@@ -1772,8 +1772,8 @@ public:
   _SPIRV_DEF_ENCDEC4(Type, Id, CalledValueId, Args)
   void validate() const override;
   bool isOperandLiteral(unsigned Index) const override { return false; }
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_function_pointers);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_function_pointers;
   }
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilityFunctionPointersINTEL);
@@ -2621,8 +2621,8 @@ protected:
     return getVec(CapabilityBlockingPipesINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_blocking_pipes);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_blocking_pipes;
   }
 };
 
@@ -2639,8 +2639,8 @@ protected:
     return getVec(CapabilityArbitraryPrecisionFixedPointINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_arbitrary_precision_fixed_point);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_arbitrary_precision_fixed_point;
   }
 };
 
@@ -2666,8 +2666,8 @@ protected:
     return getVec(CapabilityArbitraryPrecisionFloatingPointINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_arbitrary_precision_floating_point);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_arbitrary_precision_floating_point;
   }
 };
 
@@ -2825,8 +2825,8 @@ public:
     return getVec(CapabilityOptimizationHintsINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_optimization_hints);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_optimization_hints;
   }
 
   SPIRVValue *getCondition() const { return getValue(ConditionId); }
@@ -2846,8 +2846,8 @@ protected:
     return getVec(CapabilityOptimizationHintsINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_optimization_hints);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_optimization_hints;
   }
 };
 
@@ -2863,8 +2863,8 @@ protected:
     return getVec(CapabilitySubgroupShuffleINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_subgroups);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_subgroups;
   }
 };
 
@@ -2885,8 +2885,8 @@ protected:
     return getVec(CapabilitySubgroupBufferBlockIOINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_subgroups);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_subgroups;
   }
 };
 
@@ -2905,8 +2905,8 @@ protected:
     return getVec(CapabilitySubgroupImageBlockIOINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_subgroups);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_subgroups;
   }
 };
 
@@ -2925,8 +2925,8 @@ protected:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilitySubgroupImageMediaBlockIOINTEL);
   }
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_media_block_io);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_media_block_io;
   }
 };
 
@@ -2945,8 +2945,8 @@ protected:
     return getVec(CapabilitySubgroupAvcMotionEstimationINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_device_side_avc_motion_estimation);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_device_side_avc_motion_estimation;
   }
 };
 

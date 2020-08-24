@@ -460,16 +460,6 @@ public:
     return TranslationOpts.isAllowedToUseExtension(RequestedExtension);
   }
 
-  virtual bool
-  isAllowedToUseExtensions(const SPIRVExtSet &RequestedExtensions) const final {
-    for (const auto &Ext : RequestedExtensions) {
-      if (!TranslationOpts.isAllowedToUseExtension(Ext))
-        return false;
-    }
-
-    return true;
-  }
-
   virtual bool isGenArgNameMDEnabled() const final {
     return TranslationOpts.isGenArgNameMDEnabled();
   }

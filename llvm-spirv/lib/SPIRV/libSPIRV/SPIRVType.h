@@ -167,15 +167,15 @@ public:
     }
     return CV;
   }
-  SPIRVExtSet getRequiredExtensions() const override {
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
     switch (BitWidth) {
     case 8:
     case 16:
     case 32:
     case 64:
-      return SPIRVExtSet();
+      return {};
     default:
-      return getSet(ExtensionID::SPV_INTEL_arbitrary_precision_integers);
+      return ExtensionID::SPV_INTEL_arbitrary_precision_integers;
     }
   }
 
@@ -853,8 +853,8 @@ public:
     return getVec(CapabilitySubgroupAvcMotionEstimationINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_device_side_avc_motion_estimation);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_device_side_avc_motion_estimation;
   }
 
 protected:
@@ -908,8 +908,8 @@ public:
     return getVec(CapabilitySubgroupAvcMotionEstimationINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_device_side_avc_motion_estimation);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_device_side_avc_motion_estimation;
   }
 
   SPIRVValue *getOperand() { return getValue(Opn); }
