@@ -26,10 +26,11 @@ struct KernelFunctor : WithInputBuffers<T, 2>, WithOutputBuffer<T> {
                  .template get_access<cl::sycl::access::mode::read>(CGH);
     auto C = this->getOutputBuffer()
                  .template get_access<cl::sycl::access::mode::write>(CGH);
-
+// clang-format off
     CGH.parallel_for<KernelFunctor<T>>(
         cl::sycl::range<1>{this->getOutputBufferSize()},
     [=](cl::sycl::id<1> wiID) [[cl::intel_reqd_sub_group_size(8)]] {
+// clang-format on
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
           asm volatile(".decl P1 v_type=P num_elts=8\n"
                        ".decl P2 v_type=P num_elts=8\n"
@@ -59,7 +60,7 @@ struct KernelFunctor : WithInputBuffers<T, 2>, WithOutputBuffer<T> {
 
 int main() {
   std::vector<DataType> InputA(DEFAULT_PROBLEM_SIZE),
-      inputB(DEFAULT_PROBLEM_SIZE);
+      InputB(DEFAULT_PROBLEM_SIZE);
   for (int i = 0; i < DEFAULT_PROBLEM_SIZE; i++) {
     InputA[i] = i;
     InputB[i] = 2 * i;
