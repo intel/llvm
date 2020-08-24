@@ -67,6 +67,9 @@ public:
   {}
 
   iterator begin() {
+    if (MGenericCommands.empty())
+      return iterator{*this, beginHostAccessor()};
+
     return iterator{*this, MGenericCommands.begin()};
   }
 
@@ -75,6 +78,9 @@ public:
   }
 
   const_iterator cbegin() const {
+    if (MGenericCommands.empty())
+      return const_iterator{*this, beginHostAccessor()};
+
     return const_iterator{*this, MGenericCommands.begin()};
   }
 
@@ -97,6 +103,10 @@ public:
 
   const GenericCommandsT &getGenericCommands() const {
     return MGenericCommands;
+  }
+
+  const HostAccessorCommandsT getHostAccessorCommands() const {
+    return MHostAccessorCommands;
   }
 
 private:
@@ -130,6 +140,15 @@ private:
   void insertHostAccessorCommand(EmptyCommand *Cmd);
   // returns number of removed elements
   size_t eraseHostAccessorCommand(EmptyCommand *Cmd);
+
+  typename ConstIterator<false, HostAccessorCommandsT>::type beginHostAccessor() {
+    return MHostAccessorCommands.begin();
+  }
+
+  typename ConstIterator<true, HostAccessorCommandsT>::type
+  beginHostAccessor() const {
+    return MHostAccessorCommands.begin();
+  }
 
   typename ConstIterator<false, HostAccessorCommandsT>::type endHostAccessor() {
     return MHostAccessorCommands.end();
@@ -183,11 +202,16 @@ public:
 
     bool MGenericIsActive;
 
+    IteratorT(HostT Host, GCItT GCIt, HACItT HACIt, bool GenericIsActive)
+        : MHost(Host), MGCIt(GCIt), MHACIt(HACIt),
+          MGenericIsActive(GenericIsActive) {}
+
     IteratorT(HostT Host, GCItT GCIt)
-        : MHost(Host), MGCIt{std::move(GCIt)}, MGenericIsActive{true} {}
+        : IteratorT(Host, std::move(GCIt), Host.beginHostAccessor(), true) {}
 
     IteratorT(HostT Host, HACItT HACIt)
-        : MHost(Host), MHACIt{std::move(HACIt)}, MGenericIsActive{false} {}
+        : IteratorT(Host, Host.MGenericCommands.end(), std::move(HACIt), false)
+    {}
 
     IteratorT(const IteratorT<IsConst> &Other)
         : MHost{Other.MHost}, MGCIt(Other.MGCIt), MHACIt(Other.MHACIt),
