@@ -7812,8 +7812,15 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // OPT_fsycl_device_code_split is not checked as it is an alias to
   // -fsycl-device-code-split=per_source
 
+  auto *SYCLPostLink = llvm::dyn_cast<SYCLPostLinkJobAction>(&JA);
+  bool InDeadCodeRemoval = false;
+  if (SYCLPostLink && SYCLPostLink->getDeadCodeRemoval()) {
+    addArgs(CmdArgs, TCArgs, {"--dead-code-removal"});
+    InDeadCodeRemoval = true;
+  }
+
   // Turn on Dead Parameter Elimination Optimization with early optimizations
-  if (!getToolChain().getTriple().isNVPTX() &&
+  if (!getToolChain().getTriple().isNVPTX() && !InDeadCodeRemoval &&
       TCArgs.hasFlag(options::OPT_fsycl_dead_args_optimization,
                      options::OPT_fno_sycl_dead_args_optimization, false))
     addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
@@ -7829,14 +7836,11 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     addArgs(CmdArgs, TCArgs, {"-symbols"});
   }
   // specialization constants processing is mandatory
-  auto *SYCLPostLink = llvm::dyn_cast<SYCLPostLinkJobAction>(&JA);
   if (SYCLPostLink && SYCLPostLink->getRTSetsSpecConstants())
     addArgs(CmdArgs, TCArgs, {"-spec-const=rt"});
   else
     addArgs(CmdArgs, TCArgs, {"-spec-const=default"});
 
-  if (SYCLPostLink && SYCLPostLink->getDeadCodeRemoval())
-    addArgs(CmdArgs, TCArgs, {"--dead-code-removal"});
   // Add output file table file option
   assert(Output.isFilename() && "output must be a filename");
   addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});
