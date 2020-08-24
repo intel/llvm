@@ -1628,7 +1628,7 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
   NDR.set(NDR.Dims, nd_range<3>(NDR.NumWorkGroups * WGSize, WGSize));
 }
 
-// We have the following mapping between dimensions with SPIRV builtins:
+// We have the following mapping between dimensions with SPIR-V builtins:
 // 1D: id[0] -> x
 // 2D: id[0] -> y, id[1] -> x
 // 3D: id[0] -> z, id[1] -> y, id[2] -> x
@@ -1647,9 +1647,28 @@ static void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
 
 pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     CGExecKernel *ExecKernel, RT::PiKernel Kernel, NDRDescT &NDRDesc,
-    std::vector<RT::PiEvent> &RawEvents, RT::PiEvent &Event) {
+    std::vector<RT::PiEvent> &RawEvents, RT::PiEvent &Event,
+    ProgramManager::KernelArgMask EliminatedArgMask) {
+  vector_class<ArgDesc> &Args = ExecKernel->MArgs;
+  // TODO this is not necessary as long as we can guarantee that the arguments
+  // are already sorted (e. g. handle the sorting in handler if necessary due
+  // to set_arg(...) usage).
+  std::sort(Args.begin(), Args.end(), [](const ArgDesc &A, const ArgDesc &B) {
+    return A.MIndex < B.MIndex;
+  });
+  int LastIndex = -1;
+  int NextTrueIndex = 0;
   const detail::plugin &Plugin = MQueue->getPlugin();
   for (ArgDesc &Arg : ExecKernel->MArgs) {
+    // Handle potential gaps in set arguments (e. g. if some of them are set
+    // on the user side).
+    for (int Idx = LastIndex + 1; Idx < Arg.MIndex; ++Idx)
+      if (EliminatedArgMask.empty() || !EliminatedArgMask[Idx])
+        ++NextTrueIndex;
+    LastIndex = Arg.MIndex;
+
+    if (!EliminatedArgMask.empty() && EliminatedArgMask[Arg.MIndex])
+      continue;
     switch (Arg.MType) {
     case kernel_param_kind_t::kind_accessor: {
       Requirement *Req = (Requirement *)(Arg.MPtr);
@@ -1658,16 +1677,16 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
                              ? (RT::PiMem)AllocaCmd->ESIMDExt.MWrapperImage
                              : (RT::PiMem)AllocaCmd->getMemAllocation();
       if (Plugin.getBackend() == backend::opencl) {
-        Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex,
+        Plugin.call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex,
                                                sizeof(RT::PiMem), &MemArg);
       } else {
-        Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, Arg.MIndex,
+        Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
                                                         &MemArg);
       }
       break;
     }
     case kernel_param_kind_t::kind_std_layout: {
-      Plugin.call<PiApiKind::piKernelSetArg>(Kernel, Arg.MIndex, Arg.MSize,
+      Plugin.call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex, Arg.MSize,
                                              Arg.MPtr);
       break;
     }
@@ -1675,16 +1694,17 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
       sampler *SamplerPtr = (sampler *)Arg.MPtr;
       RT::PiSampler Sampler = detail::getSyclObjImpl(*SamplerPtr)
                                   ->getOrCreateSampler(MQueue->get_context());
-      Plugin.call<PiApiKind::piextKernelSetArgSampler>(Kernel, Arg.MIndex,
+      Plugin.call<PiApiKind::piextKernelSetArgSampler>(Kernel, NextTrueIndex,
                                                        &Sampler);
       break;
     }
     case kernel_param_kind_t::kind_pointer: {
-      Plugin.call<PiApiKind::piextKernelSetArgPointer>(Kernel, Arg.MIndex,
+      Plugin.call<PiApiKind::piextKernelSetArgPointer>(Kernel, NextTrueIndex,
                                                        Arg.MSize, Arg.MPtr);
       break;
     }
     }
+    ++NextTrueIndex;
   }
 
   adjustNDRangePerKernel(NDRDesc, Kernel,
@@ -1883,6 +1903,8 @@ cl_int ExecCGCommand::enqueueImp() {
     sycl::context Context = MQueue->get_context();
     RT::PiKernel Kernel = nullptr;
     std::mutex *KernelMutex = nullptr;
+    RT::PiProgram Program = nullptr;
+    bool KnownProgram = true;
 
     if (nullptr != ExecKernel->MSyclKernel) {
       assert(ExecKernel->MSyclKernel->get_info<info::kernel::context>() ==
@@ -1891,6 +1913,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
       auto SyclProg = detail::getSyclObjImpl(
           ExecKernel->MSyclKernel->get_info<info::kernel::program>());
+      Program = SyclProg->getHandleRef();
       if (SyclProg->is_cacheable()) {
         RT::PiKernel FoundKernel = nullptr;
         std::tie(FoundKernel, KernelMutex) =
@@ -1899,23 +1922,35 @@ cl_int ExecCGCommand::enqueueImp() {
                 ExecKernel->MSyclKernel->get_info<info::kernel::context>(),
                 ExecKernel->MKernelName, SyclProg.get());
         assert(FoundKernel == Kernel);
-      }
+      } else
+        KnownProgram = false;
     } else {
       std::tie(Kernel, KernelMutex) =
           detail::ProgramManager::getInstance().getOrCreateKernel(
               ExecKernel->MOSModuleHandle, Context, ExecKernel->MKernelName,
               nullptr);
+      MQueue->getPlugin().call<PiApiKind::piKernelGetInfo>(
+          Kernel, PI_KERNEL_INFO_PROGRAM, sizeof(RT::PiProgram), &Program,
+          nullptr);
     }
 
     pi_result Error = PI_SUCCESS;
+    ProgramManager::KernelArgMask EliminatedArgMask;
+    if (nullptr == ExecKernel->MSyclKernel ||
+        !ExecKernel->MSyclKernel->isCreatedFromSource()) {
+      EliminatedArgMask =
+          detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
+              ExecKernel->MOSModuleHandle, Context, Program,
+              ExecKernel->MKernelName, KnownProgram);
+    }
     if (KernelMutex != nullptr) {
       // For cacheable kernels, we use per-kernel mutex
       std::lock_guard<std::mutex> Lock(*KernelMutex);
       Error = SetKernelParamsAndLaunch(ExecKernel, Kernel, NDRDesc, RawEvents,
-                                       Event);
+                                       Event, EliminatedArgMask);
     } else {
       Error = SetKernelParamsAndLaunch(ExecKernel, Kernel, NDRDesc, RawEvents,
-                                       Event);
+                                       Event, EliminatedArgMask);
     }
 
     if (PI_SUCCESS != Error) {

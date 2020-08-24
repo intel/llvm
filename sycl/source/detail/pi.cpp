@@ -441,6 +441,9 @@ std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
   case PI_PROPERTY_TYPE_UINT32:
     Out << "[UINT32] ";
     break;
+  case PI_PROPERTY_TYPE_BYTE_ARRAY:
+    Out << "[Byte array] ";
+    break;
   case PI_PROPERTY_TYPE_STRING:
     Out << "[String] ";
     break;
@@ -454,11 +457,21 @@ std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
   case PI_PROPERTY_TYPE_UINT32:
     Out << P.asUint32();
     break;
+  case PI_PROPERTY_TYPE_BYTE_ARRAY: {
+    ByteArray BA = P.asByteArray();
+    std::ios_base::fmtflags FlagsBackup = Out.flags();
+    Out << std::hex;
+    for (const auto &Byte : BA) {
+      Out << "0x" << Byte << " ";
+    }
+    Out.flags(FlagsBackup);
+    break;
+  }
   case PI_PROPERTY_TYPE_STRING:
     Out << P.asCString();
     break;
   default:
-    assert("unsupported property");
+    assert(false && "Unsupported property");
     return Out;
   }
   return Out;
@@ -514,6 +527,13 @@ pi_uint32 DeviceBinaryProperty::asUint32() const {
   // if type fits into the ValSize - it is used to store the property value
   assert(Prop->ValAddr == nullptr && "primitive types must be stored inline");
   return sycl::detail::pi::asUint32(&Prop->ValSize);
+}
+
+ByteArray DeviceBinaryProperty::asByteArray() const {
+  assert(Prop->Type == PI_PROPERTY_TYPE_BYTE_ARRAY && "property type mismatch");
+  assert(Prop->ValSize > 0 && "property size mismatch");
+  const auto *Data = pi::cast<const std::uint8_t *>(Prop->ValAddr);
+  return {Data, Prop->ValSize};
 }
 
 const char *DeviceBinaryProperty::asCString() const {
@@ -575,6 +595,7 @@ void DeviceBinaryImage::init(pi_device_binary Bin) {
 
   SpecConstIDMap.init(Bin, PI_PROPERTY_SET_SPEC_CONST_MAP);
   DeviceLibReqMask.init(Bin, PI_PROPERTY_SET_DEVICELIB_REQ_MASK);
+  KernelParamOptInfo.init(Bin, PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
 }
 
 } // namespace pi

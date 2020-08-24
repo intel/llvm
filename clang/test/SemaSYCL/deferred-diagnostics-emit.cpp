@@ -1,4 +1,4 @@
-// RUN: %clang_cc1  -fsycl -triple spir64 -fsycl-is-device -verify -fsyntax-only  %s
+// RUN: %clang_cc1  -fsycl -triple spir64 -fsycl-is-device -Wno-sycl-2017-compat -verify -fsyntax-only  %s
 //
 // Ensure that the SYCL diagnostics that are typically deferred are correctly emitted.
 
@@ -12,7 +12,7 @@ inline namespace cl {
 namespace sycl {
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   // expected-note@+1 3{{called by 'kernel_single_task<AName, (lambda}}
   kernelFunc();
 }

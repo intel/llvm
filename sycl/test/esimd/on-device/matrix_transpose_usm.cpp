@@ -15,7 +15,7 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/intel/esimd.hpp>
+#include <CL/sycl/INTEL/esimd.hpp>
 #include <iostream>
 
 #ifdef __linux__
@@ -60,7 +60,7 @@ double getTimeStamp() {
 
 using namespace cl::sycl;
 using namespace std;
-using namespace sycl::intel::gpu;
+using namespace sycl::INTEL::gpu;
 
 void initMatrix(int *M, unsigned N) {
   assert(N >= 8 && (((N - 1) & N) == 0) &&

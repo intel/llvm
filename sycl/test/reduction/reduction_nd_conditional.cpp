@@ -85,7 +85,7 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
     auto In = InBuf.template get_access<access::mode::read>(CGH);
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
         Out(OutBuf, CGH);
-    auto Redu = intel::reduction(Out, Identity, BOp);
+    auto Redu = ONEAPI::reduction(Out, Identity, BOp);
 
     range<1> GlobalRange(NWItems);
     range<1> LocalRange(WGSize);
@@ -114,10 +114,10 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
 }
 
 int main() {
-  test<int, 0, intel::plus<int>>(0, 2, 2);
-  test<int, 1, intel::plus<int>>(0, 7, 7);
-  test<int, 0, intel::plus<int>>(0, 2, 64);
-  test<short, 1, intel::plus<short>>(0, 16, 256);
+  test<int, 0, ONEAPI::plus<int>>(0, 2, 2);
+  test<int, 1, ONEAPI::plus<int>>(0, 7, 7);
+  test<int, 0, ONEAPI::plus<int>>(0, 2, 64);
+  test<short, 1, ONEAPI::plus<short>>(0, 16, 256);
 
   std::cout << "Test passed\n";
   return 0;

@@ -986,6 +986,9 @@ static void RenderDebugEnablingArgs(const ArgList &Args, ArgStringList &CmdArgs,
   case codegenoptions::FullDebugInfo:
     CmdArgs.push_back("-debug-info-kind=standalone");
     break;
+  case codegenoptions::UnusedTypeInfo:
+    CmdArgs.push_back("-debug-info-kind=unused-types");
+    break;
   default:
     break;
   }
@@ -1926,7 +1929,8 @@ void Clang::AddPPCTargetArgs(const ArgList &Args,
   if (T.isOSBinFormatELF()) {
     switch (getToolChain().getArch()) {
     case llvm::Triple::ppc64: {
-      if (T.isMusl() || (T.isOSFreeBSD() && T.getOSMajorVersion() >= 13))
+      if ((T.isOSFreeBSD() && T.getOSMajorVersion() >= 13) ||
+          T.isOSOpenBSD() || T.isMusl())
         ABIName = "elfv2";
       else
         ABIName = "elfv1";
@@ -3017,7 +3021,7 @@ static void RenderSCPOptions(const ToolChain &TC, const ArgList &Args,
     return;
 
   if (Args.hasFlag(options::OPT_fstack_clash_protection,
-                   options::OPT_fnostack_clash_protection, false))
+                   options::OPT_fno_stack_clash_protection, false))
     CmdArgs.push_back("-fstack-clash-protection");
 }
 
@@ -3824,8 +3828,14 @@ static void RenderDebugOptions(const ToolChain &TC, const Driver &D,
           TC.GetDefaultStandaloneDebug());
   if (const Arg *A = Args.getLastArg(options::OPT_fstandalone_debug))
     (void)checkDebugInfoOption(A, Args, D, TC);
-  if (DebugInfoKind == codegenoptions::LimitedDebugInfo && NeedFullDebug)
-    DebugInfoKind = codegenoptions::FullDebugInfo;
+
+  if (DebugInfoKind == codegenoptions::LimitedDebugInfo) {
+    if (Args.hasFlag(options::OPT_fno_eliminate_unused_debug_types,
+                     options::OPT_feliminate_unused_debug_types, false))
+      DebugInfoKind = codegenoptions::UnusedTypeInfo;
+    else if (NeedFullDebug)
+      DebugInfoKind = codegenoptions::FullDebugInfo;
+  }
 
   if (Args.hasFlag(options::OPT_gembed_source, options::OPT_gno_embed_source,
                    false)) {
@@ -4103,14 +4113,21 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                      false))
       CmdArgs.push_back("-fsycl-explicit-simd");
 
+    // Default value for FPGA is false, for all other targets is true.
     if (!Args.hasFlag(options::OPT_fsycl_early_optimizations,
-                      options::OPT_fno_sycl_early_optimizations, true))
+                      options::OPT_fno_sycl_early_optimizations,
+                      Triple.getSubArch() != llvm::Triple::SPIRSubArch_fpga))
       CmdArgs.push_back("-fno-sycl-early-optimizations");
     else if (RawTriple.isSPIR()) {
       // Set `sycl-opt` option to configure LLVM passes for SPIR target
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-sycl-opt");
     }
+    // Turn on Dead Parameter Elimination Optimization with early optimizations
+    if (!RawTriple.isNVPTX() &&
+        Args.hasFlag(options::OPT_fsycl_dead_args_optimization,
+                     options::OPT_fno_sycl_dead_args_optimization, false))
+      CmdArgs.push_back("-fenable-sycl-dae");
 
     // Pass the triple of host when doing SYCL
     auto AuxT = llvm::Triple(llvm::sys::getProcessTriple());
@@ -7795,6 +7812,11 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // OPT_fsycl_device_code_split is not checked as it is an alias to
   // -fsycl-device-code-split=per_source
 
+  // Turn on Dead Parameter Elimination Optimization with early optimizations
+  if (!getToolChain().getTriple().isNVPTX() &&
+      TCArgs.hasFlag(options::OPT_fsycl_dead_args_optimization,
+                     options::OPT_fno_sycl_dead_args_optimization, false))
+    addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
   if (JA.getType() == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR
     // transformations (like specialization constant intrinsic lowering) and

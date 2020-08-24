@@ -753,10 +753,10 @@ canonicalizeImmediatelyDeclaredConstraint(const ASTContext &C, Expr *IDC,
       CSE->isInstantiationDependent(), CSE->containsUnexpandedParameterPack());
 
   if (auto *OrigFold = dyn_cast<CXXFoldExpr>(IDC))
-    NewIDC = new (C) CXXFoldExpr(OrigFold->getType(), SourceLocation(), NewIDC,
-                                 BinaryOperatorKind::BO_LAnd,
-                                 SourceLocation(), /*RHS=*/nullptr,
-                                 SourceLocation(), /*NumExpansions=*/None);
+    NewIDC = new (C) CXXFoldExpr(
+        OrigFold->getType(), /*Callee*/nullptr, SourceLocation(), NewIDC,
+        BinaryOperatorKind::BO_LAnd, SourceLocation(), /*RHS=*/nullptr,
+        SourceLocation(), /*NumExpansions=*/None);
   return NewIDC;
 }
 
@@ -2946,14 +2946,27 @@ QualType ASTContext::getAddrSpaceQualType(QualType T,
 }
 
 QualType ASTContext::removeAddrSpaceQualType(QualType T) const {
+  // If the type is not qualified with an address space, just return it
+  // immediately.
+  if (!T.hasAddressSpace())
+    return T;
+
   // If we are composing extended qualifiers together, merge together
   // into one ExtQuals node.
   QualifierCollector Quals;
-  const Type *TypeNode = Quals.strip(T);
+  const Type *TypeNode;
 
-  // If the qualifier doesn't have an address space just return it.
-  if (!Quals.hasAddressSpace())
-    return T;
+  while (T.hasAddressSpace()) {
+    TypeNode = Quals.strip(T);
+
+    // If the type no longer has an address space after stripping qualifiers,
+    // jump out.
+    if (!QualType(TypeNode, 0).hasAddressSpace())
+      break;
+
+    // There might be sugar in the way. Strip it and try again.
+    T = T.getSingleStepDesugaredType(*this);
+  }
 
   Quals.removeAddressSpace();
 
@@ -11232,10 +11245,17 @@ clang::operator<<(const DiagnosticBuilder &DB,
   return DB << "a prior #pragma section";
 }
 
-bool ASTContext::shouldExternalizeStaticVar(const Decl *D) const {
+bool ASTContext::mayExternalizeStaticVar(const Decl *D) const {
   return !getLangOpts().GPURelocatableDeviceCode &&
-         (D->hasAttr<CUDADeviceAttr>() || D->hasAttr<CUDAConstantAttr>()) &&
+         ((D->hasAttr<CUDADeviceAttr>() &&
+           !D->getAttr<CUDADeviceAttr>()->isImplicit()) ||
+          (D->hasAttr<CUDAConstantAttr>() &&
+           !D->getAttr<CUDAConstantAttr>()->isImplicit())) &&
          isa<VarDecl>(D) && cast<VarDecl>(D)->isFileVarDecl() &&
-         cast<VarDecl>(D)->getStorageClass() == SC_Static &&
+         cast<VarDecl>(D)->getStorageClass() == SC_Static;
+}
+
+bool ASTContext::shouldExternalizeStaticVar(const Decl *D) const {
+  return mayExternalizeStaticVar(D) &&
          CUDAStaticDeviceVarReferencedByHost.count(cast<VarDecl>(D));
 }

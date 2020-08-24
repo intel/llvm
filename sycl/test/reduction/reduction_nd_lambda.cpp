@@ -1,5 +1,5 @@
 // UNSUPPORTED: cuda
-// Reductions use work-group builtins (e.g. intel::reduce()) not yet supported
+// Reductions use work-group builtins (e.g. ONEAPI::reduce()) not yet supported
 // by CUDA.
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
@@ -30,7 +30,7 @@ void test(T Identity, BinaryOperation BOp, size_t WGSize, size_t NWItems) {
   Q.submit([&](handler &CGH) {
     auto In = InBuf.template get_access<access::mode::read>(CGH);
     auto Out = OutBuf.template get_access<access::mode::discard_write>(CGH);
-    auto Redu = intel::reduction(Out, Identity, BOp);
+    auto Redu = ONEAPI::reduction(Out, Identity, BOp);
 
     range<1> GlobalRange(NWItems);
     range<1> LocalRange(WGSize);

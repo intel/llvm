@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-windows-sycldevice -aux-triple x86_64-pc-windows-msvc -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-windows-sycldevice -aux-triple x86_64-pc-windows-msvc -fsyntax-only -Wno-sycl-2017-compat -verify %s
 
 // expected-no-warning@+1
 __inline __cdecl int printf(char const* const _Format, ...) { return 0; }
@@ -13,7 +13,7 @@ void bar() {
 
 template <typename name, typename Func>
 // expected-no-warning@+1
-__cdecl __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__cdecl __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   // expected-error@+1{{SYCL kernel cannot call a variadic function}}
   printf("cannot call from here\n");
   // expected-no-error@+1

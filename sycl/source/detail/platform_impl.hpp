@@ -137,11 +137,57 @@ public:
   /// given feature.
   bool has(aspect Aspect) const;
 
+  /// Queries the device_impl cache to either return a shared_ptr
+  /// for the device_impl corresponding to the PiDevice or add
+  /// a new entry to the cache
+  ///
+  /// \param PiDevice is the PiDevice whose impl is requested
+  ///
+  /// \param PlatormImpl is the Platform for that Device
+  ///
+  /// \return a shared_ptr<device_impl> corresponding to the device
+  std::shared_ptr<device_impl>
+  getOrMakeDeviceImpl(RT::PiDevice PiDevice,
+                      const std::shared_ptr<platform_impl> &PlatformImpl);
+
+  /// Static functions that help maintain platform uniquess and
+  /// equality of comparison
+
+  /// Returns the host platform impl
+  ///
+  /// \return the host platform impl
+  static std::shared_ptr<platform_impl> getHostPlatformImpl();
+
+  /// Queries the cache to see if the specified PiPlatform has been seen
+  /// before.  If so, return the cached platform_impl, otherwise create a new
+  /// one and cache it.
+  ///
+  /// \param PiPlatform is the PI Platform handle representing the platform
+  /// \param Plugin is the PI plugin providing the backend for the platform
+  /// \return the platform_impl representing the PI platform
+  static std::shared_ptr<platform_impl>
+  getOrMakePlatformImpl(RT::PiPlatform PiPlatform, const plugin &Plugin);
+
+  /// Queries the cache for the specified platform based on an input device.
+  /// If found, returns the the cached platform_impl, otherwise creates a new
+  /// one and caches it.
+  ///
+  /// \param PiDevice is the PI device handle for the device whose platform is
+  /// desired
+  /// \param Plugin is the PI plugin providing the backend for the device and
+  /// platform
+  /// \return the platform_impl that contains the input device
+  static std::shared_ptr<platform_impl>
+  getPlatformFromPiDevice(RT::PiDevice PiDevice, const plugin &Plugin);
+
 private:
   bool MHostPlatform = false;
   RT::PiPlatform MPlatform = 0;
   std::shared_ptr<plugin> MPlugin;
+  std::vector<std::shared_ptr<device_impl>> MDeviceCache;
+  std::mutex MDeviceMapMutex;
 };
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

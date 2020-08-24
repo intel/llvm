@@ -95,15 +95,15 @@ static RetType __invoke__ImageReadSampler(ImageT Img, CoordT Coords,
 
   TempArgT TmpCoords =
       cl::sycl::detail::convertDataToType<CoordT, TempArgT>(Coords);
-  // According to validation rules(SPIRV specification, section 2.16.1) result
+  // According to validation rules(SPIR-V specification, section 2.16.1) result
   // of __spirv_SampledImage is allowed to be an operand of image lookup
   // and query instructions explicitly specified to take an operand whose
   // type is OpTypeSampledImage.
   //
-  // According to SPIRV specification section 3.32.10 at least one operand
+  // According to SPIR-V specification section 3.32.10 at least one operand
   // setting the level of detail must be present. The last two arguments of
   // __spirv_ImageSampleExplicitLod represent image operand type and value.
-  // From the SPIRV specification section 3.14:
+  // From the SPIR-V specification section 3.14:
   enum ImageOperands { Lod = 0x2 };
 
   // Lod value is zero as mipmap is not supported.
@@ -118,9 +118,9 @@ namespace sycl {
 namespace detail {
 
 // Function to return the number of channels for Image Channel Order returned by
-// SPIRV call to OpImageQueryOrder.
+// SPIR-V call to OpImageQueryOrder.
 // The returned int value represents an enum from Image Channel Order. The enums
-// for Image Channel Order are mapped differently in sycl and SPIRV spec.
+// for Image Channel Order are mapped differently in sycl and SPIR-V spec.
 inline int getSPIRVNumChannels(int ImageChannelOrder) {
   switch (ImageChannelOrder) {
   case 0:  // R
@@ -155,11 +155,11 @@ inline int getSPIRVNumChannels(int ImageChannelOrder) {
 }
 
 // Function to compute the Element Size for a given Image Channel Type and Image
-// Channel Order, returned by SPIRV calls to OpImageQueryFormat and
+// Channel Order, returned by SPIR-V calls to OpImageQueryFormat and
 // OpImageQueryOrder respectively.
 // The returned int value from OpImageQueryFormat represents an enum from Image
 // Channel Data Type. The enums for Image Channel Data Type are mapped
-// differently in sycl and SPIRV spec.
+// differently in sycl and SPIR-V spec.
 inline int getSPIRVElementSize(int ImageChannelType, int ImageChannelOrder) {
   int NumChannels = getSPIRVNumChannels(ImageChannelOrder);
   switch (ImageChannelType) {
