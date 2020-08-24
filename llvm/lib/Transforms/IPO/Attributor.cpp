@@ -21,8 +21,10 @@
 #include "llvm/ADT/TinyPtrVector.h"
 #include "llvm/Analysis/InlineCost.h"
 #include "llvm/Analysis/LazyValueInfo.h"
+#include "llvm/Analysis/MemorySSAUpdater.h"
 #include "llvm/Analysis/MustExecute.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/NoFolder.h"
 #include "llvm/IR/Verifier.h"
@@ -34,6 +36,7 @@
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
 
 #include <cassert>
@@ -87,6 +90,12 @@ static cl::opt<bool>
                          cl::desc("Allow the Attributor to create shallow "
                                   "wrappers for non-exact definitions."),
                          cl::init(false));
+
+static cl::opt<bool>
+    AllowDeepWrapper("attributor-allow-deep-wrappers", cl::Hidden,
+                     cl::desc("Allow the Attributor to use IP information "
+                              "derived from non-exact functions via cloning"),
+                     cl::init(false));
 
 static cl::list<std::string>
     SeedAllowList("attributor-seed-allow-list", cl::Hidden,
@@ -892,13 +901,15 @@ bool Attributor::checkForAllInstructions(function_ref<bool(Instruction &)> Pred,
 
   // TODO: use the function scope once we have call site AAReturnedValues.
   const IRPosition &QueryIRP = IRPosition::function(*AssociatedFunction);
-  const auto &LivenessAA =
-      getAAFor<AAIsDead>(QueryingAA, QueryIRP, /* TrackDependence */ false);
+  const auto *LivenessAA =
+      CheckBBLivenessOnly ? nullptr
+                          : &(getAAFor<AAIsDead>(QueryingAA, QueryIRP,
+                                                 /* TrackDependence */ false));
 
   auto &OpcodeInstMap =
       InfoCache.getOpcodeInstMapForFunction(*AssociatedFunction);
   if (!checkForAllInstructionsImpl(this, OpcodeInstMap, Pred, &QueryingAA,
-                                   &LivenessAA, Opcodes, CheckBBLivenessOnly))
+                                   LivenessAA, Opcodes, CheckBBLivenessOnly))
     return false;
 
   return true;
@@ -1413,6 +1424,52 @@ static void createShallowWrapper(Function &F) {
   NumFnShallowWrapperCreated++;
 }
 
+/// Make another copy of the function \p F such that the copied version has
+/// internal linkage afterwards and can be analysed. Then we replace all uses
+/// of the original function to the copied one
+///
+/// Only non-exactly defined functions that have `linkonce_odr` or `weak_odr`
+/// linkage can be internalized because these linkages guarantee that other
+/// definitions with the same name have the same semantics as this one
+///
+static Function *internalizeFunction(Function &F) {
+  assert(AllowDeepWrapper && "Cannot create a copy if not allowed.");
+  assert(!F.isDeclaration() && !F.hasExactDefinition() &&
+         !GlobalValue::isInterposableLinkage(F.getLinkage()) &&
+         "Trying to internalize function which cannot be internalized.");
+
+  Module &M = *F.getParent();
+  FunctionType *FnTy = F.getFunctionType();
+
+  // create a copy of the current function
+  Function *Copied =
+      Function::Create(FnTy, GlobalValue::PrivateLinkage, F.getAddressSpace(),
+                       F.getName() + ".internalized");
+  ValueToValueMapTy VMap;
+  auto *NewFArgIt = Copied->arg_begin();
+  for (auto &Arg : F.args()) {
+    auto ArgName = Arg.getName();
+    NewFArgIt->setName(ArgName);
+    VMap[&Arg] = &(*NewFArgIt++);
+  }
+  SmallVector<ReturnInst *, 8> Returns;
+
+  // Copy the body of the original function to the new one
+  CloneFunctionInto(Copied, &F, VMap, /* ModuleLevelChanges */ false, Returns);
+
+  // Copy metadata
+  SmallVector<std::pair<unsigned, MDNode *>, 1> MDs;
+  F.getAllMetadata(MDs);
+  for (auto MDIt : MDs)
+    Copied->addMetadata(MDIt.first, *MDIt.second);
+
+  M.getFunctionList().insert(F.getIterator(), Copied);
+  F.replaceAllUsesWith(Copied);
+  Copied->setDSOLocal(true);
+
+  return Copied;
+}
+
 bool Attributor::isValidFunctionSignatureRewrite(
     Argument &Arg, ArrayRef<Type *> ReplacementTypes) {
 
@@ -1893,6 +1950,9 @@ void Attributor::identifyDefaultAbstractAttributes(Function &F) {
       // Every function with pointer return type might be marked
       // dereferenceable.
       getOrCreateAAFor<AADereferenceable>(RetPos);
+
+      // Every function with pointer return type might be marked noundef.
+      getOrCreateAAFor<AANoUndef>(RetPos);
     }
   }
 
@@ -1930,6 +1990,9 @@ void Attributor::identifyDefaultAbstractAttributes(Function &F) {
 
       // Every argument with pointer type might be privatizable (or promotable)
       getOrCreateAAFor<AAPrivatizablePtr>(ArgPos);
+
+      // Every argument with pointer type might be marked noundef.
+      getOrCreateAAFor<AANoUndef>(ArgPos);
     }
   }
 
@@ -1996,6 +2059,9 @@ void Attributor::identifyDefaultAbstractAttributes(Function &F) {
 
       // Call site argument attribute "nofree".
       getOrCreateAAFor<AANoFree>(CBArgPos);
+
+      // Call site argument attribute "noundef".
+      getOrCreateAAFor<AANoUndef>(CBArgPos);
     }
     return true;
   };
@@ -2145,6 +2211,30 @@ static bool runAttributorOnFunctions(InformationCache &InfoCache,
       if (!A.isFunctionIPOAmendable(*F))
         createShallowWrapper(*F);
 
+  // Internalize non-exact functions
+  // TODO: for now we eagerly internalize functions without calculating the
+  //       cost, we need a cost interface to determine whether internalizing
+  //       a function is "benefitial"
+  if (AllowDeepWrapper) {
+    unsigned FunSize = Functions.size();
+    for (unsigned u = 0; u < FunSize; u++) {
+      Function *F = Functions[u];
+      if (!F->isDeclaration() && !F->isDefinitionExact() && F->getNumUses() &&
+          !GlobalValue::isInterposableLinkage(F->getLinkage())) {
+        Function *NewF = internalizeFunction(*F);
+        Functions.insert(NewF);
+
+        // Update call graph
+        CGUpdater.registerOutlinedFunction(*NewF);
+        for (const Use &U : NewF->uses())
+          if (CallBase *CB = dyn_cast<CallBase>(U.getUser())) {
+            auto *CallerF = CB->getCaller();
+            CGUpdater.reanalyzeFunction(*CallerF);
+          }
+      }
+    }
+  }
+
   for (Function *F : Functions) {
     if (F->hasExactDefinition())
       NumFnWithExactDefinition++;
@@ -2245,7 +2335,9 @@ PreservedAnalyses AttributorCGSCCPass::run(LazyCallGraph::SCC &C,
   InformationCache InfoCache(M, AG, Allocator, /* CGSCC */ &Functions);
   if (runAttributorOnFunctions(InfoCache, Functions, AG, CGUpdater)) {
     // FIXME: Think about passes we will preserve and add them here.
-    return PreservedAnalyses::none();
+    PreservedAnalyses PA;
+    PA.preserve<FunctionAnalysisManagerCGSCCProxy>();
+    return PA;
   }
   return PreservedAnalyses::all();
 }

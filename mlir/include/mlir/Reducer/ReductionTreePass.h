@@ -34,7 +34,7 @@ enum TraversalMode { SinglePath, MultiPath, Concurrent, Backtrack };
 // class.
 class ReductionTreeUtils {
 public:
-  void updateGoldenModule(ModuleOp &golden, ModuleOp reduced);
+  static void updateGoldenModule(ModuleOp &golden, ModuleOp reduced);
 };
 
 /// This class defines the Reduction Tree Pass. It provides a framework to
@@ -47,7 +47,8 @@ public:
   ReductionTreePass(const Tester *test) : test(test) {}
 
   ReductionTreePass(const ReductionTreePass &pass)
-      : root(new ReductionNode(pass.root->getModule().clone(), nullptr)),
+      : ReductionTreeBase<ReductionTreePass<Reducer, mode>>(pass),
+        root(new ReductionNode(pass.root->getModule().clone(), nullptr)),
         test(pass.test) {}
 
   /// Runs the pass instance in the pass pipeline.
