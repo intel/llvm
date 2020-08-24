@@ -258,6 +258,8 @@ static bool asanUseGlobalsGC(const Triple &T, const CodeGenOptions &CGOpts) {
     return true;
   case Triple::ELF:
     return CGOpts.DataSections && !CGOpts.DisableIntegratedAS;
+  case Triple::GOFF:
+    llvm::report_fatal_error("ASan not implemented for GOFF");
   case Triple::XCOFF:
     llvm::report_fatal_error("ASan not implemented for XCOFF.");
   case Triple::Wasm:
@@ -913,10 +915,6 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
       createTargetTransformInfoWrapperPass(getTargetIRAnalysis()));
 
   std::unique_ptr<llvm::ToolOutputFile> ThinLinkOS, DwoOS;
-
-  // Clean-up SYCL device code if LLVM passes are disabled
-  if (LangOpts.SYCLIsDevice && CodeGenOpts.DisableLLVMPasses)
-    PerModulePasses.add(createDeadCodeEliminationPass());
 
   // Eliminate dead arguments from SPIR kernels in SYCL environment.
   // 1. Run DAE when LLVM optimizations are applied as well.

@@ -20,8 +20,10 @@
 #include <CL/sycl/detail/pi.h>
 
 #include <cassert>
+#include <cstdint>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Forward declarations
@@ -197,6 +199,22 @@ void printArgs(Arg0 arg0, Args... args) {
   pi::printArgs(std::forward<Args>(args)...);
 }
 
+// A wrapper for passing around byte array properties
+class ByteArray {
+public:
+  using ConstIterator = const std::uint8_t *;
+
+  ByteArray(const std::uint8_t *Ptr, std::size_t Size) : Ptr{Ptr}, Size{Size} {}
+  const std::uint8_t &operator[](std::size_t Idx) const { return Ptr[Idx]; }
+  std::size_t size() const { return Size; }
+  ConstIterator begin() const { return Ptr; }
+  ConstIterator end() const { return Ptr + Size; }
+
+private:
+  const std::uint8_t *Ptr;
+  const std::size_t Size;
+};
+
 // C++ wrapper over the _pi_device_binary_property_struct structure.
 class DeviceBinaryProperty {
 public:
@@ -204,6 +222,7 @@ public:
       : Prop(Prop) {}
 
   pi_uint32 asUint32() const;
+  ByteArray asByteArray() const;
   const char *asCString() const;
 
 protected:
@@ -300,6 +319,9 @@ public:
   /// value is 32-bit unsigned integer ID.
   const PropertyRange &getSpecConstants() const { return SpecConstIDMap; }
   const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
+  const PropertyRange &getKernelParamOptInfo() const {
+    return KernelParamOptInfo;
+  }
   virtual ~DeviceBinaryImage() {}
 
 protected:
@@ -310,6 +332,7 @@ protected:
   pi::PiDeviceBinaryType Format = PI_DEVICE_BINARY_TYPE_NONE;
   DeviceBinaryImage::PropertyRange SpecConstIDMap;
   DeviceBinaryImage::PropertyRange DeviceLibReqMask;
+  DeviceBinaryImage::PropertyRange KernelParamOptInfo;
 };
 
 /// Tries to determine the device binary image foramat. Returns

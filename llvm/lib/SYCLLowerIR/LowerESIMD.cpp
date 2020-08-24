@@ -1180,7 +1180,7 @@ void SYCLLowerESIMDLegacyPass::collectGenXVolatileType(Module &M) {
     if (!PTy)
       continue;
     auto GTy = dyn_cast<StructType>(PTy->getPointerElementType());
-    if (!GTy || !GTy->getName().endswith("cl::sycl::intel::gpu::simd"))
+    if (!GTy || !GTy->getName().endswith("cl::sycl::INTEL::gpu::simd"))
       continue;
     assert(GTy->getNumContainedTypes() == 1);
     auto VTy = GTy->getContainedType(0);
@@ -1238,7 +1238,7 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
 
     // process ESIMD builtins that go through special handling instead of
     // the translation procedure
-    if (Name.startswith("N2cl4sycl5intel3gpu8slm_init")) {
+    if (Name.startswith("N2cl4sycl5INTEL3gpu8slm_init")) {
       // tag the kernel with meta-data SLMSize, and remove this builtin
       translateSLMInit(*CI);
       ESIMDToErases.push_back(CI);

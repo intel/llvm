@@ -6,11 +6,11 @@
 // (including translation of the register attribute)
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/intel/esimd.hpp>
+#include <CL/sycl/INTEL/esimd.hpp>
 #include <iostream>
 
 using namespace cl::sycl;
-using namespace sycl::intel::gpu;
+using namespace sycl::INTEL::gpu;
 
 constexpr unsigned VL = 16;
 

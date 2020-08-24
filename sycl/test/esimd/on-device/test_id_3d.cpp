@@ -18,7 +18,7 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/intel/esimd.hpp>
+#include <CL/sycl/INTEL/esimd.hpp>
 #include <iostream>
 
 using namespace cl::sycl;
@@ -44,7 +44,7 @@ int main(void) {
   auto e = q.submit([&](handler &cgh) {
     cgh.parallel_for<class Test>(
         GlobalRange, [=](item<3> it) SYCL_ESIMD_KERNEL {
-          using namespace sycl::intel::gpu;
+          using namespace sycl::INTEL::gpu;
           auto id = it.get_id();
           // calculate linear ID:
           size_t lin_id = id[0] * Y * X + id[1] * X + id[2];

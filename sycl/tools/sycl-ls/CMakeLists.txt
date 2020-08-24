@@ -6,3 +6,5 @@ target_link_libraries(sycl-ls
     sycl
     OpenCL::Headers
 )
+install(TARGETS sycl-ls
+  RUNTIME DESTINATION "bin" COMPONENT sycl-ls)

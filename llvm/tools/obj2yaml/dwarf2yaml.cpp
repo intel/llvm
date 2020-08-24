@@ -65,8 +65,14 @@ Error dumpDebugARanges(DWARFContext &DCtx, DWARFYAML::Data &Y) {
   uint64_t Offset = 0;
   DWARFDebugArangeSet Set;
   std::vector<DWARFYAML::ARange> DebugAranges;
+
+  // We ignore any errors that don't prevent parsing the section, since we can
+  // still represent such sections. These errors are recorded via the
+  // WarningHandler parameter of Set.extract().
+  auto DiscardError = [](Error Err) { consumeError(std::move(Err)); };
+
   while (ArangesData.isValidOffset(Offset)) {
-    if (Error E = Set.extract(ArangesData, &Offset))
+    if (Error E = Set.extract(ArangesData, &Offset, DiscardError))
       return E;
     DWARFYAML::ARange Range;
     Range.Format = Set.getHeader().Format;
@@ -404,17 +410,4 @@ void dumpDebugLines(DWARFContext &DCtx, DWARFYAML::Data &Y) {
       Y.DebugLines.push_back(DebugLines);
     }
   }
-}
-
-llvm::Error dwarf2yaml(DWARFContext &DCtx, DWARFYAML::Data &Y) {
-  dumpDebugAbbrev(DCtx, Y);
-  dumpDebugStrings(DCtx, Y);
-  if (Error E = dumpDebugARanges(DCtx, Y))
-    return E;
-  if (Error E = dumpDebugRanges(DCtx, Y))
-    return E;
-  dumpDebugPubSections(DCtx, Y);
-  dumpDebugInfo(DCtx, Y);
-  dumpDebugLines(DCtx, Y);
-  return ErrorSuccess();
 }

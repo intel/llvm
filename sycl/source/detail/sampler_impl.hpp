@@ -24,14 +24,6 @@ enum class coordinate_normalization_mode : unsigned int;
 namespace detail {
 class __SYCL_EXPORT sampler_impl {
 public:
-  std::unordered_map<context, RT::PiSampler> m_contextToSampler;
-
-private:
-  coordinate_normalization_mode m_CoordNormMode;
-  addressing_mode m_AddrMode;
-  filtering_mode m_FiltMode;
-
-public:
   sampler_impl(coordinate_normalization_mode normalizationMode,
                addressing_mode addressingMode, filtering_mode filteringMode);
 
@@ -46,6 +38,16 @@ public:
   RT::PiSampler getOrCreateSampler(const context &Context);
 
   ~sampler_impl();
+
+private:
+  /// Protects all the fields that can be changed by class' methods.
+  mutex_class MMutex;
+
+  std::unordered_map<context, RT::PiSampler> MContextToSampler;
+
+  coordinate_normalization_mode MCoordNormMode;
+  addressing_mode MAddrMode;
+  filtering_mode MFiltMode;
 };
 
 } // namespace detail
