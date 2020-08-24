@@ -15,6 +15,7 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/platform_impl.hpp>
 #include <detail/platform_util.hpp>
 #include <detail/plugin.hpp>
 
@@ -117,7 +118,7 @@ template <info::device param> struct get_device_info<platform, param> {
     // Use the Plugin from the device_impl class after plugin details
     // are added to the class.
     return createSyclObjFromImpl<platform>(
-        std::make_shared<platform_impl>(result, Plugin));
+        platform_impl::getOrMakePlatformImpl(result, Plugin));
   }
 };
 
@@ -406,8 +407,11 @@ template <> struct get_device_info<device, info::device::parent_device> {
           "No parent for device because it is not a subdevice",
           PI_INVALID_DEVICE);
 
+    // Get the platform of this device
+    std::shared_ptr<detail::platform_impl> Platform =
+        platform_impl::getPlatformFromPiDevice(dev, Plugin);
     return createSyclObjFromImpl<device>(
-        std::make_shared<device_impl>(result, Plugin));
+        Platform->getOrMakeDeviceImpl(result, Platform));
   }
 };
 

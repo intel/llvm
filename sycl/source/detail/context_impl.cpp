@@ -17,6 +17,7 @@
 #include <CL/sycl/stl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/context_info.hpp>
+#include <detail/platform_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -80,12 +81,15 @@ context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
                                            sizeof(RT::PiDevice) * DevicesNum,
                                            &DeviceIds[0], nullptr);
 
-  for (auto Dev : DeviceIds) {
-    MDevices.emplace_back(createSyclObjFromImpl<device>(
-        std::make_shared<device_impl>(Dev, Plugin)));
+  if (!DeviceIds.empty()) {
+    std::shared_ptr<detail::platform_impl> Platform =
+        platform_impl::getPlatformFromPiDevice(DeviceIds[0], Plugin);
+    for (RT::PiDevice Dev : DeviceIds) {
+      MDevices.emplace_back(createSyclObjFromImpl<device>(
+          Platform->getOrMakeDeviceImpl(Dev, Platform)));
+    }
+    MPlatform = Platform;
   }
-  // TODO What if m_Devices if empty? m_Devices[0].get_platform()
-  MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   // TODO catch an exception and put it to list of asynchronous exceptions
   // getPlugin() will be the same as the Plugin passed. This should be taken
   // care of when creating device object.
