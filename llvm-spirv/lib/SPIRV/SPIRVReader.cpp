@@ -3964,7 +3964,7 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
           static_cast<SPIRVDecorateFunctionFloatingPointModeINTEL const *>(
               FloatModes.at(0));
       auto FloatingMode = DecFlt->getOperationMode();
-#ifdef NDEBUG
+#ifndef NDEBUG
       for (auto *DecPreCast : FloatModes) {
         auto *Dec =
             static_cast<SPIRVDecorateFunctionFloatingPointModeINTEL const *>(
