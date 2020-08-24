@@ -21,12 +21,16 @@ cl::sycl::detail::Requirement getMockRequirement();
 class MockCommand : public cl::sycl::detail::Command {
 public:
   MockCommand(cl::sycl::detail::QueueImplPtr Queue,
-              cl::sycl::detail::Requirement Req)
-      : Command{cl::sycl::detail::Command::EMPTY_TASK, Queue},
+              cl::sycl::detail::Requirement Req,
+              cl::sycl::detail::Command::CommandType Type =
+                  cl::sycl::detail::Command::EMPTY_TASK)
+      : Command{Type, Queue},
         MRequirement{std::move(Req)} {}
 
-  MockCommand(cl::sycl::detail::QueueImplPtr Queue)
-      : Command{cl::sycl::detail::Command::EMPTY_TASK, Queue},
+  MockCommand(cl::sycl::detail::QueueImplPtr Queue,
+              cl::sycl::detail::Command::CommandType Type =
+                  cl::sycl::detail::Command::EMPTY_TASK)
+      : Command{Type, Queue},
         MRequirement{std::move(getMockRequirement())} {}
 
   void printDot(std::ostream &) const override {}
