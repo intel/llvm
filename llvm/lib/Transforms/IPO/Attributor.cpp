@@ -97,11 +97,20 @@ static cl::opt<bool>
                               "derived from non-exact functions via cloning"),
                      cl::init(false));
 
+// These options can only used for debug builds.
+#ifndef NDEBUG
 static cl::list<std::string>
     SeedAllowList("attributor-seed-allow-list", cl::Hidden,
-                  cl::desc("Comma seperated list of attrbute names that are "
+                  cl::desc("Comma seperated list of attribute names that are "
                            "allowed to be seeded."),
                   cl::ZeroOrMore, cl::CommaSeparated);
+
+static cl::list<std::string> FunctionSeedAllowList(
+    "attributor-function-seed-allow-list", cl::Hidden,
+    cl::desc("Comma seperated list of function names that are "
+             "allowed to be seeded."),
+    cl::ZeroOrMore, cl::CommaSeparated);
+#endif
 
 static cl::opt<bool>
     DumpDepGraph("attributor-dump-dep-graph", cl::Hidden,
@@ -901,15 +910,13 @@ bool Attributor::checkForAllInstructions(function_ref<bool(Instruction &)> Pred,
 
   // TODO: use the function scope once we have call site AAReturnedValues.
   const IRPosition &QueryIRP = IRPosition::function(*AssociatedFunction);
-  const auto *LivenessAA =
-      CheckBBLivenessOnly ? nullptr
-                          : &(getAAFor<AAIsDead>(QueryingAA, QueryIRP,
-                                                 /* TrackDependence */ false));
+  const auto &LivenessAA =
+      getAAFor<AAIsDead>(QueryingAA, QueryIRP, /* TrackDependence */ false);
 
   auto &OpcodeInstMap =
       InfoCache.getOpcodeInstMapForFunction(*AssociatedFunction);
   if (!checkForAllInstructionsImpl(this, OpcodeInstMap, Pred, &QueryingAA,
-                                   LivenessAA, Opcodes, CheckBBLivenessOnly))
+                                   &LivenessAA, Opcodes, CheckBBLivenessOnly))
     return false;
 
   return true;
@@ -1570,9 +1577,17 @@ bool Attributor::registerFunctionSignatureRewrite(
 }
 
 bool Attributor::shouldSeedAttribute(AbstractAttribute &AA) {
-  if (SeedAllowList.size() == 0)
-    return true;
-  return std::count(SeedAllowList.begin(), SeedAllowList.end(), AA.getName());
+  bool Result = true;
+#ifndef NDEBUG
+  if (SeedAllowList.size() != 0)
+    Result =
+        std::count(SeedAllowList.begin(), SeedAllowList.end(), AA.getName());
+  Function *Fn = AA.getAnchorScope();
+  if (FunctionSeedAllowList.size() != 0 && Fn)
+    Result &= std::count(FunctionSeedAllowList.begin(),
+                         FunctionSeedAllowList.end(), Fn->getName());
+#endif
+  return Result;
 }
 
 ChangeStatus Attributor::rewriteFunctionSignatures(
@@ -2225,7 +2240,7 @@ static bool runAttributorOnFunctions(InformationCache &InfoCache,
         Functions.insert(NewF);
 
         // Update call graph
-        CGUpdater.registerOutlinedFunction(*NewF);
+        CGUpdater.replaceFunctionWith(*F, *NewF);
         for (const Use &U : NewF->uses())
           if (CallBase *CB = dyn_cast<CallBase>(U.getUser())) {
             auto *CallerF = CB->getCaller();

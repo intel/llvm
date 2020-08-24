@@ -5737,6 +5737,11 @@ SDValue TargetLowering::getNegatedExpression(SDValue Op, SelectionDAG &DAG,
       return SDValue();
   }
 
+  auto RemoveDeadNode = [&](SDValue N) {
+    if (N && N.getNode()->use_empty())
+      DAG.RemoveDeadNode(N.getNode());
+  };
+
   SDLoc DL(Op);
 
   switch (Opcode) {
@@ -5815,12 +5820,14 @@ SDValue TargetLowering::getNegatedExpression(SDValue Op, SelectionDAG &DAG,
     // Negate the X if its cost is less or equal than Y.
     if (NegX && (CostX <= CostY)) {
       Cost = CostX;
+      RemoveDeadNode(NegY);
       return DAG.getNode(ISD::FSUB, DL, VT, NegX, Y, Flags);
     }
 
     // Negate the Y if it is not expensive.
     if (NegY) {
       Cost = CostY;
+      RemoveDeadNode(NegX);
       return DAG.getNode(ISD::FSUB, DL, VT, NegY, X, Flags);
     }
     break;
@@ -5858,6 +5865,7 @@ SDValue TargetLowering::getNegatedExpression(SDValue Op, SelectionDAG &DAG,
     // Negate the X if its cost is less or equal than Y.
     if (NegX && (CostX <= CostY)) {
       Cost = CostX;
+      RemoveDeadNode(NegY);
       return DAG.getNode(Opcode, DL, VT, NegX, Y, Flags);
     }
 
@@ -5869,6 +5877,7 @@ SDValue TargetLowering::getNegatedExpression(SDValue Op, SelectionDAG &DAG,
     // Negate the Y if it is not expensive.
     if (NegY) {
       Cost = CostY;
+      RemoveDeadNode(NegX);
       return DAG.getNode(Opcode, DL, VT, X, NegY, Flags);
     }
     break;
@@ -5898,12 +5907,14 @@ SDValue TargetLowering::getNegatedExpression(SDValue Op, SelectionDAG &DAG,
     // Negate the X if its cost is less or equal than Y.
     if (NegX && (CostX <= CostY)) {
       Cost = std::min(CostX, CostZ);
+      RemoveDeadNode(NegY);
       return DAG.getNode(Opcode, DL, VT, NegX, Y, NegZ, Flags);
     }
 
     // Negate the Y if it is not expensive.
     if (NegY) {
       Cost = std::min(CostY, CostZ);
+      RemoveDeadNode(NegX);
       return DAG.getNode(Opcode, DL, VT, X, NegY, NegZ, Flags);
     }
     break;
@@ -6129,7 +6140,7 @@ bool TargetLowering::expandMUL(SDNode *N, SDValue &Lo, SDValue &Hi, EVT HiLoVT,
 }
 
 // Check that (every element of) Z is undef or not an exact multiple of BW.
-static bool isNonZeroModBitWidth(SDValue Z, unsigned BW) {
+static bool isNonZeroModBitWidthOrUndef(SDValue Z, unsigned BW) {
   return ISD::matchUnaryPredicate(
       Z,
       [=](ConstantSDNode *C) { return !C || C->getAPIntValue().urem(BW) != 0; },
@@ -6158,7 +6169,7 @@ bool TargetLowering::expandFunnelShift(SDNode *Node, SDValue &Result,
 
   SDValue ShX, ShY;
   SDValue ShAmt, InvShAmt;
-  if (isNonZeroModBitWidth(Z, BW)) {
+  if (isNonZeroModBitWidthOrUndef(Z, BW)) {
     // fshl: X << C | Y >> (BW - C)
     // fshr: X << (BW - C) | Y >> C
     // where C = Z % BW is not zero
