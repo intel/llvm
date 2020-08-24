@@ -56,7 +56,7 @@ enum KernelInvocationKind {
 
 const static std::string InitMethodName = "__init";
 const static std::string FinalizeMethodName = "__finalize";
-const static unsigned GPUMaxKernelArgsNum= 2000;
+const static unsigned GPUMaxKernelArgsNum = 2000;
 
 namespace {
 
