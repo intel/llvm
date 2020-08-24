@@ -56,6 +56,7 @@ enum KernelInvocationKind {
 
 const static std::string InitMethodName = "__init";
 const static std::string FinalizeMethodName = "__finalize";
+const static unsigned GPUMaxKernelArgsNum= 2000;
 
 namespace {
 
@@ -1486,6 +1487,14 @@ public:
     std::transform(std::begin(Params), std::end(Params),
                    std::back_inserter(ArgTys),
                    [](const ParmVarDecl *PVD) { return PVD->getType(); });
+
+    // TODO: enable template instantiation tree for this diagnostic
+    if (SemaRef.Context.getTargetInfo().getTriple().getSubArch() ==
+        llvm::Triple::SPIRSubArch_gen)
+      if (Params.size() > GPUMaxKernelArgsNum)
+        SemaRef.Diag(KernelDecl->getLocation(),
+                     diag::warn_sycl_kernel_too_many_args)
+            << static_cast<unsigned>(Params.size()) << GPUMaxKernelArgsNum;
 
     QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, ArgTys, Info);
     KernelDecl->setType(FuncType);
