@@ -91,9 +91,9 @@ macro(add_sycl_unittest_with_device test_dirname link_variant)
 
   if ("${link_variant}" MATCHES "OBJECT")
     add_sycl_executable(${test_dirname}
-      OPTIONS -nolibsycl ${COMMON_OPTS} ${LLVM_PTHREAD_LIB}
+      OPTIONS -nolibsycl ${COMMON_OPTS} ${LLVM_PTHREAD_LIB} ${TERMINFO_LIB}
       SOURCES ${ARGN} $<TARGET_OBJECTS:${sycl_obj_target}>
-      LIBRARIES gtest_main gtest LLVMSupport LLVMTestingSupport OpenCL ${EXTRA_LIBS} ${TERMINFO_LIBS}
+      LIBRARIES gtest_main gtest LLVMSupport LLVMTestingSupport OpenCL ${EXTRA_LIBS}
       DEPENDANTS SYCLUnitTests)
   else()
     # TODO support shared library case.
