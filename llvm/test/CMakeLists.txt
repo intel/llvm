@@ -123,6 +123,7 @@ set(LLVM_TEST_DEPENDS
           sancov
           sanstats
           sycl-post-link
+          split-file
           verify-uselistorder
           yaml-bench
           yaml2obj

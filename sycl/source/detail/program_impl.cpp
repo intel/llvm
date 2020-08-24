@@ -484,8 +484,8 @@ vector_class<device> program_impl::get_info<info::program::devices>() const {
 void program_impl::set_spec_constant_impl(const char *Name, const void *ValAddr,
                                           size_t ValSize) {
   if (MState != program_state::none)
-    throw cl::sycl::experimental::spec_const_error("Invalid program state",
-                                                   PI_INVALID_PROGRAM);
+    throw cl::sycl::ONEAPI::experimental::spec_const_error(
+        "Invalid program state", PI_INVALID_PROGRAM);
   // Reuse cached programs lock as opposed to introducing a new lock.
   auto LockGuard = MContext->getKernelProgramCache().acquireCachedPrograms();
   spec_constant_impl &SC = SpecConstRegistry[Name];
@@ -506,7 +506,7 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
     const char *SCName = (*SCIt)->Name;
     auto SCEntry = SpecConstRegistry.find(SCName);
     if (SCEntry == SpecConstRegistry.end())
-      // spec constant has not been set in user code - SPIRV will use default
+      // spec constant has not been set in user code - SPIR-V will use default
       continue;
     const spec_constant_impl &SC = SCEntry->second;
     assert(SC.isSet() && "uninitialized spec constant");

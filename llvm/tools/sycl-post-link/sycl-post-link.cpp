@@ -13,7 +13,9 @@
 // - specialization constant intrinsic transformation
 //===----------------------------------------------------------------------===//
 
+#include "SPIRKernelParamOptInfo.h"
 #include "SpecConstants.h"
+
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
@@ -34,6 +36,7 @@
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+
 #include <memory>
 
 using namespace llvm;
@@ -121,11 +124,16 @@ static cl::opt<SpecConstMode> SpecConstLower{
                    "set spec constants to C++ defaults")),
     cl::cat(PostLinkCat)};
 
+static cl::opt<bool> EmitKernelParamInfo{
+    "emit-param-info", cl::desc("emit kernel parameter optimization info"),
+    cl::cat(PostLinkCat)};
+
 struct ImagePropSaveInfo {
   bool NeedDeviceLibReqMask;
   bool DoSpecConst;
   bool SetSpecConstAtRT;
   bool SpecConstsMet;
+  bool EmitKernelParamInfo;
 };
 // Please update DeviceLibFuncMap if any item is added to or removed from
 // fallback device libraries in libdevice.
@@ -512,6 +520,30 @@ static string_vector saveDeviceImageProperty(
           llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS,
           TmpSpecIDMap);
     }
+    if (ImgPSInfo.EmitKernelParamInfo) {
+      // extract kernel parameter optimization info per module
+      ModuleAnalysisManager MAM;
+      // Register required analysis
+      MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+      // Register the payload analysis
+      MAM.registerPass([&] { return SPIRKernelParamOptInfoAnalysis(); });
+      SPIRKernelParamOptInfo PInfo =
+          MAM.getResult<SPIRKernelParamOptInfoAnalysis>(*ResultModules[I]);
+
+      // convert analysis results into properties and record them
+      llvm::util::PropertySet &Props =
+          PropSet[llvm::util::PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO];
+
+      for (const auto &NameInfoPair : PInfo) {
+        const llvm::BitVector &Bits = NameInfoPair.second;
+        const llvm::ArrayRef<uintptr_t> Arr = NameInfoPair.second.getData();
+        const unsigned char *Data =
+            reinterpret_cast<const unsigned char *>(Arr.begin());
+        llvm::util::PropertyValue::SizeTy DataBitSize = Bits.size();
+        Props.insert(std::make_pair(
+            NameInfoPair.first, llvm::util::PropertyValue(Data, DataBitSize)));
+      }
+    }
     std::error_code EC;
     std::string SCFile = makeResultFileName(".prop", I);
     raw_fd_ostream SCOut(SCFile, EC);
@@ -612,8 +644,9 @@ int main(int argc, char **argv) {
   // any other functionalities such as code split...
   bool DoSplit = (SplitMode.getNumOccurrences() > 0) && !DeadCodeRemoval;
   bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
+  bool DoParamInfo = EmitKernelParamInfo.getNumOccurrences() > 0;
 
-  if (!DoSplit && !DoSpecConst && !DoSymGen) {
+  if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo) {
     errs() << "no actions specified; try --help for usage info\n";
     return 1;
   }
@@ -625,6 +658,11 @@ int main(int argc, char **argv) {
   if (IROutputOnly && DoSymGen) {
     errs() << "error: -" << DoSymGen.ArgStr << " can't be used with -"
            << IROutputOnly.ArgStr << "\n";
+    return 1;
+  }
+  if (IROutputOnly && DoParamInfo) {
+    errs() << "error: -" << EmitKernelParamInfo.ArgStr << " can't be used with"
+           << " -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }
   SMDiagnostic Err;
@@ -701,7 +739,7 @@ int main(int argc, char **argv) {
 
   {
     ImagePropSaveInfo ImgPSInfo = {true, DoSpecConst, SetSpecConstAtRT,
-                                   SpecConstsMet};
+                                   SpecConstsMet, EmitKernelParamInfo};
     string_vector Files = saveDeviceImageProperty(ResultModules, ImgPSInfo);
     Error Err = Table.addColumn(COL_PROPS, Files);
     CHECK_AND_EXIT(Err);

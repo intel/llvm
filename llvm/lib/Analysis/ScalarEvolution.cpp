@@ -5112,13 +5112,8 @@ const SCEV *ScalarEvolution::createNodeForPHI(PHINode *PN) {
   if (const SCEV *S = createNodeFromSelectLikePHI(PN))
     return S;
 
-  // If the PHI has a single incoming value, follow that value, unless the
-  // PHI's incoming blocks are in a different loop, in which case doing so
-  // risks breaking LCSSA form. Instcombine would normally zap these, but
-  // it doesn't have DominatorTree information, so it may miss cases.
   if (Value *V = SimplifyInstruction(PN, {getDataLayout(), &TLI, &DT, &AC}))
-    if (LI.replacementPreservesLCSSAForm(PN, V))
-      return getSCEV(V);
+    return getSCEV(V);
 
   // If it's not a loop phi, we can't handle it yet.
   return getUnknown(PN);
@@ -10561,7 +10556,13 @@ ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
   if (isLoopEntryGuardedByCond(L, Cond, getMinusSCEV(Start, Stride), RHS))
     BECount = BECountIfBackedgeTaken;
   else {
-    End = IsSigned ? getSMaxExpr(RHS, Start) : getUMaxExpr(RHS, Start);
+    // If we know that RHS >= Start in the context of loop, then we know that
+    // max(RHS, Start) = RHS at this point.
+    if (isLoopEntryGuardedByCond(
+            L, IsSigned ? ICmpInst::ICMP_SGE : ICmpInst::ICMP_UGE, RHS, Start))
+      End = RHS;
+    else
+      End = IsSigned ? getSMaxExpr(RHS, Start) : getUMaxExpr(RHS, Start);
     BECount = computeBECount(getMinusSCEV(End, Start), Stride, false);
   }
 
@@ -10628,8 +10629,15 @@ ScalarEvolution::howManyGreaterThans(const SCEV *LHS, const SCEV *RHS,
 
   const SCEV *Start = IV->getStart();
   const SCEV *End = RHS;
-  if (!isLoopEntryGuardedByCond(L, Cond, getAddExpr(Start, Stride), RHS))
-    End = IsSigned ? getSMinExpr(RHS, Start) : getUMinExpr(RHS, Start);
+  if (!isLoopEntryGuardedByCond(L, Cond, getAddExpr(Start, Stride), RHS)) {
+    // If we know that Start >= RHS in the context of loop, then we know that
+    // min(RHS, Start) = RHS at this point.
+    if (isLoopEntryGuardedByCond(
+            L, IsSigned ? ICmpInst::ICMP_SGE : ICmpInst::ICMP_UGE, Start, RHS))
+      End = RHS;
+    else
+      End = IsSigned ? getSMinExpr(RHS, Start) : getUMinExpr(RHS, Start);
+  }
 
   const SCEV *BECount = computeBECount(getMinusSCEV(Start, End), Stride, false);
 

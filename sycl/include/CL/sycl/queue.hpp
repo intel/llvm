@@ -319,7 +319,20 @@ public:
   /// property, an invalid_object_error SYCL exception.
   template <typename PropertyT> PropertyT get_property() const;
 
+  /// Fills the specified memory with the specified pattern.
+  ///
+  /// \param Ptr is the pointer to the memory to fill
+  /// \param Pattern is the pattern to fill into the memory.  T should be
+  /// trivially copyable.
+  /// \param Count is the number of times to fill Pattern into Ptr.
+  template <typename T> event fill(void *Ptr, const T &Pattern, size_t Count) {
+    return submit([&](handler &CGH) { CGH.fill<T>(Ptr, Pattern, Count); });
+  }
+
   /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if \param Dest is nullptr. The behavior is undefined if \param Ptr
+  /// is invalid.
   ///
   /// \param Ptr is a USM pointer to the memory to fill.
   /// \param Value is a value to be set. Value is cast as an unsigned char.
@@ -329,6 +342,9 @@ public:
 
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
+  /// No operations is done if \param Count is zero. An exception is thrown
+  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
   ///
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Src is a USM pointer to the source memory.
@@ -355,21 +371,44 @@ public:
     return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); });
   }
 
+  // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
+  // Here we simplify the &CodeLoc declaration to be _CODELOCPARAM(&CodeLoc) and
+  // _CODELOCARG(&CodeLoc) Similarly, the KernelFunc param is simplified to be
+  // _KERNELFUNCPARAM(KernelFunc) Once the queue kernel functions are defined,
+  // these macros are #undef immediately.
+
+  // replace _CODELOCPARAM(&CodeLoc) with nothing
+  // or :   , const detail::code_location &CodeLoc =
+  // detail::code_location::current()
+  // replace _CODELOCARG(&CodeLoc) with nothing
+  // or :  const detail::code_location &CodeLoc = {}
+
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+#define _CODELOCPARAM(a)                                                       \
+  , const detail::code_location a = detail::code_location::current()
+
+#define _CODELOCARG(a)
+#else
+#define _CODELOCPARAM(a)
+
+#define _CODELOCARG(a) const detail::code_location a = {}
+#endif
+// replace _KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
+//                                     or     const KernelType &KernelFunc
+#ifdef __SYCL_NONCONST_FUNCTOR__
+#define _KERNELFUNCPARAM(a) KernelType a
+#else
+#define _KERNELFUNCPARAM(a) const KernelType &a
+#endif
+
   /// single_task version with a kernel represented as a lambda.
   ///
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event single_task(
-      KernelType KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  event single_task(_KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+
     return submit(
         [&](handler &CGH) {
           CGH.template single_task<KernelName, KernelType>(KernelFunc);
@@ -383,16 +422,9 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event single_task(
-      event DepEvent, KernelType KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  event single_task(event DepEvent,
+                    _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
@@ -408,16 +440,9 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event single_task(
-      const vector_class<event> &DepEvents, KernelType KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  event single_task(const vector_class<event> &DepEvents,
+                    _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
@@ -433,16 +458,9 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(
-      range<1> NumWorkItems, KernelType KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  event parallel_for(range<1> NumWorkItems,
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, KernelFunc, CodeLoc);
   }
 
@@ -453,16 +471,9 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(
-      range<2> NumWorkItems, KernelType KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  event parallel_for(range<2> NumWorkItems,
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, KernelFunc, CodeLoc);
   }
 
@@ -473,16 +484,9 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(
-      range<3> NumWorkItems, KernelType KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  event parallel_for(range<3> NumWorkItems,
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, KernelFunc, CodeLoc);
   }
 
@@ -494,16 +498,9 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(
-      range<1> NumWorkItems, event DepEvent, KernelType KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  event parallel_for(range<1> NumWorkItems, event DepEvent,
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvent, KernelFunc,
                                          CodeLoc);
   }
@@ -516,16 +513,9 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(
-      range<2> NumWorkItems, event DepEvent, KernelType KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  event parallel_for(range<2> NumWorkItems, event DepEvent,
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvent, KernelFunc,
                                          CodeLoc);
   }
@@ -538,16 +528,9 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(
-      range<3> NumWorkItems, event DepEvent, KernelType KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  event parallel_for(range<3> NumWorkItems, event DepEvent,
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvent, KernelFunc,
                                          CodeLoc);
   }
@@ -561,17 +544,10 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(
-      range<1> NumWorkItems, const vector_class<event> &DepEvents,
-      KernelType KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  event parallel_for(range<1> NumWorkItems,
+                     const vector_class<event> &DepEvents,
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
                                          CodeLoc);
   }
@@ -585,17 +561,10 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(
-      range<2> NumWorkItems, const vector_class<event> &DepEvents,
-      KernelType KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  event parallel_for(range<2> NumWorkItems,
+                     const vector_class<event> &DepEvents,
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
                                          CodeLoc);
   }
@@ -609,17 +578,10 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(
-      range<3> NumWorkItems, const vector_class<event> &DepEvents,
-      KernelType KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  event parallel_for(range<3> NumWorkItems,
+                     const vector_class<event> &DepEvents,
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return parallel_for_impl<KernelName>(NumWorkItems, DepEvents, KernelFunc,
                                          CodeLoc);
   }
@@ -633,16 +595,9 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  event parallel_for(
-      range<Dims> NumWorkItems, id<Dims> WorkItemOffset, KernelType KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.template parallel_for<KernelName, KernelType>(
@@ -661,17 +616,10 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  event parallel_for(
-      range<Dims> NumWorkItems, id<Dims> WorkItemOffset, event DepEvent,
-      KernelType KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
+                     event DepEvent,
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
@@ -692,17 +640,10 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  event parallel_for(
-      range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-      const vector_class<event> &DepEvents, KernelType KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
+                     const vector_class<event> &DepEvents,
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
@@ -721,16 +662,9 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  event parallel_for(
-      nd_range<Dims> ExecutionRange, KernelType KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  event parallel_for(nd_range<Dims> ExecutionRange,
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.template parallel_for<KernelName, KernelType>(ExecutionRange,
@@ -749,16 +683,9 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  event parallel_for(
-      nd_range<Dims> ExecutionRange, event DepEvent, KernelType KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  event parallel_for(nd_range<Dims> ExecutionRange, event DepEvent,
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
@@ -779,17 +706,10 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  event parallel_for(
-      nd_range<Dims> ExecutionRange, const vector_class<event> &DepEvents,
-      KernelType KernelFunc
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-      ,
-      const detail::code_location &CodeLoc = detail::code_location::current()
-#endif
-  ) {
-#ifdef DISABLE_SYCL_INSTRUMENTATION_METADATA
-    const detail::code_location &CodeLoc = {};
-#endif
+  event parallel_for(nd_range<Dims> ExecutionRange,
+                     const vector_class<event> &DepEvents,
+                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
@@ -798,6 +718,11 @@ public:
         },
         CodeLoc);
   }
+
+// Clean up CODELOC and KERNELFUNC macros.
+#undef _CODELOCPARAM
+#undef _CODELOCARG
+#undef _KERNELFUNCPARAM
 
   /// Returns whether the queue is in order or OoO
   ///

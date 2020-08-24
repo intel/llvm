@@ -19,6 +19,7 @@
 #include "CGObjCRuntime.h"
 #include "CGOpenCLRuntime.h"
 #include "CGOpenMPRuntime.h"
+#include "CGOpenMPRuntimeAMDGCN.h"
 #include "CGOpenMPRuntimeNVPTX.h"
 #include "CGSYCLRuntime.h"
 #include "CodeGenFunction.h"
@@ -217,6 +218,11 @@ void CodeGenModule::createOpenMPRuntime() {
     assert(getLangOpts().OpenMPIsDevice &&
            "OpenMP NVPTX is only prepared to deal with device code.");
     OpenMPRuntime.reset(new CGOpenMPRuntimeNVPTX(*this));
+    break;
+  case llvm::Triple::amdgcn:
+    assert(getLangOpts().OpenMPIsDevice &&
+           "OpenMP AMDGCN is only prepared to deal with device code.");
+    OpenMPRuntime.reset(new CGOpenMPRuntimeAMDGCN(*this));
     break;
   default:
     if (LangOpts.OpenMPSimd)
@@ -1549,22 +1555,24 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
               : llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(-1)));
     }
 
-  Fn->setMetadata("kernel_arg_addr_space",
-                  llvm::MDNode::get(VMContext, addressQuals));
-  Fn->setMetadata("kernel_arg_access_qual",
-                  llvm::MDNode::get(VMContext, accessQuals));
-  Fn->setMetadata("kernel_arg_type",
-                  llvm::MDNode::get(VMContext, argTypeNames));
-  Fn->setMetadata("kernel_arg_base_type",
-                  llvm::MDNode::get(VMContext, argBaseTypeNames));
-  Fn->setMetadata("kernel_arg_type_qual",
-                  llvm::MDNode::get(VMContext, argTypeQuals));
-  if (getCodeGenOpts().EmitOpenCLArgMetadata)
-    Fn->setMetadata("kernel_arg_name",
-                    llvm::MDNode::get(VMContext, argNames));
-  if (LangOpts.SYCLIsDevice)
+  if (LangOpts.SYCLIsDevice && !LangOpts.SYCLExplicitSIMD)
     Fn->setMetadata("kernel_arg_buffer_location",
                     llvm::MDNode::get(VMContext, argSYCLBufferLocationAttr));
+  else {
+    Fn->setMetadata("kernel_arg_addr_space",
+                    llvm::MDNode::get(VMContext, addressQuals));
+    Fn->setMetadata("kernel_arg_access_qual",
+                    llvm::MDNode::get(VMContext, accessQuals));
+    Fn->setMetadata("kernel_arg_type",
+                    llvm::MDNode::get(VMContext, argTypeNames));
+    Fn->setMetadata("kernel_arg_base_type",
+                    llvm::MDNode::get(VMContext, argBaseTypeNames));
+    Fn->setMetadata("kernel_arg_type_qual",
+                    llvm::MDNode::get(VMContext, argTypeQuals));
+    if (getCodeGenOpts().EmitOpenCLArgMetadata)
+      Fn->setMetadata("kernel_arg_name",
+                      llvm::MDNode::get(VMContext, argNames));
+  }
 }
 
 /// Determines whether the language options require us to model
@@ -5147,6 +5155,8 @@ CodeGenModule::GetAddrOfConstantCFString(const StringLiteral *Literal) {
   switch (Triple.getObjectFormat()) {
   case llvm::Triple::UnknownObjectFormat:
     llvm_unreachable("unknown file format");
+  case llvm::Triple::GOFF:
+    llvm_unreachable("GOFF is not yet implemented");
   case llvm::Triple::XCOFF:
     llvm_unreachable("XCOFF is not yet implemented");
   case llvm::Triple::COFF:
@@ -5624,16 +5634,21 @@ void CodeGenModule::EmitTopLevelDecl(Decl *D) {
           Spec->hasDefinition())
         DI->completeTemplateDefinition(*Spec);
   } LLVM_FALLTHROUGH;
-  case Decl::CXXRecord:
-    if (CGDebugInfo *DI = getModuleDebugInfo())
+  case Decl::CXXRecord: {
+    CXXRecordDecl *CRD = cast<CXXRecordDecl>(D);
+    if (CGDebugInfo *DI = getModuleDebugInfo()) {
+      if (CRD->hasDefinition())
+        DI->EmitAndRetainType(getContext().getRecordType(cast<RecordDecl>(D)));
       if (auto *ES = D->getASTContext().getExternalSource())
         if (ES->hasExternalDefinitions(D) == ExternalASTSource::EK_Never)
-          DI->completeUnusedClass(cast<CXXRecordDecl>(*D));
+          DI->completeUnusedClass(*CRD);
+    }
     // Emit any static data members, they may be definitions.
-    for (auto *I : cast<CXXRecordDecl>(D)->decls())
+    for (auto *I : CRD->decls())
       if (isa<VarDecl>(I) || isa<CXXRecordDecl>(I))
         EmitTopLevelDecl(I);
     break;
+  }
     // No code generation needed.
   case Decl::UsingShadow:
   case Decl::ClassTemplate:
@@ -5817,6 +5832,25 @@ void CodeGenModule::EmitTopLevelDecl(Decl *D) {
 
   case Decl::OMPRequires:
     EmitOMPRequiresDecl(cast<OMPRequiresDecl>(D));
+    break;
+
+  case Decl::Typedef:
+  case Decl::TypeAlias: // using foo = bar; [C++11]
+    if (CGDebugInfo *DI = getModuleDebugInfo())
+      DI->EmitAndRetainType(
+          getContext().getTypedefType(cast<TypedefNameDecl>(D)));
+    break;
+
+  case Decl::Record:
+    if (CGDebugInfo *DI = getModuleDebugInfo())
+      if (cast<RecordDecl>(D)->getDefinition())
+        DI->EmitAndRetainType(getContext().getRecordType(cast<RecordDecl>(D)));
+    break;
+
+  case Decl::Enum:
+    if (CGDebugInfo *DI = getModuleDebugInfo())
+      if (cast<EnumDecl>(D)->getDefinition())
+        DI->EmitAndRetainType(getContext().getEnumType(cast<EnumDecl>(D)));
     break;
 
   default:

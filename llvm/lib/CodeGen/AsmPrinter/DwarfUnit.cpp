@@ -90,9 +90,8 @@ bool DIEDwarfExpression::isFrameRegister(const TargetRegisterInfo &TRI,
 
 DwarfUnit::DwarfUnit(dwarf::Tag UnitTag, const DICompileUnit *Node,
                      AsmPrinter *A, DwarfDebug *DW, DwarfFile *DWU)
-    : DIEUnit(A->getDwarfVersion(), A->MAI->getCodePointerSize(), UnitTag),
-      CUNode(Node), Asm(A), DD(DW), DU(DWU), IndexTyDie(nullptr) {
-}
+    : DIEUnit(UnitTag), CUNode(Node), Asm(A), DD(DW), DU(DWU),
+      IndexTyDie(nullptr) {}
 
 DwarfTypeUnit::DwarfTypeUnit(DwarfCompileUnit &CU, AsmPrinter *A,
                              DwarfDebug *DW, DwarfFile *DWU,
@@ -335,7 +334,7 @@ void DwarfUnit::addOpAddress(DIELoc &Die, const MCSymbol *Sym) {
   }
 
   addUInt(Die, dwarf::DW_FORM_data1, dwarf::DW_OP_addr);
-  addLabel(Die, dwarf::DW_FORM_udata, Sym);
+  addLabel(Die, dwarf::DW_FORM_addr, Sym);
 }
 
 void DwarfUnit::addLabelDelta(DIE &Die, dwarf::Attribute Attribute,

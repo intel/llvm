@@ -228,6 +228,17 @@ const static char Clamp[] = "clamp";
 const static char ConvertPrefix[] = "convert_";
 const static char Dot[] = "dot";
 const static char EnqueueKernel[] = "enqueue_kernel";
+const static char FixedSqrtINTEL[] = "intel_arbitrary_fixed_sqrt";
+const static char FixedRecipINTEL[] = "intel_arbitrary_fixed_recip";
+const static char FixedRsqrtINTEL[] = "intel_arbitrary_fixed_rsqrt";
+const static char FixedSinINTEL[] = "intel_arbitrary_fixed_sin";
+const static char FixedCosINTEL[] = "intel_arbitrary_fixed_cos";
+const static char FixedSinCosINTEL[] = "intel_arbitrary_fixed_sincos";
+const static char FixedSinPiINTEL[] = "intel_arbitrary_fixed_sinpi";
+const static char FixedCosPiINTEL[] = "intel_arbitrary_fixed_cospi";
+const static char FixedSinCosPiINTEL[] = "intel_arbitrary_fixed_sincospi";
+const static char FixedLogINTEL[] = "intel_arbitrary_fixed_log";
+const static char FixedExpINTEL[] = "intel_arbitrary_fixed_exp";
 const static char FMax[] = "fmax";
 const static char FMin[] = "fmin";
 const static char FPGARegIntel[] = "__builtin_intel_fpga_reg";
@@ -635,6 +646,26 @@ typedef SPIRVMap<std::string, Op, SPIRVSubgroupsAVCIntelInst>
     OCLSPIRVSubgroupAVCIntelBuiltinMap;
 
 typedef SPIRVMap<AtomicRMWInst::BinOp, Op> LLVMSPIRVAtomicRmwOpCodeMap;
+
+class SPIRVFixedPointIntelInst;
+template <>
+inline void SPIRVMap<std::string, Op, SPIRVFixedPointIntelInst>::init() {
+#define _SPIRV_OP(x, y) add("intel_arbitrary_fixed_" #x, OpFixed##y##INTEL);
+  _SPIRV_OP(sqrt, Sqrt)
+  _SPIRV_OP(recip, Recip)
+  _SPIRV_OP(rsqrt, Rsqrt)
+  _SPIRV_OP(sin, Sin)
+  _SPIRV_OP(cos, Cos)
+  _SPIRV_OP(sincos, SinCos)
+  _SPIRV_OP(sinpi, SinPi)
+  _SPIRV_OP(cospi, CosPi)
+  _SPIRV_OP(sincospi, SinCosPi)
+  _SPIRV_OP(log, Log)
+  _SPIRV_OP(exp, Exp)
+#undef _SPIRV_OP
+}
+typedef SPIRVMap<std::string, Op, SPIRVFixedPointIntelInst>
+    SPIRVFixedPointIntelMap;
 
 class SPIRVArbFloatIntelInst;
 template <>

@@ -587,6 +587,13 @@ bool ARMBaseInstrInfo::DefinesPredicate(
     const MachineOperand &MO = MI.getOperand(i);
     if ((MO.isRegMask() && MO.clobbersPhysReg(ARM::CPSR)) ||
         (MO.isReg() && MO.isDef() && MO.getReg() == ARM::CPSR)) {
+
+      // Filter out T1 instructions that have a dead CPSR,
+      // allowing IT blocks to be generated containing T1 instructions
+      const MCInstrDesc &MCID = MI.getDesc();
+      if (MCID.TSFlags & ARMII::ThumbArithFlagSetting && MO.isDead())
+        continue;
+
       Pred.push_back(MO);
       Found = true;
     }
@@ -2154,7 +2161,12 @@ ARMBaseInstrInfo::extraSizeToPredicateInstructions(const MachineFunction &MF,
   // Thumb2 needs a 2-byte IT instruction to predicate up to 4 instructions.
   // ARM has a condition code field in every predicable instruction, using it
   // doesn't change code size.
-  return Subtarget.isThumb2() ? divideCeil(NumInsts, 4) * 2 : 0;
+  if (!Subtarget.isThumb2())
+    return 0;
+
+  // It's possible that the size of the IT is restricted to a single block.
+  unsigned MaxInsts = Subtarget.restrictIT() ? 1 : 4;
+  return divideCeil(NumInsts, MaxInsts) * 2;
 }
 
 unsigned

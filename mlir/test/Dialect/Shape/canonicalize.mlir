@@ -60,6 +60,31 @@ func @f() -> !shape.shape {
 
 // -----
 
+// Basic case including extent tensors.
+// CHECK-LABEL: @broadcast
+func @broadcast() -> tensor<?xindex> {
+  // CHECK: shape.const_shape [7, 2] : tensor<?xindex>
+  %0 = shape.const_shape [1, 2] : tensor<?xindex>
+  %1 = shape.const_shape [7, 1] : tensor<?xindex>
+  %2 = shape.broadcast %0, %1
+      : tensor<?xindex>, tensor<?xindex> -> tensor<?xindex>
+  return %2 : tensor<?xindex>
+}
+
+// -----
+
+// Basic case including extent tensors.
+// CHECK-LABEL: @broadcast
+func @broadcast() -> !shape.shape {
+  // CHECK: shape.const_shape [7, 2] : !shape.shape
+  %0 = shape.const_shape [1, 2] : tensor<?xindex>
+  %1 = shape.const_shape [7, 1] : tensor<?xindex>
+  %2 = shape.broadcast %0, %1 : tensor<?xindex>, tensor<?xindex> -> !shape.shape
+  return %2 : !shape.shape
+}
+
+// -----
+
 // Rhs is a scalar.
 // CHECK-LABEL: func @f
 func @f(%arg0 : !shape.shape) -> !shape.shape {
@@ -595,6 +620,18 @@ func @canonicalize_rank(%arg : tensor<1x2x?xf32>) -> index {
   %shape = shape.shape_of %arg : tensor<1x2x?xf32> -> tensor<?xindex>
   %rank = shape.rank %shape : tensor<?xindex> -> index
   return %rank : index
+}
+
+// -----
+
+// Canonicalize `rank` when shape is derived from ranked tensor.
+// CHECK-LABEL: @canonicalize_rank
+func @canonicalize_rank_size(%arg : tensor<1x2x?xf32>) -> !shape.size {
+  // CHECK: %[[RESULT:.*]] = shape.const_size 3
+  // CHECK: return %[[RESULT]] : !shape.size
+  %shape = shape.shape_of %arg : tensor<1x2x?xf32> -> !shape.shape
+  %rank = shape.rank %shape : !shape.shape -> !shape.size
+  return %rank : !shape.size
 }
 
 // -----

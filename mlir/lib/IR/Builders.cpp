@@ -67,12 +67,11 @@ IntegerType Builder::getIntegerType(unsigned width, bool isSigned) {
       width, isSigned ? IntegerType::Signed : IntegerType::Unsigned, context);
 }
 
-FunctionType Builder::getFunctionType(ArrayRef<Type> inputs,
-                                      ArrayRef<Type> results) {
+FunctionType Builder::getFunctionType(TypeRange inputs, TypeRange results) {
   return FunctionType::get(inputs, results, context);
 }
 
-TupleType Builder::getTupleType(ArrayRef<Type> elementTypes) {
+TupleType Builder::getTupleType(TypeRange elementTypes) {
   return TupleType::get(elementTypes, context);
 }
 
@@ -275,6 +274,8 @@ Attribute Builder::getZeroAttr(Type type) {
   case StandardTypes::F32:
   case StandardTypes::F64:
     return getFloatAttr(type, 0.0);
+  case StandardTypes::Index:
+    return getIndexAttr(0);
   case StandardTypes::Integer:
     return getIntegerAttr(type, APInt(type.cast<IntegerType>().getWidth(), 0));
   case StandardTypes::Vector:

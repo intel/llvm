@@ -1561,6 +1561,14 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return mapValue(BV, transValue(BI, nullptr, nullptr, false));
   }
 
+  case OpConstFunctionPointerINTEL: {
+    SPIRVConstFunctionPointerINTEL *BC =
+        static_cast<SPIRVConstFunctionPointerINTEL *>(BV);
+    SPIRVFunction *F = BC->getFunction();
+    BV->setName(F->getName());
+    return mapValue(BV, transFunction(F));
+  }
+
   case OpUndef:
     return mapValue(BV, UndefValue::get(transType(BV->getType())));
 
@@ -1743,11 +1751,13 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     StoreInst *SI = nullptr;
     auto *Src = transValue(BS->getSrc(), F, BB);
     auto *Dst = transValue(BS->getDst(), F, BB);
-    // An intrinsic call may have been generated for the source variable.
+    // A pointer annotation may have been generated for the source variable.
     if (Use *SingleUse = Src->getSingleUndroppableUse()) {
       if (auto *II = dyn_cast<IntrinsicInst>(SingleUse->getUser())) {
-        // Overwrite the future store operand with the intrinsic call result.
-        Src = II;
+        if (II->getIntrinsicID() == Intrinsic::ptr_annotation &&
+            II->getType() == Src->getType())
+          // Overwrite the future store operand with the intrinsic call result.
+          Src = II;
       }
     }
     bool isVolatile = BS->SPIRVMemoryAccess::isVolatile();
@@ -2277,14 +2287,6 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return mapValue(BV, Call);
   }
 
-  case OpFunctionPointerINTEL: {
-    SPIRVFunctionPointerINTEL *BC =
-        static_cast<SPIRVFunctionPointerINTEL *>(BV);
-    SPIRVFunction *F = BC->getFunction();
-    BV->setName(F->getName());
-    return mapValue(BV, transFunction(F));
-  }
-
   case OpAssumeTrueINTEL: {
     IRBuilder<> Builder(BB);
     SPIRVAssumeTrueINTEL *BC = static_cast<SPIRVAssumeTrueINTEL *>(BV);
@@ -2447,6 +2449,20 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return mapValue(BV, IntrinsicCall);
   }
 
+  case OpFixedSqrtINTEL:
+  case OpFixedRecipINTEL:
+  case OpFixedRsqrtINTEL:
+  case OpFixedSinINTEL:
+  case OpFixedCosINTEL:
+  case OpFixedSinCosINTEL:
+  case OpFixedSinPiINTEL:
+  case OpFixedCosPiINTEL:
+  case OpFixedSinCosPiINTEL:
+  case OpFixedLogINTEL:
+  case OpFixedExpINTEL:
+    return mapValue(
+        BV, transFixedPointInst(static_cast<SPIRVInstruction *>(BV), BB));
+
   case OpArbitraryFloatCastINTEL:
   case OpArbitraryFloatCastFromIntINTEL:
   case OpArbitraryFloatCastToIntINTEL:
@@ -2518,6 +2534,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   }
 }
 
+// Get meaningful suffix for adding at the end of the function name to avoid
+// ascending numerical suffixes. It is useful in situations, where the same
+// function is called twice or more in one basic block. So, the function name is
+// formed in the following way: [FuncName].[ReturnTy].[InputTy]
 static std::string getFuncAPIntSuffix(const Type *RetTy, const Type *In1Ty,
                                       const Type *In2Ty = nullptr) {
   std::stringstream Suffix;
@@ -2526,6 +2546,55 @@ static std::string getFuncAPIntSuffix(const Type *RetTy, const Type *In1Ty,
   if (In2Ty)
     Suffix << ".i" << In2Ty->getIntegerBitWidth();
   return Suffix.str();
+}
+
+CallInst *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI,
+                                           BasicBlock *BB) {
+  // LLVM fixed point functions return value:
+  // iN (arbitrary precision integer of N bits length)
+  // Arguments:
+  // A(iN), S(i1), I(i32), rI(i32), Quantization(i32), Overflow(i32)
+
+  // SPIR-V fixed point instruction contains:
+  // <id>ResTy Res<id> In<id> Literal S Literal I Literal rI Literal Q Literal O
+
+  Type *RetTy = transType(BI->getType());
+
+  auto Inst = static_cast<SPIRVFixedPointIntelInst *>(BI);
+  Type *InTy = transType(Inst->getOperand(0)->getType());
+
+  IntegerType *Int32Ty = IntegerType::get(*Context, 32);
+  IntegerType *Int1Ty = IntegerType::get(*Context, 1);
+
+  SmallVector<Type *, 7> ArgTys = {InTy,    Int1Ty,  Int32Ty,
+                                   Int32Ty, Int32Ty, Int32Ty};
+  FunctionType *FT = FunctionType::get(RetTy, ArgTys, false);
+
+  Op OpCode = Inst->getOpCode();
+  std::string FuncName =
+      SPIRVFixedPointIntelMap::rmap(OpCode) + getFuncAPIntSuffix(RetTy, InTy);
+
+  FunctionCallee FCallee = M->getOrInsertFunction(FuncName, FT);
+
+  auto *Fn = cast<Function>(FCallee.getCallee());
+  Fn->setCallingConv(CallingConv::SPIR_FUNC);
+  if (isFuncNoUnwind())
+    Fn->addFnAttr(Attribute::NoUnwind);
+
+  // Words contain:
+  // In<id> Literal S Literal I Literal rI Literal Q Literal O
+  auto Words = Inst->getOpWords();
+  std::vector<Value *> Args = {
+      transValue(Inst->getOperand(0), BB->getParent(), BB) /* A - input */,
+      ConstantInt::get(Int1Ty, Words[1]) /* S - indicator of signedness */,
+      ConstantInt::get(Int32Ty,
+                       Words[2]) /* I - fixed-point location of the input */,
+      ConstantInt::get(Int32Ty,
+                       Words[3]) /* rI - fixed-point location of the result*/,
+      ConstantInt::get(Int32Ty, Words[4]) /* Quantization mode */,
+      ConstantInt::get(Int32Ty, Words[5]) /* Overflow mode */};
+
+  return CallInst::Create(FCallee, Args, "", BB);
 }
 
 CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
@@ -3175,7 +3244,6 @@ bool SPIRVToLLVM::translate() {
     if (BV->getStorageClass() != StorageClassFunction)
       transValue(BV, nullptr, nullptr);
   }
-  transGlobalAnnotations();
 
   // Compile unit might be needed during translation of debug intrinsics.
   for (SPIRVExtInst *EI : BM->getDebugInstVec()) {
@@ -3194,7 +3262,10 @@ bool SPIRVToLLVM::translate() {
 
   for (unsigned I = 0, E = BM->getNumFunctions(); I != E; ++I) {
     transFunction(BM->getFunction(I));
+    transUserSemantic(BM->getFunction(I));
   }
+
+  transGlobalAnnotations();
 
   if (!transMetadata())
     return false;
@@ -3455,6 +3526,38 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
         C, ConstantExpr::getBitCast(GS, Int8PtrTyPrivate),
         UndefValue::get(Int8PtrTyPrivate), UndefValue::get(Int32Ty)};
 
+    GlobalAnnotations.push_back(ConstantStruct::getAnon(Fields));
+  }
+}
+
+// Having UserSemantic decoration on Function is against the spec, but we allow
+// this for various purposes (like prototyping new features when we need to
+// attach some information on function and propagate that through SPIR-V and
+// ect.)
+void SPIRVToLLVM::transUserSemantic(SPIRV::SPIRVFunction *Fun) {
+  auto TransFun = transFunction(Fun);
+  for (auto UsSem : Fun->getDecorationStringLiteral(DecorationUserSemantic)) {
+    auto V = cast<Value>(TransFun);
+    Constant *StrConstant =
+        ConstantDataArray::getString(*Context, StringRef(UsSem));
+    auto *GS = new GlobalVariable(
+        *TransFun->getParent(), StrConstant->getType(),
+        /*IsConstant*/ true, GlobalValue::PrivateLinkage, StrConstant, "");
+
+    GS->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
+    GS->setSection("llvm.metadata");
+
+    Type *ResType = PointerType::getInt8PtrTy(
+        V->getContext(), V->getType()->getPointerAddressSpace());
+    Constant *C =
+        ConstantExpr::getPointerBitCastOrAddrSpaceCast(TransFun, ResType);
+
+    Type *Int8PtrTyPrivate = Type::getInt8PtrTy(*Context, SPIRAS_Private);
+    IntegerType *Int32Ty = Type::getInt32Ty(*Context);
+
+    llvm::Constant *Fields[4] = {
+        C, ConstantExpr::getBitCast(GS, Int8PtrTyPrivate),
+        UndefValue::get(Int8PtrTyPrivate), UndefValue::get(Int32Ty)};
     GlobalAnnotations.push_back(ConstantStruct::getAnon(Fields));
   }
 }

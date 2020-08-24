@@ -503,6 +503,12 @@ int main(int argc, char *const argv[]) {
       options.features.Enable(
           Fortran::parser::LanguageFeature::LogicalAbbreviations,
           arg == "-flogical-abbreviations");
+    } else if (arg == "-fimplicit-none-type-always") {
+      options.features.Enable(
+          Fortran::common::LanguageFeature::ImplicitNoneTypeAlways);
+    } else if (arg == "-fimplicit-none-type-never") {
+      options.features.Enable(
+          Fortran::common::LanguageFeature::ImplicitNoneTypeNever);
     } else if (arg == "-fdebug-dump-provenance") {
       driver.dumpProvenance = true;
       options.needProvenanceRangeToCharBlockMappings = true;
@@ -603,8 +609,22 @@ int main(int argc, char *const argv[]) {
       driver.getSymbolsSources = true;
     } else if (arg == "-byteswapio") {
       driver.byteswapio = true; // TODO: Pass to lowering, generate call
-    } else if (arg == "-help" || arg == "--help" || arg == "-?") {
+    } else if (arg == "-h" || arg == "-help" || arg == "--help" ||
+        arg == "-?") {
       llvm::errs()
+          << "f18: LLVM Fortran compiler\n"
+          << "\n"
+          << "Usage: f18 [options] <input files>\n"
+          << "\n"
+          << "Defaults:\n"
+          << "  When invoked with input files, and no options to tell\n"
+          << "  it otherwise, f18 will unparse its input and pass that on to an\n"
+          << "  external compiler to continue the compilation.\n"
+          << "  The external compiler is specified by the F18_FC environment\n"
+          << "  variable. The default is 'gfortran'.\n"
+          << "  If invoked with no input files, f18 reads source code from\n"
+          << "  stdin and runs with -fdebug-measure-parse-tree -funparse.\n"
+          << "\n"
           << "f18 options:\n"
           << "  -Mfixed | -Mfree | -ffixed-form | -ffree-form   force the "
              "source form\n"
@@ -638,7 +658,8 @@ int main(int argc, char *const argv[]) {
           << "  -fget-symbols-sources\n"
           << "  -v -c -o -I -D -U    have their usual meanings\n"
           << "  -help                print this again\n"
-          << "Other options are passed through to the compiler.\n";
+          << "Unrecognised options are passed through to the external compiler\n"
+          << "set by F18_FC (see defaults).\n";
       return exitStatus;
     } else if (arg == "-V") {
       llvm::errs() << "\nf18 compiler (under development)\n";
@@ -686,6 +707,8 @@ int main(int argc, char *const argv[]) {
   if (!anyFiles) {
     driver.measureTree = true;
     driver.dumpUnparse = true;
+    llvm::outs() << "Enter Fortran source\n"
+                 << "Use EOF character (^D) to end file\n";
     CompileFortran("-", options, driver, defaultKinds);
     return exitStatus;
   }

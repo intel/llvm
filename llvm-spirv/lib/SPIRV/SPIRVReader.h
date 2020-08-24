@@ -108,6 +108,7 @@ public:
   Value *transAsmINTEL(SPIRVAsmINTEL *BA);
   CallInst *transAsmCallINTEL(SPIRVAsmCallINTEL *BI, Function *F,
                               BasicBlock *BB);
+  CallInst *transFixedPointInst(SPIRVInstruction *BI, BasicBlock *BB);
   CallInst *transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
                               bool IsBinaryInst = false);
   bool transNonTemporalMetadata(Instruction *I);
@@ -266,6 +267,7 @@ private:
   Instruction *transOCLAllAny(SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transOCLRelational(SPIRVInstruction *BI, BasicBlock *BB);
 
+  void transUserSemantic(SPIRV::SPIRVFunction *Fun);
   void transGlobalAnnotations();
   void transIntelFPGADecorations(SPIRVValue *BV, Value *V);
 }; // class SPIRVToLLVM

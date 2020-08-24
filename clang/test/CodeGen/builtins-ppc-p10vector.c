@@ -2,7 +2,6 @@
 // RUN: %clang_cc1 -target-feature +vsx \
 // RUN:   -target-cpu pwr10 -triple powerpc64-unknown-unknown -emit-llvm %s \
 // RUN:   -o - | FileCheck %s -check-prefixes=CHECK-BE,CHECK
-
 // RUN: %clang_cc1 -target-feature +vsx \
 // RUN:   -target-cpu pwr10 -triple powerpc64le-unknown-unknown -emit-llvm %s \
 // RUN:   -o - | FileCheck %s -check-prefixes=CHECK-LE,CHECK
@@ -24,6 +23,66 @@ unsigned int uia, uib;
 unsigned char uca;
 unsigned short usa;
 unsigned long long ulla;
+
+vector signed long long test_vec_mul_sll(void) {
+  // CHECK: mul <2 x i64>
+  // CHECK-NEXT: ret <2 x i64>
+  return vec_mul(vslla, vsllb);
+}
+
+vector unsigned long long test_vec_mul_ull(void) {
+  // CHECK: mul <2 x i64>
+  // CHECK-NEXT: ret <2 x i64>
+  return vec_mul(vulla, vullb);
+}
+
+vector signed int test_vec_div_si(void) {
+  // CHECK: sdiv <4 x i32>
+  // CHECK-NEXT: ret <4 x i32>
+  return vec_div(vsia, vsib);
+}
+
+vector unsigned int test_vec_div_ui(void) {
+  // CHECK: udiv <4 x i32>
+  // CHECK-NEXT: ret <4 x i32>
+  return vec_div(vuia, vuib);
+}
+
+vector signed long long test_vec_div_sll(void) {
+  // CHECK: sdiv <2 x i64>
+  // CHECK-NEXT: ret <2 x i64>
+  return vec_div(vslla, vsllb);
+}
+
+vector unsigned long long test_vec_div_ull(void) {
+  // CHECK: udiv <2 x i64>
+  // CHECK-NEXT: ret <2 x i64>
+  return vec_div(vulla, vullb);
+}
+
+vector signed int test_vec_mod_si(void) {
+  // CHECK: srem <4 x i32>
+  // CHECK-NEXT: ret <4 x i32>
+  return vec_mod(vsia, vsib);
+}
+
+vector unsigned int test_vec_mod_ui(void) {
+  // CHECK: urem <4 x i32>
+  // CHECK-NEXT: ret <4 x i32>
+  return vec_mod(vuia, vuib);
+}
+
+vector signed long long test_vec_mod_sll(void) {
+  // CHECK: srem <2 x i64>
+  // CHECK-NEXT: ret <2 x i64>
+  return vec_mod(vslla, vsllb);
+}
+
+vector unsigned long long test_vec_mod_ull(void) {
+  // CHECK: urem <2 x i64>
+  // CHECK-NEXT: ret <2 x i64>
+  return vec_mod(vulla, vullb);
+}
 
 vector unsigned long long test_vpdepd(void) {
   // CHECK: @llvm.ppc.altivec.vpdepd(<2 x i64>
@@ -507,6 +566,102 @@ vector unsigned int test_vec_inserth_uiv(void) {
   // CHECK-LE: @llvm.ppc.altivec.vinswvlx(<4 x i32> %{{.+}}, i32 %{{.+}}, <4 x i32>
   // CHECK-LE-NEXT: ret <4 x i32>
   return vec_inserth(vuia, vuib, uia);
+}
+
+vector unsigned long long test_vec_extractl_uc(void) {
+  // CHECK-BE: @llvm.ppc.altivec.vextdubvlx(<16 x i8> %{{.+}}, <16 x i8> %{{.+}}, i32
+  // CHECK-BE: [[T1:%.+]] = bitcast <2 x i64> %{{.*}} to <4 x i32>
+  // CHECK-BE: [[T2:%.+]] = bitcast <2 x i64> %{{.*}} to <4 x i32>
+  // CHECK-BE: [[T3:%.+]] = call <4 x i32> @llvm.ppc.altivec.vperm(<4 x i32> [[T1]], <4 x i32> [[T2]], <16 x i8> {{.+}})
+  // CHECK-BE: [[T4:%.+]] = bitcast <4 x i32> [[T3]] to <2 x i64>
+  // CHECK-BE: ret <2 x i64>
+  // CHECK-LE: @llvm.ppc.altivec.vextdubvrx(<16 x i8> %{{.+}}, <16 x i8> %{{.+}}, i32
+  // CHECK-LE-NEXT: ret <2 x i64>
+  return vec_extractl(vuca, vucb, uia);
+}
+
+vector unsigned long long test_vec_extractl_us(void) {
+  // CHECK-BE: @llvm.ppc.altivec.vextduhvlx(<8 x i16> %{{.+}}, <8 x i16> %{{.+}}, i32
+  // CHECK-BE: [[T1:%.+]] = bitcast <2 x i64> %{{.*}} to <4 x i32>
+  // CHECK-BE: [[T2:%.+]] = bitcast <2 x i64> %{{.*}} to <4 x i32>
+  // CHECK-BE: [[T3:%.+]] = call <4 x i32> @llvm.ppc.altivec.vperm(<4 x i32> [[T1]], <4 x i32> [[T2]], <16 x i8> {{.+}})
+  // CHECK-BE: [[T4:%.+]] = bitcast <4 x i32> [[T3]] to <2 x i64>
+  // CHECK-BE: ret <2 x i64>
+  // CHECK-LE: @llvm.ppc.altivec.vextduhvrx(<8 x i16> %{{.+}}, <8 x i16> %{{.+}}, i32
+  // CHECK-LE-NEXT: ret <2 x i64>
+  return vec_extractl(vusa, vusb, uia);
+}
+
+vector unsigned long long test_vec_extractl_ui(void) {
+  // CHECK-BE: @llvm.ppc.altivec.vextduwvlx(<4 x i32> %{{.+}}, <4 x i32> %{{.+}}, i32
+  // CHECK-BE: [[T1:%.+]] = bitcast <2 x i64> %{{.*}} to <4 x i32>
+  // CHECK-BE: [[T2:%.+]] = bitcast <2 x i64> %{{.*}} to <4 x i32>
+  // CHECK-BE: [[T3:%.+]] = call <4 x i32> @llvm.ppc.altivec.vperm(<4 x i32> [[T1]], <4 x i32> [[T2]], <16 x i8> {{.+}})
+  // CHECK-BE: [[T4:%.+]] = bitcast <4 x i32> [[T3]] to <2 x i64>
+  // CHECK-BE: ret <2 x i64>
+  // CHECK-LE: @llvm.ppc.altivec.vextduwvrx(<4 x i32> %{{.+}}, <4 x i32> %{{.+}}, i32
+  // CHECK-LE-NEXT: ret <2 x i64>
+  return vec_extractl(vuia, vuib, uia);
+}
+
+vector unsigned long long test_vec_extractl_ul(void) {
+  // CHECK-BE: @llvm.ppc.altivec.vextddvlx(<2 x i64> %{{.+}}, <2 x i64> %{{.+}}, i32
+  // CHECK-BE: [[T1:%.+]] = bitcast <2 x i64> %{{.*}} to <4 x i32>
+  // CHECK-BE: [[T2:%.+]] = bitcast <2 x i64> %{{.*}} to <4 x i32>
+  // CHECK-BE: [[T3:%.+]] = call <4 x i32> @llvm.ppc.altivec.vperm(<4 x i32> [[T1]], <4 x i32> [[T2]], <16 x i8> {{.+}})
+  // CHECK-BE: [[T4:%.+]] = bitcast <4 x i32> [[T3]] to <2 x i64>
+  // CHECK-BE: ret <2 x i64>
+  // CHECK-LE: @llvm.ppc.altivec.vextddvrx(<2 x i64> %{{.+}}, <2 x i64> %{{.+}}, i32
+  // CHECK-LE-NEXT: ret <2 x i64>
+  return vec_extractl(vulla, vullb, uia);
+}
+
+vector unsigned long long test_vec_extracth_uc(void) {
+  // CHECK-BE: @llvm.ppc.altivec.vextdubvrx(<16 x i8> %{{.+}}, <16 x i8> %{{.+}}, i32
+  // CHECK-BE: [[T1:%.+]] = bitcast <2 x i64> %{{.*}} to <4 x i32>
+  // CHECK-BE: [[T2:%.+]] = bitcast <2 x i64> %{{.*}} to <4 x i32>
+  // CHECK-BE: [[T3:%.+]] = call <4 x i32> @llvm.ppc.altivec.vperm(<4 x i32> [[T1]], <4 x i32> [[T2]], <16 x i8> {{.+}})
+  // CHECK-BE: [[T4:%.+]] = bitcast <4 x i32> [[T3]] to <2 x i64>
+  // CHECK-BE: ret <2 x i64>
+  // CHECK-LE: @llvm.ppc.altivec.vextdubvlx(<16 x i8> %{{.+}}, <16 x i8> %{{.+}}, i32
+  // CHECK-LE-NEXT: ret <2 x i64>
+  return vec_extracth(vuca, vucb, uia);
+}
+
+vector unsigned long long test_vec_extracth_us(void) {
+  // CHECK-BE: @llvm.ppc.altivec.vextduhvrx(<8 x i16> %{{.+}}, <8 x i16> %{{.+}}, i32
+  // CHECK-BE: [[T1:%.+]] = bitcast <2 x i64> %{{.*}} to <4 x i32>
+  // CHECK-BE: [[T2:%.+]] = bitcast <2 x i64> %{{.*}} to <4 x i32>
+  // CHECK-BE: [[T3:%.+]] = call <4 x i32> @llvm.ppc.altivec.vperm(<4 x i32> [[T1]], <4 x i32> [[T2]], <16 x i8> {{.+}})
+  // CHECK-BE: [[T4:%.+]] = bitcast <4 x i32> [[T3]] to <2 x i64>
+  // CHECK-BE: ret <2 x i64>
+  // CHECK-LE: @llvm.ppc.altivec.vextduhvlx(<8 x i16> %{{.+}}, <8 x i16> %{{.+}}, i32
+  // CHECK-LE-NEXT: ret <2 x i64>
+  return vec_extracth(vusa, vusb, uia);
+}
+
+vector unsigned long long test_vec_extracth_ui(void) {
+  // CHECK-BE: @llvm.ppc.altivec.vextduwvrx(<4 x i32> %{{.+}}, <4 x i32> %{{.+}}, i32
+  // CHECK-BE: [[T1:%.+]] = bitcast <2 x i64> %{{.*}} to <4 x i32>
+  // CHECK-BE: [[T2:%.+]] = bitcast <2 x i64> %{{.*}} to <4 x i32>
+  // CHECK-BE: [[T3:%.+]] = call <4 x i32> @llvm.ppc.altivec.vperm(<4 x i32> [[T1]], <4 x i32> [[T2]], <16 x i8> {{.+}})
+  // CHECK-BE: [[T4:%.+]] = bitcast <4 x i32> [[T3]] to <2 x i64>
+  // CHECK-BE: ret <2 x i64>
+  // CHECK-LE: @llvm.ppc.altivec.vextduwvlx(<4 x i32> %{{.+}}, <4 x i32> %{{.+}}, i32
+  // CHECK-LE-NEXT: ret <2 x i64>
+  return vec_extracth(vuia, vuib, uia);
+}
+
+vector unsigned long long test_vec_extracth_ul(void) {
+  // CHECK-BE: @llvm.ppc.altivec.vextddvrx(<2 x i64> %{{.+}}, <2 x i64> %{{.+}}, i32
+  // CHECK-BE: [[T1:%.+]] = bitcast <2 x i64> %{{.*}} to <4 x i32>
+  // CHECK-BE: [[T2:%.+]] = bitcast <2 x i64> %{{.*}} to <4 x i32>
+  // CHECK-BE: [[T3:%.+]] = call <4 x i32> @llvm.ppc.altivec.vperm(<4 x i32> [[T1]], <4 x i32> [[T2]], <16 x i8> {{.+}})
+  // CHECK-BE: [[T4:%.+]] = bitcast <4 x i32> [[T3]] to <2 x i64>
+  // CHECK-BE: ret <2 x i64>
+  // CHECK-LE: @llvm.ppc.altivec.vextddvlx(<2 x i64> %{{.+}}, <2 x i64> %{{.+}}, i32
+  // CHECK-LE-NEXT: ret <2 x i64>
+  return vec_extracth(vulla, vullb, uia);
 }
 
 vector signed int test_vec_vec_splati_si(void) {

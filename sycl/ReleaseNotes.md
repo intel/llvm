@@ -1,6 +1,6 @@
 # August'20 release notes
 
-Release notes for the commit range 75b3dc2..414c1e5
+Release notes for the commit range 75b3dc2..5976ff0
 
 ## New features
   - Implemented basic support for the [Explicit SIMD extension](./sycl/doc/extensions/ExplicitSIMD/dpcpp-explicit-simd.md)
@@ -10,12 +10,11 @@ Release notes for the commit range 75b3dc2..414c1e5
   - Implemented aspects feature from the SYCL 2020 provisional Specification
     [89804af]
 
-
 ## Improvements
 ### SYCL Compiler
-  - [CUDA BE] Removed unnecessary memory fence in the `sycl::group::barier`
+  - [CUDA BE] Removed unnecessary memory fence in the `sycl::group::barrier`
     implementation which should improve performance [e2fc1b8]
-  - [CUDA BE] Added support for the sycl builtins from  relational, geometric,
+  - [CUDA BE] Added support for the SYCL builtins from relational, geometric,
     common and math categories [d4e7929] [d9bad0b] [0c9c9c0] [99957c5]
   - Added support for `C array` as a kernel parameter [00e7308]
   - [CUDA BE] Added support for kernel offset [c7bb288]
@@ -32,7 +31,7 @@ Release notes for the commit range 75b3dc2..414c1e5
   - Added a diagnostic on attempt to capture `this` as a kernel parameter
     [1b9f026]
   - Added [[intel::reqd_sub_group_size()]] attribute as a replacement for
-    [[cl::reqd_sub_group_size()]] which is now depricated [b2da2c8]
+    [[cl::reqd_sub_group_size()]] which is now deprecated [b2da2c8]
   - Added propagation of attributes from transitive calls to the kernel[5c91609]
   - Changed the driver to pass corresponding device specific options when `-g`
     or `-O0` is passed [31eb425]
@@ -40,7 +39,9 @@ Release notes for the commit range 75b3dc2..414c1e5
     and can be used with `std::allocate_shared`. Disallowed usage with 
     device allocations [ce915ef]
   - Added support for lambda functions passed to reductions [115c1a0]
-
+  - Enabled standard optimization pipeline for the device code by default. The
+    new compiler flag can be used to disable optimizations at compile time:
+    `-fno-sycl-std-optimizations` [5976ff0]
 
 ### SYCL Library
   - Added support for braced-init-list or a number as range for
@@ -66,13 +67,13 @@ Release notes for the commit range 75b3dc2..414c1e5
     [800e452]
   - Added a diagnostic on attempt to create a device accessor from zero-sized
     buffer [80b2110]
-  - Changed default backend to level zero [11ef88c]
+  - Changed default backend to Level Zero [11ef88c]
   - Improved performance of the SYCL graph cleanup [c099e47]
   - [L0 BE] Added support for `sycl::sampler` [f3b8cdf]
   - Added support for `TriviallyCopyable` types to the
     `sycl::intel::sub_group::shuffle` [d3c7b20]
   - Implemented range simplification for queue Shortcuts [4009b8b]
-  - Changed `sycl::accessor::operator[]` to return const reference when acess
+  - Changed `sycl::accessor::operator[]` to return const reference when access
     mode is `sycl::access::mode::read_only` [03db009]
   - Exceptions thrown in a host task are now will be returned as asynchronous
     exceptions [280b93c]
@@ -85,9 +86,8 @@ Release notes for the commit range 75b3dc2..414c1e5
   - Implemented `get_native` and `make_*` functions for Level Zero allowing to
     query native handles of SYCL objects and to create SYCL objects by providing
     a native handle: platform, device, queue, program. The feature is described
-    the SYCL 2020 provisional specification [a51c333]
+    in the SYCL 2020 provisional specification [a51c333]
   - Added support for `sycl::intel::atomic_ref` from [SYCL_INTEL_extended_atomics extension](doc/extensions/ExtendedAtomics/SYCL_INTEL_extended_atomics.asciidoc)
-
 
 ### Documentation
   - Added [SYCL_INTEL_accessor_properties](doc/extensions/accessor_properties/SYCL_INTEL_accessor_properties.asciidoc) extension specification [58fc414]
@@ -101,7 +101,6 @@ Release notes for the commit range 75b3dc2..414c1e5
     document has been updated [067536e]
   - Added [FPGA lsu extension](sycl/doc/extensions/IntelFPGA/FPGALsu.md)
     document [2c2b5f2]
-
 
 ## Bug fixes
 ### SYCL Compiler
@@ -136,7 +135,7 @@ Release notes for the commit range 75b3dc2..414c1e5
   - [CUDA BE] Fixed a memory leak related to unreleased events [d0a148a]
   - [CUDA BE] Fixed diagnostic on attempt to fetch profiling info for commands
     which profiling is not enabled for [76bf2ed]
-  - [L0 BE] Fixed memory leaks of device objects [eae48f6][6acb812]
+  - [L0 BE] Fixed memory leaks of device objects [eae48f6][6acb812][39e77733]
   - [CUDA BE] Fixed a problem with that several operations were not profiled
     if required [a420e7a]
   - Fixed a possible race which could happen when an application builds an
@@ -159,7 +158,6 @@ Release notes for the commit range 75b3dc2..414c1e5
     when using `sycl::handler::set_arg` method [a08674e]
   - Fixed `sycl::device::get_info<cl::sycl::info::device::sub_group_sizes>`
     which was return incorrect data [e65841b]
-
 
 ## API/ABI breakages
   - The memory_manager API has changed

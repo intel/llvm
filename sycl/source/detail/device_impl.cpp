@@ -58,7 +58,7 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
                                           nullptr);
 
   MIsRootDevice = (nullptr == parent);
-  if (!MIsRootDevice && !InteroperabilityConstructor) {
+  if (!InteroperabilityConstructor) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     // Interoperability Constructor already calls DeviceRetain in
     // piextDeviceFromNative.
@@ -98,10 +98,9 @@ cl_device_id device_impl::get() const {
                                PI_INVALID_DEVICE);
 
   const detail::plugin &Plugin = getPlugin();
-  if (!MIsRootDevice) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piDeviceRetain>(MDevice);
-  }
+
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  Plugin.call<PiApiKind::piDeviceRetain>(MDevice);
   return pi::cast<cl_device_id>(getNative());
 }
 

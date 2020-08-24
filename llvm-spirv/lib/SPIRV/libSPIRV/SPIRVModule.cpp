@@ -256,6 +256,8 @@ public:
                                              SPIRVBasicBlock *) override;
   SPIRVValue *addCompositeConstant(SPIRVType *,
                                    const std::vector<SPIRVValue *> &) override;
+  SPIRVValue *addConstFunctionPointerINTEL(SPIRVType *Ty,
+                                           SPIRVFunction *F) override;
   SPIRVValue *addConstant(SPIRVValue *) override;
   SPIRVValue *addConstant(SPIRVType *, uint64_t) override;
   SPIRVValue *addSpecConstant(SPIRVType *, uint64_t) override;
@@ -296,8 +298,6 @@ public:
   SPIRVInstruction *addIndirectCallInst(SPIRVValue *, SPIRVType *,
                                         const std::vector<SPIRVWord> &,
                                         SPIRVBasicBlock *) override;
-  SPIRVInstruction *addFunctionPointerINTELInst(SPIRVType *, SPIRVFunction *,
-                                                SPIRVBasicBlock *) override;
   SPIRVEntry *getOrAddAsmTargetINTEL(const std::string &) override;
   SPIRVValue *addAsmINTEL(SPIRVTypeFunction *, SPIRVAsmTargetINTEL *,
                           const std::string &, const std::string &) override;
@@ -364,6 +364,10 @@ public:
   addLoopControlINTELInst(SPIRVWord LoopControl,
                           std::vector<SPIRVWord> LoopControlParameters,
                           SPIRVBasicBlock *BB) override;
+  SPIRVInstruction *addFixedPointIntelInst(Op OC, SPIRVType *ResTy,
+                                           SPIRVValue *Input,
+                                           const std::vector<SPIRVWord> &Ops,
+                                           SPIRVBasicBlock *BB) override;
   SPIRVInstruction *addArbFloatPointIntelInst(Op OC, SPIRVType *ResTy,
                                               SPIRVValue *InA, SPIRVValue *InB,
                                               const std::vector<SPIRVWord> &Ops,
@@ -1081,6 +1085,11 @@ SPIRVValue *SPIRVModuleImpl::addCompositeConstant(
   return addConstant(new SPIRVConstantComposite(this, Ty, getId(), Elements));
 }
 
+SPIRVValue *SPIRVModuleImpl::addConstFunctionPointerINTEL(SPIRVType *Ty,
+                                                          SPIRVFunction *F) {
+  return addConstant(new SPIRVConstFunctionPointerINTEL(getId(), Ty, F, this));
+}
+
 SPIRVValue *SPIRVModuleImpl::addUndef(SPIRVType *TheType) {
   return addConstant(new SPIRVUndef(this, TheType, getId()));
 }
@@ -1241,12 +1250,6 @@ SPIRVInstruction *SPIRVModuleImpl::addIndirectCallInst(
       new SPIRVFunctionPointerCallINTEL(getId(), TheCalledValue, TheReturnType,
                                         TheArguments, BB),
       BB);
-}
-
-SPIRVInstruction *SPIRVModuleImpl::addFunctionPointerINTELInst(
-    SPIRVType *TheType, SPIRVFunction *TheFunction, SPIRVBasicBlock *BB) {
-  return addInstruction(
-      new SPIRVFunctionPointerINTEL(getId(), TheType, TheFunction, BB), BB);
 }
 
 SPIRVEntry *
@@ -1412,6 +1415,14 @@ SPIRVInstruction *SPIRVModuleImpl::addLoopControlINTELInst(
   return addInstruction(
       new SPIRVLoopControlINTEL(LoopControl, LoopControlParameters, BB), BB,
       const_cast<SPIRVInstruction *>(BB->getTerminateInstr()));
+}
+
+SPIRVInstruction *SPIRVModuleImpl::addFixedPointIntelInst(
+    Op OC, SPIRVType *ResTy, SPIRVValue *Input,
+    const std::vector<SPIRVWord> &Ops, SPIRVBasicBlock *BB) {
+  std::vector<SPIRVWord> TheOps = getVec(Input->getId(), Ops);
+  return addInstruction(
+      SPIRVInstTemplateBase::create(OC, ResTy, getId(), TheOps, BB, this), BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addArbFloatPointIntelInst(

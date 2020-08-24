@@ -389,7 +389,7 @@ enum FPRoundingMode {
 enum LinkageType {
     LinkageTypeExport = 0,
     LinkageTypeImport = 1,
-    LinkageTypeInternal, /* internal use only */
+    LinkageTypeInternal = 2, /* internal use only */
     LinkageTypeMax = 0x7fffffff,
 };
 
@@ -965,6 +965,7 @@ enum Capability {
   CapabilityKernelAttributesINTEL = 5892,
   CapabilityFPGAKernelAttributesINTEL = 5897,
   CapabilityFPGABufferLocationINTEL = 5920,
+  CapabilityArbitraryPrecisionFixedPointINTEL = 5922,
   CapabilityUSMStorageClassesINTEL = 5935,
   CapabilityFPGAMemoryAccessesINTEL = 5898,
   CapabilityIOPipeINTEL = 5943,
@@ -1376,7 +1377,7 @@ enum Op {
   OpUSubSatINTEL = 5596,
   OpIMul32x16INTEL = 5597,
   OpUMul32x16INTEL = 5598,
-  OpFunctionPointerINTEL = 5600,
+  OpConstFunctionPointerINTEL = 5600,
   OpFunctionPointerCallINTEL = 5601,
   OpAsmTargetINTEL = 5609,
   OpAsmINTEL = 5610,
@@ -1548,6 +1549,17 @@ enum Op {
   OpArbitraryFloatPowRINTEL = 5881,
   OpArbitraryFloatPowNINTEL = 5882,
   OpLoopControlINTEL = 5887,
+  OpFixedSqrtINTEL = 5923,
+  OpFixedRecipINTEL = 5924,
+  OpFixedRsqrtINTEL = 5925,
+  OpFixedSinINTEL = 5926,
+  OpFixedCosINTEL = 5927,
+  OpFixedSinCosINTEL = 5928,
+  OpFixedSinPiINTEL = 5929,
+  OpFixedCosPiINTEL = 5930,
+  OpFixedSinCosPiINTEL = 5931,
+  OpFixedLogINTEL = 5932,
+  OpFixedExpINTEL = 5933,
   OpPtrCastToCrossWorkgroupINTEL = 5934,
   OpCrossWorkgroupCastToPtrINTEL = 5938,
   OpReadPipeBlockingINTEL = 5946,

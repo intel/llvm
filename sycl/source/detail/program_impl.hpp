@@ -298,7 +298,7 @@ public:
   /// managemment PI APIs. The native program passed as non-null argument
   /// overrides the MProgram native program field.
   /// \param Img device binary image corresponding to this program, used to
-  ///        resolve spec constant name to SPIRV integer ID
+  ///        resolve spec constant name to SPIR-V integer ID
   /// \param NativePrg if not null, used as the flush target, otherwise MProgram
   ///        is used
   void flush_spec_constants(const RTDeviceBinaryImage &Img,
@@ -417,7 +417,7 @@ private:
   OSModuleHandle MProgramModuleHandle = OSUtil::ExeModuleHandle;
 
   // Keeps specialization constant map for this program. Spec constant name
-  // resolution to actual SPIRV integer ID happens at build time, where the
+  // resolution to actual SPIR-V integer ID happens at build time, where the
   // device binary image is available. Access is guarded by this context's
   // program cache lock.
   SpecConstRegistryT SpecConstRegistry;

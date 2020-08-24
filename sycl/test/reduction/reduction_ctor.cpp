@@ -49,7 +49,7 @@ void testKnown(T Identity, BinaryOperation BOp, T A, T B) {
     // This accessor is not really used in this test.
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
         ReduAcc(ReduBuf, CGH);
-    auto Redu = intel::reduction(ReduAcc, BOp);
+    auto Redu = ONEAPI::reduction(ReduAcc, BOp);
     assert(Redu.getIdentity() == Identity &&
            "Failed getIdentity() check().");
     test_reducer(Redu, A, B);
@@ -69,7 +69,7 @@ void testUnknown(T Identity, BinaryOperation BOp, T A, T B) {
     // This accessor is not really used in this test.
     accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
         ReduAcc(ReduBuf, CGH);
-    auto Redu = intel::reduction(ReduAcc, Identity, BOp);
+    auto Redu = ONEAPI::reduction(ReduAcc, Identity, BOp);
     assert(Redu.getIdentity() == Identity &&
            "Failed getIdentity() check().");
     test_reducer(Redu, Identity, BOp, A, B);
@@ -88,18 +88,20 @@ void testBoth(T Identity, BinaryOperation BOp, T A, T B) {
 }
 
 int main() {
-  testBoth<int>(0, intel::plus<int>(), 1, 7);
+  testBoth<int>(0, ONEAPI::plus<int>(), 1, 7);
   testBoth<int>(1, std::multiplies<int>(), 1, 7);
-  testBoth<int>(0, intel::bit_or<int>(), 1, 8);
-  testBoth<int>(0, intel::bit_xor<int>(), 7, 3);
-  testBoth<int>(~0, intel::bit_and<int>(), 7, 3);
-  testBoth<int>((std::numeric_limits<int>::max)(), intel::minimum<int>(), 7, 3);
-  testBoth<int>((std::numeric_limits<int>::min)(), intel::maximum<int>(), 7, 3);
+  testBoth<int>(0, ONEAPI::bit_or<int>(), 1, 8);
+  testBoth<int>(0, ONEAPI::bit_xor<int>(), 7, 3);
+  testBoth<int>(~0, ONEAPI::bit_and<int>(), 7, 3);
+  testBoth<int>((std::numeric_limits<int>::max)(), ONEAPI::minimum<int>(), 7,
+                3);
+  testBoth<int>((std::numeric_limits<int>::min)(), ONEAPI::maximum<int>(), 7,
+                3);
 
-  testBoth<float>(0, intel::plus<float>(), 1, 7);
+  testBoth<float>(0, ONEAPI::plus<float>(), 1, 7);
   testBoth<float>(1, std::multiplies<float>(), 1, 7);
-  testBoth<float>(getMaximumFPValue<float>(), intel::minimum<float>(), 7, 3);
-  testBoth<float>(getMinimumFPValue<float>(), intel::maximum<float>(), 7, 3);
+  testBoth<float>(getMaximumFPValue<float>(), ONEAPI::minimum<float>(), 7, 3);
+  testBoth<float>(getMinimumFPValue<float>(), ONEAPI::maximum<float>(), 7, 3);
 
   testUnknown<CustomVec<float>, 0,
               Unknown<CustomVec<float>, 0, CustomVecPlus<float>>>(

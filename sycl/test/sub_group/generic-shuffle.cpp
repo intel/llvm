@@ -1,10 +1,10 @@
-// TODO: Enable compilation w/o -fno-sycl-std-optimizations option.
+// TODO: Enable compilation w/o -fno-sycl-early-optimizations option.
 // See https://github.com/intel/llvm/issues/2264 for more details.
 
 // UNSUPPORTED: cuda
 // CUDA compilation and runtime do not yet support sub-groups.
 //
-// RUN: %clangxx -fsycl -fno-sycl-std-optimizations -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fno-sycl-early-optimizations -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -43,7 +43,7 @@ void check_pointer(queue &Queue, size_t G = 256, size_t L = 64) {
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
 
       cgh.parallel_for<pointer_kernel<T>>(NdRange, [=](nd_item<1> NdItem) {
-        intel::sub_group SG = NdItem.get_sub_group();
+        ONEAPI::sub_group SG = NdItem.get_sub_group();
         uint32_t wggid = NdItem.get_global_id(0);
         uint32_t sgid = SG.get_group_id().get(0);
         if (wggid == 0)
@@ -144,7 +144,7 @@ void check_struct(queue &Queue, Generator &Gen, size_t G = 256, size_t L = 64) {
       auto in = buf_in.template get_access<access::mode::read>(cgh);
 
       cgh.parallel_for<pointer_kernel<T>>(NdRange, [=](nd_item<1> NdItem) {
-        intel::sub_group SG = NdItem.get_sub_group();
+        ONEAPI::sub_group SG = NdItem.get_sub_group();
         uint32_t wggid = NdItem.get_global_id(0);
         uint32_t sgid = SG.get_group_id().get(0);
         if (wggid == 0)

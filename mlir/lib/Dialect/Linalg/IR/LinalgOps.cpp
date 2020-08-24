@@ -986,17 +986,6 @@ static LogicalResult verifyStrideOrDilation(LinalgPoolingOp op,
   return success();
 }
 
-template <typename ConvNDOp>
-static LogicalResult verify(ConvNDOp op) {
-  auto outputType = op.getOutputShapedType(0).getElementType();
-  auto inputType = op.getInputShapedType(0).getElementType();
-  auto kernelType = op.getInputShapedType(1).getElementType();
-  if (outputType != inputType || inputType != kernelType)
-    return op.emitOpError("expected all element types of operands to match");
-
-  return success();
-}
-
 static LogicalResult verify(ConvOp op) {
   auto oType = op.output().getType().cast<MemRefType>();
   auto fType = op.filter().getType().cast<MemRefType>();
@@ -1107,27 +1096,6 @@ mlir::linalg::weightedPoolingInputIndex(PoolingOp op,
   return res;
 }
 
-llvm::Optional<SmallVector<AffineMap, 8>>
-mlir::linalg::createConvNDIndexingMaps(MLIRContext *context, unsigned rank) {
-  unsigned numDims = rank * 2, idx = 0;
-
-  SmallVector<AffineExpr, 8> dims, in, kernel, out;
-  dims = makeAffineDimExprs(numDims, idx, context);
-  in.reserve(rank);
-  kernel.reserve(rank);
-  out.reserve(rank);
-
-  for (unsigned i = 0; i < rank; i++) {
-    in.push_back(dims[i] + dims[rank + i]);
-    kernel.push_back(dims[rank + i]);
-    out.push_back(dims[i]);
-  }
-
-  return SmallVector<AffineMap, 8>{AffineMap::get(numDims, 0, in, context),
-                                   AffineMap::get(numDims, 0, kernel, context),
-                                   AffineMap::get(numDims, 0, out, context)};
-}
-
 #define INSTANTIATE_WEIGHTED_POOLING_INPUT_INDEX(OP_TYPE)                      \
   template SmallVector<AffineExpr, 4>                                          \
   mlir::linalg::weightedPoolingInputIndex<OP_TYPE>(                            \
@@ -1185,50 +1153,6 @@ std::string mlir::linalg::generateLibraryCallName(Operation *op) {
 // TODO: Consider making all this boilerplate easy to autogenerate
 // with Tablegen. This seems a desirable property in the context of OpInterfaces
 // where a Linalg "named" op **isa** LinalgOp.
-LogicalResult ConvOp::fold(ArrayRef<Attribute>,
-                           SmallVectorImpl<OpFoldResult> &) {
-  return foldMemRefCast(*this);
-}
-LogicalResult PoolingMaxOp::fold(ArrayRef<Attribute>,
-                                 SmallVectorImpl<OpFoldResult> &) {
-  return foldMemRefCast(*this);
-}
-LogicalResult PoolingMinOp::fold(ArrayRef<Attribute>,
-                                 SmallVectorImpl<OpFoldResult> &) {
-  return foldMemRefCast(*this);
-}
-LogicalResult PoolingSumOp::fold(ArrayRef<Attribute>,
-                                 SmallVectorImpl<OpFoldResult> &) {
-  return foldMemRefCast(*this);
-}
-LogicalResult CopyOp::fold(ArrayRef<Attribute>,
-                           SmallVectorImpl<OpFoldResult> &) {
-  return foldMemRefCast(*this);
-}
-LogicalResult FillOp::fold(ArrayRef<Attribute>,
-                           SmallVectorImpl<OpFoldResult> &) {
-  return foldMemRefCast(*this);
-}
-LogicalResult Conv1DOp::fold(ArrayRef<Attribute>,
-                             SmallVectorImpl<OpFoldResult> &) {
-  return foldMemRefCast(*this);
-}
-LogicalResult Conv2DOp::fold(ArrayRef<Attribute>,
-                             SmallVectorImpl<OpFoldResult> &) {
-  return foldMemRefCast(*this);
-}
-LogicalResult Conv3DOp::fold(ArrayRef<Attribute>,
-                             SmallVectorImpl<OpFoldResult> &) {
-  return foldMemRefCast(*this);
-}
-LogicalResult GenericOp::fold(ArrayRef<Attribute>,
-                              SmallVectorImpl<OpFoldResult> &) {
-  return foldMemRefCast(*this);
-}
-LogicalResult IndexedGenericOp::fold(ArrayRef<Attribute>,
-                                     SmallVectorImpl<OpFoldResult> &) {
-  return foldMemRefCast(*this);
-}
 OpFoldResult ReshapeOp::fold(ArrayRef<Attribute>) {
   if (succeeded(foldMemRefCast(*this)))
     return getResult();
@@ -1343,22 +1267,64 @@ static LogicalResult verifyNamedStructuredOp(NamedStructuredOpType op) {
   return verifyGenericOp<NamedStructuredOpType>(op);
 }
 
+struct EraseDeadLinalgOp : public RewritePattern {
+  EraseDeadLinalgOp(PatternBenefit benefit = 1)
+      : RewritePattern(benefit, MatchAnyOpTypeTag()) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto linalgOp = dyn_cast<LinalgOp>(op);
+    if (!linalgOp)
+      return failure();
+    for (Value v : linalgOp.getInputsAndOutputBuffers()) {
+      // Linalg "inputs" may be either tensor or memref type.
+      // tensor<0xelt_type> is a convention that may not always mean
+      // "0 iterations". Only erase in cases we see memref<...x0x...>.
+      auto mt = v.getType().dyn_cast<MemRefType>();
+      if (!mt)
+        continue;
+      if (llvm::is_contained(mt.getShape(), 0)) {
+        rewriter.eraseOp(linalgOp);
+        return success();
+      }
+    }
+    return failure();
+  }
+};
+
+#define CANONICALIZERS_AND_FOLDERS(XXX)                                        \
+  void XXX::getCanonicalizationPatterns(OwningRewritePatternList &results,     \
+                                        MLIRContext *context) {                \
+    results.insert<EraseDeadLinalgOp>();                                       \
+  }                                                                            \
+                                                                               \
+  LogicalResult XXX::fold(ArrayRef<Attribute>,                                 \
+                          SmallVectorImpl<OpFoldResult> &) {                   \
+    return foldMemRefCast(*this);                                              \
+  }
+
+CANONICALIZERS_AND_FOLDERS(ConvOp)
+CANONICALIZERS_AND_FOLDERS(PoolingMaxOp)
+CANONICALIZERS_AND_FOLDERS(PoolingMinOp)
+CANONICALIZERS_AND_FOLDERS(PoolingSumOp)
+CANONICALIZERS_AND_FOLDERS(CopyOp)
+CANONICALIZERS_AND_FOLDERS(FillOp)
+CANONICALIZERS_AND_FOLDERS(GenericOp)
+CANONICALIZERS_AND_FOLDERS(IndexedGenericOp)
+
 #include "mlir/Dialect/Linalg/IR/LinalgNamedStructuredOps.cpp.inc"
 
 // TODO: Determine whether we can generate the folders and verifiers.
-LogicalResult BatchMatmulOp::fold(ArrayRef<Attribute>,
-                                  SmallVectorImpl<OpFoldResult> &) {
-  return foldMemRefCast(*this);
-}
-LogicalResult DotOp::fold(ArrayRef<Attribute>,
-                          SmallVectorImpl<OpFoldResult> &) {
-  return foldMemRefCast(*this);
-}
-LogicalResult MatmulOp::fold(ArrayRef<Attribute>,
-                             SmallVectorImpl<OpFoldResult> &) {
-  return foldMemRefCast(*this);
-}
-LogicalResult MatvecOp::fold(ArrayRef<Attribute>,
-                             SmallVectorImpl<OpFoldResult> &) {
-  return foldMemRefCast(*this);
-}
+CANONICALIZERS_AND_FOLDERS(BatchMatmulOp)
+CANONICALIZERS_AND_FOLDERS(DotOp)
+CANONICALIZERS_AND_FOLDERS(MatmulOp)
+CANONICALIZERS_AND_FOLDERS(MatvecOp)
+CANONICALIZERS_AND_FOLDERS(ConvWOp)
+CANONICALIZERS_AND_FOLDERS(ConvNWCOp)
+CANONICALIZERS_AND_FOLDERS(ConvNCWOp)
+CANONICALIZERS_AND_FOLDERS(ConvHWOp)
+CANONICALIZERS_AND_FOLDERS(ConvNHWCOp)
+CANONICALIZERS_AND_FOLDERS(ConvNCHWOp)
+CANONICALIZERS_AND_FOLDERS(ConvDHWOp)
+CANONICALIZERS_AND_FOLDERS(ConvNDHWCOp)
+CANONICALIZERS_AND_FOLDERS(ConvNCDHWOp)

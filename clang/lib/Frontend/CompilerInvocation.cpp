@@ -768,6 +768,7 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
             .Case("constructor", codegenoptions::DebugInfoConstructor)
             .Case("limited", codegenoptions::LimitedDebugInfo)
             .Case("standalone", codegenoptions::FullDebugInfo)
+            .Case("unused-types", codegenoptions::UnusedTypeInfo)
             .Default(~0U);
     if (Val == ~0U)
       Diags.Report(diag::err_drv_invalid_value) << A->getAsString(Args)
@@ -823,7 +824,7 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   Opts.DisableLLVMPasses =
       Args.hasArg(OPT_disable_llvm_passes) ||
       (Args.hasArg(OPT_fsycl_is_device) && Triple.isSPIR() &&
-       Args.hasArg(OPT_fno_sycl_std_optimizations) && !IsSyclESIMD);
+       Args.hasArg(OPT_fno_sycl_early_optimizations) && !IsSyclESIMD);
   Opts.DisableLifetimeMarkers = Args.hasArg(OPT_disable_lifetimemarkers);
 
   const llvm::Triple::ArchType DebugEntryValueArchs[] = {
@@ -1163,8 +1164,7 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   if (const Arg *A = Args.getLastArg(OPT_compress_debug_sections,
                                      OPT_compress_debug_sections_EQ)) {
     if (A->getOption().getID() == OPT_compress_debug_sections) {
-      // TODO: be more clever about the compression type auto-detection
-      Opts.setCompressDebugSections(llvm::DebugCompressionType::GNU);
+      Opts.setCompressDebugSections(llvm::DebugCompressionType::Z);
     } else {
       auto DCT = llvm::StringSwitch<llvm::DebugCompressionType>(A->getValue())
                      .Case("none", llvm::DebugCompressionType::None)
@@ -2587,6 +2587,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
     if (const Arg *A = Args.getLastArg(OPT_sycl_std_EQ)) {
       Opts.SYCLVersion = llvm::StringSwitch<unsigned>(A->getValue())
                              .Cases("2017", "1.2.1", "121", "sycl-1.2.1", 2017)
+                             .Case("2020", 2020)
                              .Default(0U);
 
       if (Opts.SYCLVersion == 0U) {
@@ -2597,6 +2598,9 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
     }
     Opts.SYCLExplicitSIMD = Args.hasArg(options::OPT_fsycl_esimd);
     Opts.EnableDAEInSpirKernels = Args.hasArg(options::OPT_fenable_sycl_dae);
+    Opts.SYCLValueFitInMaxInt =
+        Args.hasFlag(options::OPT_fsycl_id_queries_fit_in_int,
+                     options::OPT_fno_sycl_id_queries_fit_in_int, false);
   }
 
   Opts.IncludeDefaultHeader = Args.hasArg(OPT_finclude_default_header);

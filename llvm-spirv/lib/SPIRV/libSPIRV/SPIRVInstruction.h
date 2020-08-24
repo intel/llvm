@@ -1783,30 +1783,6 @@ protected:
   SPIRVId CalledValueId;
 };
 
-class SPIRVFunctionPointerINTEL : public SPIRVInstruction {
-  const static Op OC = OpFunctionPointerINTEL;
-  const static SPIRVWord FixedWordCount = 4;
-
-public:
-  SPIRVFunctionPointerINTEL(SPIRVId TheId, SPIRVType *TheType,
-                            SPIRVFunction *TheFunction, SPIRVBasicBlock *BB);
-  SPIRVFunctionPointerINTEL()
-      : SPIRVInstruction(OC), TheFunction(SPIRVID_INVALID) {}
-  SPIRVFunction *getFunction() const { return get<SPIRVFunction>(TheFunction); }
-  _SPIRV_DEF_ENCDEC3(Type, Id, TheFunction)
-  void validate() const override;
-  bool isOperandLiteral(unsigned Index) const override { return false; }
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_function_pointers);
-  }
-  SPIRVCapVec getRequiredCapability() const override {
-    return getVec(CapabilityFunctionPointersINTEL);
-  }
-
-protected:
-  SPIRVId TheFunction;
-};
-
 class SPIRVExtInst : public SPIRVFunctionCallGeneric<OpExtInst, 5> {
 public:
   SPIRVExtInst(SPIRVType *TheType, SPIRVId TheId, SPIRVId TheBuiltinSet,
@@ -2652,6 +2628,33 @@ protected:
       SPIRV##x;
 _SPIRV_OP(ReadPipeBlockingINTEL, false, 5)
 _SPIRV_OP(WritePipeBlockingINTEL, false, 5)
+#undef _SPIRV_OP
+
+class SPIRVFixedPointIntelInst : public SPIRVInstTemplateBase {
+protected:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityArbitraryPrecisionFixedPointINTEL);
+  }
+
+  SPIRVExtSet getRequiredExtensions() const override {
+    return getSet(ExtensionID::SPV_INTEL_arbitrary_precision_fixed_point);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVFixedPointIntelInst, Op##x, __VA_ARGS__>      \
+      SPIRV##x;
+_SPIRV_OP(FixedSqrtINTEL, true, 9)
+_SPIRV_OP(FixedRecipINTEL, true, 9)
+_SPIRV_OP(FixedRsqrtINTEL, true, 9)
+_SPIRV_OP(FixedSinINTEL, true, 9)
+_SPIRV_OP(FixedCosINTEL, true, 9)
+_SPIRV_OP(FixedSinCosINTEL, true, 9)
+_SPIRV_OP(FixedSinPiINTEL, true, 9)
+_SPIRV_OP(FixedCosPiINTEL, true, 9)
+_SPIRV_OP(FixedSinCosPiINTEL, true, 9)
+_SPIRV_OP(FixedLogINTEL, true, 9)
+_SPIRV_OP(FixedExpINTEL, true, 9)
 #undef _SPIRV_OP
 
 class SPIRVArbFloatIntelInst : public SPIRVInstTemplateBase {

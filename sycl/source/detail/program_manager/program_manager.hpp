@@ -58,6 +58,9 @@ enum class DeviceLibExt : std::uint32_t {
 // that is necessary for no interoperability cases with lambda.
 class ProgramManager {
 public:
+  // TODO use a custom dynamic bitset instead to make initialization simpler.
+  using KernelArgMask = std::vector<bool>;
+
   // Returns the single instance of the program manager for the entire
   // process. Can only be called after staticInit is done.
   static ProgramManager &getInstance();
@@ -109,6 +112,22 @@ public:
                           pi::PiProgram NativePrg = nullptr,
                           const RTDeviceBinaryImage *Img = nullptr);
   uint32_t getDeviceLibReqMask(const RTDeviceBinaryImage &Img);
+
+  /// Returns the mask for eliminated kernel arguments for the requested kernel
+  /// within the native program.
+  /// \param M identifies the OS module the kernel comes from (multiple OS
+  ///        modules may have kernels with the same name).
+  /// \param Context the context associated with the kernel.
+  /// \param NativePrg the PI program associated with the kernel.
+  /// \param KernelName the name of the kernel.
+  /// \param KnownProgram indicates whether the PI program is guaranteed to
+  ///        be known to program manager (built with its API) or not (not
+  ///        cacheable or constructed with interoperability).
+  KernelArgMask getEliminatedKernelArgMask(OSModuleHandle M,
+                                           const context &Context,
+                                           pi::PiProgram NativePrg,
+                                           const string_class &KernelName,
+                                           bool KnownProgram);
 
 private:
   ProgramManager();
@@ -173,18 +192,30 @@ private:
 
   // Keeps track of pi_program to image correspondence. Needed for:
   // - knowing which specialization constants are used in the program and
-  //   injecting their current values before compiling the SPIRV; the binary
+  //   injecting their current values before compiling the SPIR-V; the binary
   //   image object has info about all spec constants used in the module
+  // - finding kernel argument masks for kernels associated with each
+  //   pi_program
   // NOTE: using RTDeviceBinaryImage raw pointers is OK, since they are not
   // referenced from outside SYCL runtime and RTDeviceBinaryImage object
   // lifetime matches program manager's one.
   // NOTE: keys in the map can be invalid (reference count went to zero and
   // the underlying program disposed of), so the map can't be used in any way
   // other than binary image lookup with known live PiProgram as the key.
-  // NOTE: access is synchronized via the same lock as program cache
+  // NOTE: access is synchronized via the MNativeProgramsMutex
   std::unordered_map<pi::PiProgram, const RTDeviceBinaryImage *> NativePrograms;
 
-  /// True iff a SPIRV file has been specified with an environment variable
+  /// Protects NativePrograms that can be changed by class' methods.
+  std::mutex MNativeProgramsMutex;
+
+  using KernelNameToArgMaskMap =
+      std::unordered_map<string_class, KernelArgMask>;
+  /// Maps binary image and kernel name pairs to kernel argument masks which
+  /// specify which arguments were eliminated during device code optimization.
+  std::unordered_map<const RTDeviceBinaryImage *, KernelNameToArgMaskMap>
+      m_EliminatedKernelArgMasks;
+
+  /// True iff a SPIR-V file has been specified with an environment variable
   bool m_UseSpvFile = false;
 };
 } // namespace detail

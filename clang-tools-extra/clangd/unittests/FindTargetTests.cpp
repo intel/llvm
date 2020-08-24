@@ -376,6 +376,15 @@ TEST_F(TargetDeclTest, ClassTemplate) {
                {"template<> class Foo<int *>", Rel::TemplateInstantiation},
                {"template <typename T> class Foo<T *>", Rel::TemplatePattern});
 
+  Code = R"cpp(
+    // Template template argument.
+    template<typename T> struct Vector {};
+    template <template <typename> class Container>
+    struct A {};
+    A<[[Vector]]> a;
+  )cpp";
+  EXPECT_DECLS("TemplateArgumentLoc", {"template <typename T> struct Vector"});
+
   Flags.push_back("-std=c++17"); // for CTAD tests
 
   Code = R"cpp(
@@ -405,6 +414,11 @@ TEST_F(TargetDeclTest, ClassTemplate) {
 }
 
 TEST_F(TargetDeclTest, Concept) {
+  Flags.push_back("-std=c++20");
+
+  // FIXME: Should we truncate the pretty-printed form of a concept decl
+  // somewhere?
+
   Code = R"cpp(
     template <typename T>
     concept Fooable = requires (T t) { t.foo(); };
@@ -414,12 +428,20 @@ TEST_F(TargetDeclTest, Concept) {
       t.foo();
     }
   )cpp";
-  Flags.push_back("-std=c++20");
   EXPECT_DECLS(
       "ConceptSpecializationExpr",
-      // FIXME: Should we truncate the pretty-printed form of a concept decl
-      // somewhere?
       {"template <typename T> concept Fooable = requires (T t) { t.foo(); };"});
+
+  // trailing requires clause
+  Code = R"cpp(
+      template <typename T>
+      concept Fooable = true;
+
+      template <typename T>
+      void foo() requires [[Fooable]]<T>;
+  )cpp";
+  EXPECT_DECLS("ConceptSpecializationExpr",
+               {"template <typename T> concept Fooable = true;"});
 }
 
 TEST_F(TargetDeclTest, FunctionTemplate) {
@@ -535,6 +557,7 @@ TEST_F(TargetDeclTest, OverloadExpr) {
   // FIXME: Auto-completion in a template requires disabling delayed template
   // parsing.
   Flags = {"-fno-delayed-template-parsing"};
+  Flags.push_back("--target=x86_64-pc-linux-gnu");
 
   Code = R"cpp(
     void func(int*);
@@ -559,6 +582,36 @@ TEST_F(TargetDeclTest, OverloadExpr) {
     };
   )cpp";
   EXPECT_DECLS("UnresolvedMemberExpr", "void func(int *)", "void func(char *)");
+
+  Code = R"cpp(
+    struct X {
+      static void *operator new(unsigned long);
+    };
+    auto* k = [[new]] X();
+  )cpp";
+  EXPECT_DECLS("CXXNewExpr", "static void *operator new(unsigned long)");
+  Code = R"cpp(
+    void *operator new(unsigned long);
+    auto* k = [[new]] int();
+  )cpp";
+  EXPECT_DECLS("CXXNewExpr", "void *operator new(unsigned long)");
+
+  Code = R"cpp(
+    struct X {
+      static void operator delete(void *) noexcept;
+    };
+    void k(X* x) {
+      [[delete]] x;
+    }
+  )cpp";
+  EXPECT_DECLS("CXXDeleteExpr", "static void operator delete(void *) noexcept");
+  Code = R"cpp(
+    void operator delete(void *) noexcept;
+    void k(int* x) {
+      [[delete]] x;
+    }
+  )cpp";
+  EXPECT_DECLS("CXXDeleteExpr", "void operator delete(void *) noexcept");
 }
 
 TEST_F(TargetDeclTest, DependentExprs) {
@@ -702,6 +755,30 @@ TEST_F(TargetDeclTest, ObjC) {
     void test([[Foo]] *p);
   )cpp";
   EXPECT_DECLS("ObjCInterfaceTypeLoc", "@interface Foo");
+
+  Code = R"cpp(// Don't consider implicit interface as the target.
+    @implementation [[Implicit]]
+    @end
+  )cpp";
+  EXPECT_DECLS("ObjCImplementationDecl", "@implementation Implicit");
+
+  Code = R"cpp(
+    @interface Foo
+    @end
+    @implementation [[Foo]]
+    @end
+  )cpp";
+  EXPECT_DECLS("ObjCImplementationDecl", "@interface Foo");
+
+  Code = R"cpp(
+    @interface Foo
+    @end
+    @interface Foo (Ext)
+    @end
+    @implementation [[Foo]] (Ext)
+    @end
+  )cpp";
+  EXPECT_DECLS("ObjCCategoryImplDecl", "@interface Foo(Ext)");
 
   Code = R"cpp(
     @protocol Foo

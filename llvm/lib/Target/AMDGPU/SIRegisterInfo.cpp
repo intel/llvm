@@ -577,6 +577,8 @@ static unsigned getNumSubRegsForSpillOp(unsigned Op) {
   case AMDGPU::SI_SPILL_S96_RESTORE:
   case AMDGPU::SI_SPILL_V96_SAVE:
   case AMDGPU::SI_SPILL_V96_RESTORE:
+  case AMDGPU::SI_SPILL_A96_SAVE:
+  case AMDGPU::SI_SPILL_A96_RESTORE:
     return 3;
   case AMDGPU::SI_SPILL_S64_SAVE:
   case AMDGPU::SI_SPILL_S64_RESTORE:
@@ -754,10 +756,6 @@ void SIRegisterInfo::buildSpillLoadStore(MachineBasicBlock::iterator MI,
   Align Alignment = MFI.getObjectAlign(Index);
   const MachinePointerInfo &BasePtrInfo = MMO->getPointerInfo();
 
-  Register TmpReg =
-    hasAGPRs(RC) ? TII->getNamedOperand(*MI, AMDGPU::OpName::tmp)->getReg()
-                 : Register();
-
   assert((Offset % EltSize) == 0 && "unexpected VGPR spill offset");
 
   if (!isUInt<12>(Offset + Size - EltSize)) {
@@ -804,6 +802,8 @@ void SIRegisterInfo::buildSpillLoadStore(MachineBasicBlock::iterator MI,
     Offset = 0;
   }
 
+  Register TmpReg;
+
   for (unsigned i = 0, e = NumSubRegs; i != e; ++i, Offset += EltSize) {
     Register SubReg = NumSubRegs == 1
                           ? Register(ValueReg)
@@ -821,7 +821,13 @@ void SIRegisterInfo::buildSpillLoadStore(MachineBasicBlock::iterator MI,
 
     if (!MIB.getInstr()) {
       unsigned FinalReg = SubReg;
-      if (TmpReg != AMDGPU::NoRegister) {
+      if (hasAGPRs(RC)) {
+        if (!TmpReg) {
+          assert(RS && "Needs to have RegScavenger to spill an AGPR!");
+          // FIXME: change to scavengeRegisterBackwards()
+          TmpReg = RS->scavengeRegister(&AMDGPU::VGPR_32RegClass, MI, 0);
+          RS->setRegUsed(TmpReg);
+        }
         if (IsStore)
           BuildMI(*MBB, MI, DL, TII->get(AMDGPU::V_ACCVGPR_READ_B32), TmpReg)
             .addReg(SubReg, getKillRegState(IsKill));
@@ -1273,6 +1279,7 @@ void SIRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
     case AMDGPU::SI_SPILL_A1024_SAVE:
     case AMDGPU::SI_SPILL_A512_SAVE:
     case AMDGPU::SI_SPILL_A128_SAVE:
+    case AMDGPU::SI_SPILL_A96_SAVE:
     case AMDGPU::SI_SPILL_A64_SAVE:
     case AMDGPU::SI_SPILL_A32_SAVE: {
       const MachineOperand *VData = TII->getNamedOperand(*MI,
@@ -1302,6 +1309,7 @@ void SIRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
     case AMDGPU::SI_SPILL_V1024_RESTORE:
     case AMDGPU::SI_SPILL_A32_RESTORE:
     case AMDGPU::SI_SPILL_A64_RESTORE:
+    case AMDGPU::SI_SPILL_A96_RESTORE:
     case AMDGPU::SI_SPILL_A128_RESTORE:
     case AMDGPU::SI_SPILL_A512_RESTORE:
     case AMDGPU::SI_SPILL_A1024_RESTORE: {

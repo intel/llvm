@@ -14,6 +14,7 @@
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/StandardTypes.h"
+#include "mlir/Transforms/InliningUtils.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -24,7 +25,7 @@ namespace {
 #include "ShapeCanonicalization.inc"
 }
 
-static RankedTensorType getExtentTensorType(MLIRContext *ctx) {
+RankedTensorType shape::getExtentTensorType(MLIRContext *ctx) {
   return RankedTensorType::get({ShapedType::kDynamicSize}, IndexType::get(ctx));
 }
 
@@ -59,14 +60,40 @@ static LogicalResult verifyShapeOrExtentTensorOp(Operation *op) {
   return success();
 }
 
-ShapeDialect::ShapeDialect(MLIRContext *context)
-    : Dialect(getDialectNamespace(), context) {
+//===----------------------------------------------------------------------===//
+// InlinerInterface
+//===----------------------------------------------------------------------===//
+
+namespace {
+/// This class defines the interface for inlining shape dialect ops.
+struct ShapeInlinerInterface : public DialectInlinerInterface {
+  using DialectInlinerInterface::DialectInlinerInterface;
+
+  // Returns true if the given region 'src' can be inlined into the region
+  // 'dest' that is attached to an operation registered to the current dialect.
+  bool isLegalToInline(Region *dest, Region *src,
+                       BlockAndValueMapping &) const final {
+    return true;
+  }
+
+  // Returns true if the given operation 'op', that is registered to this
+  // dialect, can be inlined into the region 'dest' that is attached to an
+  // operation registered to the current dialect.
+  bool isLegalToInline(Operation *op, Region *dest,
+                       BlockAndValueMapping &) const final {
+    return true;
+  }
+};
+} // namespace
+
+void ShapeDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
 #include "mlir/Dialect/Shape/IR/ShapeOps.cpp.inc"
       >();
   addTypes<ComponentType, ElementType, ShapeType, SizeType, ValueShapeType,
            WitnessType>();
+  addInterfaces<ShapeInlinerInterface>();
   // Allow unknown operations during prototyping and testing. As the dialect is
   // still evolving it makes it simple to start with an unregistered ops and
   // try different variants before actually defining the op.
@@ -641,11 +668,14 @@ struct RankShapeOfCanonicalizationPattern
         shapeOfOp.arg().getType().dyn_cast<RankedTensorType>();
     if (!rankedTensorType)
       return failure();
-    assert(op.getType().isa<IndexType>() &&
-           "expected `rank(shape_of( ... )]` based on a shaped argument to "
-           "yield an index type");
     int64_t rank = rankedTensorType.getRank();
-    rewriter.replaceOpWithNewOp<ConstantIndexOp>(op.getOperation(), rank);
+    if (op.getType().isa<IndexType>()) {
+      rewriter.replaceOpWithNewOp<ConstantIndexOp>(op.getOperation(), rank);
+    } else if (op.getType().isa<shape::SizeType>()) {
+      rewriter.replaceOpWithNewOp<shape::ConstSizeOp>(op.getOperation(), rank);
+    } else {
+      return failure();
+    }
     return success();
   }
 };
@@ -713,12 +743,9 @@ OpFoldResult ShapeOfOp::fold(ArrayRef<Attribute>) {
 }
 
 void ShapeOfOp::build(OpBuilder &builder, OperationState &result, Value arg) {
-  if (arg.getType().isa<ShapedType>()) {
-    auto type = RankedTensorType::get({ShapedType::kDynamicSize},
-                                      builder.getIndexType());
-    return ShapeOfOp::build(builder, result, type, arg);
-  }
-  auto type = ShapeType::get(builder.getContext());
+  Type type = arg.getType().isa<ShapedType>()
+                  ? (Type)getExtentTensorType(builder.getContext())
+                  : (Type)builder.getType<ShapeType>();
   return ShapeOfOp::build(builder, result, type, arg);
 }
 

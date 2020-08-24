@@ -29,6 +29,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
+#include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/StackProtector.h"
@@ -294,25 +295,8 @@ bool IRTranslator::translateBinaryOp(unsigned Opcode, const User &U,
   return true;
 }
 
-bool IRTranslator::translateFSub(const User &U, MachineIRBuilder &MIRBuilder) {
-  // -0.0 - X --> G_FNEG
-  if (isa<Constant>(U.getOperand(0)) &&
-      U.getOperand(0) == ConstantFP::getZeroValueForNegation(U.getType())) {
-    Register Op1 = getOrCreateVReg(*U.getOperand(1));
-    Register Res = getOrCreateVReg(U);
-    uint16_t Flags = 0;
-    if (isa<Instruction>(U)) {
-      const Instruction &I = cast<Instruction>(U);
-      Flags = MachineInstr::copyFlagsFromInstruction(I);
-    }
-    // Negate the last operand of the FSUB
-    MIRBuilder.buildFNeg(Res, Op1, Flags);
-    return true;
-  }
-  return translateBinaryOp(TargetOpcode::G_FSUB, U, MIRBuilder);
-}
-
-bool IRTranslator::translateFNeg(const User &U, MachineIRBuilder &MIRBuilder) {
+bool IRTranslator::translateUnaryOp(unsigned Opcode, const User &U,
+                                    MachineIRBuilder &MIRBuilder) {
   Register Op0 = getOrCreateVReg(*U.getOperand(0));
   Register Res = getOrCreateVReg(U);
   uint16_t Flags = 0;
@@ -320,8 +304,12 @@ bool IRTranslator::translateFNeg(const User &U, MachineIRBuilder &MIRBuilder) {
     const Instruction &I = cast<Instruction>(U);
     Flags = MachineInstr::copyFlagsFromInstruction(I);
   }
-  MIRBuilder.buildFNeg(Res, Op0, Flags);
+  MIRBuilder.buildInstr(Opcode, {Res}, {Op0}, Flags);
   return true;
+}
+
+bool IRTranslator::translateFNeg(const User &U, MachineIRBuilder &MIRBuilder) {
+  return translateUnaryOp(TargetOpcode::G_FNEG, U, MIRBuilder);
 }
 
 bool IRTranslator::translateCompare(const User &U,
@@ -1501,6 +1489,10 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
     return translateBinaryOp(TargetOpcode::G_USUBSAT, CI, MIRBuilder);
   case Intrinsic::ssub_sat:
     return translateBinaryOp(TargetOpcode::G_SSUBSAT, CI, MIRBuilder);
+  case Intrinsic::ushl_sat:
+    return translateBinaryOp(TargetOpcode::G_USHLSAT, CI, MIRBuilder);
+  case Intrinsic::sshl_sat:
+    return translateBinaryOp(TargetOpcode::G_SSHLSAT, CI, MIRBuilder);
   case Intrinsic::umin:
     return translateBinaryOp(TargetOpcode::G_UMIN, CI, MIRBuilder);
   case Intrinsic::umax:
@@ -1509,6 +1501,9 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
     return translateBinaryOp(TargetOpcode::G_SMIN, CI, MIRBuilder);
   case Intrinsic::smax:
     return translateBinaryOp(TargetOpcode::G_SMAX, CI, MIRBuilder);
+  case Intrinsic::abs:
+    // TODO: Preserve "int min is poison" arg in GMIR?
+    return translateUnaryOp(TargetOpcode::G_ABS, CI, MIRBuilder);
   case Intrinsic::smul_fix:
     return translateFixedPointIntrinsic(TargetOpcode::G_SMULFIX, CI, MIRBuilder);
   case Intrinsic::umul_fix:
@@ -1674,6 +1669,33 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
     MIRBuilder.buildInstr(TargetOpcode::G_WRITE_REGISTER)
       .addMetadata(cast<MDNode>(cast<MetadataAsValue>(Arg)->getMetadata()))
       .addUse(getOrCreateVReg(*CI.getArgOperand(1)));
+    return true;
+  }
+  case Intrinsic::localescape: {
+    MachineBasicBlock &EntryMBB = MF->front();
+    StringRef EscapedName = GlobalValue::dropLLVMManglingEscape(MF->getName());
+
+    // Directly emit some LOCAL_ESCAPE machine instrs. Label assignment emission
+    // is the same on all targets.
+    for (unsigned Idx = 0, E = CI.getNumArgOperands(); Idx < E; ++Idx) {
+      Value *Arg = CI.getArgOperand(Idx)->stripPointerCasts();
+      if (isa<ConstantPointerNull>(Arg))
+        continue; // Skip null pointers. They represent a hole in index space.
+
+      int FI = getOrCreateFrameIndex(*cast<AllocaInst>(Arg));
+      MCSymbol *FrameAllocSym =
+          MF->getMMI().getContext().getOrCreateFrameAllocSymbol(EscapedName,
+                                                                Idx);
+
+      // This should be inserted at the start of the entry block.
+      auto LocalEscape =
+          MIRBuilder.buildInstrNoInsert(TargetOpcode::LOCAL_ESCAPE)
+              .addSym(FrameAllocSym)
+              .addFrameIndex(FI);
+
+      EntryMBB.insert(EntryMBB.begin(), LocalEscape);
+    }
+
     return true;
   }
 #define INSTRUCTION(NAME, NARG, ROUND_MODE, INTRINSIC)  \
