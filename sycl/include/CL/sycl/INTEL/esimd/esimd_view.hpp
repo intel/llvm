@@ -101,7 +101,7 @@ public:
 
   template <int Dim = 0> constexpr uint16_t getOffset() const {
     static_assert(Dim <= is2D(), "region is not two-dimensional");
-    return (Dim == 0) ? getOffsetX() : getOffsetX();
+    return (Dim == 0) ? getOffsetX() : getOffsetY();
   }
 
   // Read this simd_view object.
