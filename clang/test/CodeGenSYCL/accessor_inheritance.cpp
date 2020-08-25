@@ -67,13 +67,13 @@ int main() {
 // CHECK: [[ACC_FIELD:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}Base, %struct{{.*}}Base* [[BITCAST]], i32 0, i32 2
 // CHECK: [[ACC1_AS_CAST:%[a-zA-Z0-9_]+]] = addrspacecast %"class{{.*}}cl::sycl::accessor"* [[ACC_FIELD]] to %"class{{.*}}cl::sycl::accessor" addrspace(4)*
 // Default constructor call
-// CHECK: call spir_func void @_ZN2cl4sycl8accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_13property_listIJEEEEC1Ev(%"class{{.*}}cl::sycl::accessor" addrspace(4)* [[ACC1_AS_CAST]])
+// CHECK: call spir_func void @_ZN2cl4sycl8accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_13property_listEEC1Ev(%"class{{.*}}cl::sycl::accessor" addrspace(4)* [[ACC1_AS_CAST]])
 // CHECK: [[BITCAST1:%[a-zA-Z0-9_]+]] = bitcast %struct{{.*}}Captured* [[GEP]] to i8*
-// CHECK: [[GEP1:%[a-zA-Z0-9_]+]] = getelementptr inbounds i8, i8* [[BITCAST1]], i64 24
+// CHECK: [[GEP1:%[a-zA-Z0-9_]+]] = getelementptr inbounds i8, i8* [[BITCAST1]], i64 20
 // CHECK: [[BITCAST2:%[a-zA-Z0-9_]+]] = bitcast i8* [[GEP1]] to %"class{{.*}}cl::sycl::accessor"*
 // CHECK: [[ACC2_AS_CAST:%[a-zA-Z0-9_]+]] = addrspacecast %"class{{.*}}cl::sycl::accessor"* [[BITCAST2]] to %"class{{.*}}cl::sycl::accessor" addrspace(4)*
 // Default constructor call
-// CHECK: call spir_func void @_ZN2cl4sycl8accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_13property_listIJEEEEC2Ev(%"class{{.*}}cl::sycl::accessor" addrspace(4)* [[ACC2_AS_CAST]])
+// CHECK: call spir_func void @_ZN2cl4sycl8accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_13property_listEEC2Ev(%"class{{.*}}cl::sycl::accessor" addrspace(4)* [[ACC2_AS_CAST]])
 
 // CHECK C field initialization
 // CHECK: [[FIELD_C:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}Captured, %struct{{.*}}Captured* [[GEP]], i32 0, i32 2

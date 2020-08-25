@@ -71,19 +71,11 @@ enum prop_type {
   base_prop
 };
 
-// Compile time known accessor property
-// TODO: this doesn't belong to property namespace, instead it shall be in its
-// own namespace. Change it, when the actual implementation in SYCL headers is
-// ready
-template <int>
-class buffer_location {};
-
 struct property_base {
   virtual prop_type type() const = 0;
 };
 } // namespace property
 
-template <typename... properties>
 class property_list {
 public:
   template <typename... propertiesTN>
@@ -101,6 +93,21 @@ public:
 
   bool operator!=(const property_list &rhs) const { return false; }
 };
+
+namespace ext {
+namespace INTEL {
+namespace property {
+// Compile time known accessor property
+template <int>
+class buffer_location {};
+} // namespace property
+} // namespace INTEL
+
+namespace ONEAPI {
+template <typename... properties>
+class accessor_property_list {};
+} // namespace ONEAPI
+} // namespace ext
 
 template <int dim>
 struct id {
@@ -136,7 +143,7 @@ struct _ImplT {
 template <typename dataT, int dimensions, access::mode accessmode,
           access::target accessTarget = access::target::global_buffer,
           access::placeholder isPlaceholder = access::placeholder::false_t,
-          typename propertyListT = property_list<>>
+          typename propertyListT = property_list>
 class accessor {
 
 public:
@@ -150,8 +157,6 @@ public:
 private:
   void __init(__attribute__((opencl_global)) dataT *Ptr, range<dimensions> AccessRange,
               range<dimensions> MemRange, id<dimensions> Offset) {}
-
-  propertyListT prop_list;
 };
 
 template <int dimensions, access::mode accessmode, access::target accesstarget>
@@ -339,8 +344,7 @@ const stream& operator<<(const stream &S, T&&) {
 }
 
 template <typename T, int dimensions = 1,
-          typename AllocatorT = int /*fake type as AllocatorT is not used*/,
-          typename... properties>
+          typename AllocatorT = int /*fake type as AllocatorT is not used*/>
 class buffer {
 public:
   using value_type = T;
@@ -352,13 +356,13 @@ public:
   buffer(ParamTypes... args) {} // fake constructor
 
   buffer(const range<dimensions> &bufferRange,
-         const property_list<properties...> &propList = {}) {}
+         const property_list &propList = {}) {}
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
-         const property_list<properties...> &propList = {}) {}
+         const property_list &propList = {}) {}
 
   buffer(const T *hostData, const range<dimensions> &bufferRange,
-         const property_list<properties...> &propList = {}) {}
+         const property_list &propList = {}) {}
 
   buffer(const buffer &rhs) = default;
 
@@ -426,12 +430,12 @@ enum class image_channel_type : unsigned int {
   fp32
 };
 
-template <int dimensions = 1, typename AllocatorT = int, typename... properties>
+template <int dimensions = 1, typename AllocatorT = int>
 class image {
 public:
   image(image_channel_order Order, image_channel_type Type,
         const range<dimensions> &Range,
-        const property_list<properties...> &PropList = {}) {}
+        const property_list &PropList = {}) {}
 
   /* -- common interface members -- */
 

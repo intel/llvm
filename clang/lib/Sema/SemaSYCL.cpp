@@ -86,6 +86,10 @@ public:
   static bool isPropertyListType(const QualType &Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
+  /// accessor_property_list class.
+  static bool isAccessorPropertyListType(const QualType &Ty);
+
+  /// Checks whether given clang type is a full specialization of the SYCL
   /// buffer_location class.
   static bool isSyclBufferLocationType(const QualType &Ty);
 
@@ -1194,29 +1198,33 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
       return;
     }
     QualType PropListTy = PropList.getAsType();
-    if (!Util::isPropertyListType(PropListTy)) {
+    if (Util::isPropertyListType(PropListTy))
+      return;
+    if (!Util::isAccessorPropertyListType(PropListTy)) {
       SemaRef.Diag(Loc,
                    diag::err_sycl_invalid_accessor_property_template_param);
       return;
     }
-    const auto *PropListDecl =
+    const auto *AccPropListDecl =
         cast<ClassTemplateSpecializationDecl>(PropListTy->getAsRecordDecl());
-    if (PropListDecl->getTemplateArgs().size() != 1) {
+    if (AccPropListDecl->getTemplateArgs().size() != 1) {
       SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_param_number)
-          << "property_list";
+          << "accessor_property_list";
       return;
     }
-    const auto TemplArg = PropListDecl->getTemplateArgs()[0];
+    const auto TemplArg = AccPropListDecl->getTemplateArgs()[0];
     if (TemplArg.getKind() != TemplateArgument::ArgKind::Pack) {
-      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_template_param)
-          << /*property_list*/ 0 << /*parameter pack*/ 0;
+      SemaRef.Diag(Loc,
+                   diag::err_sycl_invalid_accessor_property_list_template_param)
+          << /*accessor_property_list*/ 0 << /*parameter pack*/ 0;
       return;
     }
     for (TemplateArgument::pack_iterator Prop = TemplArg.pack_begin();
          Prop != TemplArg.pack_end(); ++Prop) {
       if (Prop->getKind() != TemplateArgument::ArgKind::Type) {
-        SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_template_param)
-            << /*property_list pack argument*/ 1 << /*type*/ 1;
+        SemaRef.Diag(
+            Loc, diag::err_sycl_invalid_accessor_property_list_template_param)
+            << /*accessor_property_list pack argument*/ 1 << /*type*/ 1;
         return;
       }
       QualType PropTy = Prop->getAsType();
@@ -1235,13 +1243,15 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
     }
     const auto BufferLoc = PropDecl->getTemplateArgs()[0];
     if (BufferLoc.getKind() != TemplateArgument::ArgKind::Integral) {
-      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_template_param)
+      SemaRef.Diag(Loc,
+                   diag::err_sycl_invalid_accessor_property_list_template_param)
           << /*buffer_location*/ 2 << /*non-negative integer*/ 2;
       return;
     }
     int LocationID = static_cast<int>(BufferLoc.getAsIntegral().getExtValue());
     if (LocationID < 0) {
-      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_template_param)
+      SemaRef.Diag(Loc,
+                   diag::err_sycl_invalid_accessor_property_list_template_param)
           << /*buffer_location*/ 2 << /*non-negative integer*/ 2;
       return;
     }
@@ -1251,17 +1261,29 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
     assert(Util::isSyclAccessorType(Ty) &&
            "Should only be called on SYCL accessor types.");
 
-    const RecordDecl *RecD = Ty->getAsRecordDecl();
-    if (const ClassTemplateSpecializationDecl *CTSD =
-            dyn_cast<ClassTemplateSpecializationDecl>(RecD)) {
+    RecordDecl *RecD = Ty->getAsRecordDecl();
+    if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RecD)) {
       const TemplateArgumentList &TAL = CTSD->getTemplateArgs();
+
       TemplateArgument TA = TAL.get(0);
       const QualType TemplateArgTy = TA.getAsType();
-
-      if (TAL.size() > 5)
-        checkPropertyListType(TAL.get(5), Loc.getBegin());
       llvm::DenseSet<QualType> Visited;
       checkSYCLType(SemaRef, TemplateArgTy, Loc, Visited);
+
+      if (TAL.size() < 6) {
+        // Not enough arguments for this parameter pack.
+        SemaRef.Diag(Loc.getBegin(),
+                     diag::err_template_arg_list_different_arity)
+            << /*not enough args*/ 0
+            << (int)SemaRef.getTemplateNameKindForDiagnostics(
+                   TemplateName(CTSD->getSpecializedTemplate()))
+            << CTSD;
+        SemaRef.Diag(CTSD->getLocation(), diag::note_template_decl_here)
+            << CTSD->getSourceRange();
+        return;
+      }
+
+      checkPropertyListType(TAL.get(5), Loc.getBegin());
     }
   }
 
@@ -1402,19 +1424,21 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   }
 
   // Handle accessor properties. If any properties were found in
-  // the property_list - add the appropriate attributes to ParmVarDecl.
+  // the accessor_property_list - add the appropriate attributes to ParmVarDecl.
   void handleAccessorPropertyList(ParmVarDecl *Param,
                                   const CXXRecordDecl *RecordDecl,
                                   SourceLocation Loc) {
     const auto *AccTy = cast<ClassTemplateSpecializationDecl>(RecordDecl);
-    // TODO: when SYCL headers' part is ready - replace this 'if' with an error
     if (AccTy->getTemplateArgs().size() < 6)
       return;
     const auto PropList = cast<TemplateArgument>(AccTy->getTemplateArgs()[5]);
     QualType PropListTy = PropList.getAsType();
-    const auto *PropListDecl =
+    // property_list contains runtime properties, it shouldn't be handled here.
+    if (Util::isPropertyListType(PropListTy))
+      return;
+    const auto *AccPropListDecl =
         cast<ClassTemplateSpecializationDecl>(PropListTy->getAsRecordDecl());
-    const auto TemplArg = PropListDecl->getTemplateArgs()[0];
+    const auto TemplArg = AccPropListDecl->getTemplateArgs()[0];
     // Move through TemplateArgs list of a property list and search for
     // properties. If found - apply the appropriate attribute to ParmVarDecl.
     for (TemplateArgument::pack_iterator Prop = TemplArg.pack_begin();
@@ -3444,17 +3468,16 @@ bool Util::isSyclSpecConstantType(const QualType &Ty) {
 }
 
 bool Util::isPropertyListType(const QualType &Ty) {
-  return isSyclType(Ty, "property_list", true /*Tmpl*/);
+  return isSyclType(Ty, "property_list");
 }
 
 bool Util::isSyclBufferLocationType(const QualType &Ty) {
   const StringRef &Name = "buffer_location";
-  std::array<DeclContextDesc, 4> Scopes = {
+  std::array<DeclContextDesc, 6> Scopes = {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
-      // TODO: this doesn't belong to property namespace, instead it shall be
-      // in its own namespace. Change it, when the actual implementation in SYCL
-      // headers is ready
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "ext"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "INTEL"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "property"},
       Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
   return matchQualifiedTypeName(Ty, Scopes);
@@ -3467,6 +3490,17 @@ bool Util::isSyclType(const QualType &Ty, StringRef Name, bool Tmpl) {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
       Util::DeclContextDesc{ClassDeclKind, Name}};
+  return matchQualifiedTypeName(Ty, Scopes);
+}
+
+bool Util::isAccessorPropertyListType(const QualType &Ty) {
+  const StringRef &Name = "accessor_property_list";
+  std::array<DeclContextDesc, 5> Scopes = {
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "ext"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "ONEAPI"},
+      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
