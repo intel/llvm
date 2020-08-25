@@ -1774,8 +1774,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return InitializedEntity::InitializeMember(FD, &VarEntity);
   }
 
-  // Should this take a ArrayRef instead, to avoid this foolish ParamRef ?
-  // ParamRef : None?
+  // TODO: This name seems outdated now :)
   void addFieldInit(FieldDecl *FD, QualType Ty, MultiExprArg ParamRef) {
     // TODO: Why is this by copy rather than 'forinit' or value init?
     InitializationKind InitKind =
@@ -1790,6 +1789,18 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     InitializationSequence InitSeq(SemaRef, Entity, InitKind, ParamRef);
     ExprResult Init =
         InitSeq.Perform(SemaRef, Entity, InitKind, ParamRef);
+
+    InitListExpr *ParentILE = CollectionInitExprs.back();
+    ParentILE->updateInit(SemaRef.getASTContext(), ParentILE->getNumInits(),
+                          Init.get());
+  }
+
+  void addBaseInit(const CXXBaseSpecifier &BS, QualType Ty,
+                   InitializationKind InitKind) {
+    InitializedEntity Entity = InitializedEntity::InitializeBase(
+        SemaRef.Context, &BS, /*IsInheritedVirtualBase*/ false, &VarEntity);
+    InitializationSequence InitSeq(SemaRef, Entity, InitKind, None);
+    ExprResult Init = InitSeq.Perform(SemaRef, Entity, InitKind, None);
 
     InitListExpr *ParentILE = CollectionInitExprs.back();
     ParentILE->updateInit(SemaRef.getASTContext(), ParentILE->getNumInits(),
@@ -1911,17 +1922,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
   bool handleSpecialType(const CXXBaseSpecifier &BS, QualType Ty) {
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
-    // TODO: VarEntity is initialized entity for KernelObjClone, I guess we need
-    // to create new one when enter new struct.
-    InitializedEntity Entity = InitializedEntity::InitializeBase(
-        SemaRef.Context, &BS, /*IsInheritedVirtualBase*/ false, &VarEntity);
-    // Initialize with the default constructor.
-    InitializationKind InitKind =
-        InitializationKind::CreateDefault(SourceLocation());
-    InitializationSequence InitSeq(SemaRef, Entity, InitKind, None);
-    ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, None);
-    // TODO: ERICH: FIGURE OUT CollectionInitExprs.push_back(MemberInit.get());
-
+    addBaseInit(BS, Ty, InitializationKind::CreateDefault(SourceLocation()));
+    // TODO: Needs MemberExprBases entry?
     createSpecialMethodCall(RecordDecl, InitMethodName, BodyStmts);
     return true;
   }
