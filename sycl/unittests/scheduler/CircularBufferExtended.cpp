@@ -117,3 +117,50 @@ TEST_F(CircularBufferExtendedTest, PushBack) {
   }
 }
 
+TEST_F(CircularBufferExtendedTest, Remove) {
+  using GenericCommandsT = CircularBufferExtended::GenericCommandsT;
+  //using HostAccessorCommandsT = CircularBufferExtended::HostAccessorCommandsT;
+
+  static constexpr size_t GenericCmdsCapacity = 8;
+
+  CircularBufferExtended::IfGenericIsFullF IfGenericIsFull =
+      [](Command *Cmd, MemObjRecord *, GenericCommandsT &Leaves) {
+        Command *OldLeaf = Leaves.front();
+        if (OldLeaf == Cmd)
+          return;
+        --(OldLeaf->MLeafCounter);
+      };
+  CircularBufferExtended::AllocateDependencyF AllocateDependency =
+      [](Command *, Command *, MemObjRecord *) {
+      };
+
+  {
+    cl::sycl::buffer<int, 1> Buf(cl::sycl::range<1>(1));
+
+    Requirement MockReq = getMockRequirement(Buf);
+
+    CircularBufferExtended CBE = CircularBufferExtended(GenericCmdsCapacity,
+        IfGenericIsFull, AllocateDependency);
+    std::vector<std::shared_ptr<Command>> Cmds;
+
+    for (size_t Idx = 0; Idx < GenericCmdsCapacity * 4; ++Idx) {
+      auto Cmd = Idx % 2
+          ? createGenericCommand(getSyclObjImpl(MQueue))
+          : createEmptyCommand(getSyclObjImpl(MQueue), MockReq);
+      Cmds.push_back(Cmd);
+      ++Cmd->MLeafCounter;
+
+      CBE.push_back(Cmds.back().get(), nullptr);
+    }
+
+    for (const auto &Cmd : Cmds) {
+      size_t Count = CBE.remove(Cmd.get());
+
+      ASSERT_EQ(Count, Cmd->MLeafCounter) << "Command not removed";
+
+      Count = CBE.remove(Cmd.get());
+
+      ASSERT_EQ(Count, 0ul) << "Command removed for the second time";
+    }
+  }
+}
