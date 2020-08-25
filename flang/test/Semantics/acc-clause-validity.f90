@@ -5,6 +5,10 @@
 !   2.5.1 Parallel
 !   2.5.2 Kernels
 !   2.5.3 Serial
+!   2.9 Loop
+!   2.13 Declare
+!   2.14.3 Set
+!   2.14.4 Update
 !   2.15.1 Routine
 !   2.11 Parallel Loop
 !   2.11 Kernels Loop
@@ -161,6 +165,51 @@ program openacc_clause_validity
     a(i) = 3.14
   end do
   !$acc end serial loop
+
+  !$acc parallel loop
+  do i = 1, N
+    a(i) = 3.14
+  end do
+  !ERROR: Unmatched END KERNELS LOOP directive
+  !$acc end kernels loop
+
+  !$acc kernels loop
+  do i = 1, N
+    a(i) = 3.14
+  end do
+  !ERROR: Unmatched END SERIAL LOOP directive
+  !$acc end serial loop
+
+  !$acc serial loop
+  do i = 1, N
+    a(i) = 3.14
+  end do
+  !ERROR: Unmatched END PARALLEL LOOP directive
+  !$acc end parallel loop
+
+  !$acc kernels wait(1, 2) async(3)
+  !$acc end kernels
+
+  !$acc kernels wait(queues: 1, 2) async(3)
+  !$acc end kernels
+
+  !$acc kernels wait(devnum: 1: 1, 2) async(3)
+  !$acc end kernels
+
+  !$acc kernels wait(devnum: 1: queues: 1, 2) async(3)
+  !$acc end kernels
+
+  !$acc wait(1)
+  !$acc wait(1, 2)
+
+  !$acc wait(queues: 1)
+  !$acc wait(queues: 1, 2)
+
+  !$acc wait(devnum: 1: 3)
+  !$acc wait(devnum: 1: 3, 4)
+
+  !$acc wait(devnum: 1: queues: 3)
+  !$acc wait(devnum: 1: queues: 3, 4)
 
  contains
 

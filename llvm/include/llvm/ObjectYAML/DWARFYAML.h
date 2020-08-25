@@ -21,30 +21,11 @@
 #include "llvm/ObjectYAML/YAML.h"
 #include "llvm/Support/YAMLTraits.h"
 #include <cstdint>
+#include <unordered_map>
 #include <vector>
 
 namespace llvm {
 namespace DWARFYAML {
-
-struct InitialLength {
-  uint32_t TotalLength;
-  uint64_t TotalLength64;
-
-  bool isDWARF64() const { return TotalLength == UINT32_MAX; }
-
-  uint64_t getLength() const {
-    return isDWARF64() ? TotalLength64 : TotalLength;
-  }
-
-  void setLength(uint64_t Len) {
-    if (Len >= (uint64_t)UINT32_MAX) {
-      TotalLength64 = Len;
-      TotalLength = UINT32_MAX;
-    } else {
-      TotalLength = Len;
-    }
-  }
-};
 
 struct AttributeAbbrev {
   llvm::dwarf::Attribute Attribute;
@@ -57,6 +38,11 @@ struct Abbrev {
   llvm::dwarf::Tag Tag;
   llvm::dwarf::Constants Children;
   std::vector<AttributeAbbrev> Attributes;
+};
+
+struct AbbrevTable {
+  Optional<uint64_t> ID;
+  std::vector<Abbrev> Table;
 };
 
 struct ARangeDescriptor {
@@ -95,7 +81,8 @@ struct PubEntry {
 };
 
 struct PubSection {
-  InitialLength Length;
+  dwarf::DwarfFormat Format;
+  yaml::Hex64 Length;
   uint16_t Version;
   uint32_t UnitOffset;
   uint32_t UnitSize;
@@ -125,6 +112,7 @@ struct Unit {
   uint16_t Version;
   Optional<uint8_t> AddrSize;
   llvm::dwarf::UnitType Type; // Added in DWARF 5
+  Optional<uint64_t> AbbrevTableID;
   yaml::Hex64 AbbrOffset;
   std::vector<Entry> Entries;
 };
@@ -222,7 +210,7 @@ template <typename EntryType> struct ListTable {
 struct Data {
   bool IsLittleEndian;
   bool Is64BitAddrSize;
-  std::vector<Abbrev> AbbrevDecls;
+  std::vector<AbbrevTable> DebugAbbrev;
   std::vector<StringRef> DebugStrings;
   Optional<std::vector<StringOffsetsTable>> DebugStrOffsets;
   Optional<std::vector<ARange>> DebugAranges;
@@ -243,6 +231,10 @@ struct Data {
   bool isEmpty() const;
 
   SetVector<StringRef> getNonEmptySectionNames() const;
+  Expected<uint64_t> getAbbrevTableIndexByID(uint64_t ID) const;
+
+private:
+  mutable std::unordered_map<uint64_t, uint64_t> AbbrevTableID2Index;
 };
 
 } // end namespace DWARFYAML
@@ -250,6 +242,7 @@ struct Data {
 
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::AttributeAbbrev)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::Abbrev)
+LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::AbbrevTable)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::ARangeDescriptor)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::ARange)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::RangeEntry)
@@ -281,6 +274,10 @@ namespace yaml {
 
 template <> struct MappingTraits<DWARFYAML::Data> {
   static void mapping(IO &IO, DWARFYAML::Data &DWARF);
+};
+
+template <> struct MappingTraits<DWARFYAML::AbbrevTable> {
+  static void mapping(IO &IO, DWARFYAML::AbbrevTable &AbbrevTable);
 };
 
 template <> struct MappingTraits<DWARFYAML::Abbrev> {
@@ -373,10 +370,6 @@ template <> struct MappingTraits<DWARFYAML::AddrTableEntry> {
 
 template <> struct MappingTraits<DWARFYAML::StringOffsetsTable> {
   static void mapping(IO &IO, DWARFYAML::StringOffsetsTable &StrOffsetsTable);
-};
-
-template <> struct MappingTraits<DWARFYAML::InitialLength> {
-  static void mapping(IO &IO, DWARFYAML::InitialLength &DWARF);
 };
 
 template <> struct ScalarEnumerationTraits<dwarf::DwarfFormat> {
