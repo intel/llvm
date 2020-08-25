@@ -189,9 +189,9 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
         --(Dependency->MLeafCounter);
       };
 
-  MemObject->MRecord.reset(
-      new MemObjRecord{Queue->getContextImplPtr(), LeafLimit,
-                       IfGenericIsFull, AllocateDependency});
+  MemObject->MRecord.reset(new MemObjRecord{Queue->getContextImplPtr(),
+                                            LeafLimit, IfGenericIsFull,
+                                            AllocateDependency});
 
   MMemObjs.push_back(MemObject);
   return MemObject->MRecord.get();
@@ -215,8 +215,8 @@ void Scheduler::GraphBuilder::addNodeToLeaves(MemObjRecord *Record,
                                               Command *Cmd,
                                               access::mode AccessMode) {
   CircularBufferExtended &Leaves{AccessMode == access::mode::read
-                                    ? Record->MReadLeaves
-                                    : Record->MWriteLeaves};
+                                     ? Record->MReadLeaves
+                                     : Record->MWriteLeaves};
   Leaves.push_back(Cmd, Record);
   ++Cmd->MLeafCounter;
 }

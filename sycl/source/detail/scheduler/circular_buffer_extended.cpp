@@ -35,10 +35,9 @@ static inline bool isHostAccessorCmd(Command *Cmd) {
 }
 
 size_t CircularBufferExtended::remove(value_type Cmd) {
-  if (!isHostAccessorCmd(Cmd))
-  {
-    auto NewEnd = std::remove(MGenericCommands.begin(),
-                              MGenericCommands.end(), Cmd);
+  if (!isHostAccessorCmd(Cmd)) {
+    auto NewEnd =
+        std::remove(MGenericCommands.begin(), MGenericCommands.end(), Cmd);
     size_t RemovedCount = std::distance(NewEnd, MGenericCommands.end());
     MGenericCommands.erase(NewEnd, MGenericCommands.end());
 
@@ -70,8 +69,8 @@ CircularBufferExtended::toVector() const {
   return Result;
 }
 
-void CircularBufferExtended::addHostAccessorCommand(
-    EmptyCommand *Cmd, MemObjRecord *Record) {
+void CircularBufferExtended::addHostAccessorCommand(EmptyCommand *Cmd,
+                                                    MemObjRecord *Record) {
   // 1. find the oldest command with doOverlap() = true amongst the List
   //      => OldCmd
   HostAccessorCommandSingleXRefT OldCmdIt;
@@ -81,10 +80,9 @@ void CircularBufferExtended::addHostAccessorCommand(
   else
     OldCmdIt = std::find_if(
         MHostAccessorCommands.begin(), MHostAccessorCommands.end(),
-        [&] (const EmptyCommand * Test) -> bool {
+        [&](const EmptyCommand * Test) -> bool {
           return doOverlap(Test->getRequirement(), Cmd->getRequirement());
-        }
-    );
+        });
 
   // FIXME this 'if' is a workaround for duplicate leaves, remove once fixed
   if (OldCmdIt != MHostAccessorCommands.end() && *OldCmdIt == Cmd)
@@ -106,8 +104,8 @@ void CircularBufferExtended::addHostAccessorCommand(
   insertHostAccessorCommand(Cmd);
 }
 
-void CircularBufferExtended::addGenericCommand(
-    Command *Cmd, MemObjRecord *Record) {
+void CircularBufferExtended::addGenericCommand(Command *Cmd,
+                                               MemObjRecord *Record) {
   if (MGenericCommands.full())
     MIfGenericIsFull(Cmd, Record, MGenericCommands);
 
@@ -115,8 +113,8 @@ void CircularBufferExtended::addGenericCommand(
 }
 
 void CircularBufferExtended::insertHostAccessorCommand(EmptyCommand *Cmd) {
-  MHostAccessorCommandsXRef[Cmd] = MHostAccessorCommands.insert(
-      MHostAccessorCommands.end(), Cmd);
+  MHostAccessorCommandsXRef[Cmd] =
+      MHostAccessorCommands.insert(MHostAccessorCommands.end(), Cmd);
 }
 
 size_t CircularBufferExtended::eraseHostAccessorCommand(EmptyCommand *Cmd) {

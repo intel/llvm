@@ -54,11 +54,10 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
       detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
       /*PropList=*/{}));
 
-  auto IfGenericIsFull = [](
-      cl::sycl::detail::Command *, cl::sycl::detail::MemObjRecord *,
-      cl::sycl::detail::CircularBuffer<cl::sycl::detail::Command *> &) {};
-  auto AllocaDep = [](cl::sycl::detail::Command *,
-                      cl::sycl::detail::Command *,
+  auto IfGenericIsFull =
+      [](cl::sycl::detail::Command *, cl::sycl::detail::MemObjRecord *,
+         cl::sycl::detail::CircularBuffer<cl::sycl::detail::Command *> &) {};
+  auto AllocaDep = [](cl::sycl::detail::Command *, cl::sycl::detail::Command *,
                       cl::sycl::detail::MemObjRecord *) {};
 
   std::shared_ptr<cl::sycl::detail::MemObjRecord> Record{

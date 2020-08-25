@@ -24,14 +24,12 @@ public:
               cl::sycl::detail::Requirement Req,
               cl::sycl::detail::Command::CommandType Type =
                   cl::sycl::detail::Command::RUN_CG)
-      : Command{Type, Queue},
-        MRequirement{std::move(Req)} {}
+      : Command{Type, Queue}, MRequirement{std::move(Req)} {}
 
   MockCommand(cl::sycl::detail::QueueImplPtr Queue,
               cl::sycl::detail::Command::CommandType Type =
                   cl::sycl::detail::Command::RUN_CG)
-      : Command{Type, Queue},
-        MRequirement{std::move(getMockRequirement())} {}
+      : Command{Type, Queue}, MRequirement{std::move(getMockRequirement())} {}
 
   void printDot(std::ostream &) const override {}
   void emitInstrumentationData() override {}

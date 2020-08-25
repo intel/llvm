@@ -31,9 +31,10 @@ TEST_F(SchedulerTest, LeafLimit) {
 
   // Create commands that will be added as leaves exceeding the limit by 1
   std::vector<MockCommand *> LeavesToAdd;
-  for (std::size_t i = 0; i < Rec->MWriteLeaves.genericCommandsCapacity() + 1; ++i) {
+  for (std::size_t i = 0; i < Rec->MWriteLeaves.genericCommandsCapacity() + 1;
+       ++i) {
     LeavesToAdd.push_back(
-        new MockCommand(detail::getSyclObjImpl(MQueue), MockReq, detail::Command::RUN_CG));
+        new MockCommand(detail::getSyclObjImpl(MQueue), MockReq));
   }
   // Create edges: all soon-to-be leaves are direct users of MockDep
   for (auto Leaf : LeavesToAdd) {

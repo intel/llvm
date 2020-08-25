@@ -32,13 +32,14 @@ protected:
   cl::sycl::queue MQueue = cl::sycl::queue(cl::sycl::device(), MAsyncHandler);
 };
 
-std::shared_ptr<Command> createGenericCommand(
-    const std::shared_ptr<queue_impl> &Q) {
+std::shared_ptr<Command>
+createGenericCommand(const std::shared_ptr<queue_impl> &Q) {
   return std::shared_ptr<Command>{new MockCommand(Q, Command::RUN_CG)};
 }
 
-std::shared_ptr<Command> createEmptyCommand(
-    const std::shared_ptr<queue_impl> &Q, const Requirement &Req) {
+std::shared_ptr<Command>
+createEmptyCommand(const std::shared_ptr<queue_impl> &Q,
+                   const Requirement &Req) {
   EmptyCommand *Cmd = new EmptyCommand(Q);
   Cmd->addRequirement(/* DepCmd = */ nullptr, /* AllocaCmd = */ nullptr, &Req);
   Cmd->MBlockReason = Command::BlockReason::HostAccessor;
@@ -47,7 +48,6 @@ std::shared_ptr<Command> createEmptyCommand(
 
 TEST_F(CircularBufferExtendedTest, PushBack) {
   using GenericCommandsT = CircularBufferExtended::GenericCommandsT;
-  //using HostAccessorCommandsT = CircularBufferExtended::HostAccessorCommandsT;
 
   static constexpr size_t GenericCmdsCapacity = 8;
 
@@ -58,13 +58,12 @@ TEST_F(CircularBufferExtendedTest, PushBack) {
         ++TimesGenericWasFull;
       };
   CircularBufferExtended::AllocateDependencyF AllocateDependency =
-      [](Command *, Command *, MemObjRecord *) {
-      };
+      [](Command *, Command *, MemObjRecord *) {};
 
   // add only generic commands
   {
-    CircularBufferExtended CBE = CircularBufferExtended(GenericCmdsCapacity,
-        IfGenericIsFull, AllocateDependency);
+    CircularBufferExtended CBE = CircularBufferExtended(
+        GenericCmdsCapacity, IfGenericIsFull, AllocateDependency);
     std::vector<std::shared_ptr<Command>> Cmds;
 
     TimesGenericWasFull = 0;
@@ -91,16 +90,15 @@ TEST_F(CircularBufferExtendedTest, PushBack) {
 
     Requirement MockReq = getMockRequirement(Buf);
 
-    CircularBufferExtended CBE = CircularBufferExtended(GenericCmdsCapacity,
-        IfGenericIsFull, AllocateDependency);
+    CircularBufferExtended CBE = CircularBufferExtended(
+        GenericCmdsCapacity, IfGenericIsFull, AllocateDependency);
     std::vector<std::shared_ptr<Command>> Cmds;
 
     TimesGenericWasFull = 0;
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 4; ++Idx) {
-      auto Cmd = Idx % 2
-          ? createGenericCommand(getSyclObjImpl(MQueue))
-          : createEmptyCommand(getSyclObjImpl(MQueue), MockReq);
+      auto Cmd = Idx % 2 ? createGenericCommand(getSyclObjImpl(MQueue))
+                         : createEmptyCommand(getSyclObjImpl(MQueue), MockReq);
       Cmds.push_back(Cmd);
 
       CBE.push_back(Cmds.back().get(), nullptr);
@@ -119,7 +117,6 @@ TEST_F(CircularBufferExtendedTest, PushBack) {
 
 TEST_F(CircularBufferExtendedTest, Remove) {
   using GenericCommandsT = CircularBufferExtended::GenericCommandsT;
-  //using HostAccessorCommandsT = CircularBufferExtended::HostAccessorCommandsT;
 
   static constexpr size_t GenericCmdsCapacity = 8;
 
@@ -131,8 +128,7 @@ TEST_F(CircularBufferExtendedTest, Remove) {
         --(OldLeaf->MLeafCounter);
       };
   CircularBufferExtended::AllocateDependencyF AllocateDependency =
-      [](Command *, Command *, MemObjRecord *) {
-      };
+      [](Command *, Command *, MemObjRecord *) {};
 
   {
     cl::sycl::buffer<int, 1> Buf(cl::sycl::range<1>(1));
@@ -144,9 +140,8 @@ TEST_F(CircularBufferExtendedTest, Remove) {
     std::vector<std::shared_ptr<Command>> Cmds;
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 4; ++Idx) {
-      auto Cmd = Idx % 2
-          ? createGenericCommand(getSyclObjImpl(MQueue))
-          : createEmptyCommand(getSyclObjImpl(MQueue), MockReq);
+      auto Cmd = Idx % 2 ? createGenericCommand(getSyclObjImpl(MQueue))
+                         : createEmptyCommand(getSyclObjImpl(MQueue), MockReq);
       Cmds.push_back(Cmd);
       ++Cmd->MLeafCounter;
 

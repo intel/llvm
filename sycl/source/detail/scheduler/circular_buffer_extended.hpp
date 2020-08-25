@@ -46,8 +46,7 @@ public:
   using AllocateDependencyF =
       std::function<void(Command *, Command *, MemObjRecord *)>;
 
-  template <bool IsConst>
-  struct IteratorT;
+  template <bool IsConst> struct IteratorT;
 
   using value_type = Command *;
   using pointer = value_type *;
@@ -61,10 +60,9 @@ public:
   CircularBufferExtended(std::size_t GenericCommandsCapacity,
                          IfGenericIsFullF IfGenericIsFull,
                          AllocateDependencyF AllocateDependency)
-      : MGenericCommands{GenericCommandsCapacity},
-        MIfGenericIsFull{std::move(IfGenericIsFull)},
-        MAllocateDependency{std::move(AllocateDependency)}
-  {}
+      : MGenericCommands{GenericCommandsCapacity}, MIfGenericIsFull{std::move(
+                                                       IfGenericIsFull)},
+        MAllocateDependency{std::move(AllocateDependency)} {}
 
   iterator begin() {
     if (MGenericCommands.empty())
@@ -73,9 +71,7 @@ public:
     return iterator{*this, MGenericCommands.begin()};
   }
 
-  iterator end() {
-    return iterator{*this, endHostAccessor()};
-  }
+  iterator end() { return iterator{*this, endHostAccessor()}; }
 
   const_iterator cbegin() const {
     if (MGenericCommands.empty())
@@ -110,14 +106,13 @@ public:
   }
 
 private:
-  template <bool IsConst, typename T>
-  struct ConstIterator;
+  template <bool IsConst, typename T> struct ConstIterator;
 
-  template<typename T> struct ConstIterator<true, T> {
+  template <typename T> struct ConstIterator<true, T> {
     using type = typename T::const_iterator;
   };
 
-  template<typename T> struct ConstIterator<false, T> {
+  template <typename T> struct ConstIterator<false, T> {
     using type = typename T::iterator;
   };
 
@@ -141,7 +136,8 @@ private:
   // returns number of removed elements
   size_t eraseHostAccessorCommand(EmptyCommand *Cmd);
 
-  typename ConstIterator<false, HostAccessorCommandsT>::type beginHostAccessor() {
+  typename ConstIterator<false, HostAccessorCommandsT>::type
+  beginHostAccessor() {
     return MHostAccessorCommands.begin();
   }
 
@@ -163,35 +159,19 @@ private:
   friend struct IteratorT<true>;
   friend struct IteratorT<false>;
 
-  template <bool IsConst, typename T>
-  struct ConstRef;
+  template <bool IsConst, typename T> struct ConstRef;
+  template<typename T> struct ConstRef<true, T> { using type = const T &; };
+  template<typename T> struct ConstRef<false, T> { using type = T &; };
 
-  template<typename T> struct ConstRef<true, T> {
-    using type = const T &;
-  };
-
-  template<typename T> struct ConstRef<false, T> {
-    using type = T &;
-  };
-
-
-  template <bool IsConst, typename T>
-  struct ConstPtr;
-
-  template<typename T> struct ConstPtr<true, T> {
-    using type = const T *;
-  };
-
-  template<typename T> struct ConstPtr<false, T> {
-    using type = T *;
-  };
+  template <bool IsConst, typename T> struct ConstPtr;
+  template<typename T> struct ConstPtr<true, T> { using type = const T *; };
+  template<typename T> struct ConstPtr<false, T> { using type = T *; };
 
 
 public:
   // iterate over generic commands in the first place and over host accessors
   // later on
-  template <bool IsConst>
-  struct IteratorT {
+  template <bool IsConst> struct IteratorT {
     using HostT = typename ConstRef<IsConst, CircularBufferExtended>::type;
     using GCItT = typename ConstIterator<IsConst, GenericCommandsT>::type;
     using HACItT = typename ConstIterator<IsConst, HostAccessorCommandsT>::type;
@@ -210,8 +190,8 @@ public:
         : IteratorT(Host, std::move(GCIt), Host.beginHostAccessor(), true) {}
 
     IteratorT(HostT Host, HACItT HACIt)
-        : IteratorT(Host, Host.MGenericCommands.end(), std::move(HACIt), false)
-    {}
+        : IteratorT(Host, Host.MGenericCommands.end(), std::move(HACIt),
+                    false) {}
 
     IteratorT(const IteratorT<IsConst> &Other)
         : MHost{Other.MHost}, MGCIt(Other.MGCIt), MHACIt(Other.MHACIt),
@@ -224,14 +204,14 @@ public:
 
     bool operator==(const IteratorT<IsConst> &Rhs) const {
       return &MHost == &Rhs.MHost && MGenericIsActive == Rhs.MGenericIsActive &&
-          ((MGenericIsActive && MGCIt == Rhs.MGCIt) ||
-           (!MGenericIsActive && MHACIt == Rhs.MHACIt));
+             ((MGenericIsActive && MGCIt == Rhs.MGCIt) ||
+              (!MGenericIsActive && MHACIt == Rhs.MHACIt));
     }
 
     bool operator!=(const IteratorT<IsConst> &Rhs) const {
       return &MHost != &Rhs.MHost || MGenericIsActive != Rhs.MGenericIsActive ||
-          ((MGenericIsActive && MGCIt != Rhs.MGCIt) ||
-           (!MGenericIsActive && MHACIt != Rhs.MHACIt));
+             ((MGenericIsActive && MGCIt != Rhs.MGCIt) ||
+              (!MGenericIsActive && MHACIt != Rhs.MHACIt));
     }
 
     // pre-increment
