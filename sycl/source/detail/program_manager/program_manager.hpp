@@ -146,13 +146,12 @@ private:
                                       bool JITCompilationIsRequired = false);
   using ProgramPtr = unique_ptr_class<remove_pointer_t<RT::PiProgram>,
                                       decltype(&::piProgramRelease)>;
-  ProgramPtr
-  build(ProgramPtr Program, const ContextImplPtr Context,
-        const string_class &CompileOptions, const string_class &LinkOptions,
-        const RT::PiDevice &Device,
-        std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
-            &CachedLibPrograms,
-        uint32_t DeviceLibReqMask);
+  ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
+                   const string_class &CompileOptions,
+                   const string_class &LinkOptions, const RT::PiDevice &Device,
+                   std::map<std::pair<DeviceLibExt, RT::PiDevice>,
+                            RT::PiProgram> &CachedLibPrograms,
+                   uint32_t DeviceLibReqMask);
   /// Provides a new kernel set id for grouping kernel names together
   KernelSetId getNextKernelSetId() const;
   /// Returns the kernel set associated with the kernel, handles some special
