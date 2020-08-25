@@ -146,12 +146,13 @@ private:
                                       bool JITCompilationIsRequired = false);
   using ProgramPtr = unique_ptr_class<remove_pointer_t<RT::PiProgram>,
                                       decltype(&::piProgramRelease)>;
-  ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
-                   const string_class &CompileOptions,
-                   const string_class &LinkOptions,
-                   const std::vector<RT::PiDevice> &Devices,
-                   std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms,
-                   uint32_t DeviceLibReqMask);
+  ProgramPtr
+  build(ProgramPtr Program, const ContextImplPtr Context,
+        const string_class &CompileOptions, const string_class &LinkOptions,
+        const RT::PiDevice &Device,
+        std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
+            &CachedLibPrograms,
+        uint32_t DeviceLibReqMask);
   /// Provides a new kernel set id for grouping kernel names together
   KernelSetId getNextKernelSetId() const;
   /// Returns the kernel set associated with the kernel, handles some special
@@ -209,7 +210,7 @@ private:
   // the underlying program disposed of), so the map can't be used in any way
   // other than binary image lookup with known live PiProgram as the key.
   // NOTE: access is synchronized via the MNativeProgramsMutex
-  std::map<pi::PiProgram, const RTDeviceBinaryImage *> NativePrograms;
+  std::unordered_map<pi::PiProgram, const RTDeviceBinaryImage *> NativePrograms;
 
   /// Protects NativePrograms that can be changed by class' methods.
   std::mutex MNativeProgramsMutex;

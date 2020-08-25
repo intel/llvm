@@ -15,14 +15,14 @@ void exceptionHandler(sycl::exception_list exceptions) {
     try {
       std::rethrow_exception(e);
     } catch (sycl::exception const &e) {
-      std::cout << "Caught asynchronous SYCL exception:\n"
+      std::cerr << "Caught asynchronous SYCL exception:\n"
                 << e.what() << std::endl;
     }
   }
 }
 
 int main() {
-  std::vector DeviceList = sycl::device::get_devices();
+  auto DeviceList = sycl::device::get_devices();
 
   // remove host device from the list
   DeviceList.erase(std::remove_if(DeviceList.begin(), DeviceList.end(),
@@ -33,8 +33,7 @@ int main() {
 
   std::vector<sycl::queue> QueueList;
   for (const auto &Device : Context.get_devices()) {
-    sycl::queue Queue(Context, Device, &exceptionHandler);
-    QueueList.push_back(Queue);
+    QueueList.emplace_back(Context, Device, &exceptionHandler);
   }
 
   for (auto &Queue : QueueList) {

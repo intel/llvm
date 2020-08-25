@@ -375,35 +375,9 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
-    bool ContextHasSubDevices = false;
-    const vector_class<device> &Devices = ContextImpl->getDevices();
-    for (const device &Device : Devices) {
-      try {
-        // Device.get_info<info::device::parent_device>(); should throw
-        // sycl::invalid_object_error exception if Device is not a sub device.
-        // If the exception doesn't throw, it means that context has a sub
-        // device and we can quit the loop.
-        Device.get_info<info::device::parent_device>();
-        ContextHasSubDevices = true;
-        break;
-      } catch (sycl::invalid_object_error const &) {
-      }
-    }
-
-    vector_class<RT::PiDevice> PiDevices;
-    if (ContextHasSubDevices) {
-      PiDevices.resize(Devices.size());
-      std::transform(Devices.begin(), Devices.end(), PiDevices.begin(),
-                     [](const device &Dev) {
-                       return getRawSyclObjImpl(Dev)->getHandleRef();
-                     });
-    } else {
-      PiDevices.push_back(getRawSyclObjImpl(Device)->getHandleRef());
-    }
-
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, Img.getCompileOptions(),
-              Img.getLinkOptions(), PiDevices,
+              Img.getLinkOptions(), getRawSyclObjImpl(Device)->getHandleRef(),
               ContextImpl->getCachedLibPrograms(), DeviceLibReqMask);
 
     {
@@ -575,13 +549,15 @@ static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
 
 static RT::PiProgram loadDeviceLibFallback(
     const ContextImplPtr Context, DeviceLibExt Extension,
-    const std::vector<RT::PiDevice> &Devices,
-    std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms) {
+    const RT::PiDevice &Device,
+    std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
+        &CachedLibPrograms) {
 
   const char *LibFileName = getDeviceLibFilename(Extension);
-  auto CacheResult = CachedLibPrograms.insert({Extension, nullptr});
+  auto CacheResult = CachedLibPrograms.emplace(
+      std::make_pair(std::make_pair(Extension, Device), nullptr));
   bool Cached = !CacheResult.second;
-  std::map<DeviceLibExt, RT::PiProgram>::iterator LibProgIt = CacheResult.first;
+  auto LibProgIt = CacheResult.first;
   RT::PiProgram &LibProg = LibProgIt->second;
 
   if (Cached)
@@ -597,8 +573,7 @@ static RT::PiProgram loadDeviceLibFallback(
   // TODO no spec constants are used in the std libraries, support in the future
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
       LibProg,
-      // Assume that Devices contains all devices from Context.
-      Devices.size(), Devices.data(),
+      /*num devices = */ 1, &Device,
       // Do not use compile options for library programs: it is not clear
       // if user options (image options) are supposed to be applied to
       // library program as well, and what actually happens to a SPIR-V
@@ -718,11 +693,11 @@ static bool isDeviceLibRequired(DeviceLibExt Ext, uint32_t DeviceLibReqMask) {
   return ((DeviceLibReqMask & Mask) == Mask);
 }
 
-static std::vector<RT::PiProgram>
-getDeviceLibPrograms(const ContextImplPtr Context,
-                     const std::vector<RT::PiDevice> &Devices,
-                     std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms,
-                     uint32_t DeviceLibReqMask) {
+static std::vector<RT::PiProgram> getDeviceLibPrograms(
+    const ContextImplPtr Context, const RT::PiDevice &Device,
+    std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
+        &CachedLibPrograms,
+    uint32_t DeviceLibReqMask) {
   std::vector<RT::PiProgram> Programs;
 
   std::pair<DeviceLibExt, bool> RequiredDeviceLibExt[] = {
@@ -736,68 +711,61 @@ getDeviceLibPrograms(const ContextImplPtr Context,
   // Disable all devicelib extensions requiring fp64 support if at least
   // one underlying device doesn't support cl_khr_fp64.
   bool fp64Support = true;
-  for (RT::PiDevice Dev : Devices) {
-    std::string DevExtList =
-        get_device_info<std::string, info::device::extensions>::get(
-            Dev, Context->getPlugin());
-    fp64Support =
-        fp64Support && (DevExtList.npos != DevExtList.find("cl_khr_fp64"));
-  }
+  std::string DevExtList =
+      get_device_info<std::string, info::device::extensions>::get(
+          Device, Context->getPlugin());
+  fp64Support =
+      fp64Support && (DevExtList.npos != DevExtList.find("cl_khr_fp64"));
 
-  // Load a fallback library for an extension if at least one device does not
+  // Load a fallback library for an extension if the device does not
   // support it.
-  for (RT::PiDevice Dev : Devices) {
-    std::string DevExtList =
-        get_device_info<std::string, info::device::extensions>::get(
-            Dev, Context->getPlugin());
-    for (auto &Pair : RequiredDeviceLibExt) {
-      DeviceLibExt Ext = Pair.first;
-      bool &FallbackIsLoaded = Pair.second;
+  for (auto &Pair : RequiredDeviceLibExt) {
+    DeviceLibExt Ext = Pair.first;
+    bool &FallbackIsLoaded = Pair.second;
 
-      if (FallbackIsLoaded) {
-        continue;
-      }
+    if (FallbackIsLoaded) {
+      continue;
+    }
 
-      if (!isDeviceLibRequired(Ext, DeviceLibReqMask)) {
-        continue;
-      }
-      if ((Ext == DeviceLibExt::cl_intel_devicelib_math_fp64 ||
-           Ext == DeviceLibExt::cl_intel_devicelib_complex_fp64) &&
-          !fp64Support) {
-        continue;
-      }
+    if (!isDeviceLibRequired(Ext, DeviceLibReqMask)) {
+      continue;
+    }
+    if ((Ext == DeviceLibExt::cl_intel_devicelib_math_fp64 ||
+         Ext == DeviceLibExt::cl_intel_devicelib_complex_fp64) &&
+        !fp64Support) {
+      continue;
+    }
 
-      const char *ExtStr = getDeviceLibExtensionStr(Ext);
+    const char *ExtStr = getDeviceLibExtensionStr(Ext);
 
-      bool InhibitNativeImpl = false;
-      if (const char *Env = getenv("SYCL_DEVICELIB_INHIBIT_NATIVE")) {
-        InhibitNativeImpl = strstr(Env, ExtStr) != nullptr;
-      }
+    bool InhibitNativeImpl = false;
+    if (const char *Env = getenv("SYCL_DEVICELIB_INHIBIT_NATIVE")) {
+      InhibitNativeImpl = strstr(Env, ExtStr) != nullptr;
+    }
 
-      bool DeviceSupports = DevExtList.npos != DevExtList.find(ExtStr);
+    bool DeviceSupports = DevExtList.npos != DevExtList.find(ExtStr);
 
-      if (!DeviceSupports || InhibitNativeImpl) {
-        Programs.push_back(
-            loadDeviceLibFallback(Context, Ext, Devices, CachedLibPrograms));
-        FallbackIsLoaded = true;
-      }
+    if (!DeviceSupports || InhibitNativeImpl) {
+      Programs.push_back(
+          loadDeviceLibFallback(Context, Ext, Device, CachedLibPrograms));
+      FallbackIsLoaded = true;
     }
   }
   return Programs;
 }
 
-ProgramManager::ProgramPtr
-ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
-                      const string_class &CompileOptions,
-                      const string_class &LinkOptions,
-                      const std::vector<RT::PiDevice> &Devices,
-                      std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms,
-                      uint32_t DeviceLibReqMask) {
+ProgramManager::ProgramPtr ProgramManager::build(
+    ProgramPtr Program, const ContextImplPtr Context,
+    const string_class &CompileOptions, const string_class &LinkOptions,
+    const RT::PiDevice &Device,
+    std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
+        &CachedLibPrograms,
+    uint32_t DeviceLibReqMask) {
 
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::build(" << Program.get() << ", "
-              << CompileOptions << ", " << LinkOptions << ", ... "
-              << Devices.size() << ")\n";
+              << CompileOptions << ", " << LinkOptions << ", ... " << Device
+              << ")\n";
   }
 
   bool LinkDeviceLibs = (DeviceLibReqMask != 0);
@@ -828,7 +796,7 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
 
   std::vector<RT::PiProgram> LinkPrograms;
   if (LinkDeviceLibs) {
-    LinkPrograms = getDeviceLibPrograms(Context, Devices, CachedLibPrograms,
+    LinkPrograms = getDeviceLibPrograms(Context, Device, CachedLibPrograms,
                                         DeviceLibReqMask);
   }
 
@@ -837,7 +805,7 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
     std::string Opts(CompileOpts);
 
     RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
-        Program.get(), Devices.size(), Devices.data(), Opts.c_str(), nullptr,
+        Program.get(), /*num devices =*/1, &Device, Opts.c_str(), nullptr,
         nullptr);
     if (Error != PI_SUCCESS)
       throw compile_program_error(getProgramBuildLog(Program.get(), Context),
@@ -846,14 +814,14 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
   }
 
   // Include the main program and compile/link everything together
-  Plugin.call<PiApiKind::piProgramCompile>(Program.get(), Devices.size(),
-                                           Devices.data(), CompileOpts, 0,
-                                           nullptr, nullptr, nullptr, nullptr);
+  Plugin.call<PiApiKind::piProgramCompile>(Program.get(), /*num devices =*/1,
+                                           &Device, CompileOpts, 0, nullptr,
+                                           nullptr, nullptr, nullptr);
   LinkPrograms.push_back(Program.get());
 
   RT::PiProgram LinkedProg = nullptr;
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramLink>(
-      Context->getHandleRef(), Devices.size(), Devices.data(), LinkOpts,
+      Context->getHandleRef(), /*num devices =*/1, &Device, LinkOpts,
       LinkPrograms.size(), LinkPrograms.data(), nullptr, nullptr, &LinkedProg);
 
   // Link program call returns a new program object if all parameters are valid,
