@@ -86,6 +86,10 @@ void CircularBufferExtended::addHostAccessorCommand(
         }
     );
 
+  // FIXME this 'if' is a workaround for duplicate leaves, remove once fixed
+  if (OldCmdIt != MHostAccessorCommands.end() && *OldCmdIt == Cmd)
+    return;
+
   // 2.1  If OldCmd != null:
   //          Put a dependency in the same way as we would for generic commands
   //          when circular buffer is full.
