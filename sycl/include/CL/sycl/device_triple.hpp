@@ -1,4 +1,4 @@
-//==-------------- triple.hpp - SYCL device triple descripter --------------==//
+//==-------------- device_triple.hpp - SYCL device triple descriptor --------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
