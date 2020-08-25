@@ -183,9 +183,8 @@ public:
     const char *ValStr = BaseT::getRawValue();
     if (ValStr) {
       std::string TripleString = ValStr;
-      std::transform(TripleString.begin(), TripleString.end(),
-                     TripleString.begin(), ::tolower);
-      TripleList = new device_triple_list(TripleString);
+      static device_triple_list DTL = TripleString;
+      TripleList = &DTL;
     }
     return TripleList;
   }

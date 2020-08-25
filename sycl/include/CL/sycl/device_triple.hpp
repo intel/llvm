@@ -22,7 +22,7 @@ class device_triple {
   backend Backend;
   info::device_type DeviceType;
   int32_t DeviceNum;
-  const int DEVICE_NUM_UNSPECIFIED = -1;
+  static constexpr int DEVICE_NUM_UNSPECIFIED = -1;
 
 public:
   device_triple(std::string &TripleString);
