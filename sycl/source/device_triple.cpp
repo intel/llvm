@@ -8,9 +8,10 @@
 
 #include <CL/sycl/device_triple.hpp>
 #include <CL/sycl/info/info_desc.hpp>
-#include <cstring>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
+
+#include <cstring>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
