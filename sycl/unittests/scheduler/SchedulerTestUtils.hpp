@@ -23,13 +23,13 @@ public:
   MockCommand(cl::sycl::detail::QueueImplPtr Queue,
               cl::sycl::detail::Requirement Req,
               cl::sycl::detail::Command::CommandType Type =
-                  cl::sycl::detail::Command::EMPTY_TASK)
+                  cl::sycl::detail::Command::RUN_CG)
       : Command{Type, Queue},
         MRequirement{std::move(Req)} {}
 
   MockCommand(cl::sycl::detail::QueueImplPtr Queue,
               cl::sycl::detail::Command::CommandType Type =
-                  cl::sycl::detail::Command::EMPTY_TASK)
+                  cl::sycl::detail::Command::RUN_CG)
       : Command{Type, Queue},
         MRequirement{std::move(getMockRequirement())} {}
 
