@@ -1957,6 +1957,21 @@ bool LLVMToSPIRV::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::ctlz:
   case Intrinsic::cttz:
   case Intrinsic::expect:
+  case Intrinsic::experimental_constrained_fadd:
+  case Intrinsic::experimental_constrained_fsub:
+  case Intrinsic::experimental_constrained_fmul:
+  case Intrinsic::experimental_constrained_fdiv:
+  case Intrinsic::experimental_constrained_frem:
+  case Intrinsic::experimental_constrained_fma:
+  case Intrinsic::experimental_constrained_fptoui:
+  case Intrinsic::experimental_constrained_fptosi:
+  case Intrinsic::experimental_constrained_uitofp:
+  case Intrinsic::experimental_constrained_sitofp:
+  case Intrinsic::experimental_constrained_fptrunc:
+  case Intrinsic::experimental_constrained_fpext:
+  case Intrinsic::experimental_constrained_fcmp:
+  case Intrinsic::experimental_constrained_fcmps:
+  case Intrinsic::experimental_constrained_fmuladd:
   case Intrinsic::fmuladd:
   case Intrinsic::memset:
   case Intrinsic::memcpy:
@@ -1976,6 +1991,24 @@ bool LLVMToSPIRV::isKnownIntrinsic(Intrinsic::ID Id) {
     // Unknown intrinsics' declarations should always be translated
     return false;
   }
+}
+
+// Performs mapping of LLVM IR rounding mode to SPIR-V rounding mode
+// Value *V is metadata <rounding mode> argument of
+// llvm.experimental.constrained.* intrinsics
+SPIRVInstruction *
+LLVMToSPIRV::applyRoundingModeConstraint(Value *V, SPIRVInstruction *I) {
+  StringRef RMode =
+      cast<MDString>(cast<MetadataAsValue>(V)->getMetadata())->getString();
+  if (RMode.endswith("tonearest"))
+    I->addFPRoundingMode(FPRoundingModeRTE);
+  else if (RMode.endswith("towardzero"))
+    I->addFPRoundingMode(FPRoundingModeRTZ);
+  else if (RMode.endswith("upward"))
+    I->addFPRoundingMode(FPRoundingModeRTP);
+  else if (RMode.endswith("downward"))
+    I->addFPRoundingMode(FPRoundingModeRTN);
+  return I;
 }
 
 SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
@@ -2064,6 +2097,105 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
       return BM->addExpectINTELInst(Ty, Value, ExpectedValue, BB);
     }
     return Value;
+  }
+  case Intrinsic::experimental_constrained_fadd: {
+    auto BI = BM->addBinaryInst(OpFAdd, transType(II->getType()),
+                                transValue(II->getArgOperand(0), BB),
+                                transValue(II->getArgOperand(1), BB), BB);
+    return applyRoundingModeConstraint(II->getOperand(2), BI);
+  }
+  case Intrinsic::experimental_constrained_fsub: {
+    auto BI = BM->addBinaryInst(OpFSub, transType(II->getType()),
+                                transValue(II->getArgOperand(0), BB),
+                                transValue(II->getArgOperand(1), BB), BB);
+    return applyRoundingModeConstraint(II->getOperand(2), BI);
+  }
+  case Intrinsic::experimental_constrained_fmul: {
+    auto BI = BM->addBinaryInst(OpFMul, transType(II->getType()),
+                                transValue(II->getArgOperand(0), BB),
+                                transValue(II->getArgOperand(1), BB), BB);
+    return applyRoundingModeConstraint(II->getOperand(2), BI);
+  }
+  case Intrinsic::experimental_constrained_fdiv: {
+    auto BI = BM->addBinaryInst(OpFDiv, transType(II->getType()),
+                                transValue(II->getArgOperand(0), BB),
+                                transValue(II->getArgOperand(1), BB), BB);
+    return applyRoundingModeConstraint(II->getOperand(2), BI);
+  }
+  case Intrinsic::experimental_constrained_frem: {
+    auto BI = BM->addBinaryInst(OpFRem, transType(II->getType()),
+                                transValue(II->getArgOperand(0), BB),
+                                transValue(II->getArgOperand(1), BB), BB);
+    return applyRoundingModeConstraint(II->getOperand(2), BI);
+  }
+  case Intrinsic::experimental_constrained_fma: {
+    std::vector<SPIRVValue *> Args{transValue(II->getArgOperand(0), BB),
+                                   transValue(II->getArgOperand(1), BB),
+                                   transValue(II->getArgOperand(2), BB)};
+    auto BI = BM->addExtInst(transType(II->getType()),
+                             BM->getExtInstSetId(SPIRVEIS_OpenCL),
+                             OpenCLLIB::Fma, Args, BB);
+    return applyRoundingModeConstraint(II->getOperand(3), BI);
+  }
+  case Intrinsic::experimental_constrained_fptoui: {
+    return BM->addUnaryInst(OpConvertFToU, transType(II->getType()),
+                            transValue(II->getArgOperand(0), BB), BB);
+  }
+  case Intrinsic::experimental_constrained_fptosi: {
+    return BM->addUnaryInst(OpConvertFToS, transType(II->getType()),
+                            transValue(II->getArgOperand(0), BB), BB);
+  }
+  case Intrinsic::experimental_constrained_uitofp: {
+    auto BI = BM->addUnaryInst(OpConvertUToF, transType(II->getType()),
+                               transValue(II->getArgOperand(0), BB), BB);
+    return applyRoundingModeConstraint(II->getOperand(1), BI);
+  }
+  case Intrinsic::experimental_constrained_sitofp: {
+    auto BI = BM->addUnaryInst(OpConvertSToF, transType(II->getType()),
+                               transValue(II->getArgOperand(0), BB), BB);
+    return applyRoundingModeConstraint(II->getOperand(1), BI);
+  }
+  case Intrinsic::experimental_constrained_fpext: {
+    return BM->addUnaryInst(OpFConvert, transType(II->getType()),
+                            transValue(II->getArgOperand(0), BB), BB);
+  }
+  case Intrinsic::experimental_constrained_fptrunc: {
+    auto BI = BM->addUnaryInst(OpFConvert, transType(II->getType()),
+                               transValue(II->getArgOperand(0), BB), BB);
+    return applyRoundingModeConstraint(II->getOperand(1), BI);
+  }
+  case Intrinsic::experimental_constrained_fcmp:
+  case Intrinsic::experimental_constrained_fcmps: {
+    auto MetaMod = cast<MetadataAsValue>(II->getOperand(2))->getMetadata();
+    Op CmpTypeOp = StringSwitch<Op>(cast<MDString>(MetaMod)->getString())
+                       .Case("oeq", OpFOrdEqual)
+                       .Case("ogt", OpFOrdGreaterThan)
+                       .Case("oge", OpFOrdGreaterThanEqual)
+                       .Case("olt", OpFOrdLessThan)
+                       .Case("ole", OpFOrdLessThanEqual)
+                       .Case("one", OpFOrdNotEqual)
+                       .Case("ord", OpOrdered)
+                       .Case("ueq", OpFUnordEqual)
+                       .Case("ugt", OpFUnordGreaterThan)
+                       .Case("uge", OpFUnordGreaterThanEqual)
+                       .Case("ult", OpFUnordLessThan)
+                       .Case("ule", OpFUnordLessThanEqual)
+                       .Case("une", OpFUnordNotEqual)
+                       .Case("uno", OpUnordered)
+                       .Default(OpNop);
+    assert(CmpTypeOp != OpNop && "Invalid condition code!");
+    return BM->addCmpInst(CmpTypeOp, transType(II->getType()),
+                          transValue(II->getOperand(0), BB),
+                          transValue(II->getOperand(1), BB), BB);
+  }
+  case Intrinsic::experimental_constrained_fmuladd: {
+    SPIRVType *Ty = transType(II->getType());
+    SPIRVValue *Mul =
+        BM->addBinaryInst(OpFMul, Ty, transValue(II->getArgOperand(0), BB),
+                          transValue(II->getArgOperand(1), BB), BB);
+    auto BI = BM->addBinaryInst(OpFAdd, Ty, Mul,
+                                transValue(II->getArgOperand(2), BB), BB);
+    return applyRoundingModeConstraint(II->getOperand(3), BI);
   }
   case Intrinsic::fmuladd: {
     // For llvm.fmuladd.* fusion is not guaranteed. If a fused multiply-add
