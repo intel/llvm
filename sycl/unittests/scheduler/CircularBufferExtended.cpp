@@ -135,8 +135,8 @@ TEST_F(CircularBufferExtendedTest, Remove) {
 
     Requirement MockReq = getMockRequirement(Buf);
 
-    CircularBufferExtended CBE = CircularBufferExtended(GenericCmdsCapacity,
-        IfGenericIsFull, AllocateDependency);
+    CircularBufferExtended CBE = CircularBufferExtended(
+        GenericCmdsCapacity, IfGenericIsFull, AllocateDependency);
     std::vector<std::shared_ptr<Command>> Cmds;
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 4; ++Idx) {

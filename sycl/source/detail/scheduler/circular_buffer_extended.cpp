@@ -80,7 +80,7 @@ void CircularBufferExtended::addHostAccessorCommand(EmptyCommand *Cmd,
   else
     OldCmdIt = std::find_if(
         MHostAccessorCommands.begin(), MHostAccessorCommands.end(),
-        [&](const EmptyCommand * Test) -> bool {
+        [&](const EmptyCommand *Test) -> bool {
           return doOverlap(Test->getRequirement(), Cmd->getRequirement());
         });
 

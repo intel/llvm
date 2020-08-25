@@ -160,12 +160,12 @@ private:
   friend struct IteratorT<false>;
 
   template <bool IsConst, typename T> struct ConstRef;
-  template<typename T> struct ConstRef<true, T> { using type = const T &; };
-  template<typename T> struct ConstRef<false, T> { using type = T &; };
+  template <typename T> struct ConstRef<true, T> { using type = const T &; };
+  template <typename T> struct ConstRef<false, T> { using type = T &; };
 
   template <bool IsConst, typename T> struct ConstPtr;
-  template<typename T> struct ConstPtr<true, T> { using type = const T *; };
-  template<typename T> struct ConstPtr<false, T> { using type = T *; };
+  template <typename T> struct ConstPtr<true, T> { using type = const T *; };
+  template <typename T> struct ConstPtr<false, T> { using type = T *; };
 
 
 public:
