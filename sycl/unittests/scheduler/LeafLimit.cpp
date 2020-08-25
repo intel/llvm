@@ -16,6 +16,9 @@
 
 using namespace cl::sycl;
 
+// Checks that scheduler's (or graph-builder's) addNodeToLeaves method works
+// correctly with depency tracking when leaf-limit for generic commands is
+// overflowed.
 TEST_F(SchedulerTest, LeafLimit) {
   MockScheduler MS;
 
@@ -30,7 +33,7 @@ TEST_F(SchedulerTest, LeafLimit) {
   std::vector<MockCommand *> LeavesToAdd;
   for (std::size_t i = 0; i < Rec->MWriteLeaves.genericCommandsCapacity() + 1; ++i) {
     LeavesToAdd.push_back(
-        new MockCommand(detail::getSyclObjImpl(MQueue), MockReq));
+        new MockCommand(detail::getSyclObjImpl(MQueue), MockReq, detail::Command::RUN_CG));
   }
   // Create edges: all soon-to-be leaves are direct users of MockDep
   for (auto Leaf : LeavesToAdd) {
