@@ -19,15 +19,15 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 class device_triple {
-  info::device_type DeviceType;
   backend Backend;
+  info::device_type DeviceType;
   int32_t DeviceNum;
   const int DEVICE_NUM_UNSPECIFIED = -1;
 
 public:
   device_triple(std::string &TripleString);
-  info::device_type getDeviceType() const { return DeviceType; }
   backend getBackend() const { return Backend; }
+  info::device_type getDeviceType() const { return DeviceType; }
   int32_t getDeviceNum() const { return DeviceNum; }
   friend std::ostream &operator<<(std::ostream &Out, const device_triple &Trp);
 };
@@ -44,18 +44,6 @@ public:
 };
 
 inline std::ostream &operator<<(std::ostream &Out, const device_triple &Trp) {
-  if (Trp.DeviceType == info::device_type::host) {
-    Out << std::string("host");
-  } else if (Trp.DeviceType == info::device_type::cpu) {
-    Out << std::string("cpu");
-  } else if (Trp.DeviceType == info::device_type::gpu) {
-    Out << std::string("gpu");
-  } else if (Trp.DeviceType == info::device_type::accelerator) {
-    Out << std::string("acceclerator");
-  } else if (Trp.DeviceType == info::device_type::all) {
-    Out << std::string("*");
-  }
-  Out << std::string(":");
   switch (Trp.Backend) {
   case backend::host:
     Out << std::string("host");
@@ -70,6 +58,18 @@ inline std::ostream &operator<<(std::ostream &Out, const device_triple &Trp) {
     Out << std::string("cuda");
     break;
   case backend::all:
+    Out << std::string("*");
+  }
+  Out << std::string(":");
+  if (Trp.DeviceType == info::device_type::host) {
+    Out << std::string("host");
+  } else if (Trp.DeviceType == info::device_type::cpu) {
+    Out << std::string("cpu");
+  } else if (Trp.DeviceType == info::device_type::gpu) {
+    Out << std::string("gpu");
+  } else if (Trp.DeviceType == info::device_type::accelerator) {
+    Out << std::string("acceclerator");
+  } else if (Trp.DeviceType == info::device_type::all) {
     Out << std::string("*");
   }
   if (Trp.DeviceNum != Trp.DEVICE_NUM_UNSPECIFIED) {

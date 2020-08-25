@@ -10,6 +10,7 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
+#include <cstring>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -27,64 +28,67 @@ device_triple::device_triple(std::string &TripleString) {
        {"cuda", backend::cuda},
        {"*", backend::all}}};
 
-  // device_type is a required entry
-  size_t Pos = 0;
-  auto It = std::find_if(
+  // handle the optional 1st entry, backend
+  size_t Cursor = 0;
+  size_t ColonPos = TripleString.find(":", Cursor);
+  auto It = std::find_if(std::begin(SyclBeMap), std::end(SyclBeMap),
+		 [=, &Cursor](const std::pair<std::string, backend> &Element) {
+		   size_t Found = TripleString.find(Element.first, Cursor);
+		   if (Found != std::string::npos) {
+		     Cursor = Found;
+		     return true;
+		   }
+		   return false;
+		 });
+  if (It == SyclBeMap.end()) {
+    Backend = backend::all;
+  } else {
+    Backend = It->second;
+    if (ColonPos != std::string::npos) {
+      Cursor = ColonPos + 1;
+    } else {
+      Cursor = Cursor + It->first.size();
+    }
+  }
+  
+  // handle the optional 2nd entry, device type
+  auto Iter = std::find_if(
       std::begin(SyclDeviceTypeMap), std::end(SyclDeviceTypeMap),
-      [=, &Pos](const std::pair<std::string, info::device_type> &Element) {
-        size_t Found = TripleString.find(Element.first, Pos);
+      [=, &Cursor](const std::pair<std::string, info::device_type> &Element) {
+        size_t Found = TripleString.find(Element.first, Cursor);
         if (Found != std::string::npos) {
-          Pos = Found;
+          Cursor = Found;
           return true;
         }
         return false;
       });
-  if (It == SyclDeviceTypeMap.end())
-    throw cl::sycl::invalid_parameter_error(
-        "Invalid device_type. Valid values are host/cpu/gpu/acc/*",
-        PI_INVALID_VALUE);
-
-  DeviceType = It->second;
-  // initialize optional entries with default values
-  if (DeviceType == info::device_type::all) {
-    Backend = backend::all;
-  } else if (DeviceType == info::device_type::gpu) {
-    Backend = backend::level_zero;
+  if (Iter == SyclDeviceTypeMap.end()) {
+    DeviceType = info::device_type::all;
   } else {
-    Backend = backend::opencl;
+    DeviceType = Iter->second;
+    ColonPos = TripleString.find(":", Cursor);
+    if (ColonPos != std::string::npos) {
+      Cursor = ColonPos + 1;
+    } else {
+      Cursor = Cursor + Iter->first.size();
+    }
   }
-  DeviceNum = DEVICE_NUM_UNSPECIFIED;
-
-  // update the optional 2nd entry, backend
-  size_t ColonPos = TripleString.find(":", Pos);
-  if (ColonPos != std::string::npos) {
-    Pos = ColonPos + 1;
-    auto It =
-        std::find_if(std::begin(SyclBeMap), std::end(SyclBeMap),
-                     [=, &Pos](const std::pair<std::string, backend> &Element) {
-                       size_t Found = TripleString.find(Element.first, Pos);
-                       if (Found != std::string::npos) {
-                         Pos = Found;
-                         return true;
-                       }
-                       return false;
-                     });
-    if (It == SyclBeMap.end())
-      throw cl::sycl::invalid_parameter_error(
-          "Invalid backend. Valid values are opencl/level_zero/cuda/*",
-          PI_INVALID_VALUE);
-    Backend = It->second;
-  }
-
-  // update the optional 3rd entry, device number
-  ColonPos = TripleString.find(":", Pos);
-  if (ColonPos != std::string::npos && (ColonPos + 1) < TripleString.size()) {
+  
+  // handle the optional 3rd entry, device number
+  if (Cursor < TripleString.size()) {
     try {
       DeviceNum = stoi(TripleString.substr(ColonPos + 1));
     } catch (...) {
-      throw cl::sycl::invalid_parameter_error(
-          "Invalid device number. An integer is needed.", PI_INVALID_VALUE);
+      char message[100];
+      strcpy(message, "Invalid device triple: ");
+      std::strcat(message, TripleString.c_str());
+      std::strcat(message, "\nPossible backend values are {opencl,level_zero,cuda,*}.");
+      std::strcat(message, "\nPossible device types are {host,cpu,gpu,acc,*}.");
+      std::strcat(message, "\nDevice number should be an non-negative integer.\n");
+      throw cl::sycl::invalid_parameter_error(message, PI_INVALID_VALUE);
     }
+  } else {
+    DeviceNum = DEVICE_NUM_UNSPECIFIED;
   }
 }
 

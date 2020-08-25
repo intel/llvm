@@ -2,10 +2,10 @@
 // RUN: %t.out
 // RUN: env SYCL_DEVICE_TRIPLES="*" %t.out
 // RUN: env SYCL_DEVICE_TRIPLES=cpu %t.out
-// RUN: env SYCL_DEVICE_TRIPLES=gpu:level_zero %t.out
-// RUN: env SYCL_DEVICE_TRIPLES=gpu:opencl %t.out
-// RUN: env SYCL_DEVICE_TRIPLES=cpu,gpu:level_zero %t.out
-// RUN: env SYCL_DEVICE_TRIPLES=acc:opencl:0 %t.out
+// RUN: env SYCL_DEVICE_TRIPLES=level_zero:gpu %t.out
+// RUN: env SYCL_DEVICE_TRIPLES=opencl:gpu %t.out
+// RUN: env SYCL_DEVICE_TRIPLES=cpu,level_zero:gpu %t.out
+// RUN: env SYCL_DEVICE_TRIPLES=opencl:acc:0 %t.out
 //
 // Checks if only specified device types can be acquired from select_device
 // when SYCL_DEVICE_TRIPLES is set
@@ -45,7 +45,7 @@ int main() {
     device d = cs.select_device();
     std::cout << "CPU device is found: " << d.is_cpu() << std::endl;
   }
-  // HOST device is always available regardless of SYCL_DEVICE_TRIPLE
+  // HOST device is always available regardless of SYCL_DEVICE_TRIPLES
   {
     host_selector hs;
     device d = hs.select_device();
@@ -58,7 +58,7 @@ int main() {
     std::cout << "ACC device is found: " << d.is_accelerator() << std::endl;
   }
   if (envVal && (forcedPIs.find("cpu") == std::string::npos &&
-                 // remove the following condition when SYCL_DEVICE_TRIPLE
+                 // remove the following condition when SYCL_DEVICE_TRIPLES
                  // filter works in device selectors
                  forcedPIs.find("opencl") == std::string::npos &&
                  forcedPIs.find("*") == std::string::npos)) {
