@@ -167,7 +167,6 @@ private:
   template <typename T> struct ConstPtr<true, T> { using type = const T *; };
   template <typename T> struct ConstPtr<false, T> { using type = T *; };
 
-
 public:
   // iterate over generic commands in the first place and over host accessors
   // later on
