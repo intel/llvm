@@ -11,9 +11,9 @@ __attribute__((sycl_kernel)) void kernel(F kernelFunc) {
 void use() {
   int Arr[2001];
 #ifdef GPU
-  // expected-warning@+6 {{resulting number of kernel arguments 2001 is greater than maximum supported on GPU device - 2000}}
+  // expected-warning@+6 {{resulting number of kernel arguments (2001) is greater than maximum supported on GPU device - (2000)}}
 #elif ERROR
-  // expected-error@+4 {{resulting number of kernel arguments 2001 is greater than maximum supported on GPU device - 2000}}
+  // expected-error@+4 {{resulting number of kernel arguments (2001) is greater than maximum supported on GPU device - (2000)}}
 #else
   // expected-no-diagnostics
 #endif
