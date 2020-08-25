@@ -126,6 +126,7 @@ size_t CircularBufferExtended::eraseHostAccessorCommand(EmptyCommand *Cmd) {
     return 0;
 
   MHostAccessorCommands.erase(XRefIt->second);
+  MHostAccessorCommandsXRef.erase(XRefIt);
   return 1;
 }
 
