@@ -710,12 +710,10 @@ static std::vector<RT::PiProgram> getDeviceLibPrograms(
 
   // Disable all devicelib extensions requiring fp64 support if at least
   // one underlying device doesn't support cl_khr_fp64.
-  bool fp64Support = true;
   std::string DevExtList =
       get_device_info<std::string, info::device::extensions>::get(
           Device, Context->getPlugin());
-  fp64Support =
-      fp64Support && (DevExtList.npos != DevExtList.find("cl_khr_fp64"));
+  const bool fp64Support = (DevExtList.npos != DevExtList.find("cl_khr_fp64"));
 
   // Load a fallback library for an extension if the device does not
   // support it.
