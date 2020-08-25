@@ -9,7 +9,7 @@ void foo() {
   int a = 1;
 }
 
-template <typename name, typename Func>
+template <typename Name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 }
