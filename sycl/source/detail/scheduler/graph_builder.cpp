@@ -488,7 +488,7 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record,
   std::vector<Command *> ToAnalyze{std::move(Record->MWriteLeaves.toVector())};
 
   if (!ReadOnlyReq) {
-    std::vector<Command *> V{std::move(Record->MWriteLeaves.toVector())};
+    std::vector<Command *> V{std::move(Record->MReadLeaves.toVector())};
 
     ToAnalyze.insert(ToAnalyze.begin(), V.begin(), V.end());
   }
