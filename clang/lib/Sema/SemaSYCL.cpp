@@ -901,7 +901,7 @@ class KernelObjVisitor {
                              Handlers &... handlers) {
     (void)std::initializer_list<int>{
         (handlers.nextElement(ElementTy, Index), 0)...};
-     VisitField(Owner, ArrayField, ElementTy, handlers...);
+    VisitField(Owner, ArrayField, ElementTy, handlers...);
   }
 
   template <typename... Handlers>
@@ -1128,8 +1128,7 @@ void KernelObjVisitor::VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
 template <typename... Handlers>
 void KernelObjVisitor::VisitNthArrayElement(const CXXRecordDecl *Owner,
                                             FieldDecl *ArrayField,
-                                            QualType ElementTy,
-                                            uint64_t Index,
+                                            QualType ElementTy, uint64_t Index,
                                             Handlers &... handlers) {
   // Don't continue descending if none of the handlers 'care'. This could be 'if
   // constexpr' starting in C++17.  Until then, we have to count on the
@@ -1718,7 +1717,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   }
 
   // Creates a DeclRefExpr to the ParmVar that represents the current field.
-  Expr* createParamReferenceExpr() {
+  Expr *createParamReferenceExpr() {
     ParmVarDecl *KernelParameter =
         DeclCreator.getParamVarDeclsForCurrentField()[0];
 
@@ -1730,7 +1729,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
   // Creates a DeclRefExpr to the ParmVar that represents the current pointer
   // field.
-  Expr* createPointerParamReferenceExpr(QualType PointerTy, bool Wrapped) {
+  Expr *createPointerParamReferenceExpr(QualType PointerTy, bool Wrapped) {
     ParmVarDecl *KernelParameter =
         DeclCreator.getParamVarDeclsForCurrentField()[0];
 
@@ -1742,11 +1741,11 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     // then wrapped inside a compiler generated struct. Therefore when
     // generating the initializers, we have to 'unwrap' the pointer.
     if (Wrapped) {
-       CXXRecordDecl *WrapperStruct = ParamType->getAsCXXRecordDecl();
-       // Pointer field wrapped inside __wrapper_class
-       FieldDecl *Pointer = *(WrapperStruct->field_begin());
-       DRE = BuildMemberExpr(DRE, Pointer);
-       ParamType = Pointer->getType();
+      CXXRecordDecl *WrapperStruct = ParamType->getAsCXXRecordDecl();
+      // Pointer field wrapped inside __wrapper_class
+      FieldDecl *Pointer = *(WrapperStruct->field_begin());
+      DRE = BuildMemberExpr(DRE, Pointer);
+      ParamType = Pointer->getType();
     }
 
     if (PointerTy->getPointeeType().getAddressSpace() !=
@@ -1792,8 +1791,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     InitializedEntity Entity = getFieldEntity(FD, Ty);
 
     InitializationSequence InitSeq(SemaRef, Entity, InitKind, ParamRef);
-    ExprResult Init =
-        InitSeq.Perform(SemaRef, Entity, InitKind, ParamRef);
+    ExprResult Init = InitSeq.Perform(SemaRef, Entity, InitKind, ParamRef);
 
     InitListExpr *ParentILE = CollectionInitExprs.back();
     ParentILE->updateInit(SemaRef.getASTContext(), ParentILE->getNumInits(),
@@ -1879,7 +1877,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
   InitListExpr *CreateInitListExpr(QualType InitTy, uint64_t NumChildInits) {
     InitListExpr *ILE = new (SemaRef.getASTContext()) InitListExpr(
-      SemaRef.getASTContext(), SourceLocation(), {}, SourceLocation());
+        SemaRef.getASTContext(), SourceLocation(), {}, SourceLocation());
     ILE->reserveInits(SemaRef.getASTContext(), NumChildInits);
     ILE->setType(InitTy);
 
@@ -1959,8 +1957,8 @@ public:
   }
 
   ~SyclKernelBodyCreator() {
-     CompoundStmt *KernelBody = createKernelBody();
-     DeclCreator.setBody(KernelBody);
+    CompoundStmt *KernelBody = createKernelBody();
+    DeclCreator.setBody(KernelBody);
   }
 
   bool handleSyclAccessorType(FieldDecl *FD, QualType Ty) final {
@@ -2050,13 +2048,14 @@ public:
     return true;
   }
 
-  bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS, QualType) final {
+  bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
+                   QualType) final {
     ++ContainerDepth;
 
     CXXCastPath BasePath;
     QualType DerivedTy(RD->getTypeForDecl(), 0);
     QualType BaseTy = BS.getType();
-//    // TODO: Why is this here? Do we think this check could fail?
+    //    // TODO: Why is this here? Do we think this check could fail?
     SemaRef.CheckDerivedToBaseConversion(DerivedTy, BaseTy, SourceLocation(),
                                          SourceRange(), &BasePath,
                                          /*IgnoreBaseAccess*/ true);
@@ -2069,7 +2068,8 @@ public:
     return true;
   }
 
-  bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS, QualType) final {
+  bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
+                   QualType) final {
     --ContainerDepth;
     MemberExprBases.pop_back();
     CollectionInitExprs.pop_back();
@@ -2096,7 +2096,8 @@ public:
     ArrayInfos.back().second = Index;
 
     // Pop off the last member expr base.
-    if (Index != 0) MemberExprBases.pop_back();
+    if (Index != 0)
+      MemberExprBases.pop_back();
 
     QualType SizeT = SemaRef.getASTContext().getSizeType();
 
@@ -2279,17 +2280,19 @@ public:
     return true;
   }
 
-  bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS, QualType) final {
+  bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
+                   QualType) final {
     CurOffset += offsetOf(RD, BS.getType()->getAsCXXRecordDecl());
     return true;
   }
 
-  bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS, QualType) final {
+  bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
+                   QualType) final {
     CurOffset -= offsetOf(RD, BS.getType()->getAsCXXRecordDecl());
     return true;
   }
 
-  bool enterArray(FieldDecl*, QualType, QualType) final {
+  bool enterArray(FieldDecl *, QualType, QualType) final {
     ArrayBaseOffsets.push_back(CurOffset);
     return true;
   }
@@ -2300,7 +2303,7 @@ public:
     return true;
   }
 
-  bool leaveArray(FieldDecl*, QualType, QualType) final {
+  bool leaveArray(FieldDecl *, QualType, QualType) final {
     CurOffset = ArrayBaseOffsets.pop_back_val();
     return true;
   }
