@@ -17,12 +17,12 @@ template <typename T = DataType> struct KernelFunctor : WithOutputBuffer<T> {
     auto C = this->getOutputBuffer()
                  .template get_access<cl::sycl::access::mode::write>(CGH);
     int switchField = 2;
-    int Output = 0;
 // clang-format off
     CGH.parallel_for<KernelFunctor<T>>(
         cl::sycl::range<1>{this->getOutputBufferSize()},
     [=](cl::sycl::id<1> wiID) [[cl::intel_reqd_sub_group_size(8)]] {
 // clang-format on
+          int Output = 0;
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
           asm volatile(".decl P1 v_type=P num_elts=1\n"
                        ".decl P2 v_type=P num_elts=1\n"
