@@ -10,7 +10,6 @@
 
 #include <CL/sycl/detail/cg.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
-//#include <detail/circular_buffer.hpp>
 #include <detail/scheduler/circular_buffer_extended.hpp>
 #include <detail/scheduler/commands.hpp>
 
