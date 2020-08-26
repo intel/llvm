@@ -916,7 +916,7 @@ class KernelObjVisitor {
 
   template <typename... Handlers>
   void VisitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
-                  QualType FieldTy, Handlers &... handlers) {
+                  QualType ArrayTy, Handlers &... handlers) {
     // Array workflow is:
     // handleArrayType
     // enterArray
@@ -926,24 +926,25 @@ class KernelObjVisitor {
     // ... repeat per element, opt-out for duplicates.
     // leaveArray
 
-    if (!KF_FOR_EACH(handleArrayType, Field, FieldTy))
+    if (!KF_FOR_EACH(handleArrayType, Field, ArrayTy))
       return;
 
     const ConstantArrayType *CAT =
-        SemaRef.getASTContext().getAsConstantArrayType(FieldTy);
+        SemaRef.getASTContext().getAsConstantArrayType(ArrayTy);
     assert(CAT && "Should only be called on constant-size array.");
     QualType ET = CAT->getElementType();
     uint64_t ElemCount = CAT->getSize().getZExtValue();
     assert(ElemCount > 0 && "SYCL prohibits 0 sized arrays");
 
-    (void)std::initializer_list<int>{(handlers.enterArray(FieldTy, ET), 0)...};
+    (void)std::initializer_list<int>{
+        (handlers.enterArray(Field, ArrayTy, ET), 0)...};
 
     VisitFirstArrayElement(Owner, Field, ET, handlers...);
     for (uint64_t Index = 1; Index < ElemCount; ++Index)
       VisitNthArrayElement(Owner, Field, ET, Index, handlers...);
 
     (void)std::initializer_list<int>{
-        (handlers.leaveArray(FieldTy, ET), 0)...};
+        (handlers.leaveArray(Field, ArrayTy, ET), 0)...};
   }
 
   template <typename... Handlers>
@@ -960,8 +961,8 @@ class KernelObjVisitor {
     else if (Util::isSyclStreamType(FieldTy)) {
       CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
       // Handle accessors in stream class.
-      VisitStreamRecord(Owner, Field, RD, FieldTy, handlers...);
       KF_FOR_EACH(handleSyclStreamType, Field, FieldTy);
+      VisitStreamRecord(Owner, Field, RD, FieldTy, handlers...);
     } else if (FieldTy->isStructureOrClassType()) {
       if (KF_FOR_EACH(handleStructType, Field, FieldTy)) {
         CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
@@ -1068,8 +1069,12 @@ public:
   virtual bool leaveUnion(const CXXRecordDecl *, FieldDecl *) { return true; }
 
   // The following are used for stepping through array elements.
-  virtual bool enterArray(QualType ArrayTy, QualType ElementTy) { return true; }
-  virtual bool leaveArray(QualType ArrayTy, QualType ElementTy) { return true; }
+  virtual bool enterArray(FieldDecl *, QualType ArrayTy, QualType ElementTy) {
+    return true;
+  }
+  virtual bool leaveArray(FieldDecl *, QualType ArrayTy, QualType ElementTy) {
+    return true;
+  }
 
   virtual bool nextElement(QualType, uint64_t) { return true; }
 
@@ -2065,30 +2070,61 @@ public:
     return true;
   }
 
-  bool handleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    // Add the 'array info' pair, which correctly initializes the initialized
-    // entity object.
-    ArrayInfos.emplace_back(getFieldEntity(FD, FieldTy), 0);
-    return true;
-  }
-
-  bool enterArray(QualType ArrayType, QualType ElementType) final {
+  bool enterArray(FieldDecl *FD, QualType ArrayType,
+                  QualType ElementType) final {
     uint64_t ArraySize = SemaRef.getASTContext()
                              .getAsConstantArrayType(ArrayType)
                              ->getSize()
                              .getZExtValue();
     addCollectionInitListExpr(ArrayType, ArraySize);
+    ArrayInfos.emplace_back(getFieldEntity(FD, ArrayType), 0);
+
+    // If this is the top-level array, we need to make a MemberExpr in addition
+    // to an array subscript.
+    if (!IsArrayElement(FD, ArrayType))
+      MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
     return true;
   }
 
   bool nextElement(QualType, uint64_t Index) final {
     ArrayInfos.back().second = Index;
+
+    // Pop off the last member expr base.
+    if (Index != 0) MemberExprBases.pop_back();
+
+    QualType SizeT = SemaRef.getASTContext().getSizeType();
+
+    llvm::APInt IndexVal{
+        static_cast<unsigned>(SemaRef.getASTContext().getTypeSize(SizeT)),
+        Index, SizeT->isSignedIntegerType()};
+
+    auto IndexLiteral = IntegerLiteral::Create(
+        SemaRef.getASTContext(), IndexVal, SizeT, SourceLocation());
+
+    ExprResult IndexExpr = SemaRef.CreateBuiltinArraySubscriptExpr(
+        MemberExprBases.back(), SourceLocation{}, IndexLiteral,
+        SourceLocation{});
+
+    assert(!IndexExpr.isInvalid());
+    MemberExprBases.push_back(IndexExpr.get());
     return true;
   }
 
-  bool leaveArray(QualType ArrayType, QualType ElementType) final {
+  bool leaveArray(FieldDecl *FD, QualType ArrayType,
+                  QualType ElementType) final {
     CollectionInitExprs.pop_back();
     ArrayInfos.pop_back();
+
+    assert(
+        !SemaRef.getASTContext().getAsConstantArrayType(ArrayType)->getSize() ==
+            0 &&
+        "Constant arrays must have at least 1 element");
+    // Remove the IndexExpr.
+    MemberExprBases.pop_back();
+
+    // Remove the field access expr as well.
+    if (!IsArrayElement(FD, ArrayType))
+      MemberExprBases.pop_back();
     return true;
   }
 
@@ -2247,7 +2283,7 @@ public:
     return true;
   }
 
-  bool enterArray(QualType, QualType) final {
+  bool enterArray(FieldDecl*, QualType, QualType) final {
     ArrayBaseOffsets.push_back(CurOffset);
     return true;
   }
@@ -2258,7 +2294,7 @@ public:
     return true;
   }
 
-  bool leaveArray(QualType, QualType) final {
+  bool leaveArray(FieldDecl*, QualType, QualType) final {
     CurOffset = ArrayBaseOffsets.pop_back_val();
     return true;
   }
