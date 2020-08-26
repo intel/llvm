@@ -19,29 +19,29 @@ constexpr uint8_t CACHE = 0x2;
 constexpr uint8_t STATICALLY_COALESCE = 0x4;
 constexpr uint8_t PREFETCH = 0x8;
 
-template <int32_t N> struct burst_coalesce_impl {
-  static constexpr int32_t value = N;
+template <int32_t _N> struct burst_coalesce_impl {
+  static constexpr int32_t value = _N;
   static constexpr int32_t default_value = 0;
 };
 
-template <int32_t N> struct cache {
-  static constexpr int32_t value = N;
+template <int32_t _N> struct cache {
+  static constexpr int32_t value = _N;
   static constexpr int32_t default_value = 0;
 };
 
-template <int32_t N> struct prefetch_impl {
-  static constexpr int32_t value = N;
+template <int32_t _N> struct prefetch_impl {
+  static constexpr int32_t value = _N;
   static constexpr int32_t default_value = 0;
 };
 
-template <int32_t N> struct statically_coalesce_impl {
-  static constexpr int32_t value = N;
+template <int32_t _N> struct statically_coalesce_impl {
+  static constexpr int32_t value = _N;
   static constexpr int32_t default_value = 1;
 };
 
-template <bool B> using burst_coalesce = burst_coalesce_impl<B>;
-template <bool B> using prefetch = prefetch_impl<B>;
-template <bool B> using statically_coalesce = statically_coalesce_impl<B>;
+template <bool _B> using burst_coalesce = burst_coalesce_impl<_B>;
+template <bool _B> using prefetch = prefetch_impl<_B>;
+template <bool _B> using statically_coalesce = statically_coalesce_impl<_B>;
 
 template <class... mem_access_params> class lsu final {
 public:
