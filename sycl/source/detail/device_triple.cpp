@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/device_triple.hpp>
+#include <CL/sycl/detail/device_triple.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
@@ -15,6 +15,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace detail {
 
 device_triple::device_triple(std::string &TripleString) {
   const std::array<std::pair<std::string, info::device_type>, 5>
@@ -111,5 +112,6 @@ device_triple_list::device_triple_list(std::string &TripleString) {
   }
 }
 
+} // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -17,6 +17,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace detail {
 
 class device_triple {
   backend Backend;
@@ -87,5 +88,6 @@ inline std::ostream &operator<<(std::ostream &Out,
   return Out;
 }
 
+} // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
