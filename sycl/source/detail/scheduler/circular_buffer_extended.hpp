@@ -20,7 +20,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-class MemObjRecord;
+struct MemObjRecord;
 
 /// A wrapper for CircularBuffer class along with collection for host accessor's
 /// EmptyCommands. This class is introduced to overcome the problem with a lot
