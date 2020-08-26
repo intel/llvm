@@ -76,6 +76,7 @@ public:
   /// \param PropList is an instance of property_list.
   program(vector_class<program> ProgramList,
           const property_list &PropList = {});
+
   /// Constructs an instance of SYCL program by linking together each SYCL
   /// program instance in ProgramList.
   ///
