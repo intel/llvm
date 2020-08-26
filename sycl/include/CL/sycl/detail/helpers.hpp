@@ -79,9 +79,11 @@ __SYCL_EXPORT void waitEvents(std::vector<cl::sycl::event> DepEvents);
 
 template <typename T> T *declptr() { return static_cast<T *>(nullptr); }
 
-template <typename T> T store(const T *obj, bool write) {
+// Function to get of store id, item, nd_item, group for the host implementation
+// Pass nullptr to get stored object. Pass valid address to store object
+template <typename T> T get_or_store(const T *obj) {
   static thread_local auto stored = *obj;
-  if (write) {
+  if (obj != nullptr) {
     stored = *obj;
   }
   return stored;

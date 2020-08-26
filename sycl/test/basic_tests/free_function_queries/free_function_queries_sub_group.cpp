@@ -28,8 +28,11 @@ int main() {
   int data[n]{};
   int counter{0};
   {
+    constexpr int checks_number{4};
+    int results[checks_number]{};
     {
       sycl::buffer<int> buf(data, sycl::range<1>(n));
+      sycl::buffer<int> results_buf(results, sycl::range<1>(checks_number));
       sycl::queue q;
       if (!core_sg_supported(q.get_device())) {
         std::cout << "Skipping test" << std::endl;
@@ -40,18 +43,22 @@ int main() {
         sycl::accessor<int, 1, sycl::access::mode::write,
                        sycl::access::target::global_buffer>
             acc(buf.get_access<sycl::access::mode::write>(cgh));
+        sycl::accessor<int, 1, sycl::access::mode::write,
+                       sycl::access::target::global_buffer>
+            results_acc(results_buf.get_access<sycl::access::mode::write>(cgh));
         cgh.parallel_for<class NdItemTest>(NDR, [=](auto nd_i) {
           static_assert(std::is_same<decltype(nd_i), sycl::nd_item<1>>::value,
                         "lambda arg type is unexpected");
           auto that_nd_item = sycl::this_nd_item<1>();
-          assert(that_nd_item == nd_i);
+          results_acc[0] = that_nd_item == nd_i;
+
           auto that_sub_group = sycl::ONEAPI::this_sub_group();
-          assert(that_sub_group.get_local_linear_id() ==
-                 that_nd_item.get_sub_group().get_local_linear_id());
-          assert(that_sub_group.get_local_id() ==
-                 that_nd_item.get_sub_group().get_local_id());
-          assert(that_sub_group.get_local_range() ==
-                 that_nd_item.get_sub_group().get_local_range());
+          results_acc[1] = that_sub_group.get_local_linear_id() ==
+                           that_nd_item.get_sub_group().get_local_linear_id();
+          results_acc[2] = that_sub_group.get_local_id() ==
+                           that_nd_item.get_sub_group().get_local_id();
+          results_acc[3] = that_sub_group.get_local_range() ==
+                           that_nd_item.get_sub_group().get_local_range();
 
           acc[that_nd_item.get_global_id(0)]++;
         });
@@ -60,6 +67,9 @@ int main() {
     ++counter;
     for (int i = 0; i < n; i++) {
       assert(data[i] == counter);
+    }
+    for (auto val : results) {
+      assert(val == 1);
     }
   }
 }

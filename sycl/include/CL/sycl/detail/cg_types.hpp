@@ -213,8 +213,8 @@ public:
     detail::NDLoop<Dims>::iterate(Range, [&](const sycl::id<Dims> &ID) {
       sycl::item<Dims, /*Offset=*/true> Item =
           IDBuilder::createItem<Dims, true>(Range, ID, Offset);
-      store_id(&ID, true);
-      store_item(&Item, true);
+      store_id(&ID);
+      store_item(&Item);
       MKernel(ID);
     });
   }
@@ -232,8 +232,8 @@ public:
       sycl::item<Dims, /*Offset=*/false> Item =
           IDBuilder::createItem<Dims, false>(Range, ID);
       sycl::item<Dims, /*Offset=*/true> ItemWithOffset = Item;
-      store_id(&ID, true);
-      store_item(&ItemWithOffset, true);
+      store_id(&ID);
+      store_item(&ItemWithOffset);
       MKernel(Item);
     });
   }
@@ -253,8 +253,8 @@ public:
       sycl::id<Dims> OffsetID = ID + Offset;
       sycl::item<Dims, /*Offset=*/true> Item =
           IDBuilder::createItem<Dims, true>(Range, OffsetID, Offset);
-      store_id(&OffsetID, true);
-      store_item(&Item, true);
+      store_id(&OffsetID);
+      store_item(&Item);
       MKernel(Item);
     });
   }
@@ -294,11 +294,11 @@ public:
             IDBuilder::createItem<Dims, false>(LocalSize, LocalID);
         const sycl::nd_item<Dims> NDItem =
             IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
-        store_id(&GlobalID, true);
-        store_item(&GlobalItem, true);
-        store_nd_item(&NDItem, true);
+        store_id(&GlobalID);
+        store_item(&GlobalItem);
+        store_nd_item(&NDItem);
         auto g = NDItem.get_group();
-        store_group(&g, true);
+        store_group(&g);
         MKernel(NDItem);
       });
     });

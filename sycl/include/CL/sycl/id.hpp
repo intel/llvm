@@ -261,8 +261,8 @@ id(size_t, size_t, size_t)->id<3>;
 #endif
 
 namespace detail {
-template <int Dims> id<Dims> store_id(const id<Dims> *i, bool write) {
-  return store(i, write);
+template <int Dims> id<Dims> store_id(const id<Dims> *i) {
+  return get_or_store(i);
 }
 } // namespace detail
 
@@ -270,7 +270,7 @@ template <int Dims> id<Dims> this_id() {
 #ifdef __SYCL_DEVICE_ONLY__
   return detail::Builder::getElement(detail::declptr<id<Dims>>());
 #else
-  return detail::store_id<Dims>(nullptr, false);
+  return detail::store_id<Dims>(nullptr);
 #endif
 }
 

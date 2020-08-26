@@ -122,8 +122,8 @@ private:
 };
 
 namespace detail {
-template <int Dims> item<Dims> store_item(const item<Dims> *i, bool write) {
-  return store(i, write);
+template <int Dims> item<Dims> store_item(const item<Dims> *i) {
+  return get_or_store(i);
 }
 } // namespace detail
 
@@ -131,7 +131,7 @@ template <int Dims> item<Dims> this_item() {
 #ifdef __SYCL_DEVICE_ONLY__
   return detail::Builder::getElement(detail::declptr<item<Dims>>());
 #else
-  return detail::store_item<Dims>(nullptr, false);
+  return detail::store_item<Dims>(nullptr);
 #endif
 }
 
