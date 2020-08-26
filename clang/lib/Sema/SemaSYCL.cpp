@@ -1916,11 +1916,14 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     addFieldInit(FD, Ty, None,
                  InitializationKind::CreateDefault(SourceLocation()));
 
-    // TODO ERICH: if this is in an array, we likely don't want this.
-    MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
+    if (!IsArrayElement(FD, Ty))
+      MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
+
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     createSpecialMethodCall(RecordDecl, InitMethodName, BodyStmts);
-    MemberExprBases.pop_back();
+
+    if (!IsArrayElement(FD, Ty))
+      MemberExprBases.pop_back();
 
     return true;
   }
@@ -1986,11 +1989,14 @@ public:
     CollectionInitExprs.push_back(CreateInitListExpr(StreamDecl));
 
     // Add init/finalize method calls.
-    // TODO ERICH: if this is in an array, we likely don't want this.
-    MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
+    if (!IsArrayElement(FD, Ty))
+      MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
+
     createSpecialMethodCall(StreamDecl, InitMethodName, BodyStmts);
     createSpecialMethodCall(StreamDecl, FinalizeMethodName, FinalizeStmts);
-    MemberExprBases.pop_back();
+
+    if (!IsArrayElement(FD, Ty))
+      MemberExprBases.pop_back();
     return true;
   }
 
