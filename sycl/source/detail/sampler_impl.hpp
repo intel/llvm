@@ -11,6 +11,7 @@
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/property_list.hpp>
 
 #include <unordered_map>
 
@@ -25,7 +26,8 @@ namespace detail {
 class __SYCL_EXPORT sampler_impl {
 public:
   sampler_impl(coordinate_normalization_mode normalizationMode,
-               addressing_mode addressingMode, filtering_mode filteringMode);
+               addressing_mode addressingMode, filtering_mode filteringMode,
+               const property_list &propList);
 
   sampler_impl(cl_sampler clSampler, const context &syclContext);
 
@@ -36,6 +38,23 @@ public:
   coordinate_normalization_mode get_coordinate_normalization_mode() const;
 
   RT::PiSampler getOrCreateSampler(const context &Context);
+
+  /// Checks if this sampler_impl has a property of type propertyT.
+  ///
+  /// \return true if this sampler_impl has a property of type propertyT.
+  template <typename propertyT> bool has_property() const {
+    return MPropList.has_property<propertyT>();
+  }
+
+  /// Gets the specified property of this sampler_impl.
+  ///
+  /// Throws invalid_object_error if this sampler_impl does not have a property
+  /// of type propertyT.
+  ///
+  /// \return a copy of the property of type propertyT.
+  template <typename propertyT> propertyT get_property() const {
+    return MPropList.get_property<propertyT>();
+  }
 
   ~sampler_impl();
 
@@ -48,6 +67,7 @@ private:
   coordinate_normalization_mode MCoordNormMode;
   addressing_mode MAddrMode;
   filtering_mode MFiltMode;
+  property_list MPropList;
 };
 
 } // namespace detail
