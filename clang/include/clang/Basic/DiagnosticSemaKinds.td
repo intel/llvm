@@ -10991,8 +10991,10 @@ def err_sycl_restrict : Error<
   "nor constant-initialized"
   "}0">;
 def warn_sycl_kernel_too_many_args : Warning<
-  "resulting number of kernel arguments (%0) is greater than maximum supported "
-  "on GPU device - (%1)">, InGroup<SyclStrict>;
+  "kernel argument count (%0) exceeds supported maximum of %1 on GPU">,
+  InGroup<SyclStrict>;
+def note_sycl_kernel_args_count : Note<"array elements and fields of a "
+  "class/struct may be counted separately">;
 def err_sycl_virtual_types : Error<
   "No class with a vtable can be used in a SYCL kernel or any code included in the kernel">;
 def note_sycl_recursive_function_declared_here: Note<"function implemented using recursion declared here">;

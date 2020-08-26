@@ -1490,11 +1490,15 @@ public:
 
     // TODO: enable template instantiation tree for this diagnostic
     if (SemaRef.Context.getTargetInfo().getTriple().getSubArch() ==
-        llvm::Triple::SPIRSubArch_gen)
-      if (Params.size() > GPUMaxKernelArgsNum)
+        llvm::Triple::SPIRSubArch_gen) {
+      if (Params.size() > GPUMaxKernelArgsNum) {
         SemaRef.Diag(KernelDecl->getLocation(),
                      diag::warn_sycl_kernel_too_many_args)
             << static_cast<unsigned>(Params.size()) << GPUMaxKernelArgsNum;
+        SemaRef.Diag(KernelDecl->getLocation(),
+                     diag::note_sycl_kernel_args_count);
+      }
+    }
 
     QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, ArgTys, Info);
     KernelDecl->setType(FuncType);

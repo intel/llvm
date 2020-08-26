@@ -11,9 +11,11 @@ __attribute__((sycl_kernel)) void kernel(F kernelFunc) {
 void use() {
   int Arr[2001];
 #ifdef GPU
-  // expected-warning@+6 {{resulting number of kernel arguments (2001) is greater than maximum supported on GPU device - (2000)}}
+  // expected-warning@+8 {{kernel argument count (2001) exceeds supported maximum of 2000 on GPU}}
+  // expected-note@+7 {{array elements and fields of a class/struct may be counted separately}}
 #elif ERROR
-  // expected-error@+4 {{resulting number of kernel arguments (2001) is greater than maximum supported on GPU device - (2000)}}
+  // expected-error@+5 {{kernel argument count (2001) exceeds supported maximum of 2000 on GPU}}
+  // expected-note@+4 {{array elements and fields of a class/struct may be counted separately}}
 #else
   // expected-no-diagnostics
 #endif
