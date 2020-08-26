@@ -32,7 +32,14 @@ program_impl::program_impl(ContextImplPtr Context,
 program_impl::program_impl(ContextImplPtr Context,
                            vector_class<device> DeviceList,
                            const property_list &PropList)
-    : MContext(Context), MDevices(DeviceList), MPropList(PropList) {}
+    : MContext(Context), MDevices(DeviceList), MPropList(PropList) {
+  if (Context->getDevices().size() > 1) {
+    throw feature_not_supported(
+        "multiple devices within a context are not supported with "
+        "sycl::program and sycl::kernel",
+        PI_INVALID_OPERATION);
+  }
+}
 
 program_impl::program_impl(
     vector_class<shared_ptr_class<program_impl>> ProgramList,
@@ -55,6 +62,12 @@ program_impl::program_impl(
   }
 
   MContext = ProgramList[0]->MContext;
+  if (MContext->getDevices().size() > 1) {
+    throw feature_not_supported(
+        "multiple devices within a context are not supported with "
+        "sycl::program and sycl::kernel",
+        PI_INVALID_OPERATION);
+  }
   MDevices = ProgramList[0]->MDevices;
   vector_class<device> DevicesSorted;
   if (!is_host()) {
@@ -108,6 +121,13 @@ program_impl::program_impl(ContextImplPtr Context,
                            pi_native_handle InteropProgram,
                            RT::PiProgram Program)
     : MProgram(Program), MContext(Context), MLinkable(true) {
+
+  if (Context->getDevices().size() > 1) {
+    throw feature_not_supported(
+        "multiple devices within a context are not supported with "
+        "sycl::program and sycl::kernel",
+        PI_INVALID_OPERATION);
+  }
 
   const detail::plugin &Plugin = getPlugin();
   if (MProgram == nullptr) {
@@ -237,7 +257,7 @@ void program_impl::build_with_kernel_name(string_class KernelName,
     if (is_cacheable_with_options(BuildOptions)) {
       MProgramAndKernelCachingAllowed = true;
       MProgram = ProgramManager::getInstance().getBuiltPIProgram(
-          Module, get_context(), KernelName, this,
+          Module, get_context(), get_devices()[0], KernelName, this,
           /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
       const detail::plugin &Plugin = getPlugin();
       Plugin.call<PiApiKind::piProgramRetain>(MProgram);
@@ -360,7 +380,7 @@ void program_impl::build(const string_class &Options) {
   check_device_feature_support<info::device::is_compiler_available>(MDevices);
   vector_class<RT::PiDevice> Devices(get_pi_devices());
   const detail::plugin &Plugin = getPlugin();
-  ProgramManager::getInstance().flushSpecConstants(*this);
+  ProgramManager::getInstance().flushSpecConstants(*this, get_pi_devices()[0]);
   RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
       MProgram, Devices.size(), Devices.data(), Options.c_str(), nullptr,
       nullptr);
@@ -408,7 +428,8 @@ RT::PiKernel program_impl::get_pi_kernel(const string_class &KernelName) const {
   if (is_cacheable()) {
     std::tie(Kernel, std::ignore) =
         ProgramManager::getInstance().getOrCreateKernel(
-            MProgramModuleHandle, get_context(), KernelName, this);
+            MProgramModuleHandle, get_context(), get_devices()[0], KernelName,
+            this);
     getPlugin().call<PiApiKind::piKernelRetain>(Kernel);
   } else {
     const detail::plugin &Plugin = getPlugin();
@@ -457,9 +478,10 @@ void program_impl::create_pi_program_with_kernel_name(
     bool JITCompilationIsRequired) {
   assert(!MProgram && "This program already has an encapsulated PI program");
   ProgramManager &PM = ProgramManager::getInstance();
+  const device FirstDevice = get_devices()[0];
   RTDeviceBinaryImage &Img = PM.getDeviceImage(
-      Module, KernelName, get_context(), JITCompilationIsRequired);
-  MProgram = PM.createPIProgram(Img, get_context());
+      Module, KernelName, get_context(), FirstDevice, JITCompilationIsRequired);
+  MProgram = PM.createPIProgram(Img, get_context(), FirstDevice);
 }
 
 template <>
