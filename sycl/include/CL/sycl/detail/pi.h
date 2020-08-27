@@ -723,7 +723,7 @@ struct pi_buff_rect_offset_struct {
 using pi_buff_rect_offset = pi_buff_rect_offset_struct *;
 
 // pi_buff_rect_region structure represents size of 3D region passed to buffer
-// rect operations (piEnqueuReadBufferRect, etc).
+// rect operations (piEnqueueMemBufferCopyRect, etc).
 struct pi_buff_rect_region_struct {
   size_t width_bytes;
   size_t height_scalar;
