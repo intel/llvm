@@ -132,8 +132,7 @@ private:
   // returns number of removed elements
   size_t eraseHostAccessorCommand(EmptyCommand *Cmd);
 
-  typename Iterator<false, HostAccessorCommandsT>::type
-  beginHostAccessor() {
+  typename Iterator<false, HostAccessorCommandsT>::type beginHostAccessor() {
     return MHostAccessorCommands.begin();
   }
 
@@ -146,8 +145,7 @@ private:
     return MHostAccessorCommands.end();
   }
 
-  typename Iterator<true, HostAccessorCommandsT>::type
-  endHostAccessor() const {
+  typename Iterator<true, HostAccessorCommandsT>::type endHostAccessor() const {
     return MHostAccessorCommands.end();
   }
 

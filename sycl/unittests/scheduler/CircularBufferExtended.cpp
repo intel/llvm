@@ -52,14 +52,12 @@ TEST_F(CircularBufferExtendedTest, PushBack) {
   size_t TimesGenericWasFull;
 
   CircularBufferExtended::AllocateDependencyF AllocateDependency =
-      [&](Command *, Command *, MemObjRecord *) {
-        ++TimesGenericWasFull;
-      };
+      [&](Command *, Command *, MemObjRecord *) { ++TimesGenericWasFull; };
 
   // add only generic commands
   {
-    CircularBufferExtended CBE = CircularBufferExtended(
-        GenericCmdsCapacity, AllocateDependency);
+    CircularBufferExtended CBE =
+        CircularBufferExtended(GenericCmdsCapacity, AllocateDependency);
     std::vector<std::shared_ptr<Command>> Cmds;
 
     TimesGenericWasFull = 0;
@@ -86,8 +84,8 @@ TEST_F(CircularBufferExtendedTest, PushBack) {
 
     Requirement MockReq = getMockRequirement(Buf);
 
-    CircularBufferExtended CBE = CircularBufferExtended(
-        GenericCmdsCapacity, AllocateDependency);
+    CircularBufferExtended CBE =
+        CircularBufferExtended(GenericCmdsCapacity, AllocateDependency);
     std::vector<std::shared_ptr<Command>> Cmds;
 
     TimesGenericWasFull = 0;
@@ -115,26 +113,24 @@ TEST_F(CircularBufferExtendedTest, Remove) {
   static constexpr size_t GenericCmdsCapacity = 8;
 
   CircularBufferExtended::AllocateDependencyF AllocateDependency =
-      [](Command *, Command *Old, MemObjRecord *) {
-        --Old->MLeafCounter;
-      };
+      [](Command *, Command *Old, MemObjRecord *) { --Old->MLeafCounter; };
 
   {
     cl::sycl::buffer<int, 1> Buf(cl::sycl::range<1>(1));
 
     Requirement MockReq = getMockRequirement(Buf);
 
-    CircularBufferExtended CBE = CircularBufferExtended(
-        GenericCmdsCapacity, AllocateDependency);
+    CircularBufferExtended CBE =
+        CircularBufferExtended(GenericCmdsCapacity, AllocateDependency);
     std::vector<std::shared_ptr<Command>> Cmds;
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 4; ++Idx) {
       auto Cmd = Idx % 2 ? createGenericCommand(getSyclObjImpl(MQueue))
                          : createEmptyCommand(getSyclObjImpl(MQueue), MockReq);
       Cmds.push_back(Cmd);
-      ++Cmd->MLeafCounter;
 
-      CBE.push_back(Cmds.back().get(), nullptr);
+      if (CBE.push_back(Cmds.back().get(), nullptr))
+        ++Cmd->MLeafCounter;
     }
 
     for (const auto &Cmd : Cmds) {

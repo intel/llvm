@@ -192,8 +192,7 @@ struct MemObjRecord {
   MemObjRecord(ContextImplPtr CurContext, std::size_t LeafLimit,
                CircularBufferExtended::AllocateDependencyF AllocateDependency)
       : MReadLeaves{LeafLimit, AllocateDependency},
-        MWriteLeaves{LeafLimit, AllocateDependency},
-        MCurContext{CurContext} {}
+        MWriteLeaves{LeafLimit, AllocateDependency}, MCurContext{CurContext} {}
 
   // Contains all allocation commands for the memory object.
   std::vector<AllocaCommandBase *> MAllocaCommands;
