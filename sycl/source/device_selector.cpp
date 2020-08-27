@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <regex>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -164,21 +165,172 @@ namespace ONEAPI {
 namespace detail {
 struct filter {
   backend Backend;
-  device_type DeviceType;
-  size_t MatchNumber;
+  RT::PiDeviceType DeviceType;
+  int DeviceNum;
+  bool hasBackend = false;
+  bool hasDeviceType = false;
+  bool hasDeviceNum = false;
+  int MatchesSeen = 0;
 };
+
+std::vector<std::string> tokenize(std::string filter, std::string delim) {
+  std::vector<std::string> Tokens;
+  size_t Pos = 0;
+  std::string Input = filter;
+  std::string Tok;
+
+  while ((Pos = Input.find(delim)) != std::string::npos) {
+    Tok = Input.substr(0, Pos);
+    Input.erase(0, Pos + delim.length());
+
+    if (!Tok.empty()) {
+      Tokens.push_back(Tok);
+    }
+  }
+
+  // Add remainder
+  if (!Input.empty())
+    Tokens.push_back(Input);
+
+  return Tokens;
+}
+
+filter create_filter(std::string Input) {
+  filter Result;
+  std::string Error = "Invalid filter string! Valid strings conform to "
+                      "BE:DeviceType:DeviceNum, where any are optional";
+
+  std::vector<std::string> Tokens = tokenize(Input, ":");
+  std::regex IntegerExpr("[[:digit:]]+");
+
+  std::cout << "Tokens = { ";
+  for (auto S : Tokens) {
+    std::cout << S << "  ";
+  }
+  std::cout << "}" << std::endl;
+
+  // There should only be up to 3 tokens.
+  // BE:Device Type:Device Num
+  if (Tokens.size() > 3)
+    throw runtime_error(Error, PI_INVALID_VALUE);
+
+  for (const std::string &Token : Tokens) {
+    if (Token == "cpu" && !Result.hasDeviceType) {
+      Result.DeviceType = PI_DEVICE_TYPE_CPU;
+      Result.hasDeviceType = true;
+    } else if (Token == "gpu" && !Result.hasDeviceType) {
+      Result.DeviceType = PI_DEVICE_TYPE_GPU;
+      Result.hasDeviceType = true;
+    } else if (Token == "accelerator" && !Result.hasDeviceType) {
+      Result.DeviceType = PI_DEVICE_TYPE_ACC;
+      Result.hasDeviceType = true;
+    } else if (Token == "opencl" && !Result.hasBackend) {
+      Result.Backend = backend::opencl;
+      Result.hasBackend = true;
+    } else if (Token == "level-zero" && !Result.hasBackend) {
+      Result.Backend = backend::level_zero;
+      Result.hasBackend = true;
+    } else if (Token == "cuda" && !Result.hasBackend) {
+      Result.Backend = backend::cuda;
+      Result.hasBackend = true;
+    } else if (Token == "host") {
+      if (!Result.hasBackend) {
+        Result.Backend = backend::host;
+        Result.hasBackend = true;
+      } else if (!Result.hasDeviceType && Result.Backend != backend::host) {
+        // We already set everything earlier or it's an error.
+        throw runtime_error("Cannot specify host device with non-host backend.",
+                            PI_INVALID_VALUE);
+      }
+    } else if (std::regex_match(Token, IntegerExpr) && !Result.hasDeviceNum) {
+      Result.DeviceNum = std::stoi(Token);
+      Result.hasDeviceNum = true;
+    } else {
+      throw runtime_error(Error, PI_INVALID_VALUE);
+    }
+  }
+
+  return Result;
+}
 } // namespace detail
 
 filter_selector::filter_selector(std::string filter)
-    : mFilters(), mRanker(), mMatchesSeen(0) {
-  // Parse filters separated by ;
-  // Parse each filter for BE, device type, device #
+    : mFilters(), mRanker(), mNumDevicesSeen(0), mMatchFound(false) {
+  std::vector<std::string> Filters = detail::tokenize(filter, ",");
+  mNumTotalDevices = device::get_devices().size();
+
+  std::cout << "Input Filters = { ";
+  for (auto S : Filters) {
+    std::cout << S << "  ";
+  }
+  std::cout << "}" << std::endl;
+
+  for (const std::string &Filter : Filters) {
+    detail::filter F = detail::create_filter(Filter);
+    mFilters.push_back(std::make_shared<detail::filter>(F));
+  }
 }
 
-filter_selector::select_device(const device &dev) {
-  // for each filter
-  // if device matches filter, rank
-  // else reject
+int filter_selector::operator()(const device &dev) const {
+  int Score = REJECT_DEVICE_SCORE;
+
+  for (auto &Filter : mFilters) {
+    bool BackendOK = true;
+    bool DeviceTypeOK = true;
+    bool DeviceNumOK = true;
+
+    std::cout << "Filter: " << std::endl;
+    std::cout << "  hasBackend = " << Filter->hasBackend << std::endl;
+    std::cout << "  hasDeviceType = " << Filter->hasDeviceType << std::endl;
+    std::cout << "  hasDeviceNum = " << Filter->hasDeviceNum << std::endl;
+    std::cout << "  DeviceNum = " << Filter->DeviceNum << std::endl;
+    std::cout << "  MatchesSeen = " << Filter->MatchesSeen << std::endl;
+    std::cout << "  mNumDevicesSeen  = " << mNumDevicesSeen << std::endl;
+    std::cout << "  mNumTotalDevices = " << mNumTotalDevices << std::endl;
+
+    // handle host device specially
+    if (Filter->hasBackend) {
+      backend BE;
+      if (dev.is_host()) {
+        BE = backend::host;
+      } else {
+        BE = sycl::detail::getSyclObjImpl(dev)->getPlugin().getBackend();
+      }
+      BackendOK = (BE == Filter->Backend);
+    }
+    if (Filter->hasDeviceType) {
+      RT::PiDeviceType DT =
+          sycl::detail::getSyclObjImpl(dev)->get_device_type();
+      DeviceTypeOK = (DT == Filter->DeviceType);
+    }
+    if (Filter->hasDeviceNum) {
+      // Only check device number if we're good on the previous matches
+      if (BackendOK && DeviceTypeOK) {
+        // Do we match?
+        DeviceNumOK = (Filter->MatchesSeen == Filter->DeviceNum);
+        // Safe to increment matches even if we find it
+        Filter->MatchesSeen++;
+      }
+    }
+    if (BackendOK && DeviceTypeOK && DeviceNumOK) {
+      Score = mRanker(dev);
+      mMatchFound = true;
+      break;
+    }
+  }
+
+  mNumDevicesSeen++;
+  std::cout << "mNumDevicesSeen = " << mNumDevicesSeen << std::endl;
+  std::cout << "mNumTotalDevices = " << mNumTotalDevices << std::endl;
+  std::cout << "mMatchFound = " << mMatchFound << std::endl;
+  if ((mNumDevicesSeen == mNumTotalDevices) && !mMatchFound) {
+    std::cout << "ERROR" << std::endl;
+    throw runtime_error(
+        "Could not find a device that matches the specified filter(s)!",
+        PI_DEVICE_NOT_FOUND);
+  }
+
+  return Score;
 }
 } // namespace ONEAPI
 } // namespace sycl

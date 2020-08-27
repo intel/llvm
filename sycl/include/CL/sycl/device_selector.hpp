@@ -97,9 +97,11 @@ public:
   filter_selector(std::string filter);
   int operator()(const device &dev) const override;
 private:
-  std::vector<detail::filter> mFilters;
+  mutable std::vector<std::shared_ptr<detail::filter>> mFilters;
   default_selector mRanker;
-  size_t mMatchesSeen;
+  mutable int mNumDevicesSeen;
+  int mNumTotalDevices;
+  mutable bool mMatchFound;
 };
 } // namespace ONEAPI
 } // namespace sycl
