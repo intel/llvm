@@ -16,6 +16,7 @@
 #include "OutputSegment.h"
 #include "Target.h"
 
+#include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -27,6 +28,7 @@ namespace section_names {
 constexpr const char pageZero[] = "__pagezero";
 constexpr const char header[] = "__mach_header";
 constexpr const char binding[] = "__binding";
+constexpr const char weakBinding[] = "__weak_binding";
 constexpr const char lazyBinding[] = "__lazy_binding";
 constexpr const char export_[] = "__export";
 constexpr const char symbolTable[] = "__symbol_table";
@@ -113,7 +115,7 @@ public:
 
   void writeTo(uint8_t *buf) const override;
 
-  void addEntry(Symbol &sym);
+  void addEntry(Symbol *sym);
 
 private:
   llvm::SetVector<const Symbol *> entries;
@@ -136,14 +138,25 @@ public:
                                   section_names::threadPtrs) {}
 };
 
-struct BindingEntry {
-  const DylibSymbol *dysym;
-  const InputSection *isec;
+using SectionPointerUnion =
+    llvm::PointerUnion<const InputSection *, const OutputSection *>;
+
+struct BindingTarget {
+  SectionPointerUnion section;
   uint64_t offset;
   int64_t addend;
-  BindingEntry(const DylibSymbol *dysym, const InputSection *isec,
-               uint64_t offset, int64_t addend)
-      : dysym(dysym), isec(isec), offset(offset), addend(addend) {}
+
+  BindingTarget(SectionPointerUnion section, uint64_t offset, int64_t addend)
+      : section(section), offset(offset), addend(addend) {}
+
+  uint64_t getVA() const;
+};
+
+struct BindingEntry {
+  const DylibSymbol *dysym;
+  BindingTarget target;
+  BindingEntry(const DylibSymbol *dysym, BindingTarget target)
+      : dysym(dysym), target(std::move(target)) {}
 };
 
 // Stores bind opcodes for telling dyld which symbols to load non-lazily.
@@ -156,18 +169,55 @@ public:
   // offsets are recorded in the LC_DYLD_INFO_ONLY load command, instead of in
   // section headers.
   bool isHidden() const override { return true; }
-  bool isNeeded() const override;
+  bool isNeeded() const override { return !bindings.empty(); }
   void writeTo(uint8_t *buf) const override;
 
-  void addEntry(const DylibSymbol *dysym, const InputSection *isec,
-                uint64_t offset, int64_t addend) {
-    bindings.emplace_back(dysym, isec, offset, addend);
+  void addEntry(const DylibSymbol *dysym, SectionPointerUnion section,
+                uint64_t offset, int64_t addend = 0) {
+    bindings.emplace_back(dysym, BindingTarget(section, offset, addend));
   }
 
 private:
   std::vector<BindingEntry> bindings;
   SmallVector<char, 128> contents;
 };
+
+struct WeakBindingEntry {
+  const Symbol *symbol;
+  BindingTarget target;
+  WeakBindingEntry(const Symbol *symbol, BindingTarget target)
+      : symbol(symbol), target(std::move(target)) {}
+};
+
+// Stores bind opcodes for telling dyld which weak symbols to load. Note that
+// the bind opcodes will only refer to these symbols by name, but will not
+// specify which dylib to load them from.
+class WeakBindingSection : public LinkEditSection {
+public:
+  WeakBindingSection();
+  void finalizeContents();
+  uint64_t getRawSize() const override { return contents.size(); }
+  // Like other sections in __LINKEDIT, the binding section is special: its
+  // offsets are recorded in the LC_DYLD_INFO_ONLY load command, instead of in
+  // section headers.
+  bool isHidden() const override { return true; }
+  bool isNeeded() const override { return !bindings.empty(); }
+
+  void writeTo(uint8_t *buf) const override;
+
+  void addEntry(const Symbol *symbol, SectionPointerUnion section,
+                uint64_t offset, int64_t addend = 0) {
+    bindings.emplace_back(symbol, BindingTarget(section, offset, addend));
+  }
+
+private:
+  std::vector<WeakBindingEntry> bindings;
+  SmallVector<char, 128> contents;
+};
+
+// Add bindings for symbols that need weak or non-lazy bindings.
+void addNonLazyBindingEntries(const Symbol *, SectionPointerUnion,
+                              uint64_t offset, int64_t addend = 0);
 
 // The following sections implement lazy symbol binding -- very similar to the
 // PLT mechanism in ELF.
@@ -200,7 +250,7 @@ public:
 
   const llvm::SetVector<DylibSymbol *> &getEntries() const { return entries; }
 
-  void addEntry(DylibSymbol &sym);
+  void addEntry(DylibSymbol *sym);
 
 private:
   llvm::SetVector<DylibSymbol *> entries;
@@ -317,6 +367,7 @@ private:
 struct InStruct {
   MachHeaderSection *header = nullptr;
   BindingSection *binding = nullptr;
+  WeakBindingSection *weakBinding = nullptr;
   GotSection *got = nullptr;
   TlvPointerSection *tlvPointers = nullptr;
   LazyPointerSection *lazyPointers = nullptr;

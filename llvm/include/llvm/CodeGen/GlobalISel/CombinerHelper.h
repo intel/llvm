@@ -33,6 +33,7 @@ class GISelKnownBits;
 class MachineDominatorTree;
 class LegalizerInfo;
 struct LegalityQuery;
+class TargetLowering;
 
 struct PreferredTuple {
   LLT Ty;                // The result type of the extend.
@@ -50,6 +51,11 @@ struct IndexedLoadStoreMatchInfo {
 struct PtrAddChain {
   int64_t Imm;
   Register Base;
+};
+
+struct RegisterImmPair {
+  Register Reg;
+  int64_t Imm;
 };
 
 using OperandBuildSteps =
@@ -89,6 +95,8 @@ public:
   GISelKnownBits *getKnownBits() const {
     return KB;
   }
+
+  const TargetLowering &getTargetLowering() const;
 
   /// \return true if the combine is running prior to legalization, or if \p
   /// Query is legal on the target.
@@ -222,6 +230,12 @@ public:
   bool matchCombineMulToShl(MachineInstr &MI, unsigned &ShiftVal);
   bool applyCombineMulToShl(MachineInstr &MI, unsigned &ShiftVal);
 
+  // Transform a G_SHL with an extended source into a narrower shift if
+  // possible.
+  bool matchCombineShlOfExtend(MachineInstr &MI, RegisterImmPair &MatchData);
+  bool applyCombineShlOfExtend(MachineInstr &MI,
+                               const RegisterImmPair &MatchData);
+
   /// Reduce a shift by a constant to an unmerge and a shift on a half sized
   /// type. This will not produce a shift smaller than \p TargetShiftSize.
   bool matchCombineShiftToUnmerge(MachineInstr &MI, unsigned TargetShiftSize,
@@ -236,6 +250,13 @@ public:
   /// Transform PtrToInt(IntToPtr(x)) to x.
   bool matchCombineP2IToI2P(MachineInstr &MI, Register &Reg);
   bool applyCombineP2IToI2P(MachineInstr &MI, Register &Reg);
+
+  /// Transform G_ADD (G_PTRTOINT x), y -> G_PTRTOINT (G_PTR_ADD x, y)
+  /// Transform G_ADD y, (G_PTRTOINT x) -> G_PTRTOINT (G_PTR_ADD x, y)
+  bool matchCombineAddP2IToPtrAdd(MachineInstr &MI,
+                                  std::pair<Register, bool> &PtrRegAndCommute);
+  bool applyCombineAddP2IToPtrAdd(MachineInstr &MI,
+                                  std::pair<Register, bool> &PtrRegAndCommute);
 
   /// Return true if any explicit use operand on \p MI is defined by a
   /// G_IMPLICIT_DEF.

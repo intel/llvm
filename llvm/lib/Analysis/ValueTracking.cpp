@@ -4345,7 +4345,14 @@ findAllocaForValue(Value *V, DenseMap<Value *, AllocaInst *> &AllocaForValue) {
   AllocaInst *Res = nullptr;
   if (CastInst *CI = dyn_cast<CastInst>(V))
     Res = findAllocaForValue(CI->getOperand(0), AllocaForValue);
-  else if (PHINode *PN = dyn_cast<PHINode>(V)) {
+  else if (auto *SI = dyn_cast<SelectInst>(V)) {
+    Res = findAllocaForValue(SI->getTrueValue(), AllocaForValue);
+    if (!Res)
+      return nullptr;
+    AllocaInst *F = findAllocaForValue(SI->getFalseValue(), AllocaForValue);
+    if (F != Res)
+      return nullptr;
+  } else if (PHINode *PN = dyn_cast<PHINode>(V)) {
     for (Value *IncValue : PN->incoming_values()) {
       // Allow self-referencing phi-nodes.
       if (IncValue == PN)
@@ -5065,46 +5072,59 @@ bool llvm::propagatesPoison(const Instruction *I) {
   }
 }
 
-const Value *llvm::getGuaranteedNonPoisonOp(const Instruction *I) {
+void llvm::getGuaranteedNonPoisonOps(const Instruction *I,
+                                     SmallPtrSetImpl<const Value *> &Operands) {
   switch (I->getOpcode()) {
     case Instruction::Store:
-      return cast<StoreInst>(I)->getPointerOperand();
+      Operands.insert(cast<StoreInst>(I)->getPointerOperand());
+      break;
 
     case Instruction::Load:
-      return cast<LoadInst>(I)->getPointerOperand();
+      Operands.insert(cast<LoadInst>(I)->getPointerOperand());
+      break;
 
     case Instruction::AtomicCmpXchg:
-      return cast<AtomicCmpXchgInst>(I)->getPointerOperand();
+      Operands.insert(cast<AtomicCmpXchgInst>(I)->getPointerOperand());
+      break;
 
     case Instruction::AtomicRMW:
-      return cast<AtomicRMWInst>(I)->getPointerOperand();
+      Operands.insert(cast<AtomicRMWInst>(I)->getPointerOperand());
+      break;
 
     case Instruction::UDiv:
     case Instruction::SDiv:
     case Instruction::URem:
     case Instruction::SRem:
-      return I->getOperand(1);
+      Operands.insert(I->getOperand(1));
+      break;
 
     case Instruction::Call:
-      if (auto *II = dyn_cast<IntrinsicInst>(I)) {
-        switch (II->getIntrinsicID()) {
-        case Intrinsic::assume:
-          return II->getArgOperand(0);
-        default:
-          return nullptr;
-        }
+    case Instruction::Invoke: {
+      const CallBase *CB = cast<CallBase>(I);
+      if (CB->isIndirectCall())
+        Operands.insert(CB->getCalledOperand());
+      for (unsigned i = 0; i < CB->arg_size(); ++i) {
+        if (CB->paramHasAttr(i, Attribute::NoUndef))
+          Operands.insert(CB->getArgOperand(i));
       }
-      return nullptr;
+      break;
+    }
 
     default:
-      return nullptr;
+      break;
   }
 }
 
 bool llvm::mustTriggerUB(const Instruction *I,
                          const SmallSet<const Value *, 16>& KnownPoison) {
-  auto *NotPoison = getGuaranteedNonPoisonOp(I);
-  return (NotPoison && KnownPoison.count(NotPoison));
+  SmallPtrSet<const Value *, 4> NonPoisonOps;
+  getGuaranteedNonPoisonOps(I, NonPoisonOps);
+
+  for (const auto *V : NonPoisonOps)
+    if (KnownPoison.count(V))
+      return true;
+
+  return false;
 }
 
 

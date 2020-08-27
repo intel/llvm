@@ -97,6 +97,15 @@ During this release ...
 * The 'mpx' feature was removed from the backend. It had been removed from clang
   frontend in 10.0. Mention of the 'mpx' feature in an IR file will print a
   message to stderr, but IR should still compile.
+* Support for -march=sapphirerapids was added.
+* The assembler now has support for {disp32} and {disp8} pseudo prefixes for
+  controlling displacement size for memory operands and jump displacements. The
+  assembler also supports the .d32 and .d8 mnemonic suffixes to do the same.
+* A new function attribute "tune-cpu" has been added to support -mtune like gcc.
+  This allows microarchitectural optimizations to be applied independent from
+  the "target-cpu" attribute or TargetMachine CPU which will be used to select
+  Instruction Set. If the attribute is not present, the tune CPU will follow
+  the target CPU.
 
 Changes to the AMDGPU Target
 -----------------------------
