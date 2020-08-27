@@ -657,6 +657,8 @@ void TargetLoweringBase::initActions() {
     setOperationAction(ISD::UADDSAT, VT, Expand);
     setOperationAction(ISD::SSUBSAT, VT, Expand);
     setOperationAction(ISD::USUBSAT, VT, Expand);
+    setOperationAction(ISD::SSHLSAT, VT, Expand);
+    setOperationAction(ISD::USHLSAT, VT, Expand);
     setOperationAction(ISD::SMULFIX, VT, Expand);
     setOperationAction(ISD::SMULFIXSAT, VT, Expand);
     setOperationAction(ISD::UMULFIX, VT, Expand);
@@ -864,7 +866,7 @@ TargetLoweringBase::getTypeConversion(LLVMContext &Context, EVT VT) const {
   if (NumElts == 1)
     return LegalizeKind(TypeScalarizeVector, EltVT);
 
-  if (VT.getVectorElementCount() == ElementCount(1, true))
+  if (VT.getVectorElementCount() == ElementCount::getScalable(1))
     report_fatal_error("Cannot legalize this vector");
 
   // Try to widen vector elements until the element type is a power of two and

@@ -13,7 +13,7 @@
 #include <complex>
 #include <numeric>
 using namespace sycl;
-using namespace sycl::intel;
+using namespace sycl::ONEAPI;
 
 template <typename InputContainer, typename OutputContainer>
 class broadcast_kernel;

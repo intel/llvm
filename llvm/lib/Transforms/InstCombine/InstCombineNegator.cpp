@@ -184,6 +184,10 @@ LLVM_NODISCARD Value *Negator::visitImpl(Value *V, unsigned Depth) {
       }
       return BO;
     }
+    // While we could negate exact arithmetic shift:
+    //   ashr exact %x, C  -->   sdiv exact i8 %x, -1<<C
+    // iff C != 0 and C u< bitwidth(%x), we don't want to,
+    // because division is *THAT* much worse than a shift.
     break;
   }
   case Instruction::SExt:
@@ -240,6 +244,13 @@ LLVM_NODISCARD Value *Negator::visitImpl(Value *V, unsigned Depth) {
   }
 
   switch (I->getOpcode()) {
+  case Instruction::Freeze: {
+    // `freeze` is negatible if its operand is negatible.
+    Value *NegOp = negate(I->getOperand(0), Depth + 1);
+    if (!NegOp) // Early return.
+      return nullptr;
+    return Builder.CreateFreeze(NegOp, I->getName() + ".neg");
+  }
   case Instruction::PHI: {
     // `phi` is negatible if all the incoming values are negatible.
     auto *PHI = cast<PHINode>(I);

@@ -589,6 +589,7 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
 }
 
 void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
+  using namespace VectorComputeUtil;
   if (!BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
     return;
   auto BF = static_cast<SPIRVFunction *>(getTranslatedValue(F));
@@ -635,6 +636,27 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
       BA->addDecorate(new SPIRVDecorateFuncParamDescAttr(BA, Desc.str()));
     }
   }
+  if (!isKernel(F) &&
+      BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_float_controls2) &&
+      Attrs.hasFnAttribute(kVCMetadata::VCFloatControl)) {
+
+    SPIRVWord Mode = 0;
+    Attrs
+        .getAttribute(AttributeList::FunctionIndex, kVCMetadata::VCFloatControl)
+        .getValueAsString()
+        .getAsInteger(0, Mode);
+    VCFloatTypeSizeMap::foreach (
+        [&](VCFloatType FloatType, unsigned TargetWidth) {
+          BF->addDecorate(new SPIRVDecorateFunctionDenormModeINTEL(
+              BF, TargetWidth, getFPDenormMode(Mode, FloatType)));
+
+          BF->addDecorate(new SPIRVDecorateFunctionRoundingModeINTEL(
+              BF, TargetWidth, getFPRoundingMode(Mode)));
+
+          BF->addDecorate(new SPIRVDecorateFunctionFloatingPointModeINTEL(
+              BF, TargetWidth, getFPOperationMode(Mode)));
+        });
+  }
 }
 
 SPIRVValue *LLVMToSPIRV::transConstant(Value *V) {
@@ -664,28 +686,30 @@ SPIRVValue *LLVMToSPIRV::transConstant(Value *V) {
   if (auto ConstDA = dyn_cast<ConstantDataArray>(V)) {
     std::vector<SPIRVValue *> BV;
     for (unsigned I = 0, E = ConstDA->getNumElements(); I != E; ++I)
-      BV.push_back(transValue(ConstDA->getElementAsConstant(I), nullptr));
+      BV.push_back(transValue(ConstDA->getElementAsConstant(I), nullptr, true,
+                              FuncTransMode::Pointer));
     return BM->addCompositeConstant(transType(V->getType()), BV);
   }
 
   if (auto ConstA = dyn_cast<ConstantArray>(V)) {
     std::vector<SPIRVValue *> BV;
     for (auto I = ConstA->op_begin(), E = ConstA->op_end(); I != E; ++I)
-      BV.push_back(transValue(*I, nullptr));
+      BV.push_back(transValue(*I, nullptr, true, FuncTransMode::Pointer));
     return BM->addCompositeConstant(transType(V->getType()), BV);
   }
 
   if (auto ConstDV = dyn_cast<ConstantDataVector>(V)) {
     std::vector<SPIRVValue *> BV;
     for (unsigned I = 0, E = ConstDV->getNumElements(); I != E; ++I)
-      BV.push_back(transValue(ConstDV->getElementAsConstant(I), nullptr));
+      BV.push_back(transValue(ConstDV->getElementAsConstant(I), nullptr, true,
+                              FuncTransMode::Pointer));
     return BM->addCompositeConstant(transType(V->getType()), BV);
   }
 
   if (auto ConstV = dyn_cast<ConstantVector>(V)) {
     std::vector<SPIRVValue *> BV;
     for (auto I = ConstV->op_begin(), E = ConstV->op_end(); I != E; ++I)
-      BV.push_back(transValue(*I, nullptr));
+      BV.push_back(transValue(*I, nullptr, true, FuncTransMode::Pointer));
     return BM->addCompositeConstant(transType(V->getType()), BV);
   }
 
@@ -746,9 +770,13 @@ SPIRVValue *LLVMToSPIRV::transConstant(Value *V) {
 }
 
 SPIRVValue *LLVMToSPIRV::transValue(Value *V, SPIRVBasicBlock *BB,
-                                    bool CreateForward) {
+                                    bool CreateForward,
+                                    FuncTransMode FuncTrans) {
   LLVMToSPIRVValueMap::iterator Loc = ValueMap.find(V);
-  if (Loc != ValueMap.end() && (!Loc->second->isForward() || CreateForward))
+  if (Loc != ValueMap.end() && (!Loc->second->isForward() || CreateForward) &&
+      // do not return forward-decl of a function if we
+      // actually want to create a function pointer
+      !(FuncTrans == FuncTransMode::Pointer && isa<Function>(V)))
     return Loc->second;
 
   SPIRVDBG(dbgs() << "[transValue] " << *V << '\n');
@@ -756,7 +784,7 @@ SPIRVValue *LLVMToSPIRV::transValue(Value *V, SPIRVBasicBlock *BB,
           isa<CastInst>(V) || BB) &&
          "Invalid SPIRV BB");
 
-  auto BV = transValueWithoutDecoration(V, BB, CreateForward);
+  auto BV = transValueWithoutDecoration(V, BB, CreateForward, FuncTrans);
   if (!BV || !transDecoration(V, BV))
     return nullptr;
   StringRef Name = V->getName();
@@ -804,7 +832,6 @@ SPIRVInstruction *LLVMToSPIRV::transCmpInst(CmpInst *Cmp, SPIRVBasicBlock *BB) {
 SPIRV::SPIRVInstruction *LLVMToSPIRV::transUnaryInst(UnaryInstruction *U,
                                                      SPIRVBasicBlock *BB) {
   Op BOC = OpNop;
-  SPIRVValue *Op = nullptr;
   if (auto Cast = dyn_cast<AddrSpaceCastInst>(U)) {
     const auto SrcAddrSpace = Cast->getSrcTy()->getPointerAddressSpace();
     const auto DestAddrSpace = Cast->getDestTy()->getPointerAddressSpace();
@@ -852,20 +879,9 @@ SPIRV::SPIRVInstruction *LLVMToSPIRV::transUnaryInst(UnaryInstruction *U,
   } else {
     auto OpCode = U->getOpcode();
     BOC = OpCodeMap::map(OpCode);
-
-    if (Function *F = dyn_cast<Function>(U->getOperand(0))) {
-      if (!BM->checkExtension(ExtensionID::SPV_INTEL_function_pointers,
-                              SPIRVEC_FunctionPointers, toString(U)))
-        return nullptr;
-      assert(isa<CastInst>(U) && "Illegal unary operation on function pointer");
-      Op = BM->addFunctionPointerINTELInst(
-          transType(F->getType()),
-          static_cast<SPIRVFunction *>(transValue(F, BB)), BB);
-    }
   }
 
-  if (!Op)
-    Op = transValue(U->getOperand(0), BB);
+  auto Op = transValue(U->getOperand(0), BB, true, FuncTransMode::Pointer);
   return BM->addUnaryInst(transBoolOpCode(Op, BOC), transType(U->getType()), Op,
                           BB);
 }
@@ -1061,7 +1077,8 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
 /// Use CreateForward = true to indicate such situation.
 SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
                                                      SPIRVBasicBlock *BB,
-                                                     bool CreateForward) {
+                                                     bool CreateForward,
+                                                     FuncTransMode FuncTrans) {
   if (auto LBB = dyn_cast<BasicBlock>(V)) {
     auto BF =
         static_cast<SPIRVFunction *>(getTranslatedValue(LBB->getParent()));
@@ -1071,8 +1088,16 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     return BB;
   }
 
-  if (auto F = dyn_cast<Function>(V))
-    return transFunctionDecl(F);
+  if (auto *F = dyn_cast<Function>(V)) {
+    if (FuncTrans == FuncTransMode::Decl)
+      return transFunctionDecl(F);
+    if (!BM->checkExtension(ExtensionID::SPV_INTEL_function_pointers,
+                            SPIRVEC_FunctionPointers, toString(V)))
+      return nullptr;
+    return BM->addConstFunctionPointerINTEL(
+        transType(F->getType()),
+        static_cast<SPIRVFunction *>(transValue(F, nullptr)));
+  }
 
   if (auto GV = dyn_cast<GlobalVariable>(V)) {
     llvm::PointerType *Ty = GV->getType();
@@ -1202,21 +1227,11 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     if (MemoryAccess.front() == 0)
       MemoryAccess.clear();
 
-    SPIRVValue *BSV = nullptr;
-    if (Function *F = dyn_cast<Function>(ST->getValueOperand())) {
-      if (!BM->checkExtension(ExtensionID::SPV_INTEL_function_pointers,
-                              SPIRVEC_FunctionPointers, toString(ST)))
-        return nullptr;
-      // store of function pointer
-      BSV = BM->addFunctionPointerINTELInst(
-          transType(F->getType()),
-          static_cast<SPIRVFunction *>(transValue(F, BB)), BB);
-    } else {
-      BSV = transValue(ST->getValueOperand(), BB);
-    }
-
-    return mapValue(V, BM->addStoreInst(transValue(ST->getPointerOperand(), BB),
-                                        BSV, MemoryAccess, BB));
+    return mapValue(V,
+                    BM->addStoreInst(transValue(ST->getPointerOperand(), BB),
+                                     transValue(ST->getValueOperand(), BB, true,
+                                                FuncTransMode::Pointer),
+                                     MemoryAccess, BB));
   }
 
   if (LoadInst *LD = dyn_cast<LoadInst>(V)) {
@@ -1254,30 +1269,14 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     return mapValue(V, BI);
   }
 
-  if (SelectInst *Sel = dyn_cast<SelectInst>(V)) {
-    SPIRVValue *TrueValue = nullptr;
-    SPIRVValue *FalseValue = nullptr;
-    if (isa<Function>(Sel->getTrueValue())) {
-      if (!BM->checkExtension(ExtensionID::SPV_INTEL_function_pointers,
-                              SPIRVEC_FunctionPointers, toString(Sel)))
-        return nullptr;
-
-      // select with function pointers
-      auto *TrueF = cast<Function>(Sel->getTrueValue());
-      TrueValue = BM->addFunctionPointerINTELInst(
-          transType(TrueF->getType()),
-          static_cast<SPIRVFunction *>(transValue(TrueF, BB)), BB);
-      auto *FalseF = cast<Function>(Sel->getFalseValue());
-      FalseValue = BM->addFunctionPointerINTELInst(
-          transType(FalseF->getType()),
-          static_cast<SPIRVFunction *>(transValue(FalseF, BB)), BB);
-    } else {
-      TrueValue = transValue(Sel->getTrueValue(), BB);
-      FalseValue = transValue(Sel->getFalseValue(), BB);
-    }
-    return mapValue(V, BM->addSelectInst(transValue(Sel->getCondition(), BB),
-                                         TrueValue, FalseValue, BB));
-  }
+  if (SelectInst *Sel = dyn_cast<SelectInst>(V))
+    return mapValue(
+        V,
+        BM->addSelectInst(
+            transValue(Sel->getCondition(), BB),
+            transValue(Sel->getTrueValue(), BB, true, FuncTransMode::Pointer),
+            transValue(Sel->getFalseValue(), BB, true, FuncTransMode::Pointer),
+            BB));
 
   if (AllocaInst *Alc = dyn_cast<AllocaInst>(V))
     return mapValue(
@@ -1369,18 +1368,8 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     std::vector<SPIRVValue *> IncomingPairs;
 
     for (size_t I = 0, E = Phi->getNumIncomingValues(); I != E; ++I) {
-      SPIRVValue *BV = nullptr;
-      if (Function *F = dyn_cast<Function>(Phi->getIncomingValue(I))) {
-        if (!BM->checkExtension(ExtensionID::SPV_INTEL_function_pointers,
-                                SPIRVEC_FunctionPointers, toString(Phi)))
-          return nullptr;
-        BV = BM->addFunctionPointerINTELInst(
-            transType(F->getType()),
-            static_cast<SPIRVFunction *>(transValue(F, BB)), BB);
-      } else {
-        BV = transValue(Phi->getIncomingValue(I), BB);
-      }
-      IncomingPairs.push_back(BV);
+      IncomingPairs.push_back(transValue(Phi->getIncomingValue(I), BB, true,
+                                         FuncTransMode::Pointer));
       IncomingPairs.push_back(transValue(Phi->getIncomingBlock(I), nullptr));
     }
     return mapValue(
@@ -1463,20 +1452,12 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
   if (auto Ins = dyn_cast<InsertElementInst>(V)) {
     auto Index = Ins->getOperand(2);
     if (auto Const = dyn_cast<ConstantInt>(Index)) {
-      SPIRVValue *InsVal = nullptr;
-      if (auto *F = dyn_cast<Function>(Ins->getOperand(1))) {
-        if (!BM->checkExtension(ExtensionID::SPV_INTEL_function_pointers,
-                                SPIRVEC_FunctionPointers, toString(V)))
-          return nullptr;
-        InsVal = BM->addFunctionPointerINTELInst(
-            transType(F->getType()),
-            static_cast<SPIRVFunction *>(transValue(F, BB)), BB);
-      } else
-        InsVal = transValue(Ins->getOperand(1), BB);
-      return mapValue(V, BM->addCompositeInsertInst(
-                             InsVal, transValue(Ins->getOperand(0), BB),
-                             std::vector<SPIRVWord>(1, Const->getZExtValue()),
-                             BB));
+      return mapValue(
+          V,
+          BM->addCompositeInsertInst(
+              transValue(Ins->getOperand(1), BB, true, FuncTransMode::Pointer),
+              transValue(Ins->getOperand(0), BB),
+              std::vector<SPIRVWord>(1, Const->getZExtValue()), BB));
     } else
       return mapValue(
           V, BM->addVectorInsertDynamicInst(transValue(Ins->getOperand(0), BB),
@@ -2041,6 +2022,16 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     return BM->addBinaryInst(OpFAdd, Ty, Mul,
                              transValue(II->getArgOperand(2), BB), BB);
   }
+  case Intrinsic::maxnum: {
+    if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
+      break;
+    SPIRVWord ExtOp = OpenCLLIB::Fmax;
+    SPIRVType *STy = transType(II->getType());
+    std::vector<SPIRVValue *> Ops{transValue(II->getArgOperand(0), BB),
+                                  transValue(II->getArgOperand(1), BB)};
+    return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
+                          BB);
+  }
   case Intrinsic::usub_sat: {
     // usub.sat(a, b) -> (a > b) ? a - b : 0
     SPIRVType *Ty = transType(II->getType());
@@ -2199,9 +2190,11 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
       // actions for each individual extension.
       Decorations = tryParseIntelFPGAAnnotationString(AnnotationString);
 
-    // If the pointer is a GEP, then we have to emit a member decoration for the
-    // GEP-accessed struct, or a memory access decoration for the GEP itself.
-    if (auto *GI = dyn_cast<GetElementPtrInst>(AnnotSubj)) {
+    // If the pointer is a GEP on a struct, then we have to emit a member
+    // decoration for the GEP-accessed struct, or a memory access decoration
+    // for the GEP itself.
+    auto *GI = dyn_cast<GetElementPtrInst>(AnnotSubj);
+    if (GI && isa<StructType>(GI->getSourceElementType())) {
       auto *Ty = transType(GI->getSourceElementType());
       auto *ResPtr = transValue(GI, BB);
       SPIRVWord MemberNumber =

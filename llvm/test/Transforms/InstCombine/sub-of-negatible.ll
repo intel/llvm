@@ -1113,6 +1113,19 @@ define i8 @negate_add_with_single_negatible_operand(i8 %x, i8 %y) {
   %t1 = sub i8 0, %t0
   ret i8 %t1
 }
+; do so even if we are two levels deep
+define i8 @negate_add_with_single_negatible_operand_depth2(i8 %x, i8 %y) {
+; CHECK-LABEL: @negate_add_with_single_negatible_operand_depth2(
+; CHECK-NEXT:    [[T0_NEG:%.*]] = sub i8 -21, [[X:%.*]]
+; CHECK-NEXT:    [[T1_NEG:%.*]] = mul i8 [[T0_NEG]], [[Y:%.*]]
+; CHECK-NEXT:    ret i8 [[T1_NEG]]
+;
+  %t0 = add i8 %x, 21
+  %t1 = mul i8 %t0, %y
+  %t2 = sub i8 0, %t1
+  ret i8 %t2
+}
+
 define i8 @negate_add_with_single_negatible_operand_extrause(i8 %x, i8 %y) {
 ; CHECK-LABEL: @negate_add_with_single_negatible_operand_extrause(
 ; CHECK-NEXT:    [[T0:%.*]] = add i8 [[X:%.*]], 42
@@ -1196,6 +1209,34 @@ define i8 @dont_negate_ordinary_select(i8 %x, i8 %y, i8 %z, i1 %c) {
   %t0 = select i1 %c, i8 %x, i8 %y
   %t1 = sub i8 %z, %t0
   ret i8 %t1
+}
+
+; Freeze is transparent as far as negation is concerned
+define i4 @negate_freeze(i4 %x, i4 %y, i4 %z) {
+; CHECK-LABEL: @negate_freeze(
+; CHECK-NEXT:    [[T0_NEG:%.*]] = sub i4 [[Y:%.*]], [[X:%.*]]
+; CHECK-NEXT:    [[T1_NEG:%.*]] = freeze i4 [[T0_NEG]]
+; CHECK-NEXT:    [[T2:%.*]] = add i4 [[T1_NEG]], [[Z:%.*]]
+; CHECK-NEXT:    ret i4 [[T2]]
+;
+  %t0 = sub i4 %x, %y
+  %t1 = freeze i4 %t0
+  %t2 = sub i4 %z, %t1
+  ret i4 %t2
+}
+define i4 @negate_freeze_extrause(i4 %x, i4 %y, i4 %z) {
+; CHECK-LABEL: @negate_freeze_extrause(
+; CHECK-NEXT:    [[T0:%.*]] = sub i4 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[T1:%.*]] = freeze i4 [[T0]]
+; CHECK-NEXT:    call void @use4(i4 [[T1]])
+; CHECK-NEXT:    [[T2:%.*]] = sub i4 [[Z:%.*]], [[T1]]
+; CHECK-NEXT:    ret i4 [[T2]]
+;
+  %t0 = sub i4 %x, %y
+  %t1 = freeze i4 %t0
+  call void @use4(i4 %t1)
+  %t2 = sub i4 %z, %t1
+  ret i4 %t2
 }
 
 ; CHECK: !0 = !{!"branch_weights", i32 40, i32 1}

@@ -1628,7 +1628,7 @@ void ObjectFileMachO::ProcessSegmentCommand(const load_command &load_cmd_,
   } else if (unified_section_sp) {
     if (is_dsym && unified_section_sp->GetFileAddress() != load_cmd.vmaddr) {
       // Check to see if the module was read from memory?
-      if (module_sp->GetObjectFile()->GetBaseAddress().IsValid()) {
+      if (module_sp->GetObjectFile()->IsInMemory()) {
         // We have a module that is in memory and needs to have its file
         // address adjusted. We need to do this because when we load a file
         // from memory, its addresses will be slid already, yet the addresses
@@ -5007,8 +5007,8 @@ void ObjectFileMachO::GetAllArchSpecs(const llvm::MachO::mach_header &header,
 
     struct version_min_command version_min;
     switch (load_cmd.cmd) {
-    case llvm::MachO::LC_VERSION_MIN_IPHONEOS:
     case llvm::MachO::LC_VERSION_MIN_MACOSX:
+    case llvm::MachO::LC_VERSION_MIN_IPHONEOS:
     case llvm::MachO::LC_VERSION_MIN_TVOS:
     case llvm::MachO::LC_VERSION_MIN_WATCHOS: {
       if (load_cmd.cmdsize != sizeof(version_min))
@@ -5024,7 +5024,19 @@ void ObjectFileMachO::GetAllArchSpecs(const llvm::MachO::mach_header &header,
 
       auto triple = base_triple;
       triple.setOSName(os.str());
-      os_name.clear();
+
+      // Disambiguate legacy simulator platforms.
+      if (load_cmd.cmd != llvm::MachO::LC_VERSION_MIN_MACOSX &&
+          (base_triple.getArch() == llvm::Triple::x86_64 ||
+           base_triple.getArch() == llvm::Triple::x86)) {
+        // The combination of legacy LC_VERSION_MIN load command and
+        // x86 architecture always indicates a simulator environment.
+        // The combination of LC_VERSION_MIN and arm architecture only
+        // appears for native binaries. Back-deploying simulator
+        // binaries on Apple Silicon Macs use the modern unambigous
+        // LC_BUILD_VERSION load commands; no special handling required.
+        triple.setEnvironment(llvm::Triple::Simulator);
+      }
       add_triple(triple);
       break;
     }

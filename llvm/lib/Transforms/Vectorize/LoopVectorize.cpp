@@ -265,6 +265,17 @@ static cl::opt<unsigned> MaxNestedScalarReductionIC(
     cl::desc("The maximum interleave count to use when interleaving a scalar "
              "reduction in a nested loop."));
 
+static cl::opt<bool>
+    PreferInLoopReductions("prefer-inloop-reductions", cl::init(false),
+                           cl::Hidden,
+                           cl::desc("Prefer in-loop vector reductions, "
+                                    "overriding the targets preference."));
+
+static cl::opt<bool> PreferPredicatedReductionSelect(
+    "prefer-predicated-reduction-select", cl::init(false), cl::Hidden,
+    cl::desc(
+        "Prefer predicating a reduction operation over an after loop select."));
+
 cl::opt<bool> EnableVPlanNativePath(
     "enable-vplan-native-path", cl::init(false), cl::Hidden,
     cl::desc("Enable VPlan-native vectorization path with "
@@ -1071,6 +1082,10 @@ public:
   /// Collect values we want to ignore in the cost model.
   void collectValuesToIgnore();
 
+  /// Split reductions into those that happen in the loop, and those that happen
+  /// outside. In loop reductions are collected into InLoopReductionChains.
+  void collectInLoopReductions();
+
   /// \returns The smallest bitwidth each instruction can be represented with.
   /// The vector equivalents of these instructions should be truncated to this
   /// type.
@@ -1338,6 +1353,22 @@ public:
     return foldTailByMasking() || Legal->blockNeedsPredication(BB);
   }
 
+  /// A SmallMapVector to store the InLoop reduction op chains, mapping phi
+  /// nodes to the chain of instructions representing the reductions. Uses a
+  /// MapVector to ensure deterministic iteration order.
+  using ReductionChainMap =
+      SmallMapVector<PHINode *, SmallVector<Instruction *, 4>, 4>;
+
+  /// Return the chain of instructions representing an inloop reduction.
+  const ReductionChainMap &getInLoopReductionChains() const {
+    return InLoopReductionChains;
+  }
+
+  /// Returns true if the Phi is part of an inloop reduction.
+  bool isInLoopReduction(PHINode *Phi) const {
+    return InLoopReductionChains.count(Phi);
+  }
+
   /// Estimate cost of an intrinsic call instruction CI if it were vectorized
   /// with factor VF.  Return the cost of the instruction, including
   /// scalarization overhead if it's needed.
@@ -1465,6 +1496,11 @@ private:
   /// Holds the instructions (address computations) that are forced to be
   /// scalarized.
   DenseMap<unsigned, SmallPtrSet<Instruction *, 4>> ForcedScalars;
+
+  /// PHINodes of the reductions that should be expanded in-loop along with
+  /// their associated chains of reduction operations, in program order from top
+  /// (PHI) to bottom
+  ReductionChainMap InLoopReductionChains;
 
   /// Returns the expected difference in cost from scalarizing the expression
   /// feeding a predicated instruction \p PredInst. The instructions to
@@ -1773,10 +1809,10 @@ void InnerLoopVectorizer::createVectorIntOrFpInductionPHI(
   // FIXME: If the step is non-constant, we create the vector splat with
   //        IRBuilder. IRBuilder can constant-fold the multiply, but it doesn't
   //        handle a constant vector splat.
-  Value *SplatVF =
-      isa<Constant>(Mul)
-          ? ConstantVector::getSplat({VF, false}, cast<Constant>(Mul))
-          : Builder.CreateVectorSplat(VF, Mul);
+  Value *SplatVF = isa<Constant>(Mul)
+                       ? ConstantVector::getSplat(ElementCount::getFixed(VF),
+                                                  cast<Constant>(Mul))
+                       : Builder.CreateVectorSplat(VF, Mul);
   Builder.restoreIP(CurrIP);
 
   // We may need to add the step a number of times, depending on the unroll
@@ -2791,7 +2827,8 @@ void InnerLoopVectorizer::emitSCEVChecks(Loop *L, BasicBlock *Bypass) {
       return;
 
   assert(!(SCEVCheckBlock->getParent()->hasOptSize() ||
-           OptForSizeBasedOnProfile) &&
+           (OptForSizeBasedOnProfile &&
+            Cost->Hints->getForce() != LoopVectorizeHints::FK_Enabled)) &&
          "Cannot SCEV check stride or overflow when optimizing for size");
 
   SCEVCheckBlock->setName("vector.scevcheck");
@@ -3368,7 +3405,8 @@ unsigned LoopVectorizationCostModel::getVectorCallCost(CallInst *CI,
   // If we can't emit a vector call for this function, then the currently found
   // cost is the cost we need to return.
   NeedToScalarize = true;
-  VFShape Shape = VFShape::get(*CI, {VF, false}, false /*HasGlobalPred*/);
+  VFShape Shape =
+      VFShape::get(*CI, ElementCount::getFixed(VF), false /*HasGlobalPred*/);
   Function *VecFunc = VFDatabase(*CI).getVectorizedFunction(Shape);
 
   if (!TLI || CI->isNoBuiltin() || !VecFunc)
@@ -3795,6 +3833,7 @@ void InnerLoopVectorizer::fixReduction(PHINode *Phi) {
   RecurrenceDescriptor::MinMaxRecurrenceKind MinMaxKind =
     RdxDesc.getMinMaxRecurrenceKind();
   setDebugLocFromInst(Builder, ReductionStartValue);
+  bool IsInLoopReductionPhi = Cost->isInLoopReduction(Phi);
 
   // We need to generate a reduction vector from the incoming scalar.
   // To do so, we need to generate the 'identity' vector and override
@@ -3812,7 +3851,7 @@ void InnerLoopVectorizer::fixReduction(PHINode *Phi) {
   if (RK == RecurrenceDescriptor::RK_IntegerMinMax ||
       RK == RecurrenceDescriptor::RK_FloatMinMax) {
     // MinMax reduction have the start value as their identify.
-    if (VF == 1) {
+    if (VF == 1 || IsInLoopReductionPhi) {
       VectorStart = Identity = ReductionStartValue;
     } else {
       VectorStart = Identity =
@@ -3822,13 +3861,13 @@ void InnerLoopVectorizer::fixReduction(PHINode *Phi) {
     // Handle other reduction kinds:
     Constant *Iden = RecurrenceDescriptor::getRecurrenceIdentity(
         RK, VecTy->getScalarType());
-    if (VF == 1) {
+    if (VF == 1 || IsInLoopReductionPhi) {
       Identity = Iden;
       // This vector is the Identity vector where the first element is the
       // incoming scalar reduction.
       VectorStart = ReductionStartValue;
     } else {
-      Identity = ConstantVector::getSplat({VF, false}, Iden);
+      Identity = ConstantVector::getSplat(ElementCount::getFixed(VF), Iden);
 
       // This vector is the Identity vector where the first element is the
       // incoming scalar reduction.
@@ -3883,6 +3922,21 @@ void InnerLoopVectorizer::fixReduction(PHINode *Phi) {
       }
       assert(Sel && "Reduction exit feeds no select");
       VectorLoopValueMap.resetVectorValue(LoopExitInst, Part, Sel);
+
+      // If the target can create a predicated operator for the reduction at no
+      // extra cost in the loop (for example a predicated vadd), it can be
+      // cheaper for the select to remain in the loop than be sunk out of it,
+      // and so use the select value for the phi instead of the old
+      // LoopExitValue.
+      RecurrenceDescriptor RdxDesc = Legal->getReductionVars()[Phi];
+      if (PreferPredicatedReductionSelect ||
+          TTI->preferPredicatedReductionSelect(
+              RdxDesc.getRecurrenceBinOp(RdxDesc.getRecurrenceKind()),
+              Phi->getType(), TargetTransformInfo::ReductionFlags())) {
+        auto *VecRdxPhi = cast<PHINode>(getOrCreateVectorValue(Phi, Part));
+        VecRdxPhi->setIncomingValueForBlock(
+            LI->getLoopFor(LoopVectorBody)->getLoopLatch(), Sel);
+      }
     }
   }
 
@@ -3890,6 +3944,7 @@ void InnerLoopVectorizer::fixReduction(PHINode *Phi) {
   // then extend the loop exit value to enable InstCombine to evaluate the
   // entire expression in the smaller type.
   if (VF > 1 && Phi->getType() != RdxDesc.getRecurrenceType()) {
+    assert(!IsInLoopReductionPhi && "Unexpected truncated inloop reduction!");
     Type *RdxVecTy = FixedVectorType::get(RdxDesc.getRecurrenceType(), VF);
     Builder.SetInsertPoint(
         LI->getLoopFor(LoopVectorBody)->getLoopLatch()->getTerminator());
@@ -3940,7 +3995,9 @@ void InnerLoopVectorizer::fixReduction(PHINode *Phi) {
                                       RdxPart);
   }
 
-  if (VF > 1) {
+  // Create the reduction after the loop. Note that inloop reductions create the
+  // target reduction in the loop using a Reduction recipe.
+  if (VF > 1 && !IsInLoopReductionPhi) {
     bool NoNaN = Legal->hasFunNoNaNAttr();
     ReducedPartRdx =
         createTargetReduction(Builder, TTI, RdxDesc, ReducedPartRdx, NoNaN);
@@ -4236,8 +4293,9 @@ void InnerLoopVectorizer::widenPHIInstruction(Instruction *PN, unsigned UF,
   if (Legal->isReductionVariable(P) || Legal->isFirstOrderRecurrence(P)) {
     for (unsigned Part = 0; Part < UF; ++Part) {
       // This is phase one of vectorizing PHIs.
+      bool ScalarPHI = (VF == 1) || Cost->isInLoopReduction(cast<PHINode>(PN));
       Type *VecTy =
-          (VF == 1) ? PN->getType() : FixedVectorType::get(PN->getType(), VF);
+          ScalarPHI ? PN->getType() : FixedVectorType::get(PN->getType(), VF);
       Value *EntryPart = PHINode::Create(
           VecTy, 2, "vec.phi", &*LoopVectorBody->getFirstInsertionPt());
       VectorLoopValueMap.setVectorValue(P, Part, EntryPart);
@@ -4505,8 +4563,8 @@ void InnerLoopVectorizer::widenCallInstruction(CallInst &I, VPUser &ArgOperands,
       assert(VectorF && "Can't retrieve vector intrinsic.");
     } else {
       // Use vector version of the function call.
-      const VFShape Shape =
-          VFShape::get(*CI, {VF, false} /*EC*/, false /*HasGlobalPred*/);
+      const VFShape Shape = VFShape::get(*CI, ElementCount::getFixed(VF),
+                                         false /*HasGlobalPred*/);
 #ifndef NDEBUG
       assert(VFDatabase(*CI).getVectorizedFunction(Shape) != nullptr &&
              "Can't create vector function.");
@@ -6644,6 +6702,34 @@ void LoopVectorizationCostModel::collectValuesToIgnore() {
   }
 }
 
+void LoopVectorizationCostModel::collectInLoopReductions() {
+  // For the moment, without predicated reduction instructions, we do not
+  // support inloop reductions whilst folding the tail, and hence in those cases
+  // all reductions are currently out of the loop.
+  if (!PreferInLoopReductions || foldTailByMasking())
+    return;
+
+  for (auto &Reduction : Legal->getReductionVars()) {
+    PHINode *Phi = Reduction.first;
+    RecurrenceDescriptor &RdxDesc = Reduction.second;
+
+    // We don't collect reductions that are type promoted (yet).
+    if (RdxDesc.getRecurrenceType() != Phi->getType())
+      continue;
+
+    // Check that we can correctly put the reductions into the loop, by
+    // finding the chain of operations that leads from the phi to the loop
+    // exit value.
+    SmallVector<Instruction *, 4> ReductionOperations =
+        RdxDesc.getReductionOpChain(Phi, TheLoop);
+    bool InLoop = !ReductionOperations.empty();
+    if (InLoop)
+      InLoopReductionChains[Phi] = ReductionOperations;
+    LLVM_DEBUG(dbgs() << "LV: Using " << (InLoop ? "inloop" : "out of loop")
+                      << " reduction for phi: " << *Phi << "\n");
+  }
+}
+
 // TODO: we could return a pair of values that specify the max VF and
 // min VF, to be used in `buildVPlans(MinVF, MaxVF)` instead of
 // `buildVPlans(VF, VF)`. We cannot do it because VPLAN at the moment
@@ -6723,6 +6809,7 @@ Optional<VectorizationFactor> LoopVectorizationPlanner::plan(unsigned UserVF,
     // Collect the instructions (and their associated costs) that will be more
     // profitable to scalarize.
     CM.selectUserVectorizationFactor(UserVF);
+    CM.collectInLoopReductions();
     buildVPlansWithVPRecipes(UserVF, UserVF);
     LLVM_DEBUG(printPlans(dbgs()));
     return {{UserVF, 0}};
@@ -6740,6 +6827,8 @@ Optional<VectorizationFactor> LoopVectorizationPlanner::plan(unsigned UserVF,
     if (VF > 1)
       CM.collectInstsToScalarize(VF);
   }
+
+  CM.collectInLoopReductions();
 
   buildVPlansWithVPRecipes(1, MaxVF);
   LLVM_DEBUG(printPlans(dbgs()));
@@ -7379,6 +7468,23 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
     RecipeBuilder.recordRecipeOf(Entry.first);
     RecipeBuilder.recordRecipeOf(Entry.second);
   }
+  for (auto &Reduction : CM.getInLoopReductionChains()) {
+    PHINode *Phi = Reduction.first;
+    RecurrenceDescriptor::RecurrenceKind Kind =
+        Legal->getReductionVars()[Phi].getRecurrenceKind();
+    const SmallVector<Instruction *, 4> &ReductionOperations = Reduction.second;
+
+    RecipeBuilder.recordRecipeOf(Phi);
+    for (auto &R : ReductionOperations) {
+      RecipeBuilder.recordRecipeOf(R);
+      // For min/max reducitons, where we have a pair of icmp/select, we also
+      // need to record the ICmp recipe, so it can be removed later.
+      if (Kind == RecurrenceDescriptor::RK_IntegerMinMax ||
+          Kind == RecurrenceDescriptor::RK_FloatMinMax) {
+        RecipeBuilder.recordRecipeOf(cast<Instruction>(R->getOperand(0)));
+      }
+    }
+  }
 
   // For each interleave group which is relevant for this (possibly trimmed)
   // Range, add it to the set of groups to be later applied to the VPlan and add
@@ -7491,12 +7597,18 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
       }
   }
 
+  // Adjust the recipes for any inloop reductions.
+  if (Range.Start > 1)
+    adjustRecipesForInLoopReductions(Plan, RecipeBuilder);
+
   // Finally, if tail is folded by masking, introduce selects between the phi
   // and the live-out instruction of each reduction, at the end of the latch.
   if (CM.foldTailByMasking() && !Legal->getReductionVars().empty()) {
     Builder.setInsertPoint(VPBB);
     auto *Cond = RecipeBuilder.createBlockInMask(OrigLoop->getHeader(), Plan);
     for (auto &Reduction : Legal->getReductionVars()) {
+      assert(!CM.isInLoopReduction(Reduction.first) &&
+             "Didn't expect inloop tail folded reduction yet!");
       VPValue *Phi = Plan->getVPValue(Reduction.first);
       VPValue *Red = Plan->getVPValue(Reduction.second.getLoopExitInstr());
       Builder.createNaryOp(Instruction::Select, {Cond, Red, Phi});
@@ -7550,6 +7662,60 @@ VPlanPtr LoopVectorizationPlanner::buildVPlan(VFRange &Range) {
   VPlanTransforms::VPInstructionsToVPRecipes(
       OrigLoop, Plan, Legal->getInductionVars(), DeadInstructions);
   return Plan;
+}
+
+// Adjust the recipes for any inloop reductions. The chain of instructions
+// leading from the loop exit instr to the phi need to be converted to
+// reductions, with one operand being vector and the other being the scalar
+// reduction chain.
+void LoopVectorizationPlanner::adjustRecipesForInLoopReductions(
+    VPlanPtr &Plan, VPRecipeBuilder &RecipeBuilder) {
+  for (auto &Reduction : CM.getInLoopReductionChains()) {
+    PHINode *Phi = Reduction.first;
+    RecurrenceDescriptor &RdxDesc = Legal->getReductionVars()[Phi];
+    const SmallVector<Instruction *, 4> &ReductionOperations = Reduction.second;
+
+    // ReductionOperations are orders top-down from the phi's use to the
+    // LoopExitValue. We keep a track of the previous item (the Chain) to tell
+    // which of the two operands will remain scalar and which will be reduced.
+    // For minmax the chain will be the select instructions.
+    Instruction *Chain = Phi;
+    for (Instruction *R : ReductionOperations) {
+      VPRecipeBase *WidenRecipe = RecipeBuilder.getRecipe(R);
+      RecurrenceDescriptor::RecurrenceKind Kind = RdxDesc.getRecurrenceKind();
+
+      VPValue *ChainOp = Plan->getVPValue(Chain);
+      unsigned FirstOpId;
+      if (Kind == RecurrenceDescriptor::RK_IntegerMinMax ||
+          Kind == RecurrenceDescriptor::RK_FloatMinMax) {
+        assert(WidenRecipe->getVPRecipeID() == VPRecipeBase::VPWidenSelectSC &&
+               "Expected to replace a VPWidenSelectSC");
+        FirstOpId = 1;
+      } else {
+        assert(WidenRecipe->getVPRecipeID() == VPRecipeBase::VPWidenSC &&
+               "Expected to replace a VPWidenSC");
+        FirstOpId = 0;
+      }
+      unsigned VecOpId =
+          R->getOperand(FirstOpId) == Chain ? FirstOpId + 1 : FirstOpId;
+      VPValue *VecOp = Plan->getVPValue(R->getOperand(VecOpId));
+
+      VPReductionRecipe *RedRecipe = new VPReductionRecipe(
+          &RdxDesc, R, ChainOp, VecOp, Legal->hasFunNoNaNAttr(), TTI);
+      WidenRecipe->getParent()->insert(RedRecipe, WidenRecipe->getIterator());
+      WidenRecipe->eraseFromParent();
+
+      if (Kind == RecurrenceDescriptor::RK_IntegerMinMax ||
+          Kind == RecurrenceDescriptor::RK_FloatMinMax) {
+        VPRecipeBase *CompareRecipe =
+            RecipeBuilder.getRecipe(cast<Instruction>(R->getOperand(0)));
+        assert(CompareRecipe->getVPRecipeID() == VPRecipeBase::VPWidenSC &&
+               "Expected to replace a VPWidenSC");
+        CompareRecipe->eraseFromParent();
+      }
+      Chain = R;
+    }
+  }
 }
 
 Value* LoopVectorizationPlanner::VPCallbackILV::
@@ -7646,6 +7812,28 @@ void VPBlendRecipe::execute(VPTransformState &State) {
 void VPInterleaveRecipe::execute(VPTransformState &State) {
   assert(!State.Instance && "Interleave group being replicated.");
   State.ILV->vectorizeInterleaveGroup(IG, State, getAddr(), getMask());
+}
+
+void VPReductionRecipe::execute(VPTransformState &State) {
+  assert(!State.Instance && "Reduction being replicated.");
+  for (unsigned Part = 0; Part < State.UF; ++Part) {
+    unsigned Kind = RdxDesc->getRecurrenceKind();
+    Value *NewVecOp = State.get(VecOp, Part);
+    Value *NewRed =
+        createTargetReduction(State.Builder, TTI, *RdxDesc, NewVecOp, NoNaN);
+    Value *PrevInChain = State.get(ChainOp, Part);
+    Value *NextInChain;
+    if (Kind == RecurrenceDescriptor::RK_IntegerMinMax ||
+        Kind == RecurrenceDescriptor::RK_FloatMinMax) {
+      NextInChain =
+          createMinMaxOp(State.Builder, RdxDesc->getMinMaxRecurrenceKind(),
+                         NewRed, PrevInChain);
+    } else {
+      NextInChain = State.Builder.CreateBinOp(
+          (Instruction::BinaryOps)I->getOpcode(), NewRed, PrevInChain);
+    }
+    State.ValueMap.setVectorValue(I, Part, NextInChain);
+  }
 }
 
 void VPReplicateRecipe::execute(VPTransformState &State) {
@@ -7747,12 +7935,17 @@ static ScalarEpilogueLowering getScalarEpilogueLowering(
     BlockFrequencyInfo *BFI, TargetTransformInfo *TTI, TargetLibraryInfo *TLI,
     AssumptionCache *AC, LoopInfo *LI, ScalarEvolution *SE, DominatorTree *DT,
     LoopVectorizationLegality &LVL) {
-  bool OptSize =
-      F->hasOptSize() || llvm::shouldOptimizeForSize(L->getHeader(), PSI, BFI,
-                                                     PGSOQueryType::IRPass);
   // 1) OptSize takes precedence over all other options, i.e. if this is set,
   // don't look at hints or options, and don't request a scalar epilogue.
-  if (OptSize)
+  // (For PGSO, as shouldOptimizeForSize isn't currently accessible from
+  // LoopAccessInfo (due to code dependency and not being able to reliably get
+  // PSI/BFI from a loop analysis under NPM), we cannot suppress the collection
+  // of strides in LoopAccessInfo::analyzeLoop() and vectorize without
+  // versioning when the vectorization is forced, unlike hasOptSize. So revert
+  // back to the old way and vectorize with versioning when forced. See D81345.)
+  if (F->hasOptSize() || (llvm::shouldOptimizeForSize(L->getHeader(), PSI, BFI,
+                                                      PGSOQueryType::IRPass) &&
+                          Hints.getForce() != LoopVectorizeHints::FK_Enabled))
     return CM_ScalarEpilogueNotAllowedOptSize;
 
   bool PredicateOptDisabled = PreferPredicateOverEpilog.getNumOccurrences() &&

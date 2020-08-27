@@ -768,6 +768,7 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
             .Case("constructor", codegenoptions::DebugInfoConstructor)
             .Case("limited", codegenoptions::LimitedDebugInfo)
             .Case("standalone", codegenoptions::FullDebugInfo)
+            .Case("unused-types", codegenoptions::UnusedTypeInfo)
             .Default(~0U);
     if (Val == ~0U)
       Diags.Report(diag::err_drv_invalid_value) << A->getAsString(Args)
@@ -775,6 +776,12 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
     else
       Opts.setDebugInfo(static_cast<codegenoptions::DebugInfoKind>(Val));
   }
+  // If -fuse-ctor-homing is set and limited debug info is already on, then use
+  // constructor homing.
+  if (Args.getLastArg(OPT_fuse_ctor_homing))
+    if (Opts.getDebugInfo() == codegenoptions::LimitedDebugInfo)
+      Opts.setDebugInfo(codegenoptions::DebugInfoConstructor);
+
   if (Arg *A = Args.getLastArg(OPT_debugger_tuning_EQ)) {
     unsigned Val = llvm::StringSwitch<unsigned>(A->getValue())
                        .Case("gdb", unsigned(llvm::DebuggerKind::GDB))
@@ -823,7 +830,7 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   Opts.DisableLLVMPasses =
       Args.hasArg(OPT_disable_llvm_passes) ||
       (Args.hasArg(OPT_fsycl_is_device) && Triple.isSPIR() &&
-       Args.hasArg(OPT_fno_sycl_std_optimizations) && !IsSyclESIMD);
+       Args.hasArg(OPT_fno_sycl_early_optimizations) && !IsSyclESIMD);
   Opts.DisableLifetimeMarkers = Args.hasArg(OPT_disable_lifetimemarkers);
 
   const llvm::Triple::ArchType DebugEntryValueArchs[] = {
@@ -2586,6 +2593,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
     if (const Arg *A = Args.getLastArg(OPT_sycl_std_EQ)) {
       Opts.SYCLVersion = llvm::StringSwitch<unsigned>(A->getValue())
                              .Cases("2017", "1.2.1", "121", "sycl-1.2.1", 2017)
+                             .Case("2020", 2020)
                              .Default(0U);
 
       if (Opts.SYCLVersion == 0U) {
@@ -2596,6 +2604,9 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
     }
     Opts.SYCLExplicitSIMD = Args.hasArg(options::OPT_fsycl_esimd);
     Opts.EnableDAEInSpirKernels = Args.hasArg(options::OPT_fenable_sycl_dae);
+    Opts.SYCLValueFitInMaxInt =
+        Args.hasFlag(options::OPT_fsycl_id_queries_fit_in_int,
+                     options::OPT_fno_sycl_id_queries_fit_in_int, false);
   }
 
   Opts.IncludeDefaultHeader = Args.hasArg(OPT_finclude_default_header);
@@ -2809,7 +2820,9 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   // Mimicking gcc's behavior, trigraphs are only enabled if -trigraphs
   // is specified, or -std is set to a conforming mode.
   // Trigraphs are disabled by default in c++1z onwards.
-  Opts.Trigraphs = !Opts.GNUMode && !Opts.MSVCCompat && !Opts.CPlusPlus17;
+  // For z/OS, trigraphs are enabled by default (without regard to the above).
+  Opts.Trigraphs =
+      (!Opts.GNUMode && !Opts.MSVCCompat && !Opts.CPlusPlus17) || T.isOSzOS();
   Opts.Trigraphs =
       Args.hasFlag(OPT_ftrigraphs, OPT_fno_trigraphs, Opts.Trigraphs);
 
@@ -2880,7 +2893,8 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.Coroutines = Opts.CPlusPlus20 || Args.hasArg(OPT_fcoroutines_ts);
 
   Opts.ConvergentFunctions = Opts.OpenCL || (Opts.CUDA && Opts.CUDAIsDevice) ||
-    Args.hasArg(OPT_fconvergent_functions);
+                             Opts.SYCLIsDevice ||
+                             Args.hasArg(OPT_fconvergent_functions);
 
   Opts.DoubleSquareBracketAttributes =
       Args.hasFlag(OPT_fdouble_square_bracket_attributes,
@@ -3672,6 +3686,7 @@ static void ParseTargetArgs(TargetOptions &Opts, ArgList &Args,
       Opts.EABIVersion = EABIVersion;
   }
   Opts.CPU = std::string(Args.getLastArgValue(OPT_target_cpu));
+  Opts.TuneCPU = std::string(Args.getLastArgValue(OPT_tune_cpu));
   Opts.FPMath = std::string(Args.getLastArgValue(OPT_mfpmath));
   Opts.FeaturesAsWritten = Args.getAllArgValues(OPT_target_feature);
   Opts.LinkerVersion =

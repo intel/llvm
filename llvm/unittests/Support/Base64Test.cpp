@@ -1,5 +1,4 @@
-//===- llvm/unittest/Support/Base64Test.cpp - Base64 tests
-//--------------------===//
+//===- llvm/unittest/Support/Base64Test.cpp - Base64 tests ----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -49,4 +48,63 @@ TEST(Base64Test, Base64) {
                         0x7a, 0x79, 0x20, 0x64, 0x6f, 0x67, 0x73, 0x2e};
   TestBase64({LargeVector, sizeof(LargeVector)},
              "VGhlIHF1aWNrIGJyb3duIGZveCBqdW1wcyBvdmVyIDEzIGxhenkgZG9ncy4=");
+}
+
+TEST(Base64Test, RoundTrip) {
+  using byte = unsigned char;
+  const byte Arr0[] = {0x1};
+  const byte Arr1[] = {0x81}; // 0x81 - highest and lowest bits are set
+  const byte Arr2[] = {0x81, 0x81};
+  const byte Arr3[] = {0x81, 0x81, 0x81};
+  const byte Arr4[] = {0x81, 0x81, 0x81, 0x81};
+  const byte Arr5[] = {0xFF, 0xFF, 0x7F, 0xFF, 0x70};
+  const byte Arr6[] = {40, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0x7F, 0xFF, 0x70};
+  const byte Arr7[] = {8, 0, 0, 0, 0, 0, 0, 0, 0x1};
+  // 2 tests below model real usage case for argument opt info propagation:
+  // { 0x7E, 0x06 }
+  // 11001111110 - 11 arguments total, 3 remain
+  // encoded: "LAAAAAAAAAgfGA"
+  const byte Arr8[] = {11, 0, 0, 0, 0, 0, 0, 0, 0x7E, 0x06};
+  // 0x01
+  // 01 - 2 arguments total, 1 remains
+  // encoded: "CAAAAAAAAAQA"
+  const byte Arr9[] = {2, 0, 0, 0, 0, 0, 0, 0, 0x1};
+
+  struct {
+    const byte *Ptr;
+    size_t Size;
+  } Tests[] = {{Arr0, sizeof(Arr0)}, {Arr1, sizeof(Arr1)}, {Arr2, sizeof(Arr2)},
+               {Arr3, sizeof(Arr3)}, {Arr4, sizeof(Arr4)}, {Arr5, sizeof(Arr5)},
+               {Arr6, sizeof(Arr6)}, {Arr7, sizeof(Arr7)}, {Arr8, sizeof(Arr8)},
+               {Arr9, sizeof(Arr9)}};
+
+  for (size_t I = 0; I < sizeof(Tests) / sizeof(Tests[0]); ++I) {
+    std::string Encoded;
+    size_t Len;
+    {
+      llvm::raw_string_ostream OS(Encoded);
+      Len = Base64::encode(Tests[I].Ptr, OS, Tests[I].Size);
+    }
+    if (Len != Encoded.size()) {
+      FAIL() << "Base64::encode failed on test " << I << "\n";
+      continue;
+    }
+    std::unique_ptr<byte> Decoded(new byte[Base64::getDecodedSize(Len)]);
+    Expected<size_t> Res = Base64::decode(Encoded.data(), Decoded.get(), Len);
+
+    if (!Res) {
+      FAIL() << "Base64::decode failed on test " << I << "\n";
+      continue;
+    }
+    if (Res.get() != Tests[I].Size) {
+      FAIL() << "Base64::decode length mismatch, test " << I << "\n";
+      continue;
+    }
+    std::string Gold((const char *)Tests[I].Ptr, Tests[I].Size);
+    std::string Test((const char *)Decoded.get(), Res.get());
+
+    if (Gold != Test) {
+      FAIL() << "Base64::decode result mismatch, test " << I << "\n";
+    }
+  }
 }

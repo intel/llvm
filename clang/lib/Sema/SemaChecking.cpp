@@ -3730,16 +3730,12 @@ bool Sema::CheckX86BuiltinGatherScatterScale(unsigned BuiltinID,
 enum { TileRegLow = 0, TileRegHigh = 7 };
 
 bool Sema::CheckX86BuiltinTileArgumentsRange(CallExpr *TheCall,
-                                    ArrayRef<int> ArgNums) {
+                                             ArrayRef<int> ArgNums) {
   for (int ArgNum : ArgNums) {
     if (SemaBuiltinConstantArgRange(TheCall, ArgNum, TileRegLow, TileRegHigh))
       return true;
   }
   return false;
-}
-
-bool Sema::CheckX86BuiltinTileArgumentsRange(CallExpr *TheCall, int ArgNum) {
-  return SemaBuiltinConstantArgRange(TheCall, ArgNum, TileRegLow, TileRegHigh);
 }
 
 bool Sema::CheckX86BuiltinTileDuplicate(CallExpr *TheCall,
@@ -3748,9 +3744,14 @@ bool Sema::CheckX86BuiltinTileDuplicate(CallExpr *TheCall,
   // each bit to represent the usage of them in bitset.
   std::bitset<TileRegHigh + 1> ArgValues;
   for (int ArgNum : ArgNums) {
-    llvm::APSInt Arg;
-    SemaBuiltinConstantArg(TheCall, ArgNum, Arg);
-    int ArgExtValue = Arg.getExtValue();
+    Expr *Arg = TheCall->getArg(ArgNum);
+    if (Arg->isTypeDependent() || Arg->isValueDependent())
+      continue;
+
+    llvm::APSInt Result;
+    if (SemaBuiltinConstantArg(TheCall, ArgNum, Result))
+      return true;
+    int ArgExtValue = Result.getExtValue();
     assert((ArgExtValue >= TileRegLow || ArgExtValue <= TileRegHigh) &&
            "Incorrect tile register num.");
     if (ArgValues.test(ArgExtValue))
@@ -4558,6 +4559,9 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
   if (FD)
     diagnoseArgDependentDiagnoseIfAttrs(FD, ThisArg, Args, Loc);
 
+  if (FD && FD->hasAttr<SYCLKernelAttr>())
+    CheckSYCLKernelCall(FD, Range, Args);
+
   // Diagnose variadic calls in SYCL.
   if (FD && FD ->isVariadic() && getLangOpts().SYCLIsDevice &&
       !isUnevaluatedContext() && !isKnownGoodSYCLDecl(FD))
@@ -5185,6 +5189,11 @@ ExprResult Sema::BuildAtomicExpr(SourceRange CallRange, SourceRange ExprRange,
              Op == AtomicExpr::AO__opencl_atomic_load)
                 ? 0
                 : 1);
+
+  if (ValType->isExtIntType()) {
+    Diag(Ptr->getExprLoc(), diag::err_atomic_builtin_ext_int_prohibit);
+    return ExprError();
+  }
 
   return AE;
 }
@@ -10504,10 +10513,16 @@ static IntRange GetExprRange(ASTContext &C, const Expr *E, unsigned MaxWidth,
                           MaxWidth, InConstantContext);
 
     // Otherwise, conservatively merge.
-    IntRange L =
-        GetExprRange(C, CO->getTrueExpr(), MaxWidth, InConstantContext);
-    IntRange R =
-        GetExprRange(C, CO->getFalseExpr(), MaxWidth, InConstantContext);
+    // GetExprRange requires an integer expression, but a throw expression
+    // results in a void type.
+    Expr *E = CO->getTrueExpr();
+    IntRange L = E->getType()->isVoidType()
+                     ? IntRange{0, true}
+                     : GetExprRange(C, E, MaxWidth, InConstantContext);
+    E = CO->getFalseExpr();
+    IntRange R = E->getType()->isVoidType()
+                     ? IntRange{0, true}
+                     : GetExprRange(C, E, MaxWidth, InConstantContext);
     return IntRange::join(L, R);
   }
 
@@ -10928,15 +10943,16 @@ static bool CheckTautologicalComparison(Sema &S, BinaryOperator *E,
       S.Context.hasSameUnqualifiedType(Constant->getType(), Other->getType()))
     return false;
 
-  // TODO: Investigate using GetExprRange() to get tighter bounds
-  // on the bit ranges.
+  IntRange OtherValueRange =
+      GetExprRange(S.Context, Other, S.isConstantEvaluated());
+
   QualType OtherT = Other->getType();
   if (const auto *AT = OtherT->getAs<AtomicType>())
     OtherT = AT->getValueType();
-  IntRange OtherRange = IntRange::forValueOfType(S.Context, OtherT);
+  IntRange OtherTypeRange = IntRange::forValueOfType(S.Context, OtherT);
 
   // Special case for ObjC BOOL on targets where its a typedef for a signed char
-  // (Namely, macOS).
+  // (Namely, macOS). FIXME: IntRange::forValueOfType should do this.
   bool IsObjCSignedCharBool = S.getLangOpts().ObjC &&
                               S.NSAPIObj->isObjCBOOLType(OtherT) &&
                               OtherT->isSpecificBuiltinType(BuiltinType::SChar);
@@ -10946,16 +10962,31 @@ static bool CheckTautologicalComparison(Sema &S, BinaryOperator *E,
   bool OtherIsBooleanDespiteType =
       !OtherT->isBooleanType() && Other->isKnownToHaveBooleanValue();
   if (OtherIsBooleanDespiteType || IsObjCSignedCharBool)
-    OtherRange = IntRange::forBoolType();
+    OtherTypeRange = OtherValueRange = IntRange::forBoolType();
 
-  // Determine the promoted range of the other type and see if a comparison of
-  // the constant against that range is tautological.
-  PromotedRange OtherPromotedRange(OtherRange, Value.getBitWidth(),
-                                   Value.isUnsigned());
-  auto Cmp = OtherPromotedRange.compare(Value);
+  // Check if all values in the range of possible values of this expression
+  // lead to the same comparison outcome.
+  PromotedRange OtherPromotedValueRange(OtherValueRange, Value.getBitWidth(),
+                                        Value.isUnsigned());
+  auto Cmp = OtherPromotedValueRange.compare(Value);
   auto Result = PromotedRange::constantValue(E->getOpcode(), Cmp, RhsConstant);
   if (!Result)
     return false;
+
+  // Also consider the range determined by the type alone. This allows us to
+  // classify the warning under the proper diagnostic group.
+  bool TautologicalTypeCompare = false;
+  {
+    PromotedRange OtherPromotedTypeRange(OtherTypeRange, Value.getBitWidth(),
+                                         Value.isUnsigned());
+    auto TypeCmp = OtherPromotedTypeRange.compare(Value);
+    if (auto TypeResult = PromotedRange::constantValue(E->getOpcode(), TypeCmp,
+                                                       RhsConstant)) {
+      TautologicalTypeCompare = true;
+      Cmp = TypeCmp;
+      Result = TypeResult;
+    }
+  }
 
   // Suppress the diagnostic for an in-range comparison if the constant comes
   // from a macro or enumerator. We don't want to diagnose
@@ -10983,6 +11014,14 @@ static bool CheckTautologicalComparison(Sema &S, BinaryOperator *E,
     OS << (BL->getValue() ? "YES" : "NO");
   } else {
     OS << Value;
+  }
+
+  if (!TautologicalTypeCompare) {
+    S.Diag(E->getOperatorLoc(), diag::warn_tautological_compare_value_range)
+        << RhsConstant << OtherValueRange.Width << OtherValueRange.NonNegative
+        << E->getOpcodeStr() << OS.str() << *Result
+        << E->getLHS()->getSourceRange() << E->getRHS()->getSourceRange();
+    return true;
   }
 
   if (IsObjCSignedCharBool) {
@@ -11943,9 +11982,9 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
       Expr::EvalResult Result;
       if (E->EvaluateAsFixedPoint(Result, S.Context, Expr::SE_AllowSideEffects,
                                   S.isConstantEvaluated())) {
-        APFixedPoint Value = Result.Val.getFixedPoint();
-        APFixedPoint MaxVal = S.Context.getFixedPointMax(T);
-        APFixedPoint MinVal = S.Context.getFixedPointMin(T);
+        llvm::APFixedPoint Value = Result.Val.getFixedPoint();
+        llvm::APFixedPoint MaxVal = S.Context.getFixedPointMax(T);
+        llvm::APFixedPoint MinVal = S.Context.getFixedPointMin(T);
         if (Value > MaxVal || Value < MinVal) {
           S.DiagRuntimeBehavior(E->getExprLoc(), E,
                                 S.PDiag(diag::warn_impcast_fixed_point_range)
@@ -11960,7 +11999,7 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
       if (!S.isConstantEvaluated() &&
           E->EvaluateAsFixedPoint(Result, S.Context,
                                   Expr::SE_AllowSideEffects)) {
-        APFixedPoint FXResult = Result.Val.getFixedPoint();
+        llvm::APFixedPoint FXResult = Result.Val.getFixedPoint();
 
         bool Overflowed;
         llvm::APSInt IntResult = FXResult.convertToInt(
@@ -11985,7 +12024,7 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
         llvm::APSInt Value = Result.Val.getInt();
 
         bool Overflowed;
-        APFixedPoint IntResult = APFixedPoint::getFromIntValue(
+        llvm::APFixedPoint IntResult = llvm::APFixedPoint::getFromIntValue(
             Value, S.Context.getFixedPointSemantics(T), &Overflowed);
 
         if (Overflowed) {

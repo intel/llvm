@@ -100,6 +100,8 @@ def CTypeAPI : PublicAPI<"ctype.h"> {
     "isspace",
     "isupper",
     "isxdigit",
+    "tolower",
+    "toupper",
   ];
 }
 
@@ -234,6 +236,7 @@ def StringAPI : PublicAPI<"string.h"> {
     "strspn",
     "strstr",
     "strtok",
+    "strtok_r",
     "strxfrm",   
   ];
 

@@ -1,11 +1,11 @@
 // RUN: %clangxx -fsycl -fsycl-explicit-simd -fsycl-device-only -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
 
-#include <CL/sycl/intel/esimd.hpp>
+#include <CL/sycl/INTEL/esimd.hpp>
 #include <limits>
 #include <utility>
 
-using namespace sycl::intel::gpu;
+using namespace sycl::INTEL::gpu;
 
 bool test_simd_merge1() __attribute__((sycl_device)) {
   simd<int, 16> v0 = 1;

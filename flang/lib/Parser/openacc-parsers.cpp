@@ -55,7 +55,7 @@ TYPE_PARSER("AUTO" >> construct<AccClause>(construct<AccClause::Auto>()) ||
                     parenthesized(Parser<AccObjectList>{}))) ||
     "DEVICE" >> construct<AccClause>(construct<AccClause::Device>(
                     parenthesized(Parser<AccObjectList>{}))) ||
-    "DEVICEPTR" >> construct<AccClause>(construct<AccClause::DevicePtr>(
+    "DEVICEPTR" >> construct<AccClause>(construct<AccClause::Deviceptr>(
                        parenthesized(Parser<AccObjectList>{}))) ||
     "DEVICENUM" >> construct<AccClause>(construct<AccClause::DeviceNum>(
                        parenthesized(scalarIntConstantExpr))) ||
@@ -69,7 +69,7 @@ TYPE_PARSER("AUTO" >> construct<AccClause>(construct<AccClause::Auto>()) ||
         construct<AccClause>(construct<AccClause::DeviceType>(
             parenthesized(maybe(nonemptyList(name))))) ||
     "FINALIZE" >> construct<AccClause>(construct<AccClause::Finalize>()) ||
-    "FIRSTPRIVATE" >> construct<AccClause>(construct<AccClause::FirstPrivate>(
+    "FIRSTPRIVATE" >> construct<AccClause>(construct<AccClause::Firstprivate>(
                           parenthesized(Parser<AccObjectList>{}))) ||
     "GANG" >> construct<AccClause>(construct<AccClause::Gang>(
                   maybe(parenthesized(Parser<AccGangArgument>{})))) ||
@@ -84,7 +84,7 @@ TYPE_PARSER("AUTO" >> construct<AccClause>(construct<AccClause::Auto>()) ||
                   parenthesized(Parser<AccObjectList>{}))) ||
     "NO_CREATE" >> construct<AccClause>(construct<AccClause::NoCreate>(
                        parenthesized(Parser<AccObjectList>{}))) ||
-    "NOHOST" >> construct<AccClause>(construct<AccClause::NoHost>()) ||
+    "NOHOST" >> construct<AccClause>(construct<AccClause::Nohost>()) ||
     "NUM_GANGS" >> construct<AccClause>(construct<AccClause::NumGangs>(
                        parenthesized(scalarIntExpr))) ||
     "NUM_WORKERS" >> construct<AccClause>(construct<AccClause::NumWorkers>(
@@ -111,7 +111,7 @@ TYPE_PARSER("AUTO" >> construct<AccClause>(construct<AccClause::Auto>()) ||
         construct<AccClause>(construct<AccClause::Vector>(maybe(
             parenthesized(("LENGTH:" >> scalarIntExpr || scalarIntExpr))))) ||
     "WAIT" >> construct<AccClause>(construct<AccClause::Wait>(
-                  maybe(Parser<AccWaitArgument>{}))) ||
+                  maybe(parenthesized(Parser<AccWaitArgument>{})))) ||
     "WORKER" >>
         construct<AccClause>(construct<AccClause::Worker>(maybe(
             parenthesized(("NUM:" >> scalarIntExpr || scalarIntExpr))))) ||
@@ -125,8 +125,10 @@ TYPE_PARSER(construct<AccObjectList>(nonemptyList(Parser<AccObject>{})))
 TYPE_PARSER(construct<AccObjectListWithModifier>(
     maybe(Parser<AccDataModifier>{}), Parser<AccObjectList>{}))
 
-TYPE_PARSER(construct<AccWaitArgument>(
-    maybe("DEVNUM:" >> scalarIntExpr / ":"), nonemptyList(scalarIntExpr)))
+// 2.16.3 (2485) wait-argument is:
+//   [devnum : int-expr :] [queues :] int-expr-list
+TYPE_PARSER(construct<AccWaitArgument>(maybe("DEVNUM:" >> scalarIntExpr / ":"),
+    "QUEUES:" >> nonemptyList(scalarIntExpr) || nonemptyList(scalarIntExpr)))
 
 // 2.9 (1609) size-expr is one of:
 //   int-expr
@@ -199,15 +201,8 @@ TYPE_PARSER(sourced(
         parenthesized(Parser<AccObjectListWithModifier>{}))))
 
 // 2.11 Combined constructs
-TYPE_PARSER(startAccLine >> construct<AccEndCombinedDirective>(sourced(
-                                "END"_tok >> Parser<AccCombinedDirective>{})))
-
 TYPE_PARSER(construct<AccBeginCombinedDirective>(
     sourced(Parser<AccCombinedDirective>{}), Parser<AccClauseList>{}))
-
-TYPE_PARSER(construct<OpenACCCombinedConstruct>(
-    Parser<AccBeginCombinedDirective>{} / endAccLine, block,
-    maybe(Parser<AccEndCombinedDirective>{} / endAccLine)))
 
 // 2.12 Atomic constructs
 TYPE_PARSER(construct<AccEndAtomic>(startAccLine >> "END ATOMIC"_tok))
@@ -281,4 +276,11 @@ TYPE_CONTEXT_PARSER("OpenACC construct"_en_US,
             construct<OpenACCConstruct>(Parser<OpenACCCacheConstruct>{}),
             construct<OpenACCConstruct>(Parser<OpenACCWaitConstruct>{}),
             construct<OpenACCConstruct>(Parser<OpenACCAtomicConstruct>{})))
+
+TYPE_PARSER(startAccLine >> sourced(construct<AccEndCombinedDirective>(sourced(
+                                "END"_tok >> Parser<AccCombinedDirective>{}))))
+
+TYPE_PARSER(construct<OpenACCCombinedConstruct>(
+    sourced(Parser<AccBeginCombinedDirective>{} / endAccLine)))
+
 } // namespace Fortran::parser

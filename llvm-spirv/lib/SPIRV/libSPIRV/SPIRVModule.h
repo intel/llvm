@@ -248,6 +248,8 @@ public:
   // Constants creation functions
   virtual SPIRVValue *
   addCompositeConstant(SPIRVType *, const std::vector<SPIRVValue *> &) = 0;
+  virtual SPIRVValue *addConstFunctionPointerINTEL(SPIRVType *Ty,
+                                                   SPIRVFunction *F) = 0;
   virtual SPIRVValue *addConstant(SPIRVValue *) = 0;
   virtual SPIRVValue *addConstant(SPIRVType *, uint64_t) = 0;
   virtual SPIRVValue *addSpecConstant(SPIRVType *, uint64_t) = 0;
@@ -303,9 +305,6 @@ public:
   virtual SPIRVInstruction *addIndirectCallInst(SPIRVValue *, SPIRVType *,
                                                 const std::vector<SPIRVWord> &,
                                                 SPIRVBasicBlock *) = 0;
-  virtual SPIRVInstruction *addFunctionPointerINTELInst(SPIRVType *,
-                                                        SPIRVFunction *,
-                                                        SPIRVBasicBlock *) = 0;
   virtual SPIRVEntry *getOrAddAsmTargetINTEL(const std::string &) = 0;
   virtual SPIRVValue *addAsmINTEL(SPIRVTypeFunction *, SPIRVAsmTargetINTEL *,
                                   const std::string &, const std::string &) = 0;

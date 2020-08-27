@@ -386,10 +386,20 @@ enum FPRoundingMode {
     FPRoundingModeMax = 0x7fffffff,
 };
 
+enum FPDenormMode {
+  FPDenormModePreserve = 0,
+  FPDenormModeFlushToZero = 1,
+};
+
+enum FPOperationMode {
+  FPOperationModeIEEE = 0,
+  FPOperationModeALT = 1,
+};
+
 enum LinkageType {
     LinkageTypeExport = 0,
     LinkageTypeImport = 1,
-    LinkageTypeInternal, /* internal use only */
+    LinkageTypeInternal = 2, /* internal use only */
     LinkageTypeMax = 0x7fffffff,
 };
 
@@ -492,6 +502,8 @@ enum Decoration {
   DecorationHlslSemanticGOOGLE = 5635,
   DecorationUserSemantic = 5635,
   DecorationUserTypeGOOGLE = 5636,
+  DecorationFunctionRoundingModeINTEL = 5822,
+  DecorationFunctionDenormModeINTEL = 5823,
   DecorationRegisterINTEL = 5825,
   DecorationMemoryINTEL = 5826,
   DecorationNumbanksINTEL = 5827,
@@ -510,6 +522,7 @@ enum Decoration {
   DecorationPrefetchINTEL = 5902,
   DecorationBufferLocationINTEL = 5921,
   DecorationIOPipeStorageINTEL = 5944,
+  DecorationFunctionFloatingPointModeINTEL = 6080,
   DecorationMax = 0x7fffffff,
 };
 
@@ -955,6 +968,7 @@ enum Capability {
   CapabilitySubgroupAvcMotionEstimationChromaINTEL = 5698,
   CapabilityRoundToInfinityINTEL = 5582,
   CapabilityFloatingPointModeINTEL = 5583,
+  CapabilityFunctionFloatControlINTEL = 5821,
   CapabilityFPGAMemoryAttributesINTEL = 5824,
   CapabilityArbitraryPrecisionIntegersINTEL = 5844,
   CapabilityArbitraryPrecisionFloatingPointINTEL = 5845,
@@ -1377,7 +1391,7 @@ enum Op {
   OpUSubSatINTEL = 5596,
   OpIMul32x16INTEL = 5597,
   OpUMul32x16INTEL = 5598,
-  OpFunctionPointerINTEL = 5600,
+  OpConstFunctionPointerINTEL = 5600,
   OpFunctionPointerCallINTEL = 5601,
   OpAsmTargetINTEL = 5609,
   OpAsmINTEL = 5610,

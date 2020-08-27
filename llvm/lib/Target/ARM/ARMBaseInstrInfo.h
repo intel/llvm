@@ -377,6 +377,16 @@ private:
   /// constructing an outlined call if one exists. Returns 0 otherwise.
   unsigned findRegisterToSaveLRTo(const outliner::Candidate &C) const;
 
+  // Adds an instruction which saves the link register on top of the stack into
+  /// the MachineBasicBlock \p MBB at position \p It.
+  void saveLROnStack(MachineBasicBlock &MBB,
+                     MachineBasicBlock::iterator &It) const;
+
+  /// Adds an instruction which restores the link register from the top the
+  /// stack into the MachineBasicBlock \p MBB at position \p It.
+  void restoreLRFromStack(MachineBasicBlock &MBB,
+                          MachineBasicBlock::iterator &It) const;
+
   unsigned getInstBundleLength(const MachineInstr &MI) const;
 
   int getVLDMDefCycle(const InstrItineraryData *ItinData,
@@ -838,8 +848,8 @@ inline bool isLegalAddressImm(unsigned Opcode, int Imm,
   }
 }
 
-// Return true if the given intrinsic is a gather or scatter
-inline bool isGatherScatter(IntrinsicInst *IntInst) {
+// Return true if the given intrinsic is a gather
+inline bool isGather(IntrinsicInst *IntInst) {
   if (IntInst == nullptr)
     return false;
   unsigned IntrinsicID = IntInst->getIntrinsicID();
@@ -849,14 +859,28 @@ inline bool isGatherScatter(IntrinsicInst *IntInst) {
           IntrinsicID == Intrinsic::arm_mve_vldr_gather_base_wb ||
           IntrinsicID == Intrinsic::arm_mve_vldr_gather_base_wb_predicated ||
           IntrinsicID == Intrinsic::arm_mve_vldr_gather_offset ||
-          IntrinsicID == Intrinsic::arm_mve_vldr_gather_offset_predicated ||
-          IntrinsicID == Intrinsic::masked_scatter ||
+          IntrinsicID == Intrinsic::arm_mve_vldr_gather_offset_predicated);
+}
+
+// Return true if the given intrinsic is a scatter
+inline bool isScatter(IntrinsicInst *IntInst) {
+  if (IntInst == nullptr)
+    return false;
+  unsigned IntrinsicID = IntInst->getIntrinsicID();
+  return (IntrinsicID == Intrinsic::masked_scatter ||
           IntrinsicID == Intrinsic::arm_mve_vstr_scatter_base ||
           IntrinsicID == Intrinsic::arm_mve_vstr_scatter_base_predicated ||
           IntrinsicID == Intrinsic::arm_mve_vstr_scatter_base_wb ||
           IntrinsicID == Intrinsic::arm_mve_vstr_scatter_base_wb_predicated ||
           IntrinsicID == Intrinsic::arm_mve_vstr_scatter_offset ||
           IntrinsicID == Intrinsic::arm_mve_vstr_scatter_offset_predicated);
+}
+
+// Return true if the given intrinsic is a gather or scatter
+inline bool isGatherScatter(IntrinsicInst *IntInst) {
+  if (IntInst == nullptr)
+    return false;
+  return isGather(IntInst) || isScatter(IntInst);
 }
 
 } // end namespace llvm

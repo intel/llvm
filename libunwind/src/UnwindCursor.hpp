@@ -530,6 +530,8 @@ UnwindCursor<A, R>::UnwindCursor(unw_context_t *context, A &as)
     : _addressSpace(as), _unwindInfoMissing(false) {
   static_assert((check_fit<UnwindCursor<A, R>, unw_cursor_t>::does_fit),
                 "UnwindCursor<> does not fit in unw_cursor_t");
+  static_assert((alignof(UnwindCursor<A, R>) <= alignof(unw_cursor_t)),
+                "UnwindCursor<> requires more alignment than unw_cursor_t");
   memset(&_info, 0, sizeof(_info));
   memset(&_histTable, 0, sizeof(_histTable));
   _dispContext.ContextRecord = &_msContext;
@@ -1182,6 +1184,8 @@ UnwindCursor<A, R>::UnwindCursor(unw_context_t *context, A &as)
       _isSignalFrame(false) {
   static_assert((check_fit<UnwindCursor<A, R>, unw_cursor_t>::does_fit),
                 "UnwindCursor<> does not fit in unw_cursor_t");
+  static_assert((alignof(UnwindCursor<A, R>) <= alignof(unw_cursor_t)),
+                "UnwindCursor<> requires more alignment than unw_cursor_t");
   memset(&_info, 0, sizeof(_info));
 }
 
@@ -1759,12 +1763,12 @@ bool UnwindCursor<A, R>::getInfoFromCompactEncodingSection(pint_t pc,
     }
   }
 
-  // extact personality routine, if encoding says function has one
+  // extract personality routine, if encoding says function has one
   uint32_t personalityIndex = (encoding & UNWIND_PERSONALITY_MASK) >>
                               (__builtin_ctz(UNWIND_PERSONALITY_MASK));
   if (personalityIndex != 0) {
     --personalityIndex; // change 1-based to zero-based index
-    if (personalityIndex > sectionHeader.personalityArrayCount()) {
+    if (personalityIndex >= sectionHeader.personalityArrayCount()) {
       _LIBUNWIND_DEBUG_LOG("found encoding 0x%08X with personality index %d,  "
                             "but personality table has only %d entries",
                             encoding, personalityIndex,

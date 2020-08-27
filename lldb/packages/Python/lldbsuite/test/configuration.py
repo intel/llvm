@@ -117,6 +117,9 @@ lldb_platform_name = None
 lldb_platform_url = None
 lldb_platform_working_dir = None
 
+# Apple SDK
+apple_sdk = None
+
 # The base directory in which the tests are being built.
 test_build_dir = None
 
@@ -131,9 +134,6 @@ test_result = None
 # Reproducers
 capture_path = None
 replay_path = None
-
-# Test rerun configuration vars
-rerun_all_issues = False
 
 # The names of all tests. Used to assert we don't have two tests with the
 # same base name.

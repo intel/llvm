@@ -1,7 +1,4 @@
-// TODO: Enable compilation w/o -fno-sycl-std-optimizations option.
-// See https://github.com/intel/llvm/issues/2264 for more details.
-
-// RUN: %clangxx -fsycl -fno-sycl-std-optimizations %s -o %t.out
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUNx: %ACC_RUN_PLACEHOLDER %t.out
 //==----------------- fpga_lsu.cpp - SYCL FPGA LSU test --------------------==//
 //
@@ -11,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include <CL/sycl.hpp>
-#include <CL/sycl/intel/fpga_extensions.hpp>
+#include <CL/sycl/INTEL/fpga_extensions.hpp>
 
 // TODO: run is disabled, since no support added in FPGA backend yet. Check
 // implementation correctness from CXX and SYCL languages perspective.
@@ -42,19 +39,19 @@ int test_lsu(cl::sycl::queue Queue) {
         auto output_ptr = output_accessor.get_pointer();
 
         using PrefetchingLSU =
-            cl::sycl::intel::lsu<cl::sycl::intel::prefetch<true>,
-                                 cl::sycl::intel::statically_coalesce<false>>;
+            cl::sycl::INTEL::lsu<cl::sycl::INTEL::prefetch<true>,
+                                 cl::sycl::INTEL::statically_coalesce<false>>;
 
         using BurstCoalescedLSU =
-            cl::sycl::intel::lsu<cl::sycl::intel::burst_coalesce<true>,
-                                 cl::sycl::intel::statically_coalesce<false>>;
+            cl::sycl::INTEL::lsu<cl::sycl::INTEL::burst_coalesce<true>,
+                                 cl::sycl::INTEL::statically_coalesce<false>>;
 
         using CachingLSU =
-            cl::sycl::intel::lsu<cl::sycl::intel::burst_coalesce<true>,
-                                 cl::sycl::intel::cache<1024>,
-                                 cl::sycl::intel::statically_coalesce<false>>;
+            cl::sycl::INTEL::lsu<cl::sycl::INTEL::burst_coalesce<true>,
+                                 cl::sycl::INTEL::cache<1024>,
+                                 cl::sycl::INTEL::statically_coalesce<false>>;
 
-        using PipelinedLSU = cl::sycl::intel::lsu<>;
+        using PipelinedLSU = cl::sycl::INTEL::lsu<>;
 
         int X = PrefetchingLSU::load(input_ptr); // int X = input_ptr[0]
         int Y = CachingLSU::load(input_ptr + 1); // int Y = input_ptr[1]
@@ -77,7 +74,7 @@ int test_lsu(cl::sycl::queue Queue) {
 }
 
 int main() {
-  cl::sycl::queue Queue{cl::sycl::intel::fpga_emulator_selector{}};
+  cl::sycl::queue Queue{cl::sycl::INTEL::fpga_emulator_selector{}};
 
   return test_lsu(Queue);
 }

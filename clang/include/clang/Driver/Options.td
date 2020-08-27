@@ -628,7 +628,10 @@ def cuda_include_ptx_EQ : Joined<["--"], "cuda-include-ptx=">, Flags<[DriverOpti
 def no_cuda_include_ptx_EQ : Joined<["--"], "no-cuda-include-ptx=">, Flags<[DriverOption]>,
   HelpText<"Do not include PTX for the following GPU architecture (e.g. sm_35) or 'all'. May be specified more than once.">;
 def offload_arch_EQ : Joined<["--"], "offload-arch=">, Flags<[DriverOption]>,
-  HelpText<"CUDA/HIP offloading device architecture (e.g. sm_35, gfx906).  May be specified more than once.">;
+  HelpText<"CUDA offloading device architecture (e.g. sm_35), or HIP offloading target ID in the form of a "
+           "device architecture followed by target ID features delimited by a colon. Each target ID feature "
+           "is a pre-defined string followed by a plus or minus sign (e.g. gfx908:xnack+:sram-ecc-).  May be "
+           "specified more than once.">;
 def cuda_gpu_arch_EQ : Joined<["--"], "cuda-gpu-arch=">, Flags<[DriverOption]>,
   Alias<offload_arch_EQ>;
 def hip_link : Flag<["--"], "hip-link">,
@@ -962,6 +965,8 @@ def fno_elide_type : Flag<["-"], "fno-elide-type">, Group<f_Group>,
     Flags<[CC1Option]>,
     HelpText<"Do not elide types when printing diagnostics">;
 def feliminate_unused_debug_symbols : Flag<["-"], "feliminate-unused-debug-symbols">, Group<f_Group>;
+defm eliminate_unused_debug_types : OptOutFFlag<"eliminate-unused-debug-types",
+  "Do not emit ", "Emit ", " debug info for defined but unused types">;
 def femit_all_decls : Flag<["-"], "femit-all-decls">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Emit all declarations, even if unused">;
 def femulated_tls : Flag<["-"], "femulated-tls">, Group<f_Group>, Flags<[CC1Option]>,
@@ -1813,7 +1818,7 @@ def fstack_protector_all : Flag<["-"], "fstack-protector-all">, Group<f_Group>,
   HelpText<"Enable stack protectors for all functions">;
 def fstack_clash_protection : Flag<["-"], "fstack-clash-protection">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Enable stack clash protection">;
-def fnostack_clash_protection : Flag<["-"], "fnostack-clash-protection">, Group<f_Group>,
+def fno_stack_clash_protection : Flag<["-"], "fno-stack-clash-protection">, Group<f_Group>,
   HelpText<"Disable stack clash protection">;
 def fstack_protector_strong : Flag<["-"], "fstack-protector-strong">, Group<f_Group>,
   HelpText<"Enable stack protectors for some functions vulnerable to stack smashing. "
@@ -1822,10 +1827,15 @@ def fstack_protector_strong : Flag<["-"], "fstack-protector-strong">, Group<f_Gr
            "as well as any calls to alloca or the taking of an address from a local variable">;
 def fstack_protector : Flag<["-"], "fstack-protector">, Group<f_Group>,
   HelpText<"Enable stack protectors for some functions vulnerable to stack smashing. "
-           "This uses a loose heuristic which considers functions vulnerable "
-           "if they contain a char (or 8bit integer) array or constant sized calls to "
-           "alloca, which are of greater size than ssp-buffer-size (default: 8 bytes). "
-           "All variable sized calls to alloca are considered vulnerable">;
+           "This uses a loose heuristic which considers functions vulnerable if they "
+           "contain a char (or 8bit integer) array or constant sized calls to alloca "
+           ", which are of greater size than ssp-buffer-size (default: 8 bytes). All "
+           "variable sized calls to alloca are considered vulnerable. A function with"
+           "a stack protector has a guard value added to the stack frame that is "
+           "checked on function exit. The guard value must be positioned in the "
+           "stack frame such that a buffer overflow from a vulnerable variable will "
+           "overwrite the guard value before overwriting the function's return "
+           "address. The reference stack guard value is stored in a global variable.">;
 def ftrivial_auto_var_init : Joined<["-"], "ftrivial-auto-var-init=">, Group<f_Group>,
   Flags<[CC1Option, CoreOption]>, HelpText<"Initialize trivial automatic stack variables: uninitialized (default)"
   " | pattern">, Values<"uninitialized,pattern">;
@@ -1874,6 +1884,12 @@ def fsycl_device_code_split_EQ : Joined<["-"], "fsycl-device-code-split=">,
 def fsycl_device_code_split : Flag<["-"], "fsycl-device-code-split">, Alias<fsycl_device_code_split_EQ>,
   AliasArgs<["per_source"]>, Flags<[CC1Option, CoreOption]>,
   HelpText<"Perform SYCL device code split in the per_source mode i.e. create a device code module for each source (translation unit)">;
+def fsycl_id_queries_fit_in_int : Flag<["-"], "fsycl-id-queries-fit-in-int">,
+  Flags<[CC1Option, CoreOption]>, HelpText<"Assume that SYCL ID queries fit "
+  "within MAX_INT.">;
+def fno_sycl_id_queries_fit_in_int : Flag<["-"], "fno-sycl-id-queries-fit-in-int">,
+  Flags<[CC1Option, CoreOption]>, HelpText<"Do not assume that SYCL ID queries "
+  "fit within MAX_INT.">;
 def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Use LLVM bitcode instead of SPIR-V in fat objects">;
 def fno_sycl_use_bitcode : Flag<["-"], "fno-sycl-use-bitcode">,
@@ -2768,7 +2784,7 @@ def module_file_info : Flag<["-"], "module-file-info">, Flags<[DriverOption,CC1O
   HelpText<"Provide information about a particular module file">;
 def mthumb : Flag<["-"], "mthumb">, Group<m_Group>;
 def mtune_EQ : Joined<["-"], "mtune=">, Group<m_Group>,
-  HelpText<"Accepted for compatibility with GCC. Currently has no effect.">;
+  HelpText<"Only supported on X86. Otherwise accepted for compatibility with GCC.">;
 def multi__module : Flag<["-"], "multi_module">;
 def multiply__defined__unused : Separate<["-"], "multiply_defined_unused">;
 def multiply__defined : Separate<["-"], "multiply_defined">;
@@ -3378,7 +3394,6 @@ def fdiagnostics_show_location_EQ : Joined<["-"], "fdiagnostics-show-location=">
 defm fcheck_new : BooleanFFlag<"check-new">, Group<clang_ignored_f_Group>;
 defm caller_saves : BooleanFFlag<"caller-saves">, Group<clang_ignored_gcc_optimization_f_Group>;
 defm reorder_blocks : BooleanFFlag<"reorder-blocks">, Group<clang_ignored_gcc_optimization_f_Group>;
-defm eliminate_unused_debug_types : BooleanFFlag<"eliminate-unused-debug-types">, Group<clang_ignored_f_Group>;
 defm branch_count_reg : BooleanFFlag<"branch-count-reg">, Group<clang_ignored_gcc_optimization_f_Group>;
 defm default_inline : BooleanFFlag<"default-inline">, Group<clang_ignored_gcc_optimization_f_Group>;
 defm fat_lto_objects : BooleanFFlag<"fat-lto-objects">, Group<clang_ignored_gcc_optimization_f_Group>;
@@ -3538,8 +3553,13 @@ def fsycl_esimd : Flag<["-"], "fsycl-explicit-simd">, Group<sycl_Group>, Flags<[
   HelpText<"Enable SYCL explicit SIMD extension">;
 def fno_sycl_esimd : Flag<["-"], "fno-sycl-explicit-simd">, Group<sycl_Group>,
   HelpText<"Disable SYCL explicit SIMD extension">, Flags<[NoArgumentUnused, CoreOption]>;
-defm sycl_std_optimizations : OptOutFFlag<"sycl-std-optimizations", "Enable", "Disable", " standard optimization pipeline for SYCL device compiler">;
-
+defm sycl_early_optimizations : OptOutFFlag<"sycl-early-optimizations", "Enable", "Disable", " standard optimization pipeline for SYCL device compiler", [CoreOption]>;
+def fsycl_dead_args_optimization : Flag<["-"], "fsycl-dead-args-optimization">,
+  Group<sycl_Group>, Flags<[NoArgumentUnused, CoreOption]>, HelpText<"Enables "
+  "elimination of DPC++ dead kernel arguments">;
+def fno_sycl_dead_args_optimization : Flag<["-"], "fno-sycl-dead-args-optimization">,
+  Group<sycl_Group>, Flags<[NoArgumentUnused, CoreOption]>, HelpText<"Disables "
+  "elimination of DPC++ dead kernel arguments">;
 //===----------------------------------------------------------------------===//
 // CC1 Options
 //===----------------------------------------------------------------------===//
@@ -3554,6 +3574,8 @@ let Flags = [CC1Option, CC1AsOption, NoDriverOption] in {
 
 def target_cpu : Separate<["-"], "target-cpu">,
   HelpText<"Target a specific cpu type">;
+def tune_cpu : Separate<["-"], "tune-cpu">,
+  HelpText<"Tune for a specific cpu type">;
 def target_feature : Separate<["-"], "target-feature">,
   HelpText<"Target specific attributes">;
 def triple : Separate<["-"], "triple">,
@@ -3755,6 +3777,8 @@ def mrelocation_model : Separate<["-"], "mrelocation-model">,
   AutoNormalizeEnum;
 def fno_math_builtin : Flag<["-"], "fno-math-builtin">,
   HelpText<"Disable implicit builtin knowledge of math functions">;
+def fuse_ctor_homing: Flag<["-"], "fuse-ctor-homing">,
+    HelpText<"Use constructor homing if we are using limited debug info already">;
 }
 
 def disable_llvm_verifier : Flag<["-"], "disable-llvm-verifier">,

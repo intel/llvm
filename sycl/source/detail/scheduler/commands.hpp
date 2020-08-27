@@ -19,6 +19,7 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/detail/cg.hpp>
+#include <detail/program_manager/program_manager.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -32,6 +33,7 @@ class DispatchHostTask;
 using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
+using StreamImplPtr = std::shared_ptr<detail::stream_impl>;
 
 class Command;
 class AllocaCommand;
@@ -251,7 +253,7 @@ public:
   ///
   /// Stream ids are positive integers and we set it to an invalid value.
   int32_t MStreamID = -1;
-  /// Reserved for storing the object address such as SPIRV or memory object
+  /// Reserved for storing the object address such as SPIR-V or memory object
   /// address.
   void *MAddress = nullptr;
   /// Buffer to build the address string.
@@ -484,7 +486,7 @@ class ExecCGCommand : public Command {
 public:
   ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue);
 
-  void flushStreams();
+  vector_class<StreamImplPtr> getStreams() const;
 
   void printDot(std::ostream &Stream) const final override;
   void emitInstrumentationData() final override;
@@ -502,10 +504,10 @@ private:
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
-  pi_result SetKernelParamsAndLaunch(CGExecKernel *ExecKernel,
-                                     RT::PiKernel Kernel, NDRDescT &NDRDesc,
-                                     std::vector<RT::PiEvent> &RawEvents,
-                                     RT::PiEvent &Event);
+  pi_result SetKernelParamsAndLaunch(
+      CGExecKernel *ExecKernel, RT::PiKernel Kernel, NDRDescT &NDRDesc,
+      std::vector<RT::PiEvent> &RawEvents, RT::PiEvent &Event,
+      ProgramManager::KernelArgMask EliminatedArgMask);
 
   std::unique_ptr<detail::CG> MCommandGroup;
 

@@ -2,20 +2,20 @@
 
 class Functor32x16x16 {
 public:
-  [[cl::reqd_work_group_size(32, 16, 16)]] void operator()() {}
+  [[cl::reqd_work_group_size(32, 16, 16)]] void operator()() const {}
 };
 
 [[cl::reqd_work_group_size(8, 1, 1)]] void f8x1x1() {}
 
 class Functor {
 public:
-  void operator()() {
+  void operator()() const {
     f8x1x1();
   }
 };
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 

@@ -53,6 +53,7 @@ source_parsers = {'.md': 'recommonmark.parser.CommonMarkParser'}
 
 def on_missing_reference(app, env, node, contnode):
     if node['reftype'] == 'any':
+        contnode['refuri'] = "https://github.com/intel/llvm/tree/sycl/sycl/doc/" + contnode['refuri']
         return contnode
     else:
         return None

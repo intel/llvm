@@ -463,3 +463,95 @@ TEST_F(AMDGPUGISelMITest, TestTargetKnownAlign) {
   EXPECT_EQ(Align(4), Info.computeKnownAlignment(CopyImplicitArgPtr));
   EXPECT_EQ(Align(4), Info.computeKnownAlignment(CopyImplicitBufferPtr));
 }
+
+TEST_F(AArch64GISelMITest, TestMetadata) {
+  StringRef MIRString = "  %imp:_(p0) = G_IMPLICIT_DEF\n"
+                        "  %load:_(s8) = G_LOAD %imp(p0) :: (load 1)\n"
+                        "  %ext:_(s32) = G_ZEXT %load(s8)\n"
+                        "  %cst:_(s32) = G_CONSTANT i32 1\n"
+                        "  %and:_(s32) = G_AND %ext, %cst\n"
+                        "  %copy:_(s32) = COPY %and(s32)\n";
+  setUp(MIRString);
+  if (!TM)
+    return;
+
+  Register CopyReg = Copies[Copies.size() - 1];
+  MachineInstr *FinalCopy = MRI->getVRegDef(CopyReg);
+  Register SrcReg = FinalCopy->getOperand(1).getReg();
+
+  // We need a load with a metadata range for this to break. Fudge the load in
+  // the string and replace it with something we can work with.
+  MachineInstr *And = MRI->getVRegDef(SrcReg);
+  MachineInstr *Ext = MRI->getVRegDef(And->getOperand(1).getReg());
+  MachineInstr *Load = MRI->getVRegDef(Ext->getOperand(1).getReg());
+  IntegerType *Int8Ty = Type::getInt8Ty(Context);
+
+  // Value must be in [0, 2)
+  Metadata *LowAndHigh[] = {
+      ConstantAsMetadata::get(ConstantInt::get(Int8Ty, 0)),
+      ConstantAsMetadata::get(ConstantInt::get(Int8Ty, 2))};
+  auto NewMDNode = MDNode::get(Context, LowAndHigh);
+  const MachineMemOperand *OldMMO = *Load->memoperands_begin();
+  MachineMemOperand NewMMO(OldMMO->getPointerInfo(), OldMMO->getFlags(),
+                           OldMMO->getSizeInBits(), OldMMO->getAlign(),
+                           OldMMO->getAAInfo(), NewMDNode);
+  MachineIRBuilder MIB(*Load);
+  MIB.buildLoad(Load->getOperand(0), Load->getOperand(1), NewMMO);
+  Load->eraseFromParent();
+
+  GISelKnownBits Info(*MF);
+  KnownBits Res = Info.getKnownBits(And->getOperand(1).getReg());
+
+  // We don't know what the result of the load is, so we don't know any ones.
+  EXPECT_TRUE(Res.One.isNullValue());
+
+  // We know that the value is in [0, 2). So, we don't know if the first bit
+  // is 0 or not. However, we do know that every other bit must be 0.
+  APInt Mask(Res.getBitWidth(), 1);
+  Mask.flipAllBits();
+  EXPECT_EQ(Mask.getZExtValue(), Res.Zero.getZExtValue());
+}
+
+TEST_F(AArch64GISelMITest, TestKnownBitsExt) {
+  StringRef MIRString = "  %c1:_(s16) = G_CONSTANT i16 1\n"
+                        "  %x:_(s16) = G_IMPLICIT_DEF\n"
+                        "  %y:_(s16) = G_AND %x, %c1\n"
+                        "  %anyext:_(s32) = G_ANYEXT %y(s16)\n"
+                        "  %r1:_(s32) = COPY %anyext\n"
+                        "  %zext:_(s32) = G_ZEXT %y(s16)\n"
+                        "  %r2:_(s32) = COPY %zext\n"
+                        "  %sext:_(s32) = G_SEXT %y(s16)\n"
+                        "  %r3:_(s32) = COPY %sext\n";
+  setUp(MIRString);
+  if (!TM)
+    return;
+  Register CopyRegAny = Copies[Copies.size() - 3];
+  Register CopyRegZ = Copies[Copies.size() - 2];
+  Register CopyRegS = Copies[Copies.size() - 1];
+
+  GISelKnownBits Info(*MF);
+  MachineInstr *Copy;
+  Register SrcReg;
+  KnownBits Res;
+
+  Copy = MRI->getVRegDef(CopyRegAny);
+  SrcReg = Copy->getOperand(1).getReg();
+  Res = Info.getKnownBits(SrcReg);
+  EXPECT_EQ((uint64_t)32, Res.getBitWidth());
+  EXPECT_EQ((uint64_t)0, Res.One.getZExtValue());
+  EXPECT_EQ((uint64_t)0x0000fffe, Res.Zero.getZExtValue());
+
+  Copy = MRI->getVRegDef(CopyRegZ);
+  SrcReg = Copy->getOperand(1).getReg();
+  Res = Info.getKnownBits(SrcReg);
+  EXPECT_EQ((uint64_t)32, Res.getBitWidth());
+  EXPECT_EQ((uint64_t)0, Res.One.getZExtValue());
+  EXPECT_EQ((uint64_t)0xfffffffe, Res.Zero.getZExtValue());
+
+  Copy = MRI->getVRegDef(CopyRegS);
+  SrcReg = Copy->getOperand(1).getReg();
+  Res = Info.getKnownBits(SrcReg);
+  EXPECT_EQ((uint64_t)32, Res.getBitWidth());
+  EXPECT_EQ((uint64_t)0, Res.One.getZExtValue());
+  EXPECT_EQ((uint64_t)0xfffffffe, Res.Zero.getZExtValue());
+}

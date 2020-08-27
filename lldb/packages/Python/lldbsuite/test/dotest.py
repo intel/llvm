@@ -416,16 +416,14 @@ def parseOptionsAndInitTestdirs():
 
     if args.replay_path:
         configuration.replay_path = args.replay_path
-
-    # rerun-related arguments
-    configuration.rerun_all_issues = args.rerun_all_issues
-
     if args.lldb_platform_name:
         configuration.lldb_platform_name = args.lldb_platform_name
     if args.lldb_platform_url:
         configuration.lldb_platform_url = args.lldb_platform_url
     if args.lldb_platform_working_dir:
         configuration.lldb_platform_working_dir = args.lldb_platform_working_dir
+    if platform_system == 'Darwin'  and args.apple_sdk:
+        configuration.apple_sdk = args.apple_sdk
     if args.test_build_dir:
         configuration.test_build_dir = args.test_build_dir
     if args.lldb_module_cache_dir:
@@ -764,15 +762,6 @@ def getVersionForSDK(sdk):
     return ver
 
 
-def setDefaultTripleForPlatform():
-    if configuration.lldb_platform_name == 'ios-simulator':
-        triple_str = 'x86_64-apple-ios%s' % (
-            getVersionForSDK('iphonesimulator'))
-        os.environ['TRIPLE'] = triple_str
-        return {'TRIPLE': triple_str}
-    return {}
-
-
 def checkCompiler():
     # Add some intervention here to sanity check that the compiler requested is sane.
     # If found not to be an executable program, we abort.
@@ -944,14 +933,6 @@ def run_suite():
                 exitTestSuite(1)
         else:
             configuration.lldb_platform_url = None
-
-    platform_changes = setDefaultTripleForPlatform()
-    first = True
-    for key in platform_changes:
-        if first:
-            print("Environment variables setup for platform support:")
-            first = False
-        print("%s = %s" % (key, platform_changes[key]))
 
     if configuration.lldb_platform_working_dir:
         print("Setting remote platform working directory to '%s'..." %

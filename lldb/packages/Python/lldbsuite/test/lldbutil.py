@@ -12,6 +12,7 @@ import errno
 import os
 import re
 import sys
+import subprocess
 
 # Third-party modules
 from six import StringIO as SixStringIO
@@ -21,6 +22,8 @@ import six
 import lldb
 from . import lldbtest_config
 
+# How often failed simulator process launches are retried.
+SIMULATOR_RETRY = 3
 
 # ===================================================
 # Utilities for locating/checking executable programs
@@ -52,6 +55,40 @@ def mkdir_p(path):
             raise
     if not os.path.isdir(path):
         raise OSError(errno.ENOTDIR, "%s is not a directory"%path)
+
+
+# ============================
+# Dealing with SDK and triples
+# ============================
+
+def get_xcode_sdk(os, env):
+    if os == "ios":
+        if env == "simulator":
+            return "iphonesimulator"
+        if env == "macabi":
+            return "macosx"
+        return "iphoneos"
+    elif os == "tvos":
+        if env == "simulator":
+            return "appletvsimulator"
+        return "appletvos"
+    elif os == "watchos":
+        if env == "simulator":
+            return "watchsimulator"
+        return "watchos"
+    return os
+
+
+def get_xcode_sdk_version(sdk):
+    return subprocess.check_output(
+        ['xcrun', '--sdk', sdk, '--show-sdk-version']).rstrip().decode('utf-8')
+
+
+def get_xcode_sdk_root(sdk):
+    return subprocess.check_output(['xcrun', '--sdk', sdk, '--show-sdk-path'
+                                    ]).rstrip().decode('utf-8')
+
+
 # ===================================================
 # Disassembly for an SBFunction or an SBSymbol object
 # ===================================================
@@ -523,7 +560,7 @@ def run_break_set_by_file_colon_line(
         file_name = path,
         line_number = line_number,
         column_number = column_number)
-    
+
     return get_bpno_from_match(break_results)
 
 def run_break_set_command(test, command):
@@ -818,9 +855,20 @@ def run_to_breakpoint_do_run(test, target, bkpt, launch_info = None,
     error = lldb.SBError()
     process = target.Launch(launch_info, error)
 
+    # Unfortunate workaround for the iPhone simulator.
+    retry = SIMULATOR_RETRY
+    while (retry and error.Fail() and error.GetCString() and
+           "Unable to boot the Simulator" in error.GetCString()):
+        retry -= 1
+        print("** Simulator is unresponsive. Retrying %d more time(s)"%retry)
+        import time
+        time.sleep(60)
+        error = lldb.SBError()
+        process = target.Launch(launch_info, error)
+
     test.assertTrue(process,
-                    "Could not create a valid process for %s: %s"%(target.GetExecutable().GetFilename(),
-                    error.GetCString()))
+                    "Could not create a valid process for %s: %s" %
+                    (target.GetExecutable().GetFilename(), error.GetCString()))
     test.assertFalse(error.Fail(),
                      "Process launch failed: %s" % (error.GetCString()))
 
@@ -1477,7 +1525,8 @@ def packetlog_get_process_info(log):
     return process_info
 
 def packetlog_get_dylib_info(log):
-    """parse a gdb-remote packet log file and extract the *last* response to jGetLoadedDynamicLibrariesInfos"""
+    """parse a gdb-remote packet log file and extract the *last* complete
+    (=> fetch_all_solibs=true) response to jGetLoadedDynamicLibrariesInfos"""
     import json
     dylib_info = None
     with open(log, "r") as logfile:
@@ -1491,7 +1540,7 @@ def packetlog_get_dylib_info(log):
                 # Unescape '}'.
                 dylib_info = json.loads(line.replace('}]','}')[:-4])
                 expect_dylib_info_response = False
-            if 'send packet: $jGetLoadedDynamicLibrariesInfos:{' in line:
+            if 'send packet: $jGetLoadedDynamicLibrariesInfos:{"fetch_all_solibs":true}' in line:
                 expect_dylib_info_response = True
 
     return dylib_info

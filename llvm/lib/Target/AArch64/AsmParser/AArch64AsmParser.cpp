@@ -2841,6 +2841,7 @@ static const struct Extension {
     {"predres", {AArch64::FeaturePredRes}},
     {"ccdp", {AArch64::FeatureCacheDeepPersist}},
     {"mte", {AArch64::FeatureMTE}},
+    {"memtag", {AArch64::FeatureMTE}},
     {"tlb-rmi", {AArch64::FeatureTLB_RMI}},
     {"pan-rwv", {AArch64::FeaturePAN_RWV}},
     {"ccpp", {AArch64::FeatureCCPP}},
@@ -5159,7 +5160,8 @@ bool AArch64AsmParser::parseDirectiveArch(SMLoc L) {
 
   MCSubtargetInfo &STI = copySTI();
   std::vector<std::string> ArchFeatures(AArch64Features.begin(), AArch64Features.end());
-  STI.setDefaultFeatures("generic", join(ArchFeatures.begin(), ArchFeatures.end(), ","));
+  STI.setDefaultFeatures("generic", /*TuneCPU*/ "generic",
+                         join(ArchFeatures.begin(), ArchFeatures.end(), ","));
 
   SmallVector<StringRef, 4> RequestedExtensions;
   if (!ExtensionString.empty())
@@ -5261,7 +5263,7 @@ bool AArch64AsmParser::parseDirectiveCPU(SMLoc L) {
   }
 
   MCSubtargetInfo &STI = copySTI();
-  STI.setDefaultFeatures(CPU, "");
+  STI.setDefaultFeatures(CPU, /*TuneCPU*/ CPU, "");
   CurLoc = incrementLoc(CurLoc, CPU.size());
 
   ExpandCryptoAEK(llvm::AArch64::getCPUArchKind(CPU), RequestedExtensions);

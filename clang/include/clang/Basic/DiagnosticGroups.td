@@ -547,6 +547,7 @@ def StaticLocalInInline : DiagGroup<"static-local-in-inline">;
 def GNUStaticFloatInit : DiagGroup<"gnu-static-float-init">;
 def StaticFloatInit : DiagGroup<"static-float-init", [GNUStaticFloatInit]>;
 def GNUStatementExpression : DiagGroup<"gnu-statement-expression">;
+def StringConcatation : DiagGroup<"string-concatenation">;
 def StringCompare : DiagGroup<"string-compare">;
 def StringPlusInt : DiagGroup<"string-plus-int">;
 def StringPlusChar : DiagGroup<"string-plus-char">;
@@ -555,12 +556,16 @@ def IntInBoolContext : DiagGroup<"int-in-bool-context">;
 def TautologicalTypeLimitCompare : DiagGroup<"tautological-type-limit-compare">;
 def TautologicalUnsignedZeroCompare : DiagGroup<"tautological-unsigned-zero-compare">;
 def TautologicalUnsignedEnumZeroCompare : DiagGroup<"tautological-unsigned-enum-zero-compare">;
+// For compatibility with GCC. Tautological comparison warnings for constants
+// that are an extremal value of the type.
+def TypeLimits : DiagGroup<"type-limits", [TautologicalTypeLimitCompare,
+                                           TautologicalUnsignedZeroCompare,
+                                           TautologicalUnsignedEnumZeroCompare]>;
+// Additional tautological comparison warnings based on the expression, not
+// only on its type.
+def TautologicalValueRangeCompare : DiagGroup<"tautological-value-range-compare">;
 def TautologicalInRangeCompare : DiagGroup<"tautological-constant-in-range-compare",
-                                           [TautologicalTypeLimitCompare,
-                                            TautologicalUnsignedZeroCompare,
-                                            TautologicalUnsignedEnumZeroCompare]>;
-// For compatibility with GCC; -Wtype-limits = -Wtautological-constant-in-range-compare
-def TypeLimits : DiagGroup<"type-limits", [TautologicalInRangeCompare]>;
+                                           [TypeLimits, TautologicalValueRangeCompare]>;
 def TautologicalOutOfRangeCompare : DiagGroup<"tautological-constant-out-of-range-compare">;
 def TautologicalConstantCompare : DiagGroup<"tautological-constant-compare",
                                             [TautologicalOutOfRangeCompare]>;
@@ -624,7 +629,6 @@ def ImplicitFallthrough  : DiagGroup<"implicit-fallthrough",
 def InvalidPPToken : DiagGroup<"invalid-pp-token">;
 def Trigraphs      : DiagGroup<"trigraphs">;
 
-def : DiagGroup<"type-limits">;
 def UndefinedReinterpretCast : DiagGroup<"undefined-reinterpret-cast">;
 def ReinterpretBaseClass : DiagGroup<"reinterpret-base-class">;
 def Unicode  : DiagGroup<"unicode">;
@@ -731,8 +735,8 @@ def OverridingMethodMismatch : DiagGroup<"overriding-method-mismatch">;
 def VariadicMacros : DiagGroup<"variadic-macros">;
 def VectorConversion : DiagGroup<"vector-conversion">;      // clang specific
 def VexingParse : DiagGroup<"vexing-parse">;
-def VLA : DiagGroup<"vla">;
 def VLAExtension : DiagGroup<"vla-extension">;
+def VLA : DiagGroup<"vla", [VLAExtension]>;
 def VolatileRegisterVar : DiagGroup<"volatile-register-var">;
 def Visibility : DiagGroup<"visibility">;
 def ZeroLengthArray : DiagGroup<"zero-length-array">;
@@ -879,7 +883,8 @@ def Extra : DiagGroup<"extra", [
     SignCompare,
     UnusedParameter,
     NullPointerArithmetic,
-    EmptyInitStatement
+    EmptyInitStatement,
+    StringConcatation
   ]>;
 
 def Most : DiagGroup<"most", [
@@ -1128,7 +1133,9 @@ def OpenMP : DiagGroup<"openmp", [
   ]>;
 
 // SYCL warnings
-def SyclStrict : DiagGroup<"sycl-strict">;
+def Sycl2017Compat : DiagGroup<"sycl-2017-compat">;
+def Sycl2020Compat : DiagGroup<"sycl-2020-compat">;
+def SyclStrict : DiagGroup<"sycl-strict", [ Sycl2017Compat, Sycl2020Compat]>;
 def SyclTarget : DiagGroup<"sycl-target">;
 
 // Backend warnings.

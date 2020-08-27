@@ -495,6 +495,9 @@ public:
   /// Emit the type explicitly casted to.
   void EmitExplicitCastType(QualType Ty);
 
+  /// Emit the type even if it might not be used.
+  void EmitAndRetainType(QualType Ty);
+
   /// Emit C++ using declaration.
   void EmitUsingDecl(const UsingDecl &UD);
 

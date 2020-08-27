@@ -497,6 +497,7 @@ int targetDataEnd(DeviceTy &Device, int32_t ArgNum, void **ArgBases,
     }
 
     bool IsLast, IsHostPtr;
+    bool IsImplicit = ArgTypes[I] & OMP_TGT_MAPTYPE_IMPLICIT;
     bool UpdateRef = !(ArgTypes[I] & OMP_TGT_MAPTYPE_MEMBER_OF) ||
                      (ArgTypes[I] & OMP_TGT_MAPTYPE_PTR_AND_OBJ);
     bool ForceDelete = ArgTypes[I] & OMP_TGT_MAPTYPE_DELETE;
@@ -504,9 +505,8 @@ int targetDataEnd(DeviceTy &Device, int32_t ArgNum, void **ArgBases,
     bool HasPresentModifier = ArgTypes[I] & OMP_TGT_MAPTYPE_PRESENT;
 
     // If PTR_AND_OBJ, HstPtrBegin is address of pointee
-    void *TgtPtrBegin = Device.getTgtPtrBegin(HstPtrBegin, DataSize, IsLast,
-                                              UpdateRef, IsHostPtr,
-                                              /*MustContain=*/true);
+    void *TgtPtrBegin = Device.getTgtPtrBegin(
+        HstPtrBegin, DataSize, IsLast, UpdateRef, IsHostPtr, !IsImplicit);
     if (!TgtPtrBegin && (DataSize || HasPresentModifier)) {
       DP("Mapping does not exist (%s)\n",
          (HasPresentModifier ? "'present' map type modifier" : "ignored"));
@@ -953,8 +953,6 @@ int processDataBefore(int64_t DeviceId, void *HostPtr, int32_t ArgNum,
 
 /// Process data after launching the kernel, including transferring data back to
 /// host if needed and deallocating target memory of (first-)private variables.
-/// FIXME: This function has correctness issue that target memory might be
-/// deallocated when they're being used.
 int processDataAfter(int64_t DeviceId, void *HostPtr, int32_t ArgNum,
                      void **ArgBases, void **Args, int64_t *ArgSizes,
                      int64_t *ArgTypes, void **ArgMappers,
