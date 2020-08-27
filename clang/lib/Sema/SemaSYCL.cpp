@@ -2199,7 +2199,6 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
     return FD->getType() != Ty;
   }
 
-
 public:
   SyclKernelIntHeaderCreator(Sema &S, SYCLIntegrationHeader &H,
                              const CXXRecordDecl *KernelObj, QualType NameType,
@@ -2236,8 +2235,7 @@ public:
     uint64_t Offset = CurOffset;
     if (!IsArrayElement(FD, FieldTy))
       Offset += offsetOf(FD);
-    Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
-                        Offset);
+    Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info, Offset);
     return true;
   }
 
