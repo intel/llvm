@@ -134,6 +134,14 @@ public:
 
   std::shared_ptr<event_impl> getEvent() const { return MEvent; }
 
+  const std::vector<EventImplPtr> &getPreparedDepsEvents() {
+    return MPreparedDepsEvents;
+  }
+
+  const std::vector<EventImplPtr> &getPreparedHostDepsEvents() {
+    return MPreparedHostDepsEvents;
+  }
+
   // Methods needed to support SYCL instrumentation
 
   /// Proxy method which calls emitInstrumentationData.

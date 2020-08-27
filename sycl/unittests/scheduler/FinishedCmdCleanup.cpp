@@ -93,3 +93,28 @@ TEST_F(SchedulerTest, FinishedCmdCleanup) {
   ASSERT_EQ(AllocaB.MUsers.size(), 1U);
   EXPECT_EQ(*AllocaB.MUsers.begin(), &LeafB);
 }
+
+TEST_F(SchedulerTest, FinishedCmdCleanupExplicitDep) {
+  MockScheduler MS;
+  // Imitate an explicit dependency by adding an edge via Command::addDep (which
+  // registers the underlying event under the hood), then removing it directly.
+  buffer<int, 1> BufA(range<1>(1));
+  detail::Requirement MockReqA = getMockRequirement(BufA);
+  detail::AllocaCommand AllocaA{detail::getSyclObjImpl(MQueue), MockReqA};
+
+  int NCommandsAlive = 2;
+  std::function<void()> Callback = [&]() { --NCommandsAlive; };
+  MockCommand *CmdA =
+      new MockCommandWithCallback(detail::getSyclObjImpl(MQueue), Callback);
+  MockCommand *CmdB =
+      new MockCommandWithCallback(detail::getSyclObjImpl(MQueue), Callback);
+  addEdge(CmdB, CmdA, &AllocaA);
+  CmdB->MDeps.clear();
+  CmdA->MUsers.clear();
+
+  std::shared_ptr<detail::event_impl> Event{new detail::event_impl{}};
+  Event->setCommand(CmdB);
+  MS.cleanupFinishedCommands(Event);
+
+  EXPECT_EQ(NCommandsAlive, 0);
+}

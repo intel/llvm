@@ -914,6 +914,16 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
   handleVisitedNodes(Visited);
 }
 
+static void
+addEventDependenciesToQueue(std::queue<Command *> &Q,
+                            const std::vector<EventImplPtr> &Events) {
+  for (const EventImplPtr &Event : Events) {
+    auto *Cmd = static_cast<Command *>(Event->getCommand());
+    if (Cmd)
+      Q.push(Cmd);
+  }
+}
+
 void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
   std::queue<Command *> CmdsToVisit({FinishedCmd});
   std::vector<Command *> Visited;
@@ -926,10 +936,11 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
     if (!markNodeAsVisited(Cmd, Visited))
       continue;
 
-    for (const DepDesc &Dep : Cmd->MDeps) {
-      if (Dep.MDepCommand)
-        CmdsToVisit.push(Dep.MDepCommand);
-    }
+    // Explicit dependencies are not represented by DepDesc edges, but also need
+    // to be visited. Traverse the graph using dependency events rather than
+    // DepDesc edges.
+    addEventDependenciesToQueue(CmdsToVisit, Cmd->getPreparedDepsEvents());
+    addEventDependenciesToQueue(CmdsToVisit, Cmd->getPreparedHostDepsEvents());
 
     // Do not clean up the node if it is a leaf for any memory object
     if (Cmd->MLeafCounter > 0)

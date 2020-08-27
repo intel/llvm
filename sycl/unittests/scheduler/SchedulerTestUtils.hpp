@@ -58,6 +58,10 @@ public:
                           std::function<void()> Callback)
       : MockCommand(Queue, Req), MCallback(std::move(Callback)) {}
 
+  MockCommandWithCallback(cl::sycl::detail::QueueImplPtr Queue,
+                          std::function<void()> Callback)
+      : MockCommand(Queue), MCallback(std::move(Callback)) {}
+
   ~MockCommandWithCallback() override { MCallback(); }
 
 protected:
