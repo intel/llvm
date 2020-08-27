@@ -3,8 +3,8 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 // REQUIRES: opencl
 
-#include <CL/sycl.hpp>
 #include <CL/cl.h>
+#include <CL/sycl.hpp>
 
 using namespace sycl;
 
@@ -18,40 +18,39 @@ kernel void test(global ulong *PSrc, global ulong *PDst) {
 }
 )";
 
-int main()
-{
-    queue Q{};
+int main() {
+  queue Q{};
 
-    cl_context Ctx = Q.get_context().get();
-    cl_program Prog = clCreateProgramWithSource(Ctx, 1, &Src, NULL, NULL);
-    clBuildProgram(Prog, 0, NULL, NULL, NULL, NULL);
+  cl_context Ctx = Q.get_context().get();
+  cl_program Prog = clCreateProgramWithSource(Ctx, 1, &Src, NULL, NULL);
+  clBuildProgram(Prog, 0, NULL, NULL, NULL, NULL);
 
-    cl_kernel OclKernel = clCreateKernel(Prog, "test", NULL);
+  cl_kernel OclKernel = clCreateKernel(Prog, "test", NULL);
 
-    cl::sycl::kernel SyclKernel(OclKernel, Q.get_context());
+  cl::sycl::kernel SyclKernel(OclKernel, Q.get_context());
 
-    auto POuter = malloc_shared<int *>(1, Q);
-    auto PInner = malloc_shared<int>(1, Q);
-    auto QOuter = malloc_shared<int *>(1, Q);
-    auto QInner = malloc_shared<int>(1, Q);
+  auto POuter = malloc_shared<int *>(1, Q);
+  auto PInner = malloc_shared<int>(1, Q);
+  auto QOuter = malloc_shared<int *>(1, Q);
+  auto QInner = malloc_shared<int>(1, Q);
 
-    *PInner = 4;
-    *POuter = PInner;
-    *QInner = 0;
-    *QOuter = QInner;
+  *PInner = 4;
+  *POuter = PInner;
+  *QInner = 0;
+  *QOuter = QInner;
 
-    Q.submit([&](handler &CGH) {
-        CGH.set_arg(0, POuter);
-        CGH.set_arg(1, QOuter);
-        CGH.parallel_for(cl::sycl::range<1>(1), SyclKernel);
-    }).wait();
+  Q.submit([&](handler &CGH) {
+     CGH.set_arg(0, POuter);
+     CGH.set_arg(1, QOuter);
+     CGH.parallel_for(cl::sycl::range<1>(1), SyclKernel);
+   }).wait();
 
-    assert(*PInner == 4 && "Read value is corrupted");
-    assert(*QInner == 5 && "Value value is incorrect");
+  assert(*PInner == 4 && "Read value is corrupted");
+  assert(*QInner == 5 && "Value value is incorrect");
 
-    std::cout << "Increment: " << *PInner << " -> " << *QInner << std::endl;
+  std::cout << "Increment: " << *PInner << " -> " << *QInner << std::endl;
 
-    clReleaseKernel(OclKernel);
-    clReleaseProgram(Prog);
-    clReleaseContext(Ctx);
+  clReleaseKernel(OclKernel);
+  clReleaseProgram(Prog);
+  clReleaseContext(Ctx);
 }
