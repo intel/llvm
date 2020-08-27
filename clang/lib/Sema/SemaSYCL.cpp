@@ -884,7 +884,7 @@ class KernelObjVisitor {
                          CXXRecordDecl *Wrapper, QualType RecordTy,
                          Handlers &... handlers) {
     (void)std::initializer_list<int>{
-        (handlers.enterStruct(Owner, Parent, RecordTy), 0)...};
+        (handlers.enterStream(Owner, Parent, RecordTy), 0)...};
     for (const auto &Field : Wrapper->fields()) {
       QualType FieldTy = Field->getType();
       // Required to initialize accessors inside streams.
@@ -892,7 +892,7 @@ class KernelObjVisitor {
         KF_FOR_EACH(handleSyclAccessorType, Field, FieldTy);
     }
     (void)std::initializer_list<int>{
-        (handlers.leaveStruct(Owner, Parent, RecordTy), 0)...};
+        (handlers.leaveStream(Owner, Parent, RecordTy), 0)...};
   }
 
   template <typename... Handlers>
@@ -1056,6 +1056,12 @@ public:
   virtual bool leaveStruct(const CXXRecordDecl *, FieldDecl *, QualType) {
     return true;
   }
+  virtual bool enterStream(const CXXRecordDecl *, FieldDecl *, QualType) {
+    return true;
+  }
+  virtual bool leaveStream(const CXXRecordDecl *, FieldDecl *, QualType) {
+    return true;
+  }
   virtual bool enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
                            QualType) {
     return true;
@@ -1064,7 +1070,6 @@ public:
                            QualType) {
     return true;
   }
-  // TODO: Does enter-union need to be worried when it is in an array?!
   virtual bool enterUnion(const CXXRecordDecl *, FieldDecl *) { return true; }
   virtual bool leaveUnion(const CXXRecordDecl *, FieldDecl *) { return true; }
 
@@ -1517,6 +1522,14 @@ public:
     SemaRef.addSyclDeviceDecl(KernelDecl);
   }
 
+  bool enterStream(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
+    return enterStruct(RD, FD, Ty);
+  }
+
+  bool leaveStream(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
+    return leaveStruct(RD, FD, Ty);
+  }
+
   bool enterStruct(const CXXRecordDecl *, FieldDecl *, QualType) final {
     ++StructDepth;
     return true;
@@ -1778,9 +1791,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return InitializedEntity::InitializeMember(FD, &VarEntity);
   }
 
-  // TODO: This name seems outdated now :)
   void addFieldInit(FieldDecl *FD, QualType Ty, MultiExprArg ParamRef) {
-    // TODO: Why is this by copy rather than 'forinit' or value init?
     InitializationKind InitKind =
         InitializationKind::CreateCopy(SourceLocation(), SourceLocation());
     addFieldInit(FD, Ty, ParamRef, InitKind);
@@ -1929,7 +1940,6 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   bool handleSpecialType(const CXXBaseSpecifier &BS, QualType Ty) {
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     addBaseInit(BS, Ty, InitializationKind::CreateDefault(SourceLocation()));
-    // TODO: Needs MemberExprBases entry?
     createSpecialMethodCall(RecordDecl, InitMethodName, BodyStmts);
     return true;
   }
@@ -1979,22 +1989,8 @@ public:
   }
 
   bool handleSyclStreamType(FieldDecl *FD, QualType Ty) final {
-    const auto *StreamDecl = Ty->getAsCXXRecordDecl();
     // Streams just get copied as a new init.
     addSimpleFieldInit(FD, Ty);
-
-    // Add a dummy init expression to catch the accessor initializers.
-    CollectionInitExprs.push_back(CreateInitListExpr(StreamDecl));
-
-    // Add init/finalize method calls.
-    if (!IsArrayElement(FD, Ty))
-      MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
-
-    createSpecialMethodCall(StreamDecl, InitMethodName, BodyStmts);
-    createSpecialMethodCall(StreamDecl, FinalizeMethodName, FinalizeStmts);
-
-    if (!IsArrayElement(FD, Ty))
-      MemberExprBases.pop_back();
     return true;
   }
 
@@ -2027,23 +2023,47 @@ public:
     return true;
   }
 
-  bool enterStruct(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
+  bool enterStream(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
     ++ContainerDepth;
-    // We handle adding a throw-away initializer in handleSyclStreamType since
-    // the 'default' init needs to stick around, but the accessors that are
-    // 'children' of it do not.
-    if (!Util::isSyclStreamType(Ty))
-      addCollectionInitListExpr(Ty->getAsCXXRecordDecl());
+    // Add a dummy init expression to catch the accessor initializers.
+    const auto *StreamDecl = Ty->getAsCXXRecordDecl();
+    CollectionInitExprs.push_back(CreateInitListExpr(StreamDecl));
 
     MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
     return true;
   }
 
-  bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType) final {
+  bool leaveStream(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
     --ContainerDepth;
-    // If this is a stream, this has popped the 'fake' one that was added in
-    // handleSyclStreamType, which hasn't been added as a child.
+    // Stream requires that its 'init' calls happen after its accessors init
+    // calls, so add them here instead.
+    const auto *StreamDecl = Ty->getAsCXXRecordDecl();
+    if (!IsArrayElement(FD, Ty))
+      MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
+
+    createSpecialMethodCall(StreamDecl, InitMethodName, BodyStmts);
+    createSpecialMethodCall(StreamDecl, FinalizeMethodName, FinalizeStmts);
+
+    if (!IsArrayElement(FD, Ty))
+      MemberExprBases.pop_back();
+
     CollectionInitExprs.pop_back();
+    MemberExprBases.pop_back();
+    return true;
+  }
+
+  bool enterStruct(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
+    ++ContainerDepth;
+    addCollectionInitListExpr(Ty->getAsCXXRecordDecl());
+
+    MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
+    return true;
+  }
+
+  bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
+    --ContainerDepth;
+    CollectionInitExprs.pop_back();
+
     MemberExprBases.pop_back();
     return true;
   }
@@ -2261,6 +2281,22 @@ public:
 
   bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
     addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
+    return true;
+  }
+
+  bool enterStream(const CXXRecordDecl *, FieldDecl *FD, QualType) final {
+    ++StructDepth;
+    // TODO: Is this right?! I think this only needs to be incremented when we
+    // aren't in an array, otherwise 'enterArray's base offsets should handle
+    // this right.  Otherwise an array of structs is going to be in the middle
+    // of nowhere.
+    CurOffset += offsetOf(FD);
+    return true;
+  }
+
+  bool leaveStream(const CXXRecordDecl *, FieldDecl *FD, QualType) final {
+    --StructDepth;
+    CurOffset -= offsetOf(FD);
     return true;
   }
 
