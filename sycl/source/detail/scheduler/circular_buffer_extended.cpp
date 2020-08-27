@@ -59,7 +59,7 @@ void CircularBufferExtended::push_back(value_type Cmd, MemObjRecord *Record) {
 std::vector<CircularBufferExtended::value_type>
 CircularBufferExtended::toVector() const {
   std::vector<value_type> Result;
-  Result.reserve(MGenericCommands.size() + MHostAccessorCommandsXRef.size());
+  Result.reserve(MGenericCommands.size() + MHostAccessorCommands.size());
 
   Result.insert(Result.end(), MGenericCommands.begin(), MGenericCommands.end());
 
@@ -75,6 +75,8 @@ void CircularBufferExtended::addHostAccessorCommand(EmptyCommand *Cmd,
   //      => OldCmd
   HostAccessorCommandSingleXRefT OldCmdIt;
 
+  // HACK we believe here that read accessors never overlap as it doesn't add
+  // any real dependency (e.g. data copy to device) except for blocking.
   if (Cmd->getRequirement()->MAccessMode == cl::sycl::access::mode::read)
     OldCmdIt = MHostAccessorCommands.end();
   else

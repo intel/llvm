@@ -17,7 +17,7 @@
 using namespace cl::sycl;
 
 // Checks that scheduler's (or graph-builder's) addNodeToLeaves method works
-// correctly with depency tracking when leaf-limit for generic commands is
+// correctly with dependency tracking when leaf-limit for generic commands is
 // overflowed.
 TEST_F(SchedulerTest, LeafLimit) {
   MockScheduler MS;

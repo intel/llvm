@@ -46,7 +46,7 @@ public:
   using AllocateDependencyF =
       std::function<void(Command *, Command *, MemObjRecord *)>;
 
-  template <bool IsConst> struct IteratorT;
+  template <bool IsConst> class IteratorT;
 
   using value_type = Command *;
   using pointer = value_type *;
@@ -106,13 +106,13 @@ public:
   }
 
 private:
-  template <bool IsConst, typename T> struct ConstIterator;
+  template <bool IsConst, typename T> struct Iterator;
 
-  template <typename T> struct ConstIterator<true, T> {
+  template <typename T> struct Iterator<true, T> {
     using type = typename T::const_iterator;
   };
 
-  template <typename T> struct ConstIterator<false, T> {
+  template <typename T> struct Iterator<false, T> {
     using type = typename T::iterator;
   };
 
@@ -136,45 +136,47 @@ private:
   // returns number of removed elements
   size_t eraseHostAccessorCommand(EmptyCommand *Cmd);
 
-  typename ConstIterator<false, HostAccessorCommandsT>::type
+  typename Iterator<false, HostAccessorCommandsT>::type
   beginHostAccessor() {
     return MHostAccessorCommands.begin();
   }
 
-  typename ConstIterator<true, HostAccessorCommandsT>::type
+  typename Iterator<true, HostAccessorCommandsT>::type
   beginHostAccessor() const {
     return MHostAccessorCommands.begin();
   }
 
-  typename ConstIterator<false, HostAccessorCommandsT>::type endHostAccessor() {
+  typename Iterator<false, HostAccessorCommandsT>::type endHostAccessor() {
     return MHostAccessorCommands.end();
   }
 
-  typename ConstIterator<true, HostAccessorCommandsT>::type
+  typename Iterator<true, HostAccessorCommandsT>::type
   endHostAccessor() const {
     return MHostAccessorCommands.end();
   }
 
-  // for access to struct ConstRef.
-  friend struct IteratorT<true>;
-  friend struct IteratorT<false>;
+  // for access to struct Ref.
+  friend class IteratorT<true>;
+  friend class IteratorT<false>;
 
-  template <bool IsConst, typename T> struct ConstRef;
-  template <typename T> struct ConstRef<true, T> { using type = const T &; };
-  template <typename T> struct ConstRef<false, T> { using type = T &; };
+  template <bool IsConst, typename T> struct Ref;
+  template <typename T> struct Ref<true, T> { using type = const T &; };
+  template <typename T> struct Ref<false, T> { using type = T &; };
 
-  template <bool IsConst, typename T> struct ConstPtr;
-  template <typename T> struct ConstPtr<true, T> { using type = const T *; };
-  template <typename T> struct ConstPtr<false, T> { using type = T *; };
+  template <bool IsConst, typename T> struct Ptr;
+  template <typename T> struct Ptr<true, T> { using type = const T *; };
+  template <typename T> struct Ptr<false, T> { using type = T *; };
 
 public:
   // iterate over generic commands in the first place and over host accessors
   // later on
-  template <bool IsConst> struct IteratorT {
-    using HostT = typename ConstRef<IsConst, CircularBufferExtended>::type;
-    using GCItT = typename ConstIterator<IsConst, GenericCommandsT>::type;
-    using HACItT = typename ConstIterator<IsConst, HostAccessorCommandsT>::type;
+  template <bool IsConst> class IteratorT {
+  public:
+    using HostT = typename Ref<IsConst, CircularBufferExtended>::type;
+    using GCItT = typename Iterator<IsConst, GenericCommandsT>::type;
+    using HACItT = typename Iterator<IsConst, HostAccessorCommandsT>::type;
 
+  private:
     HostT MHost;
     GCItT MGCIt;
     HACItT MHACIt;
@@ -185,6 +187,7 @@ public:
         : MHost(Host), MGCIt(GCIt), MHACIt(HACIt),
           MGenericIsActive(GenericIsActive) {}
 
+  public:
     IteratorT(HostT Host, GCItT GCIt)
         : IteratorT(Host, std::move(GCIt), Host.beginHostAccessor(), true) {}
 
@@ -201,6 +204,7 @@ public:
           MHACIt(std::move(Other.MHACIt)),
           MGenericIsActive(Other.MGenericIsActive) {}
 
+  public:
     bool operator==(const IteratorT<IsConst> &Rhs) const {
       return &MHost == &Rhs.MHost && MGenericIsActive == Rhs.MGenericIsActive &&
              ((MGenericIsActive && MGCIt == Rhs.MGCIt) ||

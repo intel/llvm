@@ -81,7 +81,7 @@ TEST_F(CircularBufferExtendedTest, PushBack) {
         << "Generic commands container size overflow";
 
     ASSERT_EQ(CBE.getHostAccessorCommands().size(), 0ul)
-        << "Host accessor commands container isn't emptym but it should be.";
+        << "Host accessor commands container isn't empty, but it should be.";
   }
 
   // add mix of generic and empty commands
@@ -111,7 +111,7 @@ TEST_F(CircularBufferExtendedTest, PushBack) {
         << "Generic commands container size overflow";
 
     ASSERT_EQ(CBE.getHostAccessorCommands().size(), 2 * GenericCmdsCapacity)
-        << "Host accessor commands container isn't emptym but it should be.";
+        << "Host accessor commands container isn't empty, but it should be.";
   }
 }
 
