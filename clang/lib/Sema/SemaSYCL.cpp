@@ -1774,8 +1774,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   // is an element of an array.  This will determine whether we do
   // MemberExprBases in some cases or not, AND determines how we initialize
   // values.
-  bool IsArrayElement(FieldDecl *FD, QualType Ty) {
-    // TODO, better way to detect that we're in an array?
+  bool IsArrayElement(const FieldDecl *FD, QualType Ty) const {
     SemaRef.getASTContext().hasSameType(FD->getType(), Ty);
     return FD->getType() != Ty;
   }
@@ -2075,7 +2074,6 @@ public:
     CXXCastPath BasePath;
     QualType DerivedTy(RD->getTypeForDecl(), 0);
     QualType BaseTy = BS.getType();
-    //    // TODO: Why is this here? Do we think this check could fail?
     SemaRef.CheckDerivedToBaseConversion(DerivedTy, BaseTy, SourceLocation(),
                                          SourceRange(), &BasePath,
                                          /*IgnoreBaseAccess*/ true);
@@ -2178,11 +2176,29 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
 
   void addParam(const FieldDecl *FD, QualType ArgTy,
                 SYCLIntegrationHeader::kernel_param_kind_t Kind) {
+    addParam(FD, ArgTy, Kind, IsArrayElement(FD, ArgTy));
+  }
+  void addParam(const FieldDecl *FD, QualType ArgTy,
+                SYCLIntegrationHeader::kernel_param_kind_t Kind,
+                bool IsArrayElem) {
     uint64_t Size;
     Size = SemaRef.getASTContext().getTypeSizeInChars(ArgTy).getQuantity();
+    uint64_t Offset = CurOffset;
+    if (!IsArrayElem)
+      Offset += offsetOf(FD);
     Header.addParamDesc(Kind, static_cast<unsigned>(Size),
-                        static_cast<unsigned>(CurOffset + offsetOf(FD)));
+                        static_cast<unsigned>(Offset));
   }
+
+  // Returns 'true' if the thing we're visiting (Based on the FD/QualType pair)
+  // is an element of an array.  This will determine whether we do
+  // MemberExprBases in some cases or not, AND determines how we initialize
+  // values.
+  bool IsArrayElement(const FieldDecl *FD, QualType Ty) const {
+    SemaRef.getASTContext().hasSameType(FD->getType(), Ty);
+    return FD->getType() != Ty;
+  }
+
 
 public:
   SyclKernelIntHeaderCreator(Sema &S, SYCLIntegrationHeader &H,
@@ -2216,8 +2232,12 @@ public:
     int Dims = static_cast<int>(
         AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
     int Info = getAccessTarget(AccTy) | (Dims << 11);
+
+    uint64_t Offset = CurOffset;
+    if (!IsArrayElement(FD, FieldTy))
+      Offset += offsetOf(FD);
     Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
-                        CurOffset + offsetOf(FD));
+                        Offset);
     return true;
   }
 
@@ -2231,7 +2251,8 @@ public:
     const ParmVarDecl *SamplerArg = InitMethod->getParamDecl(0);
     assert(SamplerArg && "sampler __init method must have sampler parameter");
 
-    addParam(FD, SamplerArg->getType(), SYCLIntegrationHeader::kind_sampler);
+    addParam(FD, SamplerArg->getType(), SYCLIntegrationHeader::kind_sampler,
+             IsArrayElement(FD, FieldTy));
     return true;
   }
 
@@ -2284,35 +2305,31 @@ public:
     return true;
   }
 
-  bool enterStream(const CXXRecordDecl *, FieldDecl *FD, QualType) final {
+  bool enterStream(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
     ++StructDepth;
-    // TODO: Is this right?! I think this only needs to be incremented when we
-    // aren't in an array, otherwise 'enterArray's base offsets should handle
-    // this right.  Otherwise an array of structs is going to be in the middle
-    // of nowhere.
-    CurOffset += offsetOf(FD);
+    if (!IsArrayElement(FD, Ty))
+      CurOffset += offsetOf(FD);
     return true;
   }
 
-  bool leaveStream(const CXXRecordDecl *, FieldDecl *FD, QualType) final {
+  bool leaveStream(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
     --StructDepth;
-    CurOffset -= offsetOf(FD);
+    if (!IsArrayElement(FD, Ty))
+      CurOffset -= offsetOf(FD);
     return true;
   }
 
-  bool enterStruct(const CXXRecordDecl *, FieldDecl *FD, QualType) final {
+  bool enterStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
     ++StructDepth;
-    // TODO: Is this right?! I think this only needs to be incremented when we
-    // aren't in an array, otherwise 'enterArray's base offsets should handle
-    // this right.  Otherwise an array of structs is going to be in the middle
-    // of nowhere.
-    CurOffset += offsetOf(FD);
+    if (!IsArrayElement(FD, Ty))
+      CurOffset += offsetOf(FD);
     return true;
   }
 
-  bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType) final {
+  bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
     --StructDepth;
-    CurOffset -= offsetOf(FD);
+    if (!IsArrayElement(FD, Ty))
+      CurOffset -= offsetOf(FD);
     return true;
   }
 
@@ -2328,8 +2345,12 @@ public:
     return true;
   }
 
-  bool enterArray(FieldDecl *, QualType, QualType) final {
-    ArrayBaseOffsets.push_back(CurOffset);
+  bool enterArray(FieldDecl *FD, QualType ArrayTy, QualType) final {
+    uint64_t Offset = CurOffset;
+    if (!IsArrayElement(FD, ArrayTy))
+      Offset += offsetOf(FD);
+
+    ArrayBaseOffsets.push_back(Offset);
     return true;
   }
 
