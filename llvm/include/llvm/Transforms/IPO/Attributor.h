@@ -969,6 +969,7 @@ struct Attributor {
   /// attribute. Using this after Attributor started running is restricted to
   /// only the Attributor itself. Initial seeding of AAs can be done via this
   /// function.
+  /// NOTE: ForceUpdate is ignored in any stage other than the update stage.
   template <typename AAType>
   const AAType &getOrCreateAAFor(const IRPosition &IRP,
                                  const AbstractAttribute *QueryingAA = nullptr,
@@ -976,7 +977,7 @@ struct Attributor {
                                  DepClassTy DepClass = DepClassTy::OPTIONAL,
                                  bool ForceUpdate = false) {
     if (AAType *AAPtr = lookupAAFor<AAType>(IRP, QueryingAA, TrackDependence)) {
-      if (ForceUpdate)
+      if (ForceUpdate && Phase == AttributorPhase::UPDATE)
         updateAA(*AAPtr);
       return *AAPtr;
     }
@@ -986,7 +987,7 @@ struct Attributor {
     auto &AA = AAType::createForPosition(IRP, *this);
 
     // If we are currenty seeding attributes, enforce seeding rules.
-    if (SeedingPeriod && !shouldSeedAttribute(AA)) {
+    if (Phase == AttributorPhase::SEEDING && !shouldSeedAttribute(AA)) {
       AA.getState().indicatePessimisticFixpoint();
       return AA;
     }
@@ -1020,14 +1021,21 @@ struct Attributor {
       return AA;
     }
 
+    // If this is queried in the manifest stage, we force the AA to indicate
+    // pessimistic fixpoint immediately.
+    if (Phase == AttributorPhase::MANIFEST) {
+      AA.getState().indicatePessimisticFixpoint();
+      return AA;
+    }
+
     // Allow seeded attributes to declare dependencies.
     // Remember the seeding state.
-    bool OldSeedingPeriod = SeedingPeriod;
-    SeedingPeriod = false;
+    AttributorPhase OldPhase = Phase;
+    Phase = AttributorPhase::UPDATE;
 
     updateAA(AA);
 
-    SeedingPeriod = OldSeedingPeriod;
+    Phase = OldPhase;
 
     if (TrackDependence && AA.getState().isValidState())
       recordDependence(AA, const_cast<AbstractAttribute &>(*QueryingAA),
@@ -1096,8 +1104,10 @@ struct Attributor {
     assert(!AAPtr && "Attribute already in map!");
     AAPtr = &AA;
 
-    DG.SyntheticRoot.Deps.push_back(
-        AADepGraphNode::DepTy(&AA, unsigned(DepClassTy::REQUIRED)));
+    // Register AA with the synthetic root only before the manifest stage.
+    if (Phase == AttributorPhase::SEEDING || Phase == AttributorPhase::UPDATE)
+      DG.SyntheticRoot.Deps.push_back(
+          AADepGraphNode::DepTy(&AA, unsigned(DepClassTy::REQUIRED)));
 
     return AA;
   }
@@ -1522,9 +1532,14 @@ private:
   /// Invoke instructions with at least a single dead successor block.
   SmallVector<WeakVH, 16> InvokeWithDeadSuccessor;
 
-  /// Wheather attributes are being `seeded`, always false after ::run function
-  /// gets called \see getOrCreateAAFor.
-  bool SeedingPeriod = true;
+  /// A flag that indicates which stage of the process we are in. Initially, the
+  /// phase is SEEDING. Phase is changed in `Attributor::run()`
+  enum class AttributorPhase {
+    SEEDING,
+    UPDATE,
+    MANIFEST,
+    CLEANUP,
+  } Phase = AttributorPhase::SEEDING;
 
   /// Functions, blocks, and instructions we delete after manifest is done.
   ///
