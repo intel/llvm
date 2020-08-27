@@ -107,7 +107,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     if (NewCmd) {
       // TODO: Check if lazy mode.
       EnqueueResultT Res;
-      bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
+      bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, Lock);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
 
