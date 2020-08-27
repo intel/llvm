@@ -26,7 +26,7 @@ struct KernelFunctor : WithInputBuffers<T, 2>, WithOutputBuffer<T> {
                  .template get_access<cl::sycl::access::mode::read>(CGH);
     auto C = this->getOutputBuffer()
                  .template get_access<cl::sycl::access::mode::write>(CGH);
-// clang-format off
+    // clang-format off
     CGH.parallel_for<KernelFunctor<T>>(
         cl::sycl::range<1>{this->getOutputBufferSize()},
     [=](cl::sycl::id<1> wiID) [[cl::intel_reqd_sub_group_size(8)]] {
@@ -48,11 +48,10 @@ struct KernelFunctor : WithInputBuffers<T, 2>, WithOutputBuffer<T> {
                        : "+rw"(C[wiID])
                        : "rw"(A[wiID]), "rw"(B[wiID]));
 #else
-        C[wiID] = 0;
-        for (int i = 0; i < A[wiID]; ++i)
-        {
-          C[wiID] = C[wiID] + B[wiID];
-        }
+          C[wiID] = 0;
+          for (int i = 0; i < A[wiID]; ++i) {
+            C[wiID] = C[wiID] + B[wiID];
+          }
 #endif
         });
   }

@@ -17,11 +17,11 @@ template <typename T = DataType> struct KernelFunctor : WithOutputBuffer<T> {
     auto C = this->getOutputBuffer()
                  .template get_access<cl::sycl::access::mode::write>(CGH);
     int switchField = 2;
-// clang-format off
+    // clang-format off
     CGH.parallel_for<KernelFunctor<T>>(
         cl::sycl::range<1>{this->getOutputBufferSize()},
     [=](cl::sycl::id<1> wiID) [[cl::intel_reqd_sub_group_size(8)]] {
-// clang-format on
+          // clang-format on
           int Output = 0;
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
           asm volatile(".decl P1 v_type=P num_elts=1\n"
@@ -44,16 +44,16 @@ template <typename T = DataType> struct KernelFunctor : WithOutputBuffer<T> {
                        : "rw"(switchField));
 
 #else
-          switch(switchField){
-            case 0:
-              Output = 9;
-              break;
-            case 1:
-              Output = 8;
-              break;
-            case 2:
-              Output = 7;
-              break;
+          switch (switchField) {
+          case 0:
+            Output = 9;
+            break;
+          case 1:
+            Output = 8;
+            break;
+          case 2:
+            Output = 7;
+            break;
           }
 #endif
           C[wiID] = Output;
