@@ -47,23 +47,19 @@ createEmptyCommand(const std::shared_ptr<queue_impl> &Q,
 }
 
 TEST_F(CircularBufferExtendedTest, PushBack) {
-  using GenericCommandsT = CircularBufferExtended::GenericCommandsT;
-
   static constexpr size_t GenericCmdsCapacity = 8;
 
   size_t TimesGenericWasFull;
 
-  CircularBufferExtended::IfGenericIsFullF IfGenericIsFull =
-      [&](Command *, MemObjRecord *, GenericCommandsT &) {
+  CircularBufferExtended::AllocateDependencyF AllocateDependency =
+      [&](Command *, Command *, MemObjRecord *) {
         ++TimesGenericWasFull;
       };
-  CircularBufferExtended::AllocateDependencyF AllocateDependency =
-      [](Command *, Command *, MemObjRecord *) {};
 
   // add only generic commands
   {
     CircularBufferExtended CBE = CircularBufferExtended(
-        GenericCmdsCapacity, IfGenericIsFull, AllocateDependency);
+        GenericCmdsCapacity, AllocateDependency);
     std::vector<std::shared_ptr<Command>> Cmds;
 
     TimesGenericWasFull = 0;
@@ -91,7 +87,7 @@ TEST_F(CircularBufferExtendedTest, PushBack) {
     Requirement MockReq = getMockRequirement(Buf);
 
     CircularBufferExtended CBE = CircularBufferExtended(
-        GenericCmdsCapacity, IfGenericIsFull, AllocateDependency);
+        GenericCmdsCapacity, AllocateDependency);
     std::vector<std::shared_ptr<Command>> Cmds;
 
     TimesGenericWasFull = 0;
@@ -116,19 +112,12 @@ TEST_F(CircularBufferExtendedTest, PushBack) {
 }
 
 TEST_F(CircularBufferExtendedTest, Remove) {
-  using GenericCommandsT = CircularBufferExtended::GenericCommandsT;
-
   static constexpr size_t GenericCmdsCapacity = 8;
 
-  CircularBufferExtended::IfGenericIsFullF IfGenericIsFull =
-      [](Command *Cmd, MemObjRecord *, GenericCommandsT &Leaves) {
-        Command *OldLeaf = Leaves.front();
-        if (OldLeaf == Cmd)
-          return;
-        --(OldLeaf->MLeafCounter);
-      };
   CircularBufferExtended::AllocateDependencyF AllocateDependency =
-      [](Command *, Command *, MemObjRecord *) {};
+      [](Command *, Command *Old, MemObjRecord *) {
+        --Old->MLeafCounter;
+      };
 
   {
     cl::sycl::buffer<int, 1> Buf(cl::sycl::range<1>(1));
@@ -136,7 +125,7 @@ TEST_F(CircularBufferExtendedTest, Remove) {
     Requirement MockReq = getMockRequirement(Buf);
 
     CircularBufferExtended CBE = CircularBufferExtended(
-        GenericCmdsCapacity, IfGenericIsFull, AllocateDependency);
+        GenericCmdsCapacity, AllocateDependency);
     std::vector<std::shared_ptr<Command>> Cmds;
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 4; ++Idx) {

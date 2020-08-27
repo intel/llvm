@@ -40,8 +40,6 @@ public:
   using GenericCommandsT = CircularBuffer<Command *>;
   using HostAccessorCommandsT = std::list<EmptyCommand *>;
 
-  using IfGenericIsFullF =
-      std::function<void(Command *, MemObjRecord *, GenericCommandsT &)>;
   // Make first command depend on the second
   using AllocateDependencyF =
       std::function<void(Command *, Command *, MemObjRecord *)>;
@@ -58,10 +56,8 @@ public:
   using const_iterator = IteratorT<true>;
 
   CircularBufferExtended(std::size_t GenericCommandsCapacity,
-                         IfGenericIsFullF IfGenericIsFull,
                          AllocateDependencyF AllocateDependency)
-      : MGenericCommands{GenericCommandsCapacity}, MIfGenericIsFull{std::move(
-                                                       IfGenericIsFull)},
+      : MGenericCommands{GenericCommandsCapacity},
         MAllocateDependency{std::move(AllocateDependency)} {}
 
   iterator begin() {
@@ -84,7 +80,8 @@ public:
     return const_iterator{*this, endHostAccessor()};
   }
 
-  void push_back(value_type Cmd, MemObjRecord *Record);
+  /// Returns true if insertion took place. Returns false otherwise.
+  bool push_back(value_type Cmd, MemObjRecord *Record);
 
   /// Replacement for std::remove with subsequent call to erase(newEnd, end()).
   /// This function is introduced here due to complexity of iterator.
@@ -125,11 +122,10 @@ private:
   HostAccessorCommandsT MHostAccessorCommands;
   HostAccessorCommandsXRefT MHostAccessorCommandsXRef;
 
-  IfGenericIsFullF MIfGenericIsFull;
   AllocateDependencyF MAllocateDependency;
 
-  void addGenericCommand(value_type Cmd, MemObjRecord *Record);
-  void addHostAccessorCommand(EmptyCommand *Cmd, MemObjRecord *Record);
+  bool addGenericCommand(value_type Cmd, MemObjRecord *Record);
+  bool addHostAccessorCommand(EmptyCommand *Cmd, MemObjRecord *Record);
 
   // inserts a command to the end of list for its mem object
   void insertHostAccessorCommand(EmptyCommand *Cmd);

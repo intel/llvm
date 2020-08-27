@@ -190,10 +190,9 @@ using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 /// \ingroup sycl_graph
 struct MemObjRecord {
   MemObjRecord(ContextImplPtr CurContext, std::size_t LeafLimit,
-               CircularBufferExtended::IfGenericIsFullF IfGenericIsFull,
                CircularBufferExtended::AllocateDependencyF AllocateDependency)
-      : MReadLeaves{LeafLimit, IfGenericIsFull, AllocateDependency},
-        MWriteLeaves{LeafLimit, IfGenericIsFull, AllocateDependency},
+      : MReadLeaves{LeafLimit, AllocateDependency},
+        MWriteLeaves{LeafLimit, AllocateDependency},
         MCurContext{CurContext} {}
 
   // Contains all allocation commands for the memory object.

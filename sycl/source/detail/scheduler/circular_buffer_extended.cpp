@@ -48,12 +48,15 @@ size_t CircularBufferExtended::remove(value_type Cmd) {
   return eraseHostAccessorCommand(static_cast<EmptyCommand *>(Cmd));
 }
 
-void CircularBufferExtended::push_back(value_type Cmd, MemObjRecord *Record) {
-  // if EmptyCommand add to HA
-  if (isHostAccessorCmd(Cmd)) {
-    addHostAccessorCommand(static_cast<EmptyCommand *>(Cmd), Record);
-  } else
-    addGenericCommand(Cmd, Record);
+bool CircularBufferExtended::push_back(value_type Cmd, MemObjRecord *Record) {
+  bool Result = false;
+
+  if (isHostAccessorCmd(Cmd))
+    Result = addHostAccessorCommand(static_cast<EmptyCommand *>(Cmd), Record);
+  else
+    Result = addGenericCommand(Cmd, Record);
+
+  return Result;
 }
 
 std::vector<CircularBufferExtended::value_type>
@@ -69,7 +72,7 @@ CircularBufferExtended::toVector() const {
   return Result;
 }
 
-void CircularBufferExtended::addHostAccessorCommand(EmptyCommand *Cmd,
+bool CircularBufferExtended::addHostAccessorCommand(EmptyCommand *Cmd,
                                                     MemObjRecord *Record) {
   // 1. find the oldest command with doOverlap() = true amongst the List
   //      => OldCmd
@@ -88,7 +91,7 @@ void CircularBufferExtended::addHostAccessorCommand(EmptyCommand *Cmd,
 
   // FIXME this 'if' is a workaround for duplicate leaves, remove once fixed
   if (OldCmdIt != MHostAccessorCommands.end() && *OldCmdIt == Cmd)
-    return;
+    return false;
 
   // 2.1  If OldCmd != null:
   //          Put a dependency in the same way as we would for generic commands
@@ -104,14 +107,24 @@ void CircularBufferExtended::addHostAccessorCommand(EmptyCommand *Cmd,
   // 2.2  If OldCmd == null:
   //          Put cmd to the List
   insertHostAccessorCommand(Cmd);
+  return true;
 }
 
-void CircularBufferExtended::addGenericCommand(Command *Cmd,
+bool CircularBufferExtended::addGenericCommand(Command *Cmd,
                                                MemObjRecord *Record) {
-  if (MGenericCommands.full())
-    MIfGenericIsFull(Cmd, Record, MGenericCommands);
+  if (MGenericCommands.full()) {
+    Command *OldLeaf = MGenericCommands.front();
+
+    // FIXME this 'if' is a workaround for duplicate leaves, remove once fixed
+    if (OldLeaf == Cmd)
+      return false;
+
+    MAllocateDependency(Cmd, OldLeaf, Record);
+  }
 
   MGenericCommands.push_back(Cmd);
+
+  return true;
 }
 
 void CircularBufferExtended::insertHostAccessorCommand(EmptyCommand *Cmd) {

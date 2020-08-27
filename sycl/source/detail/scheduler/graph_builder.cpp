@@ -163,21 +163,6 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
     return Record;
 
   const size_t LeafLimit = 8;
-  CircularBufferExtended::IfGenericIsFullF IfGenericIsFull =
-      [this](Command *Cmd, MemObjRecord *Record,
-             CircularBuffer<Command *> &Leaves) {
-        Command *OldLeaf = Leaves.front();
-        // TODO this is a workaround for duplicate leaves, remove once fixed
-        if (OldLeaf == Cmd)
-          return;
-        // Add the old leaf as a dependency for the new one by duplicating one
-        // of the requirements for the current record
-        DepDesc Dep = findDepForRecord(Cmd, Record);
-        Dep.MDepCommand = OldLeaf;
-        Cmd->addDep(Dep);
-        OldLeaf->addUser(Cmd);
-        --(OldLeaf->MLeafCounter);
-      };
   CircularBufferExtended::AllocateDependencyF AllocateDependency =
       [this](Command *Dependant, Command *Dependency, MemObjRecord *Record) {
         // Add the old leaf as a dependency for the new one by duplicating one
@@ -190,8 +175,7 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
       };
 
   MemObject->MRecord.reset(new MemObjRecord{Queue->getContextImplPtr(),
-                                            LeafLimit, IfGenericIsFull,
-                                            AllocateDependency});
+                                            LeafLimit, AllocateDependency});
 
   MMemObjs.push_back(MemObject);
   return MemObject->MRecord.get();
@@ -217,8 +201,8 @@ void Scheduler::GraphBuilder::addNodeToLeaves(MemObjRecord *Record,
   CircularBufferExtended &Leaves{AccessMode == access::mode::read
                                      ? Record->MReadLeaves
                                      : Record->MWriteLeaves};
-  Leaves.push_back(Cmd, Record);
-  ++Cmd->MLeafCounter;
+  if (Leaves.push_back(Cmd, Record))
+    ++Cmd->MLeafCounter;
 }
 
 UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
