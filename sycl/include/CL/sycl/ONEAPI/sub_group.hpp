@@ -570,8 +570,19 @@ struct sub_group {
 
 protected:
   template <int dimensions> friend class cl::sycl::nd_item;
+  friend sub_group this_sub_group();
   sub_group() = default;
 };
+
+inline sub_group this_sub_group() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return sub_group();
+#else
+  throw runtime_error("Sub-groups are not supported on host device.",
+                      PI_INVALID_DEVICE);
+#endif
+}
+
 } // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
