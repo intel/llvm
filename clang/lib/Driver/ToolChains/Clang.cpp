@@ -6244,7 +6244,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // Enable generation of USM address spaces for FPGA.
     // __ENABLE_USM_ADDR_SPACE__ will be used during compilation of SYCL headers
     if (getToolChain().getTriple().getSubArch() ==
-            llvm::Triple::SPIRSubArch_fpga)
+        llvm::Triple::SPIRSubArch_fpga)
       CmdArgs.push_back("-D__ENABLE_USM_ADDR_SPACE__");
   }
 
@@ -7709,7 +7709,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     // supposed to be enabled only for FPGA hardware.
     std::string ExtArg("-spirv-ext=+all,-SPV_INTEL_usm_storage_classes");
     if (getToolChain().getTriple().getSubArch() ==
-            llvm::Triple::SPIRSubArch_fpga) {
+        llvm::Triple::SPIRSubArch_fpga) {
       for (auto *A : TCArgs) {
         if (A->getOption().matches(options::OPT_Xs_separate) ||
             A->getOption().matches(options::OPT_Xs)) {
