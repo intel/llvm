@@ -105,7 +105,7 @@ bool launchInlineASMTest(F &f, bool requires_particular_sg_size = true) {
       return false;
     }
 
-    deviceQueue.submit(f).wait();
+    deviceQueue.submit(f).wait_and_throw();
   } catch (cl::sycl::exception &e) {
     std::cerr << "Caught exception: " << e.what() << std::endl;
   }

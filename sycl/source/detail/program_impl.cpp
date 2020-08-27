@@ -10,6 +10,7 @@
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/kernel.hpp>
+#include <CL/sycl/property_list.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/spec_constant_impl.hpp>
 
@@ -23,18 +24,28 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-program_impl::program_impl(ContextImplPtr Context)
-    : program_impl(Context, Context->get_info<info::context::devices>()) {}
+program_impl::program_impl(ContextImplPtr Context,
+                           const property_list &PropList)
+    : program_impl(Context, Context->get_info<info::context::devices>(),
+                   PropList) {}
 
 program_impl::program_impl(ContextImplPtr Context,
-                           vector_class<device> DeviceList)
-    : MContext(Context), MDevices(DeviceList) {}
+                           vector_class<device> DeviceList,
+                           const property_list &PropList)
+    : MContext(Context), MDevices(DeviceList), MPropList(PropList) {
+  if (Context->getDevices().size() > 1) {
+    throw feature_not_supported(
+        "multiple devices within a context are not supported with "
+        "sycl::program and sycl::kernel",
+        PI_INVALID_OPERATION);
+  }
+}
 
 program_impl::program_impl(
     vector_class<shared_ptr_class<program_impl>> ProgramList,
-    string_class LinkOptions)
-    : MState(program_state::linked), MLinkOptions(LinkOptions),
-      MBuildOptions(LinkOptions) {
+    string_class LinkOptions, const property_list &PropList)
+    : MState(program_state::linked), MPropList(PropList),
+      MLinkOptions(LinkOptions), MBuildOptions(LinkOptions) {
   // Verify arguments
   if (ProgramList.empty()) {
     throw runtime_error("Non-empty vector of programs expected",
@@ -51,6 +62,12 @@ program_impl::program_impl(
   }
 
   MContext = ProgramList[0]->MContext;
+  if (MContext->getDevices().size() > 1) {
+    throw feature_not_supported(
+        "multiple devices within a context are not supported with "
+        "sycl::program and sycl::kernel",
+        PI_INVALID_OPERATION);
+  }
   MDevices = ProgramList[0]->MDevices;
   vector_class<device> DevicesSorted;
   if (!is_host()) {
@@ -104,6 +121,13 @@ program_impl::program_impl(ContextImplPtr Context,
                            pi_native_handle InteropProgram,
                            RT::PiProgram Program)
     : MProgram(Program), MContext(Context), MLinkable(true) {
+
+  if (Context->getDevices().size() > 1) {
+    throw feature_not_supported(
+        "multiple devices within a context are not supported with "
+        "sycl::program and sycl::kernel",
+        PI_INVALID_OPERATION);
+  }
 
   const detail::plugin &Plugin = getPlugin();
   if (MProgram == nullptr) {
@@ -233,7 +257,7 @@ void program_impl::build_with_kernel_name(string_class KernelName,
     if (is_cacheable_with_options(BuildOptions)) {
       MProgramAndKernelCachingAllowed = true;
       MProgram = ProgramManager::getInstance().getBuiltPIProgram(
-          Module, get_context(), KernelName, this,
+          Module, get_context(), get_devices()[0], KernelName, this,
           /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
       const detail::plugin &Plugin = getPlugin();
       Plugin.call<PiApiKind::piProgramRetain>(MProgram);
@@ -356,7 +380,7 @@ void program_impl::build(const string_class &Options) {
   check_device_feature_support<info::device::is_compiler_available>(MDevices);
   vector_class<RT::PiDevice> Devices(get_pi_devices());
   const detail::plugin &Plugin = getPlugin();
-  ProgramManager::getInstance().flushSpecConstants(*this);
+  ProgramManager::getInstance().flushSpecConstants(*this, get_pi_devices()[0]);
   RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramBuild>(
       MProgram, Devices.size(), Devices.data(), Options.c_str(), nullptr,
       nullptr);
@@ -404,7 +428,8 @@ RT::PiKernel program_impl::get_pi_kernel(const string_class &KernelName) const {
   if (is_cacheable()) {
     std::tie(Kernel, std::ignore) =
         ProgramManager::getInstance().getOrCreateKernel(
-            MProgramModuleHandle, get_context(), KernelName, this);
+            MProgramModuleHandle, get_context(), get_devices()[0], KernelName,
+            this);
     getPlugin().call<PiApiKind::piKernelRetain>(Kernel);
   } else {
     const detail::plugin &Plugin = getPlugin();
@@ -453,9 +478,10 @@ void program_impl::create_pi_program_with_kernel_name(
     bool JITCompilationIsRequired) {
   assert(!MProgram && "This program already has an encapsulated PI program");
   ProgramManager &PM = ProgramManager::getInstance();
+  const device FirstDevice = get_devices()[0];
   RTDeviceBinaryImage &Img = PM.getDeviceImage(
-      Module, KernelName, get_context(), JITCompilationIsRequired);
-  MProgram = PM.createPIProgram(Img, get_context());
+      Module, KernelName, get_context(), FirstDevice, JITCompilationIsRequired);
+  MProgram = PM.createPIProgram(Img, get_context(), FirstDevice);
 }
 
 template <>
@@ -484,8 +510,8 @@ vector_class<device> program_impl::get_info<info::program::devices>() const {
 void program_impl::set_spec_constant_impl(const char *Name, const void *ValAddr,
                                           size_t ValSize) {
   if (MState != program_state::none)
-    throw cl::sycl::experimental::spec_const_error("Invalid program state",
-                                                   PI_INVALID_PROGRAM);
+    throw cl::sycl::ONEAPI::experimental::spec_const_error(
+        "Invalid program state", PI_INVALID_PROGRAM);
   // Reuse cached programs lock as opposed to introducing a new lock.
   auto LockGuard = MContext->getKernelProgramCache().acquireCachedPrograms();
   spec_constant_impl &SC = SpecConstRegistry[Name];
@@ -506,7 +532,7 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
     const char *SCName = (*SCIt)->Name;
     auto SCEntry = SpecConstRegistry.find(SCName);
     if (SCEntry == SpecConstRegistry.end())
-      // spec constant has not been set in user code - SPIRV will use default
+      // spec constant has not been set in user code - SPIR-V will use default
       continue;
     const spec_constant_impl &SC = SCEntry->second;
     assert(SC.isSet() && "uninitialized spec constant");

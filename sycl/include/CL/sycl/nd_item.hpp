@@ -9,12 +9,12 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
+#include <CL/sycl/ONEAPI/sub_group.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/id.hpp>
-#include <CL/sycl/intel/sub_group.hpp>
 #include <CL/sycl/item.hpp>
 #include <CL/sycl/nd_range.hpp>
 #include <CL/sycl/range.hpp>
@@ -67,7 +67,7 @@ public:
 
   group<dimensions> get_group() const { return Group; }
 
-  intel::sub_group get_sub_group() const { return intel::sub_group(); }
+  ONEAPI::sub_group get_sub_group() const { return ONEAPI::sub_group(); }
 
   size_t ALWAYS_INLINE get_group(int dimension) const {
     size_t Size = Group[dimension];
@@ -192,5 +192,20 @@ private:
   item<dimensions, false> localItem;
   group<dimensions> Group;
 };
+
+namespace detail {
+template <int Dims> nd_item<Dims> store_nd_item(const nd_item<Dims> *nd_i) {
+  return get_or_store(nd_i);
+}
+} // namespace detail
+
+template <int Dims> nd_item<Dims> this_nd_item() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return detail::Builder::getElement(detail::declptr<nd_item<Dims>>());
+#else
+  return detail::store_nd_item<Dims>(nullptr);
+#endif
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
