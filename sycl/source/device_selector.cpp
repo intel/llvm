@@ -203,12 +203,6 @@ filter create_filter(std::string Input) {
   std::vector<std::string> Tokens = tokenize(Input, ":");
   std::regex IntegerExpr("[[:digit:]]+");
 
-  std::cout << "Tokens = { ";
-  for (auto S : Tokens) {
-    std::cout << S << "  ";
-  }
-  std::cout << "}" << std::endl;
-
   // There should only be up to 3 tokens.
   // BE:Device Type:Device Num
   if (Tokens.size() > 3)
@@ -259,12 +253,6 @@ filter_selector::filter_selector(std::string filter)
   std::vector<std::string> Filters = detail::tokenize(filter, ",");
   mNumTotalDevices = device::get_devices().size();
 
-  std::cout << "Input Filters = { ";
-  for (auto S : Filters) {
-    std::cout << S << "  ";
-  }
-  std::cout << "}" << std::endl;
-
   for (const std::string &Filter : Filters) {
     detail::filter F = detail::create_filter(Filter);
     mFilters.push_back(std::make_shared<detail::filter>(F));
@@ -278,15 +266,6 @@ int filter_selector::operator()(const device &dev) const {
     bool BackendOK = true;
     bool DeviceTypeOK = true;
     bool DeviceNumOK = true;
-
-    std::cout << "Filter: " << std::endl;
-    std::cout << "  hasBackend = " << Filter->hasBackend << std::endl;
-    std::cout << "  hasDeviceType = " << Filter->hasDeviceType << std::endl;
-    std::cout << "  hasDeviceNum = " << Filter->hasDeviceNum << std::endl;
-    std::cout << "  DeviceNum = " << Filter->DeviceNum << std::endl;
-    std::cout << "  MatchesSeen = " << Filter->MatchesSeen << std::endl;
-    std::cout << "  mNumDevicesSeen  = " << mNumDevicesSeen << std::endl;
-    std::cout << "  mNumTotalDevices = " << mNumTotalDevices << std::endl;
 
     // handle host device specially
     if (Filter->hasBackend) {
@@ -320,11 +299,7 @@ int filter_selector::operator()(const device &dev) const {
   }
 
   mNumDevicesSeen++;
-  std::cout << "mNumDevicesSeen = " << mNumDevicesSeen << std::endl;
-  std::cout << "mNumTotalDevices = " << mNumTotalDevices << std::endl;
-  std::cout << "mMatchFound = " << mMatchFound << std::endl;
   if ((mNumDevicesSeen == mNumTotalDevices) && !mMatchFound) {
-    std::cout << "ERROR" << std::endl;
     throw runtime_error(
         "Could not find a device that matches the specified filter(s)!",
         PI_DEVICE_NOT_FOUND);
