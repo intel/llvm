@@ -1824,7 +1824,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     addFieldInit(FD, Ty, ParamRef);
   }
 
-  MemberExpr *BuildMemberExpr(Expr *Base, const ValueDecl *Member) {
+  MemberExpr *BuildMemberExpr(Expr *Base, ValueDecl *Member) {
     DeclAccessPair MemberDAP = DeclAccessPair::make(Member, AS_none);
     MemberExpr *Result = SemaRef.BuildMemberExpr(
         Base, /*IsArrow */ false, SourceLocation(), NestedNameSpecifierLoc(),
@@ -1835,13 +1835,13 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return Result;
   }
 
-  void AddFieldMemberExpr(const FieldDecl *FD, QualType Ty) {
-    if (!IsArrayType(FD, Ty))
+  void AddFieldMemberExpr(FieldDecl *FD, QualType Ty) {
+    if (!IsArrayElement(FD, Ty))
       MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
   }
 
   void RemoveFieldMemberExpr(const FieldDecl *FD, QualType Ty) {
-    if (!IsArrayType(FD, Ty))
+    if (!IsArrayElement(FD, Ty))
       MemberExprBases.pop_back();
   }
 
@@ -2107,7 +2107,7 @@ public:
 
     // If this is the top-level array, we need to make a MemberExpr in addition
     // to an array subscript.
-    AddFieldMemberExpr(FD, Ty);
+    AddFieldMemberExpr(FD, ArrayType);
     return true;
   }
 
@@ -2149,7 +2149,7 @@ public:
     MemberExprBases.pop_back();
 
     // Remove the field access expr as well.
-    AddFieldMemberExpr(FD, Ty);
+    RemoveFieldMemberExpr(FD, ArrayType);
     return true;
   }
 
