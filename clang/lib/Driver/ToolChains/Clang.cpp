@@ -4193,8 +4193,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       SYCLStdArg->render(Args, CmdArgs);
       CmdArgs.push_back("-fsycl-std-layout-kernel-params");
     } else {
-      // Ensure the default version in SYCL mode is 1.2.1 (aka 2017)
-      CmdArgs.push_back("-sycl-std=2017");
+      // Ensure the default version in SYCL mode is 2020
+      CmdArgs.push_back("-sycl-std=2020");
     }
   }
 
