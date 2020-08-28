@@ -7,6 +7,6 @@ add_sycl_unittest(SchedulerTests OBJECT
     CommandsWaitForEvents.cpp
     WaitAfterCleanup.cpp
     LinkedAllocaDependencies.cpp
-    CircularBufferExtended.cpp
+    LeavesCollection.cpp
     utils.cpp
 )
