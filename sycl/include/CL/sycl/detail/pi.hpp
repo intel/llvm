@@ -180,6 +180,32 @@ template <> inline void print<>(PiPlatform val) {
   std::cout << "pi_platform : " << val << std::endl;
 }
 
+template <> inline void print<>(pi_buffer_region rgn) {
+  std::cout << "pi_buffer_region origin/size : " << rgn->origin << "/"
+            << rgn->size << std::endl;
+}
+
+template <> inline void print<>(pi_buff_rect_region rgn) {
+  std::cout << "pi_buff_rect_region width_bytes/height/depth : "
+            << rgn->width_bytes << "/" << rgn->height_scalar << "/"
+            << rgn->depth_scalar << std::endl;
+}
+
+template <> inline void print<>(pi_buff_rect_offset off) {
+  std::cout << "pi_buff_rect_offset x_bytes/y/z : " << off->x_bytes << "/"
+            << off->y_scalar << "/" << off->z_scalar << std::endl;
+}
+
+template <> inline void print<>(pi_image_region rgn) {
+  std::cout << "pi_image_region width/height/depth : " << rgn->width << "/"
+            << rgn->height << "/" << rgn->depth << std::endl;
+}
+
+template <> inline void print<>(pi_image_offset off) {
+  std::cout << "pi_image_offset x/y/z : " << off->x << "/" << off->y << "/"
+            << off->z << std::endl;
+}
+
 template <> inline void print<>(PiResult val) {
   std::cout << "pi_result : ";
   if (val == PI_SUCCESS)
