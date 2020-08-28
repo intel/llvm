@@ -1,4 +1,4 @@
-//==-- circular_buffer_extended.hpp - Circular buffer with host accessor ---==//
+//==---- leaves_collection.hpp - Container for leaves of execution graph ---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -33,9 +33,9 @@ struct MemObjRecord;
 /// quick enough navigation amongst stored EmptyCommands.
 /// IteratorT subclass allows for iterating and dereferencing. Though, it's not
 /// guaranteed to work with std::remove as host accessors' commands are stored
-/// in a map. Hence, the CircularBufferExtended class provides a viable solution
+/// in a map. Hence, the LeavesCollection class provides a viable solution
 /// with its own remove method.
-class CircularBufferExtended {
+class LeavesCollection {
 public:
   using GenericCommandsT = CircularBuffer<Command *>;
   using HostAccessorCommandsT = std::list<EmptyCommand *>;
@@ -55,8 +55,8 @@ public:
   using iterator = IteratorT<false>;
   using const_iterator = IteratorT<true>;
 
-  CircularBufferExtended(std::size_t GenericCommandsCapacity,
-                         AllocateDependencyF AllocateDependency)
+  LeavesCollection(std::size_t GenericCommandsCapacity,
+                   AllocateDependencyF AllocateDependency)
       : MGenericCommands{GenericCommandsCapacity},
         MAllocateDependency{std::move(AllocateDependency)} {}
 
@@ -166,7 +166,7 @@ public:
   // later on
   template <bool IsConst> class IteratorT {
   public:
-    using HostT = typename Ref<IsConst, CircularBufferExtended>::type;
+    using HostT = typename Ref<IsConst, LeavesCollection>::type;
     using GCItT = typename Iterator<IsConst, GenericCommandsT>::type;
     using HACItT = typename Iterator<IsConst, HostAccessorCommandsT>::type;
 

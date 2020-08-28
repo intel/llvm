@@ -31,6 +31,8 @@ namespace detail {
 ///
 /// This information can be used to prove that executing two kernels that
 /// work on different parts of the memory object in parallel is legal.
+// TODO merge with LeavesCollection's version of doOverlap (see
+// leaves_collection.cpp).
 static bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
   return (LHS->MOffsetInBytes + LHS->MAccessRange.size() * LHS->MElemSize >=
           RHS->MOffsetInBytes) ||
@@ -163,7 +165,7 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
     return Record;
 
   const size_t LeafLimit = 8;
-  CircularBufferExtended::AllocateDependencyF AllocateDependency =
+  LeavesCollection::AllocateDependencyF AllocateDependency =
       [this](Command *Dependant, Command *Dependency, MemObjRecord *Record) {
         // Add the old leaf as a dependency for the new one by duplicating one
         // of the requirements for the current record
@@ -198,7 +200,7 @@ void Scheduler::GraphBuilder::updateLeaves(const std::set<Command *> &Cmds,
 void Scheduler::GraphBuilder::addNodeToLeaves(MemObjRecord *Record,
                                               Command *Cmd,
                                               access::mode AccessMode) {
-  CircularBufferExtended &Leaves{AccessMode == access::mode::read
+  LeavesCollection &Leaves{AccessMode == access::mode::read
                                      ? Record->MReadLeaves
                                      : Record->MWriteLeaves};
   if (Leaves.push_back(Cmd, Record))

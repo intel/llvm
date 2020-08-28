@@ -1,4 +1,4 @@
-//==-------- CircularBufferExtended.cpp --- Scheduler unit tests -----------==//
+//==-------- LeavesCollection.cpp --- Scheduler unit tests -----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,13 +9,13 @@
 #include "SchedulerTestUtils.hpp"
 
 #include <CL/sycl.hpp>
-#include <detail/scheduler/circular_buffer_extended.hpp>
+#include <detail/scheduler/leaves_collection.hpp>
 #include <gtest/gtest.h>
 #include <memory>
 
 using namespace cl::sycl::detail;
 
-class CircularBufferExtendedTest : public ::testing::Test {
+class LeavesCollectionTest : public ::testing::Test {
 protected:
   cl::sycl::async_handler MAsyncHandler =
       [](cl::sycl::exception_list ExceptionList) {
@@ -46,18 +46,18 @@ createEmptyCommand(const std::shared_ptr<queue_impl> &Q,
   return std::shared_ptr<Command>{Cmd};
 }
 
-TEST_F(CircularBufferExtendedTest, PushBack) {
+TEST_F(LeavesCollectionTest, PushBack) {
   static constexpr size_t GenericCmdsCapacity = 8;
 
   size_t TimesGenericWasFull;
 
-  CircularBufferExtended::AllocateDependencyF AllocateDependency =
+  LeavesCollection::AllocateDependencyF AllocateDependency =
       [&](Command *, Command *, MemObjRecord *) { ++TimesGenericWasFull; };
 
   // add only generic commands
   {
-    CircularBufferExtended CBE =
-        CircularBufferExtended(GenericCmdsCapacity, AllocateDependency);
+    LeavesCollection LE =
+        LeavesCollection(GenericCmdsCapacity, AllocateDependency);
     std::vector<std::shared_ptr<Command>> Cmds;
 
     TimesGenericWasFull = 0;
@@ -65,16 +65,16 @@ TEST_F(CircularBufferExtendedTest, PushBack) {
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 2; ++Idx) {
       Cmds.push_back(createGenericCommand(getSyclObjImpl(MQueue)));
 
-      CBE.push_back(Cmds.back().get(), nullptr);
+      LE.push_back(Cmds.back().get(), nullptr);
     }
 
     ASSERT_EQ(TimesGenericWasFull, GenericCmdsCapacity)
         << "IfGenericIsFull call count mismatch.";
 
-    ASSERT_EQ(CBE.getGenericCommands().size(), GenericCmdsCapacity)
+    ASSERT_EQ(LE.getGenericCommands().size(), GenericCmdsCapacity)
         << "Generic commands container size overflow";
 
-    ASSERT_EQ(CBE.getHostAccessorCommands().size(), 0ul)
+    ASSERT_EQ(LE.getHostAccessorCommands().size(), 0ul)
         << "Host accessor commands container isn't empty, but it should be.";
   }
 
@@ -84,8 +84,8 @@ TEST_F(CircularBufferExtendedTest, PushBack) {
 
     Requirement MockReq = getMockRequirement(Buf);
 
-    CircularBufferExtended CBE =
-        CircularBufferExtended(GenericCmdsCapacity, AllocateDependency);
+    LeavesCollection LE =
+        LeavesCollection(GenericCmdsCapacity, AllocateDependency);
     std::vector<std::shared_ptr<Command>> Cmds;
 
     TimesGenericWasFull = 0;
@@ -95,24 +95,24 @@ TEST_F(CircularBufferExtendedTest, PushBack) {
                          : createEmptyCommand(getSyclObjImpl(MQueue), MockReq);
       Cmds.push_back(Cmd);
 
-      CBE.push_back(Cmds.back().get(), nullptr);
+      LE.push_back(Cmds.back().get(), nullptr);
     }
 
     ASSERT_EQ(TimesGenericWasFull, GenericCmdsCapacity)
         << "IfGenericIsFull call count mismatch.";
 
-    ASSERT_EQ(CBE.getGenericCommands().size(), GenericCmdsCapacity)
+    ASSERT_EQ(LE.getGenericCommands().size(), GenericCmdsCapacity)
         << "Generic commands container size overflow";
 
-    ASSERT_EQ(CBE.getHostAccessorCommands().size(), 2 * GenericCmdsCapacity)
+    ASSERT_EQ(LE.getHostAccessorCommands().size(), 2 * GenericCmdsCapacity)
         << "Host accessor commands container isn't empty, but it should be.";
   }
 }
 
-TEST_F(CircularBufferExtendedTest, Remove) {
+TEST_F(LeavesCollectionTest, Remove) {
   static constexpr size_t GenericCmdsCapacity = 8;
 
-  CircularBufferExtended::AllocateDependencyF AllocateDependency =
+  LeavesCollection::AllocateDependencyF AllocateDependency =
       [](Command *, Command *Old, MemObjRecord *) { --Old->MLeafCounter; };
 
   {
@@ -120,8 +120,8 @@ TEST_F(CircularBufferExtendedTest, Remove) {
 
     Requirement MockReq = getMockRequirement(Buf);
 
-    CircularBufferExtended CBE =
-        CircularBufferExtended(GenericCmdsCapacity, AllocateDependency);
+    LeavesCollection LE =
+        LeavesCollection(GenericCmdsCapacity, AllocateDependency);
     std::vector<std::shared_ptr<Command>> Cmds;
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 4; ++Idx) {
@@ -129,16 +129,16 @@ TEST_F(CircularBufferExtendedTest, Remove) {
                          : createEmptyCommand(getSyclObjImpl(MQueue), MockReq);
       Cmds.push_back(Cmd);
 
-      if (CBE.push_back(Cmds.back().get(), nullptr))
+      if (LE.push_back(Cmds.back().get(), nullptr))
         ++Cmd->MLeafCounter;
     }
 
     for (const auto &Cmd : Cmds) {
-      size_t Count = CBE.remove(Cmd.get());
+      size_t Count = LE.remove(Cmd.get());
 
       ASSERT_EQ(Count, Cmd->MLeafCounter) << "Command not removed";
 
-      Count = CBE.remove(Cmd.get());
+      Count = LE.remove(Cmd.get());
 
       ASSERT_EQ(Count, 0ul) << "Command removed for the second time";
     }

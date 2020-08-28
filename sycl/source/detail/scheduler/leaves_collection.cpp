@@ -1,4 +1,4 @@
-//==-- circular_buffer_extended.hpp - Circular buffer with host accessor ---==//
+//==---- leaves_collection.hpp - Container for leaves of execution graph ---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/scheduler/circular_buffer_extended.hpp>
+#include <detail/scheduler/leaves_collection.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
 #include <algorithm>
@@ -15,6 +15,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+// TODO merge with GraphBuilder's version of doOverlap (see graph_builder.cpp).
 static inline bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
   size_t LHSStart = LHS->MOffsetInBytes;
   size_t LHSEnd = LHSStart + LHS->MAccessRange.size() * LHS->MElemSize;
@@ -34,7 +35,7 @@ static inline bool isHostAccessorCmd(Command *Cmd) {
          Cmd->MBlockReason == Command::BlockReason::HostAccessor;
 }
 
-size_t CircularBufferExtended::remove(value_type Cmd) {
+size_t LeavesCollection::remove(value_type Cmd) {
   if (!isHostAccessorCmd(Cmd)) {
     auto NewEnd =
         std::remove(MGenericCommands.begin(), MGenericCommands.end(), Cmd);
@@ -48,7 +49,7 @@ size_t CircularBufferExtended::remove(value_type Cmd) {
   return eraseHostAccessorCommand(static_cast<EmptyCommand *>(Cmd));
 }
 
-bool CircularBufferExtended::push_back(value_type Cmd, MemObjRecord *Record) {
+bool LeavesCollection::push_back(value_type Cmd, MemObjRecord *Record) {
   bool Result = false;
 
   if (isHostAccessorCmd(Cmd))
@@ -59,8 +60,8 @@ bool CircularBufferExtended::push_back(value_type Cmd, MemObjRecord *Record) {
   return Result;
 }
 
-std::vector<CircularBufferExtended::value_type>
-CircularBufferExtended::toVector() const {
+std::vector<LeavesCollection::value_type>
+LeavesCollection::toVector() const {
   std::vector<value_type> Result;
   Result.reserve(MGenericCommands.size() + MHostAccessorCommands.size());
 
@@ -72,7 +73,7 @@ CircularBufferExtended::toVector() const {
   return Result;
 }
 
-bool CircularBufferExtended::addHostAccessorCommand(EmptyCommand *Cmd,
+bool LeavesCollection::addHostAccessorCommand(EmptyCommand *Cmd,
                                                     MemObjRecord *Record) {
   // 1. find the oldest command with doOverlap() = true amongst the List
   //      => OldCmd
@@ -110,7 +111,7 @@ bool CircularBufferExtended::addHostAccessorCommand(EmptyCommand *Cmd,
   return true;
 }
 
-bool CircularBufferExtended::addGenericCommand(Command *Cmd,
+bool LeavesCollection::addGenericCommand(Command *Cmd,
                                                MemObjRecord *Record) {
   if (MGenericCommands.full()) {
     Command *OldLeaf = MGenericCommands.front();
@@ -127,12 +128,12 @@ bool CircularBufferExtended::addGenericCommand(Command *Cmd,
   return true;
 }
 
-void CircularBufferExtended::insertHostAccessorCommand(EmptyCommand *Cmd) {
+void LeavesCollection::insertHostAccessorCommand(EmptyCommand *Cmd) {
   MHostAccessorCommandsXRef[Cmd] =
       MHostAccessorCommands.insert(MHostAccessorCommands.end(), Cmd);
 }
 
-size_t CircularBufferExtended::eraseHostAccessorCommand(EmptyCommand *Cmd) {
+size_t LeavesCollection::eraseHostAccessorCommand(EmptyCommand *Cmd) {
   auto XRefIt = MHostAccessorCommandsXRef.find(Cmd);
 
   if (XRefIt == MHostAccessorCommandsXRef.end())
