@@ -654,6 +654,10 @@
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-FPGA,CHK-TOOLS-FPGA-USM-ENABLE
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fintelfpga -Xssimulator %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-FPGA,CHK-TOOLS-FPGA-USM-ENABLE
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice -Xsemulator %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-FPGA,CHK-TOOLS-FPGA-USM-DISABLE
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fintelfpga -Xsemulator %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-FPGA,CHK-TOOLS-FPGA-USM-DISABLE
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-GEN
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice %s -### 2>&1 \
