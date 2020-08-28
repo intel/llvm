@@ -138,15 +138,15 @@ void Scheduler::GraphBuilder::printGraphAsDot(const char *ModeName) {
   std::fstream Stream(FileName, std::ios::out);
   Stream << "strict digraph {" << std::endl;
 
-  std::vector<Command *> Visited;
+  MVisitedCmds.clear();
 
   for (SYCLMemObjI *MemObject : MMemObjs)
     for (Command *AllocaCmd : MemObject->MRecord->MAllocaCommands)
-      printDotRecursive(Stream, Visited, AllocaCmd);
+      printDotRecursive(Stream, MVisitedCmds, AllocaCmd);
 
   Stream << "}" << std::endl;
 
-  unmarkVisitedNodes(Visited);
+  unmarkVisitedNodes(MVisitedCmds);
 }
 
 MemObjRecord *Scheduler::GraphBuilder::getMemObjRecord(SYCLMemObjI *MemObject) {
