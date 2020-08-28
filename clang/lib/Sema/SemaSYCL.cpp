@@ -1655,7 +1655,6 @@ public:
   using SyclKernelFieldHandler::leaveStruct;
 };
 
-// TODO: ERICH: const-correctness of all the functions?
 class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   SyclKernelDeclCreator &DeclCreator;
   llvm::SmallVector<Stmt *, 16> BodyStmts;
@@ -1825,7 +1824,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     addFieldInit(FD, Ty, ParamRef);
   }
 
-  MemberExpr *BuildMemberExpr(Expr *Base, ValueDecl *Member) {
+  MemberExpr *BuildMemberExpr(Expr *Base, const ValueDecl *Member) {
     DeclAccessPair MemberDAP = DeclAccessPair::make(Member, AS_none);
     MemberExpr *Result = SemaRef.BuildMemberExpr(
         Base, /*IsArrow */ false, SourceLocation(), NestedNameSpecifierLoc(),
@@ -1835,6 +1834,17 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
         Member->getType(), VK_LValue, OK_Ordinary);
     return Result;
   }
+
+  void AddFieldMemberExpr(const FieldDecl *FD, QualType Ty) {
+    if (!IsArrayType(FD, Ty))
+      MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
+  }
+
+  void RemoveFieldMemberExpr(const FieldDecl *FD, QualType Ty) {
+    if (!IsArrayType(FD, Ty))
+      MemberExprBases.pop_back();
+  }
+
 
   void createSpecialMethodCall(const CXXRecordDecl *RD, StringRef MethodName,
                                SmallVectorImpl<Stmt *> &AddTo) {
@@ -1923,14 +1933,12 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     addFieldInit(FD, Ty, None,
                  InitializationKind::CreateDefault(SourceLocation()));
 
-    if (!IsArrayElement(FD, Ty))
-      MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
+    AddFieldMemberExpr(FD, Ty);
 
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     createSpecialMethodCall(RecordDecl, InitMethodName, BodyStmts);
 
-    if (!IsArrayElement(FD, Ty))
-      MemberExprBases.pop_back();
+    RemoveFieldMemberExpr(FD, Ty);
 
     return true;
   }
@@ -2027,8 +2035,7 @@ public:
     const auto *StreamDecl = Ty->getAsCXXRecordDecl();
     CollectionInitExprs.push_back(CreateInitListExpr(StreamDecl));
 
-    if (!IsArrayElement(FD, Ty))
-      MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
+    AddFieldMemberExpr(FD, Ty);
     return true;
   }
 
@@ -2041,8 +2048,7 @@ public:
     createSpecialMethodCall(StreamDecl, InitMethodName, BodyStmts);
     createSpecialMethodCall(StreamDecl, FinalizeMethodName, FinalizeStmts);
 
-    if (!IsArrayElement(FD, Ty))
-      MemberExprBases.pop_back();
+    RemoveFieldMemberExpr(FD, Ty);
 
     CollectionInitExprs.pop_back();
     return true;
@@ -2052,8 +2058,7 @@ public:
     ++ContainerDepth;
     addCollectionInitListExpr(Ty->getAsCXXRecordDecl());
 
-    if (!IsArrayElement(FD, Ty))
-      MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
+    AddFieldMemberExpr(FD, Ty);
     return true;
   }
 
@@ -2061,8 +2066,7 @@ public:
     --ContainerDepth;
     CollectionInitExprs.pop_back();
 
-    if (!IsArrayElement(FD, Ty))
-      MemberExprBases.pop_back();
+    RemoveFieldMemberExpr(FD, Ty);
     return true;
   }
 
@@ -2104,8 +2108,7 @@ public:
 
     // If this is the top-level array, we need to make a MemberExpr in addition
     // to an array subscript.
-    if (!IsArrayElement(FD, ArrayType))
-      MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
+    AddFieldMemberExpr(FD, Ty);
     return true;
   }
 
@@ -2147,8 +2150,7 @@ public:
     MemberExprBases.pop_back();
 
     // Remove the field access expr as well.
-    if (!IsArrayElement(FD, ArrayType))
-      MemberExprBases.pop_back();
+    AddFieldMemberExpr(FD, Ty);
     return true;
   }
 
