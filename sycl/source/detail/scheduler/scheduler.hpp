@@ -10,8 +10,8 @@
 
 #include <CL/sycl/detail/cg.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
-#include <detail/scheduler/leaves_collection.hpp>
 #include <detail/scheduler/commands.hpp>
+#include <detail/scheduler/leaves_collection.hpp>
 
 #include <cstddef>
 #include <memory>
@@ -189,11 +189,10 @@ using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 ///
 /// \ingroup sycl_graph
 struct MemObjRecord {
-  MemObjRecord(ContextImplPtr CurContext, std::size_t LeafLimit,
+  MemObjRecord(ContextImplPtr Ctx, std::size_t LeafLimit,
                LeavesCollection::AllocateDependencyF AllocateDependency)
       : MReadLeaves{this, LeafLimit, AllocateDependency},
-        MWriteLeaves{this, LeafLimit, AllocateDependency},
-        MCurContext{CurContext} {}
+        MWriteLeaves{this, LeafLimit, AllocateDependency}, MCurContext{Ctx} {}
 
   // Contains all allocation commands for the memory object.
   std::vector<AllocaCommandBase *> MAllocaCommands;

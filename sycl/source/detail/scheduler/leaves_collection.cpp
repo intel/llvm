@@ -60,8 +60,7 @@ bool LeavesCollection::push_back(value_type Cmd) {
   return Result;
 }
 
-std::vector<LeavesCollection::value_type>
-LeavesCollection::toVector() const {
+std::vector<LeavesCollection::value_type> LeavesCollection::toVector() const {
   std::vector<value_type> Result;
   Result.reserve(MGenericCommands.size() + MHostAccessorCommands.size());
 

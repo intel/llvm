@@ -201,8 +201,8 @@ void Scheduler::GraphBuilder::addNodeToLeaves(MemObjRecord *Record,
                                               Command *Cmd,
                                               access::mode AccessMode) {
   LeavesCollection &Leaves{AccessMode == access::mode::read
-                                     ? Record->MReadLeaves
-                                     : Record->MWriteLeaves};
+                               ? Record->MReadLeaves
+                               : Record->MWriteLeaves};
   if (Leaves.push_back(Cmd))
     ++Cmd->MLeafCounter;
 }
