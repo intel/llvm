@@ -71,7 +71,7 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   MockCommand DepDepCmd(DefaultHostQueue, Req);
   DepCmd.MDeps.push_back({&DepDepCmd, DepDepCmd.getRequirement(), &AllocaCmd1});
   DepDepCmd.MUsers.insert(&DepCmd);
-  Record->MWriteLeaves.push_back(&DepCmd, Record.get());
+  Record->MWriteLeaves.push_back(&DepCmd);
 
   MockScheduler MS;
   cl::sycl::detail::Command *AllocaCmd2 =

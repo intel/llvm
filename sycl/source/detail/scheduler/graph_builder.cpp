@@ -203,7 +203,7 @@ void Scheduler::GraphBuilder::addNodeToLeaves(MemObjRecord *Record,
   LeavesCollection &Leaves{AccessMode == access::mode::read
                                      ? Record->MReadLeaves
                                      : Record->MWriteLeaves};
-  if (Leaves.push_back(Cmd, Record))
+  if (Leaves.push_back(Cmd))
     ++Cmd->MLeafCounter;
 }
 
@@ -644,7 +644,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
     }
 
     Record->MAllocaCommands.push_back(AllocaCmd);
-    Record->MWriteLeaves.push_back(AllocaCmd, Record);
+    Record->MWriteLeaves.push_back(AllocaCmd);
     ++(AllocaCmd->MLeafCounter);
   }
   return AllocaCmd;

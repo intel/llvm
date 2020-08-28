@@ -57,7 +57,7 @@ TEST_F(LeavesCollectionTest, PushBack) {
   // add only generic commands
   {
     LeavesCollection LE =
-        LeavesCollection(GenericCmdsCapacity, AllocateDependency);
+        LeavesCollection(nullptr, GenericCmdsCapacity, AllocateDependency);
     std::vector<std::shared_ptr<Command>> Cmds;
 
     TimesGenericWasFull = 0;
@@ -65,7 +65,7 @@ TEST_F(LeavesCollectionTest, PushBack) {
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 2; ++Idx) {
       Cmds.push_back(createGenericCommand(getSyclObjImpl(MQueue)));
 
-      LE.push_back(Cmds.back().get(), nullptr);
+      LE.push_back(Cmds.back().get());
     }
 
     ASSERT_EQ(TimesGenericWasFull, GenericCmdsCapacity)
@@ -85,7 +85,7 @@ TEST_F(LeavesCollectionTest, PushBack) {
     Requirement MockReq = getMockRequirement(Buf);
 
     LeavesCollection LE =
-        LeavesCollection(GenericCmdsCapacity, AllocateDependency);
+        LeavesCollection(nullptr, GenericCmdsCapacity, AllocateDependency);
     std::vector<std::shared_ptr<Command>> Cmds;
 
     TimesGenericWasFull = 0;
@@ -95,7 +95,7 @@ TEST_F(LeavesCollectionTest, PushBack) {
                          : createEmptyCommand(getSyclObjImpl(MQueue), MockReq);
       Cmds.push_back(Cmd);
 
-      LE.push_back(Cmds.back().get(), nullptr);
+      LE.push_back(Cmds.back().get());
     }
 
     ASSERT_EQ(TimesGenericWasFull, GenericCmdsCapacity)
@@ -121,7 +121,7 @@ TEST_F(LeavesCollectionTest, Remove) {
     Requirement MockReq = getMockRequirement(Buf);
 
     LeavesCollection LE =
-        LeavesCollection(GenericCmdsCapacity, AllocateDependency);
+        LeavesCollection(nullptr, GenericCmdsCapacity, AllocateDependency);
     std::vector<std::shared_ptr<Command>> Cmds;
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 4; ++Idx) {
@@ -129,7 +129,7 @@ TEST_F(LeavesCollectionTest, Remove) {
                          : createEmptyCommand(getSyclObjImpl(MQueue), MockReq);
       Cmds.push_back(Cmd);
 
-      if (LE.push_back(Cmds.back().get(), nullptr))
+      if (LE.push_back(Cmds.back().get()))
         ++Cmd->MLeafCounter;
     }
 

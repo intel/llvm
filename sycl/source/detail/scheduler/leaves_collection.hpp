@@ -55,9 +55,9 @@ public:
   using iterator = IteratorT<false>;
   using const_iterator = IteratorT<true>;
 
-  LeavesCollection(std::size_t GenericCommandsCapacity,
+  LeavesCollection(MemObjRecord *Record, std::size_t GenericCommandsCapacity,
                    AllocateDependencyF AllocateDependency)
-      : MGenericCommands{GenericCommandsCapacity},
+      : MRecord{Record}, MGenericCommands{GenericCommandsCapacity},
         MAllocateDependency{std::move(AllocateDependency)} {}
 
   iterator begin() {
@@ -81,7 +81,7 @@ public:
   }
 
   /// Returns true if insertion took place. Returns false otherwise.
-  bool push_back(value_type Cmd, MemObjRecord *Record);
+  bool push_back(value_type Cmd);
 
   /// Replacement for std::remove with subsequent call to erase(newEnd, end()).
   /// This function is introduced here due to complexity of iterator.
@@ -118,14 +118,15 @@ private:
   using HostAccessorCommandsXRefT =
       std::unordered_map<EmptyCommand *, HostAccessorCommandSingleXRefT>;
 
+  MemObjRecord *MRecord;
   GenericCommandsT MGenericCommands;
   HostAccessorCommandsT MHostAccessorCommands;
   HostAccessorCommandsXRefT MHostAccessorCommandsXRef;
 
   AllocateDependencyF MAllocateDependency;
 
-  bool addGenericCommand(value_type Cmd, MemObjRecord *Record);
-  bool addHostAccessorCommand(EmptyCommand *Cmd, MemObjRecord *Record);
+  bool addGenericCommand(value_type Cmd);
+  bool addHostAccessorCommand(EmptyCommand *Cmd);
 
   // inserts a command to the end of list for its mem object
   void insertHostAccessorCommand(EmptyCommand *Cmd);

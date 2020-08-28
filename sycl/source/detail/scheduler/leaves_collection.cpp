@@ -49,13 +49,13 @@ size_t LeavesCollection::remove(value_type Cmd) {
   return eraseHostAccessorCommand(static_cast<EmptyCommand *>(Cmd));
 }
 
-bool LeavesCollection::push_back(value_type Cmd, MemObjRecord *Record) {
+bool LeavesCollection::push_back(value_type Cmd) {
   bool Result = false;
 
   if (isHostAccessorCmd(Cmd))
-    Result = addHostAccessorCommand(static_cast<EmptyCommand *>(Cmd), Record);
+    Result = addHostAccessorCommand(static_cast<EmptyCommand *>(Cmd));
   else
-    Result = addGenericCommand(Cmd, Record);
+    Result = addGenericCommand(Cmd);
 
   return Result;
 }
@@ -73,8 +73,7 @@ LeavesCollection::toVector() const {
   return Result;
 }
 
-bool LeavesCollection::addHostAccessorCommand(EmptyCommand *Cmd,
-                                                    MemObjRecord *Record) {
+bool LeavesCollection::addHostAccessorCommand(EmptyCommand *Cmd) {
   // 1. find the oldest command with doOverlap() = true amongst the List
   //      => OldCmd
   HostAccessorCommandSingleXRefT OldCmdIt;
@@ -99,7 +98,7 @@ bool LeavesCollection::addHostAccessorCommand(EmptyCommand *Cmd,
   //          when circular buffer is full.
   if (OldCmdIt != MHostAccessorCommands.end()) {
     // allocate dependency
-    MAllocateDependency(Cmd, *OldCmdIt, Record);
+    MAllocateDependency(Cmd, *OldCmdIt, MRecord);
 
     // erase the old cmd as it's tracked via dependency now
     eraseHostAccessorCommand(static_cast<EmptyCommand *>(*OldCmdIt));
@@ -111,8 +110,7 @@ bool LeavesCollection::addHostAccessorCommand(EmptyCommand *Cmd,
   return true;
 }
 
-bool LeavesCollection::addGenericCommand(Command *Cmd,
-                                               MemObjRecord *Record) {
+bool LeavesCollection::addGenericCommand(Command *Cmd) {
   if (MGenericCommands.full()) {
     Command *OldLeaf = MGenericCommands.front();
 
@@ -120,7 +118,7 @@ bool LeavesCollection::addGenericCommand(Command *Cmd,
     if (OldLeaf == Cmd)
       return false;
 
-    MAllocateDependency(Cmd, OldLeaf, Record);
+    MAllocateDependency(Cmd, OldLeaf, MRecord);
   }
 
   MGenericCommands.push_back(Cmd);

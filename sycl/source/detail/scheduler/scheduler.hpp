@@ -191,8 +191,9 @@ using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 struct MemObjRecord {
   MemObjRecord(ContextImplPtr CurContext, std::size_t LeafLimit,
                LeavesCollection::AllocateDependencyF AllocateDependency)
-      : MReadLeaves{LeafLimit, AllocateDependency},
-        MWriteLeaves{LeafLimit, AllocateDependency}, MCurContext{CurContext} {}
+      : MReadLeaves{this, LeafLimit, AllocateDependency},
+        MWriteLeaves{this, LeafLimit, AllocateDependency},
+        MCurContext{CurContext} {}
 
   // Contains all allocation commands for the memory object.
   std::vector<AllocaCommandBase *> MAllocaCommands;
