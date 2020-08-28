@@ -1845,7 +1845,6 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
       MemberExprBases.pop_back();
   }
 
-
   void createSpecialMethodCall(const CXXRecordDecl *RD, StringRef MethodName,
                                SmallVectorImpl<Stmt *> &AddTo) {
     CXXMethodDecl *Method = getMethodByName(RD, MethodName);

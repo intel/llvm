@@ -229,7 +229,6 @@ public:
   void __finalize() {}
 };
 
-
 namespace ONEAPI {
 namespace experimental {
 template <typename T, typename ID = T>

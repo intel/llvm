@@ -12,7 +12,7 @@ using namespace cl::sycl;
 handler H;
 
 struct HasStreams {
-  stream s1{0,0,H};
+  stream s1{0, 0, H};
   stream s_array[2] = {{0, 0, H}, {0, 0, H}};
 };
 
@@ -22,9 +22,9 @@ struct HasArrayOfHasStreams {
 };
 
 void use() {
-  stream in_lambda {0,0,H};
+  stream in_lambda{0, 0, H};
   stream in_lambda_array[2] = {{0, 0, H}, {0, 0, H}};
-  stream in_lambda_mdarray[2][2] = {{{0, 0, H}, {0, 0, H}},{{0, 0, H}, {0, 0, H}}};
+  stream in_lambda_mdarray[2][2] = {{{0, 0, H}, {0, 0, H}}, {{0, 0, H}, {0, 0, H}}};
 
   HasStreams Struct;
   HasArrayOfHasStreams haohs;
@@ -40,7 +40,7 @@ void use() {
     haohs.hs[0].s1.use();
     haohs_array[0].hs[0].s1.use();
   });
-  }
+}
 
 // Function Declaration
 // CHECK: FunctionDecl {{.*}}stream_test{{.*}}
@@ -222,7 +222,6 @@ void use() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const cl::sycl::stream' lvalue <NoOp>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'cl::sycl::stream' lvalue ParmVar
 
-
 // Calls to Init
 // in_lambda __init
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
@@ -319,7 +318,6 @@ void use() {
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
 
-
 // HasArrayOfHasStreams
 // First element
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
@@ -393,7 +391,6 @@ void use() {
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-
 
 // HasArrayOfHasStreams array
 // First element
@@ -673,7 +670,6 @@ void use() {
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
 
-
 // HasArrayOfHasStreams
 // First element
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
@@ -747,7 +743,6 @@ void use() {
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
 // CHECK-NEXT: IntegerLiteral {{.*}} '{{.*}}' 1
-
 
 // HasArrayOfHasStreams array
 // First element
