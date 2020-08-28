@@ -8,6 +8,7 @@
 
 #include <CL/sycl/device.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/platform_impl.hpp>
 
 #include <algorithm>
 
@@ -16,8 +17,7 @@ namespace sycl {
 namespace detail {
 
 device_impl::device_impl()
-    : MIsHostDevice(true),
-      MPlatform(std::make_shared<platform_impl>(platform_impl())) {}
+    : MIsHostDevice(true), MPlatform(platform_impl::getHostPlatformImpl()) {}
 
 device_impl::device_impl(pi_native_handle InteropDeviceHandle,
                          const plugin &Plugin)
@@ -67,11 +67,7 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
 
   // set MPlatform
   if (!Platform) {
-    RT::PiPlatform plt = nullptr; // TODO catch an exception and put it to list
-                                  // of asynchronous exceptions
-    Plugin.call<PiApiKind::piDeviceGetInfo>(MDevice, PI_DEVICE_INFO_PLATFORM,
-                                            sizeof(plt), &plt, nullptr);
-    Platform = std::make_shared<platform_impl>(plt, Plugin);
+    Platform = platform_impl::getPlatformFromPiDevice(MDevice, Plugin);
   }
   MPlatform = Platform;
 }
@@ -146,7 +142,7 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
   std::for_each(SubDevices.begin(), SubDevices.end(),
                 [&res, this](const RT::PiDevice &a_pi_device) {
                   device sycl_device = detail::createSyclObjFromImpl<device>(
-                      std::make_shared<device_impl>(a_pi_device, MPlatform));
+                      MPlatform->getOrMakeDeviceImpl(a_pi_device, MPlatform));
                   res.push_back(sycl_device);
                 });
   return res;
@@ -249,6 +245,13 @@ bool device_impl::has(aspect Aspect) const {
     throw runtime_error("This device aspect has not been implemented yet.",
                         PI_INVALID_DEVICE);
   }
+}
+
+std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {
+  static std::shared_ptr<device_impl> HostImpl =
+      std::make_shared<device_impl>();
+
+  return HostImpl;
 }
 
 } // namespace detail

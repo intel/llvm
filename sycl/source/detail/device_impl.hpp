@@ -217,6 +217,11 @@ public:
   /// \return true if the SYCL device has the given feature.
   bool has(aspect Aspect) const;
 
+  /// Gets the single instance of the Host Device
+  ///
+  /// \return the host device_impl singleton
+  static std::shared_ptr<device_impl> getHostDeviceImpl();
+
 private:
   explicit device_impl(pi_native_handle InteropDevice, RT::PiDevice Device,
                        PlatformImplPtr Platform, const plugin &Plugin);

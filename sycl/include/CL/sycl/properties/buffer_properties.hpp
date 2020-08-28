@@ -34,7 +34,7 @@ class context_bound
 public:
   context_bound(sycl::context BoundContext) : MCtx(std::move(BoundContext)) {}
 
-  context get_context() const { return MCtx; }
+  sycl::context get_context() const { return MCtx; }
 
 private:
   sycl::context MCtx;

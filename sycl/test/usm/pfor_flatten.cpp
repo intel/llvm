@@ -1,7 +1,7 @@
 // UNSUPPORTED: cuda
 // CUDA does not support the unnamed lambda extension.
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  -fsycl-unnamed-lambda %s -o %t1.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-unnamed-lambda -fsycl-dead-args-optimization %s -o %t1.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out

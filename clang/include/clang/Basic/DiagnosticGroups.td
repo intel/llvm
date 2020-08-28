@@ -735,8 +735,8 @@ def OverridingMethodMismatch : DiagGroup<"overriding-method-mismatch">;
 def VariadicMacros : DiagGroup<"variadic-macros">;
 def VectorConversion : DiagGroup<"vector-conversion">;      // clang specific
 def VexingParse : DiagGroup<"vexing-parse">;
-def VLA : DiagGroup<"vla">;
 def VLAExtension : DiagGroup<"vla-extension">;
+def VLA : DiagGroup<"vla", [VLAExtension]>;
 def VolatileRegisterVar : DiagGroup<"volatile-register-var">;
 def Visibility : DiagGroup<"visibility">;
 def ZeroLengthArray : DiagGroup<"zero-length-array">;
@@ -1133,7 +1133,9 @@ def OpenMP : DiagGroup<"openmp", [
   ]>;
 
 // SYCL warnings
-def SyclStrict : DiagGroup<"sycl-strict">;
+def Sycl2017Compat : DiagGroup<"sycl-2017-compat">;
+def Sycl2020Compat : DiagGroup<"sycl-2020-compat">;
+def SyclStrict : DiagGroup<"sycl-strict", [ Sycl2017Compat, Sycl2020Compat]>;
 def SyclTarget : DiagGroup<"sycl-target">;
 
 // Backend warnings.

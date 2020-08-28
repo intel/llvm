@@ -16,7 +16,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-platform::platform() : impl(std::make_shared<detail::platform_impl>()) {}
+platform::platform() : impl(detail::platform_impl::getHostPlatformImpl()) {}
 
 platform::platform(cl_platform_id PlatformId)
     : impl(std::make_shared<detail::platform_impl>(

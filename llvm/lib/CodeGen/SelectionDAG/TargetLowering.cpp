@@ -250,7 +250,7 @@ bool TargetLowering::findOptimalMemOpLowering(
       bool Fast;
       if (NumMemOps && Op.allowOverlap() && NewVTSize < Size &&
           allowsMisalignedMemoryAccesses(
-              VT, DstAS, Op.isFixedDstAlign() ? Op.getDstAlign().value() : 0,
+              VT, DstAS, Op.isFixedDstAlign() ? Op.getDstAlign().value() : 1,
               MachineMemOperand::MONone, &Fast) &&
           Fast)
         VTSize = Size;
@@ -5737,6 +5737,11 @@ SDValue TargetLowering::getNegatedExpression(SDValue Op, SelectionDAG &DAG,
       return SDValue();
   }
 
+  auto RemoveDeadNode = [&](SDValue N) {
+    if (N && N.getNode()->use_empty())
+      DAG.RemoveDeadNode(N.getNode());
+  };
+
   SDLoc DL(Op);
 
   switch (Opcode) {
@@ -5815,12 +5820,14 @@ SDValue TargetLowering::getNegatedExpression(SDValue Op, SelectionDAG &DAG,
     // Negate the X if its cost is less or equal than Y.
     if (NegX && (CostX <= CostY)) {
       Cost = CostX;
+      RemoveDeadNode(NegY);
       return DAG.getNode(ISD::FSUB, DL, VT, NegX, Y, Flags);
     }
 
     // Negate the Y if it is not expensive.
     if (NegY) {
       Cost = CostY;
+      RemoveDeadNode(NegX);
       return DAG.getNode(ISD::FSUB, DL, VT, NegY, X, Flags);
     }
     break;
@@ -5858,6 +5865,7 @@ SDValue TargetLowering::getNegatedExpression(SDValue Op, SelectionDAG &DAG,
     // Negate the X if its cost is less or equal than Y.
     if (NegX && (CostX <= CostY)) {
       Cost = CostX;
+      RemoveDeadNode(NegY);
       return DAG.getNode(Opcode, DL, VT, NegX, Y, Flags);
     }
 
@@ -5869,6 +5877,7 @@ SDValue TargetLowering::getNegatedExpression(SDValue Op, SelectionDAG &DAG,
     // Negate the Y if it is not expensive.
     if (NegY) {
       Cost = CostY;
+      RemoveDeadNode(NegX);
       return DAG.getNode(Opcode, DL, VT, X, NegY, Flags);
     }
     break;
@@ -5898,12 +5907,14 @@ SDValue TargetLowering::getNegatedExpression(SDValue Op, SelectionDAG &DAG,
     // Negate the X if its cost is less or equal than Y.
     if (NegX && (CostX <= CostY)) {
       Cost = std::min(CostX, CostZ);
+      RemoveDeadNode(NegY);
       return DAG.getNode(Opcode, DL, VT, NegX, Y, NegZ, Flags);
     }
 
     // Negate the Y if it is not expensive.
     if (NegY) {
       Cost = std::min(CostY, CostZ);
+      RemoveDeadNode(NegX);
       return DAG.getNode(Opcode, DL, VT, X, NegY, NegZ, Flags);
     }
     break;
@@ -6129,7 +6140,7 @@ bool TargetLowering::expandMUL(SDNode *N, SDValue &Lo, SDValue &Hi, EVT HiLoVT,
 }
 
 // Check that (every element of) Z is undef or not an exact multiple of BW.
-static bool isNonZeroModBitWidth(SDValue Z, unsigned BW) {
+static bool isNonZeroModBitWidthOrUndef(SDValue Z, unsigned BW) {
   return ISD::matchUnaryPredicate(
       Z,
       [=](ConstantSDNode *C) { return !C || C->getAPIntValue().urem(BW) != 0; },
@@ -6158,7 +6169,7 @@ bool TargetLowering::expandFunnelShift(SDNode *Node, SDValue &Result,
 
   SDValue ShX, ShY;
   SDValue ShAmt, InvShAmt;
-  if (isNonZeroModBitWidth(Z, BW)) {
+  if (isNonZeroModBitWidthOrUndef(Z, BW)) {
     // fshl: X << C | Y >> (BW - C)
     // fshr: X << (BW - C) | Y >> C
     // where C = Z % BW is not zero
@@ -6724,6 +6735,9 @@ TargetLowering::scalarizeVectorLoad(LoadSDNode *LD,
   EVT DstVT = LD->getValueType(0);
   ISD::LoadExtType ExtType = LD->getExtensionType();
 
+  if (SrcVT.isScalableVector())
+    report_fatal_error("Cannot scalarize scalable vector loads");
+
   unsigned NumElem = SrcVT.getVectorNumElements();
 
   EVT SrcEltVT = SrcVT.getScalarType();
@@ -6810,6 +6824,9 @@ SDValue TargetLowering::scalarizeVectorStore(StoreSDNode *ST,
   SDValue BasePtr = ST->getBasePtr();
   SDValue Value = ST->getValue();
   EVT StVT = ST->getMemoryVT();
+
+  if (StVT.isScalableVector())
+    report_fatal_error("Cannot scalarize scalable vector stores");
 
   // The type of the data we want to save
   EVT RegVT = Value.getValueType();
@@ -7328,6 +7345,7 @@ SDValue TargetLowering::expandAddSubSat(SDNode *Node, SelectionDAG &DAG) const {
     return DAG.getNode(ISD::SUB, dl, VT, Max, RHS);
   }
 
+  // uadd.sat(a, b) -> umin(a, ~b) + b
   if (Opcode == ISD::UADDSAT && isOperationLegalOrCustom(ISD::UMIN, VT)) {
     SDValue InvRHS = DAG.getNOT(dl, RHS, VT);
     SDValue Min = DAG.getNode(ISD::UMIN, dl, VT, LHS, InvRHS);

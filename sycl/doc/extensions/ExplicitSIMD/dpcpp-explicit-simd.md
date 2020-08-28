@@ -434,7 +434,7 @@ Explicit SIMD extension supports "private global" variables - file scope
 variables in private address space (similar to thread-local variables on host).
 These variables have 1 copy per work-item (which maps to a single SIMD thread in
 ESP) and are visible to all functions in the translation unit. Conceptually they
-map to SPIRV variable with private storage class. Private globals can be bound
+map to SPIR-V variable with private storage class. Private globals can be bound
 to a specific byte offset within the GRF. To mark a file scope variable as
 private global, the `INTEL_GPU_PRIVATE` attribute is used,
 `INTEL_GPU_REGISTER` is used to bind it the register file:

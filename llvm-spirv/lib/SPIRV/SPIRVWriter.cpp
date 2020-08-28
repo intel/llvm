@@ -589,6 +589,7 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
 }
 
 void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
+  using namespace VectorComputeUtil;
   if (!BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
     return;
   auto BF = static_cast<SPIRVFunction *>(getTranslatedValue(F));
@@ -634,6 +635,27 @@ void LLVMToSPIRV::transVectorComputeMetadata(Function *F) {
               .getValueAsString();
       BA->addDecorate(new SPIRVDecorateFuncParamDescAttr(BA, Desc.str()));
     }
+  }
+  if (!isKernel(F) &&
+      BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_float_controls2) &&
+      Attrs.hasFnAttribute(kVCMetadata::VCFloatControl)) {
+
+    SPIRVWord Mode = 0;
+    Attrs
+        .getAttribute(AttributeList::FunctionIndex, kVCMetadata::VCFloatControl)
+        .getValueAsString()
+        .getAsInteger(0, Mode);
+    VCFloatTypeSizeMap::foreach (
+        [&](VCFloatType FloatType, unsigned TargetWidth) {
+          BF->addDecorate(new SPIRVDecorateFunctionDenormModeINTEL(
+              BF, TargetWidth, getFPDenormMode(Mode, FloatType)));
+
+          BF->addDecorate(new SPIRVDecorateFunctionRoundingModeINTEL(
+              BF, TargetWidth, getFPRoundingMode(Mode)));
+
+          BF->addDecorate(new SPIRVDecorateFunctionFloatingPointModeINTEL(
+              BF, TargetWidth, getFPOperationMode(Mode)));
+        });
   }
 }
 

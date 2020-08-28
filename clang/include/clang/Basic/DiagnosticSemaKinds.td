@@ -91,8 +91,8 @@ def ext_cce_narrowing : ExtWarn<
   "evaluates to %2, which cannot be narrowed to type %3}1">,
   InGroup<CXX11Narrowing>, DefaultError, SFINAEFailure;
 def err_ice_not_integral : Error<
-  "integral constant expression must have integral or unscoped enumeration "
-  "type, not %0">;
+  "%select{integer|integral}1 constant expression must have "
+  "%select{integer|integral or unscoped enumeration}1 type, not %0">;
 def err_ice_incomplete_type : Error<
   "integral constant expression has incomplete class type %0">;
 def err_ice_explicit_conversion : Error<
@@ -2037,7 +2037,7 @@ def err_init_conversion_failed : Error<
   "|: different qualifiers (%5 vs %6)"
   "|: different exception specifications}4">;
 def note_forward_class_conversion : Note<"%0 is not defined, but forward "
-  "declared here; conversion would be valid if it's derived from %1">;
+  "declared here; conversion would be valid if it was derived from %1">;
 
 def err_lvalue_to_rvalue_ref : Error<"rvalue reference %diff{to type $ cannot "
   "bind to lvalue of type $|cannot bind to incompatible lvalue}0,1">;
@@ -2870,8 +2870,9 @@ def err_attribute_requires_opencl_version : Error<
 def err_invalid_branch_protection_spec : Error<
   "invalid or misplaced branch protection specification '%0'">;
 def warn_unsupported_target_attribute
-    : Warning<"%select{unsupported|duplicate}0%select{| architecture}1 '%2' in"
-              " the 'target' attribute string; 'target' attribute ignored">,
+    : Warning<"%select{unsupported|duplicate|unknown}0%select{| architecture|"
+              " tune CPU}1 '%2' in the 'target' attribute string; 'target' "
+              "attribute ignored">,
       InGroup<IgnoredAttributes>;
 def err_attribute_unsupported
     : Error<"%0 attribute is not supported for this target">;
@@ -6079,9 +6080,8 @@ def err_func_def_incomplete_result : Error<
 def err_atomic_specifier_bad_type
     : Error<"_Atomic cannot be applied to "
             "%select{incomplete |array |function |reference |atomic |qualified "
-            "|sizeless ||integer |integer }0type "
-            "%1 %select{|||||||which is not trivially copyable|with less than "
-            "1 byte of precision|with a non power of 2 precision}0">;
+            "|sizeless ||integer }0type "
+            "%1 %select{|||||||which is not trivially copyable|}0">;
 
 // Expressions.
 def ext_sizeof_alignof_function_type : Extension<
@@ -8010,6 +8010,8 @@ def err_atomic_exclusive_builtin_pointer_size : Error<
   " 1,2,4 or 8 byte type (%0 invalid)">;
 def err_atomic_builtin_ext_int_size : Error<
   "Atomic memory operand must have a power-of-two size">;
+def err_atomic_builtin_ext_int_prohibit : Error<
+  "argument to atomic builtin of type '_ExtInt' is not supported">;
 def err_atomic_op_needs_atomic : Error<
   "address argument to atomic operation must be a pointer to _Atomic "
   "type (%0 invalid)">;
@@ -9519,6 +9521,11 @@ def err_nsconsumed_attribute_mismatch : Error<
 def err_nsreturns_retained_attribute_mismatch : Error<
   "overriding method has mismatched ns_returns_%select{not_retained|retained}0"
   " attributes">;
+def err_nserrordomain_invalid_decl : Error<
+  "domain argument %select{|%1 }0does not refer to global constant">;
+def err_nserrordomain_wrong_type : Error<
+  "domain argument %0 does not point to an NSString constant">;
+
 def warn_nsconsumed_attribute_mismatch : Warning<
   err_nsconsumed_attribute_mismatch.Text>, InGroup<NSConsumedMismatch>;
 def warn_nsreturns_retained_attribute_mismatch : Warning<
@@ -11026,6 +11033,12 @@ def err_sycl_invalid_property_list_template_param : Error<
   "%select{property_list|property_list pack argument|buffer_location}0 "
   "template parameter must be a "
   "%select{parameter pack|type|non-negative integer}1">;
+def warn_sycl_pass_by_value_deprecated 
+    : Warning<"Passing kernel functions by value is deprecated in SYCL 2020">,
+      InGroup<Sycl2020Compat>;
+def warn_sycl_pass_by_reference_future 
+    : Warning<"Passing of kernel functions by reference is a SYCL 2020 extension">,
+      InGroup<Sycl2017Compat>;
 def warn_sycl_attibute_function_raw_ptr
     : Warning<"SYCL 1.2.1 specification does not allow %0 attribute applied "
               "to a function with a raw pointer "
