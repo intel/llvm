@@ -2722,7 +2722,9 @@ pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   ZE_CALL(Context->getFreeSlotInExistingOrNewPool(ZeEventPool, Index));
   ze_event_handle_t ZeEvent;
   ze_event_desc_t ZeEventDesc = {};
-  ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_NONE;
+  // We have to set the SIGNAL & WAIT flags as HOST scope because the
+  // L0 plugin implementation waits for the events to complete on the host.
+  ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
   ZeEventDesc.wait = ZE_EVENT_SCOPE_FLAG_HOST;
   ZeEventDesc.version = ZE_EVENT_DESC_VERSION_CURRENT;
   ZeEventDesc.index = Index;

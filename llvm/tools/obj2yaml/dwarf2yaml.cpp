@@ -10,6 +10,7 @@
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugArangeSet.h"
+#include "llvm/DebugInfo/DWARF/DWARFDebugPubTable.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugRangeList.h"
 #include "llvm/DebugInfo/DWARF/DWARFFormValue.h"
 #include "llvm/DebugInfo/DWARF/DWARFSection.h"
@@ -19,17 +20,12 @@
 
 using namespace llvm;
 
-void dumpInitialLength(DataExtractor &Data, uint64_t &Offset,
-                       DWARFYAML::InitialLength &InitialLength) {
-  InitialLength.TotalLength = Data.getU32(&Offset);
-  if (InitialLength.isDWARF64())
-    InitialLength.TotalLength64 = Data.getU64(&Offset);
-}
-
 void dumpDebugAbbrev(DWARFContext &DCtx, DWARFYAML::Data &Y) {
   auto AbbrevSetPtr = DCtx.getDebugAbbrev();
   if (AbbrevSetPtr) {
+    uint64_t AbbrevTableID = 0;
     for (auto AbbrvDeclSet : *AbbrevSetPtr) {
+      Y.DebugAbbrev.emplace_back();
       for (auto AbbrvDecl : AbbrvDeclSet.second) {
         DWARFYAML::Abbrev Abbrv;
         Abbrv.Code = AbbrvDecl.getCode();
@@ -44,7 +40,8 @@ void dumpDebugAbbrev(DWARFContext &DCtx, DWARFYAML::Data &Y) {
             AttAbrv.Value = Attribute.getImplicitConstValue();
           Abbrv.Attributes.push_back(AttAbrv);
         }
-        Y.AbbrevDecls.push_back(Abbrv);
+        Y.DebugAbbrev.back().ID = AbbrevTableID++;
+        Y.DebugAbbrev.back().Table.push_back(Abbrv);
       }
     }
   }
@@ -125,25 +122,31 @@ Error dumpDebugRanges(DWARFContext &DCtx, DWARFYAML::Data &Y) {
   return ErrorSuccess();
 }
 
-static DWARFYAML::PubSection dumpPubSection(const DWARFContext &DCtx,
-                                            const DWARFSection &Section,
-                                            bool IsGNUStyle) {
+static Optional<DWARFYAML::PubSection>
+dumpPubSection(const DWARFContext &DCtx, const DWARFSection &Section,
+               bool IsGNUStyle) {
+  DWARFYAML::PubSection Y;
   DWARFDataExtractor PubSectionData(DCtx.getDWARFObj(), Section,
                                     DCtx.isLittleEndian(), 0);
-  DWARFYAML::PubSection Y;
-  uint64_t Offset = 0;
-  dumpInitialLength(PubSectionData, Offset, Y.Length);
-  Y.Version = PubSectionData.getU16(&Offset);
-  Y.UnitOffset = PubSectionData.getU32(&Offset);
-  Y.UnitSize = PubSectionData.getU32(&Offset);
-  while (Offset < Y.Length.getLength()) {
-    DWARFYAML::PubEntry NewEntry;
-    NewEntry.DieOffset = PubSectionData.getU32(&Offset);
-    if (IsGNUStyle)
-      NewEntry.Descriptor = PubSectionData.getU8(&Offset);
-    NewEntry.Name = PubSectionData.getCStr(&Offset);
-    Y.Entries.push_back(NewEntry);
-  }
+  DWARFDebugPubTable Table;
+  // We ignore any errors that don't prevent parsing the section, since we can
+  // still represent such sections.
+  Table.extract(PubSectionData, IsGNUStyle,
+                [](Error Err) { consumeError(std::move(Err)); });
+  ArrayRef<DWARFDebugPubTable::Set> Sets = Table.getData();
+  if (Sets.empty())
+    return None;
+
+  // FIXME: Currently, obj2yaml only supports dumping the first pubtable.
+  Y.Format = Sets[0].Format;
+  Y.Length = Sets[0].Length;
+  Y.Version = Sets[0].Version;
+  Y.UnitOffset = Sets[0].Offset;
+  Y.UnitSize = Sets[0].Size;
+
+  for (const DWARFDebugPubTable::Entry &E : Sets[0].Entries)
+    Y.Entries.push_back(DWARFYAML::PubEntry{(uint32_t)E.SecOffset,
+                                            E.Descriptor.toBits(), E.Name});
 
   return Y;
 }
@@ -151,23 +154,16 @@ static DWARFYAML::PubSection dumpPubSection(const DWARFContext &DCtx,
 void dumpDebugPubSections(DWARFContext &DCtx, DWARFYAML::Data &Y) {
   const DWARFObject &D = DCtx.getDWARFObj();
 
-  const DWARFSection PubNames = D.getPubnamesSection();
-  if (!PubNames.Data.empty())
-    Y.PubNames = dumpPubSection(DCtx, PubNames, /*IsGNUStyle=*/false);
-
-  const DWARFSection PubTypes = D.getPubtypesSection();
-  if (!PubTypes.Data.empty())
-    Y.PubTypes = dumpPubSection(DCtx, PubTypes, /*IsGNUStyle=*/false);
-
-  const DWARFSection GNUPubNames = D.getGnuPubnamesSection();
-  if (!GNUPubNames.Data.empty())
-    // TODO: Test dumping .debug_gnu_pubnames section.
-    Y.GNUPubNames = dumpPubSection(DCtx, GNUPubNames, /*IsGNUStyle=*/true);
-
-  const DWARFSection GNUPubTypes = D.getGnuPubtypesSection();
-  if (!GNUPubTypes.Data.empty())
-    // TODO: Test dumping .debug_gnu_pubtypes section.
-    Y.GNUPubTypes = dumpPubSection(DCtx, GNUPubTypes, /*IsGNUStyle=*/true);
+  Y.PubNames =
+      dumpPubSection(DCtx, D.getPubnamesSection(), /*IsGNUStyle=*/false);
+  Y.PubTypes =
+      dumpPubSection(DCtx, D.getPubtypesSection(), /*IsGNUStyle=*/false);
+  // TODO: Test dumping .debug_gnu_pubnames section.
+  Y.GNUPubNames =
+      dumpPubSection(DCtx, D.getGnuPubnamesSection(), /*IsGNUStyle=*/true);
+  // TODO: Test dumping .debug_gnu_pubtypes section.
+  Y.GNUPubTypes =
+      dumpPubSection(DCtx, D.getGnuPubtypesSection(), /*IsGNUStyle=*/true);
 }
 
 void dumpDebugInfo(DWARFContext &DCtx, DWARFYAML::Data &Y) {
@@ -178,6 +174,14 @@ void dumpDebugInfo(DWARFContext &DCtx, DWARFYAML::Data &Y) {
     NewUnit.Version = CU->getVersion();
     if (NewUnit.Version >= 5)
       NewUnit.Type = (dwarf::UnitType)CU->getUnitType();
+    const DWARFDebugAbbrev *DebugAbbrev = DCtx.getDebugAbbrev();
+    NewUnit.AbbrevTableID = std::distance(
+        DebugAbbrev->begin(),
+        std::find_if(
+            DebugAbbrev->begin(), DebugAbbrev->end(),
+            [&](const std::pair<uint64_t, DWARFAbbreviationDeclarationSet> &P) {
+              return P.first == CU->getAbbreviations()->getOffset();
+            }));
     NewUnit.AbbrOffset = CU->getAbbreviations()->getOffset();
     NewUnit.AddrSize = CU->getAddressByteSize();
     for (auto DIE : CU->dies()) {

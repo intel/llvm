@@ -412,6 +412,9 @@ class DwarfDebug : public DebugHandlerBase {
   bool SingleCU;
   bool IsDarwin;
 
+  /// Map for tracking Fortran deferred CHARACTER lengths.
+  DenseMap<const DIStringType *, unsigned> StringTypeLocMap;
+
   AddressPool AddrPool;
 
   /// Accelerator tables.
@@ -648,6 +651,7 @@ public:
   class NonTypeUnitContext {
     DwarfDebug *DD;
     decltype(DwarfDebug::TypeUnitsUnderConstruction) TypeUnitsUnderConstruction;
+    bool AddrPoolUsed;
     friend class DwarfDebug;
     NonTypeUnitContext(DwarfDebug *DD);
   public:
@@ -769,6 +773,17 @@ public:
   DwarfCompileUnit *lookupCU(const DIE *Die) { return CUDieMap.lookup(Die); }
   const DwarfCompileUnit *lookupCU(const DIE *Die) const {
     return CUDieMap.lookup(Die);
+  }
+
+  unsigned getStringTypeLoc(const DIStringType *ST) const {
+    auto I = StringTypeLocMap.find(ST);
+    return I != StringTypeLocMap.end() ? I->second : 0;
+  }
+
+  void addStringTypeLoc(const DIStringType *ST, unsigned Loc) {
+    assert(ST);
+    if (Loc)
+      StringTypeLocMap[ST] = Loc;
   }
 
   /// \defgroup DebuggerTuning Predicates to tune DWARF for a given debugger.

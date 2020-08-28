@@ -267,17 +267,17 @@ void PreprocessMetadata::preprocessVectorComputeMetadata(Module *M,
           .getValueAsString()
           .getAsInteger(0, Mode);
       spv::ExecutionMode ExecRoundMode =
-          VCRoundModeExecModeMap::map(getVCRoundMode(Mode));
+          FPRoundingModeExecModeMap::map(getFPRoundingMode(Mode));
       spv::ExecutionMode ExecFloatMode =
-          VCFloatModeExecModeMap::map(getVCFloatMode(Mode));
+          FPOperationModeExecModeMap::map(getFPOperationMode(Mode));
       VCFloatTypeSizeMap::foreach (
           [&](VCFloatType FloatType, unsigned TargetWidth) {
             EM.addOp().add(&F).add(ExecRoundMode).add(TargetWidth).done();
             EM.addOp().add(&F).add(ExecFloatMode).add(TargetWidth).done();
             EM.addOp()
                 .add(&F)
-                .add(VCDenormModeExecModeMap::map(
-                    getVCDenormPreserve(Mode, FloatType)))
+                .add(FPDenormModeExecModeMap::map(
+                    getFPDenormMode(Mode, FloatType)))
                 .add(TargetWidth)
                 .done();
           });

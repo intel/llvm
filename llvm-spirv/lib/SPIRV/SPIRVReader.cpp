@@ -280,8 +280,14 @@ Value *SPIRVToLLVM::mapFunction(SPIRVFunction *BF, Function *F) {
 // %c = extractelement <3 x i64> %b, i32 idx
 // %d = extractelement <3 x i64> %b, i32 idx
 // With:
-// %c = call spir_func i64 @_Z12get_group_idj(idx)
-// %d = call spir_func i64 @_Z12get_group_idj(idx)
+// %0 = call spir_func i64 @_Z13get_global_idj(i32 0) #1
+// %1 = insertelement <3 x i64> undef, i64 %0, i32 0
+// %2 = call spir_func i64 @_Z13get_global_idj(i32 1) #1
+// %3 = insertelement <3 x i64> %1, i64 %2, i32 1
+// %4 = call spir_func i64 @_Z13get_global_idj(i32 2) #1
+// %5 = insertelement <3 x i64> %3, i64 %4, i32 2
+// %c = extractelement <3 x i64> %5, i32 idx
+// %d = extractelement <3 x i64> %5, i32 idx
 bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
                                               SPIRVBuiltinVariableKind Kind) {
   std::string FuncName = SPIRSPIRVBuiltinVariableMap::rmap(Kind);
@@ -321,21 +327,28 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
     I->replaceAllUsesWith(Call);
   };
 
-  // If HasIndexArg is true, we are going over users of the Load instruction,
-  // which are expected to be ExtractElement instructions. The result of the
-  // ExtractElement instructions is considered as a usage of the GV and should
-  // be replaced with Func.
+  // If HasIndexArg is true, we create 3 built-in calls and insertelement to
+  // get 3-element vector filled with ids and replace uses of Load instruction
+  // with this vector.
   // If HasIndexArg is false, the result of the Load instruction is the value
   // which should be replaced with the Func.
   auto FindAndReplace = [&](LoadInst *LD) {
+    std::vector<Value *> Vectors;
     Loads.push_back(LD);
     if (HasIndexArg) {
-      for (auto *LoadUser : LD->users()) {
-        if (auto *Extract = dyn_cast<ExtractElementInst>(LoadUser)) {
-          Extracts.push_back(Extract);
-          Replace({Extract->getIndexOperand()}, Extract);
-        }
+      auto *VecTy = cast<VectorType>(
+          LD->getPointerOperandType()->getPointerElementType());
+      Value *EmptyVec = UndefValue::get(VecTy);
+      Vectors.push_back(EmptyVec);
+      for (unsigned I = 0; I < VecTy->getNumElements(); ++I) {
+        auto *Idx = ConstantInt::get(Type::getInt32Ty(*Context), I);
+        auto *Call = CallInst::Create(Func, {Idx}, "", LD);
+        setAttrByCalledFunc(Call);
+        auto *Insert = InsertElementInst::Create(Vectors.back(), Call, Idx);
+        Insert->insertAfter(Call);
+        Vectors.push_back(Insert);
       }
+      LD->replaceAllUsesWith(Vectors.back());
     } else {
       Replace({}, LD);
     }
@@ -1412,6 +1425,20 @@ Value *SPIRVToLLVM::oclTransConstantPipeStorage(
                             GlobalValue::NotThreadLocal, SPIRAS_Global);
 }
 
+// A pointer annotation may have been generated for the operand. If the operand
+// is used further in IR, it should be replaced with the intrinsic call result.
+// Otherwise, the generated pointer annotation call is left unused.
+static void replaceOperandWithAnnotationIntrinsicCallResult(Value *&V) {
+  if (Use *SingleUse = V->getSingleUndroppableUse()) {
+    if (auto *II = dyn_cast<IntrinsicInst>(SingleUse->getUser())) {
+      if (II->getIntrinsicID() == Intrinsic::ptr_annotation &&
+          II->getType() == V->getType())
+        // Overwrite the future operand with the intrinsic call result.
+        V = II;
+    }
+  }
+}
+
 /// For instructions, this function assumes they are created in order
 /// and appended to the given basic block. An instruction may use a
 /// instruction from another BB which has not been translated. Such
@@ -1751,15 +1778,11 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     StoreInst *SI = nullptr;
     auto *Src = transValue(BS->getSrc(), F, BB);
     auto *Dst = transValue(BS->getDst(), F, BB);
-    // A pointer annotation may have been generated for the source variable.
-    if (Use *SingleUse = Src->getSingleUndroppableUse()) {
-      if (auto *II = dyn_cast<IntrinsicInst>(SingleUse->getUser())) {
-        if (II->getIntrinsicID() == Intrinsic::ptr_annotation &&
-            II->getType() == Src->getType())
-          // Overwrite the future store operand with the intrinsic call result.
-          Src = II;
-      }
-    }
+    // A ptr.annotation may have been generated for the source variable.
+    replaceOperandWithAnnotationIntrinsicCallResult(Src);
+    // A ptr.annotation may have been generated for the destination variable.
+    replaceOperandWithAnnotationIntrinsicCallResult(Dst);
+
     bool isVolatile = BS->SPIRVMemoryAccess::isVolatile();
     uint64_t AlignValue = BS->SPIRVMemoryAccess::getAlignment();
     if (0 == AlignValue)
@@ -1773,7 +1796,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpLoad: {
     SPIRVLoad *BL = static_cast<SPIRVLoad *>(BV);
-    auto V = transValue(BL->getSrc(), F, BB);
+    auto *V = transValue(BL->getSrc(), F, BB);
+    // A ptr.annotation may have been generated for the source variable.
+    replaceOperandWithAnnotationIntrinsicCallResult(V);
+
     Type *Ty = V->getType()->getPointerElementType();
     LoadInst *LI = nullptr;
     uint64_t AlignValue = BL->SPIRVMemoryAccess::getAlignment();
@@ -3863,27 +3889,95 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
   unsigned FloatControl = 0;
   // RoundMode and FloatMode are always same for all types in Cm
   // While Denorm could be different for double, float and half
-  VCRoundModeExecModeMap::foreach ([&](VCRoundMode VCRM, ExecutionMode EM) {
-    if (BF->getExecutionMode(EM)) {
+  if (isKernel(BF)) {
+    FPRoundingModeExecModeMap::foreach (
+        [&](FPRoundingMode VCRM, ExecutionMode EM) {
+          if (BF->getExecutionMode(EM)) {
+            IsVCFloatControl = true;
+            FloatControl |= getVCFloatControl(VCRM);
+          }
+        });
+    FPOperationModeExecModeMap::foreach (
+        [&](FPOperationMode VCFM, ExecutionMode EM) {
+          if (BF->getExecutionMode(EM)) {
+            IsVCFloatControl = true;
+            FloatControl |= getVCFloatControl(VCFM);
+          }
+        });
+    FPDenormModeExecModeMap::foreach ([&](FPDenormMode VCDM, ExecutionMode EM) {
+      auto ExecModes = BF->getExecutionModeRange(EM);
+      for (auto It = ExecModes.first; It != ExecModes.second; It++) {
+        IsVCFloatControl = true;
+        unsigned TargetWidth = (*It).second->getLiterals()[0];
+        VCFloatType FloatType = VCFloatTypeSizeMap::rmap(TargetWidth);
+        FloatControl |= getVCFloatControl(VCDM, FloatType);
+      }
+    });
+  } else {
+    if (BF->hasDecorate(DecorationFunctionRoundingModeINTEL)) {
+      std::vector<SPIRVDecorate const *> RoundModes =
+          BF->getDecorations(DecorationFunctionRoundingModeINTEL);
+
+      assert(RoundModes.size() == 3 && "Function must have precisely 3 "
+                                       "FunctionRoundingModeINTEL decoration");
+
+      auto *DecRound =
+          static_cast<SPIRVDecorateFunctionRoundingModeINTEL const *>(
+              RoundModes.at(0));
+      auto RoundingMode = DecRound->getRoundingMode();
+#ifndef NDEBUG
+      for (auto *DecPreCast : RoundModes) {
+        auto *Dec = static_cast<SPIRVDecorateFunctionRoundingModeINTEL const *>(
+            DecPreCast);
+        assert(Dec->getRoundingMode() == RoundingMode &&
+               "Rounding Mode must be equal within all targets");
+      }
+#endif
       IsVCFloatControl = true;
-      FloatControl |= getVCFloatControl(VCRM);
+      FloatControl |= getVCFloatControl(RoundingMode);
     }
-  });
-  VCFloatModeExecModeMap::foreach ([&](VCFloatMode VCFM, ExecutionMode EM) {
-    if (BF->getExecutionMode(EM)) {
+
+    if (BF->hasDecorate(DecorationFunctionDenormModeINTEL)) {
+      std::vector<SPIRVDecorate const *> DenormModes =
+          BF->getDecorations(DecorationFunctionDenormModeINTEL);
       IsVCFloatControl = true;
-      FloatControl |= getVCFloatControl(VCFM);
+
+      for (auto DecPtr : DenormModes) {
+        auto DecDenorm =
+            static_cast<SPIRVDecorateFunctionDenormModeINTEL const *>(DecPtr);
+        VCFloatType FType =
+            VCFloatTypeSizeMap::rmap(DecDenorm->getTargetWidth());
+        FloatControl |= getVCFloatControl(DecDenorm->getDenormMode(), FType);
+      }
     }
-  });
-  VCDenormModeExecModeMap::foreach ([&](VCDenormMode VCDM, ExecutionMode EM) {
-    auto ExecModes = BF->getExecutionModeRange(EM);
-    for (auto It = ExecModes.first; It != ExecModes.second; It++) {
+
+    if (BF->hasDecorate(DecorationFunctionFloatingPointModeINTEL)) {
+      std::vector<SPIRVDecorate const *> FloatModes =
+          BF->getDecorations(DecorationFunctionFloatingPointModeINTEL);
+
+      assert(FloatModes.size() == 3 &&
+             "Function must have precisely 3 FunctionFloatingPointModeINTEL "
+             "decoration");
+
+      auto *DecFlt =
+          static_cast<SPIRVDecorateFunctionFloatingPointModeINTEL const *>(
+              FloatModes.at(0));
+      auto FloatingMode = DecFlt->getOperationMode();
+#ifdef NDEBUG
+      for (auto *DecPreCast : FloatModes) {
+        auto *Dec =
+            static_cast<SPIRVDecorateFunctionFloatingPointModeINTEL const *>(
+                DecPreCast);
+        assert(Dec->getOperationMode() == FloatingMode &&
+               "Rounding Mode must be equal within all targets");
+      }
+#endif
+
       IsVCFloatControl = true;
-      unsigned TargetWidth = (*It).second->getLiterals()[0];
-      VCFloatType FloatType = VCFloatTypeSizeMap::rmap(TargetWidth);
-      FloatControl |= getVCFloatControl(VCDM, FloatType);
+      FloatControl |= getVCFloatControl(FloatingMode);
     }
-  });
+  }
+
   if (IsVCFloatControl) {
     Attribute Attr = Attribute::get(*Context, kVCMetadata::VCFloatControl,
                                     std::to_string(FloatControl));

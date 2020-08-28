@@ -375,7 +375,7 @@ static void getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
     break;
   case llvm::Triple::r600:
   case llvm::Triple::amdgcn:
-    amdgpu::getAMDGPUTargetFeatures(D, Args, Features);
+    amdgpu::getAMDGPUTargetFeatures(D, Triple, Args, Features);
     break;
   case llvm::Triple::msp430:
     msp430::getMSP430TargetFeatures(D, Args, Features);
@@ -2113,6 +2113,23 @@ void Clang::AddX86TargetArgs(const ArgList &Args,
     CmdArgs.push_back("-mfloat-abi");
     CmdArgs.push_back("soft");
     CmdArgs.push_back("-mstack-alignment=4");
+  }
+
+  // Handle -mtune.
+  // FIXME: We should default to "generic" unless -march is set to match gcc.
+  if (const Arg *A = Args.getLastArg(clang::driver::options::OPT_mtune_EQ)) {
+    StringRef Name = A->getValue();
+
+    if (Name == "native")
+      Name = llvm::sys::getHostCPUName();
+
+    // Ignore generic either from getHostCPUName or from command line.
+    // FIXME: We need to support this eventually but isValidCPUName and the
+    // backend aren't ready for it yet.
+    if (Name != "generic") {
+      CmdArgs.push_back("-tune-cpu");
+      CmdArgs.push_back(Args.MakeArgString(Name));
+    }
   }
 }
 
