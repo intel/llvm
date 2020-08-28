@@ -96,6 +96,7 @@ class __SYCL_EXPORT filter_selector : public device_selector {
 public:
   filter_selector(std::string filter);
   int operator()(const device &dev) const override;
+
 private:
   mutable std::vector<std::shared_ptr<detail::filter>> mFilters;
   default_selector mRanker;

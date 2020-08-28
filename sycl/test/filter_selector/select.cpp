@@ -56,13 +56,13 @@ int main() {
 
     std::cout << "Test 'cpu,gpu'" << std::endl;
     device d3(filter_selector("cpu,gpu"));
-    assert( (d3.is_gpu() || d3.is_cpu()) );
+    assert((d3.is_gpu() || d3.is_cpu()));
   }
 
   if (HasOpenCL) {
     std::cout << "Test 'opencl'" << std::endl;
     device d4(filter_selector("opencl"));
-    assert (d4.get_platform().get_backend() == backend::opencl);
+    assert(d4.get_platform().get_backend() == backend::opencl);
 
     if (!CPUs.empty()) {
       std::cout << "Test 'opencl:cpu'" << std::endl;
@@ -110,18 +110,18 @@ int main() {
   if (HasLevelZero && !GPUs.empty()) {
     std::cout << "Test 'level-zero'" << std::endl;
     device d12(filter_selector("level-zero"));
-    assert (d12.get_platform().get_backend() == backend::level_zero);
-
+    assert(d12.get_platform().get_backend() == backend::level_zero);
 
     std::cout << "Test 'level-zero:gpu'" << std::endl;
     device d13(filter_selector("level-zero:gpu"));
-    assert(d13.is_gpu() && d13.get_platform().get_backend() == backend::level_zero);
+    assert(d13.is_gpu() &&
+           d13.get_platform().get_backend() == backend::level_zero);
 
     if (HasOpenCL && !CPUs.empty()) {
       device d14(filter_selector("level-zero:gpu,cpu"));
-      assert( (d14.is_gpu() || d14.is_cpu()) );
+      assert((d14.is_gpu() || d14.is_cpu()));
       if (d14.is_gpu())
-        assert (d14.get_platform().get_backend() == backend::level_zero);
+        assert(d14.get_platform().get_backend() == backend::level_zero);
     }
   }
 
