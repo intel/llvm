@@ -7714,7 +7714,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         if (A->getOption().matches(options::OPT_Xs_separate) ||
             A->getOption().matches(options::OPT_Xs)) {
           StringRef ArgString(A->getValue());
-          if (ArgString == "hardware" || ArgString == "simulation")
+          if (ArgString == "hardware" || ArgString == "simulator")
             ExtArg = "-spirv-ext=+all";
         }
       }
