@@ -2027,7 +2027,8 @@ public:
     const auto *StreamDecl = Ty->getAsCXXRecordDecl();
     CollectionInitExprs.push_back(CreateInitListExpr(StreamDecl));
 
-    MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
+    if (!IsArrayElement(FD, Ty))
+      MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
     return true;
   }
 
@@ -2036,8 +2037,6 @@ public:
     // Stream requires that its 'init' calls happen after its accessors init
     // calls, so add them here instead.
     const auto *StreamDecl = Ty->getAsCXXRecordDecl();
-    if (!IsArrayElement(FD, Ty))
-      MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
 
     createSpecialMethodCall(StreamDecl, InitMethodName, BodyStmts);
     createSpecialMethodCall(StreamDecl, FinalizeMethodName, FinalizeStmts);
@@ -2046,7 +2045,6 @@ public:
       MemberExprBases.pop_back();
 
     CollectionInitExprs.pop_back();
-    MemberExprBases.pop_back();
     return true;
   }
 
@@ -2054,7 +2052,8 @@ public:
     ++ContainerDepth;
     addCollectionInitListExpr(Ty->getAsCXXRecordDecl());
 
-    MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
+    if (!IsArrayElement(FD, Ty))
+      MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
     return true;
   }
 
@@ -2062,7 +2061,8 @@ public:
     --ContainerDepth;
     CollectionInitExprs.pop_back();
 
-    MemberExprBases.pop_back();
+    if (!IsArrayElement(FD, Ty))
+      MemberExprBases.pop_back();
     return true;
   }
 
