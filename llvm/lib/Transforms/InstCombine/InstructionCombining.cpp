@@ -2843,9 +2843,9 @@ Instruction *InstCombinerImpl::visitBranchInst(BranchInst &BI) {
     return replaceOperand(
         BI, 0, ConstantInt::getFalse(BI.getCondition()->getType()));
 
-  // Canonicalize, for example, fcmp_one -> fcmp_oeq.
+  // Canonicalize, for example, icmp_ne -> icmp_eq or fcmp_one -> fcmp_oeq.
   CmpInst::Predicate Pred;
-  if (match(&BI, m_Br(m_OneUse(m_FCmp(Pred, m_Value(), m_Value())),
+  if (match(&BI, m_Br(m_OneUse(m_Cmp(Pred, m_Value(), m_Value())),
                       m_BasicBlock(), m_BasicBlock())) &&
       !isCanonicalPredicate(Pred)) {
     // Swap destinations and condition.

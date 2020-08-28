@@ -59,11 +59,10 @@ void test_merge_if(int a) {
 // CHECK-DAG: declare spir_func void @f() local_unnamed_addr #2
 // CHECK-DAG: declare spir_func void @g() local_unnamed_addr #2
 
-
 // Test two if's are not merged.
 // CHECK-LABEL: define spir_func void @test_no_merge_if(i32 %a) local_unnamed_addr #1
-// CHECK:  %[[tobool:.+]] = icmp eq i32 %a, 0
-// CHECK: br i1 %[[tobool]], label %[[if_end:.+]], label %[[if_then:.+]]
+// CHECK:  %[[tobool:.+]] = icmp ne i32 %a, 0
+// CHECK: br i1 %[[tobool]], label %[[if_then:.+]], label %[[if_end:.+]]
 // CHECK: [[if_then]]:
 // CHECK: tail call spir_func void @f()
 // CHECK-NOT: call spir_func void @convfun()
@@ -72,7 +71,7 @@ void test_merge_if(int a) {
 // CHECK: [[if_end]]:
 // CHECK-NOT: phi i1
 // CHECK:  tail call spir_func void @convfun() #[[attr4:.+]]
-// CHECK:  br i1 %[[tobool]], label %[[if_end3:.+]], label %[[if_then2:.+]]
+// CHECK:  br i1 %[[tobool]], label %[[if_then2:.+]], label %[[if_end3:.+]]
 // CHECK: [[if_then2]]:
 // CHECK: tail call spir_func void @g()
 // CHECK:  br label %[[if_end3:.+]]
