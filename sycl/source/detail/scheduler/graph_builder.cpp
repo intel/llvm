@@ -138,15 +138,15 @@ void Scheduler::GraphBuilder::printGraphAsDot(const char *ModeName) {
   std::fstream Stream(FileName, std::ios::out);
   Stream << "strict digraph {" << std::endl;
 
-  std::vector<Command *> Visited;
+  MVisitedCmds.clear();
 
   for (SYCLMemObjI *MemObject : MMemObjs)
     for (Command *AllocaCmd : MemObject->MRecord->MAllocaCommands)
-      printDotRecursive(Stream, Visited, AllocaCmd);
+      printDotRecursive(Stream, MVisitedCmds, AllocaCmd);
 
   Stream << "}" << std::endl;
 
-  unmarkVisitedNodes(Visited);
+  unmarkVisitedNodes(MVisitedCmds);
 }
 
 MemObjRecord *Scheduler::GraphBuilder::getMemObjRecord(SYCLMemObjI *MemObject) {
@@ -834,20 +834,21 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
   if (AllocaCommands.empty())
     return;
 
-  std::queue<Command *> ToVisit;
-  std::vector<Command *> Visited;
+  assert(MCmdsToVisit.empty());
+  MVisitedCmds.clear();
+
   // First, mark all allocas for deletion and their direct users for traversal
   // Dependencies of the users will be cleaned up during the traversal
   for (Command *AllocaCmd : AllocaCommands) {
-    markNodeAsVisited(AllocaCmd, Visited);
+    markNodeAsVisited(AllocaCmd, MVisitedCmds);
 
     for (Command *UserCmd : AllocaCmd->MUsers)
       // Linked alloca cmd may be in users of this alloca. We're not going to
       // visit it.
       if (UserCmd->getType() != Command::CommandType::ALLOCA)
-        ToVisit.push(UserCmd);
+        MCmdsToVisit.push(UserCmd);
       else
-        markNodeAsVisited(UserCmd, Visited);
+        markNodeAsVisited(UserCmd, MVisitedCmds);
 
     AllocaCmd->MMarks.MToBeDeleted = true;
     // These commands will be deleted later, clear users now to avoid
@@ -870,16 +871,16 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
   }
 
   // Traverse the graph using BFS
-  while (!ToVisit.empty()) {
-    Command *Cmd = ToVisit.front();
-    ToVisit.pop();
+  while (!MCmdsToVisit.empty()) {
+    Command *Cmd = MCmdsToVisit.front();
+    MCmdsToVisit.pop();
 
-    if (!markNodeAsVisited(Cmd, Visited))
+    if (!markNodeAsVisited(Cmd, MVisitedCmds))
       continue;
 
     for (Command *UserCmd : Cmd->MUsers)
       if (UserCmd->getType() != Command::CommandType::ALLOCA)
-        ToVisit.push(UserCmd);
+        MCmdsToVisit.push(UserCmd);
 
     // Delete all dependencies on any allocations being removed
     // Track which commands should have their users updated
@@ -911,24 +912,25 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
     }
   }
 
-  handleVisitedNodes(Visited);
+  handleVisitedNodes(MVisitedCmds);
 }
 
 void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
-  std::queue<Command *> CmdsToVisit({FinishedCmd});
-  std::vector<Command *> Visited;
+  assert(MCmdsToVisit.empty());
+  MCmdsToVisit.push(FinishedCmd);
+  MVisitedCmds.clear();
 
   // Traverse the graph using BFS
-  while (!CmdsToVisit.empty()) {
-    Command *Cmd = CmdsToVisit.front();
-    CmdsToVisit.pop();
+  while (!MCmdsToVisit.empty()) {
+    Command *Cmd = MCmdsToVisit.front();
+    MCmdsToVisit.pop();
 
-    if (!markNodeAsVisited(Cmd, Visited))
+    if (!markNodeAsVisited(Cmd, MVisitedCmds))
       continue;
 
     for (const DepDesc &Dep : Cmd->MDeps) {
       if (Dep.MDepCommand)
-        CmdsToVisit.push(Dep.MDepCommand);
+        MCmdsToVisit.push(Dep.MDepCommand);
     }
 
     // Do not clean up the node if it is a leaf for any memory object
@@ -956,7 +958,7 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
 
     Cmd->MMarks.MToBeDeleted = true;
   }
-  handleVisitedNodes(Visited);
+  handleVisitedNodes(MVisitedCmds);
 }
 
 void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {

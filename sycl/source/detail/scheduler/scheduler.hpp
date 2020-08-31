@@ -15,6 +15,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <queue>
 #include <set>
 #include <shared_mutex>
 #include <unordered_set>
@@ -590,6 +591,10 @@ protected:
 
     void markModifiedIfWrite(MemObjRecord *Record, Requirement *Req);
 
+    /// Used to track commands that need to be visited during graph traversal.
+    std::queue<Command *> MCmdsToVisit;
+    /// Used to track commands that have been visited during graph traversal.
+    std::vector<Command *> MVisitedCmds;
     /// Prints contents of graph to text file in DOT format
     ///
     /// \param ModeName is a stringified printing mode name to be used
