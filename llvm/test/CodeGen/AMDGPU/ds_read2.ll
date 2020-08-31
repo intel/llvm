@@ -15,7 +15,7 @@
 ; GCN: s_waitcnt lgkmcnt(0)
 ; GCN: v_add_f32_e32 [[RESULT:v[0-9]+]], v[[LO_VREG]], v[[HI_VREG]]
 ; CI: buffer_store_dword [[RESULT]]
-; GFX9: global_store_dword v{{\[[0-9]+:[0-9]+\]}}, [[RESULT]]
+; GFX9: global_store_dword v{{[0-9]+}}, [[RESULT]], s{{\[[0-9]+:[0-9]+\]}}
 ; GCN: s_endpgm
 define amdgpu_kernel void @simple_read2_f32(float addrspace(1)* %out) #0 {
   %x.i = tail call i32 @llvm.amdgcn.workitem.id.x() #1
@@ -39,7 +39,7 @@ define amdgpu_kernel void @simple_read2_f32(float addrspace(1)* %out) #0 {
 ; GCN: v_add_f32_e32 [[RESULT:v[0-9]+]], v[[LO_VREG]], v[[HI_VREG]]
 
 ; CI: buffer_store_dword [[RESULT]]
-; GFX9: global_store_dword v{{\[[0-9]+:[0-9]+\]}}, [[RESULT]]
+; GFX9: global_store_dword v{{[0-9]+}}, [[RESULT]], s{{\[[0-9]+:[0-9]+\]}}
 define amdgpu_kernel void @simple_read2_f32_max_offset(float addrspace(1)* %out) #0 {
   %x.i = tail call i32 @llvm.amdgcn.workitem.id.x() #1
   %arrayidx0 = getelementptr inbounds [512 x float], [512 x float] addrspace(3)* @lds, i32 0, i32 %x.i
@@ -361,7 +361,7 @@ define amdgpu_kernel void @misaligned_2_simple_read2_f32(float addrspace(1)* %ou
 ; GCN: v_add_f64 [[RESULT:v\[[0-9]+:[0-9]+\]]], v{{\[}}[[LO_VREG]]:{{[0-9]+\]}}, v{{\[[0-9]+}}:[[HI_VREG]]{{\]}}
 
 ; CI: buffer_store_dwordx2 [[RESULT]]
-; GFX9: global_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, [[RESULT]]
+; GFX9: global_store_dwordx2 v{{[0-9]+}}, [[RESULT]], s{{\[[0-9]+:[0-9]+\]}}
 define amdgpu_kernel void @simple_read2_f64(double addrspace(1)* %out) #0 {
   %x.i = tail call i32 @llvm.amdgcn.workitem.id.x() #1
   %arrayidx0 = getelementptr inbounds [512 x double], [512 x double] addrspace(3)* @lds.f64, i32 0, i32 %x.i
@@ -473,8 +473,9 @@ define amdgpu_kernel void @load_constant_disjoint_offsets(i32 addrspace(1)* %out
 ; GFX9-NOT: m0
 
 ; GCN-DAG: v_mov_b32_e32 [[PTR:v[0-9]+]], bar@abs32@lo{{$}}
-; GCN: ds_read2_b32 v{{\[[0-9]+:[0-9]+\]}}, [[PTR]] offset0:2 offset1:3
-; GCN: ds_read2_b32 v{{\[[0-9]+:[0-9]+\]}}, [[PTR]] offset1:1
+; CI: ds_read2_b32 v{{\[[0-9]+:[0-9]+\]}}, [[PTR]] offset1:1
+; CI: ds_read2_b32 v{{\[[0-9]+:[0-9]+\]}}, [[PTR]] offset0:2 offset1:3
+; GFX9: ds_read_b128 v{{\[[0-9]+:[0-9]+\]}}, [[PTR]]
 define amdgpu_kernel void @load_misaligned64_constant_offsets(i64 addrspace(1)* %out) {
   %val0 = load i64, i64 addrspace(3)* getelementptr inbounds ([4 x i64], [4 x i64] addrspace(3)* @bar, i32 0, i32 0), align 4
   %val1 = load i64, i64 addrspace(3)* getelementptr inbounds ([4 x i64], [4 x i64] addrspace(3)* @bar, i32 0, i32 1), align 4

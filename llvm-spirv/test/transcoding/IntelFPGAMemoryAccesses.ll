@@ -22,6 +22,8 @@
 ;   y = __builtin_intel_fpga_mem(&C->Field2, 0, 127);
 ;   z = __builtin_intel_fpga_mem(C, BURST_COAL | CACHE_SIZE_FLAG | DONT_STATICALLY_COAL | PREFETCH, 127);
 ;   t = __builtin_intel_fpga_mem((double *) A, BURST_COAL | CACHE_SIZE_FLAG, 0);
+;   *__builtin_intel_fpga_mem(A, BURST_COAL | CACHE_SIZE_FLAG, 0) = 5;
+;   int s = *__builtin_intel_fpga_mem(B, DONT_STATICALLY_COAL | PREFETCH, 0);
 ; }
 ;
 ; template <typename name, typename Func>
@@ -81,6 +83,8 @@ target triple = "spir64-unknown-unknown-sycldevice"
 @.str.6 = private unnamed_addr constant [28 x i8] c"{params:15}{cache-size:127}\00", section "llvm.metadata"
 ; TODO: Investigate why the same global annotation string shows up twice in backwards translation.
 ; CHECK-LLVM: [[PARAM_3_CACHE_0_DOUBLE:@[a-z0-9_.]+]] = {{.*}}{params:3}{cache-size:0}
+; CHECK-LLVM: [[PARAM_3_CACHE_0_DOUBLE2:@[a-z0-9_.]+]] = {{.*}}{params:3}{cache-size:0}
+; CHECK-LLVM: [[PARAM_12_CACHE_0_DOUBLE:@[a-z0-9_.]+]] = {{.*}}{params:12}
 
 ; Function Attrs: norecurse nounwind
 define spir_kernel void @_ZTSZ4mainE11fake_kernel() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
@@ -142,10 +146,12 @@ entry:
 ; CHECK-LLVM: %[[INT_VAR:[[:alnum:].]+]] = alloca i32 addrspace(4)*, align 8
 ; CHECK-LLVM: %[[STRUCT_VAR:[[:alnum:].]+]] = alloca %struct{{.*}}State addrspace(4)*, align 8
 ; CHECK-LLVM: %[[DOUBLE_VAR:[[:alnum:].]+]] = alloca double addrspace(4)*, align 8
+; CHECK-LLVM: %[[INT_VAR_1:[[:alnum:].]+]] = alloca i32, align 4
   %x = alloca float addrspace(4)*, align 8
   %y = alloca i32 addrspace(4)*, align 8
   %z = alloca %struct._ZTS5State.State addrspace(4)*, align 8
   %t = alloca double addrspace(4)*, align 8
+  %s = alloca i32, align 4
   store float addrspace(4)* %A, float addrspace(4)** %A.addr, align 8, !tbaa !5
   store i32 addrspace(4)* %B, i32 addrspace(4)** %B.addr, align 8, !tbaa !5
   store %struct._ZTS5State.State addrspace(4)* %C, %struct._ZTS5State.State addrspace(4)** %C.addr, align 8, !tbaa !5
@@ -206,14 +212,32 @@ entry:
   %17 = bitcast float addrspace(4)* %16 to double addrspace(4)*
   %18 = call double addrspace(4)* @llvm.ptr.annotation.p4f64(double addrspace(4)* %17, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str.1, i32 0, i32 0), i32 0) #6
   store double addrspace(4)* %18, double addrspace(4)** %t, align 8, !tbaa !5
-  %19 = bitcast double addrspace(4)** %t to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %19) #5
-  %20 = bitcast %struct._ZTS5State.State addrspace(4)** %z to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %20) #5
-  %21 = bitcast i32 addrspace(4)** %y to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %21) #5
-  %22 = bitcast float addrspace(4)** %x to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %22) #5
+; CHECK-LLVM: %[[FLOAT_FUNC_PARAM_LOAD:[[:alnum:].]+]] = load float addrspace(4)*, float addrspace(4)** %[[FLOAT_FUNC_PARAM]]
+; CHECK-LLVM: %[[INTRINSIC_CALL:[[:alnum:].]+]] = call float addrspace(4)* @llvm.ptr.annotation.p4f32(float addrspace(4)* %[[FLOAT_FUNC_PARAM_LOAD]], i8* getelementptr inbounds ({{.*}} [[PARAM_3_CACHE_0_DOUBLE2]]
+; CHECK-LLVM: store float 5.000000e+00, float addrspace(4)* %[[INTRINSIC_CALL]]
+  %19 = load float addrspace(4)*, float addrspace(4)** %A.addr, align 8, !tbaa !5
+  %20 = call float addrspace(4)* @llvm.ptr.annotation.p4f32(float addrspace(4)* %19, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str.1, i32 0, i32 0), i32 0) #6
+  store float 5.000000e+00, float addrspace(4)* %20, align 4, !tbaa !5
+  %21 = bitcast i32* %s to i8*
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %21) #5
+; CHECK-LLVM: %[[INT1_FUNC_PARAM_LOAD:[[:alnum:].]+]] = load i32 addrspace(4)*, i32 addrspace(4)** %[[INT_FUNC_PARAM]]
+; CHECK-LLVM: %[[INTRINSIC_CALL:[[:alnum:].]+]] = call i32 addrspace(4)* @llvm.ptr.annotation.p4i32(i32 addrspace(4)* %[[INT1_FUNC_PARAM_LOAD]], i8* getelementptr inbounds ({{.*}} [[PARAM_12_CACHE_0_DOUBLE]]
+; CHECK-LLVM: %[[INTRINSIC_RESULT_LOAD:[[:alnum:].]+]] = load i32, i32 addrspace(4)* %[[INTRINSIC_CALL]]
+; CHECK-LLVM: store i32 %[[INTRINSIC_RESULT_LOAD]], i32* %[[INT_VAR_1]]
+  %22 = load i32 addrspace(4)*, i32 addrspace(4)** %B.addr, align 8, !tbaa !5
+  %23 = call i32 addrspace(4)* @llvm.ptr.annotation.p4i32(i32 addrspace(4)* %22, i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str.2, i32 0, i32 0), i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str.1, i32 0, i32 0), i32 0) #6
+  %24 = load i32, i32 addrspace(4)* %23, align 4, !tbaa !5
+  store i32 %24, i32* %s, align 4, !tbaa !5
+  %25 = bitcast i32* %s to i8*
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %25) #5
+  %26 = bitcast double addrspace(4)** %t to i8*
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %26) #5
+  %27 = bitcast %struct._ZTS5State.State addrspace(4)** %z to i8*
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %27) #5
+  %28 = bitcast i32 addrspace(4)** %y to i8*
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %28) #5
+  %29 = bitcast float addrspace(4)** %x to i8*
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %29) #5
   ret void
 }
 

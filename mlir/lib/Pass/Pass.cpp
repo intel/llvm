@@ -290,6 +290,13 @@ OpPassManager::pass_iterator OpPassManager::begin() {
 }
 OpPassManager::pass_iterator OpPassManager::end() { return impl->passes.end(); }
 
+OpPassManager::const_pass_iterator OpPassManager::begin() const {
+  return impl->passes.begin();
+}
+OpPassManager::const_pass_iterator OpPassManager::end() const {
+  return impl->passes.end();
+}
+
 /// Run all of the passes in this manager over the current operation.
 LogicalResult OpPassManager::run(Operation *op, AnalysisManager am) {
   // Run each of the held passes.
@@ -346,6 +353,16 @@ void OpPassManager::printAsTextualPipeline(raw_ostream &os) {
   ::printAsTextualPipeline(impl->passes, os);
 }
 
+static void registerDialectsForPipeline(const OpPassManager &pm,
+                                        DialectRegistry &dialects) {
+  for (const Pass &pass : pm.getPasses())
+    pass.getDependentDialects(dialects);
+}
+
+void OpPassManager::getDependentDialects(DialectRegistry &dialects) const {
+  registerDialectsForPipeline(*this, dialects);
+}
+
 //===----------------------------------------------------------------------===//
 // OpToOpPassAdaptor
 //===----------------------------------------------------------------------===//
@@ -376,6 +393,11 @@ static OpPassManager *findPassManagerFor(MutableArrayRef<OpPassManager> mgrs,
 
 OpToOpPassAdaptor::OpToOpPassAdaptor(OpPassManager &&mgr) {
   mgrs.emplace_back(std::move(mgr));
+}
+
+void OpToOpPassAdaptor::getDependentDialects(DialectRegistry &dialects) const {
+  for (auto &pm : mgrs)
+    pm.getDependentDialects(dialects);
 }
 
 /// Merge the current pass adaptor into given 'rhs'.
@@ -721,14 +743,25 @@ LogicalResult PassManager::run(ModuleOp module) {
   // pipeline.
   getImpl().coalesceAdjacentAdaptorPasses();
 
+  // Register all dialects for the current pipeline.
+  DialectRegistry dependentDialects;
+  getDependentDialects(dependentDialects);
+  dependentDialects.loadAll(module.getContext());
+
   // Construct an analysis manager for the pipeline.
   ModuleAnalysisManager am(module, instrumentor.get());
+
+  // Notify the context that we start running a pipeline for book keeping.
+  module.getContext()->enterMultiThreadedExecution();
 
   // If reproducer generation is enabled, run the pass manager with crash
   // handling enabled.
   LogicalResult result = crashReproducerFileName
                              ? runWithCrashRecovery(module, am)
                              : OpPassManager::run(module, am);
+
+  // Notify the context that the run is done.
+  module.getContext()->exitMultiThreadedExecution();
 
   // Dump all of the pass statistics if necessary.
   if (passStatisticsMode)

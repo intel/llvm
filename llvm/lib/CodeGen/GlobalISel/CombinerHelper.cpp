@@ -16,6 +16,7 @@
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetLowering.h"
@@ -610,6 +611,67 @@ bool CombinerHelper::applySextTruncSextLoad(MachineInstr &MI) {
   assert(MI.getOpcode() == TargetOpcode::G_SEXT_INREG);
   Builder.setInstrAndDebugLoc(MI);
   Builder.buildCopy(MI.getOperand(0).getReg(), MI.getOperand(1).getReg());
+  MI.eraseFromParent();
+  return true;
+}
+
+bool CombinerHelper::matchSextInRegOfLoad(
+    MachineInstr &MI, std::tuple<Register, unsigned> &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_SEXT_INREG);
+
+  // Only supports scalars for now.
+  if (MRI.getType(MI.getOperand(0).getReg()).isVector())
+    return false;
+
+  Register SrcReg = MI.getOperand(1).getReg();
+  MachineInstr *LoadDef = getOpcodeDef(TargetOpcode::G_LOAD, SrcReg, MRI);
+  if (!LoadDef || !MRI.hasOneNonDBGUse(LoadDef->getOperand(0).getReg()))
+    return false;
+
+  // If the sign extend extends from a narrower width than the load's width,
+  // then we can narrow the load width when we combine to a G_SEXTLOAD.
+  auto &MMO = **LoadDef->memoperands_begin();
+  // Don't do this for non-simple loads.
+  if (MMO.isAtomic() || MMO.isVolatile())
+    return false;
+
+  // Avoid widening the load at all.
+  unsigned NewSizeBits =
+      std::min((uint64_t)MI.getOperand(2).getImm(), MMO.getSizeInBits());
+
+  // Don't generate G_SEXTLOADs with a < 1 byte width.
+  if (NewSizeBits < 8)
+    return false;
+  // Don't bother creating a non-power-2 sextload, it will likely be broken up
+  // anyway for most targets.
+  if (!isPowerOf2_32(NewSizeBits))
+    return false;
+  MatchInfo = std::make_tuple(LoadDef->getOperand(0).getReg(), NewSizeBits);
+  return true;
+}
+
+bool CombinerHelper::applySextInRegOfLoad(
+    MachineInstr &MI, std::tuple<Register, unsigned> &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_SEXT_INREG);
+  Register LoadReg;
+  unsigned ScalarSizeBits;
+  std::tie(LoadReg, ScalarSizeBits) = MatchInfo;
+  auto *LoadDef = MRI.getVRegDef(LoadReg);
+  assert(LoadDef && "Expected a load reg");
+
+  // If we have the following:
+  // %ld = G_LOAD %ptr, (load 2)
+  // %ext = G_SEXT_INREG %ld, 8
+  //    ==>
+  // %ld = G_SEXTLOAD %ptr (load 1)
+
+  auto &MMO = **LoadDef->memoperands_begin();
+  Builder.setInstrAndDebugLoc(MI);
+  auto &MF = Builder.getMF();
+  auto PtrInfo = MMO.getPointerInfo();
+  auto *NewMMO = MF.getMachineMemOperand(&MMO, PtrInfo, ScalarSizeBits / 8);
+  Builder.buildLoadInstr(TargetOpcode::G_SEXTLOAD, MI.getOperand(0).getReg(),
+                         LoadDef->getOperand(1).getReg(), *NewMMO);
   MI.eraseFromParent();
   return true;
 }
@@ -1704,6 +1766,16 @@ bool CombinerHelper::replaceSingleDefInstWithOperand(MachineInstr &MI,
   return true;
 }
 
+bool CombinerHelper::replaceSingleDefInstWithReg(MachineInstr &MI,
+                                                 Register Replacement) {
+  assert(MI.getNumExplicitDefs() == 1 && "Expected one explicit def?");
+  Register OldReg = MI.getOperand(0).getReg();
+  assert(canReplaceReg(OldReg, Replacement, MRI) && "Cannot replace register?");
+  MI.eraseFromParent();
+  replaceRegWith(MRI, OldReg, Replacement);
+  return true;
+}
+
 bool CombinerHelper::matchSelectSameVal(MachineInstr &MI) {
   assert(MI.getOpcode() == TargetOpcode::G_SELECT);
   // Match (cond ? x : x)
@@ -1885,6 +1957,82 @@ bool CombinerHelper::applyBuildInstructionSteps(
   }
   MI.eraseFromParent();
   return true;
+}
+
+bool CombinerHelper::matchAshrShlToSextInreg(
+    MachineInstr &MI, std::tuple<Register, int64_t> &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_ASHR);
+  int64_t ShlCst, AshrCst;
+  Register Src;
+  // FIXME: detect splat constant vectors.
+  if (!mi_match(MI.getOperand(0).getReg(), MRI,
+                m_GAShr(m_GShl(m_Reg(Src), m_ICst(ShlCst)), m_ICst(AshrCst))))
+    return false;
+  if (ShlCst != AshrCst)
+    return false;
+  if (!isLegalOrBeforeLegalizer(
+          {TargetOpcode::G_SEXT_INREG, {MRI.getType(Src)}}))
+    return false;
+  MatchInfo = std::make_tuple(Src, ShlCst);
+  return true;
+}
+bool CombinerHelper::applyAshShlToSextInreg(
+    MachineInstr &MI, std::tuple<Register, int64_t> &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_ASHR);
+  Register Src;
+  int64_t ShiftAmt;
+  std::tie(Src, ShiftAmt) = MatchInfo;
+  unsigned Size = MRI.getType(Src).getScalarSizeInBits();
+  Builder.setInstrAndDebugLoc(MI);
+  Builder.buildSExtInReg(MI.getOperand(0).getReg(), Src, Size - ShiftAmt);
+  MI.eraseFromParent();
+  return true;
+}
+
+bool CombinerHelper::matchAndWithTrivialMask(MachineInstr &MI,
+                                             Register &Replacement) {
+  // Given
+  //
+  // %mask:_(sN) = G_CONSTANT iN 000...0111...1
+  // %x:_(sN) = G_SOMETHING
+  // %y:_(sN) = G_AND %x, %mask
+  //
+  // Eliminate the G_AND when it is known that x & mask == x.
+  //
+  // Patterns like this can appear as a result of legalization. E.g.
+  //
+  // %cmp:_(s32) = G_ICMP intpred(pred), %x(s32), %y
+  // %one:_(s32) = G_CONSTANT i32 1
+  // %and:_(s32) = G_AND %cmp, %one
+  //
+  // In this case, G_ICMP only produces a single bit, so x & 1 == x.
+  assert(MI.getOpcode() == TargetOpcode::G_AND);
+  if (!KB)
+    return false;
+
+  // Replacement = %x, AndDst = %y. Check that we can replace AndDst with the
+  // LHS of the G_AND.
+  Replacement = MI.getOperand(1).getReg();
+  Register AndDst = MI.getOperand(0).getReg();
+  LLT DstTy = MRI.getType(AndDst);
+
+  // FIXME: This should be removed once GISelKnownBits supports vectors.
+  if (DstTy.isVector())
+    return false;
+  if (!canReplaceReg(AndDst, Replacement, MRI))
+    return false;
+
+  // Check that we have a constant on the RHS of the G_AND, which is of the form
+  // 000...0111...1.
+  int64_t Cst;
+  if (!mi_match(MI.getOperand(2).getReg(), MRI, m_ICst(Cst)))
+    return false;
+  APInt Mask(DstTy.getSizeInBits(), Cst);
+  if (!Mask.isMask())
+    return false;
+
+  // Now, let's check that x & Mask == x. If this is true, then x & ~Mask == 0.
+  return KB->maskedValueIsZero(Replacement, ~Mask);
 }
 
 bool CombinerHelper::tryCombine(MachineInstr &MI) {
