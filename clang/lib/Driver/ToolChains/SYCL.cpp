@@ -204,6 +204,13 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                            SpirvInputs);
 }
 
+static const char *makeExeName(Compilation &C, StringRef Name) {
+  llvm::SmallString<8> ExeName(Name);
+  if (C.getDriver().IsCLMode())
+    ExeName.append(".exe");
+  return C.getArgs().MakeArgString(ExeName);
+}
+
 void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
                                          const JobAction &JA,
                                          const InputInfo &Output,
@@ -312,7 +319,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
     CmdArgs.push_back(Args.MakeArgString(A->getAsString(Args)));
   }
 
-  SmallString<128> ExecPath(getToolChain().GetProgramPath("aoc"));
+  SmallString<128> ExecPath(
+      getToolChain().GetProgramPath(makeExeName(C, "aoc")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(), Exec, CmdArgs, None);
@@ -349,7 +357,8 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
   TC.TranslateBackendTargetArgs(Args, CmdArgs);
   TC.TranslateLinkerTargetArgs(Args, CmdArgs);
-  SmallString<128> ExecPath(getToolChain().GetProgramPath("ocloc"));
+  SmallString<128> ExecPath(
+      getToolChain().GetProgramPath(makeExeName(C, "ocloc")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(), Exec, CmdArgs, None);
@@ -382,7 +391,8 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(Compilation &C,
 
   TC.TranslateBackendTargetArgs(Args, CmdArgs);
   TC.TranslateLinkerTargetArgs(Args, CmdArgs);
-  SmallString<128> ExecPath(getToolChain().GetProgramPath("opencl-aot"));
+  SmallString<128> ExecPath(
+      getToolChain().GetProgramPath(makeExeName(C, "opencl-aot")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(), Exec, CmdArgs, None);
