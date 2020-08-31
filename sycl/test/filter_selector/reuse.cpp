@@ -23,13 +23,13 @@ int main() {
 
   if (Devs.size() > 1) {
     filter_selector filter("1");
-    
+
     device d1(filter);
     filter.reset();
     device d2(filter);
 
-    assert (d1 == d2);
+    assert(d1 == d2);
   }
-  
+
   return 0;
 }
