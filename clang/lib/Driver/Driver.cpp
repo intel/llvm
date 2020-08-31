@@ -2713,7 +2713,6 @@ static SmallVector<const char *, 16> getLinkerArgs(Compilation &C,
   return LibArgs;
 }
 
-
 static bool IsSYCLDeviceLibObj(std::string ObjFilePath) {
   StringRef ObjFileName = llvm::sys::path::filename(ObjFilePath);
   bool Ret = (ObjFileName.startswith("libsycl-") && ObjFileName.endswith(".o"))
