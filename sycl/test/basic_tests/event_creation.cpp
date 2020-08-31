@@ -14,7 +14,7 @@
 //===----------------------------------------------------------------------===//
 #include <CL/sycl.hpp>
 #include <iostream>
-  
+
 int main() {
   try {
     std::cout << "Create default event" << std::endl;
