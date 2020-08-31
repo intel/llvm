@@ -2713,6 +2713,15 @@ static SmallVector<const char *, 16> getLinkerArgs(Compilation &C,
   return LibArgs;
 }
 
+
+static bool IsSYCLDeviceLibObj(std::string ObjFilePath) {
+  StringRef ObjFileName = llvm::sys::path::filename(ObjFilePath);
+  bool Ret = (ObjFileName.startswith("libsycl-") && ObjFileName.endswith(".o"))
+                 ? true
+                 : false;
+  return Ret;
+}
+
 // Goes through all of the arguments, including inputs expected for the
 // linker directly, to determine if we need to perform additional work for
 // static offload libraries.
@@ -3787,7 +3796,10 @@ class OffloadingActionBuilder final {
           if (IA->getType() == types::TY_Object) {
             if (!isObjectFile(FileName))
               return ABRT_Inactive;
-            if (Args.hasArg(options::OPT_fintelfpga))
+            // For SYCL device libraries, don't need to add them to
+            // FPGAObjectInputs as there is no fpga dep files inside.
+            if (Args.hasArg(options::OPT_fintelfpga) &&
+                !IsSYCLDeviceLibObj(FileName))
               FPGAObjectInputs.push_back(IA);
           }
           // When creating FPGA device fat objects, all host objects are
@@ -3990,8 +4002,7 @@ class OffloadingActionBuilder final {
         }
 
         // For SYCL compilation, add SYCL device libraries as default.
-        if (!isNVPTX && !Args.hasArg(options::OPT_fintelfpga) &&
-            !Args.hasArg(options::OPT_fno_sycl_devicelib)) {
+        if (!isNVPTX && !Args.hasArg(options::OPT_fno_sycl_devicelib)) {
           addSYCLDeviceLibs(
               *TC, LinkObjects, isSpirvAOT,
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
@@ -4075,8 +4086,7 @@ class OffloadingActionBuilder final {
                                         : types::TY_Tempfiletable;
         SYCLPostLinkJobAction *PostLinkDCRAction = nullptr;
         SYCLPostLinkJobAction *PostLinkAction = nullptr;
-        if (isNVPTX || Args.hasArg(options::OPT_fintelfpga) ||
-            Args.hasArg(options::OPT_fno_sycl_devicelib)) {
+        if (isNVPTX || Args.hasArg(options::OPT_fno_sycl_devicelib)) {
           PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(DeviceLinkAction,
                                                                PostLinkOutType);
         } else {
