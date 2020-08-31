@@ -1334,6 +1334,7 @@ public:
 };
 
 // A type to Create and own the FunctionDecl for the kernel.
+template <bool ArgCountOnly>
 class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   FunctionDecl *KernelDecl;
   llvm::SmallVector<ParmVarDecl *, 8> Params;
@@ -1343,6 +1344,11 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   size_t LastParamIndex = 0;
   // Keeps track of whether we are currently handling fields inside a struct.
   int StructDepth = 0;
+
+  // Keeps track of number of kernel arguments, used only if this is an arg
+  // counter.
+  unsigned NumOfParams = 0;
+  SourceLocation KernelLoc;
 
   void addParam(const FieldDecl *FD, QualType FieldTy) {
     const ConstantArrayType *CAT =
@@ -1488,18 +1494,6 @@ public:
                    std::back_inserter(ArgTys),
                    [](const ParmVarDecl *PVD) { return PVD->getType(); });
 
-    // TODO: enable template instantiation tree for this diagnostic
-    if (SemaRef.Context.getTargetInfo().getTriple().getSubArch() ==
-        llvm::Triple::SPIRSubArch_gen) {
-      if (Params.size() > GPUMaxKernelArgsNum) {
-        SemaRef.Diag(KernelDecl->getLocation(),
-                     diag::warn_sycl_kernel_too_many_args)
-            << static_cast<unsigned>(Params.size()) << GPUMaxKernelArgsNum;
-        SemaRef.Diag(KernelDecl->getLocation(),
-                     diag::note_sycl_kernel_args_count);
-      }
-    }
-
     QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, ArgTys, Info);
     KernelDecl->setType(FuncType);
     KernelDecl->setParams(Params);
@@ -1631,8 +1625,69 @@ public:
   using SyclKernelFieldHandler::leaveStruct;
 };
 
+template<>
+void SyclKernelDeclCreator<true>::addParam(const FieldDecl *FD,
+                                           QualType FieldTy) {
+  NumOfParams++;
+}
+
+template <>
+bool SyclKernelDeclCreator<true>::handleSpecialType(
+    FieldDecl *FD, QualType FieldTy, bool isAccessorType) {
+  const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
+  assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
+  CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
+  assert(InitMethod && "The accessor/sampler must have the __init method");
+  for (const ParmVarDecl *Param : InitMethod->parameters()) {
+    QualType ParamTy = Param->getType();
+    addParam(FD, ParamTy.getCanonicalType());
+  }
+  return true;
+}
+
+template<>
+bool SyclKernelDeclCreator<true>::handleSyclAccessorType(
+    const CXXBaseSpecifier &BS, QualType FieldTy) {
+  const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
+  assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
+  CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
+  assert(InitMethod && "The accessor/sampler must have the __init method");
+  for (const ParmVarDecl *Param : InitMethod->parameters()) {
+    QualType ParamTy = Param->getType();
+    addParam(BS, ParamTy.getCanonicalType());
+  }
+  return true;
+}
+
+template<>
+bool SyclKernelDeclCreator<true>::handlePointerType(FieldDecl *FD,
+                                                    QualType FieldTy) {
+  addParam(FD, FieldTy);
+  return true;
+}
+
+// template <>
+// SyclKernelDeclCreator<true>::SyclKernelDeclCreator(Sema &S, StringRef Name,
+//                                                    SourceLocation Loc,
+//                                                    bool IsInline,
+//                                                    bool IsSIMDKernel)
+//     : SyclKernelFieldHandler(S), KernelLoc(Loc) {}
+
+template <> SyclKernelDeclCreator<true>::~SyclKernelDeclCreator() {
+  if (SemaRef.Context.getTargetInfo().getTriple().getSubArch() ==
+      llvm::Triple::SPIRSubArch_gen) {
+    if (NumOfParams > GPUMaxKernelArgsNum) {
+      SemaRef.Diag(KernelDecl->getLocation(),
+                   diag::warn_sycl_kernel_too_many_args)
+          << NumOfParams << GPUMaxKernelArgsNum;
+      SemaRef.Diag(KernelDecl->getLocation(),
+                   diag::note_sycl_kernel_args_count);
+    }
+  }
+}
+
 class SyclKernelBodyCreator : public SyclKernelFieldHandler {
-  SyclKernelDeclCreator &DeclCreator;
+  SyclKernelDeclCreator<false> &DeclCreator;
   llvm::SmallVector<Stmt *, 16> BodyStmts;
   llvm::SmallVector<Stmt *, 16> FinalizeStmts;
   llvm::SmallVector<Expr *, 16> InitExprs;
@@ -1867,7 +1922,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   }
 
 public:
-  SyclKernelBodyCreator(Sema &S, SyclKernelDeclCreator &DC,
+  SyclKernelBodyCreator(Sema &S, SyclKernelDeclCreator<false> &DC,
                         const CXXRecordDecl *KernelObj,
                         FunctionDecl *KernelCallerFunc)
       : SyclKernelFieldHandler(S), DeclCreator(DC),
@@ -2262,6 +2317,9 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
 
   SyclKernelFieldChecker FieldChecker(*this);
   SyclKernelUnionChecker UnionChecker(*this);
+  SyclKernelDeclCreator<true> DeclCreator(
+      *this, StringRef(), KernelObj->getLocation(),
+      KernelFunc->isInlined(), KernelFunc->hasAttr<SYCLSimdAttr>());
   // check that calling kernel conforms to spec
   QualType KernelParamTy = KernelFunc->getParamDecl(0)->getType();
   if (KernelParamTy->isReferenceType()) {
@@ -2276,8 +2334,8 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
 
   KernelObjVisitor Visitor{*this};
   DiagnosingSYCLKernel = true;
-  Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker);
-  Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker);
+  Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker, DeclCreator);
+  Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker, DeclCreator);
   DiagnosingSYCLKernel = false;
   if (!FieldChecker.isValid() || !UnionChecker.isValid())
     KernelFunc->setInvalidDecl();
@@ -2317,7 +2375,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       constructKernelName(*this, KernelCallerFunc, MC);
   StringRef KernelName(getLangOpts().SYCLUnnamedLambda ? StableName
                                                        : CalculatedName);
-  SyclKernelDeclCreator kernel_decl(*this, KernelName, KernelObj->getLocation(),
+  SyclKernelDeclCreator<false> kernel_decl(*this, KernelName, KernelObj->getLocation(),
                                     KernelCallerFunc->isInlined(),
                                     KernelCallerFunc->hasAttr<SYCLSimdAttr>());
   SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelObj,
