@@ -43,8 +43,7 @@ int main() {
         HasLevelZero = true;
       } else if (Backend == backend::opencl) {
         HasOpenCL = true;
-      }
-      else if (Backend == backend::cuda) {
+      } else if (Backend == backend::cuda) {
         HasCUDA = true;
       }
     }
