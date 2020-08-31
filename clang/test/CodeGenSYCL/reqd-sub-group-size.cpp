@@ -33,7 +33,7 @@ void bar() {
   kernel<class kernel_name2>(f);
 
   kernel<class kernel_name3>(
-  []() [[intel::reqd_sub_group_size(4)]] {});
+      []() [[intel::reqd_sub_group_size(4)]]{});
 
   Functor5<2> f5;
   kernel<class kernel_name4>(f5);
