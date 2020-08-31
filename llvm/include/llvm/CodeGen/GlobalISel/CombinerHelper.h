@@ -135,6 +135,10 @@ public:
   bool matchSextTruncSextLoad(MachineInstr &MI);
   bool applySextTruncSextLoad(MachineInstr &MI);
 
+  /// Match sext_inreg(load p), imm -> sextload p
+  bool matchSextInRegOfLoad(MachineInstr &MI, std::tuple<Register, unsigned> &MatchInfo);
+  bool applySextInRegOfLoad(MachineInstr &MI, std::tuple<Register, unsigned> &MatchInfo);
+
   bool matchElideBrByInvertingCond(MachineInstr &MI);
   void applyElideBrByInvertingCond(MachineInstr &MI);
   bool tryElideBrByInvertingCond(MachineInstr &MI);
@@ -259,6 +263,9 @@ public:
   /// Delete \p MI and replace all of its uses with its \p OpIdx-th operand.
   bool replaceSingleDefInstWithOperand(MachineInstr &MI, unsigned OpIdx);
 
+  /// Delete \p MI and replace all of its uses with \p Replacement.
+  bool replaceSingleDefInstWithReg(MachineInstr &MI, Register Replacement);
+
   /// Return true if \p MOP1 and \p MOP2 are register operands are defined by
   /// equivalent instructions.
   bool matchEqualDefs(const MachineOperand &MOP1, const MachineOperand &MOP2);
@@ -293,6 +300,19 @@ public:
   /// Replace \p MI with a series of instructions described in \p MatchInfo.
   bool applyBuildInstructionSteps(MachineInstr &MI,
                                   InstructionStepsMatchInfo &MatchInfo);
+
+  /// Match ashr (shl x, C), C -> sext_inreg (C)
+  bool matchAshrShlToSextInreg(MachineInstr &MI,
+                               std::tuple<Register, int64_t> &MatchInfo);
+  bool applyAshShlToSextInreg(MachineInstr &MI,
+                              std::tuple<Register, int64_t> &MatchInfo);
+  /// \return true if \p MI is a G_AND instruction whose RHS is a mask where
+  /// LHS & mask == LHS. (E.g., an all-ones value.)
+  ///
+  /// \param [in] MI - The G_AND instruction.
+  /// \param [out] Replacement - A register the G_AND should be replaced with on
+  /// success.
+  bool matchAndWithTrivialMask(MachineInstr &MI, Register &Replacement);
 
   /// Try to transform \p MI by using all of the above
   /// combine functions. Returns true if changed.

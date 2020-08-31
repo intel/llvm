@@ -27,6 +27,11 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context)
   // Let the runtime caller handle native kernel retaining in other cases if
   // it's needed.
   getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
+  // Enable USM indirect access for interoperability kernels.
+  // Some PI Plugins (like OpenCL) require this call to enable USM
+  // For others, PI will turn this into a NOP.
+  getPlugin().call<PiApiKind::piKernelSetExecInfo>(
+      MKernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
 }
 
 kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,

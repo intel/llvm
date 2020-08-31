@@ -3647,10 +3647,14 @@ bool InstCombinerImpl::run() {
         BasicBlock *InstParent = I->getParent();
         BasicBlock::iterator InsertPos = I->getIterator();
 
-        // If we replace a PHI with something that isn't a PHI, fix up the
-        // insertion point.
-        if (!isa<PHINode>(Result) && isa<PHINode>(InsertPos))
-          InsertPos = InstParent->getFirstInsertionPt();
+        // Are we replace a PHI with something that isn't a PHI, or vice versa?
+        if (isa<PHINode>(Result) != isa<PHINode>(I)) {
+          // We need to fix up the insertion point.
+          if (isa<PHINode>(I)) // PHI -> Non-PHI
+            InsertPos = InstParent->getFirstInsertionPt();
+          else // Non-PHI -> PHI
+            InsertPos = InstParent->getFirstNonPHI()->getIterator();
+        }
 
         InstParent->getInstList().insert(InsertPos, Result);
 
@@ -3776,8 +3780,12 @@ static bool prepareICWorklistFromFunction(Function &F, const DataLayout &DL,
     if (Visited.count(&BB))
       continue;
 
-    unsigned NumDeadInstInBB = removeAllNonTerminatorAndEHPadInstructions(&BB);
-    MadeIRChange |= NumDeadInstInBB > 0;
+    unsigned NumDeadInstInBB;
+    unsigned NumDeadDbgInstInBB;
+    std::tie(NumDeadInstInBB, NumDeadDbgInstInBB) =
+        removeAllNonTerminatorAndEHPadInstructions(&BB);
+
+    MadeIRChange |= NumDeadInstInBB + NumDeadDbgInstInBB > 0;
     NumDeadInst += NumDeadInstInBB;
   }
 

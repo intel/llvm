@@ -72,4 +72,22 @@ int main() {
     }
     assert(data == 1);
   }
+
+  {
+    sycl::context context;
+    std::vector<sycl::device> devices = context.get_devices();
+
+    sycl::program prg1(context, sycl::property_list{});
+    sycl::program prg2(
+        context, devices,
+        sycl::property_list{sycl::property::buffer::use_host_ptr{}});
+    if (!prg2.has_property<sycl::property::buffer::use_host_ptr>()) {
+      std::cerr << "Line " << __LINE__ << ": Property was not found"
+                << std::endl;
+      return 1;
+    }
+
+    sycl::property::buffer::use_host_ptr Prop =
+        prg2.get_property<sycl::property::buffer::use_host_ptr>();
+  }
 }

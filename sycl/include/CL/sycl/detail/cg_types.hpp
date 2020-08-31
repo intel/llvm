@@ -204,11 +204,19 @@ public:
   typename std::enable_if<std::is_same<ArgT, sycl::id<Dims>>::value>::type
   runOnHost(const NDRDescT &NDRDesc) {
     sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
-    for (int I = 0; I < Dims; ++I)
+    sycl::id<Dims> Offset;
+    for (int I = 0; I < Dims; ++I) {
       Range[I] = NDRDesc.GlobalSize[I];
+      Offset[I] = NDRDesc.GlobalOffset[I];
+    }
 
-    detail::NDLoop<Dims>::iterate(
-        Range, [&](const sycl::id<Dims> &ID) { MKernel(ID); });
+    detail::NDLoop<Dims>::iterate(Range, [&](const sycl::id<Dims> &ID) {
+      sycl::item<Dims, /*Offset=*/true> Item =
+          IDBuilder::createItem<Dims, true>(Range, ID, Offset);
+      store_id(&ID);
+      store_item(&Item);
+      MKernel(ID);
+    });
   }
 
   template <class ArgT = KernelArgType>
@@ -223,6 +231,9 @@ public:
     detail::NDLoop<Dims>::iterate(Range, [&](const sycl::id<Dims> ID) {
       sycl::item<Dims, /*Offset=*/false> Item =
           IDBuilder::createItem<Dims, false>(Range, ID);
+      sycl::item<Dims, /*Offset=*/true> ItemWithOffset = Item;
+      store_id(&ID);
+      store_item(&ItemWithOffset);
       MKernel(Item);
     });
   }
@@ -242,6 +253,8 @@ public:
       sycl::id<Dims> OffsetID = ID + Offset;
       sycl::item<Dims, /*Offset=*/true> Item =
           IDBuilder::createItem<Dims, true>(Range, OffsetID, Offset);
+      store_id(&OffsetID);
+      store_item(&Item);
       MKernel(Item);
     });
   }
@@ -281,6 +294,11 @@ public:
             IDBuilder::createItem<Dims, false>(LocalSize, LocalID);
         const sycl::nd_item<Dims> NDItem =
             IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
+        store_id(&GlobalID);
+        store_item(&GlobalItem);
+        store_nd_item(&NDItem);
+        auto g = NDItem.get_group();
+        store_group(&g);
         MKernel(NDItem);
       });
     });

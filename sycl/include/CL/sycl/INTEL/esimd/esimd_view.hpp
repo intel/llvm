@@ -89,21 +89,6 @@ public:
     return getTopRegion(M_region).M_offset_y;
   }
 
-  template <int Dim = 0> static constexpr int getSize() {
-    static_assert(Dim <= is2D(), "region is not two-dimensional");
-    return (Dim == 0) ? getSizeX() : getSizeY();
-  }
-
-  template <int Dim = 0> static constexpr int getStride() {
-    static_assert(Dim <= is2D(), "region is not two-dimensional");
-    return (Dim == 0) ? getStrideX() : getStrideY();
-  }
-
-  template <int Dim = 0> constexpr uint16_t getOffset() const {
-    static_assert(Dim <= is2D(), "region is not two-dimensional");
-    return (Dim == 0) ? getOffsetX() : getOffsetX();
-  }
-
   // Read this simd_view object.
   value_type read() const {
     using BT = typename BaseTy::element_type;
