@@ -1674,7 +1674,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   // Contains a count of how many containers we're in.  This is used by the
   // pointer-struct-wrapping code to ensure that we don't try to wrap
   // non-top-level pointers.
-  uint64_t ContainerDepth = 0;
+  uint64_t StructDepth = 0;
 
   // Using the statements/init expressions that we've created, this generates
   // the kernel body compound stmt. CompoundStmt needs to know its number of
@@ -2018,7 +2018,7 @@ public:
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
     Expr *PointerRef =
-        createPointerParamReferenceExpr(FD->getType(), ContainerDepth != 0);
+        createPointerParamReferenceExpr(FD->getType(), StructDepth != 0);
     addFieldInit(FD, FieldTy, PointerRef);
     return true;
   }
@@ -2034,7 +2034,7 @@ public:
   }
 
   bool enterStream(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
-    ++ContainerDepth;
+    ++StructDepth;
     // Add a dummy init expression to catch the accessor initializers.
     const auto *StreamDecl = Ty->getAsCXXRecordDecl();
     CollectionInitExprs.push_back(createInitListExpr(StreamDecl));
@@ -2044,7 +2044,7 @@ public:
   }
 
   bool leaveStream(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
-    --ContainerDepth;
+    --StructDepth;
     // Stream requires that its 'init' calls happen after its accessors init
     // calls, so add them here instead.
     const auto *StreamDecl = Ty->getAsCXXRecordDecl();
@@ -2059,7 +2059,7 @@ public:
   }
 
   bool enterStruct(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
-    ++ContainerDepth;
+    ++StructDepth;
     addCollectionInitListExpr(Ty->getAsCXXRecordDecl());
 
     addFieldMemberExpr(FD, Ty);
@@ -2067,7 +2067,7 @@ public:
   }
 
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
-    --ContainerDepth;
+    --StructDepth;
     CollectionInitExprs.pop_back();
 
     removeFieldMemberExpr(FD, Ty);
@@ -2076,7 +2076,7 @@ public:
 
   bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
                    QualType) final {
-    ++ContainerDepth;
+    ++StructDepth;
 
     CXXCastPath BasePath;
     QualType DerivedTy(RD->getTypeForDecl(), 0);
@@ -2095,7 +2095,7 @@ public:
 
   bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
                    QualType) final {
-    --ContainerDepth;
+    --StructDepth;
     MemberExprBases.pop_back();
     CollectionInitExprs.pop_back();
     return true;
@@ -2250,6 +2250,11 @@ public:
     const ParmVarDecl *SamplerArg = InitMethod->getParamDecl(0);
     assert(SamplerArg && "sampler __init method must have sampler parameter");
 
+    // For samplers, we do some special work to ONLY initialize the first item
+    // to the InitMethod as a performance improvement presumably, so the normal
+    // offsetOf calculation wouldn't work correctly. Therefore, we need to call
+    // a version of addParam where we calculate the offset based on the true
+    // FieldDecl/FieldType pair, rather than the SampleArg type.
     addParam(FD, SamplerArg->getType(), SYCLIntegrationHeader::kind_sampler,
              offsetOf(FD, FieldTy));
     return true;
