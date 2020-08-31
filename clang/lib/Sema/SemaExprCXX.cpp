@@ -4332,6 +4332,12 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
                              VK_RValue, /*BasePath=*/nullptr, CCK).get();
     break;
 
+  case ICK_SVE_Vector_Conversion:
+    From = ImpCastExprToType(From, ToType, CK_BitCast, VK_RValue,
+                             /*BasePath=*/nullptr, CCK)
+               .get();
+    break;
+
   case ICK_Vector_Splat: {
     // Vector splat from any arithmetic type to a vector.
     Expr *Elem = prepareVectorSplat(ToType, From).get();
