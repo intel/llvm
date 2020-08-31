@@ -164,16 +164,17 @@ int host_selector::operator()(const device &dev) const {
 namespace ONEAPI {
 namespace detail {
 struct filter {
-  backend Backend;
-  RT::PiDeviceType DeviceType;
-  int DeviceNum;
+  backend Backend = backend::host;
+  RT::PiDeviceType DeviceType = PI_DEVICE_TYPE_ALL;
+  int DeviceNum = 0;
   bool hasBackend = false;
   bool hasDeviceType = false;
   bool hasDeviceNum = false;
   int MatchesSeen = 0;
 };
 
-std::vector<std::string> tokenize(std::string filter, std::string delim) {
+std::vector<std::string> tokenize(const std::string &filter,
+                                  const std::string &delim) {
   std::vector<std::string> Tokens;
   size_t Pos = 0;
   std::string Input = filter;
@@ -184,21 +185,21 @@ std::vector<std::string> tokenize(std::string filter, std::string delim) {
     Input.erase(0, Pos + delim.length());
 
     if (!Tok.empty()) {
-      Tokens.push_back(Tok);
+      Tokens.push_back(std::move(Tok));
     }
   }
 
   // Add remainder
   if (!Input.empty())
-    Tokens.push_back(Input);
+    Tokens.push_back(std::move(Input));
 
   return Tokens;
 }
 
 filter create_filter(std::string Input) {
   filter Result;
-  std::string Error = "Invalid filter string! Valid strings conform to "
-                      "BE:DeviceType:DeviceNum, where any are optional";
+  constexpr auto Error = "Invalid filter string! Valid strings conform to "
+                         "BE:DeviceType:DeviceNum, where any are optional";
 
   std::vector<std::string> Tokens = tokenize(Input, ":");
   std::regex IntegerExpr("[[:digit:]]+");
@@ -206,7 +207,7 @@ filter create_filter(std::string Input) {
   // There should only be up to 3 tokens.
   // BE:Device Type:Device Num
   if (Tokens.size() > 3)
-    throw runtime_error(Error, PI_INVALID_VALUE);
+    throw sycl::runtime_error(Error, PI_INVALID_VALUE);
 
   for (const std::string &Token : Tokens) {
     if (Token == "cpu" && !Result.hasDeviceType) {
@@ -233,14 +234,19 @@ filter create_filter(std::string Input) {
         Result.hasBackend = true;
       } else if (!Result.hasDeviceType && Result.Backend != backend::host) {
         // We already set everything earlier or it's an error.
-        throw runtime_error("Cannot specify host device with non-host backend.",
-                            PI_INVALID_VALUE);
+        throw sycl::runtime_error(
+            "Cannot specify host device with non-host backend.",
+            PI_INVALID_VALUE);
       }
     } else if (std::regex_match(Token, IntegerExpr) && !Result.hasDeviceNum) {
-      Result.DeviceNum = std::stoi(Token);
+      try {
+        Result.DeviceNum = std::stoi(Token);
+      } catch (std::logic_error) {
+        throw sycl::runtime_error(Error, PI_INVALID_VALUE);
+      }
       Result.hasDeviceNum = true;
     } else {
-      throw runtime_error(Error, PI_INVALID_VALUE);
+      throw sycl::runtime_error(Error, PI_INVALID_VALUE);
     }
   }
 
@@ -300,12 +306,21 @@ int filter_selector::operator()(const device &dev) const {
 
   mNumDevicesSeen++;
   if ((mNumDevicesSeen == mNumTotalDevices) && !mMatchFound) {
-    throw runtime_error(
+    throw sycl::runtime_error(
         "Could not find a device that matches the specified filter(s)!",
         PI_DEVICE_NOT_FOUND);
   }
 
   return Score;
+}
+
+void filter_selector::reset() {
+  // Reset state if you want to reuse this selector.
+  for (auto &Filter : mFilters) {
+    Filter->MatchesSeen = 0;
+  }
+  mMatchFound = false;
+  mNumDevicesSeen = 0;
 }
 } // namespace ONEAPI
 } // namespace sycl

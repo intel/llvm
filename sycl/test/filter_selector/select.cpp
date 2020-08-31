@@ -17,19 +17,23 @@ using namespace cl::sycl::ONEAPI;
 int main() {
   std::vector<device> CPUs;
   std::vector<device> GPUs;
+  std::vector<device> Accels;
   std::vector<device> Devs;
   device host;
 
   CPUs = device::get_devices(info::device_type::cpu);
   GPUs = device::get_devices(info::device_type::gpu);
+  Accels = device::get_devices(info::device_type::accelerator);
   Devs = device::get_devices();
 
   std::cout << "# CPU Devices found: " << CPUs.size() << std::endl;
   std::cout << "# GPU Devices found: " << GPUs.size() << std::endl;
+  std::cout << "# Accelerators found: " << Accels.size() << std::endl;
   std::cout << "# Devices found: " << Devs.size() << std::endl;
 
   bool HasLevelZero = false;
   bool HasOpenCL = false;
+  bool HasCUDA = false;
 
   auto Platforms = platform::get_platforms();
   for (auto Platform : Platforms) {
@@ -39,6 +43,9 @@ int main() {
         HasLevelZero = true;
       } else if (Backend == backend::opencl) {
         HasOpenCL = true;
+      }
+      else if (Backend == backend::cuda) {
+        HasCUDA = true;
       }
     }
   }
@@ -53,7 +60,9 @@ int main() {
     std::cout << "Test 'gpu'" << std::endl;
     device d2(filter_selector("gpu"));
     assert(d2.is_gpu());
+  }
 
+  if (!CPUs.empty() || !GPUs.empty()) {
     std::cout << "Test 'cpu,gpu'" << std::endl;
     device d3(filter_selector("cpu,gpu"));
     assert((d3.is_gpu() || d3.is_cpu()));
@@ -127,6 +136,19 @@ int main() {
 
   if (Devs.size() > 1) {
     device d15(filter_selector("1"));
+  }
+
+  if (HasCUDA) {
+    device d16(filter_selector("cuda"));
+    assert(d16.get_platform().get_backend() == backend::cuda);
+
+    device d17(filter_selector("cuda:gpu"));
+    assert(d17.is_gpu() && d17.get_platform().get_backend() == backend::cuda);
+  }
+
+  if (!Accels.empty()) {
+    device d18(filter_selector("accelerator"));
+    assert(d18.is_accelerator());
   }
 
   return 0;
