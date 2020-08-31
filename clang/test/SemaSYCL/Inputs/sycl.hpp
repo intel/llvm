@@ -220,6 +220,7 @@ public:
 
 class stream {
   accessor<int, 1, access::mode::read> acc;
+
 public:
   stream(unsigned long BufferSize, unsigned long MaxStatementSize,
          handler &CGH) {}
