@@ -176,7 +176,7 @@ protected:
   }
   void validate() const override {
     SPIRVValue::validate();
-    assert(NumWords >= 1 && NumWords <= 2 && "Invalid constant size");
+    assert(NumWords >= 1 && NumWords <= 32 && "Invalid constant size");
   }
   void encode(spv_ostream &O) const override {
     getEncoder(O) << Type << Id;
@@ -198,7 +198,7 @@ protected:
     uint64_t UInt64Val;
     float FloatVal;
     double DoubleVal;
-    SPIRVWord Words[2];
+    SPIRVWord Words[32];
     UnionType() { UInt64Val = 0; }
   } Union;
 };
