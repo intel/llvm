@@ -646,7 +646,7 @@
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-FPGA,CHK-TOOLS-FPGA-USM-DISABLE
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-devicelib -fintelfpga %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-FPGA,CHK-TOOLS-FPGA-USM-DISABLE
-// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycldevicelib -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice -Xshardware %s -### 2>&1 \
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-devicelib -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice -Xshardware %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-FPGA,CHK-TOOLS-FPGA-USM-ENABLE
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-devicelib -fintelfpga -Xshardware %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-FPGA,CHK-TOOLS-FPGA-USM-ENABLE
