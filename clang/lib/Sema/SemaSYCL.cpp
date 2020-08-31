@@ -896,26 +896,26 @@ class KernelObjVisitor {
   }
 
   template <typename... Handlers>
-  void VisitArrayElementImpl(const CXXRecordDecl *Owner, FieldDecl *ArrayField,
+  void visitArrayElementImpl(const CXXRecordDecl *Owner, FieldDecl *ArrayField,
                              QualType ElementTy, uint64_t Index,
                              Handlers &... handlers) {
     (void)std::initializer_list<int>{
         (handlers.nextElement(ElementTy, Index), 0)...};
-    VisitField(Owner, ArrayField, ElementTy, handlers...);
+    visitField(Owner, ArrayField, ElementTy, handlers...);
   }
 
   template <typename... Handlers>
-  void VisitFirstArrayElement(const CXXRecordDecl *Owner, FieldDecl *ArrayField,
+  void visitFirstArrayElement(const CXXRecordDecl *Owner, FieldDecl *ArrayField,
                               QualType ElementTy, Handlers &... handlers) {
-    VisitArrayElementImpl(Owner, ArrayField, ElementTy, 0, handlers...);
+    visitArrayElementImpl(Owner, ArrayField, ElementTy, 0, handlers...);
   }
   template <typename... Handlers>
-  void VisitNthArrayElement(const CXXRecordDecl *Owner, FieldDecl *ArrayField,
+  void visitNthArrayElement(const CXXRecordDecl *Owner, FieldDecl *ArrayField,
                             QualType ElementTy, uint64_t Index,
                             Handlers &... handlers);
 
   template <typename... Handlers>
-  void VisitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
+  void visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
                   QualType ArrayTy, Handlers &... handlers) {
     // Array workflow is:
     // handleArrayType
@@ -939,16 +939,16 @@ class KernelObjVisitor {
     (void)std::initializer_list<int>{
         (handlers.enterArray(Field, ArrayTy, ET), 0)...};
 
-    VisitFirstArrayElement(Owner, Field, ET, handlers...);
+    visitFirstArrayElement(Owner, Field, ET, handlers...);
     for (uint64_t Index = 1; Index < ElemCount; ++Index)
-      VisitNthArrayElement(Owner, Field, ET, Index, handlers...);
+      visitNthArrayElement(Owner, Field, ET, Index, handlers...);
 
     (void)std::initializer_list<int>{
         (handlers.leaveArray(Field, ArrayTy, ET), 0)...};
   }
 
   template <typename... Handlers>
-  void VisitField(const CXXRecordDecl *Owner, FieldDecl *Field,
+  void visitField(const CXXRecordDecl *Owner, FieldDecl *Field,
                   QualType FieldTy, Handlers &... handlers) {
     if (Util::isSyclAccessorType(FieldTy))
       KF_FOR_EACH(handleSyclAccessorType, Field, FieldTy);
@@ -978,7 +978,7 @@ class KernelObjVisitor {
     else if (FieldTy->isPointerType())
       KF_FOR_EACH(handlePointerType, Field, FieldTy);
     else if (FieldTy->isArrayType())
-      VisitArray(Owner, Field, FieldTy, handlers...);
+      visitArray(Owner, Field, FieldTy, handlers...);
     else if (FieldTy->isScalarType() || FieldTy->isVectorType())
       KF_FOR_EACH(handleScalarType, Field, FieldTy);
     else
@@ -999,7 +999,7 @@ public:
   template <typename... Handlers>
   void VisitRecordFields(const CXXRecordDecl *Owner, Handlers &... handlers) {
     for (const auto Field : Owner->fields())
-      VisitField(Owner, Field, Field->getType(), handlers...);
+      visitField(Owner, Field, Field->getType(), handlers...);
   }
 #undef KF_FOR_EACH
 };
@@ -1131,7 +1131,7 @@ void KernelObjVisitor::VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
 }
 
 template <typename... Handlers>
-void KernelObjVisitor::VisitNthArrayElement(const CXXRecordDecl *Owner,
+void KernelObjVisitor::visitNthArrayElement(const CXXRecordDecl *Owner,
                                             FieldDecl *ArrayField,
                                             QualType ElementTy, uint64_t Index,
                                             Handlers &... handlers) {
@@ -1139,7 +1139,7 @@ void KernelObjVisitor::VisitNthArrayElement(const CXXRecordDecl *Owner,
   // constexpr' starting in C++17.  Until then, we have to count on the
   // optimizer to realize "if (false)" is a dead branch.
   if (AnyTrue<Handlers::VisitNthArrayElement...>::Value)
-    VisitArrayElementImpl(
+    visitArrayElementImpl(
         Owner, ArrayField, ElementTy, Index,
         HandlerFilter<Handlers::VisitNthArrayElement, Handlers>(handlers)
             .Handler...);
@@ -1778,7 +1778,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   // is an element of an array.  This will determine whether we do
   // MemberExprBases in some cases or not, AND determines how we initialize
   // values.
-  bool IsArrayElement(const FieldDecl *FD, QualType Ty) const {
+  bool isArrayElement(const FieldDecl *FD, QualType Ty) const {
     return !SemaRef.getASTContext().hasSameType(FD->getType(), Ty);
   }
 
@@ -1786,7 +1786,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   // field, returns a normal member initializer, if we're in a sub-array of a MD
   // array, returns an element initializer.
   InitializedEntity getFieldEntity(FieldDecl *FD, QualType Ty) {
-    if (IsArrayElement(FD, Ty))
+    if (isArrayElement(FD, Ty))
       return InitializedEntity::InitializeElement(SemaRef.getASTContext(),
                                                   ArrayInfos.back().second,
                                                   ArrayInfos.back().first);
@@ -1840,13 +1840,13 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return Result;
   }
 
-  void AddFieldMemberExpr(FieldDecl *FD, QualType Ty) {
-    if (!IsArrayElement(FD, Ty))
+  void addFieldMemberExpr(FieldDecl *FD, QualType Ty) {
+    if (!isArrayElement(FD, Ty))
       MemberExprBases.push_back(BuildMemberExpr(MemberExprBases.back(), FD));
   }
 
-  void RemoveFieldMemberExpr(const FieldDecl *FD, QualType Ty) {
-    if (!IsArrayElement(FD, Ty))
+  void removeFieldMemberExpr(const FieldDecl *FD, QualType Ty) {
+    if (!isArrayElement(FD, Ty))
       MemberExprBases.pop_back();
   }
 
@@ -1891,14 +1891,14 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     addCollectionInitListExpr(QualType(RD->getTypeForDecl(), 0), NumInitExprs);
   }
 
-  InitListExpr *CreateInitListExpr(const CXXRecordDecl *RD) {
+  InitListExpr *createInitListExpr(const CXXRecordDecl *RD) {
     const ASTRecordLayout &Info =
         SemaRef.getASTContext().getASTRecordLayout(RD);
     uint64_t NumInitExprs = Info.getFieldCount() + RD->getNumBases();
-    return CreateInitListExpr(QualType(RD->getTypeForDecl(), 0), NumInitExprs);
+    return createInitListExpr(QualType(RD->getTypeForDecl(), 0), NumInitExprs);
   }
 
-  InitListExpr *CreateInitListExpr(QualType InitTy, uint64_t NumChildInits) {
+  InitListExpr *createInitListExpr(QualType InitTy, uint64_t NumChildInits) {
     InitListExpr *ILE = new (SemaRef.getASTContext()) InitListExpr(
         SemaRef.getASTContext(), SourceLocation(), {}, SourceLocation());
     ILE->reserveInits(SemaRef.getASTContext(), NumChildInits);
@@ -1911,7 +1911,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   // to append into.
   void addCollectionInitListExpr(QualType InitTy, uint64_t NumChildInits) {
 
-    InitListExpr *ILE = CreateInitListExpr(InitTy, NumChildInits);
+    InitListExpr *ILE = createInitListExpr(InitTy, NumChildInits);
     InitListExpr *ParentILE = CollectionInitExprs.back();
     ParentILE->updateInit(SemaRef.getASTContext(), ParentILE->getNumInits(),
                           ILE);
@@ -1937,12 +1937,12 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     addFieldInit(FD, Ty, None,
                  InitializationKind::CreateDefault(SourceLocation()));
 
-    AddFieldMemberExpr(FD, Ty);
+    addFieldMemberExpr(FD, Ty);
 
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     createSpecialMethodCall(RecordDecl, InitMethodName, BodyStmts);
 
-    RemoveFieldMemberExpr(FD, Ty);
+    removeFieldMemberExpr(FD, Ty);
 
     return true;
   }
@@ -1963,7 +1963,7 @@ public:
                                             DC.getKernelDecl(), KernelObj)),
         VarEntity(InitializedEntity::InitializeVariable(KernelObjClone)),
         KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc) {
-    CollectionInitExprs.push_back(CreateInitListExpr(KernelObj));
+    CollectionInitExprs.push_back(createInitListExpr(KernelObj));
     markParallelWorkItemCalls();
 
     Stmt *DS = new (S.Context) DeclStmt(DeclGroupRef(KernelObjClone),
@@ -2037,9 +2037,9 @@ public:
     ++ContainerDepth;
     // Add a dummy init expression to catch the accessor initializers.
     const auto *StreamDecl = Ty->getAsCXXRecordDecl();
-    CollectionInitExprs.push_back(CreateInitListExpr(StreamDecl));
+    CollectionInitExprs.push_back(createInitListExpr(StreamDecl));
 
-    AddFieldMemberExpr(FD, Ty);
+    addFieldMemberExpr(FD, Ty);
     return true;
   }
 
@@ -2052,7 +2052,7 @@ public:
     createSpecialMethodCall(StreamDecl, InitMethodName, BodyStmts);
     createSpecialMethodCall(StreamDecl, FinalizeMethodName, FinalizeStmts);
 
-    RemoveFieldMemberExpr(FD, Ty);
+    removeFieldMemberExpr(FD, Ty);
 
     CollectionInitExprs.pop_back();
     return true;
@@ -2062,7 +2062,7 @@ public:
     ++ContainerDepth;
     addCollectionInitListExpr(Ty->getAsCXXRecordDecl());
 
-    AddFieldMemberExpr(FD, Ty);
+    addFieldMemberExpr(FD, Ty);
     return true;
   }
 
@@ -2070,7 +2070,7 @@ public:
     --ContainerDepth;
     CollectionInitExprs.pop_back();
 
-    RemoveFieldMemberExpr(FD, Ty);
+    removeFieldMemberExpr(FD, Ty);
     return true;
   }
 
@@ -2112,7 +2112,7 @@ public:
 
     // If this is the top-level array, we need to make a MemberExpr in addition
     // to an array subscript.
-    AddFieldMemberExpr(FD, ArrayType);
+    addFieldMemberExpr(FD, ArrayType);
     return true;
   }
 
@@ -2154,7 +2154,7 @@ public:
     MemberExprBases.pop_back();
 
     // Remove the field access expr as well.
-    RemoveFieldMemberExpr(FD, ArrayType);
+    removeFieldMemberExpr(FD, ArrayType);
     return true;
   }
 
@@ -2170,7 +2170,7 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
 
   // A series of functions to calculate the change in offset based on the type.
   int64_t offsetOf(const FieldDecl *FD, QualType ArgTy) const {
-    return IsArrayElement(FD, ArgTy)
+    return isArrayElement(FD, ArgTy)
                ? 0
                : SemaRef.getASTContext().getFieldOffset(FD) / 8;
   }
@@ -2198,7 +2198,7 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   // is an element of an array.  This will determine whether we do
   // MemberExprBases in some cases or not, AND determines how we initialize
   // values.
-  bool IsArrayElement(const FieldDecl *FD, QualType Ty) const {
+  bool isArrayElement(const FieldDecl *FD, QualType Ty) const {
     return !SemaRef.getASTContext().hasSameType(FD->getType(), Ty);
   }
 
