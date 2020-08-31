@@ -302,7 +302,7 @@ size_t getLinearIndex(const T<Dims> &Index, const U<Dims> &Range) {
 // pairs) into disjoint sets based on the kernel distribution among device
 // images.
 using KernelSetId = size_t;
-// Kernel set ID for kernels contained within the SPIRV file specified via
+// Kernel set ID for kernels contained within the SPIR-V file specified via
 // environment.
 constexpr KernelSetId SpvFileKSId = 0;
 constexpr KernelSetId LastKSId = SpvFileKSId;

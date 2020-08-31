@@ -1,3 +1,4 @@
+// UNSUPPORTED: cuda
 // REQUIRES: gpu,linux
 // This test is disabled because there is a bug somewhere either in test or in
 // the inline asm support

@@ -28,3 +28,11 @@
 // RUN:   %clang_cl -### -fsycl -fintelfpga %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-NO-SYCL-EARLY-OPTS %s
 // CHECK-NO-SYCL-EARLY-OPTS: "-fno-sycl-early-optimizations"
+
+/// Check that Dead Parameter Elimination Optimization is enabled
+// RUN:   %clang -### -fsycl -fsycl-dead-args-optimization %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-DAE %s
+// RUN:   %clang_cl -### -fsycl -fsycl-dead-args-optimization %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-DAE %s
+// CHECK-DAE: clang{{.*}} "-fenable-sycl-dae"
+// CHECK-DAE: sycl-post-link{{.*}} "-emit-param-info"

@@ -833,8 +833,8 @@ class KernelObjVisitor {
 
   // Implements the 'for-each-visitor'  pattern.
   template <typename... Handlers>
-  void VisitElement(CXXRecordDecl *Owner, FieldDecl *ArrayField,
-                    QualType ElementTy, Handlers &... handlers) {
+  void VisitElementImpl(CXXRecordDecl *Owner, FieldDecl *ArrayField,
+                        QualType ElementTy, Handlers &... handlers) {
     if (Util::isSyclAccessorType(ElementTy))
       KF_FOR_EACH(handleSyclAccessorType, ArrayField, ElementTy);
     else if (Util::isSyclStreamType(ElementTy))
@@ -856,6 +856,16 @@ class KernelObjVisitor {
   }
 
   template <typename... Handlers>
+  void VisitFirstElement(CXXRecordDecl *Owner, FieldDecl *ArrayField,
+                         QualType ElementTy, Handlers &... handlers) {
+    VisitElementImpl(Owner, ArrayField, ElementTy, handlers...);
+  }
+
+  template <typename... Handlers>
+  void VisitNthElement(CXXRecordDecl *Owner, FieldDecl *ArrayField,
+                       QualType ElementTy, Handlers &... handlers);
+
+  template <typename... Handlers>
   void VisitArrayElements(FieldDecl *FD, QualType FieldTy,
                           Handlers &... handlers) {
     const ConstantArrayType *CAT =
@@ -864,17 +874,36 @@ class KernelObjVisitor {
     QualType ET = CAT->getElementType();
     int64_t ElemCount = CAT->getSize().getSExtValue();
     std::initializer_list<int>{(handlers.enterArray(), 0)...};
-    for (int64_t Count = 0; Count < ElemCount; Count++) {
-      VisitElement(nullptr, FD, ET, handlers...);
-      (void)std::initializer_list<int>{(handlers.nextElement(ET), 0)...};
+
+    assert(ElemCount > 0 && "SYCL prohibits 0 sized arrays");
+    VisitFirstElement(nullptr, FD, ET, handlers...);
+    (void)std::initializer_list<int>{(handlers.nextElement(ET, 1), 0)...};
+
+    for (int64_t Count = 1; Count < ElemCount; Count++) {
+      VisitNthElement(nullptr, FD, ET, handlers...);
+      (void)std::initializer_list<int>{
+          (handlers.nextElement(ET, Count + 1), 0)...};
     }
+
     (void)std::initializer_list<int>{
         (handlers.leaveArray(FD, ET, ElemCount), 0)...};
   }
 
+  // Parent contains the FieldDecl or CXXBaseSpecifier that was used to enter
+  // the Wrapper structure that we're currently visiting. Owner is the parent
+  // type (which doesn't exist in cases where it is a FieldDecl in the
+  // 'root'), and Wrapper is the current struct being unwrapped.
   template <typename ParentTy, typename... Handlers>
   void VisitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
-                   const CXXRecordDecl *Wrapper, Handlers &... handlers);
+                   const CXXRecordDecl *Wrapper, Handlers &... handlers) {
+    (void)std::initializer_list<int>{
+        (handlers.enterStruct(Owner, Parent), 0)...};
+    VisitRecordHelper(Wrapper, Wrapper->bases(), handlers...);
+    VisitRecordHelper(Wrapper, Wrapper->fields(), handlers...);
+    (void)std::initializer_list<int>{
+        (handlers.leaveStruct(Owner, Parent), 0)...};
+  }
+
   template <typename ParentTy, typename... Handlers>
   void VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
                   const CXXRecordDecl *Wrapper, Handlers &... handlers);
@@ -890,11 +919,11 @@ class KernelObjVisitor {
       // Handle accessor class as base
       if (Util::isSyclAccessorType(BaseTy)) {
         (void)std::initializer_list<int>{
-            (handlers.handleSyclAccessorType(Base, BaseTy), 0)...};
+            (handlers.handleSyclAccessorType(Owner, Base, BaseTy), 0)...};
       } else if (Util::isSyclStreamType(BaseTy)) {
         // Handle stream class as base
         (void)std::initializer_list<int>{
-            (handlers.handleSyclStreamType(Base, BaseTy), 0)...};
+            (handlers.handleSyclStreamType(Owner, Base, BaseTy), 0)...};
       } else
         // For all other bases, visit the record
         VisitRecord(Owner, Base, BaseTy->getAsCXXRecordDecl(), handlers...);
@@ -989,45 +1018,37 @@ public:
   }
 #undef KF_FOR_EACH
 };
-// Parent contains the FieldDecl or CXXBaseSpecifier that was used to enter
-// the Wrapper structure that we're currently visiting. Owner is the parent
-// type (which doesn't exist in cases where it is a FieldDecl in the
-// 'root'), and Wrapper is the current struct being unwrapped.
-template <typename ParentTy, typename... Handlers>
-void KernelObjVisitor::VisitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
-                                   const CXXRecordDecl *Wrapper,
-                                   Handlers &... handlers) {
-  (void)std::initializer_list<int>{(handlers.enterStruct(Owner, Parent), 0)...};
-  VisitRecordHelper(Wrapper, Wrapper->bases(), handlers...);
-  VisitRecordHelper(Wrapper, Wrapper->fields(), handlers...);
-  (void)std::initializer_list<int>{(handlers.leaveStruct(Owner, Parent), 0)...};
-}
 
 // A base type that the SYCL OpenCL Kernel construction task uses to implement
 // individual tasks.
 class SyclKernelFieldHandlerBase {
 public:
   static constexpr const bool VisitUnionBody = false;
+  static constexpr const bool VisitNthElement = true;
   // Mark these virtual so that we can use override in the implementer classes,
   // despite virtual dispatch never being used.
 
   // Accessor can be a base class or a field decl, so both must be handled.
-  virtual bool handleSyclAccessorType(const CXXBaseSpecifier &, QualType) {
+  virtual bool handleSyclAccessorType(const CXXRecordDecl *,
+                                      const CXXBaseSpecifier &, QualType) {
     return true;
   }
   virtual bool handleSyclAccessorType(FieldDecl *, QualType) { return true; }
-  virtual bool handleSyclSamplerType(const CXXBaseSpecifier &, QualType) {
+  virtual bool handleSyclSamplerType(const CXXRecordDecl *,
+                                     const CXXBaseSpecifier &, QualType) {
     return true;
   }
   virtual bool handleSyclSamplerType(FieldDecl *, QualType) { return true; }
   virtual bool handleSyclSpecConstantType(FieldDecl *, QualType) {
     return true;
   }
-  virtual bool handleSyclStreamType(const CXXBaseSpecifier &, QualType) {
+  virtual bool handleSyclStreamType(const CXXRecordDecl *,
+                                    const CXXBaseSpecifier &, QualType) {
     return true;
   }
   virtual bool handleSyclStreamType(FieldDecl *, QualType) { return true; }
-  virtual bool handleSyclHalfType(const CXXBaseSpecifier &, QualType) {
+  virtual bool handleSyclHalfType(const CXXRecordDecl *,
+                                  const CXXBaseSpecifier &, QualType) {
     return true;
   }
   virtual bool handleSyclHalfType(FieldDecl *, QualType) { return true; }
@@ -1066,7 +1087,7 @@ public:
   virtual bool enterField(const CXXRecordDecl *, FieldDecl *) { return true; }
   virtual bool leaveField(const CXXRecordDecl *, FieldDecl *) { return true; }
   virtual bool enterArray() { return true; }
-  virtual bool nextElement(QualType) { return true; }
+  virtual bool nextElement(QualType, uint64_t) { return true; }
   virtual bool leaveArray(FieldDecl *, QualType, int64_t) { return true; }
 
   virtual ~SyclKernelFieldHandlerBase() = default;
@@ -1114,6 +1135,21 @@ void KernelObjVisitor::VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
     VisitUnionImpl(
         Owner, Parent, Wrapper,
         HandlerFilter<Handlers::VisitUnionBody, Handlers>(handlers).Handler...);
+}
+
+template <typename... Handlers>
+void KernelObjVisitor::VisitNthElement(CXXRecordDecl *Owner,
+                                       FieldDecl *ArrayField,
+                                       QualType ElementTy,
+                                       Handlers &... handlers) {
+  // Don't continue descending if none of the handlers 'care'. This could be 'if
+  // constexpr' starting in C++17.  Until then, we have to count on the
+  // optimizer to realize "if (false)" is a dead branch.
+  if (AnyTrue<Handlers::VisitNthElement...>::Value)
+    VisitElementImpl(
+        Owner, ArrayField, ElementTy,
+        HandlerFilter<Handlers::VisitNthElement, Handlers>(handlers)
+            .Handler...);
 }
 
 // A type to check the validity of all of the argument types.
@@ -1197,7 +1233,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
 
   void checkBufferLocationType(QualType PropTy, SourceLocation Loc) {
     const auto *PropDecl =
-        dyn_cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
+        cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
     if (PropDecl->getTemplateArgs().size() != 1) {
       SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_param_number)
           << "buffer_location";
@@ -1238,6 +1274,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
 public:
   SyclKernelFieldChecker(Sema &S)
       : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {}
+  static constexpr const bool VisitNthElement = false;
   bool isValid() { return !IsInvalid; }
 
   bool handleReferenceType(FieldDecl *FD, QualType FieldTy) final {
@@ -1251,7 +1288,7 @@ public:
     return isValid();
   }
 
-  bool handleSyclAccessorType(const CXXBaseSpecifier &BS,
+  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                               QualType FieldTy) final {
     checkAccessorType(FieldTy, BS.getBeginLoc());
     return isValid();
@@ -1286,6 +1323,7 @@ public:
       : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {}
   bool isValid() { return !IsInvalid; }
   static constexpr const bool VisitUnionBody = true;
+  static constexpr const bool VisitNthElement = false;
 
   bool checkType(SourceLocation Loc, QualType Ty) {
     if (UnionCount) {
@@ -1309,7 +1347,7 @@ public:
     return checkType(FD->getLocation(), FieldTy);
   }
 
-  bool handleSyclAccessorType(const CXXBaseSpecifier &BS,
+  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                               QualType FieldTy) final {
     return checkType(BS.getBeginLoc(), FieldTy);
   }
@@ -1318,7 +1356,7 @@ public:
     return checkType(FD->getLocation(), FieldTy);
   }
 
-  bool handleSyclSamplerType(const CXXBaseSpecifier &BS,
+  bool handleSyclSamplerType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                              QualType FieldTy) final {
     return checkType(BS.getBeginLoc(), FieldTy);
   }
@@ -1327,7 +1365,7 @@ public:
     return checkType(FD->getLocation(), FieldTy);
   }
 
-  bool handleSyclStreamType(const CXXBaseSpecifier &BS,
+  bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                             QualType FieldTy) final {
     return checkType(BS.getBeginLoc(), FieldTy);
   }
@@ -1511,7 +1549,7 @@ public:
     return true;
   }
 
-  bool handleSyclAccessorType(const CXXBaseSpecifier &BS,
+  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                               QualType FieldTy) final {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
@@ -1604,7 +1642,8 @@ public:
     return true;
   }
 
-  bool handleSyclStreamType(const CXXBaseSpecifier &, QualType FieldTy) final {
+  bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &,
+                            QualType FieldTy) final {
     // FIXME SYCL stream should be usable as a base type
     // See https://github.com/intel/llvm/issues/1552
     return true;
@@ -1695,7 +1734,6 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   InitializedEntity VarEntity;
   const CXXRecordDecl *KernelObj;
   llvm::SmallVector<Expr *, 16> MemberExprBases;
-  uint64_t ArrayIndex;
   FunctionDecl *KernelCallerFunc;
 
   // Using the statements/init expressions that we've created, this generates
@@ -1808,17 +1846,62 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     InitExprs.push_back(MemberInit.get());
   }
 
+  int getDims() {
+    int Dims = 0;
+    for (int i = MemberExprBases.size() - 1; i >= 0; --i) {
+      if (!isa<ArraySubscriptExpr>(MemberExprBases[i]))
+        break;
+      ++Dims;
+    }
+    return Dims;
+  }
+
+  int64_t getArrayIndex(int Idx) {
+    ArraySubscriptExpr *LastArrayRef =
+        cast<ArraySubscriptExpr>(MemberExprBases[Idx]);
+    Expr *LastIdx = LastArrayRef->getIdx();
+    llvm::APSInt Result;
+    SemaRef.VerifyIntegerConstantExpression(LastIdx, &Result);
+    return Result.getExtValue();
+  }
+
   void createExprForScalarElement(FieldDecl *FD) {
-    InitializedEntity ArrayEntity =
+    llvm::SmallVector<InitializedEntity, 4> InitEntities;
+
+    // For multi-dimensional arrays, an initialized entity needs to be
+    // generated for each 'dimension'. For example, the initialized entity
+    // for s.array[x][y][z] is constructed using initialized entities for
+    // s.array[x][y], s.array[x] and s.array. InitEntities is used to maintain
+    // this.
+    InitializedEntity Entity =
         InitializedEntity::InitializeMember(FD, &VarEntity);
+    InitEntities.push_back(Entity);
+
+    // Calculate dimension using ArraySubscriptExpressions in MemberExprBases.
+    // Each dimension has an ArraySubscriptExpression (maintains index)
+    // in MemberExprBases. For example, if we are currently handling element
+    // a[0][0][1], the top of stack entries are ArraySubscriptExpressions for
+    // indices 0,0 and 1, with 1 on top.
+    int Dims = getDims();
+
+    // MemberExprBasesIdx is used to get the index of each dimension, in correct
+    // order, from MemberExprBases. For example for a[0][0][1], getArrayIndex
+    // will return 0, 0 and then 1.
+    int MemberExprBasesIdx = MemberExprBases.size() - Dims;
+    for (int I = 0; I < Dims; ++I) {
+      InitializedEntity NewEntity = InitializedEntity::InitializeElement(
+          SemaRef.getASTContext(), getArrayIndex(MemberExprBasesIdx),
+          InitEntities.back());
+      InitEntities.push_back(NewEntity);
+      ++MemberExprBasesIdx;
+    }
+
     InitializationKind InitKind =
         InitializationKind::CreateCopy(SourceLocation(), SourceLocation());
     Expr *DRE = createInitExpr(FD);
-    InitializedEntity Entity = InitializedEntity::InitializeElement(
-        SemaRef.getASTContext(), ArrayIndex, ArrayEntity);
-    ArrayIndex++;
-    InitializationSequence InitSeq(SemaRef, Entity, InitKind, DRE);
-    ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, DRE);
+    InitializationSequence InitSeq(SemaRef, InitEntities.back(), InitKind, DRE);
+    ExprResult MemberInit =
+        InitSeq.Perform(SemaRef, InitEntities.back(), InitKind, DRE);
     InitExprs.push_back(MemberInit.get());
   }
 
@@ -1832,7 +1915,22 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     Expr *ILE = new (SemaRef.getASTContext())
         InitListExpr(SemaRef.getASTContext(), SourceLocation(), ArrayInitExprs,
                      SourceLocation());
-    ILE->setType(FD->getType());
+
+    // We need to find the type of the element for which we are generating the
+    // InitListExpr. For example, for a multi-dimensional array say a[2][3][2],
+    // the types for InitListExpr of the array and its 'sub-arrays' are -
+    // int [2][3][2], int [3][2] and int [2]. This loop is used to obtain this
+    // information from MemberExprBases. MemberExprBases holds
+    // ArraySubscriptExprs and the top of stack shows how far we have descended
+    // down the array. getDims() calculates this depth.
+    QualType ILEType = FD->getType();
+    for (int I = getDims(); I > 1; I--) {
+      const ConstantArrayType *CAT =
+          SemaRef.getASTContext().getAsConstantArrayType(ILEType);
+      assert(CAT && "Should only be called on constant-size array.");
+      ILEType = CAT->getElementType();
+    }
+    ILE->setType(ILEType);
     InitExprs.push_back(ILE);
   }
 
@@ -1951,7 +2049,8 @@ public:
     return handleSpecialType(FD, Ty);
   }
 
-  bool handleSyclAccessorType(const CXXBaseSpecifier &BS, QualType Ty) final {
+  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                              QualType Ty) final {
     return handleSpecialType(BS, Ty);
   }
 
@@ -1983,7 +2082,8 @@ public:
     return true;
   }
 
-  bool handleSyclStreamType(const CXXBaseSpecifier &BS, QualType Ty) final {
+  bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                            QualType Ty) final {
     // FIXME SYCL stream should be usable as a base type
     // See https://github.com/intel/llvm/issues/1552
     return true;
@@ -2091,20 +2191,18 @@ public:
     ExprResult ElementBase = SemaRef.CreateBuiltinArraySubscriptExpr(
         ArrayBase, SourceLocation(), IndexExpr.get(), SourceLocation());
     MemberExprBases.push_back(ElementBase.get());
-    ArrayIndex = 0;
     return true;
   }
 
-  bool nextElement(QualType ET) final {
-    ArraySubscriptExpr *LastArrayRef =
-        cast<ArraySubscriptExpr>(MemberExprBases.back());
+  bool nextElement(QualType ET, uint64_t) final {
+    // Top of MemberExprBases holds ArraySubscriptExpression of element
+    // we just handled, or the Array base for the dimension we are
+    // currently visiting.
+    int64_t nextIndex = getArrayIndex(MemberExprBases.size() - 1) + 1;
     MemberExprBases.pop_back();
-    Expr *LastIdx = LastArrayRef->getIdx();
-    llvm::APSInt Result;
-    SemaRef.VerifyIntegerConstantExpression(LastIdx, &Result);
     Expr *ArrayBase = MemberExprBases.back();
-    ExprResult IndexExpr = SemaRef.ActOnIntegerConstant(
-        SourceLocation(), Result.getExtValue() + 1);
+    ExprResult IndexExpr =
+        SemaRef.ActOnIntegerConstant(SourceLocation(), nextIndex);
     ExprResult ElementBase = SemaRef.CreateBuiltinArraySubscriptExpr(
         ArrayBase, SourceLocation(), IndexExpr.get(), SourceLocation());
     MemberExprBases.push_back(ElementBase.get());
@@ -2129,7 +2227,19 @@ public:
 class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   SYCLIntegrationHeader &Header;
   int64_t CurOffset = 0;
+  llvm::SmallVector<size_t, 16> ArrayBaseOffsets;
   int StructDepth = 0;
+
+  // A series of functions to calculate the change in offset based on the type.
+  int64_t offsetOf(const FieldDecl *FD) const {
+    return SemaRef.getASTContext().getFieldOffset(FD) / 8;
+  }
+
+  int64_t offsetOf(const CXXRecordDecl *RD, const CXXRecordDecl *Base) const {
+    const ASTRecordLayout &Layout =
+        SemaRef.getASTContext().getASTRecordLayout(RD);
+    return Layout.getBaseClassOffset(Base).getQuantity();
+  }
 
   void addParam(const FieldDecl *FD, QualType ArgTy,
                 SYCLIntegrationHeader::kernel_param_kind_t Kind) {
@@ -2140,7 +2250,7 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
       ArgTy = CAT->getElementType();
     Size = SemaRef.getASTContext().getTypeSizeInChars(ArgTy).getQuantity();
     Header.addParamDesc(Kind, static_cast<unsigned>(Size),
-                        static_cast<unsigned>(CurOffset));
+                        static_cast<unsigned>(CurOffset + offsetOf(FD)));
   }
 
 public:
@@ -2151,7 +2261,8 @@ public:
     Header.startKernel(Name, NameType, StableName, KernelObj->getLocation());
   }
 
-  bool handleSyclAccessorType(const CXXBaseSpecifier &BC,
+  bool handleSyclAccessorType(const CXXRecordDecl *RD,
+                              const CXXBaseSpecifier &BC,
                               QualType FieldTy) final {
     const auto *AccTy =
         cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
@@ -2160,7 +2271,9 @@ public:
     int Dims = static_cast<int>(
         AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
     int Info = getAccessTarget(AccTy) | (Dims << 11);
-    Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info, CurOffset);
+    Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
+                        CurOffset +
+                            offsetOf(RD, BC.getType()->getAsCXXRecordDecl()));
     return true;
   }
 
@@ -2172,7 +2285,8 @@ public:
     int Dims = static_cast<int>(
         AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
     int Info = getAccessTarget(AccTy) | (Dims << 11);
-    Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info, CurOffset);
+    Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
+                        CurOffset + offsetOf(FD));
     return true;
   }
 
@@ -2227,7 +2341,7 @@ public:
     return true;
   }
 
-  bool handleSyclStreamType(const CXXBaseSpecifier &BC,
+  bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &BC,
                             QualType FieldTy) final {
     // FIXME SYCL stream should be usable as a base type
     // See https://github.com/intel/llvm/issues/1552
@@ -2239,54 +2353,42 @@ public:
     return true;
   }
 
-  bool enterStruct(const CXXRecordDecl *, FieldDecl *) final {
+  bool enterStruct(const CXXRecordDecl *, FieldDecl *FD) final {
     ++StructDepth;
+    CurOffset += offsetOf(FD);
     return true;
   }
 
-  bool leaveStruct(const CXXRecordDecl *, FieldDecl *) final {
+  bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD) final {
     --StructDepth;
+    CurOffset -= offsetOf(FD);
     return true;
   }
 
-  bool enterField(const CXXRecordDecl *RD, FieldDecl *FD) final {
-    CurOffset += SemaRef.getASTContext().getFieldOffset(FD) / 8;
+  bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
+    CurOffset += offsetOf(RD, BS.getType()->getAsCXXRecordDecl());
     return true;
   }
 
-  bool leaveField(const CXXRecordDecl *, FieldDecl *FD) final {
-    CurOffset -= SemaRef.getASTContext().getFieldOffset(FD) / 8;
+  bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
+    CurOffset -= offsetOf(RD, BS.getType()->getAsCXXRecordDecl());
     return true;
   }
 
-  bool enterField(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
-    const ASTRecordLayout &Layout =
-        SemaRef.getASTContext().getASTRecordLayout(RD);
-    CurOffset += Layout.getBaseClassOffset(BS.getType()->getAsCXXRecordDecl())
-                     .getQuantity();
+  bool enterArray() final {
+    ArrayBaseOffsets.push_back(CurOffset);
     return true;
   }
 
-  bool leaveField(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS) final {
-    const ASTRecordLayout &Layout =
-        SemaRef.getASTContext().getASTRecordLayout(RD);
-    CurOffset -= Layout.getBaseClassOffset(BS.getType()->getAsCXXRecordDecl())
-                     .getQuantity();
+  bool nextElement(QualType ET, uint64_t Index) final {
+    int64_t Size = SemaRef.getASTContext().getTypeSizeInChars(ET).getQuantity();
+    CurOffset = ArrayBaseOffsets.back() + Size * (Index);
     return true;
   }
 
-  bool nextElement(QualType ET) final {
-    CurOffset += SemaRef.getASTContext().getTypeSizeInChars(ET).getQuantity();
-    return true;
-  }
-
-  bool leaveArray(FieldDecl *, QualType ET, int64_t Count) final {
-    int64_t ArraySize =
-        SemaRef.getASTContext().getTypeSizeInChars(ET).getQuantity();
-    if (!ET->isArrayType()) {
-      ArraySize *= Count;
-    }
-    CurOffset -= ArraySize;
+  bool leaveArray(FieldDecl *, QualType ET, int64_t) final {
+    CurOffset = ArrayBaseOffsets.back();
+    ArrayBaseOffsets.pop_back();
     return true;
   }
   using SyclKernelFieldHandler::enterStruct;
@@ -3265,9 +3367,10 @@ bool Util::isSyclHalfType(const QualType &Ty) {
 
 bool Util::isSyclSpecConstantType(const QualType &Ty) {
   const StringRef &Name = "spec_constant";
-  std::array<DeclContextDesc, 4> Scopes = {
+  std::array<DeclContextDesc, 5> Scopes = {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "ONEAPI"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "experimental"},
       Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
   return matchQualifiedTypeName(Ty, Scopes);

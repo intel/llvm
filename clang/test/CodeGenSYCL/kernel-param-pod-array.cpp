@@ -25,6 +25,7 @@ struct foo {
 int main() {
 
   int a[2];
+  int array_2D[2][1];
   foo struct_array[2];
 
   a_kernel<class kernel_B>(
@@ -35,6 +36,11 @@ int main() {
   a_kernel<class kernel_C>(
       [=]() {
         foo local = struct_array[1];
+      });
+
+  a_kernel<class kernel_D>(
+      [=]() {
+        int local = array_2D[0][0];
       });
 }
 
@@ -151,3 +157,25 @@ int main() {
 // CHECK: [[GEP_FOO2_C:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct.{{.*}}foo.foo, %struct.{{.*}}foo.foo* [[FOO_ARRAY_1]], i32 0, i32 2
 // CHECK: [[LOAD_FOO2_C:%[a-zA-Z0-9_]+]] = load i32, i32* [[FOO2_C_LOCAL]], align 4
 // CHECK: store i32 [[LOAD_FOO2_C]], i32* [[GEP_FOO2_C]], align 4
+
+// Check kernel_D parameters
+// CHECK: define spir_kernel void @{{.*}}kernel_D
+// CHECK-SAME: i32 [[ARR_2D_1:%[a-zA-Z0-9_]+]], i32 [[ARR_2D_2:%[a-zA-Z0-9_]+]]
+
+// Check local lambda object alloca
+// CHECK: [[LAMBDA_OBJ:%[0-9]+]] = alloca %"class.{{.*}}.anon.1", align 4
+
+// Check local stores
+// CHECK: store i32 [[ARR_2D_1]], i32* [[ARR_2D_1_LOCAL:%[a-zA-Z_]+.addr[0-9]*]], align 4
+// CHECK: store i32 [[ARR_2D_2]], i32* [[ARR_2D_2_LOCAL:%[a-zA-Z_]+.addr[0-9]*]], align 4
+
+// Check initialization of local array
+// CHECK: [[GEP_ARR_2D:%[0-9]*]] = getelementptr inbounds %"class._ZTSZ4mainE3$_0.anon.1", %"class._ZTSZ4mainE3$_0.anon.1"* [[LAMBDA_OBJ]], i32 0, i32 0
+// CHECK: [[GEP_ARR_BEGIN1:%[a-zA-Z0-9_.]+]] = getelementptr inbounds [2 x [1 x i32]], [2 x [1 x i32]]* [[GEP_ARR_2D]], i64 0, i64 0
+// CHECK: [[GEP_ARR_ELEM0:%[a-zA-Z0-9_.]+]] = getelementptr inbounds [1 x i32], [1 x i32]* [[GEP_ARR_BEGIN1]], i64 0, i64 0
+// CHECK: [[ARR_2D_ELEM0:%[0-9]*]] = load i32, i32* [[ARR_2D_1_LOCAL]], align 4
+// CHECK: store i32 [[ARR_2D_ELEM0]], i32* [[GEP_ARR_ELEM0]], align 4
+// CHECK: [[GEP_ARR_BEGIN2:%[a-zA-Z_.]+]] = getelementptr inbounds [1 x i32], [1 x i32]* [[GEP_ARR_BEGIN1]], i64 1
+// CHECK: [[GEP_ARR_ELEM1:%[a-zA-Z0-9_.]+]] = getelementptr inbounds [1 x i32], [1 x i32]* [[GEP_ARR_BEGIN2]], i64 0, i64 0
+// CHECK: [[ARR_2D_ELEM1:%[0-9]*]] = load i32, i32* [[ARR_2D_2_LOCAL]], align 4
+// CHECK: store i32 [[ARR_2D_ELEM1]], i32* [[GEP_ARR_ELEM1]], align 4

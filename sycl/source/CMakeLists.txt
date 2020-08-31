@@ -129,6 +129,7 @@ set(SYCL_SOURCES
     "detail/sampler_impl.cpp"
     "detail/stream_impl.cpp"
     "detail/scheduler/commands.cpp"
+    "detail/scheduler/leaves_collection.cpp"
     "detail/scheduler/scheduler.cpp"
     "detail/scheduler/graph_processor.cpp"
     "detail/scheduler/graph_builder.cpp"

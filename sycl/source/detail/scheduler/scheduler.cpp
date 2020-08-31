@@ -226,7 +226,7 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
 // static
 void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req) {
   MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
-  auto EnqueueLeaves = [](CircularBuffer<Command *> &Leaves) {
+  auto EnqueueLeaves = [](LeavesCollection &Leaves) {
     for (Command *Cmd : Leaves) {
       EnqueueResultT Res;
       bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
@@ -262,6 +262,10 @@ void Scheduler::lockSharedTimedMutex(
   // try_lock in the loop above will be executed, so using a single lock here
   Lock.lock();
 #endif // _WIN32
+}
+
+MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
+  return Req->MSYCLMemObj->MRecord.get();
 }
 
 } // namespace detail

@@ -250,7 +250,7 @@ public:
   ///
   /// Stream ids are positive integers and we set it to an invalid value.
   int32_t MStreamID = -1;
-  /// Reserved for storing the object address such as SPIRV or memory object
+  /// Reserved for storing the object address such as SPIR-V or memory object
   /// address.
   void *MAddress = nullptr;
   /// Buffer to build the address string.

@@ -30,7 +30,7 @@ void test(T Identity, size_t WGSize, size_t NWItems) {
     auto In = InBuf.template get_access<access::mode::read>(CGH);
     accessor<T, Dim, Mode, access::target::global_buffer>
         Out(OutBuf, CGH);
-    auto Redu = intel::reduction(Out, Identity, BOp);
+    auto Redu = ONEAPI::reduction(Out, Identity, BOp);
 
     range<1> GlobalRange(NWItems);
     range<1> LocalRange(WGSize);
@@ -64,15 +64,19 @@ int runTests(const string_class &ExtensionName) {
 
   // Check some less standards WG sizes and corner cases first.
   test<T, 1, access::mode::read_write, std::multiplies<T>>(0, 4, 4);
-  test<T, 0, access::mode::discard_write, intel::plus<T>>(0, 4, 64);
+  test<T, 0, access::mode::discard_write, ONEAPI::plus<T>>(0, 4, 64);
 
-  test<T, 0, access::mode::read_write, intel::minimum<T>>(getMaximumFPValue<T>(), 7, 7);
-  test<T, 1, access::mode::discard_write, intel::maximum<T>>(getMinimumFPValue<T>(), 7, 7 * 5);
+  test<T, 0, access::mode::read_write, ONEAPI::minimum<T>>(
+      getMaximumFPValue<T>(), 7, 7);
+  test<T, 1, access::mode::discard_write, ONEAPI::maximum<T>>(
+      getMinimumFPValue<T>(), 7, 7 * 5);
 
 #if __cplusplus >= 201402L
-  test<T, 1, access::mode::read_write, intel::plus<>>(1, 3, 3 * 5);
-  test<T, 1, access::mode::discard_write, intel::minimum<>>(getMaximumFPValue<T>(), 3, 3);
-  test<T, 0, access::mode::discard_write, intel::maximum<>>(getMinimumFPValue<T>(), 3, 3);
+  test<T, 1, access::mode::read_write, ONEAPI::plus<>>(1, 3, 3 * 5);
+  test<T, 1, access::mode::discard_write, ONEAPI::minimum<>>(
+      getMaximumFPValue<T>(), 3, 3);
+  test<T, 0, access::mode::discard_write, ONEAPI::maximum<>>(
+      getMinimumFPValue<T>(), 3, 3);
 #endif // __cplusplus >= 201402L
 
   std::cout << "Test passed\n";

@@ -38,7 +38,8 @@ int val = 10;
 int get_value() { return val; }
 
 float foo(
-    const cl::sycl::experimental::spec_constant<float, MyFloatConst> &f32) {
+    const cl::sycl::ONEAPI::experimental::spec_constant<float, MyFloatConst>
+        &f32) {
   return f32;
 }
 
@@ -47,8 +48,8 @@ struct SCWrapper {
       : SC1(p.set_spec_constant<class sc_name1, int>(4)),
         SC2(p.set_spec_constant<class sc_name2, int>(2)) {}
 
-  cl::sycl::experimental::spec_constant<int, class sc_name1> SC1;
-  cl::sycl::experimental::spec_constant<int, class sc_name2> SC2;
+  cl::sycl::ONEAPI::experimental::spec_constant<int, class sc_name1> SC1;
+  cl::sycl::ONEAPI::experimental::spec_constant<int, class sc_name2> SC2;
 };
 
 int main(int argc, char **argv) {
@@ -79,10 +80,10 @@ int main(int argc, char **argv) {
   // TODO make this floating point once supported by the compiler
   float goldf = (float)get_value();
 
-  cl::sycl::experimental::spec_constant<int32_t, MyInt32Const> i32 =
+  cl::sycl::ONEAPI::experimental::spec_constant<int32_t, MyInt32Const> i32 =
       program1.set_spec_constant<MyInt32Const>(goldi);
 
-  cl::sycl::experimental::spec_constant<float, MyFloatConst> f32 =
+  cl::sycl::ONEAPI::experimental::spec_constant<float, MyFloatConst> f32 =
       program2.set_spec_constant<MyFloatConst>(goldf);
 
   program1.build_with_kernel_type<KernelAAAi>();
