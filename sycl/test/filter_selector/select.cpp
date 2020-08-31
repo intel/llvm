@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
 // RUN: %t1.out
 
-//==------------------- select.cpp - string_selector test ------------------==//
+//==------------------- select.cpp - filter_selector test ------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
