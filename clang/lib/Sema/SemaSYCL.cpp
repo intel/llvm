@@ -1660,6 +1660,11 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   llvm::SmallVector<Stmt *, 16> BodyStmts;
   llvm::SmallVector<InitListExpr *, 16> CollectionInitExprs;
   llvm::SmallVector<Stmt *, 16> FinalizeStmts;
+  // This collection contains the information required to add/remove information
+  // about arrays as we enter them.  The InitializedEntity component is
+  // necessary for initializing child members.  uin64_t is the index of the
+  // current element being worked on, which is updated every time we visit
+  // nextElement.
   llvm::SmallVector<std::pair<InitializedEntity, uint64_t>, 8> ArrayInfos;
   VarDecl *KernelObjClone;
   InitializedEntity VarEntity;
