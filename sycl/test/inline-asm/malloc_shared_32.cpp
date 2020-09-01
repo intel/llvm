@@ -37,7 +37,7 @@ int main() {
      cgh.parallel_for<kernel_name>(
          cl::sycl::range<1>(problem_size),
          [=](cl::sycl::id<1> idx)
-             [[cl::intel_reqd_sub_group_size(32)]] {
+             [[intel::reqd_sub_group_size(32)]] {
                int i = idx[0];
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
                asm volatile(R"a(
