@@ -1,3 +1,6 @@
+// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.out
+
 //==------------ compute_units.cpp - SYCL FPGA compute units test ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
