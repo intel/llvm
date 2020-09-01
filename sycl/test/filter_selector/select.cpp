@@ -34,6 +34,7 @@ int main() {
   bool HasLevelZero = false;
   bool HasOpenCL = false;
   bool HasCUDA = false;
+  bool HasOpenCLGPU = false;
 
   auto Platforms = platform::get_platforms();
   for (auto Platform : Platforms) {
@@ -46,6 +47,12 @@ int main() {
       } else if (Backend == backend::cuda) {
         HasCUDA = true;
       }
+    }
+  }
+
+  for (const auto &GPU : GPUs) {
+    if (GPU.get_platform().get_backend() == backend::opencl) {
+      HasOpenCLGPU = true;
     }
   }
 
@@ -82,7 +89,7 @@ int main() {
       assert(d6.is_cpu() && d6.get_platform().get_backend() == backend::opencl);
     }
 
-    if (!GPUs.empty()) {
+    if (!GPUs.empty() && HasOpenCLGPU) {
       std::cout << "Test 'opencl:gpu'" << std::endl;
       device d7(filter_selector("opencl:gpu"));
       assert(d7.is_gpu() && d7.get_platform().get_backend() == backend::opencl);
