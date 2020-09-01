@@ -56,7 +56,7 @@ enum KernelInvocationKind {
 
 const static std::string InitMethodName = "__init";
 const static std::string FinalizeMethodName = "__finalize";
-const static unsigned GPUMaxKernelArgsNum = 2000;
+constexpr unsigned GPUMaxKernelArgsNum = 2000;
 
 namespace {
 
@@ -1662,16 +1662,12 @@ class SyclKernelNumArgsChecker : public SyclKernelFieldHandler {
   SourceLocation KernelLoc;
   unsigned NumOfParams = 0;
 
-  void addParam() { NumOfParams++; }
-
   bool handleSpecialType(QualType FieldTy) {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
     assert(InitMethod && "The accessor/sampler must have the __init method");
-    unsigned NumOfParams = InitMethod->getNumParams();
-    for (unsigned I = 0; I < NumOfParams; ++I)
-      addParam();
+    NumOfParams += InitMethod->getNumParams();
     return true;
   }
 
@@ -1709,12 +1705,12 @@ public:
   }
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
-    addParam();
+    NumOfParams++;
     return true;
   }
 
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
-    addParam();
+    NumOfParams++;
     return true;
   }
 
@@ -1723,17 +1719,17 @@ public:
   }
 
   bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
-    addParam();
+    NumOfParams++;
     return true;
   }
 
   bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
-    addParam();
+    NumOfParams++;
     return true;
   }
   bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &,
                             QualType FieldTy) final {
-    addParam();
+    NumOfParams++;
     return true;
   }
   using SyclKernelFieldHandler::handleSyclHalfType;
