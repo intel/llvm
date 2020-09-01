@@ -39,7 +39,7 @@ void SinkKernel(queue &q, std::array<float, 1> &out_data) {
   q.submit([&](handler &h) {
     auto out_accessor = out_buf.get_access<access::mode::write>(h);
     h.single_task<sink_kernel>(
-        [=]() { out_accessor[0] = Pipes::PipeAt<kEngines>::read(); });
+        [=]() { out_accessor[0] = Pipes::PipeAt<kComputeUnits>::read(); });
   });
 }
 

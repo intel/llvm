@@ -45,8 +45,7 @@ struct PipeArray {
     static_assert(VerifierDimLayer<dims...>::template VerifierIdxLayer<
                       idxs...>::IsValid(),
                   "Index out of bounds");
-    using VerifiedPipe =
-        cl::sycl::intel::pipe<StructId<idxs...>, BaseTy, depth>;
+    using VerifiedPipe = pipe<StructId<idxs...>, BaseTy, depth>;
   };
 
   template <size_t... idxs>
