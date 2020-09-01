@@ -69,6 +69,11 @@ struct _pi_platform {
   // a pretty good fit to keep here.
   ze_driver_handle_t ZeDriver;
 
+  // A L0 context handle is primarily used during creation and management of
+  // resources that may be used by multiple devices.
+  // TODO[1.0]: we should most certainly move this into _pi_context.
+  ze_context_handle_t ZeContext;
+
   // Cache versions info from zeDriverGetProperties.
   std::string ZeDriverVersion;
   std::string ZeDriverApiVersion;
@@ -87,6 +92,13 @@ struct _pi_device : _pi_object {
     // NOTE: one must additionally call initialize() to complete
     // PI device creation.
   }
+
+  // Keep the ordinal of a "compute" commands group, where we send all
+  // commands currently.
+  // TODO[1.0]: discover "copy" command group as well to use for memory
+  // copying operations exclusively.
+  //
+  uint32_t ZeComputeQueueGroupIndex;
 
   // Initialize the entire PI device.
   pi_result initialize();
