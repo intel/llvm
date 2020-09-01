@@ -1,4 +1,4 @@
-// UNSUPPORTED:  i686-pc-windows
+// UNSUPPORTED:  windows
 // Test if clang is able to print internal defines in SYCL mode
 // REQUIRES: x86-registered-target
 //
