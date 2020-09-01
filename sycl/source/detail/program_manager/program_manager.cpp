@@ -777,12 +777,15 @@ ProgramManager::ProgramPtr ProgramManager::build(
     LinkOpts = LinkOptions.c_str();
   }
 
-  // Level-Zero plugin doesn't support piProgramCompile/piProgramLink commands,
-  // program is built during piProgramCreate.
-  // TODO: remove this check as soon as piProgramCompile/piProgramLink will be
-  // implemented in Level-Zero plugin.
-  if (Context->getPlugin().getBackend() == backend::level_zero) {
-    LinkDeviceLibs = false;
+  // The Level Zero driver support for online linking currently has bugs, but
+  // we think the DPC++ runtime support is ready.  This environment variable
+  // gates the runtime support for online linking, so we can try enabling if a
+  // new driver is released before the next DPC++ release.
+  static bool EnableLevelZeroLink = std::getenv("SYCL_ENABLE_LEVEL_ZERO_LINK");
+  if (!EnableLevelZeroLink) {
+    if (Context->getPlugin().getBackend() == backend::level_zero) {
+      LinkDeviceLibs = false;
+    }
   }
 
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
