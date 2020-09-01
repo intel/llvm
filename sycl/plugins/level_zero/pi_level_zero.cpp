@@ -443,9 +443,7 @@ _pi_device::getAvailableCommandList(pi_queue Queue,
       // Can happen if two Queues reuse a device which did not have the
       // resources freed.
       ZE_CALL(zeFenceCreate(Queue->ZeCommandQueue, &ZeFenceDesc, ZeFence));
-      Queue->ZeCommandListFenceMap.insert(
-          std::pair<ze_command_list_handle_t, ze_fence_handle_t>(*ZeCommandList,
-                                                                 *ZeFence));
+      Queue->ZeCommandListFenceMap[*ZeCommandList] = *ZeFence;
     }
     Queue->ZeCommandListFenceMapMutex.unlock();
     Queue->Device->ZeCommandListCache.pop_front();
