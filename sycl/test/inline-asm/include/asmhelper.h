@@ -84,33 +84,47 @@ bool isInlineASMSupported(sycl::device Device) {
   return true;
 }
 
+template <typename F>
+bool launchInlineASMTestImpl(F &f, bool requires_particular_sg_size = true) {
+  cl::sycl::queue deviceQueue(cl::sycl::gpu_selector{});
+  cl::sycl::device device = deviceQueue.get_device();
+
+#if defined(INLINE_ASM)
+  if (!isInlineASMSupported(device)) {
+    std::cout << "Skipping test\n";
+    return false;
+  }
+#endif
+
+  if (requires_particular_sg_size &&
+      !device.has_extension("cl_intel_required_subgroup_size")) {
+    std::cout << "Skipping test\n";
+    return false;
+  }
+
+  deviceQueue.submit(f).wait_and_throw();
+
+  return true;
+}
+
 /// checks if device suppots inline asm feature and launches a test
 ///
 /// \returns false if test wasn't launched (i.e.was skipped) and true otherwise
 template <typename F>
-bool launchInlineASMTest(F &f, bool requires_particular_sg_size = true) {
-  try {
-    cl::sycl::queue deviceQueue(cl::sycl::gpu_selector{});
-    cl::sycl::device device = deviceQueue.get_device();
-
-#if defined(INLINE_ASM)
-    if (!isInlineASMSupported(device)) {
-      std::cout << "Skipping test\n";
-      return false;
-    }
-#endif
-
-    if (requires_particular_sg_size && !device.has_extension("cl_intel_required_subgroup_size")) {
-      std::cout << "Skipping test\n";
-      return false;
+bool launchInlineASMTest(F &f, bool requires_particular_sg_size = true,
+                         bool need_to_throw_exception = false) {
+  if (need_to_throw_exception) {
+    return launchInlineASMTestImpl(f, requires_particular_sg_size);
+  } else {
+    bool result = false;
+    try {
+      result = launchInlineASMTestImpl(f, requires_particular_sg_size);
+    } catch (cl::sycl::exception &e) {
+      std::cerr << "Caught exception: " << e.what() << std::endl;
     }
 
-    deviceQueue.submit(f).wait_and_throw();
-  } catch (cl::sycl::exception &e) {
-    std::cerr << "Caught exception: " << e.what() << std::endl;
+    return result;
   }
-
-  return true;
 }
 
 template <typename T>
