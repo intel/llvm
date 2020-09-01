@@ -32,7 +32,7 @@ public:
 
 template <template <std::size_t> class Name, class Func, std::size_t... index>
 inline constexpr void ComputeUnitUnroller(sycl::queue &q, Func &&f,
-                               std::index_sequence<index...>) {
+                                          std::index_sequence<index...>) {
   (SubmitOneComputeUnit<Func, Name, index>(f, q), ...); // fold expression
 }
 
