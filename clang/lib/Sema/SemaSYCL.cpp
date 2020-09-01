@@ -1663,7 +1663,7 @@ class SyclKernelNumArgsChecker : public SyclKernelFieldHandler {
   unsigned NumOfParams = 0;
 
   bool handleSpecialType(QualType FieldTy) {
-    const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
+    const CXXRecordDecl *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
     assert(InitMethod && "The accessor/sampler must have the __init method");
