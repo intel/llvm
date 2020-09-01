@@ -71,11 +71,6 @@ struct _pi_platform {
   // a pretty good fit to keep here.
   ze_driver_handle_t ZeDriver;
 
-  // A L0 context handle is primarily used during creation and management of
-  // resources that may be used by multiple devices.
-  // TODO[1.0]: we should most certainly move this into _pi_context.
-  ze_context_handle_t ZeContext;
-
   // Cache versions info from zeDriverGetProperties.
   std::string ZeDriverVersion;
   std::string ZeDriverApiVersion;
@@ -97,9 +92,8 @@ struct _pi_platform {
 struct _pi_device : _pi_object {
   _pi_device(ze_device_handle_t Device, pi_platform Plt,
              bool isSubDevice = false)
-      : ZeDevice{Device}, Platform{Plt}, ZeCommandListInit{nullptr},
-        IsSubDevice{isSubDevice}, ZeDeviceProperties{},
-        ZeDeviceComputeProperties{} {
+      : ZeDevice{Device}, Platform{Plt}, IsSubDevice{isSubDevice},
+        ZeDeviceProperties{}, ZeDeviceComputeProperties{} {
     // NOTE: one must additionally call initialize() to complete
     // PI device creation.
   }
@@ -119,14 +113,6 @@ struct _pi_device : _pi_object {
 
   // PI platform to which this device belongs.
   pi_platform Platform;
-
-  // Immediate Level Zero command list for this device, to be used for
-  // initializations. To be created as:
-  // - Immediate command list: So any command appended to it is immediately
-  //   offloaded to the device.
-  // - Synchronous: So implicit synchronization is made inside the level-zero
-  //   driver.
-  ze_command_list_handle_t ZeCommandListInit;
 
   // Mutex Lock for the Command List Cache
   std::mutex ZeCommandListCacheMutex;
@@ -158,13 +144,26 @@ struct _pi_device : _pi_object {
 
 struct _pi_context : _pi_object {
   _pi_context(pi_device Device)
-      : Device{Device}, ZeEventPool{nullptr}, NumEventsAvailableInEventPool{},
-        NumEventsLiveInEventPool{} {}
+      : Device{Device}, ZeCommandListInit{nullptr}, ZeEventPool{nullptr},
+        NumEventsAvailableInEventPool{}, NumEventsLiveInEventPool{} {}
 
-  // Level Zero does not have notion of contexts.
+  // A L0 context handle is primarily used during creation and management of
+  // resources that may be used by multiple devices.
+  ze_context_handle_t ZeContext;
+
   // Keep the device here (must be exactly one) to return it when PI context
   // is queried for devices.
   pi_device Device;
+
+  // Immediate Level Zero command list for the device in this context, to be
+  // used for initializations. To be created as:
+  // - Immediate command list: So any command appended to it is immediately
+  //   offloaded to the device.
+  // - Synchronous: So implicit synchronization is made inside the level-zero
+  //   driver.
+  // There will be a list of immediate command lists (for each device) when
+  // support of the multiple devices per context will be added.
+  ze_command_list_handle_t ZeCommandListInit;
 
   // Get index of the free slot in the available pool. If there is no avialble
   // pool then create new one.
@@ -205,8 +204,9 @@ private:
 };
 
 struct _pi_queue : _pi_object {
-  _pi_queue(ze_command_queue_handle_t Queue, pi_context Context)
-      : ZeCommandQueue{Queue}, Context{Context} {}
+  _pi_queue(ze_command_queue_handle_t Queue, pi_context Context,
+            pi_device Device)
+      : ZeCommandQueue{Queue}, Context{Context}, Device{Device} {}
 
   // Level Zero command queue handle.
   ze_command_queue_handle_t ZeCommandQueue;
@@ -228,6 +228,9 @@ struct _pi_queue : _pi_object {
   pi_result resetCommandListFenceEntry(ze_command_list_handle_t ZeCommandList,
                                        bool MakeAvailable);
 
+  // Keeps the PI device to which this queue belongs.
+  pi_device Device;
+
   // Attach a command list to this queue, close, and execute it.
   // Note that this command list cannot be appended to after this.
   // The "is_blocking" tells if the wait for completion is requested.
@@ -239,8 +242,8 @@ struct _pi_queue : _pi_object {
 };
 
 struct _pi_mem : _pi_object {
-  // Keeps the PI platform of this memory handle.
-  pi_platform Platform;
+  // Keeps the PI context of this memory handle.
+  pi_context Context;
 
   // Keeps the host pointer where the buffer will be mapped to,
   // if created with PI_MEM_FLAGS_HOST_PTR_USE (see
@@ -274,8 +277,8 @@ struct _pi_mem : _pi_object {
   pi_result removeMapping(void *MappedTo, Mapping &MapInfo);
 
 protected:
-  _pi_mem(pi_platform Plt, char *HostPtr)
-      : Platform{Plt}, MapHostPtr{HostPtr}, Mappings{} {}
+  _pi_mem(pi_context Ctx, char *HostPtr)
+      : Context{Ctx}, MapHostPtr{HostPtr}, Mappings{} {}
 
 private:
   // The key is the host pointer representing an active mapping.
@@ -290,9 +293,9 @@ private:
 
 struct _pi_buffer final : _pi_mem {
   // Buffer/Sub-buffer constructor
-  _pi_buffer(pi_platform Plt, char *Mem, char *HostPtr,
+  _pi_buffer(pi_context Ctx, char *Mem, char *HostPtr,
              _pi_mem *Parent = nullptr, size_t Origin = 0, size_t Size = 0)
-      : _pi_mem(Plt, HostPtr), ZeMem{Mem}, SubBuffer{Parent, Origin, Size} {}
+      : _pi_mem(Ctx, HostPtr), ZeMem{Mem}, SubBuffer{Parent, Origin, Size} {}
 
   void *getZeHandle() override { return ZeMem; }
 
@@ -315,8 +318,8 @@ struct _pi_buffer final : _pi_mem {
 
 struct _pi_image final : _pi_mem {
   // Image constructor
-  _pi_image(pi_platform Plt, ze_image_handle_t Image, char *HostPtr)
-      : _pi_mem(Plt, HostPtr), ZeImage{Image} {}
+  _pi_image(pi_context Ctx, ze_image_handle_t Image, char *HostPtr)
+      : _pi_mem(Ctx, HostPtr), ZeImage{Image} {}
 
   void *getZeHandle() override { return ZeImage; }
 
