@@ -2714,6 +2714,14 @@ static SmallVector<const char *, 16> getLinkerArgs(Compilation &C,
   return LibArgs;
 }
 
+static bool IsSYCLDeviceLibObj(std::string ObjFilePath) {
+  StringRef ObjFileName = llvm::sys::path::filename(ObjFilePath);
+  bool Ret = (ObjFileName.startswith("libsycl-") && ObjFileName.endswith(".o"))
+                 ? true
+                 : false;
+  return Ret;
+}
+
 // Goes through all of the arguments, including inputs expected for the
 // linker directly, to determine if we need to perform additional work for
 // static offload libraries.
@@ -3789,7 +3797,10 @@ class OffloadingActionBuilder final {
           if (IA->getType() == types::TY_Object) {
             if (!isObjectFile(FileName))
               return ABRT_Inactive;
-            if (Args.hasArg(options::OPT_fintelfpga))
+            // For SYCL device libraries, don't need to add them to
+            // FPGAObjectInputs as there is no fpga dep files inside.
+            if (Args.hasArg(options::OPT_fintelfpga) &&
+                !IsSYCLDeviceLibObj(FileName))
               FPGAObjectInputs.push_back(IA);
           }
           // When creating FPGA device fat objects, all host objects are
@@ -3851,6 +3862,53 @@ class OffloadingActionBuilder final {
       }
       // We no longer need the action stored in this builder.
       SYCLDeviceActions.clear();
+    }
+
+    void addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
+                           bool isSpirvAOT, bool isMSVCEnv) {
+      enum SYCLDeviceLibType {
+        sycl_devicelib_wrapper,
+        sycl_devicelib_fallback
+      };
+      StringRef LibLoc, LibSysUtils;
+      if (isMSVCEnv) {
+        LibLoc = Args.MakeArgString(TC->getDriver().Dir + "/../bin");
+        LibSysUtils = "libsycl-msvc";
+      } else {
+        LibLoc = Args.MakeArgString(TC->getDriver().Dir + "/../lib");
+        LibSysUtils = "libsycl-glibc";
+      }
+      SmallVector<StringRef, 4> sycl_device_wrapper_libs = {
+          LibSysUtils, "libsycl-complex", "libsycl-complex-fp64",
+          "libsycl-cmath", "libsycl-cmath-fp64"};
+      // For AOT compilation, we need to link sycl_device_fallback_libs as
+      // default too.
+      SmallVector<StringRef, 4> sycl_device_fallback_libs = {
+          "libsycl-fallback-cassert", "libsycl-fallback-complex",
+          "libsycl-fallback-complex-fp64", "libsycl-fallback-cmath",
+          "libsycl-fallback-cmath-fp64"};
+      auto addInputs = [&](SYCLDeviceLibType t) {
+        auto sycl_libs = (t == sycl_devicelib_wrapper)
+                             ? sycl_device_wrapper_libs
+                             : sycl_device_fallback_libs;
+        for (const StringRef &Lib : sycl_libs) {
+          SmallString<128> LibName(LibLoc);
+          llvm::sys::path::append(LibName, Lib);
+          llvm::sys::path::replace_extension(LibName, ".o");
+          Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
+                                       Args.MakeArgString(LibName));
+          auto *SYCLDeviceLibsInputAction =
+              C.MakeAction<InputAction>(*InputArg, types::TY_Object);
+          auto *SYCLDeviceLibsUnbundleAction =
+              C.MakeAction<OffloadUnbundlingJobAction>(
+                  SYCLDeviceLibsInputAction);
+          addDeviceDepences(SYCLDeviceLibsUnbundleAction);
+          DeviceLinkObjects.push_back(SYCLDeviceLibsUnbundleAction);
+        }
+      };
+      addInputs(sycl_devicelib_wrapper);
+      if (isSpirvAOT)
+        addInputs(sycl_devicelib_fallback);
     }
 
     void appendLinkDependences(OffloadAction::DeviceDependences &DA) override {
@@ -3932,12 +3990,26 @@ class OffloadingActionBuilder final {
         }
         ActionList DeviceLibObjects;
         ActionList LinkObjects;
+        auto TT = SYCLTripleList[I];
+        auto isNVPTX = (*TC)->getTriple().isNVPTX();
+        bool isSpirvAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
+                          TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
+                          TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
         for (const auto &Input : LI) {
           // FPGA aoco does not go through the link, everything else does.
           if (Input->getType() == types::TY_FPGA_AOCO)
             DeviceLibObjects.push_back(Input);
           else
             LinkObjects.push_back(Input);
+        }
+        // FIXME: Link all wrapper and fallback device libraries as default,
+        // When spv online link is supported by all backends, the fallback
+        // device libraries are only needed when current toolchain is using
+        // AOT compilation.
+        if (!isNVPTX) {
+          addSYCLDeviceLibs(
+              *TC, LinkObjects, true,
+              C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
         }
         // The linkage actions subgraph leading to the offload wrapper.
         // [cond] Means incoming/outgoing dependence is created only when cond
@@ -3993,7 +4065,6 @@ class OffloadingActionBuilder final {
         Action *DeviceLinkAction =
             C.MakeAction<LinkJobAction>(LinkObjects, types::TY_LLVM_BC);
         // setup some flags upfront
-        auto isNVPTX = (*TC)->getTriple().isNVPTX();
 
         if (isNVPTX && DeviceCodeSplit) {
           // TODO Temporary limitation, need to support code splitting for PTX
@@ -4005,10 +4076,6 @@ class OffloadingActionBuilder final {
           D.Diag(diag::err_drv_unsupported_opt_for_target)
               << OptName << (*TC)->getTriple().str();
         }
-        auto TT = SYCLTripleList[I];
-        bool isSpirvAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
-                          TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
-                          TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
         // reflects whether current target is ahead-of-time and can't support
         // runtime setting of specialization constants
         bool isAOT = isNVPTX || isSpirvAOT;
