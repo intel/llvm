@@ -829,6 +829,51 @@ bool isType(const T1 *Ty, unsigned Bits = 0) {
   return static_cast<const T2 *>(Ty)->getBitWidth() == Bits;
 }
 
+class SPIRVTypeBufferSurfaceINTEL : public SPIRVType {
+public:
+  const static Op OC = OpTypeBufferSurfaceINTEL;
+  const static SPIRVWord FixedWC = 2;
+  SPIRVTypeBufferSurfaceINTEL(SPIRVModule *M, SPIRVId TheId,
+                              SPIRVAccessQualifierKind TheAccess)
+      : SPIRVType(M, FixedWC + 1, OC, TheId), AccessKind(TheAccess) {
+    validate();
+  }
+  SPIRVTypeBufferSurfaceINTEL(SPIRVModule *M, SPIRVId TheId)
+      : SPIRVType(M, FixedWC, OC, TheId) {
+    validate();
+  }
+  SPIRVTypeBufferSurfaceINTEL() : SPIRVType(OC) {}
+
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityVectorComputeINTEL);
+  }
+
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return {ExtensionID::SPV_INTEL_vector_compute};
+  }
+
+  bool hasAccessQualifier() const { return AccessKind.hasValue(); }
+  SPIRVAccessQualifierKind getAccessQualifier() const {
+    assert(hasAccessQualifier());
+    return AccessKind.getValue();
+  }
+
+protected:
+  _SPIRV_DEF_ENCDEC2(Id, AccessKind)
+  void validate() const override {
+    assert(OpCode == OC);
+    assert(WordCount == FixedWC + (AccessKind ? 1 : 0));
+  }
+  void setWordCount(SPIRVWord TheWC) override {
+    if (TheWC > FixedWC)
+      AccessKind = SPIRVAccessQualifierKind::AccessQualifierMax;
+    WordCount = TheWC;
+  }
+
+private:
+  llvm::Optional<SPIRVAccessQualifierKind> AccessKind;
+};
+
 // SPV_INTEL_device_side_avc_motion_estimation extension types
 class SPIRVTypeVmeImageINTEL : public SPIRVType {
 public:

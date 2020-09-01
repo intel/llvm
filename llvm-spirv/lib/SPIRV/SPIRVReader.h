@@ -249,6 +249,7 @@ private:
   std::string transOCLPipeStorageTypeName(SPIRV::SPIRVTypePipeStorage *PST);
   std::string transOCLImageTypeAccessQualifier(SPIRV::SPIRVTypeImage *ST);
   std::string transOCLPipeTypeAccessQualifier(SPIRV::SPIRVTypePipe *ST);
+  std::string transVCTypeName(SPIRVTypeBufferSurfaceINTEL *PST);
 
   Value *oclTransConstantSampler(SPIRV::SPIRVConstantSampler *BCS,
                                  BasicBlock *BB);
