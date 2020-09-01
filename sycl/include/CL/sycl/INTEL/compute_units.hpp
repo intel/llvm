@@ -9,9 +9,12 @@
 #pragma once
 
 #include <CL/sycl.hpp>
+#include <CL/sycl/detail/defines.hpp>
 #include <utility>
 
-namespace intelfpga {
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace INTEL {
 
 template <class Func, template <std::size_t> class Name, std::size_t index>
 class SubmitOneComputeUnit {
@@ -28,7 +31,7 @@ public:
 };
 
 template <template <std::size_t> class Name, class Func, std::size_t... index>
-inline constexpr void Unroller(sycl::queue &q, Func &&f,
+inline constexpr void ComputeUnitUnroller(sycl::queue &q, Func &&f,
                                std::index_sequence<index...>) {
   (SubmitOneComputeUnit<Func, Name, index>(f, q), ...); // fold expression
 }
@@ -38,6 +41,9 @@ inline constexpr void Unroller(sycl::queue &q, Func &&f,
 template <std::size_t N, template <std::size_t ID> class Name, class Func>
 constexpr void submit_compute_units(sycl::queue &q, Func &&f) {
   std::make_index_sequence<N> indices;
-  Unroller<Name>(q, f, indices);
+  ComputeUnitUnroller<Name>(q, f, indices);
 }
-} // namespace intelfpga
+
+} // namespace INTEL
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
