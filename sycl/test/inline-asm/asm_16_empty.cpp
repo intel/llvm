@@ -19,7 +19,8 @@ struct KernelFunctor : WithOutputBuffer<T> {
   void operator()(cl::sycl::handler &cgh) {
     auto C = this->getOutputBuffer().template get_access<cl::sycl::access::mode::write>(cgh);
     cgh.parallel_for<KernelFunctor<T>>(
-        cl::sycl::range<1>{this->getOutputBufferSize()}, [=](cl::sycl::id<1> wiID) [[intel::reqd_sub_group_size(16)]] {
+        cl::sycl::range<1>{this->getOutputBufferSize()}, [=
+    ](cl::sycl::id<1> wiID) [[intel::reqd_sub_group_size(16)]] {
           C[wiID] = 43;
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
           asm volatile("");
