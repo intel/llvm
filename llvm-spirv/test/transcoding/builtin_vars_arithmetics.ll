@@ -30,16 +30,15 @@
 ; clang++ -fsycl -fsycl-device-only emit-llvm tmp.cpp -o tmp.bc
 ; llvm-spirv tmp.bc -spirv-text -o builtin_vars_arithmetics.ll
 
-; CHECK-SPIRV: Decorate [[ConstantDecoration:[0-9]+]] Constant 
-; CHECK-SPIRV: Decorate [[GlobalInvocationId:[0-9]+]] BuiltIn 28 
-; CHECK-SPIRV: Decorate [[GlobalSize:[0-9]+]] BuiltIn 31 
-; CHECK-SPIRV: Decorate [[GlobalOffset:[0-9]+]] BuiltIn 33 
-
+; CHECK-SPIRV: Decorate [[GlobalInvocationId:[0-9]+]] BuiltIn 28
+; CHECK-SPIRV: Decorate [[GlobalSize:[0-9]+]] BuiltIn 31
+; CHECK-SPIRV: Decorate [[GlobalOffset:[0-9]+]] BuiltIn 33
+; CHECK-SPIRV: Decorate [[GlobalInvocationId]] Constant
+; CHECK-SPIRV: Decorate [[GlobalSize]] Constant
+; CHECK-SPIRV: Decorate [[GlobalOffset]] Constant
 ; CHECK-SPIRV: Decorate [[GlobalOffset]] LinkageAttributes "__spirv_BuiltInGlobalOffset" Import 
 ; CHECK-SPIRV: Decorate [[GlobalSize]] LinkageAttributes "__spirv_BuiltInGlobalSize" Import 
 ; CHECK-SPIRV: Decorate [[GlobalInvocationId]] LinkageAttributes "__spirv_BuiltInGlobalInvocationId" Import 
-
-; CHECK-SPIRV: GroupDecorate [[ConstantDecoration]] [[GlobalInvocationId]] [[GlobalSize]] [[GlobalOffset]]
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-linux-sycldevice"

@@ -23,24 +23,24 @@ entry:
 ; CHECK-LLVM: "VCFloatControl"="48"
 ; CHECK-SPIRV: 3 Name [[#FOO_ID:]] "foo"
 ; CHECK-SPIRV: 3 Name [[#BAR_ID:]] "bar"
-; CHECK-SPIRV: 5 Decorate [[#DEC_DENORM_GROUP_ID:]] FunctionDenormModeINTEL 16 1
-; CHECK-SPIRV: 5 Decorate [[#DEC_DENORM_GROUP_ID+1]] FunctionDenormModeINTEL 32 1
-; CHECK-SPIRV: 5 Decorate [[#DEC_DENORM_GROUP_ID+2]] FunctionDenormModeINTEL 64 1
-; CHECK-SPIRV: 5 Decorate [[#DEC_FLT_GROUP_ID:]] FunctionFloatingPointModeINTEL 16 0
-; CHECK-SPIRV: 5 Decorate [[#DEC_FLT_GROUP_ID+1]] FunctionFloatingPointModeINTEL 32 0
-; CHECK-SPIRV: 5 Decorate [[#DEC_FLT_GROUP_ID+2]] FunctionFloatingPointModeINTEL 64 0
 ; CHECK-SPIRV: 5 Decorate [[#FOO_ID]] FunctionRoundingModeINTEL 16 0
 ; CHECK-SPIRV-NEXT: 5 Decorate [[#BAR_ID]] FunctionRoundingModeINTEL 16 1
 ; CHECK-SPIRV-NEXT: 5 Decorate [[#FOO_ID]] FunctionRoundingModeINTEL 32 0
 ; CHECK-SPIRV-NEXT: 5 Decorate [[#BAR_ID]] FunctionRoundingModeINTEL 32 1
 ; CHECK-SPIRV-NEXT: 5 Decorate [[#FOO_ID]] FunctionRoundingModeINTEL 64 0
 ; CHECK-SPIRV-NEXT: 5 Decorate [[#BAR_ID]] FunctionRoundingModeINTEL 64 1
-; CHECK-SPIRV: 4 GroupDecorate [[#DEC_DENORM_GROUP_ID]] [[#FOO_ID]] [[#BAR_ID]]
-; CHECK-SPIRV-NEXT: 4 GroupDecorate [[#DEC_DENORM_GROUP_ID+1]] [[#FOO_ID]] [[#BAR_ID]]
-; CHECK-SPIRV-NEXT: 4 GroupDecorate [[#DEC_DENORM_GROUP_ID+2]] [[#FOO_ID]] [[#BAR_ID]]
-; CHECK-SPIRV-NEXT: 4 GroupDecorate [[#DEC_FLT_GROUP_ID]] [[#FOO_ID]] [[#BAR_ID]]
-; CHECK-SPIRV-NEXT: 4 GroupDecorate [[#DEC_FLT_GROUP_ID+1]] [[#FOO_ID]] [[#BAR_ID]]
-; CHECK-SPIRV-NEXT: 4 GroupDecorate [[#DEC_FLT_GROUP_ID+2]] [[#FOO_ID]] [[#BAR_ID]]
+; CHECK-SPIRV: 5 Decorate [[#FOO_ID]] FunctionDenormModeINTEL 16 1
+; CHECK-SPIRV: 5 Decorate [[#BAR_ID]] FunctionDenormModeINTEL 16 1
+; CHECK-SPIRV: 5 Decorate [[#FOO_ID]] FunctionDenormModeINTEL 32 1
+; CHECK-SPIRV: 5 Decorate [[#BAR_ID]] FunctionDenormModeINTEL 32 1
+; CHECK-SPIRV: 5 Decorate [[#FOO_ID]] FunctionDenormModeINTEL 64 1
+; CHECK-SPIRV: 5 Decorate [[#BAR_ID]] FunctionDenormModeINTEL 64 1
+; CHECK-SPIRV: 5 Decorate [[#FOO_ID]] FunctionFloatingPointModeINTEL 16 0
+; CHECK-SPIRV: 5 Decorate [[#BAR_ID]] FunctionFloatingPointModeINTEL 16 0
+; CHECK-SPIRV: 5 Decorate [[#FOO_ID]] FunctionFloatingPointModeINTEL 32 0
+; CHECK-SPIRV: 5 Decorate [[#BAR_ID]] FunctionFloatingPointModeINTEL 32 0
+; CHECK-SPIRV: 5 Decorate [[#FOO_ID]] FunctionFloatingPointModeINTEL 64 0
+; CHECK-SPIRV: 5 Decorate [[#BAR_ID]] FunctionFloatingPointModeINTEL 64 0
 
 attributes #0 = { "VCFloatControl"="0" "VCFunction"  }
 attributes #1 = { "VCFloatControl"="48" "VCFunction" }

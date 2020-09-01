@@ -159,7 +159,6 @@ public:
   // Module changing functions
   bool importBuiltinSet(const std::string &, SPIRVId *) override;
   bool importBuiltinSetWithId(const std::string &, SPIRVId) override;
-  void optimizeDecorates() override;
   void setAddressingModel(SPIRVAddressingModelKind AM) override {
     AddrModel = AM;
   }
@@ -532,51 +531,6 @@ void SPIRVModuleImpl::addLine(SPIRVEntry *E, SPIRVId FileNameId, SPIRVWord Line,
     CurrentLine.reset(new SPIRVLine(this, FileNameId, Line, Column));
   assert(E && "invalid entry");
   E->setLine(CurrentLine);
-}
-
-// Creates decoration group and group decorates from decorates shared by
-// multiple targets.
-void SPIRVModuleImpl::optimizeDecorates() {
-  SPIRVDBG(spvdbgs() << "[optimizeDecorates] begin\n");
-  for (auto I = DecorateSet.begin(), E = DecorateSet.end(); I != E;) {
-    auto D = *I;
-    SPIRVDBG(spvdbgs() << "  check " << *D << '\n');
-    if (D->getOpCode() == OpMemberDecorate) {
-      ++I;
-      continue;
-    }
-    auto ER = DecorateSet.equal_range(D);
-    SPIRVDBG(spvdbgs() << "  equal range " << **ER.first << " to ";
-             if (ER.second != DecorateSet.end()) spvdbgs() << **ER.second;
-             else spvdbgs() << "end"; spvdbgs() << '\n');
-    if (std::distance(ER.first, ER.second) < 2) {
-      I = ER.second;
-      SPIRVDBG(spvdbgs() << "  skip equal range \n");
-      continue;
-    }
-    SPIRVDBG(spvdbgs() << "  add deco group. erase equal range\n");
-    auto G = add(new SPIRVDecorationGroup(this, getId()));
-    std::vector<SPIRVId> Targets;
-    Targets.push_back(D->getTargetId());
-    const_cast<SPIRVDecorateGeneric *>(D)->setTargetId(G->getId());
-    G->getDecorations().insert(D);
-    for (I = ER.first; I != ER.second; ++I) {
-      auto E = *I;
-      if (*E == *D)
-        continue;
-      Targets.push_back(E->getTargetId());
-    }
-
-    // WordCount is only 16 bits.  We can only have 65535 - FixedWC targtets per
-    // group.
-    // For now, just skip using a group if the number of targets to too big
-    if (Targets.size() < 65530) {
-      DecorateSet.erase(ER.first, ER.second);
-      auto GD = add(new SPIRVGroupDecorate(G, Targets));
-      DecGroupVec.push_back(G);
-      GroupDecVec.push_back(GD);
-    }
-  }
 }
 
 SPIRVValue *SPIRVModuleImpl::addSamplerConstant(SPIRVType *TheType,
@@ -1879,7 +1833,6 @@ std::istream &operator>>(std::istream &I, SPIRVModule &M) {
       M.add(Entry);
   }
 
-  MI.optimizeDecorates();
   MI.resolveUnknownStructFields();
   MI.createForwardPointers();
   return I;
