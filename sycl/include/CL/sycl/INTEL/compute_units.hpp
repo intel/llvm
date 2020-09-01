@@ -16,6 +16,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace INTEL {
 
+namespace {
 template <class Func, template <std::size_t> class Name, std::size_t index>
 class SubmitOneComputeUnit {
 public:
@@ -35,6 +36,7 @@ inline constexpr void ComputeUnitUnroller(sycl::queue &q, Func &&f,
                                           std::index_sequence<index...>) {
   (SubmitOneComputeUnit<Func, Name, index>(f, q), ...); // fold expression
 }
+} // namespace
 
 // N is the number of compute units
 // Name is the kernel's name
