@@ -1526,18 +1526,6 @@ public:
                    std::back_inserter(ArgTys),
                    [](const ParmVarDecl *PVD) { return PVD->getType(); });
 
-    // TODO: enable template instantiation tree for this diagnostic
-    if (SemaRef.Context.getTargetInfo().getTriple().getSubArch() ==
-        llvm::Triple::SPIRSubArch_gen) {
-      if (Params.size() > GPUMaxKernelArgsNum) {
-        SemaRef.Diag(KernelDecl->getLocation(),
-                     diag::warn_sycl_kernel_too_many_args)
-            << static_cast<unsigned>(Params.size()) << GPUMaxKernelArgsNum;
-        SemaRef.Diag(KernelDecl->getLocation(),
-                     diag::note_sycl_kernel_args_count);
-      }
-    }
-
     QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, ArgTys, Info);
     KernelDecl->setType(FuncType);
     KernelDecl->setParams(Params);
@@ -1668,6 +1656,87 @@ public:
   // Required to handle pointers inside structs
   using SyclKernelFieldHandler::enterStruct;
   using SyclKernelFieldHandler::leaveStruct;
+};
+
+class SyclKernelNumArgsChecker : public SyclKernelFieldHandler {
+  SourceLocation KernelLoc;
+  unsigned NumOfParams = 0;
+
+  void addParam() { NumOfParams++; }
+
+  bool handleSpecialType(QualType FieldTy) {
+    const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
+    assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
+    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
+    assert(InitMethod && "The accessor/sampler must have the __init method");
+    unsigned NumOfParams = InitMethod->getNumParams();
+    for (unsigned I = 0; I < NumOfParams; ++I)
+      addParam();
+    return true;
+  }
+
+public:
+  SyclKernelNumArgsChecker(Sema &S, SourceLocation Loc)
+      : SyclKernelFieldHandler(S), KernelLoc(Loc) {}
+
+  ~SyclKernelNumArgsChecker() {
+    if (SemaRef.Context.getTargetInfo().getTriple().getSubArch() ==
+        llvm::Triple::SPIRSubArch_gen) {
+      if (NumOfParams > GPUMaxKernelArgsNum) {
+        SemaRef.Diag(KernelLoc, diag::warn_sycl_kernel_too_many_args)
+            << NumOfParams << GPUMaxKernelArgsNum;
+        SemaRef.Diag(KernelLoc, diag::note_sycl_kernel_args_count);
+      }
+    }
+  }
+
+  bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
+    return handleSpecialType(FieldTy);
+  }
+
+  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &,
+                              QualType FieldTy) final {
+    return handleSpecialType(FieldTy);
+  }
+
+  bool handleSyclSamplerType(FieldDecl *FD, QualType FieldTy) final {
+    return handleSpecialType(FieldTy);
+  }
+
+  bool handleSyclSamplerType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                             QualType FieldTy) final {
+    return handleSpecialType(FieldTy);
+  }
+
+  bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
+    addParam();
+    return true;
+  }
+
+  bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
+    addParam();
+    return true;
+  }
+
+  bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
+    return handleScalarType(FD, FieldTy);
+  }
+
+  bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
+    addParam();
+    return true;
+  }
+
+  bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
+    addParam();
+    return true;
+  }
+  bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &,
+                            QualType FieldTy) final {
+    addParam();
+    return true;
+  }
+  using SyclKernelFieldHandler::handleSyclHalfType;
 };
 
 class SyclKernelBodyCreator : public SyclKernelFieldHandler {
@@ -2364,6 +2433,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
 
   SyclKernelFieldChecker FieldChecker(*this);
   SyclKernelUnionChecker UnionChecker(*this);
+  SyclKernelNumArgsChecker NumArgsChecker(*this, Args[0]->getExprLoc());
   // check that calling kernel conforms to spec
   QualType KernelParamTy = KernelFunc->getParamDecl(0)->getType();
   if (KernelParamTy->isReferenceType()) {
@@ -2378,8 +2448,10 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
 
   KernelObjVisitor Visitor{*this};
   DiagnosingSYCLKernel = true;
-  Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker);
-  Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker);
+  Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker,
+                           NumArgsChecker);
+  Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker,
+                            NumArgsChecker);
   DiagnosingSYCLKernel = false;
   if (!FieldChecker.isValid() || !UnionChecker.isValid())
     KernelFunc->setInvalidDecl();
