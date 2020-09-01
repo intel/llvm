@@ -799,7 +799,7 @@ void PassManagerBuilder::populateModulePassManager(
                                           .needCanonicalLoops(false)
                                           .sinkCommonInsts(true)));
 
-  if (SLPVectorize && !SYCLOptimizationMode) {
+  if (SLPVectorize) {
     MPM.add(createSLPVectorizerPass()); // Vectorize parallel scalar chains.
     if (OptLevel > 1 && ExtraVectorizerPasses) {
       MPM.add(createEarlyCSEPass());
