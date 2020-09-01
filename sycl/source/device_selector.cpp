@@ -167,22 +167,22 @@ struct filter {
   backend Backend = backend::host;
   RT::PiDeviceType DeviceType = PI_DEVICE_TYPE_ALL;
   int DeviceNum = 0;
-  bool hasBackend = false;
-  bool hasDeviceType = false;
-  bool hasDeviceNum = false;
+  bool HasBackend = false;
+  bool HasDeviceType = false;
+  bool HasDeviceNum = false;
   int MatchesSeen = 0;
 };
 
-std::vector<std::string> tokenize(const std::string &filter,
-                                  const std::string &delim) {
+std::vector<std::string> tokenize(const std::string &Filter,
+                                  const std::string &Delim) {
   std::vector<std::string> Tokens;
   size_t Pos = 0;
-  std::string Input = filter;
+  std::string Input = Filter;
   std::string Tok;
 
-  while ((Pos = Input.find(delim)) != std::string::npos) {
+  while ((Pos = Input.find(Delim)) != std::string::npos) {
     Tok = Input.substr(0, Pos);
-    Input.erase(0, Pos + delim.length());
+    Input.erase(0, Pos + Delim.length());
 
     if (!Tok.empty()) {
       Tokens.push_back(std::move(Tok));
@@ -210,41 +210,41 @@ filter create_filter(std::string Input) {
     throw sycl::runtime_error(Error, PI_INVALID_VALUE);
 
   for (const std::string &Token : Tokens) {
-    if (Token == "cpu" && !Result.hasDeviceType) {
+    if (Token == "cpu" && !Result.HasDeviceType) {
       Result.DeviceType = PI_DEVICE_TYPE_CPU;
-      Result.hasDeviceType = true;
-    } else if (Token == "gpu" && !Result.hasDeviceType) {
+      Result.HasDeviceType = true;
+    } else if (Token == "gpu" && !Result.HasDeviceType) {
       Result.DeviceType = PI_DEVICE_TYPE_GPU;
-      Result.hasDeviceType = true;
-    } else if (Token == "accelerator" && !Result.hasDeviceType) {
+      Result.HasDeviceType = true;
+    } else if (Token == "accelerator" && !Result.HasDeviceType) {
       Result.DeviceType = PI_DEVICE_TYPE_ACC;
-      Result.hasDeviceType = true;
-    } else if (Token == "opencl" && !Result.hasBackend) {
+      Result.HasDeviceType = true;
+    } else if (Token == "opencl" && !Result.HasBackend) {
       Result.Backend = backend::opencl;
-      Result.hasBackend = true;
-    } else if (Token == "level-zero" && !Result.hasBackend) {
+      Result.HasBackend = true;
+    } else if (Token == "level-zero" && !Result.HasBackend) {
       Result.Backend = backend::level_zero;
-      Result.hasBackend = true;
-    } else if (Token == "cuda" && !Result.hasBackend) {
+      Result.HasBackend = true;
+    } else if (Token == "cuda" && !Result.HasBackend) {
       Result.Backend = backend::cuda;
-      Result.hasBackend = true;
+      Result.HasBackend = true;
     } else if (Token == "host") {
-      if (!Result.hasBackend) {
+      if (!Result.HasBackend) {
         Result.Backend = backend::host;
-        Result.hasBackend = true;
-      } else if (!Result.hasDeviceType && Result.Backend != backend::host) {
+        Result.HasBackend = true;
+      } else if (!Result.HasDeviceType && Result.Backend != backend::host) {
         // We already set everything earlier or it's an error.
         throw sycl::runtime_error(
             "Cannot specify host device with non-host backend.",
             PI_INVALID_VALUE);
       }
-    } else if (std::regex_match(Token, IntegerExpr) && !Result.hasDeviceNum) {
+    } else if (std::regex_match(Token, IntegerExpr) && !Result.HasDeviceNum) {
       try {
         Result.DeviceNum = std::stoi(Token);
-      } catch (std::logic_error) {
+      } catch (std::logic_error &) {
         throw sycl::runtime_error(Error, PI_INVALID_VALUE);
       }
-      Result.hasDeviceNum = true;
+      Result.HasDeviceNum = true;
     } else {
       throw sycl::runtime_error(Error, PI_INVALID_VALUE);
     }
@@ -254,9 +254,9 @@ filter create_filter(std::string Input) {
 }
 } // namespace detail
 
-filter_selector::filter_selector(std::string filter)
+filter_selector::filter_selector(std::string Input)
     : mFilters(), mRanker(), mNumDevicesSeen(0), mMatchFound(false) {
-  std::vector<std::string> Filters = detail::tokenize(filter, ",");
+  std::vector<std::string> Filters = detail::tokenize(Input, ",");
   mNumTotalDevices = device::get_devices().size();
 
   for (const std::string &Filter : Filters) {
@@ -265,7 +265,7 @@ filter_selector::filter_selector(std::string filter)
   }
 }
 
-int filter_selector::operator()(const device &dev) const {
+int filter_selector::operator()(const device &Dev) const {
   int Score = REJECT_DEVICE_SCORE;
 
   for (auto &Filter : mFilters) {
@@ -274,21 +274,21 @@ int filter_selector::operator()(const device &dev) const {
     bool DeviceNumOK = true;
 
     // handle host device specially
-    if (Filter->hasBackend) {
+    if (Filter->HasBackend) {
       backend BE;
-      if (dev.is_host()) {
+      if (Dev.is_host()) {
         BE = backend::host;
       } else {
-        BE = sycl::detail::getSyclObjImpl(dev)->getPlugin().getBackend();
+        BE = sycl::detail::getSyclObjImpl(Dev)->getPlugin().getBackend();
       }
       BackendOK = (BE == Filter->Backend);
     }
-    if (Filter->hasDeviceType) {
+    if (Filter->HasDeviceType) {
       RT::PiDeviceType DT =
-          sycl::detail::getSyclObjImpl(dev)->get_device_type();
+          sycl::detail::getSyclObjImpl(Dev)->get_device_type();
       DeviceTypeOK = (DT == Filter->DeviceType);
     }
-    if (Filter->hasDeviceNum) {
+    if (Filter->HasDeviceNum) {
       // Only check device number if we're good on the previous matches
       if (BackendOK && DeviceTypeOK) {
         // Do we match?
@@ -298,7 +298,7 @@ int filter_selector::operator()(const device &dev) const {
       }
     }
     if (BackendOK && DeviceTypeOK && DeviceNumOK) {
-      Score = mRanker(dev);
+      Score = mRanker(Dev);
       mMatchFound = true;
       break;
     }
