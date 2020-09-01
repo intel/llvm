@@ -63,6 +63,11 @@ class SCEVExpander : public SCEVVisitor<SCEVExpander, Value *> {
   DenseSet<AssertingVH<Value>> InsertedValues;
   DenseSet<AssertingVH<Value>> InsertedPostIncValues;
 
+  /// Keep track of the existing IR values re-used during expansion.
+  /// FIXME: Ideally re-used instructions would not be added to
+  /// InsertedValues/InsertedPostIncValues.
+  SmallPtrSet<Value *, 16> ReusedValues;
+
   /// A memoization of the "relevant" loop for a given SCEV.
   DenseMap<const SCEV *, const Loop *> RelevantLoops;
 
@@ -177,6 +182,7 @@ public:
     InsertedExpressions.clear();
     InsertedValues.clear();
     InsertedPostIncValues.clear();
+    ReusedValues.clear();
     ChainedPhis.clear();
   }
 
@@ -185,11 +191,15 @@ public:
     SmallVector<Instruction *, 32> Result;
     for (auto &VH : InsertedValues) {
       Value *V = VH;
+      if (ReusedValues.contains(V))
+        continue;
       if (auto *Inst = dyn_cast<Instruction>(V))
         Result.push_back(Inst);
     }
     for (auto &VH : InsertedPostIncValues) {
       Value *V = VH;
+      if (ReusedValues.contains(V))
+        continue;
       if (auto *Inst = dyn_cast<Instruction>(V))
         Result.push_back(Inst);
     }
@@ -334,7 +344,8 @@ public:
   }
 
   /// Return true if the specified instruction was inserted by the code
-  /// rewriter.  If so, the client should not modify the instruction.
+  /// rewriter.  If so, the client should not modify the instruction. Note that
+  /// this also includes instructions re-used during expansion.
   bool isInsertedInstruction(Instruction *I) const {
     return InsertedValues.count(I) || InsertedPostIncValues.count(I);
   }

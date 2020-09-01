@@ -21,7 +21,7 @@ target, then it will invoke the host compiler to compile the host part of a
 SYCL source. In the simplest case, when compilation and linkage are done in one
 compiler driver invocation, once compilation is finished, the device object
 files (which are really LLVM IR files) are linked with the `llvm-link` tool.
-The resulting LLVM IR module is then translated into a SPIRV module using the
+The resulting LLVM IR module is then translated into a SPIR-V module using the
 `llvm-spirv` tool and wrapped in a host object file using the
 `clang-offload-wrapper` tool. Once all the host object files and the wrapped
 object with device code are ready, the driver invokes the usual platform linker
@@ -32,7 +32,7 @@ line.
 There are many variations of the compilation process depending on whether user
 chose to do one or more of the following:
 - perform compilation separately from linkage
-- compile the device SPIRV module ahead-of-time for one or more targets
+- compile the device SPIR-V module ahead-of-time for one or more targets
 - perform device code splitting so that device code is distributed across
   multiple modules rather than enclosed in a single one
 - perform linkage of static device libraries
@@ -450,7 +450,7 @@ either from `llvm-spirv` or from the AOT backend.
 
 ##### Device code splitting
 
-Putting all device code into a single SPIRV module does not work well in the
+Putting all device code into a single SPIR-V module does not work well in the
 following cases:
 1. There are thousands of kernels defined and only small part of them is used at
 run-time. Having them all in one SPIR-V module significantly increases JIT time.

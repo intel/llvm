@@ -1916,6 +1916,23 @@ static void writeDIBasicType(raw_ostream &Out, const DIBasicType *N,
   Out << ")";
 }
 
+static void writeDIStringType(raw_ostream &Out, const DIStringType *N,
+                              TypePrinting *TypePrinter, SlotTracker *Machine,
+                              const Module *Context) {
+  Out << "!DIStringType(";
+  MDFieldPrinter Printer(Out, TypePrinter, Machine, Context);
+  if (N->getTag() != dwarf::DW_TAG_string_type)
+    Printer.printTag(N);
+  Printer.printString("name", N->getName());
+  Printer.printMetadata("stringLength", N->getRawStringLength());
+  Printer.printMetadata("stringLengthExpression", N->getRawStringLengthExp());
+  Printer.printInt("size", N->getSizeInBits());
+  Printer.printInt("align", N->getAlignInBits());
+  Printer.printDwarfEnum("encoding", N->getEncoding(),
+                         dwarf::AttributeEncodingString);
+  Out << ")";
+}
+
 static void writeDIDerivedType(raw_ostream &Out, const DIDerivedType *N,
                                TypePrinting *TypePrinter, SlotTracker *Machine,
                                const Module *Context) {
@@ -3105,7 +3122,7 @@ void AssemblyWriter::printFunctionSummary(const FunctionSummary *FS) {
         FieldSeparator IFS;
         for (auto &Call : PS.Calls) {
           Out << IFS;
-          Out << "(callee: ^" << Machine.getGUIDSlot(Call.Callee);
+          Out << "(callee: ^" << Machine.getGUIDSlot(Call.Callee.getGUID());
           Out << ", param: " << Call.ParamNo;
           Out << ", offset: ";
           PrintRange(Call.Offsets);

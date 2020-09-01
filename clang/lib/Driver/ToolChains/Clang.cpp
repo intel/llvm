@@ -375,7 +375,7 @@ static void getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
     break;
   case llvm::Triple::r600:
   case llvm::Triple::amdgcn:
-    amdgpu::getAMDGPUTargetFeatures(D, Args, Features);
+    amdgpu::getAMDGPUTargetFeatures(D, Triple, Args, Features);
     break;
   case llvm::Triple::msp430:
     msp430::getMSP430TargetFeatures(D, Args, Features);
@@ -2113,6 +2113,23 @@ void Clang::AddX86TargetArgs(const ArgList &Args,
     CmdArgs.push_back("-mfloat-abi");
     CmdArgs.push_back("soft");
     CmdArgs.push_back("-mstack-alignment=4");
+  }
+
+  // Handle -mtune.
+  // FIXME: We should default to "generic" unless -march is set to match gcc.
+  if (const Arg *A = Args.getLastArg(clang::driver::options::OPT_mtune_EQ)) {
+    StringRef Name = A->getValue();
+
+    if (Name == "native")
+      Name = llvm::sys::getHostCPUName();
+
+    // Ignore generic either from getHostCPUName or from command line.
+    // FIXME: We need to support this eventually but isValidCPUName and the
+    // backend aren't ready for it yet.
+    if (Name != "generic") {
+      CmdArgs.push_back("-tune-cpu");
+      CmdArgs.push_back(Args.MakeArgString(Name));
+    }
   }
 }
 
@@ -4123,6 +4140,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-sycl-opt");
     }
+    // Turn on Dead Parameter Elimination Optimization with early optimizations
+    if (!RawTriple.isNVPTX() &&
+        Args.hasFlag(options::OPT_fsycl_dead_args_optimization,
+                     options::OPT_fno_sycl_dead_args_optimization, false))
+      CmdArgs.push_back("-fenable-sycl-dae");
 
     // Pass the triple of host when doing SYCL
     auto AuxT = llvm::Triple(llvm::sys::getProcessTriple());
@@ -6219,11 +6241,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasArg(options::OPT_fsycl_unnamed_lambda))
       CmdArgs.push_back("-fsycl-unnamed-lambda");
 
-    // Enable generation of USM address spaces as opt-in.
+    // Enable generation of USM address spaces for FPGA.
     // __ENABLE_USM_ADDR_SPACE__ will be used during compilation of SYCL headers
     if (getToolChain().getTriple().getSubArch() ==
-            llvm::Triple::SPIRSubArch_fpga &&
-        Args.hasArg(options::OPT_fsycl_enable_usm_address_spaces))
+        llvm::Triple::SPIRSubArch_fpga)
       CmdArgs.push_back("-D__ENABLE_USM_ADDR_SPACE__");
   }
 
@@ -7677,18 +7698,27 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   TranslatorArgs.push_back(Output.getFilename());
   if (getToolChain().getTriple().isSYCLDeviceEnvironment()) {
     TranslatorArgs.push_back("-spirv-max-version=1.1");
-    std::string ExtArg("-spirv-ext=+all");
     if (C.getArgs().hasArg(options::OPT_fsycl_esimd))
       TranslatorArgs.push_back("-spirv-allow-unknown-intrinsics");
+
     // Disable SPV_INTEL_usm_storage_classes by default since it adds new
     // storage classes that represent global_device and global_host address
     // spaces, which are not supported for all targets. With the extension
     // disable the storage classes will be lowered to CrossWorkgroup storage
-    // class that is mapped to just global address space.
-    if (!(getToolChain().getTriple().getSubArch() ==
-              llvm::Triple::SPIRSubArch_fpga &&
-          TCArgs.hasArg(options::OPT_fsycl_enable_usm_address_spaces)))
-      ExtArg += ",-SPV_INTEL_usm_storage_classes";
+    // class that is mapped to just global address space. The extension is
+    // supposed to be enabled only for FPGA hardware.
+    std::string ExtArg("-spirv-ext=+all,-SPV_INTEL_usm_storage_classes");
+    if (getToolChain().getTriple().getSubArch() ==
+        llvm::Triple::SPIRSubArch_fpga) {
+      for (auto *A : TCArgs) {
+        if (A->getOption().matches(options::OPT_Xs_separate) ||
+            A->getOption().matches(options::OPT_Xs)) {
+          StringRef ArgString(A->getValue());
+          if (ArgString == "hardware" || ArgString == "simulation")
+            ExtArg = "-spirv-ext=+all";
+        }
+      }
+    }
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
   }
   for (auto I : Inputs) {
@@ -7807,6 +7837,11 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // OPT_fsycl_device_code_split is not checked as it is an alias to
   // -fsycl-device-code-split=per_source
 
+  // Turn on Dead Parameter Elimination Optimization with early optimizations
+  if (!getToolChain().getTriple().isNVPTX() &&
+      TCArgs.hasFlag(options::OPT_fsycl_dead_args_optimization,
+                     options::OPT_fno_sycl_dead_args_optimization, false))
+    addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
   if (JA.getType() == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR
     // transformations (like specialization constant intrinsic lowering) and

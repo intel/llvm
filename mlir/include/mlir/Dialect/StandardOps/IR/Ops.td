@@ -815,6 +815,39 @@ def CeilFOp : FloatUnaryOp<"ceilf"> {
 }
 
 //===----------------------------------------------------------------------===//
+// FloorFOp
+//===----------------------------------------------------------------------===//
+
+def FloorFOp : FloatUnaryOp<"floorf"> {
+  let summary = "floor of the specified value";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `std.floorf` ssa-use `:` type
+    ```
+
+    The `floorf` operation computes the floor of a given value. It takes one
+    operand and returns one result of the same type. This type may be a float
+    scalar type, a vector whose element type is float, or a tensor of floats.
+    It has no standard attributes.
+
+    Example:
+
+    ```mlir
+    // Scalar floor value.
+    %a = floorf %b : f64
+
+    // SIMD vector element-wise floor value.
+    %f = floorf %g : vector<4xf32>
+
+    // Tensor element-wise floor value.
+    %x = floorf %y : tensor<4x?xf8>
+    ```
+  }];
+}
+
+//===----------------------------------------------------------------------===//
 // CmpFOp
 //===----------------------------------------------------------------------===//
 
@@ -1598,6 +1631,26 @@ def FPToSIOp : CastOp<"fptosi">, Arguments<(ins AnyType:$in)> {
   let description = [{
     Cast from a value interpreted as floating-point to the nearest (rounding
     towards zero) signed integer value.
+  }];
+
+  let extraClassDeclaration = [{
+    /// Return true if `a` and `b` are valid operand and result pairs for
+    /// the operation.
+    static bool areCastCompatible(Type a, Type b);
+  }];
+
+  let hasFolder = 0;
+}
+
+//===----------------------------------------------------------------------===//
+// FPToUIOp
+//===----------------------------------------------------------------------===//
+
+def FPToUIOp : CastOp<"fptoui">, Arguments<(ins AnyType:$in)> {
+  let summary = "cast from floating-point type to integer type";
+  let description = [{
+    Cast from a value interpreted as floating-point to the nearest (rounding
+    towards zero) unsigned integer value.
   }];
 
   let extraClassDeclaration = [{
@@ -3029,6 +3082,28 @@ def TruncateIOp : Std_Op<"trunci", [NoSideEffect, SameOperandsAndResultShape]> {
   let printer = [{
     return printStandardCastOp(this->getOperation(), p);
   }];
+}
+
+//===----------------------------------------------------------------------===//
+// UIToFPOp
+//===----------------------------------------------------------------------===//
+
+def UIToFPOp : CastOp<"uitofp">, Arguments<(ins AnyType:$in)> {
+  let summary = "cast from unsigned integer type to floating-point";
+  let description = [{
+    Cast from a value interpreted as unsigned integer to the corresponding
+    floating-point value. If the value cannot be exactly represented, it is
+    rounded using the default rounding mode. Only scalars are currently
+    supported.
+  }];
+
+  let extraClassDeclaration = [{
+    /// Return true if `a` and `b` are valid operand and result pairs for
+    /// the operation.
+    static bool areCastCompatible(Type a, Type b);
+  }];
+
+  let hasFolder = 0;
 }
 
 //===----------------------------------------------------------------------===//

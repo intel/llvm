@@ -20,9 +20,11 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64-unknown-unknown"
 
 ; CHECK-LLVM: @a = addrspace(1) global i13 0, align 2
-; CHECK-LLVM: @b = addrspace(1) global i58 0, align 8
 @a = addrspace(1) global i13 0, align 2
+; CHECK-LLVM: @b = addrspace(1) global i58 0, align 8
 @b = addrspace(1) global i58 0, align 8
+; CHECK-LLVM: @c = addrspace(1) global i48 0, align 8
+@c = addrspace(1) global i48 0, align 8
 
 ; Function Attrs: noinline nounwind optnone
 ; CHECK-LLVM: void @_Z4funci(i30 %a)
@@ -34,5 +36,7 @@ entry:
   store i30 %a, i30* %a.addr, align 4
 ; CHECK-LLVM: store i30 1, i30* %a.addr
   store i30 1, i30* %a.addr, align 4
+; CHECK-LLVM: store i48 -4294901761, i48 addrspace(1)* @c
+  store i48 -4294901761, i48 addrspace(1)* @c, align 8
   ret void
 }

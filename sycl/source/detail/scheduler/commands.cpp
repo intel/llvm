@@ -1628,7 +1628,7 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
   NDR.set(NDR.Dims, nd_range<3>(NDR.NumWorkGroups * WGSize, WGSize));
 }
 
-// We have the following mapping between dimensions with SPIRV builtins:
+// We have the following mapping between dimensions with SPIR-V builtins:
 // 1D: id[0] -> x
 // 2D: id[0] -> y, id[1] -> x
 // 3D: id[0] -> z, id[1] -> y, id[2] -> x
@@ -1920,15 +1920,15 @@ cl_int ExecCGCommand::enqueueImp() {
             detail::ProgramManager::getInstance().getOrCreateKernel(
                 ExecKernel->MOSModuleHandle,
                 ExecKernel->MSyclKernel->get_info<info::kernel::context>(),
-                ExecKernel->MKernelName, SyclProg.get());
+                MQueue->get_device(), ExecKernel->MKernelName, SyclProg.get());
         assert(FoundKernel == Kernel);
       } else
         KnownProgram = false;
     } else {
       std::tie(Kernel, KernelMutex) =
           detail::ProgramManager::getInstance().getOrCreateKernel(
-              ExecKernel->MOSModuleHandle, Context, ExecKernel->MKernelName,
-              nullptr);
+              ExecKernel->MOSModuleHandle, Context, MQueue->get_device(),
+              ExecKernel->MKernelName, nullptr);
       MQueue->getPlugin().call<PiApiKind::piKernelGetInfo>(
           Kernel, PI_KERNEL_INFO_PROGRAM, sizeof(RT::PiProgram), &Program,
           nullptr);
@@ -1940,8 +1940,8 @@ cl_int ExecCGCommand::enqueueImp() {
         !ExecKernel->MSyclKernel->isCreatedFromSource()) {
       EliminatedArgMask =
           detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
-              ExecKernel->MOSModuleHandle, Context, Program,
-              ExecKernel->MKernelName, KnownProgram);
+              ExecKernel->MOSModuleHandle, Context, MQueue->get_device(),
+              Program, ExecKernel->MKernelName, KnownProgram);
     }
     if (KernelMutex != nullptr) {
       // For cacheable kernels, we use per-kernel mutex

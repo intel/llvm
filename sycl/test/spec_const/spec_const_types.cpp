@@ -12,7 +12,7 @@
 //===----------------------------------------------------------------------===//
 // The test checks that the tool chain correctly identifies all specialization
 // constants, emits correct specialization constats map file and can properly
-// translate the resulting bitcode to SPIRV.
+// translate the resulting bitcode to SPIR-V.
 
 #include <CL/sycl.hpp>
 

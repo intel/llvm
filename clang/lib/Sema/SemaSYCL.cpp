@@ -876,11 +876,12 @@ class KernelObjVisitor {
 
     assert(ElemCount > 0 && "SYCL prohibits 0 sized arrays");
     VisitFirstElement(nullptr, FD, ET, handlers...);
-    (void)std::initializer_list<int>{(handlers.nextElement(ET), 0)...};
+    (void)std::initializer_list<int>{(handlers.nextElement(ET, 1), 0)...};
 
     for (int64_t Count = 1; Count < ElemCount; Count++) {
       VisitNthElement(nullptr, FD, ET, handlers...);
-      (void)std::initializer_list<int>{(handlers.nextElement(ET), 0)...};
+      (void)std::initializer_list<int>{
+          (handlers.nextElement(ET, Count + 1), 0)...};
     }
 
     (void)std::initializer_list<int>{
@@ -1085,7 +1086,7 @@ public:
   virtual bool enterField(const CXXRecordDecl *, FieldDecl *) { return true; }
   virtual bool leaveField(const CXXRecordDecl *, FieldDecl *) { return true; }
   virtual bool enterArray() { return true; }
-  virtual bool nextElement(QualType) { return true; }
+  virtual bool nextElement(QualType, uint64_t) { return true; }
   virtual bool leaveArray(FieldDecl *, QualType, int64_t) { return true; }
 
   virtual ~SyclKernelFieldHandlerBase() = default;
@@ -1665,7 +1666,6 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   InitializedEntity VarEntity;
   const CXXRecordDecl *KernelObj;
   llvm::SmallVector<Expr *, 16> MemberExprBases;
-  uint64_t ArrayIndex;
   FunctionDecl *KernelCallerFunc;
 
   // Using the statements/init expressions that we've created, this generates
@@ -1778,17 +1778,62 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     InitExprs.push_back(MemberInit.get());
   }
 
+  int getDims() {
+    int Dims = 0;
+    for (int i = MemberExprBases.size() - 1; i >= 0; --i) {
+      if (!isa<ArraySubscriptExpr>(MemberExprBases[i]))
+        break;
+      ++Dims;
+    }
+    return Dims;
+  }
+
+  int64_t getArrayIndex(int Idx) {
+    ArraySubscriptExpr *LastArrayRef =
+        cast<ArraySubscriptExpr>(MemberExprBases[Idx]);
+    Expr *LastIdx = LastArrayRef->getIdx();
+    llvm::APSInt Result;
+    SemaRef.VerifyIntegerConstantExpression(LastIdx, &Result);
+    return Result.getExtValue();
+  }
+
   void createExprForScalarElement(FieldDecl *FD) {
-    InitializedEntity ArrayEntity =
+    llvm::SmallVector<InitializedEntity, 4> InitEntities;
+
+    // For multi-dimensional arrays, an initialized entity needs to be
+    // generated for each 'dimension'. For example, the initialized entity
+    // for s.array[x][y][z] is constructed using initialized entities for
+    // s.array[x][y], s.array[x] and s.array. InitEntities is used to maintain
+    // this.
+    InitializedEntity Entity =
         InitializedEntity::InitializeMember(FD, &VarEntity);
+    InitEntities.push_back(Entity);
+
+    // Calculate dimension using ArraySubscriptExpressions in MemberExprBases.
+    // Each dimension has an ArraySubscriptExpression (maintains index)
+    // in MemberExprBases. For example, if we are currently handling element
+    // a[0][0][1], the top of stack entries are ArraySubscriptExpressions for
+    // indices 0,0 and 1, with 1 on top.
+    int Dims = getDims();
+
+    // MemberExprBasesIdx is used to get the index of each dimension, in correct
+    // order, from MemberExprBases. For example for a[0][0][1], getArrayIndex
+    // will return 0, 0 and then 1.
+    int MemberExprBasesIdx = MemberExprBases.size() - Dims;
+    for (int I = 0; I < Dims; ++I) {
+      InitializedEntity NewEntity = InitializedEntity::InitializeElement(
+          SemaRef.getASTContext(), getArrayIndex(MemberExprBasesIdx),
+          InitEntities.back());
+      InitEntities.push_back(NewEntity);
+      ++MemberExprBasesIdx;
+    }
+
     InitializationKind InitKind =
         InitializationKind::CreateCopy(SourceLocation(), SourceLocation());
     Expr *DRE = createInitExpr(FD);
-    InitializedEntity Entity = InitializedEntity::InitializeElement(
-        SemaRef.getASTContext(), ArrayIndex, ArrayEntity);
-    ArrayIndex++;
-    InitializationSequence InitSeq(SemaRef, Entity, InitKind, DRE);
-    ExprResult MemberInit = InitSeq.Perform(SemaRef, Entity, InitKind, DRE);
+    InitializationSequence InitSeq(SemaRef, InitEntities.back(), InitKind, DRE);
+    ExprResult MemberInit =
+        InitSeq.Perform(SemaRef, InitEntities.back(), InitKind, DRE);
     InitExprs.push_back(MemberInit.get());
   }
 
@@ -1802,7 +1847,22 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     Expr *ILE = new (SemaRef.getASTContext())
         InitListExpr(SemaRef.getASTContext(), SourceLocation(), ArrayInitExprs,
                      SourceLocation());
-    ILE->setType(FD->getType());
+
+    // We need to find the type of the element for which we are generating the
+    // InitListExpr. For example, for a multi-dimensional array say a[2][3][2],
+    // the types for InitListExpr of the array and its 'sub-arrays' are -
+    // int [2][3][2], int [3][2] and int [2]. This loop is used to obtain this
+    // information from MemberExprBases. MemberExprBases holds
+    // ArraySubscriptExprs and the top of stack shows how far we have descended
+    // down the array. getDims() calculates this depth.
+    QualType ILEType = FD->getType();
+    for (int I = getDims(); I > 1; I--) {
+      const ConstantArrayType *CAT =
+          SemaRef.getASTContext().getAsConstantArrayType(ILEType);
+      assert(CAT && "Should only be called on constant-size array.");
+      ILEType = CAT->getElementType();
+    }
+    ILE->setType(ILEType);
     InitExprs.push_back(ILE);
   }
 
@@ -2063,20 +2123,18 @@ public:
     ExprResult ElementBase = SemaRef.CreateBuiltinArraySubscriptExpr(
         ArrayBase, SourceLocation(), IndexExpr.get(), SourceLocation());
     MemberExprBases.push_back(ElementBase.get());
-    ArrayIndex = 0;
     return true;
   }
 
-  bool nextElement(QualType ET) final {
-    ArraySubscriptExpr *LastArrayRef =
-        cast<ArraySubscriptExpr>(MemberExprBases.back());
+  bool nextElement(QualType ET, uint64_t) final {
+    // Top of MemberExprBases holds ArraySubscriptExpression of element
+    // we just handled, or the Array base for the dimension we are
+    // currently visiting.
+    int64_t nextIndex = getArrayIndex(MemberExprBases.size() - 1) + 1;
     MemberExprBases.pop_back();
-    Expr *LastIdx = LastArrayRef->getIdx();
-    llvm::APSInt Result;
-    SemaRef.VerifyIntegerConstantExpression(LastIdx, &Result);
     Expr *ArrayBase = MemberExprBases.back();
-    ExprResult IndexExpr = SemaRef.ActOnIntegerConstant(
-        SourceLocation(), Result.getExtValue() + 1);
+    ExprResult IndexExpr =
+        SemaRef.ActOnIntegerConstant(SourceLocation(), nextIndex);
     ExprResult ElementBase = SemaRef.CreateBuiltinArraySubscriptExpr(
         ArrayBase, SourceLocation(), IndexExpr.get(), SourceLocation());
     MemberExprBases.push_back(ElementBase.get());
@@ -2101,6 +2159,7 @@ public:
 class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   SYCLIntegrationHeader &Header;
   int64_t CurOffset = 0;
+  llvm::SmallVector<size_t, 16> ArrayBaseOffsets;
   int StructDepth = 0;
 
   // A series of functions to calculate the change in offset based on the type.
@@ -2248,18 +2307,20 @@ public:
     return true;
   }
 
-  bool nextElement(QualType ET) final {
-    CurOffset += SemaRef.getASTContext().getTypeSizeInChars(ET).getQuantity();
+  bool enterArray() final {
+    ArrayBaseOffsets.push_back(CurOffset);
     return true;
   }
 
-  bool leaveArray(FieldDecl *, QualType ET, int64_t Count) final {
-    int64_t ArraySize =
-        SemaRef.getASTContext().getTypeSizeInChars(ET).getQuantity();
-    if (!ET->isArrayType()) {
-      ArraySize *= Count;
-    }
-    CurOffset -= ArraySize;
+  bool nextElement(QualType ET, uint64_t Index) final {
+    int64_t Size = SemaRef.getASTContext().getTypeSizeInChars(ET).getQuantity();
+    CurOffset = ArrayBaseOffsets.back() + Size * (Index);
+    return true;
+  }
+
+  bool leaveArray(FieldDecl *, QualType ET, int64_t) final {
+    CurOffset = ArrayBaseOffsets.back();
+    ArrayBaseOffsets.pop_back();
     return true;
   }
   using SyclKernelFieldHandler::enterStruct;
