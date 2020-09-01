@@ -11,5 +11,5 @@
 #include <CL/sycl/INTEL/fpga_device_selector.hpp>
 #include <CL/sycl/INTEL/fpga_lsu.hpp>
 #include <CL/sycl/INTEL/fpga_reg.hpp>
-#include <CL/sycl/INTEL/pipes.hpp>
 #include <CL/sycl/INTEL/pipe_array.hpp>
+#include <CL/sycl/INTEL/pipes.hpp>
