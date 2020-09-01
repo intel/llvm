@@ -1558,6 +1558,12 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     return mapValue(V, transCallInst(CI, BB));
   }
 
+  if (Instruction *Inst = dyn_cast<Instruction>(V)) {
+    BM->getErrorLog().checkError(false, SPIRVEC_InvalidInstruction,
+                                 toString(Inst) + "\n", nullptr, __FILE__,
+                                 __LINE__);
+  }
+
   llvm_unreachable("Not implemented");
   return nullptr;
 }
