@@ -4346,10 +4346,12 @@ pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
     return ReturnValue(MemAllocaType);
   }
   case PI_MEM_ALLOC_DEVICE: {
-    // TODO: this wants pi_device, but we didn't remember it, and cannot
-    // deduct from the Level Zero device.
-    die("piextUSMGetMemAllocInfo: PI_MEM_ALLOC_DEVICE not implemented");
-    break;
+    if (ZeDeviceHandle) {
+      if (Context->Device->ZeDevice == ZeDeviceHandle) {
+        return ReturnValue(Context->Device);
+      }
+    }
+    return PI_INVALID_VALUE;
   }
   case PI_MEM_ALLOC_BASE_PTR: {
     void *Base;
