@@ -26,7 +26,8 @@ set(compile_opts
   )
 
 if (WIN32)
-  set(devicelib-obj-file ${binary_dir}/libsycl-msvc.o)
+  set(lib-suffix obj)
+  set(devicelib-obj-file ${binary_dir}/libsycl-crt.${lib-suffix})
   add_custom_command(OUTPUT ${devicelib-obj-file}
                      COMMAND ${clang} -fsycl -c
                              ${compile_opts} ${sycl_targets_opt}
@@ -36,7 +37,8 @@ if (WIN32)
                      DEPENDS wrapper.h device.h spirv_vars.h clang clang-offload-bundler
                      VERBATIM)
 else()
-  set(devicelib-obj-file ${binary_dir}/libsycl-glibc.o)
+  set(lib-suffix o)
+  set(devicelib-obj-file ${binary_dir}/libsycl-crt.${lib-suffix})
   add_custom_command(OUTPUT ${devicelib-obj-file}
                      COMMAND ${clang} -fsycl -c
                              ${compile_opts} ${sycl_targets_opt}
@@ -47,7 +49,7 @@ else()
                      VERBATIM)
 endif()
 
-set(devicelib-obj-complex ${binary_dir}/libsycl-complex.o)
+set(devicelib-obj-complex ${binary_dir}/libsycl-complex.${lib-suffix})
 add_custom_command(OUTPUT ${devicelib-obj-complex}
                    COMMAND ${clang} -fsycl -c
                            ${compile_opts} ${sycl_targets_opt}
@@ -57,7 +59,7 @@ add_custom_command(OUTPUT ${devicelib-obj-complex}
                    DEPENDS device_complex.h device.h clang clang-offload-bundler
                    VERBATIM)
 
-set(devicelib-obj-complex-fp64 ${binary_dir}/libsycl-complex-fp64.o)
+set(devicelib-obj-complex-fp64 ${binary_dir}/libsycl-complex-fp64.${lib-suffix})
 add_custom_command(OUTPUT ${devicelib-obj-complex-fp64}
                    COMMAND ${clang} -fsycl -c
                            ${compile_opts} ${sycl_targets_opt}
@@ -67,7 +69,7 @@ add_custom_command(OUTPUT ${devicelib-obj-complex-fp64}
                    DEPENDS device_complex.h device.h clang clang-offload-bundler
                    VERBATIM)
 
-set(devicelib-obj-cmath ${binary_dir}/libsycl-cmath.o)
+set(devicelib-obj-cmath ${binary_dir}/libsycl-cmath.${lib-suffix})
 add_custom_command(OUTPUT ${devicelib-obj-cmath}
                    COMMAND ${clang} -fsycl -c
                            ${compile_opts} ${sycl_targets_opt}
@@ -77,7 +79,7 @@ add_custom_command(OUTPUT ${devicelib-obj-cmath}
                    DEPENDS device_math.h device.h clang clang-offload-bundler
                    VERBATIM)
 
-set(devicelib-obj-cmath-fp64 ${binary_dir}/libsycl-cmath-fp64.o)
+set(devicelib-obj-cmath-fp64 ${binary_dir}/libsycl-cmath-fp64.${lib-suffix})
 add_custom_command(OUTPUT ${devicelib-obj-cmath-fp64}
                    COMMAND ${clang} -fsycl -c
                            ${compile_opts} ${sycl_targets_opt}
@@ -96,11 +98,11 @@ add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-cassert.spv
                    DEPENDS wrapper.h device.h clang spirv_vars.h llvm-spirv
                    VERBATIM)
 
-add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-cassert.o
+add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-cassert.${lib-suffix}
                    COMMAND ${clang} -fsycl -c
                            ${compile_opts} ${sycl_targets_opt}
                            ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
-                           -o ${binary_dir}/libsycl-fallback-cassert.o
+                           -o ${binary_dir}/libsycl-fallback-cassert.${lib-suffix}
                    MAIN_DEPENDENCY fallback-cassert.cpp
                    DEPENDS wrapper.h device.h clang spirv_vars.h clang-offload-bundler
                    VERBATIM)
@@ -114,11 +116,11 @@ add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-complex.spv
                    DEPENDS device_math.h device_complex.h device.h clang llvm-spirv
                    VERBATIM)
 
-add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-complex.o
+add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-complex.${lib-suffix}
                    COMMAND ${clang} -fsycl -c
                            ${compile_opts} ${sycl_targets_opt}
                            ${CMAKE_CURRENT_SOURCE_DIR}/fallback-complex.cpp
-                           -o ${binary_dir}/libsycl-fallback-complex.o
+                           -o ${binary_dir}/libsycl-fallback-complex.${lib-suffix}
                    MAIN_DEPENDENCY fallback-complex.cpp
                    DEPENDS device_math.h device_complex.h device.h clang clang-offload-bundler
                    VERBATIM)
@@ -132,11 +134,11 @@ add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-complex-fp64.spv
                    DEPENDS device_math.h device_complex.h device.h clang llvm-spirv
                    VERBATIM)
 
-add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-complex-fp64.o
+add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-complex-fp64.${lib-suffix}
                    COMMAND ${clang} -fsycl -c
                            ${compile_opts} ${sycl_targets_opt}
                            ${CMAKE_CURRENT_SOURCE_DIR}/fallback-complex-fp64.cpp
-                           -o ${binary_dir}/libsycl-fallback-complex-fp64.o
+                           -o ${binary_dir}/libsycl-fallback-complex-fp64.${lib-suffix}
                    MAIN_DEPENDENCY fallback-complex-fp64.cpp
                    DEPENDS device_math.h device_complex.h device.h clang clang-offload-bundler
                    VERBATIM)
@@ -150,11 +152,11 @@ add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-cmath.spv
                    DEPENDS device_math.h device.h clang llvm-spirv
                    VERBATIM)
 
-add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-cmath.o
+add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-cmath.${lib-suffix}
                    COMMAND ${clang} -fsycl -c
                            ${compile_opts} ${sycl_targets_opt}
                            ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cmath.cpp
-                           -o ${binary_dir}/libsycl-fallback-cmath.o
+                           -o ${binary_dir}/libsycl-fallback-cmath.${lib-suffix}
                    MAIN_DEPENDENCY fallback-cmath.cpp
                    DEPENDS device_math.h device.h clang clang-offload-bundler
                    VERBATIM)
@@ -168,11 +170,11 @@ add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-cmath-fp64.spv
                    DEPENDS device_math.h device.h clang llvm-spirv
                    VERBATIM)
 
-add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-cmath-fp64.o
+add_custom_command(OUTPUT ${binary_dir}/libsycl-fallback-cmath-fp64.${lib-suffix}
                    COMMAND ${clang} -fsycl -c
                            ${compile_opts} ${sycl_targets_opt}
                            ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cmath-fp64.cpp
-                           -o ${binary_dir}/libsycl-fallback-cmath-fp64.o
+                           -o ${binary_dir}/libsycl-fallback-cmath-fp64.${lib-suffix}
                    MAIN_DEPENDENCY fallback-cmath-fp64.cpp
                    DEPENDS device_math.h device.h clang clang-offload-bundler
                    VERBATIM)
@@ -192,11 +194,11 @@ add_custom_target(libsycldevice-spv DEPENDS
   ${binary_dir}/libsycl-fallback-cmath-fp64.spv
   )
 add_custom_target(libsycldevice-fallback-obj DEPENDS
-  ${binary_dir}/libsycl-fallback-cassert.o
-  ${binary_dir}/libsycl-fallback-complex.o
-  ${binary_dir}/libsycl-fallback-complex-fp64.o
-  ${binary_dir}/libsycl-fallback-cmath.o
-  ${binary_dir}/libsycl-fallback-cmath-fp64.o
+  ${binary_dir}/libsycl-fallback-cassert.${lib-suffix}
+  ${binary_dir}/libsycl-fallback-complex.${lib-suffix}
+  ${binary_dir}/libsycl-fallback-complex-fp64.${lib-suffix}
+  ${binary_dir}/libsycl-fallback-cmath.${lib-suffix}
+  ${binary_dir}/libsycl-fallback-cmath-fp64.${lib-suffix}
 )
 add_custom_target(libsycldevice DEPENDS
   libsycldevice-obj
@@ -206,25 +208,30 @@ add_custom_target(libsycldevice DEPENDS
 # Place device libraries near the libsycl.so library in an install
 # directory as well
 if (WIN32)
-  set(install_dest bin)
+  set(install_dest_spv bin)
 else()
-  set(install_dest lib${LLVM_LIBDIR_SUFFIX})
+  set(install_dest_spv lib${LLVM_LIBDIR_SUFFIX})
 endif()
 
+set(install_dest_lib lib${LLVM_LIBDIR_SUFFIX})
+
 install(FILES ${devicelib-obj-file}
-              ${binary_dir}/libsycl-fallback-cassert.spv
-              ${binary_dir}/libsycl-fallback-cassert.o
+	      ${binary_dir}/libsycl-fallback-cassert.${lib-suffix}
               ${devicelib-obj-complex}
-              ${binary_dir}/libsycl-fallback-complex.spv
-	      ${binary_dir}/libsycl-fallback-complex.o
+	      ${binary_dir}/libsycl-fallback-complex.${lib-suffix}
               ${devicelib-obj-complex-fp64}
-              ${binary_dir}/libsycl-fallback-complex-fp64.spv
-	      ${binary_dir}/libsycl-fallback-complex-fp64.o
+	      ${binary_dir}/libsycl-fallback-complex-fp64.${lib-suffix}
               ${devicelib-obj-cmath}
-              ${binary_dir}/libsycl-fallback-cmath.spv
-              ${binary_dir}/libsycl-fallback-cmath.o
+              ${binary_dir}/libsycl-fallback-cmath.${lib-suffix}
               ${devicelib-obj-cmath-fp64}
+	      ${binary_dir}/libsycl-fallback-cmath-fp64.${lib-suffix}
+        DESTINATION ${install_dest_lib}
+        COMPONENT libsycldevice)
+
+install(FILES ${binary_dir}/libsycl-fallback-cassert.spv
+              ${binary_dir}/libsycl-fallback-complex.spv
+              ${binary_dir}/libsycl-fallback-complex-fp64.spv
+              ${binary_dir}/libsycl-fallback-cmath.spv
               ${binary_dir}/libsycl-fallback-cmath-fp64.spv
-	      ${binary_dir}/libsycl-fallback-cmath-fp64.o
-        DESTINATION ${install_dest}
+        DESTINATION ${install_dest_spv}
         COMPONENT libsycldevice)
