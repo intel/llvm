@@ -2615,7 +2615,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   assert(Queue);
   assert((WorkDim > 0) && (WorkDim < 4));
   if (GlobalWorkOffset != NULL) {
-    for(pi_uint32 i=0; i<WorkDim; i++) {
+    for (pi_uint32 i = 0; i < WorkDim; i++) {
       assert(GlobalWorkOffset[i] == 0);
     }
   }
