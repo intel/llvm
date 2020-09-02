@@ -58,7 +58,8 @@ bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
   if (!Cmd || Cmd->isSuccessfullyEnqueued())
     return true;
 
-  if (Cmd->isEnqueueBlocked()) {
+  // Exit early if the command is blocked and the enqueue type is non-blocking
+  if (Cmd->isEnqueueBlocked() && !Blocking) {
     EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
     return false;
   }

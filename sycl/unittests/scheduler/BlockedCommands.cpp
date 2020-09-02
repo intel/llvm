@@ -98,8 +98,8 @@ TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
   A.MIsBlockable = true;
 
   MockCommand B(detail::getSyclObjImpl(MQueue));
-  B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
-  B.MIsBlockable = true;
+  B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
+  B.MRetVal = CL_OUT_OF_RESOURCES;
 
   addEdge(&A, &B, nullptr);
 
@@ -118,4 +118,15 @@ TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
   ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueBlocked, Res.MResult)
       << "Result of enqueueing blocked command should be BLOCKED.\n";
   ASSERT_EQ(&A, Res.MCmd) << "Expected different failed command.\n";
+
+  // But if the enqueue type is blocking we should not exit early.
+
+  EXPECT_CALL(A, enqueue(_, _)).Times(0);
+  EXPECT_CALL(B, enqueue(_, _)).Times(1);
+
+  Enqueued = MockScheduler::enqueueCommand(&A, Res, detail::BLOCKING);
+  ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
+  ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueFailed, Res.MResult)
+      << "Result of enqueueing blocked command should be BLOCKED.\n";
+  ASSERT_EQ(&B, Res.MCmd) << "Expected different failed command.\n";
 }
