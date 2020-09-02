@@ -2096,7 +2096,7 @@ public:
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
     Expr *PointerRef =
-        createPointerParamReferenceExpr(FD->getType(), StructDepth != 0);
+        createPointerParamReferenceExpr(FieldTy, StructDepth != 0);
     addFieldInit(FD, FieldTy, PointerRef);
     return true;
   }

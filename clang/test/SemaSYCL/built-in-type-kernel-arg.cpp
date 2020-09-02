@@ -13,6 +13,8 @@ __attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
 struct test_struct {
   int data;
   int *ptr; // Unused pointer in struct
+  int *ptr_array1[2];    // Unused array of pointers in struct
+  int *ptr_array2[2][3]; // Unused array of pointers in struct
 };
 
 void test(const int some_const) {
@@ -66,9 +68,18 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
 
 // Check kernel parameters
-// CHECK: {{.*}}kernel_struct{{.*}} 'void (int, __wrapper_class)'
+// CHECK: {{.*}}kernel_struct{{.*}} 'void (int, __wrapper_class, __wrapper_class, __wrapper_class
+// CHECK-SAME: __wrapper_class, __wrapper_class, __wrapper_class, __wrapper_class, __wrapper_class, __wrapper_class)'
 // CHECK: ParmVarDecl {{.*}} used _arg_data 'int'
 // CHECK: ParmVarDecl {{.*}} used _arg_ptr '__wrapper_class'
+// CHECK: ParmVarDecl {{.*}} used _arg_ptr_array1 '__wrapper_class'
+// CHECK: ParmVarDecl {{.*}} used _arg_ptr_array1 '__wrapper_class'
+// CHECK: ParmVarDecl {{.*}} used _arg_ptr_array2 '__wrapper_class'
+// CHECK: ParmVarDecl {{.*}} used _arg_ptr_array2 '__wrapper_class'
+// CHECK: ParmVarDecl {{.*}} used _arg_ptr_array2 '__wrapper_class'
+// CHECK: ParmVarDecl {{.*}} used _arg_ptr_array2 '__wrapper_class'
+// CHECK: ParmVarDecl {{.*}} used _arg_ptr_array2 '__wrapper_class'
+// CHECK: ParmVarDecl {{.*}} used _arg_ptr_array2 '__wrapper_class'
 
 // Check that lambda field of struct type is initialized
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})'
@@ -79,6 +90,34 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
 // CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr' '__wrapper_class'
+// CHECK-NEXT: InitListExpr {{.*}} 'int *[2]'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array1' '__wrapper_class'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array1' '__wrapper_class'
+// CHECK-NEXT: InitListExpr {{.*}} 'int *[2][3]'
+// CHECK-NEXT: InitListExpr {{.*}} 'int *[3]'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array2' '__wrapper_class'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array2' '__wrapper_class'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array2' '__wrapper_class'
+// CHECK-NEXT: InitListExpr {{.*}} 'int *[3]'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array2' '__wrapper_class'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array2' '__wrapper_class'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array2' '__wrapper_class'
 
 // Check kernel parameters
 // CHECK: {{.*}}kernel_pointer{{.*}} 'void (__global int *, __global int *)'
