@@ -2481,6 +2481,10 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
       Diag(KernelFunc->getLocation(), diag::warn_sycl_pass_by_value_deprecated);
   }
 
+  // Do not visit invalid kernel object.
+  if (KernelObj->isInvalidDecl())
+    return;
+
   KernelObjVisitor Visitor{*this};
   DiagnosingSYCLKernel = true;
   Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker,
@@ -2519,6 +2523,10 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   // The first argument to the KernelCallerFunc is the lambda object.
   const CXXRecordDecl *KernelObj = getKernelObjectType(KernelCallerFunc);
   assert(KernelObj && "invalid kernel caller");
+
+  // Do not visit invalid kernel object.
+  if (KernelObj->isInvalidDecl())
+    return;
 
   // Calculate both names, since Integration headers need both.
   std::string CalculatedName, StableName;
