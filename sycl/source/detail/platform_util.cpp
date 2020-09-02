@@ -72,8 +72,6 @@ uint32_t PlatformUtil::getMaxClockFrequency() {
   Buff = Buff.substr(Buff.rfind(' '), Buff.length());
   Freq *= std::stod(Buff);
   return Freq;
-#else
-#warning Your platform is not supported!
 #endif
   return 0;
 }
@@ -88,8 +86,6 @@ uint32_t PlatformUtil::getMemCacheLineSize() {
   if (lineSize > 0) {
     return lineSize;
   }
-#else
-#warning Your platform is not supported.
 #endif
   return 8;
 }
@@ -104,8 +100,6 @@ uint64_t PlatformUtil::getMemCacheSize() {
   if (cacheSize > 0) {
     return cacheSize;
   }
-#else
-#warning Your platform is not supported.
 #endif
   return static_cast<uint64_t>(16 * 1024);
 }
@@ -161,8 +155,6 @@ uint32_t PlatformUtil::getNativeVectorWidth(PlatformUtil::TypeIndex TIndex) {
   static constexpr uint32_t VECTOR_WIDTH_NEON[] = {16, 8, 4, 2, 4, 2, 0};
   return VECTOR_WIDTH_NEON[Index];
 
-#else
-#warning Your platform is not supported!
 #endif
   return 0;
 }
