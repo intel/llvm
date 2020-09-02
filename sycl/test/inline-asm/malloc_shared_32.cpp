@@ -59,7 +59,7 @@ int main() {
         svm_scatter.4.1 (M1, 16) %1.0 V53.0
     }
     )a" ::"rw"(&b[i]),
-			    // clang-format off
+                        // clang-format off
                             "rw"(&b[i] + 16), "rw"(&a[i]), "rw"(&a[i] + 16), "rw"(&c[i]),
                             "rw"(&c[i] + 16));
 #else
