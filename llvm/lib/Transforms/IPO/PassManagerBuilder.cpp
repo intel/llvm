@@ -447,8 +447,9 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
     MPM.add(createLoopInterchangePass()); // Interchange loops
 
   // Unroll small loops
-  MPM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,
-                                     ForgetAllSCEVInLoopUnroll));
+  if (!SYCLOptimizationMode) // TODO: disable the whole loop pass pipeline?
+    MPM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,
+                                       ForgetAllSCEVInLoopUnroll));
   addExtensionsToPM(EP_LoopOptimizerEnd, MPM);
   // This ends the loop pass pipelines.
 
@@ -819,19 +820,21 @@ void PassManagerBuilder::populateModulePassManager(
     MPM.add(createLoopUnrollAndJamPass(OptLevel));
   }
 
-  // Unroll small loops
-  MPM.add(createLoopUnrollPass(OptLevel, DisableUnrollLoops,
-                               ForgetAllSCEVInLoopUnroll));
+  if (!SYCLOptimizationMode) {
+    // Unroll small loops
+    MPM.add(createLoopUnrollPass(OptLevel, DisableUnrollLoops,
+                                 ForgetAllSCEVInLoopUnroll));
 
-  if (!DisableUnrollLoops) {
-    // LoopUnroll may generate some redundency to cleanup.
-    MPM.add(createInstructionCombiningPass());
+    if (!DisableUnrollLoops) {
+      // LoopUnroll may generate some redundency to cleanup.
+      MPM.add(createInstructionCombiningPass());
 
-    // Runtime unrolling will introduce runtime check in loop prologue. If the
-    // unrolled loop is a inner loop, then the prologue will be inside the
-    // outer loop. LICM pass can help to promote the runtime check out if the
-    // checked value is loop invariant.
-    MPM.add(createLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap));
+      // Runtime unrolling will introduce runtime check in loop prologue. If the
+      // unrolled loop is a inner loop, then the prologue will be inside the
+      // outer loop. LICM pass can help to promote the runtime check out if the
+      // checked value is loop invariant.
+      MPM.add(createLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap));
+    }
   }
 
   MPM.add(createWarnMissedTransformationsPass());
@@ -1034,13 +1037,16 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
   if (EnableLoopInterchange)
     PM.add(createLoopInterchangePass());
 
-  // Unroll small loops
-  PM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,
-                                    ForgetAllSCEVInLoopUnroll));
-  PM.add(createLoopVectorizePass(true, !LoopVectorize));
-  // The vectorizer may have significantly shortened a loop body; unroll again.
-  PM.add(createLoopUnrollPass(OptLevel, DisableUnrollLoops,
-                              ForgetAllSCEVInLoopUnroll));
+  if (!SYCLOptimizationMode) {
+    // Unroll small loops
+    PM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,
+                                      ForgetAllSCEVInLoopUnroll));
+    PM.add(createLoopVectorizePass(true, !LoopVectorize));
+    // The vectorizer may have significantly shortened a loop body; unroll
+    // again.
+    PM.add(createLoopUnrollPass(OptLevel, DisableUnrollLoops,
+                                ForgetAllSCEVInLoopUnroll));
+  }
 
   PM.add(createWarnMissedTransformationsPass());
 
