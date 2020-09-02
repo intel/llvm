@@ -270,6 +270,12 @@ static cl::opt<bool> EnableLoadStoreRuntimeInterleave(
     cl::desc(
         "Enable runtime interleaving until load/store ports are saturated"));
 
+/// Interleave small loops with scalar reductions.
+static cl::opt<bool> InterleaveSmallLoopScalarReduction(
+    "interleave-small-loop-scalar-reduction", cl::init(false), cl::Hidden,
+    cl::desc("Enable interleaving for loops with small iteration counts that "
+             "contain scalar reductions to expose ILP."));
+
 /// The number of stores in a loop that are allowed to need predication.
 static cl::opt<unsigned> NumberOfStoresToPredicate(
     "vectorize-num-stores-pred", cl::init(1), cl::Hidden,
@@ -2935,13 +2941,6 @@ void InnerLoopVectorizer::emitMemRuntimeChecks(Loop *L, BasicBlock *Bypass) {
   const auto &RtPtrChecking = *LAI->getRuntimePointerChecking();
   if (!RtPtrChecking.Need)
     return;
-  Instruction *FirstCheckInst;
-  Instruction *MemRuntimeCheck;
-  std::tie(FirstCheckInst, MemRuntimeCheck) =
-      addRuntimeChecks(MemCheckBlock->getTerminator(), OrigLoop,
-                       RtPtrChecking.getChecks(), RtPtrChecking.getSE());
-  assert(MemRuntimeCheck && "no RT checks generated although RtPtrChecking "
-                            "claimed checks are required");
 
   if (MemCheckBlock->getParent()->hasOptSize() || OptForSizeBasedOnProfile) {
     assert(Cost->Hints->getForce() == LoopVectorizeHints::FK_Enabled &&
@@ -2963,17 +2962,26 @@ void InnerLoopVectorizer::emitMemRuntimeChecks(Loop *L, BasicBlock *Bypass) {
       SplitBlock(MemCheckBlock, MemCheckBlock->getTerminator(), DT, LI, nullptr,
                  "vector.ph");
 
+  auto *CondBranch = cast<BranchInst>(
+      Builder.CreateCondBr(Builder.getTrue(), Bypass, LoopVectorPreHeader));
+  ReplaceInstWithInst(MemCheckBlock->getTerminator(), CondBranch);
+  LoopBypassBlocks.push_back(MemCheckBlock);
+  AddedSafetyChecks = true;
+
   // Update dominator only if this is first RT check.
   if (LoopBypassBlocks.empty()) {
     DT->changeImmediateDominator(Bypass, MemCheckBlock);
     DT->changeImmediateDominator(LoopExitBlock, MemCheckBlock);
   }
 
-  ReplaceInstWithInst(
-      MemCheckBlock->getTerminator(),
-      BranchInst::Create(Bypass, LoopVectorPreHeader, MemRuntimeCheck));
-  LoopBypassBlocks.push_back(MemCheckBlock);
-  AddedSafetyChecks = true;
+  Instruction *FirstCheckInst;
+  Instruction *MemRuntimeCheck;
+  std::tie(FirstCheckInst, MemRuntimeCheck) =
+      addRuntimeChecks(MemCheckBlock->getTerminator(), OrigLoop,
+                       RtPtrChecking.getChecks(), RtPtrChecking.getSE());
+  assert(MemRuntimeCheck && "no RT checks generated although RtPtrChecking "
+                            "claimed checks are required");
+  CondBranch->setCondition(MemRuntimeCheck);
 
   // We currently don't use LoopVersioning for the actual loop cloning but we
   // still use it to add the noalias metadata.
@@ -5517,10 +5525,15 @@ unsigned LoopVectorizationCostModel::selectInterleaveCount(ElementCount VF,
   if (Legal->getMaxSafeDepDistBytes() != -1U)
     return 1;
 
-  // Do not interleave loops with a relatively small known or estimated trip
-  // count.
   auto BestKnownTC = getSmallBestKnownTC(*PSE.getSE(), TheLoop);
-  if (BestKnownTC && *BestKnownTC < TinyTripCountInterleaveThreshold)
+  const bool HasReductions = !Legal->getReductionVars().empty();
+  // Do not interleave loops with a relatively small known or estimated trip
+  // count. But we will interleave when InterleaveSmallLoopScalarReduction is
+  // enabled, and the code has scalar reductions(HasReductions && VF = 1),
+  // because with the above conditions interleaving can expose ILP and break
+  // cross iteration dependences for reductions.
+  if (BestKnownTC && (*BestKnownTC < TinyTripCountInterleaveThreshold) &&
+      !(InterleaveSmallLoopScalarReduction && HasReductions && VF.isScalar()))
     return 1;
 
   RegisterUsage R = calculateRegisterUsage({VF})[0];
@@ -5548,7 +5561,7 @@ unsigned LoopVectorizationCostModel::selectInterleaveCount(ElementCount VF,
     LLVM_DEBUG(dbgs() << "LV: The target has " << TargetNumRegisters
                       << " registers of "
                       << TTI.getRegisterClassName(pair.first) << " register class\n");
-    if (VF == 1) {
+    if (VF.isScalar()) {
       if (ForceTargetNumScalarRegs.getNumOccurrences() > 0)
         TargetNumRegisters = ForceTargetNumScalarRegs;
     } else {
@@ -5577,7 +5590,7 @@ unsigned LoopVectorizationCostModel::selectInterleaveCount(ElementCount VF,
       TTI.getMaxInterleaveFactor(VF.getKnownMinValue());
 
   // Check if the user has overridden the max.
-  if (VF == 1) {
+  if (VF.isScalar()) {
     if (ForceTargetMaxScalarInterleaveFactor.getNumOccurrences() > 0)
       MaxInterleaveCount = ForceTargetMaxScalarInterleaveFactor;
   } else {
@@ -5608,7 +5621,7 @@ unsigned LoopVectorizationCostModel::selectInterleaveCount(ElementCount VF,
 
   // Interleave if we vectorized this loop and there is a reduction that could
   // benefit from interleaving.
-  if (VF.isVector() && !Legal->getReductionVars().empty()) {
+  if (VF.isVector() && HasReductions) {
     LLVM_DEBUG(dbgs() << "LV: Interleaving because of reductions.\n");
     return IC;
   }
@@ -5620,7 +5633,11 @@ unsigned LoopVectorizationCostModel::selectInterleaveCount(ElementCount VF,
 
   // We want to interleave small loops in order to reduce the loop overhead and
   // potentially expose ILP opportunities.
-  LLVM_DEBUG(dbgs() << "LV: Loop cost is " << LoopCost << '\n');
+  LLVM_DEBUG(dbgs() << "LV: Loop cost is " << LoopCost << '\n'
+                    << "LV: IC is " << IC << '\n'
+                    << "LV: VF is " << VF.getKnownMinValue() << '\n');
+  const bool AggressivelyInterleaveReductions =
+      TTI.enableAggressiveInterleaving(HasReductions);
   if (!InterleavingRequiresRuntimePointerCheck && LoopCost < SmallLoopCost) {
     // We assume that the cost overhead is 1 and we use the cost model
     // to estimate the cost of the loop and interleave until the cost of the
@@ -5639,7 +5656,7 @@ unsigned LoopVectorizationCostModel::selectInterleaveCount(ElementCount VF,
     // by this point), we can increase the critical path length if the loop
     // we're interleaving is inside another loop. Limit, by default to 2, so the
     // critical path only gets increased by one reduction operation.
-    if (!Legal->getReductionVars().empty() && TheLoop->getLoopDepth() > 1) {
+    if (HasReductions && TheLoop->getLoopDepth() > 1) {
       unsigned F = static_cast<unsigned>(MaxNestedScalarReductionIC);
       SmallIC = std::min(SmallIC, F);
       StoresIC = std::min(StoresIC, F);
@@ -5653,14 +5670,23 @@ unsigned LoopVectorizationCostModel::selectInterleaveCount(ElementCount VF,
       return std::max(StoresIC, LoadsIC);
     }
 
-    LLVM_DEBUG(dbgs() << "LV: Interleaving to reduce branch cost.\n");
-    return SmallIC;
+    // If there are scalar reductions and TTI has enabled aggressive
+    // interleaving for reductions, we will interleave to expose ILP.
+    if (InterleaveSmallLoopScalarReduction && VF.isScalar() &&
+        AggressivelyInterleaveReductions) {
+      LLVM_DEBUG(dbgs() << "LV: Interleaving to expose ILP.\n");
+      // Interleave no less than SmallIC but not as aggressive as the normal IC
+      // to satisfy the rare situation when resources are too limited.
+      return std::max(IC / 2, SmallIC);
+    } else {
+      LLVM_DEBUG(dbgs() << "LV: Interleaving to reduce branch cost.\n");
+      return SmallIC;
+    }
   }
 
   // Interleave if this is a large loop (small loops are already dealt with by
   // this point) that could benefit from interleaving.
-  bool HasReductions = !Legal->getReductionVars().empty();
-  if (TTI.enableAggressiveInterleaving(HasReductions)) {
+  if (AggressivelyInterleaveReductions) {
     LLVM_DEBUG(dbgs() << "LV: Interleaving to expose ILP.\n");
     return IC;
   }
@@ -6841,7 +6867,7 @@ void LoopVectorizationCostModel::collectValuesToIgnore() {
   // detection.
   for (auto &Reduction : Legal->getReductionVars()) {
     RecurrenceDescriptor &RedDes = Reduction.second;
-    SmallPtrSetImpl<Instruction *> &Casts = RedDes.getCastInsts();
+    const SmallPtrSetImpl<Instruction *> &Casts = RedDes.getCastInsts();
     VecValuesToIgnore.insert(Casts.begin(), Casts.end());
   }
   // Ignore type-casting instructions we identified during induction

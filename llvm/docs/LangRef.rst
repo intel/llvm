@@ -6194,7 +6194,8 @@ considered having this property if at least one of the access groups
 matches the ``llvm.loop.parallel_accesses`` list.
 
 If all memory-accessing instructions in a loop have
-``llvm.loop.parallel_accesses`` metadata that refers to that loop, then the
+``llvm.access.group`` metadata that each refer to one of the access
+groups of a loop's ``llvm.loop.parallel_accesses`` metadata, then the
 loop has no loop carried memory dependences and is considered to be a
 parallel loop.
 
@@ -9239,6 +9240,9 @@ example, loading an ``i24`` reads at most three bytes. When loading a
 value of a type like ``i20`` with a size that is not an integral number
 of bytes, the result is undefined if the value was not originally
 written using a store of the same type.
+If the value being loaded is of aggregate type, the bytes that correspond to
+padding may be accessed but are ignored, because it is impossible to observe
+padding from the loaded aggregate value.
 
 Examples:
 """""""""
@@ -9328,6 +9332,8 @@ example, storing an ``i24`` writes at most three bytes. When writing a
 value of a type like ``i20`` with a size that is not an integral number
 of bytes, it is unspecified what happens to the extra bits that do not
 belong to the type, but they will typically be overwritten.
+If ``<value>`` is of aggregate type, padding is filled with
+:ref:`undef <undefvalues>`.
 
 Example:
 """"""""

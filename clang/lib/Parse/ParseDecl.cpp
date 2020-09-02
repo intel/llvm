@@ -5592,6 +5592,11 @@ void Parser::ParseDeclaratorInternal(Declarator &D,
         return;
       }
 
+      if (SS.isValid()) {
+        checkCompoundToken(SS.getEndLoc(), tok::coloncolon,
+                           CompoundToken::MemberPtr);
+      }
+
       SourceLocation StarLoc = ConsumeToken();
       D.SetRangeEnd(StarLoc);
       DeclSpec DS(AttrFactory);

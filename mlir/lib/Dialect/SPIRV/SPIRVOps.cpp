@@ -250,7 +250,7 @@ static void printMemoryAccessAttribute(
     MemoryOpTy memoryOp, OpAsmPrinter &printer,
     SmallVectorImpl<StringRef> &elidedAttrs,
     Optional<spirv::MemoryAccess> memoryAccessAtrrValue = None,
-    Optional<llvm::APInt> alignmentAttrValue = None) {
+    Optional<uint32_t> alignmentAttrValue = None) {
   // Print optional memory access attribute.
   if (auto memAccess = (memoryAccessAtrrValue ? memoryAccessAtrrValue
                                               : memoryOp.memory_access())) {
@@ -280,7 +280,7 @@ static void printSourceMemoryAccessAttribute(
     MemoryOpTy memoryOp, OpAsmPrinter &printer,
     SmallVectorImpl<StringRef> &elidedAttrs,
     Optional<spirv::MemoryAccess> memoryAccessAtrrValue = None,
-    Optional<llvm::APInt> alignmentAttrValue = None) {
+    Optional<uint32_t> alignmentAttrValue = None) {
 
   printer << ", ";
 
@@ -2849,9 +2849,9 @@ static ParseResult parseCooperativeMatrixLoadNVOp(OpAsmParser &parser,
       parser.parseType(ptrType) || parser.parseKeywordType("as", elementType)) {
     return failure();
   }
-  SmallVector<Type, 3> OperandType = {ptrType, strideType, columnMajorType};
-  if (parser.resolveOperands(operandInfo, OperandType, parser.getNameLoc(),
-                             state.operands)) {
+  if (parser.resolveOperands(operandInfo,
+                             {ptrType, strideType, columnMajorType},
+                             parser.getNameLoc(), state.operands)) {
     return failure();
   }
 
@@ -2904,10 +2904,9 @@ static ParseResult parseCooperativeMatrixStoreNVOp(OpAsmParser &parser,
       parser.parseType(elementType)) {
     return failure();
   }
-  SmallVector<Type, 4> OperandType = {ptrType, elementType, strideType,
-                                      columnMajorType};
-  if (parser.resolveOperands(operandInfo, OperandType, parser.getNameLoc(),
-                             state.operands)) {
+  if (parser.resolveOperands(
+          operandInfo, {ptrType, elementType, strideType, columnMajorType},
+          parser.getNameLoc(), state.operands)) {
     return failure();
   }
 

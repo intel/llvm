@@ -401,16 +401,14 @@ AMDGPUTargetMachine::~AMDGPUTargetMachine() = default;
 
 StringRef AMDGPUTargetMachine::getGPUName(const Function &F) const {
   Attribute GPUAttr = F.getFnAttribute("target-cpu");
-  return GPUAttr.hasAttribute(Attribute::None) ?
-    getTargetCPU() : GPUAttr.getValueAsString();
+  return GPUAttr.isValid() ? GPUAttr.getValueAsString() : getTargetCPU();
 }
 
 StringRef AMDGPUTargetMachine::getFeatureString(const Function &F) const {
   Attribute FSAttr = F.getFnAttribute("target-features");
 
-  return FSAttr.hasAttribute(Attribute::None) ?
-    getTargetFeatureString() :
-    FSAttr.getValueAsString();
+  return FSAttr.isValid() ? FSAttr.getValueAsString()
+                          : getTargetFeatureString();
 }
 
 /// Predicate for Internalize pass.
@@ -484,6 +482,14 @@ void AMDGPUTargetMachine::adjustPassManager(PassManagerBuilder &Builder) {
       if (EnableOpt)
         PM.add(createAMDGPUPromoteAllocaToVector());
   });
+
+  Builder.addExtension(
+      PassManagerBuilder::EP_LoopOptimizerEnd,
+      [](const PassManagerBuilder &, legacy::PassManagerBase &PM) {
+        // Add SROA after loop unrolling as more promotable patterns are
+        // exposed after small loops are fully unrolled.
+        PM.add(createSROAPass());
+      });
 }
 
 //===----------------------------------------------------------------------===//
