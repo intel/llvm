@@ -32,6 +32,6 @@ int main() {
           asm("barrier");
 #endif
         });
-  // clang-format on
+    // clang-format on
   });
 }

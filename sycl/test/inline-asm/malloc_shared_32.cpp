@@ -58,15 +58,15 @@ int main() {
         svm_scatter.4.1 (M1, 16) %0.0 V52.0
         svm_scatter.4.1 (M1, 16) %1.0 V53.0
     }
-    // clang-format off
     )a" ::"rw"(&b[i]),
+			    // clang-format off
                             "rw"(&b[i] + 16), "rw"(&a[i]), "rw"(&a[i] + 16), "rw"(&c[i]),
                             "rw"(&c[i] + 16));
 #else
+	       // clang-format off
                b[i] = a[i] * c[i];
 #endif
              });
-
    }).wait();
 
   // clang-format on
