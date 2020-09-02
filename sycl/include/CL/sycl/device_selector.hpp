@@ -32,7 +32,7 @@ protected:
 public:
   virtual ~device_selector() = default;
 
-  device select_device() const;
+  virtual device select_device() const;
 
   virtual int operator()(const device &device) const = 0;
 };
@@ -96,7 +96,8 @@ class __SYCL_EXPORT filter_selector : public device_selector {
 public:
   filter_selector(std::string filter);
   int operator()(const device &dev) const override;
-  void reset();
+  void reset() const;
+  device select_device() const override;
 
 private:
   mutable std::vector<std::shared_ptr<detail::filter>> mFilters;

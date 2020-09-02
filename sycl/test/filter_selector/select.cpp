@@ -137,20 +137,20 @@ int main() {
   }
 
   if (HasLevelZeroDevices && HasLevelZeroGPU) {
-    std::cout << "Test 'level-zero'";
-    device d12(filter_selector("level-zero"));
+    std::cout << "Test 'level_zero'";
+    device d12(filter_selector("level_zero"));
     assert(d12.get_platform().get_backend() == backend::level_zero);
     std::cout << "...PASS" << std::endl;
 
-    std::cout << "Test 'level-zero:gpu'";
-    device d13(filter_selector("level-zero:gpu"));
+    std::cout << "Test 'level_zero:gpu'";
+    device d13(filter_selector("level_zero:gpu"));
     assert(d13.is_gpu() &&
            d13.get_platform().get_backend() == backend::level_zero);
     std::cout << "...PASS" << std::endl;
 
     if (HasOpenCLDevices && !CPUs.empty()) {
-      std::cout << "Test 'level-zero:gpu,cpu'";
-      device d14(filter_selector("level-zero:gpu,cpu"));
+      std::cout << "Test 'level_zero:gpu,cpu'";
+      device d14(filter_selector("level_zero:gpu,cpu"));
       assert((d14.is_gpu() || d14.is_cpu()));
       std::cout << "...PASS 1/2" << std::endl;
       if (d14.is_gpu()) {

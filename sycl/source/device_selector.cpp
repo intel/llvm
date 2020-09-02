@@ -222,7 +222,7 @@ filter create_filter(std::string Input) {
     } else if (Token == "opencl" && !Result.HasBackend) {
       Result.Backend = backend::opencl;
       Result.HasBackend = true;
-    } else if (Token == "level-zero" && !Result.HasBackend) {
+    } else if (Token == "level_zero" && !Result.HasBackend) {
       Result.Backend = backend::level_zero;
       Result.HasBackend = true;
     } else if (Token == "cuda" && !Result.HasBackend) {
@@ -314,7 +314,8 @@ int filter_selector::operator()(const device &Dev) const {
   return Score;
 }
 
-void filter_selector::reset() {
+void filter_selector::reset() const {
+  // This is a bit of an abuse of "const" method...
   // Reset state if you want to reuse this selector.
   for (auto &Filter : mFilters) {
     Filter->MatchesSeen = 0;
@@ -322,6 +323,19 @@ void filter_selector::reset() {
   mMatchFound = false;
   mNumDevicesSeen = 0;
 }
+
+device filter_selector::select_device() const {
+  static std::mutex FilterMutex;
+
+  std::lock_guard<std::mutex> Guard(FilterMutex);
+
+  device Result = device_selector::select_device();
+
+  reset();
+
+  return Result;
+}
+
 } // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

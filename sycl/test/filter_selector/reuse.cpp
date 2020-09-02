@@ -25,10 +25,16 @@ int main() {
     filter_selector filter("1");
 
     device d1(filter);
-    filter.reset();
     device d2(filter);
 
     assert(d1 == d2);
+
+    filter_selector f1("0");
+    filter_selector f2("1");
+    device d3(f1);
+    device d4(f2);
+
+    assert(d3 != d4);
   }
 
   return 0;
