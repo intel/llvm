@@ -35,10 +35,8 @@ int main() {
 
   q.submit([&](cl::sycl::handler &cgh) {
      cgh.parallel_for<kernel_name>(
-         // clang-format off
          cl::sycl::range<1>(problem_size),
      [=](cl::sycl::id<1> idx) [[intel::reqd_sub_group_size(32)]] {
-           // clang-format on
            int i = idx[0];
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
            asm volatile(R"a(
