@@ -41,9 +41,9 @@ int main() {
                                                               :
                                                               : "rw"(&a[i]));
 #else
-						 // clang-format off
+           // clang-format off
                                                  a[idx[0]]++;
-						 // clang-format on
+      // clang-format on
 #endif
                                                });
    }).wait();
