@@ -2614,6 +2614,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   assert(Kernel);
   assert(Queue);
   assert((WorkDim > 0) && (WorkDim < 4));
+  assert(GlobalWorkOffset[0] == 0);
 
   ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
   uint32_t WG[3];
