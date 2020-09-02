@@ -891,7 +891,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_uint64{MaxMemAllocSize});
   }
   case PI_DEVICE_INFO_GLOBAL_MEM_SIZE: {
-    uint32_t GlobalMemSize = 0;
+    uint64_t GlobalMemSize = 0;
     for (uint32_t I = 0; I < ZeAvailMemCount; I++) {
       GlobalMemSize += ZeDeviceMemoryProperties[I].totalSize;
     }

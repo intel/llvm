@@ -12,7 +12,7 @@
 
 // 1-command compilation case
 // Targeting CPU, GPU, FPGA
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice,spir64_gen-unknown-unknown-sycldevice,spir64_fpga-unknown-unknown-sycldevice -Xsycl-target-backend=spir64_gen-unknown-unknown-sycldevice "-device skl" %S/Inputs/aot.cpp -o %t_all.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice,spir64_gen-unknown-unknown-sycldevice,spir64_fpga-unknown-unknown-sycldevice -Xsycl-target-backend=spir64_gen-unknown-unknown-sycldevice "-device *" %S/Inputs/aot.cpp -o %t_all.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t_all.out
 // RUN: %CPU_RUN_PLACEHOLDER %t_all.out
 // RUN: %GPU_RUN_PLACEHOLDER %t_all.out
