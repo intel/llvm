@@ -49,7 +49,7 @@ public:
     return &MRequirement;
   };
 
-  cl_int enqueueImp() override { return MRetVal; };
+  cl_int enqueueImp() override { return MRetVal; }
 
   MOCK_METHOD2(enqueue, bool(cl::sycl::detail::EnqueueResultT &,
                              cl::sycl::detail::BlockingT));
