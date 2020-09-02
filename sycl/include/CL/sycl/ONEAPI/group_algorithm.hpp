@@ -204,7 +204,7 @@ struct is_native_function_object_impl<BinaryOperation<T>>
 
 template <typename T>
 struct is_native_function_object
-    : is_native_function_object_impl<std::decay_t<T>> {};
+    : is_native_function_object_impl<typename std::decay<T>::type> {};
 
 #if __cplusplus >= 201703L
 template <typename T>
