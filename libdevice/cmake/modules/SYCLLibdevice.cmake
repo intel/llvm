@@ -1,8 +1,12 @@
 set(obj_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 if (WIN32)
-set(spv_binary_dir "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+  set(lib-suffix obj)
+  set(spv_binary_dir "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+  set(lib_crt_source msvc_wrapper.cpp)
 else()
-set(spv_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+  set(lib-suffix o)
+  set(spv_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+  set(lib_crt_source glibc_wrapper.cpp)
 endif()
 set(clang $<TARGET_FILE:clang>)
 
@@ -25,29 +29,15 @@ set(compile_opts
   -sycl-std=2017
   )
 
-if (WIN32)
-  set(lib-suffix obj)
-  set(devicelib-obj-file ${obj_binary_dir}/libsycl-crt.${lib-suffix})
-  add_custom_command(OUTPUT ${devicelib-obj-file}
-                     COMMAND ${clang} -fsycl -c
-                             ${compile_opts} ${sycl_targets_opt}
-                             ${CMAKE_CURRENT_SOURCE_DIR}/msvc_wrapper.cpp
-                             -o ${devicelib-obj-file}
-                     MAIN_DEPENDENCY msvc_wrapper.cpp
-                     DEPENDS wrapper.h device.h spirv_vars.h clang clang-offload-bundler
-                     VERBATIM)
-else()
-  set(lib-suffix o)
-  set(devicelib-obj-file ${obj_binary_dir}/libsycl-crt.${lib-suffix})
-  add_custom_command(OUTPUT ${devicelib-obj-file}
-                     COMMAND ${clang} -fsycl -c
-                             ${compile_opts} ${sycl_targets_opt}
-                             ${CMAKE_CURRENT_SOURCE_DIR}/glibc_wrapper.cpp
-                             -o ${devicelib-obj-file}
-                     MAIN_DEPENDENCY glibc_wrapper.cpp
-                     DEPENDS wrapper.h device.h spirv_vars.h clang clang-offload-bundler
-                     VERBATIM)
-endif()
+set(devicelib-obj-file ${obj_binary_dir}/libsycl-crt.${lib-suffix})
+add_custom_command(OUTPUT ${devicelib-obj-file}
+                   COMMAND ${clang} -fsycl -c
+                           ${compile_opts} ${sycl_targets_opt}
+                           ${CMAKE_CURRENT_SOURCE_DIR}/${lib_crt_source}
+                           -o ${devicelib-obj-file}
+                   MAIN_DEPENDENCY ${lib_crt_source}
+                   DEPENDS wrapper.h device.h spirv_vars.h clang clang-offload-bundler
+                   VERBATIM)
 
 set(devicelib-obj-complex ${obj_binary_dir}/libsycl-complex.${lib-suffix})
 add_custom_command(OUTPUT ${devicelib-obj-complex}
