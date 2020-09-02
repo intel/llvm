@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/export.hpp>
 
 // 4.6.1 Device selection class
@@ -86,26 +87,5 @@ class __SYCL_EXPORT host_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
-
-namespace ONEAPI {
-namespace detail {
-struct filter;
-} // namespace detail
-
-class __SYCL_EXPORT filter_selector : public device_selector {
-public:
-  filter_selector(std::string filter);
-  int operator()(const device &dev) const override;
-  void reset() const;
-  device select_device() const override;
-
-private:
-  mutable std::vector<std::shared_ptr<detail::filter>> mFilters;
-  default_selector mRanker;
-  mutable int mNumDevicesSeen;
-  int mNumTotalDevices;
-  mutable bool mMatchFound;
-};
-} // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
