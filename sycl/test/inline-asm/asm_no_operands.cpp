@@ -28,8 +28,8 @@ int main() {
         NumOfWorkItems, [=](cl::sycl::id<1> WIid)
                             [[intel::reqd_sub_group_size(8)]] {
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
-                              asm("barrier");
+          asm("barrier");
 #endif
-                            });
+         });
   });
 }

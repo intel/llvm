@@ -35,8 +35,10 @@ int main() {
 
   q.submit([&](cl::sycl::handler &cgh) {
      cgh.parallel_for<kernel_name>(
-         cl::sycl::range<1>(problem_size), [=
-     ](cl::sycl::id<1> idx) [[intel::reqd_sub_group_size(32)]] {
+     // clang-format off
+         cl::sycl::range<1>(problem_size),
+     [=](cl::sycl::id<1> idx) [[intel::reqd_sub_group_size(32)]] {
+       // clang-format on
            int i = idx[0];
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
            asm volatile(R"a(
@@ -57,8 +59,8 @@ int main() {
         svm_scatter.4.1 (M1, 16) %1.0 V53.0
     }
     )a" ::"rw"(&b[i]),
-                        "rw"(&b[i] + 16), "rw"(&a[i]), "rw"(&a[i] + 16),
-                        "rw"(&c[i]), "rw"(&c[i] + 16));
+			    "rw"(&b[i] + 16), "rw"(&a[i]), "rw"(&a[i] + 16), "rw"(&c[i]),
+                            "rw"(&c[i] + 16));
 #else
                b[i] = a[i] * c[i];
 #endif

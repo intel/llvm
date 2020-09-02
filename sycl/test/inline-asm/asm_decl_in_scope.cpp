@@ -22,8 +22,10 @@ struct KernelFunctor : WithInputBuffers<T, 2>, WithOutputBuffer<T> {
     auto C = this->getOutputBuffer().template get_access<cl::sycl::access::mode::write>(cgh);
 
     cgh.parallel_for<KernelFunctor<T>>(
-        cl::sycl::range<1>{this->getOutputBufferSize()}, [=
-    ](cl::sycl::id<1> wiID) [[intel::reqd_sub_group_size(16)]] {
+    // clang-format off
+        cl::sycl::range<1>{this->getOutputBufferSize()},
+    [=](cl::sycl::id<1> wiID) [[intel::reqd_sub_group_size(16)]] {
+      // clang-format on
     // declaration of temp within and outside the scope
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
           asm("{\n"
