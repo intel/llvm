@@ -1,4 +1,4 @@
-// XFAIL: system-windows && accelerator
+// XFAIL: accelerator
 // UNSUPPORTED: cuda
 // Reductions use work-group builtins not yet supported by CUDA.
 
