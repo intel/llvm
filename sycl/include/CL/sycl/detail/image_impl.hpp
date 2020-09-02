@@ -245,9 +245,12 @@ private:
   RT::PiMemImageDesc getImageDesc(bool InitFromHostPtr) {
     RT::PiMemImageDesc Desc;
     Desc.image_type = getImageType();
+    //CP
+    //range<> is [width], [height,width], or [depth,height,width]
     Desc.image_width = MRange[0];
     Desc.image_height = Dimensions > 1 ? MRange[1] : 1;
     Desc.image_depth = Dimensions > 2 ? MRange[2] : 1;
+
     // TODO handle cases with IMAGE1D_ARRAY and IMAGE2D_ARRAY
     Desc.image_array_size = 0;
     // Pitches must be 0 if host ptr is not provided.

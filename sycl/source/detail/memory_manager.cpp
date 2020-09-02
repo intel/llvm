@@ -255,34 +255,48 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const RT::PiQueue Queue = TgtQueue->getHandleRef();
-  // Adjust first dimension of copy range and offset as OpenCL expects size in
-  // bytes.
-  DstSize[0] *= DstElemSize;
   const detail::plugin &Plugin = TgtQueue->getPlugin();
-  if (SYCLMemObj->getType() == detail::SYCLMemObjI::MemObjType::BUFFER) {
-    DstOffset[0] *= DstElemSize;
-    SrcOffset[0] *= SrcElemSize;
-    SrcAccessRange[0] *= SrcElemSize;
-    DstAccessRange[0] *= DstElemSize;
-    SrcSize[0] *= SrcElemSize;
 
+  // the offsets/ranges coming from accessor are always id<3>/range<3>
+  // But their organization varies by dimension:
+  //  1 ==>  {width, 1, 1}
+  //  2 ==>  {height, width, 1}
+  //  3 ==>  {depth, height, width}
+
+  int src_x_term_pos = 2, src_y_term_pos = 1, src_z_term_pos = 0;
+  if(DimSrc == 2){
+    src_x_term_pos = 1; src_y_term_pos = 0; src_z_term_pos = 2; 
+  } else if (DimSrc == 1){
+    src_x_term_pos = 0; src_y_term_pos = 1; src_z_term_pos = 2; 
+  }
+  int dst_x_term_pos = 2, dst_y_term_pos = 1, dst_z_term_pos = 0;
+  if(DimDst == 2){
+    dst_x_term_pos = 1; dst_y_term_pos = 0; dst_z_term_pos = 2; 
+  } else if (DimSrc == 1){
+    dst_x_term_pos = 0; dst_y_term_pos = 1; dst_z_term_pos = 2; 
+  }
+  size_t DstXOffBytes = DstOffset[dst_x_term_pos] * DstElemSize;
+  size_t SrcXOffBytes = SrcOffset[src_x_term_pos] * SrcElemSize;
+  size_t DstARWidthBytes = DstAccessRange[dst_x_term_pos] * DstElemSize;
+  //size_t SrcARWidthBytes = SrcAccessRange[src_x_term_pos] * SrcElemSize;
+  size_t DstSzWidthBytes = DstSize[dst_x_term_pos] * DstElemSize;
+  size_t SrcSzWidthBytes = SrcSize[src_x_term_pos] * SrcElemSize;
+  
+  if (SYCLMemObj->getType() == detail::SYCLMemObjI::MemObjType::BUFFER) {
     if (1 == DimDst && 1 == DimSrc) {
       Plugin.call<PiApiKind::piEnqueueMemBufferWrite>(
           Queue, DstMem,
-          /*blocking_write=*/CL_FALSE, DstOffset[0], DstAccessRange[0],
-          SrcMem + SrcOffset[0], DepEvents.size(), DepEvents.data(), &OutEvent);
+          /*blocking_write=*/CL_FALSE, DstXOffBytes, DstARWidthBytes,
+          SrcMem + SrcXOffBytes, DepEvents.size(), DepEvents.data(), &OutEvent);
     } else {
-      size_t BufferRowPitch = (1 == DimDst) ? 0 : DstSize[0];
-      size_t BufferSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
-      size_t HostRowPitch = (1 == DimSrc) ? 0 : SrcSize[0];
-      size_t HostSlicePitch = (3 == DimSrc) ? SrcSize[0] * SrcSize[1] : 0;
+       size_t BufferRowPitch   = (1 == DimDst) ? 0 : DstSzWidthBytes;
+       size_t BufferSlicePitch = (3 == DimDst) ? DstSzWidthBytes * DstSize[dst_y_term_pos] : 0;
+       size_t HostRowPitch     = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
+       size_t HostSlicePitch   = (3 == DimSrc) ? SrcSzWidthBytes * SrcSize[src_y_term_pos] : 0;
 
-      pi_buff_rect_offset_struct BufferOffset{DstOffset[0], DstOffset[1],
-                                              DstOffset[2]};
-      pi_buff_rect_offset_struct HostOffset{SrcOffset[0], SrcOffset[1],
-                                            SrcOffset[2]};
-      pi_buff_rect_region_struct RectRegion{
-          DstAccessRange[0], DstAccessRange[1], DstAccessRange[2]};
+      pi_buff_rect_offset_struct BufferOffset{DstXOffBytes, DstOffset[dst_y_term_pos], DstOffset[dst_z_term_pos]};
+      pi_buff_rect_offset_struct HostOffset{SrcXOffBytes, SrcOffset[src_y_term_pos], SrcOffset[src_z_term_pos]};
+      pi_buff_rect_region_struct RectRegion{ DstARWidthBytes, DstAccessRange[dst_y_term_pos], DstAccessRange[dst_z_term_pos]};
 
       Plugin.call<PiApiKind::piEnqueueMemBufferWriteRect>(
           Queue, DstMem,
@@ -291,12 +305,11 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
           SrcMem, DepEvents.size(), DepEvents.data(), &OutEvent);
     }
   } else {
-    size_t InputRowPitch = (1 == DimDst) ? 0 : DstSize[0];
-    size_t InputSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
+    size_t InputRowPitch   = (1 == DimDst) ? 0 : DstSzWidthBytes;
+    size_t InputSlicePitch = (3 == DimDst) ? DstSzWidthBytes * DstSize[dst_y_term_pos] : 0;
 
-    pi_image_offset_struct Origin{DstOffset[0], DstOffset[1], DstOffset[2]};
-    pi_image_region_struct Region{DstAccessRange[0], DstAccessRange[1],
-                                  DstAccessRange[2]};
+    pi_image_offset_struct Origin{DstOffset[dst_x_term_pos], DstOffset[dst_y_term_pos], DstOffset[dst_z_term_pos]};
+    pi_image_region_struct Region{DstAccessRange[dst_x_term_pos], DstAccessRange[dst_y_term_pos], DstAccessRange[dst_z_term_pos]};
 
     Plugin.call<PiApiKind::piEnqueueMemImageWrite>(
         Queue, DstMem,
@@ -316,34 +329,48 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const RT::PiQueue Queue = SrcQueue->getHandleRef();
-  // Adjust sizes of 1 dimensions as OpenCL expects size in bytes.
-  SrcSize[0] *= SrcElemSize;
   const detail::plugin &Plugin = SrcQueue->getPlugin();
-  if (SYCLMemObj->getType() == detail::SYCLMemObjI::MemObjType::BUFFER) {
-    DstOffset[0] *= DstElemSize;
-    SrcOffset[0] *= SrcElemSize;
-    SrcAccessRange[0] *= SrcElemSize;
-    DstAccessRange[0] *= DstElemSize;
-    DstSize[0] *= DstElemSize;
 
+  // the offsets/ranges coming from accessor are always id<3>/range<3>
+  // But their organization varies by dimension:
+  //  1 ==>  {width, 1, 1}
+  //  2 ==>  {height, width, 1}
+  //  3 ==>  {depth, height, width}
+
+  int src_x_term_pos = 2, src_y_term_pos = 1, src_z_term_pos = 0;
+  if(DimSrc == 2){
+    src_x_term_pos = 1; src_y_term_pos = 0; src_z_term_pos = 2; 
+  } else if (DimSrc == 1){
+    src_x_term_pos = 0; src_y_term_pos = 1; src_z_term_pos = 2; 
+  }
+  int dst_x_term_pos = 2, dst_y_term_pos = 1, dst_z_term_pos = 0;
+  if(DimDst == 2){
+    dst_x_term_pos = 1; dst_y_term_pos = 0; dst_z_term_pos = 2; 
+  } else if (DimSrc == 1){
+    dst_x_term_pos = 0; dst_y_term_pos = 1; dst_z_term_pos = 2; 
+  }
+  size_t DstXOffBytes = DstOffset[dst_x_term_pos] * DstElemSize;
+  size_t SrcXOffBytes = SrcOffset[src_x_term_pos] * SrcElemSize;
+  //size_t DstARWidthBytes = DstAccessRange[dst_x_term_pos] * DstElemSize;
+  size_t SrcARWidthBytes = SrcAccessRange[src_x_term_pos] * SrcElemSize;
+  size_t DstSzWidthBytes = DstSize[dst_x_term_pos] * DstElemSize;
+  size_t SrcSzWidthBytes = SrcSize[src_x_term_pos] * SrcElemSize;
+
+  if (SYCLMemObj->getType() == detail::SYCLMemObjI::MemObjType::BUFFER) {
     if (1 == DimDst && 1 == DimSrc) {
       Plugin.call<PiApiKind::piEnqueueMemBufferRead>(
           Queue, SrcMem,
-          /*blocking_read=*/CL_FALSE, SrcOffset[0], SrcAccessRange[0],
-          DstMem + DstOffset[0], DepEvents.size(), DepEvents.data(), &OutEvent);
+          /*blocking_read=*/CL_FALSE, SrcXOffBytes, SrcARWidthBytes,
+          DstMem + DstXOffBytes, DepEvents.size(), DepEvents.data(), &OutEvent);
     } else {
-      size_t BufferRowPitch = (1 == DimSrc) ? 0 : SrcSize[0];
-      size_t BufferSlicePitch = (3 == DimSrc) ? SrcSize[0] * SrcSize[1] : 0;
+      size_t BufferRowPitch   = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
+      size_t BufferSlicePitch = (3 == DimSrc) ? SrcSzWidthBytes * SrcSize[src_y_term_pos] : 0;
+      size_t HostRowPitch     = (1 == DimDst) ? 0 : DstSzWidthBytes;
+      size_t HostSlicePitch   = (3 == DimDst) ? DstSzWidthBytes * DstSize[dst_y_term_pos] : 0;
 
-      size_t HostRowPitch = (1 == DimDst) ? 0 : DstSize[0];
-      size_t HostSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
-
-      pi_buff_rect_offset_struct BufferOffset{SrcOffset[0], SrcOffset[1],
-                                              SrcOffset[2]};
-      pi_buff_rect_offset_struct HostOffset{DstOffset[0], DstOffset[1],
-                                            DstOffset[2]};
-      pi_buff_rect_region_struct RectRegion{
-          SrcAccessRange[0], SrcAccessRange[1], SrcAccessRange[2]};
+      pi_buff_rect_offset_struct BufferOffset{SrcXOffBytes, SrcOffset[src_y_term_pos], SrcOffset[src_z_term_pos]};
+      pi_buff_rect_offset_struct HostOffset{DstXOffBytes, DstOffset[dst_y_term_pos], DstOffset[dst_z_term_pos]};
+      pi_buff_rect_region_struct RectRegion{ SrcARWidthBytes, SrcAccessRange[src_y_term_pos], SrcAccessRange[src_z_term_pos]};
 
       Plugin.call<PiApiKind::piEnqueueMemBufferReadRect>(
           Queue, SrcMem,
@@ -352,12 +379,11 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
           DstMem, DepEvents.size(), DepEvents.data(), &OutEvent);
     }
   } else {
-    size_t RowPitch = (1 == DimSrc) ? 0 : SrcSize[0];
-    size_t SlicePitch = (3 == DimSrc) ? SrcSize[0] * SrcSize[1] : 0;
+    size_t RowPitch   = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
+    size_t SlicePitch = (3 == DimSrc) ? SrcSzWidthBytes * SrcSize[src_y_term_pos] : 0;
 
-    pi_image_offset_struct Offset{SrcOffset[0], SrcOffset[1], SrcOffset[2]};
-    pi_image_region_struct Region{SrcAccessRange[0], SrcAccessRange[1],
-                                  SrcAccessRange[2]};
+    pi_image_offset_struct Offset{SrcOffset[src_x_term_pos], SrcOffset[src_y_term_pos], SrcOffset[src_z_term_pos]};
+    pi_image_region_struct Region{SrcAccessRange[src_x_term_pos], SrcAccessRange[src_y_term_pos], SrcAccessRange[src_z_term_pos]};
 
     Plugin.call<PiApiKind::piEnqueueMemImageRead>(
         Queue, SrcMem, CL_FALSE, &Offset, &Region, RowPitch, SlicePitch, DstMem,
@@ -376,32 +402,47 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
 
   const RT::PiQueue Queue = SrcQueue->getHandleRef();
   const detail::plugin &Plugin = SrcQueue->getPlugin();
+
+  // the offsets/ranges coming from accessor are always id<3>/range<3>
+  // But their organization varies by dimension:
+  //  1 ==>  {width, 1, 1}
+  //  2 ==>  {height, width, 1}
+  //  3 ==>  {depth, height, width}
+
+  int src_x_term_pos = 2, src_y_term_pos = 1, src_z_term_pos = 0;
+  if(DimSrc == 2){
+    src_x_term_pos = 1; src_y_term_pos = 0; src_z_term_pos = 2; 
+  } else if (DimSrc == 1){
+    src_x_term_pos = 0; src_y_term_pos = 1; src_z_term_pos = 2; 
+  }
+  int dst_x_term_pos = 2, dst_y_term_pos = 1, dst_z_term_pos = 0;
+  if(DimDst == 2){
+    dst_x_term_pos = 1; dst_y_term_pos = 0; dst_z_term_pos = 2; 
+  } else if (DimSrc == 1){
+    dst_x_term_pos = 0; dst_y_term_pos = 1; dst_z_term_pos = 2; 
+  }
+  size_t DstXOffBytes = DstOffset[dst_x_term_pos] * DstElemSize;
+  size_t SrcXOffBytes = SrcOffset[src_x_term_pos] * SrcElemSize;
+  //size_t DstARWidthBytes = DstAccessRange[dst_x_term_pos] * DstElemSize;
+  size_t SrcARWidthBytes = SrcAccessRange[src_x_term_pos] * SrcElemSize;
+  size_t DstSzWidthBytes = DstSize[dst_x_term_pos] * DstElemSize;
+  size_t SrcSzWidthBytes = SrcSize[src_x_term_pos] * SrcElemSize;
+
   if (SYCLMemObj->getType() == detail::SYCLMemObjI::MemObjType::BUFFER) {
-    // Adjust sizes of 1 dimensions as OpenCL expects size in bytes.
-    DstOffset[0] *= DstElemSize;
-    SrcOffset[0] *= SrcElemSize;
-    SrcAccessRange[0] *= SrcElemSize;
-    SrcSize[0] *= SrcElemSize;
-    DstSize[0] *= DstElemSize;
     if (1 == DimDst && 1 == DimSrc) {
       Plugin.call<PiApiKind::piEnqueueMemBufferCopy>(
-          Queue, SrcMem, DstMem, SrcOffset[0], DstOffset[0], SrcAccessRange[0],
+          Queue, SrcMem, DstMem, SrcXOffBytes, DstXOffBytes, SrcARWidthBytes,
           DepEvents.size(), DepEvents.data(), &OutEvent);
     } else {
-      size_t SrcRowPitch = (1 == DimSrc) ? 0 : SrcSize[0];
-      size_t SrcSlicePitch =
-          (DimSrc > 1) ? SrcSize[0] * SrcSize[1] : SrcSize[0];
+      size_t SrcRowPitch   = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
+      size_t SrcSlicePitch = (3 == DimSrc) ? SrcSzWidthBytes * SrcSize[src_y_term_pos] : 0;
 
-      size_t DstRowPitch = (1 == DimDst) ? 0 : DstSize[0];
-      size_t DstSlicePitch =
-          (DimDst > 1) ? DstSize[0] * DstSize[1] : DstSize[0];
+      size_t DstRowPitch   = (1 == DimDst) ? 0 : DstSzWidthBytes;
+      size_t DstSlicePitch = (3 == DimDst) ? DstSzWidthBytes * DstSize[dst_y_term_pos] :0;
 
-      pi_buff_rect_offset_struct SrcOrigin{SrcOffset[0], SrcOffset[1],
-                                           SrcOffset[2]};
-      pi_buff_rect_offset_struct DstOrigin{DstOffset[0], DstOffset[1],
-                                           DstOffset[2]};
-      pi_buff_rect_region_struct Region{SrcAccessRange[0], SrcAccessRange[1],
-                                        SrcAccessRange[2]};
+      pi_buff_rect_offset_struct SrcOrigin{SrcXOffBytes, SrcOffset[src_y_term_pos], SrcOffset[src_z_term_pos]};
+      pi_buff_rect_offset_struct DstOrigin{DstXOffBytes, DstOffset[dst_y_term_pos], DstOffset[dst_z_term_pos]};
+      pi_buff_rect_region_struct Region{SrcARWidthBytes, SrcAccessRange[src_y_term_pos], SrcAccessRange[src_z_term_pos]};
 
       Plugin.call<PiApiKind::piEnqueueMemBufferCopyRect>(
           Queue, SrcMem, DstMem, &SrcOrigin, &DstOrigin, &Region, SrcRowPitch,
@@ -409,10 +450,9 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
           DepEvents.data(), &OutEvent);
     }
   } else {
-    pi_image_offset_struct SrcOrigin{SrcOffset[0], SrcOffset[1], SrcOffset[2]};
-    pi_image_offset_struct DstOrigin{DstOffset[0], DstOffset[1], DstOffset[2]};
-    pi_image_region_struct Region{SrcAccessRange[0], SrcAccessRange[1],
-                                  SrcAccessRange[2]};
+    pi_image_offset_struct SrcOrigin{SrcOffset[src_x_term_pos], SrcOffset[src_y_term_pos], SrcOffset[src_z_term_pos]};
+    pi_image_offset_struct DstOrigin{DstOffset[dst_x_term_pos], DstOffset[dst_y_term_pos], DstOffset[dst_z_term_pos]};
+    pi_image_region_struct Region{SrcAccessRange[src_x_term_pos], SrcAccessRange[src_y_term_pos], SrcAccessRange[src_z_term_pos]};
 
     Plugin.call<PiApiKind::piEnqueueMemImageCopy>(
         Queue, SrcMem, DstMem, &SrcOrigin, &DstOrigin, &Region,
