@@ -12,10 +12,11 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
-// This header contains a few common classes/methods used in
-// execution graph testing.
 #include <functional>
 #include <gmock/gmock.h>
+
+// This header contains a few common classes/methods used in
+// execution graph testing.
 
 cl::sycl::detail::Requirement getMockRequirement();
 
