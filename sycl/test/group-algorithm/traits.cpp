@@ -14,6 +14,7 @@ int main() {
   static_assert(is_native_function_object_v<bit_or<>>);
   static_assert(is_native_function_object_v<bit_xor<>>);
   static_assert(is_native_function_object_v<bit_and<>>);
+  static_assert(is_native_function_object_v<const plus<>>);
   static_assert(is_native_function_object_v<plus<float>>);
   static_assert(is_native_function_object_v<plus<sycl::vec<float, 4>>>);
   static_assert(!is_native_function_object_v<plus<CustomType>>);

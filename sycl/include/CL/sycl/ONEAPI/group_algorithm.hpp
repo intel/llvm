@@ -190,16 +190,21 @@ using EnableIfIsNonNativeOp = cl::sycl::detail::enable_if_t<
         !cl::sycl::detail::is_native_op<T, BinaryOperation>::value,
     T>;
 
-template <typename T> struct is_native_function_object : std::false_type {};
+template <typename T>
+struct is_native_function_object_impl : std::false_type {};
 
 template <template <typename> class BinaryOperation, typename T>
-struct is_native_function_object<BinaryOperation<T>>
+struct is_native_function_object_impl<BinaryOperation<T>>
     : std::integral_constant<
           bool, (sycl::detail::is_scalar_arithmetic<T>::value ||
                  sycl::detail::is_vector_arithmetic<T>::value ||
                  std::is_same<T, void>::value) &&
                     sycl::detail::is_native_op<T, BinaryOperation<T>>::value> {
 };
+
+template <typename T>
+struct is_native_function_object
+    : is_native_function_object_impl<std::decay_t<T>> {};
 
 #if __cplusplus >= 201703L
 template <typename T>
