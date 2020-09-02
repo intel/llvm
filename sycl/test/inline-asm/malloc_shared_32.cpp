@@ -38,12 +38,10 @@ int main() {
          // clang-format off
          cl::sycl::range<1>(problem_size),
      [=](cl::sycl::id<1> idx) [[intel::reqd_sub_group_size(32)]] {
-           // clang-format off
+           // clang-format on
            int i = idx[0];
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
-	   // clang-format off
            asm volatile(R"a(
-           // clang-format on
     {
         .decl V52 v_type=G type=d num_elts=16 align=GRF
         .decl V53 v_type=G type=d num_elts=16 align=GRF
@@ -64,9 +62,7 @@ int main() {
 			    // clang-format off
                             "rw"(&b[i] + 16), "rw"(&a[i]), "rw"(&a[i] + 16), "rw"(&c[i]),
                             "rw"(&c[i] + 16));
-      // clang-format on
 #else
-           // clang-format off
                b[i] = a[i] * c[i];
 #endif
              });
