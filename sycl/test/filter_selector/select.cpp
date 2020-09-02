@@ -31,30 +31,36 @@ int main() {
   std::cout << "# Accelerators found: " << Accels.size() << std::endl;
   std::cout << "# Devices found: " << Devs.size() << std::endl;
 
-  bool HasLevelZero = false;
-  bool HasOpenCL = false;
-  bool HasCUDA = false;
+  bool HasLevelZeroDevices = false;
+  bool HasOpenCLDevices = false;
+  bool HasCUDADevices = false;
   bool HasOpenCLGPU = false;
+  bool HasLevelZeroGPU = false;
 
-  auto Platforms = platform::get_platforms();
-  for (auto Platform : Platforms) {
-    if (!Platform.is_host()) {
-      auto Backend = Platform.get_backend();
-      if (Backend == backend::level_zero) {
-        HasLevelZero = true;
-      } else if (Backend == backend::opencl) {
-        HasOpenCL = true;
-      } else if (Backend == backend::cuda) {
-        HasCUDA = true;
-      }
+  for (auto &Dev : Devs) {
+    auto Backend = Dev.get_platform().get_backend();
+    if (Backend == backend::level_zero) {
+      HasLevelZeroDevices = true;
+    } else if (Backend == backend::opencl) {
+      HasOpenCLDevices = true;
+    } else if (Backend == backend::cuda) {
+      HasCUDADevices = true;
     }
   }
 
   for (const auto &GPU : GPUs) {
     if (GPU.get_platform().get_backend() == backend::opencl) {
       HasOpenCLGPU = true;
+    } else if (GPU.get_platform().get_backend() == backend::level_zero) {
+      HasLevelZeroGPU = true;
     }
   }
+
+  std::cout << "HasLevelZeroDevices = " << HasLevelZeroDevices << std::endl;
+  std::cout << "HasOpenCLDevices    = " << HasOpenCLDevices << std::endl;
+  std::cout << "HasCUDADevices      = " << HasCUDADevices << std::endl;
+  std::cout << "HasOpenCLGPU        = " << HasOpenCLGPU << std::endl;
+  std::cout << "HasLevelZeroGPU     = " << HasLevelZeroGPU << std::endl;
 
   if (!CPUs.empty()) {
     std::cout << "Test 'cpu'";
@@ -77,7 +83,7 @@ int main() {
     std::cout << "...PASS" << std::endl;
   }
 
-  if (HasOpenCL) {
+  if (HasOpenCLDevices) {
     std::cout << "Test 'opencl'";
     device d4(filter_selector("opencl"));
     assert(d4.get_platform().get_backend() == backend::opencl);
@@ -95,14 +101,10 @@ int main() {
       std::cout << "...PASS" << std::endl;
     }
 
-    if (!GPUs.empty() && HasOpenCLGPU) {
-      // This test fails on the CI systems when it runs "level zero" LIT tests.
-      // I don't know what about that config breaks this.  Works fine on my
-      // system.
-      //      std::cout << "Test 'opencl:gpu'" << std::endl;
-      //      device d7(filter_selector("opencl:gpu"));
-      //      assert(d7.is_gpu() && d7.get_platform().get_backend() ==
-      //      backend::opencl);
+    if (HasOpenCLGPU) {
+      std::cout << "Test 'opencl:gpu'" << std::endl;
+      device d7(filter_selector("opencl:gpu"));
+      assert(d7.is_gpu() && d7.get_platform().get_backend() == backend::opencl);
     }
   }
 
@@ -134,7 +136,7 @@ int main() {
     std::cout << "Selector failed as expected! OK" << std::endl;
   }
 
-  if (HasLevelZero && !GPUs.empty()) {
+  if (HasLevelZeroDevices && HasLevelZeroGPU) {
     std::cout << "Test 'level-zero'";
     device d12(filter_selector("level-zero"));
     assert(d12.get_platform().get_backend() == backend::level_zero);
@@ -146,7 +148,7 @@ int main() {
            d13.get_platform().get_backend() == backend::level_zero);
     std::cout << "...PASS" << std::endl;
 
-    if (HasOpenCL && !CPUs.empty()) {
+    if (HasOpenCLDevices && !CPUs.empty()) {
       std::cout << "Test 'level-zero:gpu,cpu'";
       device d14(filter_selector("level-zero:gpu,cpu"));
       assert((d14.is_gpu() || d14.is_cpu()));
@@ -164,7 +166,7 @@ int main() {
     std::cout << "...PASS" << std::endl;
   }
 
-  if (HasCUDA) {
+  if (HasCUDADevices) {
     std::cout << "Test 'cuda'";
     device d16(filter_selector("cuda"));
     assert(d16.get_platform().get_backend() == backend::cuda);
