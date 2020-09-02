@@ -306,7 +306,6 @@ int filter_selector::operator()(const device &Dev) const {
 
   mNumDevicesSeen++;
   if ((mNumDevicesSeen == mNumTotalDevices) && !mMatchFound) {
-    std :: cout << "James Look here tomorrow" << std::endl;
     throw sycl::runtime_error(
         "Could not find a device that matches the specified filter(s)!",
         PI_DEVICE_NOT_FOUND);
