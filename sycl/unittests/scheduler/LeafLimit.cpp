@@ -33,7 +33,6 @@ TEST_F(SchedulerTest, LeafLimit) {
       MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(MQueue), &MockReq);
 
   // Create commands that will be added as leaves exceeding the limit by 1
-  std::vector<MockCommand *> LeavesToAdd;
   for (std::size_t i = 0; i < Rec->MWriteLeaves.genericCommandsCapacity() + 1;
        ++i) {
     LeavesToAdd.push_back(
@@ -53,8 +52,8 @@ TEST_F(SchedulerTest, LeafLimit) {
   // and added as a dependency of the newest one instead
   const detail::CircularBuffer<detail::Command *> &Leaves =
       Rec->MWriteLeaves.getGenericCommands();
-  ASSERT_TRUE(std::find(Leaves.begin(), Leaves.end(), LeavesToAdd.front()) ==
-              Leaves.end());
+  ASSERT_TRUE(std::find(Leaves.begin(), Leaves.end(),
+                        LeavesToAdd.front().get()) == Leaves.end());
   for (std::size_t i = 1; i < LeavesToAdd.size(); ++i) {
     assert(std::find(Leaves.begin(), Leaves.end(), LeavesToAdd[i].get()) !=
            Leaves.end());
