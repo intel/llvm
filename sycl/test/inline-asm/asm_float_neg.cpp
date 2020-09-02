@@ -21,10 +21,10 @@ struct KernelFunctor : WithInputBuffers<T, 1>, WithOutputBuffer<T> {
     auto B = this->getOutputBuffer().template get_access<cl::sycl::access::mode::write>(cgh);
 
     cgh.parallel_for<KernelFunctor<T>>(
-    // clang-format off
+        // clang-format off
         cl::sycl::range<1>{this->getOutputBufferSize()},
     [=](cl::sycl::id<1> wiID) [[intel::reqd_sub_group_size(8)]] {
-      // clang-format on
+    // clang-format on
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
           asm("mov (M1, 8) %0(0, 0)<1> (-)%1(0, 0)<1;1,0>"
               : "=rw"(B[wiID])

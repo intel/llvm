@@ -31,10 +31,10 @@ int main() {
 
   q.submit([&](cl::sycl::handler &cgh) {
      cgh.parallel_for<kernel_name>(
-     // clang-format off
+         // clang-format off
          cl::sycl::range<1>(problem_size),
      [=](cl::sycl::id<1> idx) [[intel::reqd_sub_group_size(16)]] {
-       // clang-format on
+           // clang-format on
            int i = idx[0];
            volatile int tmp = a[i];
            tmp += 1;
