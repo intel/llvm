@@ -10999,8 +10999,8 @@ def err_sycl_restrict : Error<
   "|use a const static or global variable that is neither zero-initialized "
   "nor constant-initialized"
   "}0">;
-def warn_sycl_kernel_too_many_args : Warning<
-  "kernel argument count (%0) exceeds supported maximum of %1 on GPU">,
+def warn_sycl_kernel_too_big_args : Warning<
+  "kernel arguments size (%0 bytes) exceeds supported maximum of %1 on GPU">,
   InGroup<SyclStrict>;
 def note_sycl_kernel_args_count : Note<"array elements and fields of a "
   "class/struct may be counted separately">;

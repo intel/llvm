@@ -56,7 +56,7 @@ enum KernelInvocationKind {
 
 const static std::string InitMethodName = "__init";
 const static std::string FinalizeMethodName = "__finalize";
-constexpr unsigned GPUMaxKernelArgsNum = 2000;
+constexpr unsigned GPUMaxKernelArgsSize = 2048;
 
 namespace {
 
@@ -1656,29 +1656,35 @@ public:
   using SyclKernelFieldHandler::leaveStruct;
 };
 
-class SyclKernelNumArgsChecker : public SyclKernelFieldHandler {
+class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
   SourceLocation KernelLoc;
-  unsigned NumOfParams = 0;
+  unsigned SizeOfParams = 0;
+
+  void addParam(QualType ArgTy) {
+    SizeOfParams +=
+        SemaRef.getASTContext().getTypeSizeInChars(ArgTy).getQuantity();
+  }
 
   bool handleSpecialType(QualType FieldTy) {
     const CXXRecordDecl *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
     assert(InitMethod && "The accessor/sampler must have the __init method");
-    NumOfParams += InitMethod->getNumParams();
+    for (const ParmVarDecl *Param : InitMethod->parameters())
+      addParam(Param->getType());
     return true;
   }
 
 public:
-  SyclKernelNumArgsChecker(Sema &S, SourceLocation Loc)
+  SyclKernelArgsSizeChecker(Sema &S, SourceLocation Loc)
       : SyclKernelFieldHandler(S), KernelLoc(Loc) {}
 
-  ~SyclKernelNumArgsChecker() {
+  ~SyclKernelArgsSizeChecker() {
     if (SemaRef.Context.getTargetInfo().getTriple().getSubArch() ==
         llvm::Triple::SPIRSubArch_gen) {
-      if (NumOfParams > GPUMaxKernelArgsNum) {
-        SemaRef.Diag(KernelLoc, diag::warn_sycl_kernel_too_many_args)
-            << NumOfParams << GPUMaxKernelArgsNum;
+      if (SizeOfParams > GPUMaxKernelArgsSize) {
+        SemaRef.Diag(KernelLoc, diag::warn_sycl_kernel_too_big_args)
+            << SizeOfParams << GPUMaxKernelArgsSize;
         SemaRef.Diag(KernelLoc, diag::note_sycl_kernel_args_count);
       }
     }
@@ -1703,12 +1709,12 @@ public:
   }
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
-    NumOfParams++;
+    addParam(FieldTy);
     return true;
   }
 
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
-    NumOfParams++;
+    addParam(FieldTy);
     return true;
   }
 
@@ -1717,17 +1723,17 @@ public:
   }
 
   bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
-    NumOfParams++;
+    addParam(FieldTy);
     return true;
   }
 
   bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
-    NumOfParams++;
+    addParam(FieldTy);
     return true;
   }
   bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &,
                             QualType FieldTy) final {
-    NumOfParams++;
+    addParam(FieldTy);
     return true;
   }
   using SyclKernelFieldHandler::handleSyclHalfType;
@@ -2468,7 +2474,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
 
   SyclKernelFieldChecker FieldChecker(*this);
   SyclKernelUnionChecker UnionChecker(*this);
-  SyclKernelNumArgsChecker NumArgsChecker(*this, Args[0]->getExprLoc());
+  SyclKernelArgsSizeChecker ArgsSizeChecker(*this, Args[0]->getExprLoc());
   // check that calling kernel conforms to spec
   QualType KernelParamTy = KernelFunc->getParamDecl(0)->getType();
   if (KernelParamTy->isReferenceType()) {
@@ -2488,9 +2494,9 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   KernelObjVisitor Visitor{*this};
   DiagnosingSYCLKernel = true;
   Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker,
-                           NumArgsChecker);
+                           ArgsSizeChecker);
   Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker,
-                            NumArgsChecker);
+                            ArgsSizeChecker);
   DiagnosingSYCLKernel = false;
   if (!FieldChecker.isValid() || !UnionChecker.isValid())
     KernelFunc->setInvalidDecl();
