@@ -20,7 +20,7 @@ template <typename T = DataType> struct KernelFunctor : WithOutputBuffer<T> {
     // clang-format off
     CGH.parallel_for<KernelFunctor<T>>(
         cl::sycl::range<1>{this->getOutputBufferSize()},
-    [=](cl::sycl::id<1> wiID) [[cl::intel_reqd_sub_group_size(8)]] {
+    [=](cl::sycl::id<1> wiID) [[intel::reqd_sub_group_size(8)]] {
           // clang-format on
           int Output = 0;
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
