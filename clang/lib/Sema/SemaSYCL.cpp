@@ -1843,8 +1843,9 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
       ParamType = Pointer->getType();
     }
 
-    DRE = ImplicitCastExpr::Create(SemaRef.Context, ParamType,
-                                   CK_LValueToRValue, DRE, nullptr, VK_RValue);
+    DRE =
+        ImplicitCastExpr::Create(SemaRef.Context, ParamType, CK_LValueToRValue,
+                                 DRE, /*BasePath=*/nullptr, VK_RValue);
 
     if (PointerTy->getPointeeType().getAddressSpace() !=
         ParamType->getPointeeType().getAddressSpace())
