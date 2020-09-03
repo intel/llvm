@@ -1681,13 +1681,10 @@ public:
 
   ~SyclKernelArgsSizeChecker() {
     if (SemaRef.Context.getTargetInfo().getTriple().getSubArch() ==
-        llvm::Triple::SPIRSubArch_gen) {
-      if (SizeOfParams > GPUMaxKernelArgsSize) {
+        llvm::Triple::SPIRSubArch_gen)
+      if (SizeOfParams > GPUMaxKernelArgsSize)
         SemaRef.Diag(KernelLoc, diag::warn_sycl_kernel_too_big_args)
             << SizeOfParams << GPUMaxKernelArgsSize;
-        SemaRef.Diag(KernelLoc, diag::note_sycl_kernel_args_count);
-      }
-    }
   }
 
   bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
