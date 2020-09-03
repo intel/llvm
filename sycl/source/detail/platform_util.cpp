@@ -10,17 +10,14 @@
 #include <CL/sycl/exception.hpp>
 #include <detail/platform_util.hpp>
 
-#if defined(__x86_64__) || defined(__i386__)
-#if defined(SYCL_RT_OS_LINUX)
-#include <cpuid.h>
-#elif defined(SYCL_RT_OS_WINDOWS)
-#include <intrin.h>
-#endif
-#endif
-
 #if defined(SYCL_RT_OS_LINUX)
 #include <errno.h>
 #include <unistd.h>
+#if defined(__x86_64__) || defined(__i386__)
+#include <cpuid.h>
+#endif
+#elif defined(SYCL_RT_OS_WINDOWS)
+#include <intrin.h>
 #endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -106,9 +103,9 @@ uint64_t PlatformUtil::getMemCacheSize() {
 
 uint32_t PlatformUtil::getNativeVectorWidth(PlatformUtil::TypeIndex TIndex) {
 
+#if defined(__x86_64__) || defined(__i386__)
   uint32_t Index = static_cast<uint32_t>(TIndex);
 
-#if defined(__x86_64__) || defined(__i386__)
   // SSE4.2 has 16 byte (XMM) registers
   static constexpr uint32_t VECTOR_WIDTH_SSE42[] = {16, 8, 4, 2, 4, 2, 0};
   // AVX supports 32 byte (YMM) registers only for floats and doubles
@@ -151,6 +148,8 @@ uint32_t PlatformUtil::getNativeVectorWidth(PlatformUtil::TypeIndex TIndex) {
   return VECTOR_WIDTH_SSE42[Index];
 
 #elif defined(__ARM_NEON)
+  uint32_t Index = static_cast<uint32_t>(TIndex);
+
   // NEON has 16 byte registers
   static constexpr uint32_t VECTOR_WIDTH_NEON[] = {16, 8, 4, 2, 4, 2, 0};
   return VECTOR_WIDTH_NEON[Index];
