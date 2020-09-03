@@ -40,10 +40,9 @@
 /// Check that vectorizers are disabled by default:
 // RUN:   %clang -### -fsycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-VEC-DEFAULT %s
-// CHECK-VEC-DEFAULT-NOT: -vectorize-loops
-// CHECK-VEC-DEFAULT-NOT: -vectorize-slp
+// CHECK-VEC-DEFAULT-NOT: clang{{.*}} "-fsycl-is-device"{{.*}} "-vectorize-loops"
+// CHECK-VEC-DEFAULT-NOT: clang{{.*}} "-fsycl-is-device"{{.*}} "-vectorize-slp"
 /// Check that vectorizers can still be enabled manually:
 // RUN:   %clang -### -fsycl -fvectorize -fslp-vectorize %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-VEC-ENABLE %s
-// CHECK-VEC-ENABLE: -vectorize-loops
-// CHECK-VEC-ENABLE: -vectorize-slp
+// CHECK-VEC-ENABLE: clang{{.*}} "-fsycl-is-device"{{.*}}"-vectorize-loops"{{.*}}"-vectorize-slp"
