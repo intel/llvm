@@ -6118,8 +6118,9 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   }
 
   // For /P, preprocess to file named after BaseInput.
-  if (C.getArgs().hasArg(options::OPT__SLASH_P)) {
-    assert(AtTopLevel && isa<PreprocessJobAction>(JA));
+  if (C.getArgs().hasArg(options::OPT__SLASH_P) &&
+      ((AtTopLevel && isa<PreprocessJobAction>(JA)) ||
+       isa<OffloadBundlingJobAction>(JA))) {
     StringRef BaseName = llvm::sys::path::filename(BaseInput);
     StringRef NameArg;
     if (Arg *A = C.getArgs().getLastArg(options::OPT__SLASH_Fi))
