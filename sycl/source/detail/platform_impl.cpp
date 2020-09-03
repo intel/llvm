@@ -134,8 +134,8 @@ struct DevDescT {
 };
 
 static std::vector<DevDescT> getAllowListDesc() {
-  const char *str = SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get();
-  if (!str)
+  const char *Str = SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get();
+  if (!Str)
     return {};
 
   std::vector<DevDescT> decDescs;
@@ -144,6 +144,23 @@ static std::vector<DevDescT> getAllowListDesc() {
   const char platformNameStr[] = "PlatformName";
   const char platformVerStr[] = "PlatformVersion";
   decDescs.emplace_back();
+
+  std::cout << "Before: " << Str << std::endl;
+
+  // Replace common special symbols with '.' which matches to any character
+#if 0 // gail
+  std::string tmp(Str);
+  std::replace_if(tmp.begin(), tmp.end(),
+                  [](const char sym) { return '(' == sym || ')' == sym; }, '.');
+  const char * str = tmp.c_str();
+#endif //gail
+
+  std::string tmp(Str);
+  std::replace(tmp.begin(), tmp.end(), '(', '.');
+  std::replace(tmp.begin(), tmp.end(), ')', '.');
+  const char * str = tmp.c_str();
+  std::cout << "After : " << str << std::endl;
+
   while ('\0' != *str) {
     const char **valuePtr = nullptr;
     int *size = nullptr;
