@@ -16,6 +16,16 @@ void checkRangeException(S::runtime_error &E) {
   assert(std::string(E.what()).find(Msg) == 0 && "Unexpected message");
 }
 
+void checkNDRangeException(S::runtime_error &E) {
+  constexpr char Msg[] = "Provided nd_range is out of integer limits. "
+                         "Pass `-fno-sycl-id-queries-fit-in-int' to "
+                         "disable range check.";
+
+  std::cerr << E.what() << std::endl;
+
+  assert(std::string(E.what()).find(Msg) == 0 && "Unexpected message");
+}
+
 void checkOffsetException(S::runtime_error &E) {
   constexpr char Msg[] = "Provided offset is out of integer limits. "
                          "Pass `-fno-sycl-id-queries-fit-in-int' to "
@@ -49,6 +59,12 @@ void test() {
                                      OffsetOutOfLimits};
   S::nd_range<1> NDRange_RIL_LIL_OIL(RangeInLimits, RangeInLimits,
                                      OffsetInLimits);
+  S::nd_range<2> NDRange_RIL_LIL_OIL_POL(S::range<2>{OutOfLimitsSize / 2, 3},
+                                         S::range<2>{OutOfLimitsSize / 2, 1});
+  S::nd_range<2> NDRange_RIL_LIL_OIL_SOL(
+      S::range<2>{OutOfLimitsSize / 2, 1}, S::range<2>{OutOfLimitsSize / 2, 1},
+      S::id<2>{OutOfLimitsSize / 2, OutOfLimitsSize / 2});
+
 
   int Data = 0;
   S::buffer<int, 1> Buf{&Data, 1};
@@ -127,6 +143,8 @@ void test() {
       CGH.parallel_for<class PF_ND_GOL_LIL_OIL>(
           NDRange_ROL_LIL_OIL, [Acc](S::nd_item<1> Id) { Acc[0] += 1; });
     });
+
+    assert(false && "Exception expected");
   } catch (S::runtime_error &E) {
     checkRangeException(E);
   } catch (...) {
@@ -140,6 +158,8 @@ void test() {
       CGH.parallel_for<class PF_ND_GIL_LOL_OIL>(
           NDRange_RIL_LOL_OIL, [Acc](S::nd_item<1> Id) { Acc[0] += 1; });
     });
+
+    assert(false && "Exception expected");
   } catch (S::runtime_error &E) {
     checkRangeException(E);
   } catch (...) {
@@ -153,6 +173,8 @@ void test() {
       CGH.parallel_for<class PF_ND_GIL_LIL_OOL>(
           NDRange_RIL_LIL_OOL, [Acc](S::nd_item<1> Id) { Acc[0] += 1; });
     });
+
+    assert(false && "Exception expected");
   } catch (S::runtime_error &E) {
     checkOffsetException(E);
   } catch (...) {
@@ -166,6 +188,36 @@ void test() {
       CGH.parallel_for<class PF_ND_GIL_LIL_OIL>(
           NDRange_RIL_LIL_OIL, [Acc](S::nd_item<1> Id) { Acc[0] += 1; });
     });
+  } catch (...) {
+    assert(false && "Unexpected exception catched");
+  }
+
+  try {
+    Queue.submit([&](S::handler &CGH) {
+      auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(CGH);
+
+      CGH.parallel_for<class PF_ND_GIL_LIL_OIL_POL>(
+          NDRange_RIL_LIL_OIL_POL, [Acc](S::nd_item<2> Id) { Acc[0] += 1; });
+    });
+
+    assert(false && "Exception expected");
+  } catch (S::runtime_error &E) {
+    checkNDRangeException(E);
+  } catch (...) {
+    assert(false && "Unexpected exception catched");
+  }
+
+  try {
+    Queue.submit([&](S::handler &CGH) {
+      auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(CGH);
+
+      CGH.parallel_for<class PF_ND_GIL_LIL_OIL_SOL>(
+          NDRange_RIL_LIL_OIL_POL, [Acc](S::nd_item<2> Id) { Acc[0] += 1; });
+    });
+
+    assert(false && "Exception expected");
+  } catch (S::runtime_error &E) {
+    checkNDRangeException(E);
   } catch (...) {
     assert(false && "Unexpected exception catched");
   }
