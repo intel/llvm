@@ -11,10 +11,7 @@
 #include <CL/sycl/device_selector.hpp>
 
 #include <memory>
-
-namespace std {
-class string;
-} // namespace std
+#include <string>
 
 // 4.6.1 Device selection class
 
