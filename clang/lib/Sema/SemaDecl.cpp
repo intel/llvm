@@ -3291,6 +3291,21 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD,
     }
   }
 
+  if (New->hasAttr<ReqdWorkGroupSizeAttr>() &&
+      Old->hasAttr<ReqdWorkGroupSizeAttr>()) {
+    auto *NewDeclAttr = New->getAttr<ReqdWorkGroupSizeAttr>();
+    auto *OldDeclAttr = Old->getAttr<ReqdWorkGroupSizeAttr>();
+    if ((NewDeclAttr->getXDim() != OldDeclAttr->getXDim()) ||
+        (NewDeclAttr->getYDim() != OldDeclAttr->getYDim()) ||
+        (NewDeclAttr->getZDim() != OldDeclAttr->getZDim())) {
+      Diag(New->getLocation(), diag::err_conflicting_sycl_function_attributes)
+          << OldDeclAttr << NewDeclAttr;
+      Diag(New->getLocation(), diag::warn_duplicate_attribute) << OldDeclAttr;
+      Diag(OldDeclAttr->getLocation(), diag::note_conflicting_attribute);
+      Diag(NewDeclAttr->getLocation(), diag::note_conflicting_attribute);
+    }
+  }
+
   if (New->hasAttr<InternalLinkageAttr>() &&
       !Old->hasAttr<InternalLinkageAttr>()) {
     Diag(New->getLocation(), diag::err_internal_linkage_redeclaration)
