@@ -19,38 +19,38 @@ constexpr uint8_t CACHE = 0x2;
 constexpr uint8_t STATICALLY_COALESCE = 0x4;
 constexpr uint8_t PREFETCH = 0x8;
 
-template <int32_t N> struct burst_coalesce_impl {
-  static constexpr int32_t value = N;
+template <int32_t _N> struct burst_coalesce_impl {
+  static constexpr int32_t value = _N;
   static constexpr int32_t default_value = 0;
 };
 
-template <int32_t N> struct cache {
-  static constexpr int32_t value = N;
+template <int32_t _N> struct cache {
+  static constexpr int32_t value = _N;
   static constexpr int32_t default_value = 0;
 };
 
-template <int32_t N> struct prefetch_impl {
-  static constexpr int32_t value = N;
+template <int32_t _N> struct prefetch_impl {
+  static constexpr int32_t value = _N;
   static constexpr int32_t default_value = 0;
 };
 
-template <int32_t N> struct statically_coalesce_impl {
-  static constexpr int32_t value = N;
+template <int32_t _N> struct statically_coalesce_impl {
+  static constexpr int32_t value = _N;
   static constexpr int32_t default_value = 1;
 };
 
-template <bool B> using burst_coalesce = burst_coalesce_impl<B>;
-template <bool B> using prefetch = prefetch_impl<B>;
-template <bool B> using statically_coalesce = statically_coalesce_impl<B>;
+template <bool _B> using burst_coalesce = burst_coalesce_impl<_B>;
+template <bool _B> using prefetch = prefetch_impl<_B>;
+template <bool _B> using statically_coalesce = statically_coalesce_impl<_B>;
 
-template <class... mem_access_params> class lsu final {
+template <class... _mem_access_params> class lsu final {
 public:
   lsu() = delete;
 
-  template <typename T> static T load(sycl::global_ptr<T> Ptr) {
+  template <typename _T> static _T load(sycl::global_ptr<_T> Ptr) {
     check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    return *__builtin_intel_fpga_mem((T *)Ptr,
+    return *__builtin_intel_fpga_mem((_T *)Ptr,
                                      _burst_coalesce | _cache |
                                          _dont_statically_coalesce | _prefetch,
                                      _cache_val);
@@ -59,10 +59,10 @@ public:
 #endif
   }
 
-  template <typename T> static void store(sycl::global_ptr<T> Ptr, T Val) {
+  template <typename _T> static void store(sycl::global_ptr<_T> Ptr, _T Val) {
     check_store();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    *__builtin_intel_fpga_mem((T *)Ptr,
+    *__builtin_intel_fpga_mem((_T *)Ptr,
                               _burst_coalesce | _cache |
                                   _dont_statically_coalesce | _prefetch,
                               _cache_val) = Val;
@@ -73,21 +73,21 @@ public:
 
 private:
   static constexpr int32_t _burst_coalesce_val =
-      GetValue<burst_coalesce_impl, mem_access_params...>::value;
+      _GetValue<burst_coalesce_impl, _mem_access_params...>::value;
   static constexpr uint8_t _burst_coalesce =
       _burst_coalesce_val == 1 ? BURST_COALESCE : 0;
 
   static constexpr int32_t _cache_val =
-      GetValue<cache, mem_access_params...>::value;
+      _GetValue<cache, _mem_access_params...>::value;
   static constexpr uint8_t _cache = (_cache_val > 0) ? CACHE : 0;
 
   static constexpr int32_t _statically_coalesce_val =
-      GetValue<statically_coalesce_impl, mem_access_params...>::value;
+      _GetValue<statically_coalesce_impl, _mem_access_params...>::value;
   static constexpr uint8_t _dont_statically_coalesce =
       _statically_coalesce_val == 0 ? STATICALLY_COALESCE : 0;
 
   static constexpr int32_t _prefetch_val =
-      GetValue<prefetch_impl, mem_access_params...>::value;
+      _GetValue<prefetch_impl, _mem_access_params...>::value;
   static constexpr uint8_t _prefetch = _prefetch_val ? PREFETCH : 0;
 
   static_assert(_cache_val >= 0, "cache size parameter must be non-negative");

@@ -87,6 +87,8 @@ STATISTIC(NumModifiedStores, "Number of stores modified");
 STATISTIC(NumCFGChecks, "Number of stores modified");
 STATISTIC(NumCFGTries, "Number of stores modified");
 STATISTIC(NumCFGSuccess, "Number of stores modified");
+STATISTIC(NumDomMemDefChecks,
+          "Number iterations check for reads in getDomMemoryDef");
 
 DEBUG_COUNTER(MemorySSACounter, "dse-memoryssa",
               "Controls which MemoryDefs are eliminated.");
@@ -109,11 +111,28 @@ static cl::opt<unsigned>
     MemorySSAScanLimit("dse-memoryssa-scanlimit", cl::init(150), cl::Hidden,
                        cl::desc("The number of memory instructions to scan for "
                                 "dead store elimination (default = 100)"));
+static cl::opt<unsigned> MemorySSAUpwardsStepLimit(
+    "dse-memoryssa-walklimit", cl::init(70), cl::Hidden,
+    cl::desc("The maximum number of steps while walking upwards to find "
+             "MemoryDefs that may be killed (default = 70)"));
 
 static cl::opt<unsigned> MemorySSADefsPerBlockLimit(
     "dse-memoryssa-defs-per-block-limit", cl::init(5000), cl::Hidden,
     cl::desc("The number of MemoryDefs we consider as candidates to eliminated "
              "other stores per basic block (default = 5000)"));
+
+static cl::opt<unsigned> MemorySSASameBBStepCost(
+    "dse-memoryssa-samebb-cost", cl::init(1), cl::Hidden,
+    cl::desc(
+        "The cost of a step in the same basic block as the killing MemoryDef"
+        "(default = 1)"));
+
+static cl::opt<unsigned>
+    MemorySSAOtherBBStepCost("dse-memoryssa-otherbb-cost", cl::init(5),
+                             cl::Hidden,
+                             cl::desc("The cost of a step in a different basic "
+                                      "block than the killing MemoryDef"
+                                      "(default = 5)"));
 
 static cl::opt<unsigned> MemorySSAPathCheckLimit(
     "dse-memoryssa-path-check-limit", cl::init(50), cl::Hidden,
@@ -1440,16 +1459,17 @@ namespace {
 // in between both MemoryDefs. A bit more concretely:
 //
 // For all MemoryDefs StartDef:
-// 1. Get the next dominating clobbering MemoryDef (DomAccess) by walking
+// 1. Get the next dominating clobbering MemoryDef (EarlierAccess) by walking
 //    upwards.
-// 2. Check that there are no reads between DomAccess and the StartDef by
-//    checking all uses starting at DomAccess and walking until we see StartDef.
-// 3. For each found DomDef, check that:
-//   1. There are no barrier instructions between DomDef and StartDef (like
+// 2. Check that there are no reads between EarlierAccess and the StartDef by
+//    checking all uses starting at EarlierAccess and walking until we see
+//    StartDef.
+// 3. For each found EarlierDef, check that:
+//   1. There are no barrier instructions between EarlierDef and StartDef (like
 //       throws or stores with ordering constraints).
-//   2. StartDef is executed whenever DomDef is executed.
-//   3. StartDef completely overwrites DomDef.
-// 4. Erase DomDef from the function and MemorySSA.
+//   2. StartDef is executed whenever EarlierDef is executed.
+//   3. StartDef completely overwrites EarlierDef.
+// 4. Erase EarlierDef from the function and MemorySSA.
 
 // Returns true if \p M is an intrisnic that does not read or write memory.
 bool isNoopIntrinsic(MemoryUseOrDef *M) {
@@ -1527,10 +1547,11 @@ struct DSEState {
   SmallPtrSet<MemoryAccess *, 4> SkipStores;
   // Keep track of all of the objects that are invisible to the caller before
   // the function returns.
-  SmallPtrSet<const Value *, 16> InvisibleToCallerBeforeRet;
+  // SmallPtrSet<const Value *, 16> InvisibleToCallerBeforeRet;
+  DenseMap<const Value *, bool> InvisibleToCallerBeforeRet;
   // Keep track of all of the objects that are invisible to the caller after
   // the function returns.
-  SmallPtrSet<const Value *, 16> InvisibleToCallerAfterRet;
+  DenseMap<const Value *, bool> InvisibleToCallerAfterRet;
   // Keep track of blocks with throwing instructions not modeled in MemorySSA.
   SmallPtrSet<BasicBlock *, 16> ThrowingBlocks;
   // Post-order numbers for each basic block. Used to figure out if memory
@@ -1540,6 +1561,18 @@ struct DSEState {
   /// Keep track of instructions (partly) overlapping with killing MemoryDefs per
   /// basic block.
   DenseMap<BasicBlock *, InstOverlapIntervalsTy> IOLs;
+
+  struct CheckCache {
+    SmallPtrSet<MemoryAccess *, 16> KnownNoReads;
+    SmallPtrSet<MemoryAccess *, 16> KnownReads;
+
+    bool isKnownNoRead(MemoryAccess *A) const {
+      return KnownNoReads.find(A) != KnownNoReads.end();
+    }
+    bool isKnownRead(MemoryAccess *A) const {
+      return KnownReads.find(A) != KnownReads.end();
+    }
+  };
 
   DSEState(Function &F, AliasAnalysis &AA, MemorySSA &MSSA, DominatorTree &DT,
            PostDominatorTree &PDT, const TargetLibraryInfo &TLI)
@@ -1564,26 +1597,6 @@ struct DSEState {
         if (MD && State.MemDefs.size() < MemorySSADefsPerBlockLimit &&
             (State.getLocForWriteEx(&I) || State.isMemTerminatorInst(&I)))
           State.MemDefs.push_back(MD);
-
-        // Track whether alloca and alloca-like objects are visible in the
-        // caller before and after the function returns. Alloca objects are
-        // invalid in the caller, so they are neither visible before or after
-        // the function returns.
-        if (isa<AllocaInst>(&I)) {
-          State.InvisibleToCallerBeforeRet.insert(&I);
-          State.InvisibleToCallerAfterRet.insert(&I);
-        }
-
-        // For alloca-like objects we need to check if they are captured before
-        // the function returns and if the return might capture the object.
-        if (isAllocLikeFn(&I, &TLI)) {
-          bool CapturesBeforeRet = PointerMayBeCaptured(&I, false, true);
-          if (!CapturesBeforeRet) {
-            State.InvisibleToCallerBeforeRet.insert(&I);
-            if (!PointerMayBeCaptured(&I, true, false))
-              State.InvisibleToCallerAfterRet.insert(&I);
-          }
-        }
       }
     }
 
@@ -1593,11 +1606,43 @@ struct DSEState {
       if (AI.hasPassPointeeByValueCopyAttr()) {
         // For byval, the caller doesn't know the address of the allocation.
         if (AI.hasByValAttr())
-          State.InvisibleToCallerBeforeRet.insert(&AI);
-        State.InvisibleToCallerAfterRet.insert(&AI);
+          State.InvisibleToCallerBeforeRet.insert({&AI, true});
+        State.InvisibleToCallerAfterRet.insert({&AI, true});
       }
 
     return State;
+  }
+
+  bool isInvisibleToCallerAfterRet(const Value *V) {
+    if (isa<AllocaInst>(V))
+      return true;
+    auto I = InvisibleToCallerAfterRet.insert({V, false});
+    if (I.second) {
+      if (!isInvisibleToCallerBeforeRet(V)) {
+        I.first->second = false;
+      } else {
+        auto *Inst = dyn_cast<Instruction>(V);
+        if (Inst && isAllocLikeFn(Inst, &TLI))
+          I.first->second = !PointerMayBeCaptured(V, true, false);
+      }
+    }
+    return I.first->second;
+  }
+
+  bool isInvisibleToCallerBeforeRet(const Value *V) {
+    if (isa<AllocaInst>(V))
+      return true;
+    auto I = InvisibleToCallerBeforeRet.insert({V, false});
+    if (I.second) {
+      auto *Inst = dyn_cast<Instruction>(V);
+      if (Inst && isAllocLikeFn(Inst, &TLI))
+        // NOTE: This could be made more precise by PointerMayBeCapturedBefore
+        // with the killing MemoryDef. But we refrain from doing so for now to
+        // limit compile-time and this does not cause any changes to the number
+        // of stores removed on a large test set in practice.
+        I.first->second = !PointerMayBeCaptured(V, false, true);
+    }
+    return I.first->second;
   }
 
   Optional<MemoryLocation> getLocForWriteEx(Instruction *I) const {
@@ -1749,11 +1794,11 @@ struct DSEState {
       if (CB->onlyAccessesInaccessibleMemory())
         return false;
 
-    ModRefInfo MR = BatchAA.getModRefInfo(UseInst, DefLoc);
-    // If necessary, perform additional analysis.
-    if (isRefSet(MR))
-      MR = AA.callCapturesBefore(UseInst, DefLoc, &DT);
-    return isRefSet(MR);
+    // NOTE: For calls, the number of stores removed could be slightly improved
+    // by using AA.callCapturesBefore(UseInst, DefLoc, &DT), but that showed to
+    // be expensive compared to the benefits in practice. For now, avoid more
+    // expensive analysis to limit compile-time.
+    return isRefSet(BatchAA.getModRefInfo(UseInst, DefLoc));
   }
 
   // Find a MemoryDef writing to \p DefLoc and dominating \p Current, with no
@@ -1764,14 +1809,14 @@ struct DSEState {
   // (read).
   Optional<MemoryAccess *>
   getDomMemoryDef(MemoryDef *KillingDef, MemoryAccess *Current,
-                  MemoryLocation DefLoc, bool DefVisibleToCallerBeforeRet,
-                  bool DefVisibleToCallerAfterRet, unsigned &ScanLimit) {
-    if (ScanLimit == 0) {
+                  MemoryLocation DefLoc, const Value *DefUO, CheckCache &Cache,
+                  unsigned &ScanLimit, unsigned &WalkerStepLimit) {
+    if (ScanLimit == 0 || WalkerStepLimit == 0) {
       LLVM_DEBUG(dbgs() << "\n    ...  hit scan limit\n");
       return None;
     }
 
-    MemoryAccess *DomAccess;
+    MemoryAccess *StartAccess = Current;
     bool StepAgain;
     LLVM_DEBUG(dbgs() << "  trying to get dominating access for " << *Current
                       << "\n");
@@ -1782,39 +1827,42 @@ struct DSEState {
       if (MSSA.isLiveOnEntryDef(Current))
         return None;
 
-      if (isa<MemoryPhi>(Current)) {
-        DomAccess = Current;
-        break;
-      }
-      MemoryUseOrDef *CurrentUD = cast<MemoryUseOrDef>(Current);
-      // Look for access that clobber DefLoc.
-      DomAccess = MSSA.getSkipSelfWalker()->getClobberingMemoryAccess(CurrentUD,
-                                                                      DefLoc);
-      if (MSSA.isLiveOnEntryDef(DomAccess))
+      // Cost of a step. Accesses in the same block are more likely to be valid
+      // candidates for elimination, hence consider them cheaper.
+      unsigned StepCost = KillingDef->getBlock() == Current->getBlock()
+                              ? MemorySSASameBBStepCost
+                              : MemorySSAOtherBBStepCost;
+      if (WalkerStepLimit <= StepCost)
         return None;
+      WalkerStepLimit -= StepCost;
 
-      if (isa<MemoryPhi>(DomAccess))
+      if (isa<MemoryPhi>(Current))
         break;
 
-      // Check if we can skip DomDef for DSE.
-      MemoryDef *DomDef = dyn_cast<MemoryDef>(DomAccess);
-      if (DomDef && canSkipDef(DomDef, DefVisibleToCallerBeforeRet)) {
+      // Check if we can skip EarlierDef for DSE.
+      MemoryDef *CurrentDef = dyn_cast<MemoryDef>(Current);
+      if (CurrentDef &&
+          canSkipDef(CurrentDef, !isInvisibleToCallerBeforeRet(DefUO))) {
         StepAgain = true;
-        Current = DomDef->getDefiningAccess();
+        Current = CurrentDef->getDefiningAccess();
       }
-
     } while (StepAgain);
 
+    MemoryAccess *EarlierAccess = Current;
     // Accesses to objects accessible after the function returns can only be
     // eliminated if the access is killed along all paths to the exit. Collect
     // the blocks with killing (=completely overwriting MemoryDefs) and check if
-    // they cover all paths from DomAccess to any function exit.
+    // they cover all paths from EarlierAccess to any function exit.
     SmallPtrSet<Instruction *, 16> KillingDefs;
     KillingDefs.insert(KillingDef->getMemoryInst());
+    Instruction *EarlierMemInst =
+        isa<MemoryDef>(EarlierAccess)
+            ? cast<MemoryDef>(EarlierAccess)->getMemoryInst()
+            : nullptr;
     LLVM_DEBUG({
-      dbgs() << "  Checking for reads of " << *DomAccess;
-      if (isa<MemoryDef>(DomAccess))
-        dbgs() << " (" << *cast<MemoryDef>(DomAccess)->getMemoryInst() << ")\n";
+      dbgs() << "  Checking for reads of " << *EarlierAccess;
+      if (EarlierMemInst)
+        dbgs() << " (" << *EarlierMemInst << ")\n";
       else
         dbgs() << ")\n";
     });
@@ -1824,9 +1872,14 @@ struct DSEState {
       for (Use &U : Acc->uses())
         WorkList.insert(cast<MemoryAccess>(U.getUser()));
     };
-    PushMemUses(DomAccess);
+    PushMemUses(EarlierAccess);
 
-    // Check if DomDef may be read.
+    // Optimistically collect all accesses for reads. If we do not find any
+    // read clobbers, add them to the cache.
+    SmallPtrSet<MemoryAccess *, 16> KnownNoReads;
+    if (!EarlierMemInst || !EarlierMemInst->mayReadFromMemory())
+      KnownNoReads.insert(EarlierAccess);
+    // Check if EarlierDef may be read.
     for (unsigned I = 0; I < WorkList.size(); I++) {
       MemoryAccess *UseAccess = WorkList[I];
 
@@ -1837,6 +1890,20 @@ struct DSEState {
         return None;
       }
       --ScanLimit;
+      NumDomMemDefChecks++;
+
+      // Check if we already visited this access.
+      if (Cache.isKnownNoRead(UseAccess)) {
+        LLVM_DEBUG(dbgs() << " ... skip, discovered that " << *UseAccess
+                          << " is safe earlier.\n");
+        continue;
+      }
+      if (Cache.isKnownRead(UseAccess)) {
+        LLVM_DEBUG(dbgs() << " ... bail out, discovered that " << *UseAccess
+                          << " has a read-clobber earlier.\n");
+        return None;
+      }
+      KnownNoReads.insert(UseAccess);
 
       if (isa<MemoryPhi>(UseAccess)) {
         if (any_of(KillingDefs, [this, UseAccess](Instruction *KI) {
@@ -1876,14 +1943,17 @@ struct DSEState {
       // original MD. Stop walk.
       if (isReadClobber(DefLoc, UseInst)) {
         LLVM_DEBUG(dbgs() << "    ... found read clobber\n");
+        Cache.KnownReads.insert(UseAccess);
+        Cache.KnownReads.insert(StartAccess);
+        Cache.KnownReads.insert(EarlierAccess);
         return None;
       }
 
-      // For the KillingDef and DomAccess we only have to check if it reads the
-      // memory location.
+      // For the KillingDef and EarlierAccess we only have to check if it reads
+      // the memory location.
       // TODO: It would probably be better to check for self-reads before
       // calling the function.
-      if (KillingDef == UseAccess || DomAccess == UseAccess) {
+      if (KillingDef == UseAccess || EarlierAccess == UseAccess) {
         LLVM_DEBUG(dbgs() << "    ... skipping killing def/dom access\n");
         continue;
       }
@@ -1892,7 +1962,7 @@ struct DSEState {
       // the original location. Otherwise we have to check uses of *all*
       // MemoryDefs we discover, including non-aliasing ones. Otherwise we might
       // miss cases like the following
-      //   1 = Def(LoE) ; <----- DomDef stores [0,1]
+      //   1 = Def(LoE) ; <----- EarlierDef stores [0,1]
       //   2 = Def(1)   ; (2, 1) = NoAlias,   stores [2,3]
       //   Use(2)       ; MayAlias 2 *and* 1, loads [0, 3].
       //                  (The Use points to the *first* Def it may alias)
@@ -1900,10 +1970,11 @@ struct DSEState {
       //                  stores [0,1]
       if (MemoryDef *UseDef = dyn_cast<MemoryDef>(UseAccess)) {
         if (isCompleteOverwrite(DefLoc, UseInst)) {
-          if (DefVisibleToCallerAfterRet && UseAccess != DomAccess) {
+          if (!isInvisibleToCallerAfterRet(DefUO) &&
+              UseAccess != EarlierAccess) {
             BasicBlock *MaybeKillingBlock = UseInst->getParent();
             if (PostOrderNumbers.find(MaybeKillingBlock)->second <
-                PostOrderNumbers.find(DomAccess->getBlock())->second) {
+                PostOrderNumbers.find(EarlierAccess->getBlock())->second) {
 
               LLVM_DEBUG(dbgs()
                          << "    ... found killing def " << *UseInst << "\n");
@@ -1916,9 +1987,9 @@ struct DSEState {
     }
 
     // For accesses to locations visible after the function returns, make sure
-    // that the location is killed (=overwritten) along all paths from DomAccess
-    // to the exit.
-    if (DefVisibleToCallerAfterRet) {
+    // that the location is killed (=overwritten) along all paths from
+    // EarlierAccess to the exit.
+    if (!isInvisibleToCallerAfterRet(DefUO)) {
       SmallPtrSet<BasicBlock *, 16> KillingBlocks;
       for (Instruction *KD : KillingDefs)
         KillingBlocks.insert(KD->getParent());
@@ -1935,22 +2006,18 @@ struct DSEState {
       }
 
       // If CommonPred is in the set of killing blocks, just check if it
-      // post-dominates DomAccess.
+      // post-dominates EarlierAccess.
       if (KillingBlocks.count(CommonPred)) {
-        if (PDT.dominates(CommonPred, DomAccess->getBlock()))
-          return {DomAccess};
+        if (PDT.dominates(CommonPred, EarlierAccess->getBlock()))
+          return {EarlierAccess};
         return None;
       }
 
-      // If the common post-dominator does not post-dominate DomAccess, there
-      // is a path from DomAccess to an exit not going through a killing block.
-      if (PDT.dominates(CommonPred, DomAccess->getBlock())) {
+      // If the common post-dominator does not post-dominate EarlierAccess,
+      // there is a path from EarlierAccess to an exit not going through a
+      // killing block.
+      if (PDT.dominates(CommonPred, EarlierAccess->getBlock())) {
         SetVector<BasicBlock *> WorkList;
-
-        // DomAccess's post-order number provides an upper bound of the blocks
-        // on a path starting at DomAccess.
-        unsigned UpperBound =
-            PostOrderNumbers.find(DomAccess->getBlock())->second;
 
         // If CommonPred is null, there are multiple exits from the function.
         // They all have to be added to the worklist.
@@ -1962,24 +2029,20 @@ struct DSEState {
 
         NumCFGTries++;
         // Check if all paths starting from an exit node go through one of the
-        // killing blocks before reaching DomAccess.
+        // killing blocks before reaching EarlierAccess.
         for (unsigned I = 0; I < WorkList.size(); I++) {
           NumCFGChecks++;
           BasicBlock *Current = WorkList[I];
           if (KillingBlocks.count(Current))
             continue;
-          if (Current == DomAccess->getBlock())
+          if (Current == EarlierAccess->getBlock())
             return None;
 
-          // DomAccess is reachable from the entry, so we don't have to explore
-          // unreachable blocks further.
+          // EarlierAccess is reachable from the entry, so we don't have to
+          // explore unreachable blocks further.
           if (!DT.isReachableFromEntry(Current))
             continue;
 
-          unsigned CPO = PostOrderNumbers.find(Current)->second;
-          // Current block is not on a path starting at DomAccess.
-          if (CPO > UpperBound)
-            continue;
           for (BasicBlock *Pred : predecessors(Current))
             WorkList.insert(Pred);
 
@@ -1987,13 +2050,15 @@ struct DSEState {
             return None;
         }
         NumCFGSuccess++;
-        return {DomAccess};
+        return {EarlierAccess};
       }
       return None;
     }
 
-    // No aliasing MemoryUses of DomAccess found, DomAccess is potentially dead.
-    return {DomAccess};
+    // No aliasing MemoryUses of EarlierAccess found, EarlierAccess is
+    // potentially dead.
+    Cache.KnownNoReads.insert(KnownNoReads.begin(), KnownNoReads.end());
+    return {EarlierAccess};
   }
 
   // Delete dead memory defs
@@ -2038,11 +2103,11 @@ struct DSEState {
   // checks extra maythrows (those that aren't MemoryDef's). MemoryDef that may
   // throw are handled during the walk from one def to the next.
   bool mayThrowBetween(Instruction *SI, Instruction *NI,
-                       const Value *SILocUnd) const {
+                       const Value *SILocUnd) {
     // First see if we can ignore it by using the fact that SI is an
     // alloca/alloca like object that is not visible to the caller during
     // execution of the function.
-    if (SILocUnd && InvisibleToCallerBeforeRet.count(SILocUnd))
+    if (SILocUnd && isInvisibleToCallerBeforeRet(SILocUnd))
       return false;
 
     if (SI->getParent() == NI->getParent())
@@ -2055,10 +2120,10 @@ struct DSEState {
   //  * A memory instruction that may throw and \p SI accesses a non-stack
   //  object.
   //  * Atomic stores stronger that monotonic.
-  bool isDSEBarrier(const Value *SILocUnd, Instruction *NI) const {
+  bool isDSEBarrier(const Value *SILocUnd, Instruction *NI) {
     // If NI may throw it acts as a barrier, unless we are to an alloca/alloca
     // like object that does not escape.
-    if (NI->mayThrow() && !InvisibleToCallerBeforeRet.count(SILocUnd))
+    if (NI->mayThrow() && !isInvisibleToCallerBeforeRet(SILocUnd))
       return true;
 
     // If NI is an atomic load/store stronger than monotonic, do not try to
@@ -2096,17 +2161,17 @@ struct DSEState {
       auto DefLoc = getLocForWriteEx(DefI);
       if (!DefLoc)
         continue;
-      getUnderlyingObjects(DefLoc->Ptr, Pointers);
 
-      bool CanKill = true;
-      for (const Value *Pointer : Pointers) {
-        if (!InvisibleToCallerAfterRet.count(Pointer)) {
-          CanKill = false;
-          break;
-        }
-      }
+      // NOTE: Currently eliminating writes at the end of a function is limited
+      // to MemoryDefs with a single underlying object, to save compile-time. In
+      // practice it appears the case with multiple underlying objects is very
+      // uncommon. If it turns out to be important, we can use
+      // getUnderlyingObjects here instead.
+      const Value *UO = getUnderlyingObject(DefLoc->Ptr);
+      if (!UO || !isInvisibleToCallerAfterRet(UO))
+        continue;
 
-      if (CanKill && isWriteAtEndOfFunction(Def)) {
+      if (isWriteAtEndOfFunction(Def)) {
         // See through pointer-to-pointer bitcasts
         LLVM_DEBUG(dbgs() << "   ... MemoryDef is not accessed until the end "
                              "of the function\n");
@@ -2189,50 +2254,40 @@ bool eliminateDeadStoresMemorySSA(Function &F, AliasAnalysis &AA,
       continue;
     }
 
-    Instruction *DefObj =
-        const_cast<Instruction *>(dyn_cast<Instruction>(SILocUnd));
-    bool DefVisibleToCallerBeforeRet =
-        !State.InvisibleToCallerBeforeRet.count(SILocUnd);
-    bool DefVisibleToCallerAfterRet =
-        !State.InvisibleToCallerAfterRet.count(SILocUnd);
-    if (DefObj && isAllocLikeFn(DefObj, &TLI)) {
-      if (DefVisibleToCallerBeforeRet)
-        DefVisibleToCallerBeforeRet =
-            PointerMayBeCapturedBefore(DefObj, false, true, SI, &DT);
-    }
-
     MemoryAccess *Current = KillingDef;
     LLVM_DEBUG(dbgs() << "Trying to eliminate MemoryDefs killed by "
                       << *KillingDef << " (" << *SI << ")\n");
 
     unsigned ScanLimit = MemorySSAScanLimit;
+    unsigned WalkerStepLimit = MemorySSAUpwardsStepLimit;
     // Worklist of MemoryAccesses that may be killed by KillingDef.
     SetVector<MemoryAccess *> ToCheck;
     ToCheck.insert(KillingDef->getDefiningAccess());
 
+    DSEState::CheckCache Cache;
     // Check if MemoryAccesses in the worklist are killed by KillingDef.
     for (unsigned I = 0; I < ToCheck.size(); I++) {
       Current = ToCheck[I];
       if (State.SkipStores.count(Current))
         continue;
 
-      Optional<MemoryAccess *> Next = State.getDomMemoryDef(
-          KillingDef, Current, SILoc, DefVisibleToCallerBeforeRet,
-          DefVisibleToCallerAfterRet, ScanLimit);
+      Optional<MemoryAccess *> Next =
+          State.getDomMemoryDef(KillingDef, Current, SILoc, SILocUnd, Cache,
+                                ScanLimit, WalkerStepLimit);
 
       if (!Next) {
         LLVM_DEBUG(dbgs() << "  finished walk\n");
         continue;
       }
 
-      MemoryAccess *DomAccess = *Next;
-      LLVM_DEBUG(dbgs() << " Checking if we can kill " << *DomAccess);
-      if (isa<MemoryPhi>(DomAccess)) {
+      MemoryAccess *EarlierAccess = *Next;
+      LLVM_DEBUG(dbgs() << " Checking if we can kill " << *EarlierAccess);
+      if (isa<MemoryPhi>(EarlierAccess)) {
         LLVM_DEBUG(dbgs() << "\n  ... adding incoming values to worklist\n");
-        for (Value *V : cast<MemoryPhi>(DomAccess)->incoming_values()) {
+        for (Value *V : cast<MemoryPhi>(EarlierAccess)->incoming_values()) {
           MemoryAccess *IncomingAccess = cast<MemoryAccess>(V);
           BasicBlock *IncomingBlock = IncomingAccess->getBlock();
-          BasicBlock *PhiBlock = DomAccess->getBlock();
+          BasicBlock *PhiBlock = EarlierAccess->getBlock();
 
           // We only consider incoming MemoryAccesses that come before the
           // MemoryPhi. Otherwise we could discover candidates that do not
@@ -2243,7 +2298,7 @@ bool eliminateDeadStoresMemorySSA(Function &F, AliasAnalysis &AA,
         }
         continue;
       }
-      MemoryDef *NextDef = dyn_cast<MemoryDef>(DomAccess);
+      MemoryDef *NextDef = dyn_cast<MemoryDef>(EarlierAccess);
       Instruction *NI = NextDef->getMemoryInst();
       LLVM_DEBUG(dbgs() << " (" << *NI << ")\n");
 
