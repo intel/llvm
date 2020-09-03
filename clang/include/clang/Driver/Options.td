@@ -3557,6 +3557,15 @@ def fsycl_dead_args_optimization : Flag<["-"], "fsycl-dead-args-optimization">,
 def fno_sycl_dead_args_optimization : Flag<["-"], "fno-sycl-dead-args-optimization">,
   Group<sycl_Group>, Flags<[NoArgumentUnused, CoreOption]>, HelpText<"Disables "
   "elimination of DPC++ dead kernel arguments">;
+def fsycl_device_lib_EQ : CommaJoined<["-"], "fsycl-device-lib=">, Group<sycl_Group>, Flags<[DriverOption, CoreOption]>,
+  Values<"libc, libm-fp32, libm-fp64, all">, HelpText<"Control the addition "
+  "of device libraries when compiling for other devices.  Valid arguments "
+  "are libc, libm-fp32, libm-fp64, all">;
+def fno_sycl_device_lib_EQ : CommaJoined<["-"], "fno-sycl-device-lib=">, Group<sycl_Group>, Flags<[DriverOption, CoreOption]>,
+  Values<"libc, libm-fp32, libm-fp64, all">, HelpText<"Control the deletion"
+  "of device libraries when compiling for other devices.  Valid arguments "
+  "are libc, libm-fp32, libm-fp64, all">;
+
 //===----------------------------------------------------------------------===//
 // CC1 Options
 //===----------------------------------------------------------------------===//

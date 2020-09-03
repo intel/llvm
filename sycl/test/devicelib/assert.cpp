@@ -75,14 +75,6 @@
 // RUN: FileCheck %s --input-file %t.stdout.native --check-prefixes=CHECK-NATIVE || FileCheck %s --input-file %t.stderr.native --check-prefix CHECK-NOTSUPPORTED
 // RUN: FileCheck %s --input-file %t.stderr.native --check-prefixes=CHECK-MESSAGE || FileCheck %s --input-file %t.stderr.native --check-prefix CHECK-NOTSUPPORTED
 //
-// RUN: env SYCL_PI_TRACE=2 SYCL_DEVICELIB_INHIBIT_NATIVE=cl_intel_devicelib_assert SYCL_DEVICE_TYPE=CPU  %t.out >%t.stdout.pi.fallback
-// RUN: env SYCL_DEVICELIB_INHIBIT_NATIVE=cl_intel_devicelib_assert SYCL_DEVICE_TYPE=CPU  %t.out >%t.stdout.msg.fallback
-// RUN: FileCheck %s --input-file %t.stdout.pi.fallback --check-prefixes=CHECK-FALLBACK
-// RUN: FileCheck %s --input-file %t.stdout.msg.fallback --check-prefixes=CHECK-MESSAGE
-//
-// CHECK-NATIVE:   ---> piProgramBuild
-// CHECK-FALLBACK: ---> piProgramLink
-//
 // Skip the test if the CPU RT doesn't support the extension yet:
 // CHECK-NOTSUPPORTED: Device has no support for cl_intel_devicelib_assert
 //
