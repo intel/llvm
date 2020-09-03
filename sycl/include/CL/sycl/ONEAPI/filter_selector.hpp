@@ -29,7 +29,7 @@ class filter_selector_impl;
 
 class __SYCL_EXPORT filter_selector : public device_selector {
 public:
-  filter_selector(std::string filter);
+  filter_selector(const std::string &filter);
   int operator()(const device &dev) const override;
   void reset() const;
   device select_device() const override;

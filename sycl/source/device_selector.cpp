@@ -165,7 +165,7 @@ int host_selector::operator()(const device &dev) const {
 
 namespace ONEAPI {
 
-filter_selector::filter_selector(std::string Input)
+filter_selector::filter_selector(const std::string &Input)
     : impl(std::make_shared<detail::filter_selector_impl>(Input)) {}
 
 int filter_selector::operator()(const device &Dev) const {

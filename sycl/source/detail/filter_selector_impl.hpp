@@ -33,7 +33,7 @@ struct filter {
 
 class filter_selector_impl {
 public:
-  filter_selector_impl(std::string filter);
+  filter_selector_impl(const std::string &filter);
   int operator()(const device &dev) const;
   void reset() const;
 

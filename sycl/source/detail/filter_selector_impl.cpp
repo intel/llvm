@@ -104,7 +104,7 @@ filter create_filter(const std::string &Input) {
   return Result;
 }
 
-filter_selector_impl::filter_selector_impl(std::string Input)
+filter_selector_impl::filter_selector_impl(const std::string &Input)
     : mFilters(), mRanker(), mNumDevicesSeen(0), mMatchFound(false) {
   std::vector<std::string> Filters = detail::tokenize(Input, ",");
   mNumTotalDevices = device::get_devices().size();
