@@ -28,6 +28,7 @@ int main() {
   int data = 5;
   int* data_addr = &data;
   int* new_data_addr = nullptr;
+  int *ptr_array[2];
   test_struct s;
   s.data = data;
   kernel<class kernel_int>(
@@ -42,7 +43,9 @@ int main() {
   kernel<class kernel_pointer>(
       [=]() {
         new_data_addr[0] = data_addr[0];
+        int *local = ptr_array[1];
       });
+
   const int some_const = 10;
   test(some_const);
   return 0;
@@ -88,39 +91,50 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_data' 'int'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr' '__wrapper_class'
 // CHECK-NEXT: InitListExpr {{.*}} 'int *[2]'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array1' '__wrapper_class'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array1' '__wrapper_class'
 // CHECK-NEXT: InitListExpr {{.*}} 'int *[2][3]'
 // CHECK-NEXT: InitListExpr {{.*}} 'int *[3]'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array2' '__wrapper_class'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array2' '__wrapper_class'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array2' '__wrapper_class'
 // CHECK-NEXT: InitListExpr {{.*}} 'int *[3]'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array2' '__wrapper_class'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array2' '__wrapper_class'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: MemberExpr {{.*}}  '__global int *' lvalue . {{.*}}
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array2' '__wrapper_class'
 
 // Check kernel parameters
-// CHECK: {{.*}}kernel_pointer{{.*}} 'void (__global int *, __global int *)'
+// CHECK: {{.*}}kernel_pointer{{.*}} 'void (__global int *, __global int *, __global int *, __global int *)'
+// CHECK: ParmVarDecl {{.*}} used _arg_ '__global int *'
+// CHECK: ParmVarDecl {{.*}} used _arg_ '__global int *'
 // CHECK: ParmVarDecl {{.*}} used _arg_ '__global int *'
 // CHECK: ParmVarDecl {{.*}} used _arg_ '__global int *'
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})'
@@ -128,8 +142,15 @@ int main() {
 // Check that lambda fields of pointer types are initialized
 // CHECK: InitListExpr
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_' '__global int *'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_' '__global int *'
-
-// Check kernel parameters
+// CHECK: InitListExpr {{.*}} 'int *[2]'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_' '__global int *'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_' '__global int *'
