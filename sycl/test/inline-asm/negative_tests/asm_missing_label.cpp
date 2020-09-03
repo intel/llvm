@@ -31,7 +31,7 @@ int main() {
     std::string what = e.what();
     // TODO: check for precise exception class and message once they are known
     // (pending driver update)
-    if (what.find("OpenCL API failed") != std::string::npos) { 
+    if (what.find("OpenCL API failed") != std::string::npos) {
       return 0;
     }
   }

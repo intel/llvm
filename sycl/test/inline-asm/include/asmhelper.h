@@ -84,13 +84,13 @@ bool isInlineASMSupported(sycl::device Device) {
   return true;
 }
 
-auto exception_handler = [] (sycl::exception_list exceptions) {
-  for (std::exception_ptr const& e : exceptions) {
+auto exception_handler = [](sycl::exception_list exceptions) {
+  for (std::exception_ptr const &e : exceptions) {
     try {
-  std::rethrow_exception(e);
-    } catch(sycl::exception const& e) {
-  std::cout << "Caught asynchronous SYCL exception:\n"
-        << e.what() << std::endl;
+      std::rethrow_exception(e);
+    } catch(sycl::exception const &e) {
+      std::cout << "Caught asynchronous SYCL exception:\n"
+                << e.what() << std::endl;
     }
   }
 };
