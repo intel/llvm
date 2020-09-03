@@ -47,7 +47,7 @@ std::vector<std::string> tokenize(const std::string &Filter,
   return Tokens;
 }
 
-filter create_filter(std::string Input) {
+filter create_filter(const std::string &Input) {
   filter Result;
   constexpr auto Error = "Invalid filter string! Valid strings conform to "
                          "BE:DeviceType:DeviceNum, where any are optional";
