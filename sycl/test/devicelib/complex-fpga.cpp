@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===------------------------------------------------------------------------===//
-
+// UNSUPPORTED: windows
 // REQUIRES: aoc, accelerator
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice %S/std_complex_math_test.cpp -o %t.out
