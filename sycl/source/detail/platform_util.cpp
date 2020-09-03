@@ -11,7 +11,11 @@
 #include <detail/platform_util.hpp>
 
 #if defined(SYCL_RT_OS_LINUX)
+#include <errno.h>
+#include <unistd.h>
+#if defined(__x86_64__) || defined(__i386__)
 #include <cpuid.h>
+#endif
 #elif defined(SYCL_RT_OS_WINDOWS)
 #include <intrin.h>
 #endif
@@ -20,6 +24,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+#if defined(__x86_64__) || defined(__i386__)
 // Used by methods that duplicate OpenCL behaviour in order to get CPU info
 static void cpuid(uint32_t *CPUInfo, uint32_t Type, uint32_t SubType = 0) {
 #if defined(SYCL_RT_OS_LINUX)
@@ -28,11 +33,13 @@ static void cpuid(uint32_t *CPUInfo, uint32_t Type, uint32_t SubType = 0) {
   __cpuidex(reinterpret_cast<int *>(CPUInfo), Type, SubType);
 #endif
 }
+#endif
 
 uint32_t PlatformUtil::getMaxClockFrequency() {
   throw runtime_error(
       "max_clock_frequency parameter is not supported for host device",
       PI_INVALID_DEVICE);
+#if defined(__x86_64__) || defined(__i386__)
   uint32_t CPUInfo[4];
   string_class Buff(sizeof(CPUInfo) * 3 + 1, 0);
   size_t Offset = 0;
@@ -62,21 +69,43 @@ uint32_t PlatformUtil::getMaxClockFrequency() {
   Buff = Buff.substr(Buff.rfind(' '), Buff.length());
   Freq *= std::stod(Buff);
   return Freq;
+#endif
+  return 0;
 }
 
 uint32_t PlatformUtil::getMemCacheLineSize() {
+#if defined(__x86_64__) || defined(__i386__)
   uint32_t CPUInfo[4];
   cpuid(CPUInfo, 0x80000006);
   return CPUInfo[2] & 0xff;
+#elif defined(SYCL_RT_OS_LINUX) && defined(_SC_LEVEL2_DCACHE_LINESIZE)
+  long lineSize = sysconf(_SC_LEVEL2_DCACHE_LINESIZE);
+  if (lineSize > 0) {
+    return lineSize;
+  }
+#endif
+  return 8;
 }
 
 uint64_t PlatformUtil::getMemCacheSize() {
+#if defined(__x86_64__) || defined(__i386__)
   uint32_t CPUInfo[4];
   cpuid(CPUInfo, 0x80000006);
   return static_cast<uint64_t>(CPUInfo[2] >> 16) * 1024;
+#elif defined(SYCL_RT_OS_LINUX) && defined(_SC_LEVEL2_DCACHE_SIZE)
+  long cacheSize = sysconf(_SC_LEVEL2_DCACHE_SIZE);
+  if (cacheSize > 0) {
+    return cacheSize;
+  }
+#endif
+  return static_cast<uint64_t>(16 * 1024);
 }
 
 uint32_t PlatformUtil::getNativeVectorWidth(PlatformUtil::TypeIndex TIndex) {
+
+#if defined(__x86_64__) || defined(__i386__)
+  uint32_t Index = static_cast<uint32_t>(TIndex);
+
   // SSE4.2 has 16 byte (XMM) registers
   static constexpr uint32_t VECTOR_WIDTH_SSE42[] = {16, 8, 4, 2, 4, 2, 0};
   // AVX supports 32 byte (YMM) registers only for floats and doubles
@@ -85,8 +114,6 @@ uint32_t PlatformUtil::getNativeVectorWidth(PlatformUtil::TypeIndex TIndex) {
   static constexpr uint32_t VECTOR_WIDTH_AVX2[] = {32, 16, 8, 4, 8, 4, 0};
   // AVX512 has 64 byte (ZMM) registers
   static constexpr uint32_t VECTOR_WIDTH_AVX512[] = {64, 32, 16, 8, 16, 8, 0};
-
-  uint32_t Index = static_cast<uint32_t>(TIndex);
 
 #if defined(SYCL_RT_OS_LINUX)
   if (__builtin_cpu_supports("avx512f"))
@@ -119,14 +146,23 @@ uint32_t PlatformUtil::getNativeVectorWidth(PlatformUtil::TypeIndex TIndex) {
 #endif
 
   return VECTOR_WIDTH_SSE42[Index];
+
+#elif defined(__ARM_NEON)
+  uint32_t Index = static_cast<uint32_t>(TIndex);
+
+  // NEON has 16 byte registers
+  static constexpr uint32_t VECTOR_WIDTH_NEON[] = {16, 8, 4, 2, 4, 2, 0};
+  return VECTOR_WIDTH_NEON[Index];
+
+#endif
+  return 0;
 }
 
 void PlatformUtil::prefetch(const char *Ptr, size_t NumBytes) {
   if (!Ptr)
     return;
 
-  // The current implementation assumes 64-byte x86 cache lines.
-  const size_t CacheLineSize = 64;
+  const size_t CacheLineSize = PlatformUtil::getMemCacheLineSize();
   const size_t CacheLineMask = ~(CacheLineSize - 1);
   const char *PtrEnd = Ptr + NumBytes;
 
