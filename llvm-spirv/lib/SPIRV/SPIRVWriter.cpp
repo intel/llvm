@@ -929,9 +929,13 @@ public:
       assert(IdxGroupNode &&
              "Invalid operand in the MDNode for LLVMParallelAccessIndices");
       auto IdxGroupArrayPairIt = IndexGroupArrayMap.find(IdxGroupNode);
-      assert(IdxGroupArrayPairIt != IndexGroupArrayMap.end() &&
-             "Absent entry for this index group node");
-      ArrayVariablesVec.push_back(IdxGroupArrayPairIt->second);
+      // TODO: Some LLVM IR optimizations (e.g. loop inlining as part of
+      // the function inlining) can result in invalid parallel_access_indices
+      // metadata. Only valid cases will pass the subsequent check and
+      // survive the translation. This check should be replaced with an
+      // assertion once all known cases are handled.
+      if (IdxGroupArrayPairIt != IndexGroupArrayMap.end())
+        ArrayVariablesVec.push_back(IdxGroupArrayPairIt->second);
     }
   }
 
