@@ -44,8 +44,8 @@ Version
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2020-08-13
-| Revision           | 6
+| Last Modified Date | 2020-09-03
+| Revision           | 7
 |========================================
 
 Dependencies
@@ -150,6 +150,9 @@ If the *VectorComputeINTEL* capability is declared *Volatile* may be applied to 
 
 --
 
+Modify Section 3.18, Access Qualifier: +
+Add *OpTypeBufferSurfaceINTEL* to the list of instructions that use Access Qualifier.
+
 Modify Section 3.31, Capability, add the following rows the 'Capability' table:
 --
 [cols="1,20,10,10",options="header",width = "80%"]
@@ -167,14 +170,16 @@ Uses OpTypeVector to declare vectors with any number of components.
 
 Modify Section 3.36.6. Type-Declaration Instructions,  add the end of type instructions list:
 --
-[cols="1,1,1",width="60%"]
+[cols="1,1,1,1",width="60%"]
 |=====
-2+|*OpTypeBufferSurfaceINTEL* +
+3+|*OpTypeBufferSurfaceINTEL* +
  +
 Delare a buffer surface type. This type is opaque: values of this type have no defined physical size or bit pattern.
+ +
+ 'Access Qualifier' is an image <<Access_Qualifier, Access Qualifier>>.
 |Capability: +
 *VectorComputeINTEL*
-| 2 | 6086 | 'Result <id>'
+| 2+ | 6086 | 'Result <id>' | Optional <<Access_Qualifier, 'Access Qualifier'>>
 |=====
 --
 
@@ -196,4 +201,5 @@ Revision History
 |4|2020-06-03|Mariusz Merecki|Added *VectorAnyINTEL*, *VectorComputeVariableINTEL*, *FuncParamIOKindINTEL* and *GlobalVariableOffsetINTEL*. Added updates for the *Volatile* decoration and *Private* storage class descriptions.
 |5|2020-07-09|Mariusz Merecki|Added *SIMTCallINTEL* decoration.
 |6|2020-08-13|Mariusz Merecki|Added *OpTypeBufferSurfaceINTEL* type and *SingleElementVectorINTEL* decoration.
+|7|2020-09-03|Mariusz Merecki|Added *Access Qualifier* operand to *OpTypeBufferSurfaceINTEL*
 |========================================
