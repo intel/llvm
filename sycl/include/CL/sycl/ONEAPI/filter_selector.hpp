@@ -12,6 +12,10 @@
 
 #include <memory>
 
+namespace std {
+class string;
+} // namespace std
+
 // 4.6.1 Device selection class
 
 __SYCL_INLINE_NAMESPACE(cl) {
