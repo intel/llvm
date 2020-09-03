@@ -218,6 +218,19 @@ public:
   }
 };
 
+class stream {
+  accessor<int, 1, access::mode::read> acc;
+
+public:
+  stream(unsigned long BufferSize, unsigned long MaxStatementSize,
+         handler &CGH) {}
+
+  void __init() {}
+  void use() const {}
+
+  void __finalize() {}
+};
+
 namespace ONEAPI {
 namespace experimental {
 template <typename T, typename ID = T>

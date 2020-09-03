@@ -11,6 +11,7 @@ declare i8 @llvm.umax.i8(i8, i8)
 declare <2 x i8> @llvm.umax.v2i8(<2 x i8>, <2 x i8>)
 declare i8 @llvm.umin.i8(i8, i8)
 declare <2 x i8> @llvm.umin.v2i8(<2 x i8>, <2 x i8>)
+declare void @llvm.assume(i1)
 
 define i81 @smax_sameval(i81 %x) {
 ; CHECK-LABEL: @smax_sameval(
@@ -1852,4 +1853,283 @@ define i8 @umin_umin_umin(i8 %x, i8 %y) {
   %m2 = call i8 @llvm.umin.i8(i8 %y, i8 %x)
   %r = call i8 @llvm.umin.i8(i8 %m1, i8 %m2)
   ret i8 %r
+}
+
+define i1 @umin_ult_diff_const(i8 %x) {
+; CHECK-LABEL: @umin_ult_diff_const(
+; CHECK-NEXT:    ret i1 true
+;
+  %m = call i8 @llvm.umin.i8(i8 %x, i8 10)
+  %c = icmp ult i8 %m, 20
+  ret i1 %c
+}
+
+define i1 @umax_ugt_diff_const(i8 %x) {
+; CHECK-LABEL: @umax_ugt_diff_const(
+; CHECK-NEXT:    ret i1 true
+;
+  %m = call i8 @llvm.umax.i8(i8 %x, i8 10)
+  %c = icmp ugt i8 %m, 5
+  ret i1 %c
+}
+
+define i1 @smin_slt_diff_const(i8 %x) {
+; CHECK-LABEL: @smin_slt_diff_const(
+; CHECK-NEXT:    ret i1 true
+;
+  %m = call i8 @llvm.smin.i8(i8 %x, i8 10)
+  %c = icmp slt i8 %m, 20
+  ret i1 %c
+}
+
+define i1 @smax_sgt_diff_const(i8 %x) {
+; CHECK-LABEL: @smax_sgt_diff_const(
+; CHECK-NEXT:    ret i1 true
+;
+  %m = call i8 @llvm.smax.i8(i8 %x, i8 10)
+  %c = icmp sgt i8 %m, 5
+  ret i1 %c
+}
+
+define i8 @umin_assume_uge(i8 %x, i8 %y) {
+; CHECK-LABEL: @umin_assume_uge(
+; CHECK-NEXT:    [[C:%.*]] = icmp uge i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    call void @llvm.assume(i1 [[C]])
+; CHECK-NEXT:    ret i8 [[Y]]
+;
+  %c = icmp uge i8 %x, %y
+  call void @llvm.assume(i1 %c)
+  %m = call i8 @llvm.umin.i8(i8 %x, i8 %y)
+  ret i8 %m
+}
+
+define i8 @umin_assume_ugt(i8 %x, i8 %y) {
+; CHECK-LABEL: @umin_assume_ugt(
+; CHECK-NEXT:    [[C:%.*]] = icmp ugt i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    call void @llvm.assume(i1 [[C]])
+; CHECK-NEXT:    ret i8 [[Y]]
+;
+  %c = icmp ugt i8 %x, %y
+  call void @llvm.assume(i1 %c)
+  %m = call i8 @llvm.umin.i8(i8 %x, i8 %y)
+  ret i8 %m
+}
+
+define i8 @umin_assume_ule(i8 %x, i8 %y) {
+; CHECK-LABEL: @umin_assume_ule(
+; CHECK-NEXT:    [[C:%.*]] = icmp ule i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    call void @llvm.assume(i1 [[C]])
+; CHECK-NEXT:    ret i8 [[X]]
+;
+  %c = icmp ule i8 %x, %y
+  call void @llvm.assume(i1 %c)
+  %m = call i8 @llvm.umin.i8(i8 %x, i8 %y)
+  ret i8 %m
+}
+
+define i8 @umin_assume_ult(i8 %x, i8 %y) {
+; CHECK-LABEL: @umin_assume_ult(
+; CHECK-NEXT:    [[C:%.*]] = icmp ult i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    call void @llvm.assume(i1 [[C]])
+; CHECK-NEXT:    ret i8 [[X]]
+;
+  %c = icmp ult i8 %x, %y
+  call void @llvm.assume(i1 %c)
+  %m = call i8 @llvm.umin.i8(i8 %x, i8 %y)
+  ret i8 %m
+}
+
+define i8 @umax_assume_uge(i8 %x, i8 %y) {
+; CHECK-LABEL: @umax_assume_uge(
+; CHECK-NEXT:    [[C:%.*]] = icmp uge i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    call void @llvm.assume(i1 [[C]])
+; CHECK-NEXT:    ret i8 [[X]]
+;
+  %c = icmp uge i8 %x, %y
+  call void @llvm.assume(i1 %c)
+  %m = call i8 @llvm.umax.i8(i8 %x, i8 %y)
+  ret i8 %m
+}
+
+define i8 @umax_assume_ugt(i8 %x, i8 %y) {
+; CHECK-LABEL: @umax_assume_ugt(
+; CHECK-NEXT:    [[C:%.*]] = icmp ugt i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    call void @llvm.assume(i1 [[C]])
+; CHECK-NEXT:    ret i8 [[X]]
+;
+  %c = icmp ugt i8 %x, %y
+  call void @llvm.assume(i1 %c)
+  %m = call i8 @llvm.umax.i8(i8 %x, i8 %y)
+  ret i8 %m
+}
+
+define i8 @umax_assume_ule(i8 %x, i8 %y) {
+; CHECK-LABEL: @umax_assume_ule(
+; CHECK-NEXT:    [[C:%.*]] = icmp ule i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    call void @llvm.assume(i1 [[C]])
+; CHECK-NEXT:    ret i8 [[Y]]
+;
+  %c = icmp ule i8 %x, %y
+  call void @llvm.assume(i1 %c)
+  %m = call i8 @llvm.umax.i8(i8 %x, i8 %y)
+  ret i8 %m
+}
+
+define i8 @umax_assume_ult(i8 %x, i8 %y) {
+; CHECK-LABEL: @umax_assume_ult(
+; CHECK-NEXT:    [[C:%.*]] = icmp ult i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    call void @llvm.assume(i1 [[C]])
+; CHECK-NEXT:    ret i8 [[Y]]
+;
+  %c = icmp ult i8 %x, %y
+  call void @llvm.assume(i1 %c)
+  %m = call i8 @llvm.umax.i8(i8 %x, i8 %y)
+  ret i8 %m
+}
+
+define i8 @smin_assume_sge(i8 %x, i8 %y) {
+; CHECK-LABEL: @smin_assume_sge(
+; CHECK-NEXT:    [[C:%.*]] = icmp sge i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    call void @llvm.assume(i1 [[C]])
+; CHECK-NEXT:    ret i8 [[Y]]
+;
+  %c = icmp sge i8 %x, %y
+  call void @llvm.assume(i1 %c)
+  %m = call i8 @llvm.smin.i8(i8 %x, i8 %y)
+  ret i8 %m
+}
+
+define i8 @smin_assume_sgt(i8 %x, i8 %y) {
+; CHECK-LABEL: @smin_assume_sgt(
+; CHECK-NEXT:    [[C:%.*]] = icmp sgt i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    call void @llvm.assume(i1 [[C]])
+; CHECK-NEXT:    ret i8 [[Y]]
+;
+  %c = icmp sgt i8 %x, %y
+  call void @llvm.assume(i1 %c)
+  %m = call i8 @llvm.smin.i8(i8 %x, i8 %y)
+  ret i8 %m
+}
+
+define i8 @smin_assume_sle(i8 %x, i8 %y) {
+; CHECK-LABEL: @smin_assume_sle(
+; CHECK-NEXT:    [[C:%.*]] = icmp sle i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    call void @llvm.assume(i1 [[C]])
+; CHECK-NEXT:    ret i8 [[X]]
+;
+  %c = icmp sle i8 %x, %y
+  call void @llvm.assume(i1 %c)
+  %m = call i8 @llvm.smin.i8(i8 %x, i8 %y)
+  ret i8 %m
+}
+
+define i8 @smin_assume_slt(i8 %x, i8 %y) {
+; CHECK-LABEL: @smin_assume_slt(
+; CHECK-NEXT:    [[C:%.*]] = icmp slt i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    call void @llvm.assume(i1 [[C]])
+; CHECK-NEXT:    ret i8 [[X]]
+;
+  %c = icmp slt i8 %x, %y
+  call void @llvm.assume(i1 %c)
+  %m = call i8 @llvm.smin.i8(i8 %x, i8 %y)
+  ret i8 %m
+}
+
+define i8 @smax_assume_sge(i8 %x, i8 %y) {
+; CHECK-LABEL: @smax_assume_sge(
+; CHECK-NEXT:    [[C:%.*]] = icmp sge i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    call void @llvm.assume(i1 [[C]])
+; CHECK-NEXT:    ret i8 [[X]]
+;
+  %c = icmp sge i8 %x, %y
+  call void @llvm.assume(i1 %c)
+  %m = call i8 @llvm.smax.i8(i8 %x, i8 %y)
+  ret i8 %m
+}
+
+define i8 @smax_assume_sgt(i8 %x, i8 %y) {
+; CHECK-LABEL: @smax_assume_sgt(
+; CHECK-NEXT:    [[C:%.*]] = icmp sgt i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    call void @llvm.assume(i1 [[C]])
+; CHECK-NEXT:    ret i8 [[X]]
+;
+  %c = icmp sgt i8 %x, %y
+  call void @llvm.assume(i1 %c)
+  %m = call i8 @llvm.smax.i8(i8 %x, i8 %y)
+  ret i8 %m
+}
+
+define i8 @smax_assume_sle(i8 %x, i8 %y) {
+; CHECK-LABEL: @smax_assume_sle(
+; CHECK-NEXT:    [[C:%.*]] = icmp sle i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    call void @llvm.assume(i1 [[C]])
+; CHECK-NEXT:    ret i8 [[Y]]
+;
+  %c = icmp sle i8 %x, %y
+  call void @llvm.assume(i1 %c)
+  %m = call i8 @llvm.smax.i8(i8 %x, i8 %y)
+  ret i8 %m
+}
+
+define i8 @smax_assume_slt(i8 %x, i8 %y) {
+; CHECK-LABEL: @smax_assume_slt(
+; CHECK-NEXT:    [[C:%.*]] = icmp slt i8 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    call void @llvm.assume(i1 [[C]])
+; CHECK-NEXT:    ret i8 [[Y]]
+;
+  %c = icmp slt i8 %x, %y
+  call void @llvm.assume(i1 %c)
+  %m = call i8 @llvm.smax.i8(i8 %x, i8 %y)
+  ret i8 %m
+}
+
+define i8 @umax_add_nuw_1(i8 %x) {
+; CHECK-LABEL: @umax_add_nuw_1(
+; CHECK-NEXT:    [[ADD:%.*]] = add nuw i8 [[X:%.*]], 1
+; CHECK-NEXT:    ret i8 [[ADD]]
+;
+  %add = add nuw i8 %x, 1
+  %max = call i8 @llvm.umax.i8(i8 %add, i8 %x)
+  ret i8 %max
+}
+
+define i8 @umax_add_nuw_2(i8 %x) {
+; CHECK-LABEL: @umax_add_nuw_2(
+; CHECK-NEXT:    [[ADD:%.*]] = add nuw i8 [[X:%.*]], 42
+; CHECK-NEXT:    ret i8 [[ADD]]
+;
+  %add = add nuw i8 %x, 42
+  %max = call i8 @llvm.umax.i8(i8 %add, i8 42)
+  ret i8 %max
+}
+
+define i8 @umax_range_metadata(i8* %p1, i8* %p2) {
+; CHECK-LABEL: @umax_range_metadata(
+; CHECK-NEXT:    [[Y:%.*]] = load i8, i8* [[P2:%.*]], align 1, [[RNG0:!range !.*]]
+; CHECK-NEXT:    ret i8 [[Y]]
+;
+  %x = load i8, i8* %p1, !range !{i8 0, i8 10}
+  %y = load i8, i8* %p2, !range !{i8 20, i8 30}
+  %max = call i8 @llvm.umax.i8(i8 %x, i8 %y)
+  ret i8 %max
+}
+
+define i8 @umax_zext_sext(i4 %x) {
+; CHECK-LABEL: @umax_zext_sext(
+; CHECK-NEXT:    [[SEXT:%.*]] = sext i4 [[X:%.*]] to i8
+; CHECK-NEXT:    ret i8 [[SEXT]]
+;
+  %zext = zext i4 %x to i8
+  %sext = sext i4 %x to i8
+  %max = call i8 @llvm.umax.i8(i8 %zext, i8 %sext)
+  ret i8 %max
+}
+
+define i8 @umax_lshr(i8 %x, i8 %y) {
+; CHECK-LABEL: @umax_lshr(
+; CHECK-NEXT:    ret i8 [[X:%.*]]
+;
+  %shr = lshr i8 %x, %y
+  %max = call i8 @llvm.umax.i8(i8 %x, i8 %shr)
+  ret i8 %max
 }

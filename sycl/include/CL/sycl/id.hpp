@@ -10,6 +10,7 @@
 
 #include <CL/sycl/detail/array.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/range.hpp>
 
@@ -258,6 +259,20 @@ id(size_t)->id<1>;
 id(size_t, size_t)->id<2>;
 id(size_t, size_t, size_t)->id<3>;
 #endif
+
+namespace detail {
+template <int Dims> id<Dims> store_id(const id<Dims> *i) {
+  return get_or_store(i);
+}
+} // namespace detail
+
+template <int Dims> id<Dims> this_id() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return detail::Builder::getElement(detail::declptr<id<Dims>>());
+#else
+  return detail::store_id<Dims>(nullptr);
+#endif
+}
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

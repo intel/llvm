@@ -106,7 +106,16 @@ public:
   static vector_class<platform> get_platforms();
 
   // \return the Backend associated with this platform.
-  backend get_backend() const noexcept { return getPlugin().getBackend(); }
+  backend get_backend() const noexcept {
+    backend Result;
+    if (is_host())
+      Result = backend::host;
+    else {
+      Result = getPlugin().getBackend();
+    }
+
+    return Result;
+  }
 
   // \return the Plugin associated with this platform.
   const plugin &getPlugin() const {

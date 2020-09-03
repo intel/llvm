@@ -293,11 +293,11 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
 
 static pi_result enqueueMemCopyRectHelper(
     pi_command_type CommandType, pi_queue Queue, void *SrcBuffer,
-    void *DstBuffer, const size_t *SrcOrigin, const size_t *DstOrigin,
-    const size_t *Region, size_t SrcRowPitch, size_t SrcSlicePitch,
-    size_t DstRowPitch, size_t DstSlicePitch, pi_bool Blocking,
-    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
-    pi_event *Event);
+    void *DstBuffer, pi_buff_rect_offset SrcOrigin,
+    pi_buff_rect_offset DstOrigin, pi_buff_rect_region Region,
+    size_t SrcRowPitch, size_t SrcSlicePitch, size_t DstRowPitch,
+    size_t DstSlicePitch, pi_bool Blocking, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event);
 
 inline void zeParseError(ze_result_t ZeError, std::string &ErrorString) {
   switch (ZeError) {
@@ -891,7 +891,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_uint64{MaxMemAllocSize});
   }
   case PI_DEVICE_INFO_GLOBAL_MEM_SIZE: {
-    uint32_t GlobalMemSize = 0;
+    uint64_t GlobalMemSize = 0;
     for (uint32_t I = 0; I < ZeAvailMemCount; I++) {
       GlobalMemSize += ZeDeviceMemoryProperties[I].totalSize;
     }
@@ -2722,7 +2722,9 @@ pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   ZE_CALL(Context->getFreeSlotInExistingOrNewPool(ZeEventPool, Index));
   ze_event_handle_t ZeEvent;
   ze_event_desc_t ZeEventDesc = {};
-  ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_NONE;
+  // We have to set the SIGNAL & WAIT flags as HOST scope because the
+  // L0 plugin implementation waits for the events to complete on the host.
+  ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
   ZeEventDesc.wait = ZE_EVENT_SCOPE_FLAG_HOST;
   ZeEventDesc.version = ZE_EVENT_DESC_VERSION_CURRENT;
   ZeEventDesc.index = Index;
@@ -3095,10 +3097,11 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
 
 pi_result piEnqueueMemBufferReadRect(
     pi_queue Queue, pi_mem Buffer, pi_bool BlockingRead,
-    const size_t *BufferOffset, const size_t *HostOffset, const size_t *Region,
-    size_t BufferRowPitch, size_t BufferSlicePitch, size_t HostRowPitch,
-    size_t HostSlicePitch, void *Ptr, pi_uint32 NumEventsInWaitList,
-    const pi_event *EventWaitList, pi_event *Event) {
+    pi_buff_rect_offset BufferOffset, pi_buff_rect_offset HostOffset,
+    pi_buff_rect_region Region, size_t BufferRowPitch, size_t BufferSlicePitch,
+    size_t HostRowPitch, size_t HostSlicePitch, void *Ptr,
+    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
+    pi_event *Event) {
 
   assert(Buffer);
   return enqueueMemCopyRectHelper(
@@ -3167,11 +3170,11 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
 // Shared by all memory read/write/copy rect PI interfaces.
 static pi_result enqueueMemCopyRectHelper(
     pi_command_type CommandType, pi_queue Queue, void *SrcBuffer,
-    void *DstBuffer, const size_t *SrcOrigin, const size_t *DstOrigin,
-    const size_t *Region, size_t SrcRowPitch, size_t DstRowPitch,
-    size_t SrcSlicePitch, size_t DstSlicePitch, pi_bool Blocking,
-    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
-    pi_event *Event) {
+    void *DstBuffer, pi_buff_rect_offset SrcOrigin,
+    pi_buff_rect_offset DstOrigin, pi_buff_rect_region Region,
+    size_t SrcRowPitch, size_t DstRowPitch, size_t SrcSlicePitch,
+    size_t DstSlicePitch, pi_bool Blocking, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
 
   assert(Region);
   assert(SrcOrigin);
@@ -3212,31 +3215,31 @@ static pi_result enqueueMemCopyRectHelper(
   }
   zePrint("\n");
 
-  uint32_t SrcOriginX = pi_cast<uint32_t>(SrcOrigin[0]);
-  uint32_t SrcOriginY = pi_cast<uint32_t>(SrcOrigin[1]);
-  uint32_t SrcOriginZ = pi_cast<uint32_t>(SrcOrigin[2]);
+  uint32_t SrcOriginX = pi_cast<uint32_t>(SrcOrigin->x_bytes);
+  uint32_t SrcOriginY = pi_cast<uint32_t>(SrcOrigin->y_scalar);
+  uint32_t SrcOriginZ = pi_cast<uint32_t>(SrcOrigin->z_scalar);
 
   uint32_t SrcPitch = SrcRowPitch;
   if (SrcPitch == 0)
-    SrcPitch = pi_cast<uint32_t>(Region[0]);
+    SrcPitch = pi_cast<uint32_t>(Region->width_bytes);
 
   if (SrcSlicePitch == 0)
-    SrcSlicePitch = pi_cast<uint32_t>(Region[1]) * SrcPitch;
+    SrcSlicePitch = pi_cast<uint32_t>(Region->height_scalar) * SrcPitch;
 
-  uint32_t DstOriginX = pi_cast<uint32_t>(DstOrigin[0]);
-  uint32_t DstOriginY = pi_cast<uint32_t>(DstOrigin[1]);
-  uint32_t DstOriginZ = pi_cast<uint32_t>(DstOrigin[2]);
+  uint32_t DstOriginX = pi_cast<uint32_t>(DstOrigin->x_bytes);
+  uint32_t DstOriginY = pi_cast<uint32_t>(DstOrigin->y_scalar);
+  uint32_t DstOriginZ = pi_cast<uint32_t>(DstOrigin->z_scalar);
 
   uint32_t DstPitch = DstRowPitch;
   if (DstPitch == 0)
-    DstPitch = pi_cast<uint32_t>(Region[0]);
+    DstPitch = pi_cast<uint32_t>(Region->width_bytes);
 
   if (DstSlicePitch == 0)
-    DstSlicePitch = pi_cast<uint32_t>(Region[1]) * DstPitch;
+    DstSlicePitch = pi_cast<uint32_t>(Region->height_scalar) * DstPitch;
 
-  uint32_t Width = pi_cast<uint32_t>(Region[0]);
-  uint32_t Height = pi_cast<uint32_t>(Region[1]);
-  uint32_t Depth = pi_cast<uint32_t>(Region[2]);
+  uint32_t Width = pi_cast<uint32_t>(Region->width_bytes);
+  uint32_t Height = pi_cast<uint32_t>(Region->height_scalar);
+  uint32_t Depth = pi_cast<uint32_t>(Region->depth_scalar);
 
   const ze_copy_region_t ZeSrcRegion = {SrcOriginX, SrcOriginY, SrcOriginZ,
                                         Width,      Height,     Depth};
@@ -3282,10 +3285,11 @@ pi_result piEnqueueMemBufferWrite(pi_queue Queue, pi_mem Buffer,
 
 pi_result piEnqueueMemBufferWriteRect(
     pi_queue Queue, pi_mem Buffer, pi_bool BlockingWrite,
-    const size_t *BufferOffset, const size_t *HostOffset, const size_t *Region,
-    size_t BufferRowPitch, size_t BufferSlicePitch, size_t HostRowPitch,
-    size_t HostSlicePitch, const void *Ptr, pi_uint32 NumEventsInWaitList,
-    const pi_event *EventWaitList, pi_event *Event) {
+    pi_buff_rect_offset BufferOffset, pi_buff_rect_offset HostOffset,
+    pi_buff_rect_region Region, size_t BufferRowPitch, size_t BufferSlicePitch,
+    size_t HostRowPitch, size_t HostSlicePitch, const void *Ptr,
+    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
+    pi_event *Event) {
 
   assert(Buffer);
   return enqueueMemCopyRectHelper(
@@ -3313,13 +3317,12 @@ pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcBuffer,
       NumEventsInWaitList, EventWaitList, Event);
 }
 
-pi_result
-piEnqueueMemBufferCopyRect(pi_queue Queue, pi_mem SrcBuffer, pi_mem DstBuffer,
-                           const size_t *SrcOrigin, const size_t *DstOrigin,
-                           const size_t *Region, size_t SrcRowPitch,
-                           size_t SrcSlicePitch, size_t DstRowPitch,
-                           size_t DstSlicePitch, pi_uint32 NumEventsInWaitList,
-                           const pi_event *EventWaitList, pi_event *Event) {
+pi_result piEnqueueMemBufferCopyRect(
+    pi_queue Queue, pi_mem SrcBuffer, pi_mem DstBuffer,
+    pi_buff_rect_offset SrcOrigin, pi_buff_rect_offset DstOrigin,
+    pi_buff_rect_region Region, size_t SrcRowPitch, size_t SrcSlicePitch,
+    size_t DstRowPitch, size_t DstSlicePitch, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
 
   assert(SrcBuffer);
   assert(DstBuffer);
@@ -3555,8 +3558,9 @@ pi_result piMemImageGetInfo(pi_mem Image, pi_image_info ParamName,
 
 } // extern "C"
 
-static ze_image_region_t getImageRegionHelper(pi_mem Mem, const size_t *Origin,
-                                              const size_t *Region) {
+static ze_image_region_t getImageRegionHelper(pi_mem Mem,
+                                              pi_image_offset Origin,
+                                              pi_image_region Region) {
 
   assert(Mem && Origin);
 #ifndef NDEBUG
@@ -3565,26 +3569,26 @@ static ze_image_region_t getImageRegionHelper(pi_mem Mem, const size_t *Origin,
   ze_image_desc_t ZeImageDesc = Image->ZeImageDesc;
 #endif // !NDEBUG
 
-  assert((ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Origin[1] == 0 &&
-          Origin[2] == 0) ||
-         (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Origin[2] == 0) ||
-         (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Origin[2] == 0) ||
+  assert((ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Origin->y == 0 &&
+          Origin->z == 0) ||
+         (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Origin->z == 0) ||
+         (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Origin->z == 0) ||
          (ZeImageDesc.type == ZE_IMAGE_TYPE_3D));
 
-  uint32_t OriginX = pi_cast<uint32_t>(Origin[0]);
-  uint32_t OriginY = pi_cast<uint32_t>(Origin[1]);
-  uint32_t OriginZ = pi_cast<uint32_t>(Origin[2]);
+  uint32_t OriginX = pi_cast<uint32_t>(Origin->x);
+  uint32_t OriginY = pi_cast<uint32_t>(Origin->y);
+  uint32_t OriginZ = pi_cast<uint32_t>(Origin->z);
 
-  assert(Region[0] && Region[1] && Region[2]);
-  assert((ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Region[1] == 1 &&
-          Region[2] == 1) ||
-         (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Region[2] == 1) ||
-         (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Region[2] == 1) ||
+  assert(Region->width && Region->height && Region->depth);
+  assert((ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Region->height == 1 &&
+          Region->depth == 1) ||
+         (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Region->depth == 1) ||
+         (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Region->depth == 1) ||
          (ZeImageDesc.type == ZE_IMAGE_TYPE_3D));
 
-  uint32_t Width = pi_cast<uint32_t>(Region[0]);
-  uint32_t Height = pi_cast<uint32_t>(Region[1]);
-  uint32_t Depth = pi_cast<uint32_t>(Region[2]);
+  uint32_t Width = pi_cast<uint32_t>(Region->width);
+  uint32_t Height = pi_cast<uint32_t>(Region->height);
+  uint32_t Depth = pi_cast<uint32_t>(Region->depth);
 
   const ze_image_region_t ZeRegion = {OriginX, OriginY, OriginZ,
                                       Width,   Height,  Depth};
@@ -3596,8 +3600,8 @@ static pi_result
 enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
                              const void *Src, // image or ptr
                              void *Dst,       // image or ptr
-                             pi_bool IsBlocking, const size_t *SrcOrigin,
-                             const size_t *DstOrigin, const size_t *Region,
+                             pi_bool IsBlocking, pi_image_offset SrcOrigin,
+                             pi_image_offset DstOrigin, pi_image_region Region,
                              size_t RowPitch, size_t SlicePitch,
                              pi_uint32 NumEventsInWaitList,
                              const pi_event *EventWaitList, pi_event *Event) {
@@ -3707,8 +3711,8 @@ enqueueMemImageCommandHelper(pi_command_type CommandType, pi_queue Queue,
 extern "C" {
 
 pi_result piEnqueueMemImageRead(pi_queue Queue, pi_mem Image,
-                                pi_bool BlockingRead, const size_t *Origin,
-                                const size_t *Region, size_t RowPitch,
+                                pi_bool BlockingRead, pi_image_offset Origin,
+                                pi_image_region Region, size_t RowPitch,
                                 size_t SlicePitch, void *Ptr,
                                 pi_uint32 NumEventsInWaitList,
                                 const pi_event *EventWaitList,
@@ -3725,8 +3729,8 @@ pi_result piEnqueueMemImageRead(pi_queue Queue, pi_mem Image,
 }
 
 pi_result piEnqueueMemImageWrite(pi_queue Queue, pi_mem Image,
-                                 pi_bool BlockingWrite, const size_t *Origin,
-                                 const size_t *Region, size_t InputRowPitch,
+                                 pi_bool BlockingWrite, pi_image_offset Origin,
+                                 pi_image_region Region, size_t InputRowPitch,
                                  size_t InputSlicePitch, const void *Ptr,
                                  pi_uint32 NumEventsInWaitList,
                                  const pi_event *EventWaitList,
@@ -3743,12 +3747,11 @@ pi_result piEnqueueMemImageWrite(pi_queue Queue, pi_mem Image,
                                       Event);
 }
 
-pi_result piEnqueueMemImageCopy(pi_queue Queue, pi_mem SrcImage,
-                                pi_mem DstImage, const size_t *SrcOrigin,
-                                const size_t *DstOrigin, const size_t *Region,
-                                pi_uint32 NumEventsInWaitList,
-                                const pi_event *EventWaitList,
-                                pi_event *Event) {
+pi_result
+piEnqueueMemImageCopy(pi_queue Queue, pi_mem SrcImage, pi_mem DstImage,
+                      pi_image_offset SrcOrigin, pi_image_offset DstOrigin,
+                      pi_image_region Region, pi_uint32 NumEventsInWaitList,
+                      const pi_event *EventWaitList, pi_event *Event) {
 
   return enqueueMemImageCommandHelper(
       PI_COMMAND_TYPE_IMAGE_COPY, Queue, SrcImage, DstImage,

@@ -5,6 +5,7 @@ declare void @foo()
 declare void @bar()
 declare void @baz()
 declare void @qux()
+declare void @quux()
 
 declare i1 @geni1()
 
@@ -17,22 +18,15 @@ define { i32, i32 } @test0({ i32, i32 } %agg_left, { i32, i32 } %agg_right, i1 %
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    br i1 [[C:%.*]], label [[LEFT:%.*]], label [[RIGHT:%.*]]
 ; CHECK:       left:
-; CHECK-NEXT:    [[I0:%.*]] = extractvalue { i32, i32 } [[AGG_LEFT:%.*]], 0
-; CHECK-NEXT:    [[I2:%.*]] = extractvalue { i32, i32 } [[AGG_LEFT]], 1
 ; CHECK-NEXT:    call void @foo()
 ; CHECK-NEXT:    br label [[END:%.*]]
 ; CHECK:       right:
-; CHECK-NEXT:    [[I3:%.*]] = extractvalue { i32, i32 } [[AGG_RIGHT:%.*]], 0
-; CHECK-NEXT:    [[I4:%.*]] = extractvalue { i32, i32 } [[AGG_RIGHT]], 1
 ; CHECK-NEXT:    call void @bar()
 ; CHECK-NEXT:    br label [[END]]
 ; CHECK:       end:
-; CHECK-NEXT:    [[I5:%.*]] = phi i32 [ [[I0]], [[LEFT]] ], [ [[I3]], [[RIGHT]] ]
-; CHECK-NEXT:    [[I6:%.*]] = phi i32 [ [[I2]], [[LEFT]] ], [ [[I4]], [[RIGHT]] ]
+; CHECK-NEXT:    [[AGG_LEFT_PN:%.*]] = phi { i32, i32 } [ [[AGG_LEFT:%.*]], [[LEFT]] ], [ [[AGG_RIGHT:%.*]], [[RIGHT]] ]
 ; CHECK-NEXT:    call void @baz()
-; CHECK-NEXT:    [[I7:%.*]] = insertvalue { i32, i32 } undef, i32 [[I5]], 0
-; CHECK-NEXT:    [[I8:%.*]] = insertvalue { i32, i32 } [[I7]], i32 [[I6]], 1
-; CHECK-NEXT:    ret { i32, i32 } [[I8]]
+; CHECK-NEXT:    ret { i32, i32 } [[AGG_LEFT_PN]]
 ;
 entry:
   br i1 %c, label %left, label %right
@@ -64,18 +58,16 @@ define { i32, i32 } @negative_test1({ i32, i32 } %agg_left, { i32, i32 } %agg_ri
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    br i1 [[C:%.*]], label [[LEFT:%.*]], label [[RIGHT:%.*]]
 ; CHECK:       left:
-; CHECK-NEXT:    [[I4:%.*]] = extractvalue { i32, i32 } [[AGG_RIGHT:%.*]], 1
-; CHECK-NEXT:    [[I0:%.*]] = extractvalue { i32, i32 } [[AGG_LEFT:%.*]], 0
 ; CHECK-NEXT:    call void @foo()
 ; CHECK-NEXT:    br label [[END:%.*]]
 ; CHECK:       right:
-; CHECK-NEXT:    [[I3:%.*]] = extractvalue { i32, i32 } [[AGG_RIGHT]], 0
-; CHECK-NEXT:    [[I2:%.*]] = extractvalue { i32, i32 } [[AGG_LEFT]], 1
 ; CHECK-NEXT:    call void @bar()
 ; CHECK-NEXT:    br label [[END]]
 ; CHECK:       end:
-; CHECK-NEXT:    [[I5:%.*]] = phi i32 [ [[I0]], [[LEFT]] ], [ [[I3]], [[RIGHT]] ]
-; CHECK-NEXT:    [[I6:%.*]] = phi i32 [ [[I4]], [[LEFT]] ], [ [[I2]], [[RIGHT]] ]
+; CHECK-NEXT:    [[AGG_LEFT_PN:%.*]] = phi { i32, i32 } [ [[AGG_LEFT:%.*]], [[LEFT]] ], [ [[AGG_RIGHT:%.*]], [[RIGHT]] ]
+; CHECK-NEXT:    [[AGG_RIGHT_PN:%.*]] = phi { i32, i32 } [ [[AGG_RIGHT]], [[LEFT]] ], [ [[AGG_LEFT]], [[RIGHT]] ]
+; CHECK-NEXT:    [[I6:%.*]] = extractvalue { i32, i32 } [[AGG_RIGHT_PN]], 1
+; CHECK-NEXT:    [[I5:%.*]] = extractvalue { i32, i32 } [[AGG_LEFT_PN]], 0
 ; CHECK-NEXT:    call void @baz()
 ; CHECK-NEXT:    [[I7:%.*]] = insertvalue { i32, i32 } undef, i32 [[I5]], 0
 ; CHECK-NEXT:    [[I8:%.*]] = insertvalue { i32, i32 } [[I7]], i32 [[I6]], 1
@@ -160,28 +152,18 @@ define { i32, i32 } @test3({ i32, i32 } %agg_00, { i32, i32 } %agg_01, { i32, i3
 ; CHECK:       bb0.dispatch:
 ; CHECK-NEXT:    br i1 [[C1:%.*]], label [[BB00:%.*]], label [[BB01:%.*]]
 ; CHECK:       bb00:
-; CHECK-NEXT:    [[I0:%.*]] = extractvalue { i32, i32 } [[AGG_00:%.*]], 0
-; CHECK-NEXT:    [[I1:%.*]] = extractvalue { i32, i32 } [[AGG_00]], 1
 ; CHECK-NEXT:    br label [[BB0_MERGE:%.*]]
 ; CHECK:       bb01:
-; CHECK-NEXT:    [[I2:%.*]] = extractvalue { i32, i32 } [[AGG_01:%.*]], 0
-; CHECK-NEXT:    [[I3:%.*]] = extractvalue { i32, i32 } [[AGG_01]], 1
 ; CHECK-NEXT:    br label [[BB0_MERGE]]
 ; CHECK:       bb0.merge:
-; CHECK-NEXT:    [[I4:%.*]] = phi i32 [ [[I0]], [[BB00]] ], [ [[I2]], [[BB01]] ]
-; CHECK-NEXT:    [[I5:%.*]] = phi i32 [ [[I1]], [[BB00]] ], [ [[I3]], [[BB01]] ]
+; CHECK-NEXT:    [[AGG_00_PN:%.*]] = phi { i32, i32 } [ [[AGG_00:%.*]], [[BB00]] ], [ [[AGG_01:%.*]], [[BB01]] ]
 ; CHECK-NEXT:    br label [[END:%.*]]
 ; CHECK:       bb10:
-; CHECK-NEXT:    [[I6:%.*]] = extractvalue { i32, i32 } [[AGG_10:%.*]], 0
-; CHECK-NEXT:    [[I7:%.*]] = extractvalue { i32, i32 } [[AGG_10]], 1
 ; CHECK-NEXT:    br label [[END]]
 ; CHECK:       end:
-; CHECK-NEXT:    [[I8:%.*]] = phi i32 [ [[I4]], [[BB0_MERGE]] ], [ [[I6]], [[BB10]] ]
-; CHECK-NEXT:    [[I9:%.*]] = phi i32 [ [[I5]], [[BB0_MERGE]] ], [ [[I7]], [[BB10]] ]
+; CHECK-NEXT:    [[AGG_00_PN_PN:%.*]] = phi { i32, i32 } [ [[AGG_00_PN]], [[BB0_MERGE]] ], [ [[AGG_10:%.*]], [[BB10]] ]
 ; CHECK-NEXT:    call void @baz()
-; CHECK-NEXT:    [[I10:%.*]] = insertvalue { i32, i32 } undef, i32 [[I8]], 0
-; CHECK-NEXT:    [[I11:%.*]] = insertvalue { i32, i32 } [[I10]], i32 [[I9]], 1
-; CHECK-NEXT:    ret { i32, i32 } [[I11]]
+; CHECK-NEXT:    ret { i32, i32 } [[AGG_00_PN_PN]]
 ;
 entry:
   br i1 %c0, label %bb0.dispatch, label %bb10
@@ -278,25 +260,18 @@ define { i32, i32 } @test5({ i32, i32 } %agg_left, { i32, i32 } %agg_right, i1 %
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    br i1 [[C0:%.*]], label [[LEFT:%.*]], label [[RIGHT:%.*]]
 ; CHECK:       left:
-; CHECK-NEXT:    [[I0:%.*]] = extractvalue { i32, i32 } [[AGG_LEFT:%.*]], 0
-; CHECK-NEXT:    [[I2:%.*]] = extractvalue { i32, i32 } [[AGG_LEFT]], 1
 ; CHECK-NEXT:    call void @foo()
 ; CHECK-NEXT:    br label [[MIDDLE:%.*]]
 ; CHECK:       right:
-; CHECK-NEXT:    [[I3:%.*]] = extractvalue { i32, i32 } [[AGG_RIGHT:%.*]], 0
-; CHECK-NEXT:    [[I4:%.*]] = extractvalue { i32, i32 } [[AGG_RIGHT]], 1
 ; CHECK-NEXT:    call void @bar()
 ; CHECK-NEXT:    br label [[MIDDLE]]
 ; CHECK:       middle:
-; CHECK-NEXT:    [[I5:%.*]] = phi i32 [ [[I0]], [[LEFT]] ], [ [[I3]], [[RIGHT]] ], [ [[I5]], [[MIDDLE]] ]
-; CHECK-NEXT:    [[I6:%.*]] = phi i32 [ [[I2]], [[LEFT]] ], [ [[I4]], [[RIGHT]] ], [ [[I6]], [[MIDDLE]] ]
+; CHECK-NEXT:    [[AGG_LEFT_PN:%.*]] = phi { i32, i32 } [ [[AGG_LEFT:%.*]], [[LEFT]] ], [ [[AGG_RIGHT:%.*]], [[RIGHT]] ], [ [[AGG_LEFT_PN]], [[MIDDLE]] ]
 ; CHECK-NEXT:    call void @baz()
 ; CHECK-NEXT:    [[C1:%.*]] = call i1 @geni1()
 ; CHECK-NEXT:    br i1 [[C1]], label [[END:%.*]], label [[MIDDLE]]
 ; CHECK:       end:
-; CHECK-NEXT:    [[I7:%.*]] = insertvalue { i32, i32 } undef, i32 [[I5]], 0
-; CHECK-NEXT:    [[I8:%.*]] = insertvalue { i32, i32 } [[I7]], i32 [[I6]], 1
-; CHECK-NEXT:    ret { i32, i32 } [[I8]]
+; CHECK-NEXT:    ret { i32, i32 } [[AGG_LEFT_PN]]
 ;
 entry:
   br i1 %c0, label %left, label %right
@@ -325,5 +300,209 @@ middle:
   br i1 %c1, label %end, label %middle
 
 end:
+  ret { i32, i32 } %i8
+}
+
+; Diamond structure, but with "padding" block before the use.
+define { i32, i32 } @test6({ i32, i32 } %agg_left, { i32, i32 } %agg_right, i1 %c0, i1 %c1) {
+; CHECK-LABEL: @test6(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    br i1 [[C0:%.*]], label [[LEFT:%.*]], label [[RIGHT:%.*]]
+; CHECK:       left:
+; CHECK-NEXT:    call void @foo()
+; CHECK-NEXT:    br label [[MERGE:%.*]]
+; CHECK:       right:
+; CHECK-NEXT:    call void @bar()
+; CHECK-NEXT:    br label [[MERGE]]
+; CHECK:       merge:
+; CHECK-NEXT:    [[AGG_LEFT_PN:%.*]] = phi { i32, i32 } [ [[AGG_LEFT:%.*]], [[LEFT]] ], [ [[AGG_RIGHT:%.*]], [[RIGHT]] ]
+; CHECK-NEXT:    call void @baz()
+; CHECK-NEXT:    br i1 [[C1:%.*]], label [[END:%.*]], label [[PASSTHROUGH:%.*]]
+; CHECK:       passthrough:
+; CHECK-NEXT:    call void @qux()
+; CHECK-NEXT:    br label [[END]]
+; CHECK:       end:
+; CHECK-NEXT:    call void @quux()
+; CHECK-NEXT:    ret { i32, i32 } [[AGG_LEFT_PN]]
+;
+entry:
+  br i1 %c0, label %left, label %right
+
+left:
+  %i0 = extractvalue { i32, i32 } %agg_left, 0
+  %i2 = extractvalue { i32, i32 } %agg_left, 1
+  call void @foo()
+  br label %merge
+
+right:
+  %i3 = extractvalue { i32, i32 } %agg_right, 0
+  %i4 = extractvalue { i32, i32 } %agg_right, 1
+  call void @bar()
+  br label %merge
+
+merge:
+  %i5 = phi i32 [ %i0, %left ], [ %i3, %right ]
+  %i6 = phi i32 [ %i2, %left ], [ %i4, %right ]
+  call void @baz()
+  br i1 %c1, label %end, label %passthrough
+
+passthrough:
+  call void @qux()
+  br label %end
+
+end:
+  call void @quux()
+  %i7 = insertvalue { i32, i32 } undef, i32 %i5, 0
+  %i8 = insertvalue { i32, i32 } %i7, i32 %i6, 1
+  ret { i32, i32 } %i8
+}
+
+; All the definitions of the aggregate elements must happen in the same block.
+define { i32, i32 } @negative_test7({ i32, i32 } %agg_left, { i32, i32 } %agg_right, i1 %c0, i1 %c1) {
+; CHECK-LABEL: @negative_test7(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[I0:%.*]] = extractvalue { i32, i32 } [[AGG_LEFT:%.*]], 0
+; CHECK-NEXT:    call void @usei32(i32 [[I0]])
+; CHECK-NEXT:    br i1 [[C0:%.*]], label [[LEFT:%.*]], label [[RIGHT:%.*]]
+; CHECK:       left:
+; CHECK-NEXT:    [[I1:%.*]] = extractvalue { i32, i32 } [[AGG_LEFT]], 1
+; CHECK-NEXT:    call void @usei32(i32 [[I1]])
+; CHECK-NEXT:    br label [[MERGE:%.*]]
+; CHECK:       right:
+; CHECK-NEXT:    [[I2:%.*]] = extractvalue { i32, i32 } [[AGG_RIGHT:%.*]], 1
+; CHECK-NEXT:    call void @usei32(i32 [[I2]])
+; CHECK-NEXT:    br label [[MERGE]]
+; CHECK:       merge:
+; CHECK-NEXT:    [[I3:%.*]] = phi i32 [ [[I1]], [[LEFT]] ], [ [[I2]], [[RIGHT]] ]
+; CHECK-NEXT:    call void @bar()
+; CHECK-NEXT:    br label [[END:%.*]]
+; CHECK:       end:
+; CHECK-NEXT:    call void @baz()
+; CHECK-NEXT:    [[I7:%.*]] = insertvalue { i32, i32 } undef, i32 [[I0]], 0
+; CHECK-NEXT:    [[I8:%.*]] = insertvalue { i32, i32 } [[I7]], i32 [[I3]], 1
+; CHECK-NEXT:    ret { i32, i32 } [[I8]]
+;
+entry:
+  %i0 = extractvalue { i32, i32 } %agg_left, 0
+  call void @usei32(i32 %i0)
+  br i1 %c0, label %left, label %right
+
+left:
+  %i1 = extractvalue { i32, i32 } %agg_left, 1
+  call void @usei32(i32 %i1)
+  br label %merge
+
+right:
+  %i2 = extractvalue { i32, i32 } %agg_right, 1
+  call void @usei32(i32 %i2)
+  br label %merge
+
+merge:
+  %i3 = phi i32 [ %i1, %left ], [ %i2, %right ]
+  call void @bar()
+  br label %end
+
+end:
+  call void @baz()
+  %i7 = insertvalue { i32, i32 } undef, i32 %i0, 0
+  %i8 = insertvalue { i32, i32 } %i7, i32 %i3, 1
+  ret { i32, i32 } %i8
+}
+
+; Most basic test - diamond structure, but with a switch, which results in multiple duplicate predecessors
+define { i32, i32 } @test8({ i32, i32 } %agg_left, { i32, i32 } %agg_right, i1 %c, i32 %val_left, i32 %val_right) {
+; CHECK-LABEL: @test8(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    br i1 [[C:%.*]], label [[LEFT:%.*]], label [[RIGHT:%.*]]
+; CHECK:       left:
+; CHECK-NEXT:    call void @foo()
+; CHECK-NEXT:    switch i32 [[VAL_LEFT:%.*]], label [[IMPOSSIBLE:%.*]] [
+; CHECK-NEXT:    i32 -42, label [[END:%.*]]
+; CHECK-NEXT:    i32 42, label [[END]]
+; CHECK-NEXT:    ]
+; CHECK:       right:
+; CHECK-NEXT:    call void @bar()
+; CHECK-NEXT:    switch i32 [[VAL_RIGHT:%.*]], label [[IMPOSSIBLE]] [
+; CHECK-NEXT:    i32 42, label [[END]]
+; CHECK-NEXT:    i32 -42, label [[END]]
+; CHECK-NEXT:    ]
+; CHECK:       impossible:
+; CHECK-NEXT:    unreachable
+; CHECK:       end:
+; CHECK-NEXT:    [[AGG_LEFT_PN:%.*]] = phi { i32, i32 } [ [[AGG_LEFT:%.*]], [[LEFT]] ], [ [[AGG_LEFT]], [[LEFT]] ], [ [[AGG_RIGHT:%.*]], [[RIGHT]] ], [ [[AGG_RIGHT]], [[RIGHT]] ]
+; CHECK-NEXT:    call void @baz()
+; CHECK-NEXT:    ret { i32, i32 } [[AGG_LEFT_PN]]
+;
+entry:
+  br i1 %c, label %left, label %right
+
+left:
+  %i0 = extractvalue { i32, i32 } %agg_left, 0
+  %i2 = extractvalue { i32, i32 } %agg_left, 1
+  call void @foo()
+  switch i32 %val_left, label %impossible [
+  i32 -42, label %end
+  i32 42, label %end
+  ]
+
+right:
+  %i3 = extractvalue { i32, i32 } %agg_right, 0
+  %i4 = extractvalue { i32, i32 } %agg_right, 1
+  call void @bar()
+  switch i32 %val_right, label %impossible [
+  i32 42, label %end
+  i32 -42, label %end
+  ]
+
+impossible:
+  unreachable
+
+end:
+  %i5 = phi i32 [ %i0, %left ], [ %i0, %left ], [ %i3, %right ], [ %i3, %right ]
+  %i6 = phi i32 [ %i2, %left ], [ %i2, %left ], [ %i4, %right ], [ %i4, %right ]
+  call void @baz()
+  %i7 = insertvalue { i32, i32 } undef, i32 %i5, 0
+  %i8 = insertvalue { i32, i32 } %i7, i32 %i6, 1
+  ret { i32, i32 } %i8
+}
+
+; The insertion of first element could have been split/hoisted into the predecessors.
+define { i32, i32 } @test9({ i32, i32 } %agg_left, { i32, i32 } %agg_right, i1 %c) {
+; CHECK-LABEL: @test9(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    br i1 [[C:%.*]], label [[LEFT:%.*]], label [[RIGHT:%.*]]
+; CHECK:       left:
+; CHECK-NEXT:    call void @foo()
+; CHECK-NEXT:    br label [[END:%.*]]
+; CHECK:       right:
+; CHECK-NEXT:    call void @bar()
+; CHECK-NEXT:    br label [[END]]
+; CHECK:       end:
+; CHECK-NEXT:    [[AGG_LEFT_PN:%.*]] = phi { i32, i32 } [ [[AGG_LEFT:%.*]], [[LEFT]] ], [ [[AGG_RIGHT:%.*]], [[RIGHT]] ]
+; CHECK-NEXT:    call void @baz()
+; CHECK-NEXT:    ret { i32, i32 } [[AGG_LEFT_PN]]
+;
+entry:
+  br i1 %c, label %left, label %right
+
+left:
+  %i0 = extractvalue { i32, i32 } %agg_left, 0
+  %i1 = extractvalue { i32, i32 } %agg_left, 1
+  %i2 = insertvalue { i32, i32 } undef, i32 %i0, 0
+  call void @foo()
+  br label %end
+
+right:
+  %i3 = extractvalue { i32, i32 } %agg_right, 0
+  %i4 = extractvalue { i32, i32 } %agg_right, 1
+  %i5 = insertvalue { i32, i32 } undef, i32 %i3, 0
+  call void @bar()
+  br label %end
+
+end:
+  %i6 = phi { i32, i32 } [ %i2, %left ], [ %i5, %right ]
+  %i7 = phi i32 [ %i1, %left ], [ %i4, %right ]
+  call void @baz()
+  %i8 = insertvalue { i32, i32 } %i6, i32 %i7, 1
   ret { i32, i32 } %i8
 }

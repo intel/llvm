@@ -8,6 +8,7 @@
 
 #include <altivec.h>
 
+vector signed __int128 vi128a;
 vector signed char vsca, vscb;
 vector unsigned char vuca, vucb, vucc;
 vector signed short vssa, vssb;
@@ -60,6 +61,54 @@ vector unsigned long long test_vec_div_ull(void) {
   return vec_div(vulla, vullb);
 }
 
+vector signed int test_vec_dive_si(void) {
+  // CHECK: @llvm.ppc.altivec.vdivesw(<4 x i32> %{{.+}}, <4 x i32> %{{.+}})
+  // CHECK-NEXT: ret <4 x i32>
+  return vec_dive(vsia, vsib);
+}
+
+vector unsigned int test_vec_dive_ui(void) {
+  // CHECK: @llvm.ppc.altivec.vdiveuw(<4 x i32> %{{.+}}, <4 x i32> %{{.+}})
+  // CHECK-NEXT: ret <4 x i32>
+  return vec_dive(vuia, vuib);
+}
+
+vector signed long long test_vec_dive_sll(void) {
+  // CHECK: @llvm.ppc.altivec.vdivesd(<2 x i64> %{{.+}}, <2 x i64> %{{.+}})
+  // CHECK-NEXT: ret <2 x i64>
+  return vec_dive(vslla, vsllb);
+}
+
+vector unsigned long long test_vec_dive_ull(void) {
+  // CHECK: @llvm.ppc.altivec.vdiveud(<2 x i64> %{{.+}}, <2 x i64> %{{.+}})
+  // CHECK-NEXT: ret <2 x i64>
+  return vec_dive(vulla, vullb);
+}
+
+vector signed int test_vec_mulh_si(void) {
+  // CHECK: @llvm.ppc.altivec.vmulhsw(<4 x i32> %{{.+}}, <4 x i32> %{{.+}})
+  // CHECK-NEXT: ret <4 x i32>
+  return vec_mulh(vsia, vsib);
+}
+
+vector unsigned int test_vec_mulh_ui(void) {
+  // CHECK: @llvm.ppc.altivec.vmulhuw(<4 x i32> %{{.+}}, <4 x i32> %{{.+}})
+  // CHECK-NEXT: ret <4 x i32>
+  return vec_mulh(vuia, vuib);
+}
+
+vector signed long long test_vec_mulh_sll(void) {
+  // CHECK: @llvm.ppc.altivec.vmulhsd(<2 x i64> %{{.+}}, <2 x i64> %{{.+}})
+  // CHECK-NEXT: ret <2 x i64>
+  return vec_mulh(vslla, vsllb);
+}
+
+vector unsigned long long test_vec_mulh_ull(void) {
+  // CHECK: @llvm.ppc.altivec.vmulhud(<2 x i64> %{{.+}}, <2 x i64> %{{.+}})
+  // CHECK-NEXT: ret <2 x i64>
+  return vec_mulh(vulla, vullb);
+}
+
 vector signed int test_vec_mod_si(void) {
   // CHECK: srem <4 x i32>
   // CHECK-NEXT: ret <4 x i32>
@@ -94,6 +143,36 @@ vector unsigned long long test_vpextd(void) {
   // CHECK: @llvm.ppc.altivec.vpextd(<2 x i64>
   // CHECK-NEXT: ret <2 x i64>
   return vec_pext(vulla, vullb);
+}
+
+unsigned int test_vec_extractm_uc(void) {
+  // CHECK: @llvm.ppc.altivec.vextractbm(<16 x i8> %{{.+}})
+  // CHECK-NEXT: ret i32
+  return vec_extractm(vuca);
+}
+
+unsigned int test_vec_extractm_us(void) {
+  // CHECK: @llvm.ppc.altivec.vextracthm(<8 x i16> %{{.+}})
+  // CHECK-NEXT: ret i32
+  return vec_extractm(vusa);
+}
+
+unsigned int test_vec_extractm_ui(void) {
+  // CHECK: @llvm.ppc.altivec.vextractwm(<4 x i32> %{{.+}})
+  // CHECK-NEXT: ret i32
+  return vec_extractm(vuia);
+}
+
+unsigned int test_vec_extractm_ull(void) {
+  // CHECK: @llvm.ppc.altivec.vextractdm(<2 x i64> %{{.+}})
+  // CHECK-NEXT: ret i32
+  return vec_extractm(vulla);
+}
+
+unsigned int test_vec_extractm_u128(void) {
+  // CHECK: @llvm.ppc.altivec.vextractqm(<1 x i128> %{{.+}})
+  // CHECK-NEXT: ret i32
+  return vec_extractm(vui128a);
 }
 
 vector unsigned long long test_vcfuged(void) {
@@ -777,6 +856,49 @@ void test_vec_xst_trunc_ull(vector unsigned __int128 __a, signed long long __b,
   // CHECK: store i64 %{{.+}}, i64* %{{.+}}, align 8
   vec_xst_trunc(__a, __b, __c);
 }
+
+vector unsigned __int128 test_vec_slq_unsigned (void) {
+  // CHECK-LABEL: test_vec_slq_unsigned
+  // CHECK: shl <1 x i128> %{{.+}}, %{{.+}}
+  // CHECK: ret <1 x i128> %{{.+}}
+  return vec_sl(vui128a, vui128b);
+}
+
+vector signed __int128 test_vec_slq_signed (void) {
+  // CHECK-LABEL: test_vec_slq_signed
+  // CHECK: shl <1 x i128> %{{.+}}, %{{.+}}
+  // CHECK: ret <1 x i128>
+  return vec_sl(vi128a, vui128a);
+}
+
+vector unsigned __int128 test_vec_srq_unsigned (void) {
+  // CHECK-LABEL: test_vec_srq_unsigned
+  // CHECK: lshr <1 x i128> %{{.+}}, %{{.+}}
+  // CHECK: ret <1 x i128>
+  return vec_sr(vui128a, vui128b);
+}
+
+vector signed __int128 test_vec_srq_signed (void) {
+  // CHECK-LABEL: test_vec_srq_signed
+  // CHECK: lshr <1 x i128> %{{.+}}, %{{.+}}
+  // CHECK: ret <1 x i128>
+  return vec_sr(vi128a, vui128a);
+}
+
+vector unsigned __int128 test_vec_sraq_unsigned (void) {
+  // CHECK-LABEL: test_vec_sraq_unsigned
+  // CHECK: ashr <1 x i128> %{{.+}}, %{{.+}}
+  // CHECK: ret <1 x i128>
+  return vec_sra(vui128a, vui128b);
+}
+
+vector signed __int128 test_vec_sraq_signed (void) {
+  // CHECK-LABEL: test_vec_sraq_signed
+  // CHECK: ashr <1 x i128> %{{.+}}, %{{.+}}
+  // CHECK: ret <1 x i128>
+  return vec_sra(vi128a, vui128a);
+}
+
 
 int test_vec_test_lsbb_all_ones(void) {
   // CHECK: @llvm.ppc.vsx.xvtlsbb(<16 x i8> %{{.+}}, i32 1

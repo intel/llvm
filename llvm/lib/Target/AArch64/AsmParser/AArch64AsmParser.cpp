@@ -2071,14 +2071,14 @@ void AArch64Operand::print(raw_ostream &OS) const {
   case k_PSBHint:
     OS << getPSBHintName();
     break;
+  case k_BTIHint:
+    OS << getBTIHintName();
+    break;
   case k_Register:
     OS << "<register " << getReg() << ">";
     if (!getShiftExtendAmount() && !hasShiftExtendAmount())
       break;
     LLVM_FALLTHROUGH;
-  case k_BTIHint:
-    OS << getBTIHintName();
-    break;
   case k_ShiftExtend:
     OS << "<" << AArch64_AM::getShiftExtendName(getShiftExtendType()) << " #"
        << getShiftExtendAmount();
@@ -5160,7 +5160,8 @@ bool AArch64AsmParser::parseDirectiveArch(SMLoc L) {
 
   MCSubtargetInfo &STI = copySTI();
   std::vector<std::string> ArchFeatures(AArch64Features.begin(), AArch64Features.end());
-  STI.setDefaultFeatures("generic", join(ArchFeatures.begin(), ArchFeatures.end(), ","));
+  STI.setDefaultFeatures("generic", /*TuneCPU*/ "generic",
+                         join(ArchFeatures.begin(), ArchFeatures.end(), ","));
 
   SmallVector<StringRef, 4> RequestedExtensions;
   if (!ExtensionString.empty())
@@ -5262,7 +5263,7 @@ bool AArch64AsmParser::parseDirectiveCPU(SMLoc L) {
   }
 
   MCSubtargetInfo &STI = copySTI();
-  STI.setDefaultFeatures(CPU, "");
+  STI.setDefaultFeatures(CPU, /*TuneCPU*/ CPU, "");
   CurLoc = incrementLoc(CurLoc, CPU.size());
 
   ExpandCryptoAEK(llvm::AArch64::getCPUArchKind(CPU), RequestedExtensions);

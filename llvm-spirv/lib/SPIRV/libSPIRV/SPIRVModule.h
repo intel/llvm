@@ -487,6 +487,18 @@ public:
     return TranslationOpts.isSPIRVAllowUnknownIntrinsicsEnabled();
   }
 
+  SPIRVExtInstSetKind getDebugInfoEIS() const {
+    switch (TranslationOpts.getDebugInfoEIS()) {
+    case DebugInfoEIS::SPIRV_Debug:
+      return SPIRVEIS_Debug;
+    case DebugInfoEIS::OpenCL_DebugInfo_100:
+      return SPIRVEIS_OpenCL_DebugInfo_100;
+    default:
+      assert(false && "Unexpected debug info EIS!");
+      return SPIRVEIS_Debug;
+    }
+  }
+
   // I/O functions
   friend spv_ostream &operator<<(spv_ostream &O, SPIRVModule &M);
   friend std::istream &operator>>(std::istream &I, SPIRVModule &M);

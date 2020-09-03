@@ -121,15 +121,15 @@ bool VectorCombine::vectorizeLoadInsert(Instruction &I) {
   if (!isSafeToLoadUnconditionally(PtrOp, VectorTy, Alignment, DL, Load, &DT))
     return false;
 
+  unsigned AS = Load->getPointerAddressSpace();
+
   // Original pattern: insertelt undef, load [free casts of] ScalarPtr, 0
-  int OldCost = TTI.getMemoryOpCost(Instruction::Load, ScalarTy, Alignment,
-                                    Load->getPointerAddressSpace());
+  int OldCost = TTI.getMemoryOpCost(Instruction::Load, ScalarTy, Alignment, AS);
   APInt DemandedElts = APInt::getOneBitSet(VecNumElts, 0);
   OldCost += TTI.getScalarizationOverhead(VectorTy, DemandedElts, true, false);
 
   // New pattern: load VecPtr
-  int NewCost = TTI.getMemoryOpCost(Instruction::Load, VectorTy, Alignment,
-                                    Load->getPointerAddressSpace());
+  int NewCost = TTI.getMemoryOpCost(Instruction::Load, VectorTy, Alignment, AS);
 
   // We can aggressively convert to the vector form because the backend can
   // invert this transform if it does not result in a performance win.
@@ -139,7 +139,7 @@ bool VectorCombine::vectorizeLoadInsert(Instruction &I) {
   // It is safe and potentially profitable to load a vector directly:
   // inselt undef, load Scalar, 0 --> load VecPtr
   IRBuilder<> Builder(Load);
-  Value *CastedPtr = Builder.CreateBitCast(PtrOp, VectorTy->getPointerTo());
+  Value *CastedPtr = Builder.CreateBitCast(PtrOp, VectorTy->getPointerTo(AS));
   LoadInst *VecLd = Builder.CreateAlignedLoad(VectorTy, CastedPtr, Alignment);
   replaceValue(I, *VecLd);
   ++NumVecLoad;
@@ -437,8 +437,10 @@ bool VectorCombine::foldBitcastShuf(Instruction &I) {
       TTI.getShuffleCost(TargetTransformInfo::SK_PermuteSingleSrc, SrcTy))
     return false;
 
-  unsigned DestNumElts = DestTy->getNumElements();
-  unsigned SrcNumElts = SrcTy->getNumElements();
+  // FIXME: it should be possible to implement the computation of the widened
+  // shuffle mask in terms of ElementCount to work with scalable shuffles.
+  unsigned DestNumElts = cast<FixedVectorType>(DestTy)->getNumElements();
+  unsigned SrcNumElts = cast<FixedVectorType>(SrcTy)->getNumElements();
   SmallVector<int, 16> NewMask;
   if (SrcNumElts <= DestNumElts) {
     // The bitcast is from wide to narrow/equal elements. The shuffle mask can

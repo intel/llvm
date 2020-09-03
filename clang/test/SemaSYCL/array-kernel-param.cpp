@@ -123,8 +123,8 @@ int main() {
 // CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp{{.*}})'
 // CHECK-NEXT: InitListExpr {{.*}} 'struct_acc_t'
 // CHECK-NEXT: InitListExpr {{.*}} 'Accessor [2]'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'Accessor [2]'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'Accessor [2]'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'Accessor'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'Accessor'
 
 // Check __init functions are called
 // CHECK: CXXMemberCallExpr {{.*}} 'void'

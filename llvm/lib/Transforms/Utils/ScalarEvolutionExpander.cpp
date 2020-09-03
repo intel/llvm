@@ -1258,6 +1258,9 @@ SCEVExpander::getAddRecExprPHILiterally(const SCEVAddRecExpr *Normalized,
       InsertedValues.insert(AddRecPhiMatch);
       // Remember the increment.
       rememberInstruction(IncV);
+      // Those values were not actually inserted but re-used.
+      ReusedValues.insert(AddRecPhiMatch);
+      ReusedValues.insert(IncV);
       return AddRecPhiMatch;
     }
   }
