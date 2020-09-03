@@ -3101,8 +3101,8 @@ protected:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilityVariableLengthArrayINTEL);
   }
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_variable_length_array);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_variable_length_array;
   }
 };
 #define _SPIRV_OP(x, ...)                                                      \
