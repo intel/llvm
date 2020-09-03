@@ -16,6 +16,7 @@
 
 #include <cctype>
 #include <regex>
+#include <string>
 #include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
