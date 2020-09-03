@@ -1,6 +1,6 @@
 // UNSUPPORTED: cuda
 // REQUIRES: gpu,linux
-// RUN: %clangxx -fsycl %s -DINLINE_ASM -o %t.out
+// RUN: %clangxx -fsycl %s -o %t.out
 // TODO: enable the line below once we update NEO driver in our CI
 // RUNx: %t.out
 
@@ -13,7 +13,7 @@ struct KernelFunctor {
   void operator()(cl::sycl::handler &cgh) {
     cgh.parallel_for<KernelFunctor>(
         cl::sycl::range<1>{16}, [=](cl::sycl::id<1> wiID) [[intel::reqd_sub_group_size(8)]] {
-#if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
+#if defined(__SYCL_DEVICE_ONLY__)
           asm volatile(".decl tmp1 v_type=G type=d num_elts=16 align=GRF\n"
                        ".decl tmp2 v_type=G type=d num_elts=16 align=GRF\n"
                        "movi (M1_NM, 8) tmp1(0,1)<1>  tmp2(0,0)\n");
@@ -31,10 +31,10 @@ int main() {
     std::string what = e.what();
     // TODO: check for precise exception class and message once they are known
     // (pending driver update)
-    if (what.find("syntax error") == std::string::npos) {
-      std::cout << "Expected an exception about syntax error" << std::endl;
-      return 1;
+    if (what.find("syntax error") != std::string::npos) {
+      return 0;
     }
   }
-  return 0;
+  std::cout << "Expected an exception about syntax error" << std::endl;
+  return 1;
 }
