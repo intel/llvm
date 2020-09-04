@@ -22,3 +22,4 @@ if(CHECK_SYCL_ALL)
 endif(CHECK_SYCL_ALL)
 
 add_subdirectory(External)
+add_subdirectory(ExtraTests)
