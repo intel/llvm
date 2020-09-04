@@ -62,13 +62,13 @@ filter create_filter(const std::string &Input) {
 
   for (const std::string &Token : Tokens) {
     if (Token == "cpu" && !Result.HasDeviceType) {
-      Result.DeviceType = PI_DEVICE_TYPE_CPU;
+      Result.DeviceType = info::device_type::cpu;
       Result.HasDeviceType = true;
     } else if (Token == "gpu" && !Result.HasDeviceType) {
-      Result.DeviceType = PI_DEVICE_TYPE_GPU;
+      Result.DeviceType = info::device_type::gpu;
       Result.HasDeviceType = true;
     } else if (Token == "accelerator" && !Result.HasDeviceType) {
-      Result.DeviceType = PI_DEVICE_TYPE_ACC;
+      Result.DeviceType = info::device_type::accelerator;
       Result.HasDeviceType = true;
     } else if (Token == "opencl" && !Result.HasBackend) {
       Result.Backend = backend::opencl;
@@ -134,9 +134,8 @@ int filter_selector_impl::operator()(const device &Dev) const {
       BackendOK = (BE == Filter.Backend);
     }
     if (Filter.HasDeviceType) {
-      RT::PiDeviceType DT =
-          sycl::detail::getSyclObjImpl(Dev)->get_device_type();
-      DeviceTypeOK = (DT == Filter.DeviceType);
+      info::device_type DT = Dev.get_info<info::device::device_type>();
+      DeviceTypeOK = (DT == Filter.DeviceType); 
     }
     if (Filter.HasDeviceNum) {
       // Only check device number if we're good on the previous matches

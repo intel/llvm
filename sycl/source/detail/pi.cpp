@@ -14,7 +14,7 @@
 #include "context_impl.hpp"
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/device_triple.hpp>
+#include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/config.hpp>
 #include <detail/plugin.hpp>
@@ -215,18 +215,18 @@ bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
   // search is done for libpi_opencl.so/pi_opencl.dll file in LD_LIBRARY_PATH
   // env only.
   //
-  device_triple_list *TripleList = SYCLConfig<SYCL_DEVICE_TRIPLES>::get();
-  if (!TripleList) {
+  device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
+  if (!FilterList) {
     PluginNames.emplace_back(OPENCL_PLUGIN_NAME, backend::opencl);
     PluginNames.emplace_back(LEVEL_ZERO_PLUGIN_NAME, backend::level_zero);
     PluginNames.emplace_back(CUDA_PLUGIN_NAME, backend::cuda);
   } else {
-    std::vector<device_triple> Triples = TripleList->get();
+    std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
     bool LevelZeroFound = false;
     bool CudaFound = false;
-    for (const device_triple &Trp : Triples) {
-      backend Backend = Trp.getBackend();
+    for (const device_filter &Filter : Filters) {
+      backend Backend = Filter.Backend;
       if (!OpenCLFound &&
           (Backend == backend::opencl || Backend == backend::all)) {
         PluginNames.emplace_back(OPENCL_PLUGIN_NAME, backend::opencl);

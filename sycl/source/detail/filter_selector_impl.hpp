@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/device_selector.hpp>
 
 #include <vector>
@@ -21,16 +22,8 @@ class device;
 namespace ONEAPI {
 namespace detail {
 
-struct filter {
-  backend Backend = backend::host;
-  RT::PiDeviceType DeviceType = PI_DEVICE_TYPE_ALL;
-  int DeviceNum = 0;
-  bool HasBackend = false;
-  bool HasDeviceType = false;
-  bool HasDeviceNum = false;
-  int MatchesSeen = 0;
-};
-
+typedef struct sycl::detail::device_filter filter;
+  
 class filter_selector_impl {
 public:
   filter_selector_impl(const std::string &filter);

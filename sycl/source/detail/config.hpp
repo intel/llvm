@@ -10,7 +10,7 @@
 
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/device_triple.hpp>
+#include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 
@@ -165,28 +165,28 @@ public:
   }
 };
 
-template <> class SYCLConfig<SYCL_DEVICE_TRIPLES> {
-  using BaseT = SYCLConfigBase<SYCL_DEVICE_TRIPLES>;
+template <> class SYCLConfig<SYCL_DEVICE_FILTER> {
+  using BaseT = SYCLConfigBase<SYCL_DEVICE_FILTER>;
 
 public:
-  static device_triple_list *get() {
+  static device_filter_list* get() {
     static bool Initialized = false;
-    static device_triple_list *TripleList = nullptr;
+    static device_filter_list *FilterList = nullptr;
 
     // Configuration parameters are processed only once, like reading a string
     // from environment and converting it into a typed object.
     if (Initialized) {
-      return TripleList;
+      return FilterList;
     }
 
     Initialized = true;
     const char *ValStr = BaseT::getRawValue();
     if (ValStr) {
-      std::string TripleString = ValStr;
-      static device_triple_list DTL = TripleString;
-      TripleList = &DTL;
+      std::string FilterString = ValStr;
+      static device_filter_list DFL = FilterString;
+      FilterList = &DFL;
     }
-    return TripleList;
+    return FilterList;
   }
 };
 

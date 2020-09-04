@@ -1,4 +1,4 @@
-//==------------------- device_triple.cpp ----------------------------------==//
+//==------------------- device_filter.cpp ----------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/device_triple.hpp>
+#include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
@@ -17,7 +17,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-device_triple::device_triple(std::string &TripleString) {
+device_filter::device_filter(std::string& FilterString) {
   const std::array<std::pair<std::string, info::device_type>, 5>
       SyclDeviceTypeMap = {{{"host", info::device_type::host},
                             {"cpu", info::device_type::cpu},
@@ -32,11 +32,11 @@ device_triple::device_triple(std::string &TripleString) {
 
   // handle the optional 1st entry, backend
   size_t Cursor = 0;
-  size_t ColonPos = TripleString.find(":", Cursor);
+  size_t ColonPos = FilterString.find(":", Cursor);
   auto It = std::find_if(
       std::begin(SyclBeMap), std::end(SyclBeMap),
       [=, &Cursor](const std::pair<std::string, backend> &Element) {
-        size_t Found = TripleString.find(Element.first, Cursor);
+        size_t Found = FilterString.find(Element.first, Cursor);
         if (Found != std::string::npos) {
           Cursor = Found;
           return true;
@@ -58,7 +58,7 @@ device_triple::device_triple(std::string &TripleString) {
   auto Iter = std::find_if(
       std::begin(SyclDeviceTypeMap), std::end(SyclDeviceTypeMap),
       [=, &Cursor](const std::pair<std::string, info::device_type> &Element) {
-        size_t Found = TripleString.find(Element.first, Cursor);
+        size_t Found = FilterString.find(Element.first, Cursor);
         if (Found != std::string::npos) {
           Cursor = Found;
           return true;
@@ -69,7 +69,7 @@ device_triple::device_triple(std::string &TripleString) {
     DeviceType = info::device_type::all;
   } else {
     DeviceType = Iter->second;
-    ColonPos = TripleString.find(":", Cursor);
+    ColonPos = FilterString.find(":", Cursor);
     if (ColonPos != std::string::npos) {
       Cursor = ColonPos + 1;
     } else {
@@ -78,13 +78,14 @@ device_triple::device_triple(std::string &TripleString) {
   }
 
   // handle the optional 3rd entry, device number
-  if (Cursor < TripleString.size()) {
+  if (Cursor < FilterString.size()) {
     try {
-      DeviceNum = stoi(TripleString.substr(ColonPos + 1));
+      DeviceNum = stoi(FilterString.substr(ColonPos + 1));
+      HasDeviceNum = true;
     } catch (...) {
       char message[100];
-      strcpy(message, "Invalid device triple: ");
-      std::strcat(message, TripleString.c_str());
+      strcpy(message, "Invalid device filter: ");
+      std::strcat(message, FilterString.c_str());
       std::strcat(message,
                   "\nPossible backend values are {opencl,level_zero,cuda,*}.");
       std::strcat(message, "\nPossible device types are {host,cpu,gpu,acc,*}.");
@@ -92,22 +93,20 @@ device_triple::device_triple(std::string &TripleString) {
                   "\nDevice number should be an non-negative integer.\n");
       throw cl::sycl::invalid_parameter_error(message, PI_INVALID_VALUE);
     }
-  } else {
-    DeviceNum = DEVICE_NUM_UNSPECIFIED;
   }
 }
 
-device_triple_list::device_triple_list(std::string &TripleString) {
-  std::transform(TripleString.begin(), TripleString.end(), TripleString.begin(),
+device_filter_list::device_filter_list(std::string& FilterString) {
+  std::transform(FilterString.begin(), FilterString.end(), FilterString.begin(),
                  ::tolower);
   size_t Pos = 0;
-  while (Pos < TripleString.size()) {
-    size_t CommaPos = TripleString.find(",", Pos);
+  while (Pos < FilterString.size()) {
+    size_t CommaPos = FilterString.find(",", Pos);
     if (CommaPos == std::string::npos) {
-      CommaPos = TripleString.size();
+      CommaPos = FilterString.size();
     }
-    std::string SubString = TripleString.substr(Pos, CommaPos - Pos);
-    TripleList.push_back(device_triple(SubString));
+    std::string SubString = FilterString.substr(Pos, CommaPos - Pos);
+    FilterList.push_back(device_filter(SubString));
     Pos = CommaPos + 1;
   }
 }
