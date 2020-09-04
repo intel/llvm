@@ -65,7 +65,6 @@ void test() {
       S::range<2>{OutOfLimitsSize / 2, 1}, S::range<2>{OutOfLimitsSize / 2, 1},
       S::id<2>{OutOfLimitsSize / 2, OutOfLimitsSize / 2});
 
-
   int Data = 0;
   S::buffer<int, 1> Buf{&Data, 1};
 
