@@ -70,7 +70,8 @@ public:
   void transDbgInfo(const SPIRVValue *SV, Value *V);
   template <typename T = MDNode>
   T *transDebugInst(const SPIRVExtInst *DebugInst) {
-    assert(DebugInst->getExtSetKind() == SPIRVEIS_Debug &&
+    assert((DebugInst->getExtSetKind() == SPIRVEIS_Debug ||
+            DebugInst->getExtSetKind() == SPIRVEIS_OpenCL_DebugInfo_100) &&
            "Unexpected extended instruction set");
     auto It = DebugInstCache.find(DebugInst);
     if (It != DebugInstCache.end())

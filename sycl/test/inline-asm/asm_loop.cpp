@@ -29,7 +29,7 @@ struct KernelFunctor : WithInputBuffers<T, 2>, WithOutputBuffer<T> {
     // clang-format off
     CGH.parallel_for<KernelFunctor<T>>(
         cl::sycl::range<1>{this->getOutputBufferSize()},
-    [=](cl::sycl::id<1> wiID) [[cl::intel_reqd_sub_group_size(8)]] {
+    [=](cl::sycl::id<1> wiID) [[intel::reqd_sub_group_size(8)]] {
 // clang-format on
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
           asm volatile(".decl P1 v_type=P num_elts=8\n"

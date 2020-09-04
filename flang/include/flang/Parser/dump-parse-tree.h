@@ -82,9 +82,12 @@ public:
   NODE(parser, AccObjectListWithModifier)
   NODE(parser, AccObjectListWithReduction)
   NODE(parser, AccReductionOperator)
+  NODE_ENUM(parser::AccReductionOperator, Operator)
   NODE(parser, AccSizeExpr)
   NODE(parser, AccSizeExprList)
   NODE(parser, AccStandaloneDirective)
+  NODE(parser, AccTileExpr)
+  NODE(parser, AccTileExprList)
   NODE(parser, AccLoopDirective)
   NODE(parser, AccWaitArgument)
   static std::string GetNodeName(const llvm::acc::Directive &x) {

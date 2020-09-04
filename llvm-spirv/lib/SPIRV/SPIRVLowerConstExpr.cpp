@@ -162,6 +162,8 @@ void SPIRVLowerConstExpr::visit(Module *M) {
                          [LowerOp](Value *V) { return LowerOp(V); });
           Value *Repl = nullptr;
           unsigned Idx = 0;
+          auto *PhiII = dyn_cast<PHINode>(II);
+          auto *InsPoint = PhiII ? &PhiII->getIncomingBlock(OI)->back() : II;
           std::list<Instruction *> ReplList;
           for (auto V : OpList) {
             if (auto *Inst = dyn_cast<Instruction>(V))
@@ -169,7 +171,7 @@ void SPIRVLowerConstExpr::visit(Module *M) {
             Repl = InsertElementInst::Create(
                 (Repl ? Repl : UndefValue::get(Vec->getType())), V,
                 ConstantInt::get(Type::getInt32Ty(M->getContext()), Idx++), "",
-                II);
+                InsPoint);
           }
           II->replaceUsesOfWith(Op, Repl);
           WorkList.splice(WorkList.begin(), ReplList);

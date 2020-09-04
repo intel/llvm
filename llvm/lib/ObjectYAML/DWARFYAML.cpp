@@ -116,7 +116,7 @@ void MappingTraits<DWARFYAML::Abbrev>::mapping(IO &IO,
   IO.mapOptional("Code", Abbrev.Code);
   IO.mapRequired("Tag", Abbrev.Tag);
   IO.mapRequired("Children", Abbrev.Children);
-  IO.mapRequired("Attributes", Abbrev.Attributes);
+  IO.mapOptional("Attributes", Abbrev.Attributes);
 }
 
 void MappingTraits<DWARFYAML::AttributeAbbrev>::mapping(
@@ -230,9 +230,9 @@ void MappingTraits<DWARFYAML::LineTableOpcode>::mapping(
 void MappingTraits<DWARFYAML::LineTable>::mapping(
     IO &IO, DWARFYAML::LineTable &LineTable) {
   IO.mapOptional("Format", LineTable.Format, dwarf::DWARF32);
-  IO.mapRequired("Length", LineTable.Length);
+  IO.mapOptional("Length", LineTable.Length);
   IO.mapRequired("Version", LineTable.Version);
-  IO.mapRequired("PrologueLength", LineTable.PrologueLength);
+  IO.mapOptional("PrologueLength", LineTable.PrologueLength);
   IO.mapRequired("MinInstLength", LineTable.MinInstLength);
   if(LineTable.Version >= 4)
     IO.mapRequired("MaxOpsPerInst", LineTable.MaxOpsPerInst);
