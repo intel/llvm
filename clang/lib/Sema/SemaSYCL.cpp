@@ -1752,6 +1752,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   const CXXRecordDecl *KernelObj;
   llvm::SmallVector<Expr *, 16> MemberExprBases;
   FunctionDecl *KernelCallerFunc;
+  SourceLocation KernelCallerSrcLoc; // KernelCallerFunc source location.
   // Contains a count of how many containers we're in.  This is used by the
   // pointer-struct-wrapping code to ensure that we don't try to wrap
   // non-top-level pointers.
@@ -1821,7 +1822,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     QualType ParamType = KernelParameter->getOriginalType();
     Expr *DRE = SemaRef.BuildDeclRefExpr(KernelParameter, ParamType, VK_LValue,
-                                         SourceLocation());
+                                         KernelCallerSrcLoc);
     return DRE;
   }
 
@@ -1833,7 +1834,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     QualType ParamType = KernelParameter->getOriginalType();
     Expr *DRE = SemaRef.BuildDeclRefExpr(KernelParameter, ParamType, VK_LValue,
-                                         SourceLocation());
+                                         KernelCallerSrcLoc);
 
     // Struct Type kernel arguments are decomposed. The pointer fields are
     // then wrapped inside a compiler generated struct. Therefore when
@@ -1876,7 +1877,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
   void addFieldInit(FieldDecl *FD, QualType Ty, MultiExprArg ParamRef) {
     InitializationKind InitKind =
-        InitializationKind::CreateCopy(SourceLocation(), SourceLocation());
+        InitializationKind::CreateCopy(KernelCallerSrcLoc, KernelCallerSrcLoc);
     addFieldInit(FD, Ty, ParamRef, InitKind);
   }
 
@@ -1913,10 +1914,10 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   MemberExpr *buildMemberExpr(Expr *Base, ValueDecl *Member) {
     DeclAccessPair MemberDAP = DeclAccessPair::make(Member, AS_none);
     MemberExpr *Result = SemaRef.BuildMemberExpr(
-        Base, /*IsArrow */ false, SourceLocation(), NestedNameSpecifierLoc(),
-        SourceLocation(), Member, MemberDAP,
+        Base, /*IsArrow */ false, KernelCallerSrcLoc, NestedNameSpecifierLoc(),
+        KernelCallerSrcLoc, Member, MemberDAP,
         /*HadMultipleCandidates*/ false,
-        DeclarationNameInfo(Member->getDeclName(), SourceLocation()),
+        DeclarationNameInfo(Member->getDeclName(), KernelCallerSrcLoc),
         Member->getType(), VK_LValue, OK_Ordinary);
     return Result;
   }
@@ -1944,7 +1945,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     for (size_t I = 0; I < NumParams; ++I) {
       QualType ParamType = KernelParameters[I]->getOriginalType();
       ParamDREs[I] = SemaRef.BuildDeclRefExpr(KernelParameters[I], ParamType,
-                                              VK_LValue, SourceLocation());
+                                              VK_LValue, KernelCallerSrcLoc);
     }
 
     MemberExpr *MethodME = buildMemberExpr(MemberExprBases.back(), Method);
@@ -1954,12 +1955,12 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     ResultTy = ResultTy.getNonLValueExprType(SemaRef.Context);
     llvm::SmallVector<Expr *, 4> ParamStmts;
     const auto *Proto = cast<FunctionProtoType>(Method->getType());
-    SemaRef.GatherArgumentsForCall(SourceLocation(), Method, Proto, 0,
+    SemaRef.GatherArgumentsForCall(KernelCallerSrcLoc, Method, Proto, 0,
                                    ParamDREs, ParamStmts);
     // [kernel_obj or wrapper object].accessor.__init(_ValueType*,
     // range<int>, range<int>, id<int>)
     AddTo.push_back(CXXMemberCallExpr::Create(
-        SemaRef.Context, MethodME, ParamStmts, ResultTy, VK, SourceLocation(),
+        SemaRef.Context, MethodME, ParamStmts, ResultTy, VK, KernelCallerSrcLoc,
         FPOptionsOverride()));
   }
 
@@ -1981,7 +1982,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
   InitListExpr *createInitListExpr(QualType InitTy, uint64_t NumChildInits) {
     InitListExpr *ILE = new (SemaRef.getASTContext()) InitListExpr(
-        SemaRef.getASTContext(), SourceLocation(), {}, SourceLocation());
+        SemaRef.getASTContext(), KernelCallerSrcLoc, {}, KernelCallerSrcLoc);
     ILE->reserveInits(SemaRef.getASTContext(), NumChildInits);
     ILE->setType(InitTy);
 
@@ -2007,8 +2008,9 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     TypeSourceInfo *TSInfo =
         KernelObj->isLambda() ? KernelObj->getLambdaTypeInfo() : nullptr;
     VarDecl *VD = VarDecl::Create(
-        Ctx, DC, SourceLocation(), SourceLocation(), KernelObj->getIdentifier(),
-        QualType(KernelObj->getTypeForDecl(), 0), TSInfo, SC_None);
+        Ctx, DC, KernelObj->getLocation(), KernelObj->getLocation(),
+        KernelObj->getIdentifier(), QualType(KernelObj->getTypeForDecl(), 0),
+        TSInfo, SC_None);
 
     return VD;
   }
@@ -2016,7 +2018,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   // Default inits the type, then calls the init-method in the body.
   bool handleSpecialType(FieldDecl *FD, QualType Ty) {
     addFieldInit(FD, Ty, None,
-                 InitializationKind::CreateDefault(SourceLocation()));
+                 InitializationKind::CreateDefault(KernelCallerSrcLoc));
 
     addFieldMemberExpr(FD, Ty);
 
@@ -2030,7 +2032,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
   bool handleSpecialType(const CXXBaseSpecifier &BS, QualType Ty) {
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
-    addBaseInit(BS, Ty, InitializationKind::CreateDefault(SourceLocation()));
+    addBaseInit(BS, Ty, InitializationKind::CreateDefault(KernelCallerSrcLoc));
     createSpecialMethodCall(RecordDecl, InitMethodName, BodyStmts);
     return true;
   }
@@ -2043,15 +2045,16 @@ public:
         KernelObjClone(createKernelObjClone(S.getASTContext(),
                                             DC.getKernelDecl(), KernelObj)),
         VarEntity(InitializedEntity::InitializeVariable(KernelObjClone)),
-        KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc) {
+        KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc),
+        KernelCallerSrcLoc(KernelCallerFunc->getLocation()) {
     CollectionInitExprs.push_back(createInitListExpr(KernelObj));
     markParallelWorkItemCalls();
 
     Stmt *DS = new (S.Context) DeclStmt(DeclGroupRef(KernelObjClone),
-                                        SourceLocation(), SourceLocation());
+                                        KernelCallerSrcLoc, KernelCallerSrcLoc);
     BodyStmts.push_back(DS);
     DeclRefExpr *KernelObjCloneRef = DeclRefExpr::Create(
-        S.Context, NestedNameSpecifierLoc(), SourceLocation(), KernelObjClone,
+        S.Context, NestedNameSpecifierLoc(), KernelCallerSrcLoc, KernelObjClone,
         false, DeclarationNameInfo(), QualType(KernelObj->getTypeForDecl(), 0),
         VK_LValue);
     MemberExprBases.push_back(KernelObjCloneRef);
@@ -2162,7 +2165,7 @@ public:
     CXXCastPath BasePath;
     QualType DerivedTy(RD->getTypeForDecl(), 0);
     QualType BaseTy = BS.getType();
-    SemaRef.CheckDerivedToBaseConversion(DerivedTy, BaseTy, SourceLocation(),
+    SemaRef.CheckDerivedToBaseConversion(DerivedTy, BaseTy, KernelCallerSrcLoc,
                                          SourceRange(), &BasePath,
                                          /*IgnoreBaseAccess*/ true);
     auto Cast = ImplicitCastExpr::Create(
@@ -2211,11 +2214,11 @@ public:
         Index, SizeT->isSignedIntegerType()};
 
     auto IndexLiteral = IntegerLiteral::Create(
-        SemaRef.getASTContext(), IndexVal, SizeT, SourceLocation());
+        SemaRef.getASTContext(), IndexVal, SizeT, KernelCallerSrcLoc);
 
     ExprResult IndexExpr = SemaRef.CreateBuiltinArraySubscriptExpr(
-        MemberExprBases.back(), SourceLocation{}, IndexLiteral,
-        SourceLocation{});
+        MemberExprBases.back(), KernelCallerSrcLoc, IndexLiteral,
+        KernelCallerSrcLoc);
 
     assert(!IndexExpr.isInvalid());
     MemberExprBases.push_back(IndexExpr.get());
