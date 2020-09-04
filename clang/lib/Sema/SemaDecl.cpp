@@ -3217,6 +3217,22 @@ static void adjustDeclContextForDeclaratorDecl(DeclaratorDecl *NewD,
     FixSemaDC(VD->getDescribedVarTemplate());
 }
 
+template <typename AttributeName>
+static void checkDimensionsAndSetDiagnostics(Sema &S, FunctionDecl *New,
+                                             FunctionDecl *Old) {
+  auto *NewDeclAttr = New->getAttr<AttributeName>();
+  auto *OldDeclAttr = Old->getAttr<AttributeName>();
+  if ((NewDeclAttr->getXDim() != OldDeclAttr->getXDim()) ||
+      (NewDeclAttr->getYDim() != OldDeclAttr->getYDim()) ||
+      (NewDeclAttr->getZDim() != OldDeclAttr->getZDim())) {
+    S.Diag(New->getLocation(), diag::err_conflicting_sycl_function_attributes)
+        << OldDeclAttr << NewDeclAttr;
+    S.Diag(New->getLocation(), diag::warn_duplicate_attribute) << OldDeclAttr;
+    S.Diag(OldDeclAttr->getLocation(), diag::note_conflicting_attribute);
+    S.Diag(NewDeclAttr->getLocation(), diag::note_conflicting_attribute);
+  }
+}
+
 /// MergeFunctionDecl - We just parsed a function 'New' from
 /// declarator D which has the same name and scope as a previous
 /// declaration 'Old'.  Figure out how to resolve this situation,
@@ -3292,34 +3308,13 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD,
   }
 
   if (New->hasAttr<ReqdWorkGroupSizeAttr>() &&
-      Old->hasAttr<ReqdWorkGroupSizeAttr>()) {
-    auto *NewDeclAttr = New->getAttr<ReqdWorkGroupSizeAttr>();
-    auto *OldDeclAttr = Old->getAttr<ReqdWorkGroupSizeAttr>();
-    if ((NewDeclAttr->getXDim() != OldDeclAttr->getXDim()) ||
-        (NewDeclAttr->getYDim() != OldDeclAttr->getYDim()) ||
-        (NewDeclAttr->getZDim() != OldDeclAttr->getZDim())) {
-      Diag(New->getLocation(), diag::err_conflicting_sycl_function_attributes)
-          << OldDeclAttr << NewDeclAttr;
-      Diag(New->getLocation(), diag::warn_duplicate_attribute) << OldDeclAttr;
-      Diag(OldDeclAttr->getLocation(), diag::note_conflicting_attribute);
-      Diag(NewDeclAttr->getLocation(), diag::note_conflicting_attribute);
-    }
-  }
+      Old->hasAttr<ReqdWorkGroupSizeAttr>())
+    checkDimensionsAndSetDiagnostics<ReqdWorkGroupSizeAttr>(*this, New, Old);
 
   if (New->hasAttr<SYCLIntelMaxWorkGroupSizeAttr>() &&
-      Old->hasAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-    auto *NewDeclAttr = New->getAttr<SYCLIntelMaxWorkGroupSizeAttr>();
-    auto *OldDeclAttr = Old->getAttr<SYCLIntelMaxWorkGroupSizeAttr>();
-    if ((NewDeclAttr->getXDim() != OldDeclAttr->getXDim()) ||
-        (NewDeclAttr->getYDim() != OldDeclAttr->getYDim()) ||
-        (NewDeclAttr->getZDim() != OldDeclAttr->getZDim())) {
-      Diag(New->getLocation(), diag::err_conflicting_sycl_function_attributes)
-          << OldDeclAttr << NewDeclAttr;
-      Diag(New->getLocation(), diag::warn_duplicate_attribute) << OldDeclAttr;
-      Diag(OldDeclAttr->getLocation(), diag::note_conflicting_attribute);
-      Diag(NewDeclAttr->getLocation(), diag::note_conflicting_attribute);
-    }
-  }
+      Old->hasAttr<SYCLIntelMaxWorkGroupSizeAttr>())
+    checkDimensionsAndSetDiagnostics<SYCLIntelMaxWorkGroupSizeAttr>(*this, New,
+                                                                    Old);
 
   if (New->hasAttr<InternalLinkageAttr>() &&
       !Old->hasAttr<InternalLinkageAttr>()) {

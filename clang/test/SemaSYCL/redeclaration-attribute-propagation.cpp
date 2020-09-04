@@ -61,7 +61,7 @@ void parallel_for(Type func) {
 void invoke_foo2() {
 #ifndef TRIGGER_ERROR
   // CHECK-LABEL:  FunctionDecl {{.*}} invoke_foo2 'void ()'
-  // CHECK:  `-FunctionDecl {{.*}} _ZTSZ11invoke_foo2vE10KernelName 'void ()'
+  // CHECK:  `-FunctionDecl {{.*}}KernelName 'void ()'
   // CHECK:  -SYCLIntelMaxWorkGroupSizeAttr {{.*}} Inherited 4 4 4
   // CHECK:  -SYCLIntelNoGlobalWorkOffsetAttr {{.*}} Inherited Enabled
   // CHECK:  `-ReqdWorkGroupSizeAttr {{.*}} 2 2 2
