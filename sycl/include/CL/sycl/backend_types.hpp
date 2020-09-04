@@ -31,7 +31,7 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
     Out << std::string("opencl");
     break;
   case backend::level_zero:
-    Out << std::string("level-zero");
+    Out << std::string("level_zero");
     break;
   case backend::cuda:
     Out << std::string("cuda");
