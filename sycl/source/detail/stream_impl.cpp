@@ -62,13 +62,18 @@ size_t stream_impl::get_max_statement_size() const { return MaxStatementSize_; }
 void stream_impl::flush() {
   // Access the stream buffer on the host. This access guarantees that kernel is
   // executed and buffer contains streamed data.
-  auto HostAcc = detail::Scheduler::getInstance()
-                     .StreamBuffersPool.find(this)
-                     ->second.Buf.get_access<cl::sycl::access::mode::read>(
-                         range<1>(BufferSize_), id<1>(OffsetSize));
+  {
+    auto HostAcc = detail::Scheduler::getInstance()
+                       .StreamBuffersPool.find(this)
+                       ->second.Buf.get_access<cl::sycl::access::mode::read>(
+                           range<1>(BufferSize_), id<1>(OffsetSize));
 
-  printf("%s", HostAcc.get_pointer());
-  fflush(stdout);
+    printf("%s", HostAcc.get_pointer());
+    fflush(stdout);
+  }
+
+  // Flushed the stream, can deallocate the buffers now.
+  detail::Scheduler::getInstance().deallocateStreamBuffers(this);
 }
 } // namespace detail
 } // namespace sycl

@@ -716,8 +716,10 @@ protected:
   friend class Command;
   friend class DispatchHostTask;
 
-  class StreamBuffers {
-  public:
+  /// Stream buffers structure.
+  ///
+  /// The structure contains all buffers for a stream object.
+  struct StreamBuffers {
     StreamBuffers(size_t StreamBufferSize, size_t FlushBufferSize)
         // Initialize stream buffer with zeros, this is needed for two reasons:
         // 1. We don't need to care about end of line when printing out
@@ -745,8 +747,11 @@ protected:
   std::mutex StreamBuffersPoolMutex;
   std::map<stream_impl *, StreamBuffers> StreamBuffersPool;
 
-  // Allocate buffers in the pool for a provided stream
+  /// Allocate buffers in the pool for a provided stream
   void allocateStreamBuffers(stream_impl *, size_t, size_t);
+
+  /// Deallocate buffers in the pool for a provided stream
+  void deallocateStreamBuffers(stream_impl *);
 };
 
 } // namespace detail

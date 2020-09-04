@@ -246,6 +246,11 @@ void Scheduler::allocateStreamBuffers(stream_impl *Impl,
       {Impl, StreamBuffers(StreamBufferSize, FlushBufferSize)});
 }
 
+void Scheduler::deallocateStreamBuffers(stream_impl *Impl) {
+  std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
+  StreamBuffersPool.erase(Impl);
+}
+
 Scheduler::Scheduler() {
   sycl::device HostDevice;
   DefaultHostQueue = QueueImplPtr(
