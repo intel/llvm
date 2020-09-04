@@ -12,9 +12,9 @@ __attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
 
 struct test_struct {
   int data;
-  int *ptr; // Unused pointer in struct
-  int *ptr_array1[2];    // Unused array of pointers in struct
-  int *ptr_array2[2][3]; // Unused array of pointers in struct
+  int *ptr;
+  int *ptr_array1[2];
+  int *ptr_array2[2][3];
 };
 
 void test(const int some_const) {
