@@ -4330,43 +4330,43 @@ bool llvm::getUnderlyingObjectsForCodeGen(const Value *V,
   return true;
 }
 
-static AllocaInst *
-findAllocaForValue(Value *V, DenseMap<Value *, AllocaInst *> &AllocaForValue) {
-  if (AllocaInst *AI = dyn_cast<AllocaInst>(V))
-    return AI;
-  // See if we've already calculated (or started to calculate) alloca for a
-  // given value.
-  auto I = AllocaForValue.find(V);
-  if (I != AllocaForValue.end())
-    return I->second;
-  // Store 0 while we're calculating alloca for value V to avoid
-  // infinite recursion if the value references itself.
-  AllocaForValue[V] = nullptr;
-  AllocaInst *Res = nullptr;
-  if (CastInst *CI = dyn_cast<CastInst>(V))
-    Res = findAllocaForValue(CI->getOperand(0), AllocaForValue);
-  else if (PHINode *PN = dyn_cast<PHINode>(V)) {
-    for (Value *IncValue : PN->incoming_values()) {
-      // Allow self-referencing phi-nodes.
-      if (IncValue == PN)
-        continue;
-      AllocaInst *IncValueAI = findAllocaForValue(IncValue, AllocaForValue);
-      // AI for incoming values should exist and should all be equal.
-      if (IncValueAI == nullptr || (Res != nullptr && IncValueAI != Res))
-        return nullptr;
-      Res = IncValueAI;
-    }
-  } else if (GetElementPtrInst *EP = dyn_cast<GetElementPtrInst>(V)) {
-    Res = findAllocaForValue(EP->getPointerOperand(), AllocaForValue);
-  }
-  if (Res)
-    AllocaForValue[V] = Res;
-  return Res;
-}
+AllocaInst *llvm::findAllocaForValue(Value *V, bool OffsetZero) {
+  AllocaInst *Result = nullptr;
+  SmallPtrSet<Value *, 4> Visited;
+  SmallVector<Value *, 4> Worklist;
 
-AllocaInst *llvm::findAllocaForValue(Value *V) {
-  DenseMap<Value *, AllocaInst *> AllocaForValue;
-  return ::findAllocaForValue(V, AllocaForValue);
+  auto AddWork = [&](Value *V) {
+    if (Visited.insert(V).second)
+      Worklist.push_back(V);
+  };
+
+  AddWork(V);
+  do {
+    V = Worklist.pop_back_val();
+    assert(Visited.count(V));
+
+    if (AllocaInst *AI = dyn_cast<AllocaInst>(V)) {
+      if (Result && Result != AI)
+        return nullptr;
+      Result = AI;
+    } else if (CastInst *CI = dyn_cast<CastInst>(V)) {
+      AddWork(CI->getOperand(0));
+    } else if (PHINode *PN = dyn_cast<PHINode>(V)) {
+      for (Value *IncValue : PN->incoming_values())
+        AddWork(IncValue);
+    } else if (auto *SI = dyn_cast<SelectInst>(V)) {
+      AddWork(SI->getTrueValue());
+      AddWork(SI->getFalseValue());
+    } else if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(V)) {
+      if (OffsetZero && !GEP->hasAllZeroIndices())
+        return nullptr;
+      AddWork(GEP->getPointerOperand());
+    } else {
+      return nullptr;
+    }
+  } while (!Worklist.empty());
+
+  return Result;
 }
 
 static bool onlyUsedByLifetimeMarkersOrDroppableInstsHelper(
@@ -5065,46 +5065,59 @@ bool llvm::propagatesPoison(const Instruction *I) {
   }
 }
 
-const Value *llvm::getGuaranteedNonPoisonOp(const Instruction *I) {
+void llvm::getGuaranteedNonPoisonOps(const Instruction *I,
+                                     SmallPtrSetImpl<const Value *> &Operands) {
   switch (I->getOpcode()) {
     case Instruction::Store:
-      return cast<StoreInst>(I)->getPointerOperand();
+      Operands.insert(cast<StoreInst>(I)->getPointerOperand());
+      break;
 
     case Instruction::Load:
-      return cast<LoadInst>(I)->getPointerOperand();
+      Operands.insert(cast<LoadInst>(I)->getPointerOperand());
+      break;
 
     case Instruction::AtomicCmpXchg:
-      return cast<AtomicCmpXchgInst>(I)->getPointerOperand();
+      Operands.insert(cast<AtomicCmpXchgInst>(I)->getPointerOperand());
+      break;
 
     case Instruction::AtomicRMW:
-      return cast<AtomicRMWInst>(I)->getPointerOperand();
+      Operands.insert(cast<AtomicRMWInst>(I)->getPointerOperand());
+      break;
 
     case Instruction::UDiv:
     case Instruction::SDiv:
     case Instruction::URem:
     case Instruction::SRem:
-      return I->getOperand(1);
+      Operands.insert(I->getOperand(1));
+      break;
 
     case Instruction::Call:
-      if (auto *II = dyn_cast<IntrinsicInst>(I)) {
-        switch (II->getIntrinsicID()) {
-        case Intrinsic::assume:
-          return II->getArgOperand(0);
-        default:
-          return nullptr;
-        }
+    case Instruction::Invoke: {
+      const CallBase *CB = cast<CallBase>(I);
+      if (CB->isIndirectCall())
+        Operands.insert(CB->getCalledOperand());
+      for (unsigned i = 0; i < CB->arg_size(); ++i) {
+        if (CB->paramHasAttr(i, Attribute::NoUndef))
+          Operands.insert(CB->getArgOperand(i));
       }
-      return nullptr;
+      break;
+    }
 
     default:
-      return nullptr;
+      break;
   }
 }
 
 bool llvm::mustTriggerUB(const Instruction *I,
                          const SmallSet<const Value *, 16>& KnownPoison) {
-  auto *NotPoison = getGuaranteedNonPoisonOp(I);
-  return (NotPoison && KnownPoison.count(NotPoison));
+  SmallPtrSet<const Value *, 4> NonPoisonOps;
+  getGuaranteedNonPoisonOps(I, NonPoisonOps);
+
+  for (const auto *V : NonPoisonOps)
+    if (KnownPoison.count(V))
+      return true;
+
+  return false;
 }
 
 

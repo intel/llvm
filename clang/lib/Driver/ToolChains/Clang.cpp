@@ -2116,20 +2116,27 @@ void Clang::AddX86TargetArgs(const ArgList &Args,
   }
 
   // Handle -mtune.
-  // FIXME: We should default to "generic" unless -march is set to match gcc.
+
+  // Default to "generic" unless -march is present.
+  std::string TuneCPU;
+  if (!Args.hasArg(clang::driver::options::OPT_march_EQ))
+    TuneCPU = "generic";
+
+  // Override based on -mtune.
   if (const Arg *A = Args.getLastArg(clang::driver::options::OPT_mtune_EQ)) {
     StringRef Name = A->getValue();
 
-    if (Name == "native")
+    if (Name == "native") {
       Name = llvm::sys::getHostCPUName();
+      if (!Name.empty())
+        TuneCPU = std::string(Name);
+    } else
+      TuneCPU = std::string(Name);
+  }
 
-    // Ignore generic either from getHostCPUName or from command line.
-    // FIXME: We need to support this eventually but isValidCPUName and the
-    // backend aren't ready for it yet.
-    if (Name != "generic") {
-      CmdArgs.push_back("-tune-cpu");
-      CmdArgs.push_back(Args.MakeArgString(Name));
-    }
+  if (!TuneCPU.empty()) {
+    CmdArgs.push_back("-tune-cpu");
+    CmdArgs.push_back(Args.MakeArgString(TuneCPU));
   }
 }
 
@@ -4193,8 +4200,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       SYCLStdArg->render(Args, CmdArgs);
       CmdArgs.push_back("-fsycl-std-layout-kernel-params");
     } else {
-      // Ensure the default version in SYCL mode is 1.2.1 (aka 2017)
-      CmdArgs.push_back("-sycl-std=2017");
+      // Ensure the default version in SYCL mode is 2020
+      CmdArgs.push_back("-sycl-std=2020");
     }
   }
 
@@ -4357,6 +4364,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (Args.getLastArg(options::OPT_save_temps_EQ))
     Args.AddLastArg(CmdArgs, options::OPT_save_temps_EQ);
+
+  if (Args.hasFlag(options::OPT_fmemprof, options::OPT_fno_memprof, false))
+    Args.AddLastArg(CmdArgs, options::OPT_fmemprof);
 
   // Embed-bitcode option.
   // Only white-listed flags below are allowed to be embedded.
@@ -5734,7 +5744,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       LanguageStandard = llvm::StringSwitch<StringRef>(StdArg->getValue())
                              .Case("c++14", "-std=c++14")
                              .Case("c++17", "-std=c++17")
-                             .Case("c++latest", "-std=c++2a")
+                             .Case("c++latest", "-std=c++20")
                              .Default("");
       if (LanguageStandard.empty())
         D.Diag(clang::diag::warn_drv_unused_argument)
@@ -5801,7 +5811,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // FIXME: Find a better way to determine whether the language has modules
   // support by default, or just assume that all languages do.
   bool HaveModules =
-      Std && (Std->containsValue("c++2a") || Std->containsValue("c++latest"));
+      Std && (Std->containsValue("c++2a") || Std->containsValue("c++20") ||
+              Std->containsValue("c++latest"));
   RenderModulesOptions(C, D, Args, Input, Output, CmdArgs, HaveModules);
 
   if (Args.hasFlag(options::OPT_fpch_validate_input_files_content,
@@ -5984,10 +5995,17 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                     options::OPT_fno_gnu_inline_asm, true))
     CmdArgs.push_back("-fno-gnu-inline-asm");
 
+  bool EnableSYCLEarlyOptimizations =
+      Args.hasFlag(options::OPT_fsycl_early_optimizations,
+                   options::OPT_fno_sycl_early_optimizations,
+                   Triple.getSubArch() != llvm::Triple::SPIRSubArch_fpga);
+
   // Enable vectorization per default according to the optimization level
   // selected. For optimization levels that want vectorization we use the alias
   // option to simplify the hasFlag logic.
   bool EnableVec = shouldEnableVectorizerAtOLevel(Args, false);
+  if (UseSYCLTriple && EnableSYCLEarlyOptimizations)
+    EnableVec = false; // But disable vectorization for SYCL device code
   OptSpecifier VectorizeAliasOption =
       EnableVec ? options::OPT_O_Group : options::OPT_fvectorize;
   if (Args.hasFlag(options::OPT_fvectorize, VectorizeAliasOption,
@@ -5996,6 +6014,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // -fslp-vectorize is enabled based on the optimization level selected.
   bool EnableSLPVec = shouldEnableVectorizerAtOLevel(Args, true);
+  if (UseSYCLTriple && EnableSYCLEarlyOptimizations)
+    EnableSLPVec = false; // But disable vectorization for SYCL device code
   OptSpecifier SLPVectAliasOption =
       EnableSLPVec ? options::OPT_O_Group : options::OPT_fslp_vectorize;
   if (Args.hasFlag(options::OPT_fslp_vectorize, SLPVectAliasOption,
@@ -7698,6 +7718,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   TranslatorArgs.push_back(Output.getFilename());
   if (getToolChain().getTriple().isSYCLDeviceEnvironment()) {
     TranslatorArgs.push_back("-spirv-max-version=1.1");
+    TranslatorArgs.push_back("-spirv-debug-info-version=legacy");
     if (C.getArgs().hasArg(options::OPT_fsycl_esimd))
       TranslatorArgs.push_back("-spirv-allow-unknown-intrinsics");
 

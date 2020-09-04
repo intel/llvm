@@ -130,6 +130,9 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
   if (Depth == MaxAnalysisRecursionDepth)
     return nullptr;
 
+  if (isa<ScalableVectorType>(VTy))
+    return nullptr;
+
   Instruction *I = dyn_cast<Instruction>(V);
   if (!I) {
     computeKnownBits(V, Known, Depth, CxtI);
@@ -1151,6 +1154,19 @@ Value *InstCombinerImpl::SimplifyDemandedVectorElts(Value *V,
     APInt PreInsertDemandedElts = DemandedElts;
     if (IdxNo < VWidth)
       PreInsertDemandedElts.clearBit(IdxNo);
+
+    // If we only demand the element that is being inserted and that element
+    // was extracted from the same index in another vector with the same type,
+    // replace this insert with that other vector.
+    // Note: This is attempted before the call to simplifyAndSetOp because that
+    //       may change UndefElts to a value that does not match with Vec.
+    Value *Vec;
+    if (PreInsertDemandedElts == 0 &&
+        match(I->getOperand(1),
+              m_ExtractElt(m_Value(Vec), m_SpecificInt(IdxNo))) &&
+        Vec->getType() == I->getType()) {
+      return Vec;
+    }
 
     simplifyAndSetOp(I, 0, PreInsertDemandedElts, UndefElts);
 

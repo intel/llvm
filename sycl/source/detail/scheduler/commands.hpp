@@ -122,12 +122,16 @@ public:
   /// \param Blocking if this argument is true, function will wait for the
   ///        command to be unblocked before calling enqueueImp.
   /// \return true if the command is enqueued.
-  bool enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking);
+  virtual bool enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking);
 
   bool isFinished();
 
   bool isSuccessfullyEnqueued() const {
     return MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
+  }
+
+  bool isEnqueueBlocked() const {
+    return MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked;
   }
 
   std::shared_ptr<queue_impl> getQueue() const { return MQueue; }

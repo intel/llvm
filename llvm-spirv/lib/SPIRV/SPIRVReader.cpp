@@ -864,6 +864,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
         Parameters.push_back(SafelenMDOp);
       Metadata.push_back(llvm::MDNode::get(*Context, Parameters));
     }
+    ++NumParam;
   }
   if (LC & LoopControlPipelineEnableINTELMask) {
     Metadata.push_back(llvm::MDNode::get(
@@ -2336,6 +2337,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     case SPIRVEIS_OpenCL:
       return mapValue(BV, transOCLBuiltinFromExtInst(ExtInst, BB));
     case SPIRVEIS_Debug:
+    case SPIRVEIS_OpenCL_DebugInfo_100:
       return mapValue(BV, DbgTran->transDebugIntrinsic(ExtInst, BB));
     default:
       llvm_unreachable("Unknown extended instruction set!");
@@ -3963,7 +3965,7 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
           static_cast<SPIRVDecorateFunctionFloatingPointModeINTEL const *>(
               FloatModes.at(0));
       auto FloatingMode = DecFlt->getOperationMode();
-#ifdef NDEBUG
+#ifndef NDEBUG
       for (auto *DecPreCast : FloatModes) {
         auto *Dec =
             static_cast<SPIRVDecorateFunctionFloatingPointModeINTEL const *>(
