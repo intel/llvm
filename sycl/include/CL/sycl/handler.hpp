@@ -143,7 +143,7 @@ public:
 
 __SYCL_EXPORT device getDeviceFromHandler(handler &);
 
-#if defined(__SYCL_ID_QUERIES_FIT_IN_INT__)
+#if __SYCL_ID_QUERIES_FIT_IN_INT__
 template <typename T> struct NotIntMsg;
 
 template <int Dims> struct NotIntMsg<range<Dims>> {
@@ -165,7 +165,7 @@ template <int Dims> struct NotIntMsg<id<Dims>> {
 };
 #endif
 
-#if defined(__SYCL_ID_QUERIES_FIT_IN_INT__)
+#if __SYCL_ID_QUERIES_FIT_IN_INT__
 template <typename T, typename ValT>
 typename std::enable_if<std::is_same<ValT, size_t>::value ||
                         std::is_same<ValT, unsigned long long>::value>::type
@@ -181,7 +181,7 @@ template <int Dims, typename T>
 typename std::enable_if<std::is_same<T, range<Dims>>::value ||
                         std::is_same<T, id<Dims>>::value>::type
 checkValueRange(const T &V) {
-#if defined(__SYCL_ID_QUERIES_FIT_IN_INT__)
+#if __SYCL_ID_QUERIES_FIT_IN_INT__
   for (size_t Dim = 0; Dim < Dims; ++Dim)
     checkValueRangeImpl<T>(V[Dim]);
 #else
@@ -192,7 +192,7 @@ checkValueRange(const T &V) {
 template <int Dims, typename T>
 typename std::enable_if<std::is_same<T, nd_range<Dims>>::value>::type
 checkValueRange(const T &V) {
-#if defined(__SYCL_ID_QUERIES_FIT_IN_INT__)
+#if __SYCL_ID_QUERIES_FIT_IN_INT__
   checkValueRange<Dims>(V.get_global_range());
   checkValueRange<Dims>(V.get_local_range());
   checkValueRange<Dims>(V.get_offset());
@@ -217,7 +217,7 @@ checkValueRange(const T &V) {
 
 template <int Dims>
 void checkValueRange(const range<Dims> &R, const id<Dims> &O) {
-#if defined(__SYCL_ID_QUERIES_FIT_IN_INT__)
+#if __SYCL_ID_QUERIES_FIT_IN_INT__
   checkValueRange<Dims>(R);
   checkValueRange<Dims>(O);
 
