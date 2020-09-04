@@ -28,8 +28,10 @@ int main() {
   }
   q.submit([&](cl::sycl::handler &cgh) {
      cgh.parallel_for<kernel_name>(
-         cl::sycl::range<1>(problem_size), [=](cl::sycl::id<1> idx)
-                                               [[cl::intel_reqd_sub_group_size(16)]] {
+         // clang-format off
+         cl::sycl::range<1>(problem_size),
+     [=](cl::sycl::id<1> idx) [[intel::reqd_sub_group_size(16)]] {
+    // clang-format on
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
                                                  int i = idx[0];
                                                  asm volatile("{\n.decl V52 v_type=G type=d num_elts=16 align=GRF\n"
@@ -39,7 +41,9 @@ int main() {
                                                               :
                                                               : "rw"(&a[i]));
 #else
+           // clang-format off
                                                  a[idx[0]]++;
+      // clang-format on
 #endif
                                                });
    }).wait();
