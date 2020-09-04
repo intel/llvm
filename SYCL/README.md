@@ -85,6 +85,8 @@ in llvm-test-suite infrastructure (e.g. -DSYCL_EXTERNAL_TESTS=RSBench). Source
 code of external application can be downloaded from external repo as part of the
 build or provided in CMake variable <APPNAME>_SRC (e.g. RSBench_SRC).
 
+***SYCL_EXTRA_TESTS_SRC*** path to directory which contains extra LIT tests.
+
 It is asssumed that all required dependencies (OpenCL runtimes, CUDA SDK, AOT
 compilers, etc) are available in the system.
 
