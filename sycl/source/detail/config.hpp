@@ -169,7 +169,7 @@ template <> class SYCLConfig<SYCL_DEVICE_FILTER> {
   using BaseT = SYCLConfigBase<SYCL_DEVICE_FILTER>;
 
 public:
-  static device_filter_list* get() {
+  static device_filter_list *get() {
     static bool Initialized = false;
     static device_filter_list *FilterList = nullptr;
 

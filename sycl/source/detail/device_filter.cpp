@@ -17,7 +17,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-device_filter::device_filter(std::string& FilterString) {
+device_filter::device_filter(std::string &FilterString) {
   const std::array<std::pair<std::string, info::device_type>, 5>
       SyclDeviceTypeMap = {{{"host", info::device_type::host},
                             {"cpu", info::device_type::cpu},
@@ -96,7 +96,7 @@ device_filter::device_filter(std::string& FilterString) {
   }
 }
 
-device_filter_list::device_filter_list(std::string& FilterString) {
+device_filter_list::device_filter_list(std::string &FilterString) {
   std::transform(FilterString.begin(), FilterString.end(), FilterString.begin(),
                  ::tolower);
   size_t Pos = 0;

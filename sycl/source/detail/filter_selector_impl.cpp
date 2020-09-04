@@ -135,7 +135,7 @@ int filter_selector_impl::operator()(const device &Dev) const {
     }
     if (Filter.HasDeviceType) {
       info::device_type DT = Dev.get_info<info::device::device_type>();
-      DeviceTypeOK = (DT == Filter.DeviceType); 
+      DeviceTypeOK = (DT == Filter.DeviceType);
     }
     if (Filter.HasDeviceNum) {
       // Only check device number if we're good on the previous matches

@@ -28,9 +28,10 @@ struct device_filter {
   bool HasDeviceNum = false;
   int MatchesSeen = 0;
 
-  device_filter() {};
-  device_filter(std::string& FilterString);
-  friend std::ostream &operator<<(std::ostream &Out, const device_filter &Filter);
+  device_filter(){};
+  device_filter(std::string &FilterString);
+  friend std::ostream &operator<<(std::ostream &Out,
+                                  const device_filter &Filter);
 };
 
 class device_filter_list {
@@ -38,14 +39,15 @@ class device_filter_list {
 
 public:
   device_filter_list() {}
-  device_filter_list(std::string& FilterString);
-  device_filter_list(device_filter& Filter);
-  std::vector<device_filter>& get() { return FilterList; }
-  friend std::ostream& operator<<(std::ostream& Out,
-                                  const device_filter_list& List);
+  device_filter_list(std::string &FilterString);
+  device_filter_list(device_filter &Filter);
+  std::vector<device_filter> &get() { return FilterList; }
+  friend std::ostream &operator<<(std::ostream &Out,
+                                  const device_filter_list &List);
 };
 
-inline std::ostream &operator<<(std::ostream& Out, const device_filter& Filter) {
+inline std::ostream &operator<<(std::ostream &Out,
+                                const device_filter &Filter) {
   switch (Filter.Backend) {
   case backend::host:
     Out << std::string("host");
@@ -80,9 +82,9 @@ inline std::ostream &operator<<(std::ostream& Out, const device_filter& Filter) 
   return Out;
 }
 
-inline std::ostream &operator<<(std::ostream& Out,
-                                const device_filter_list& List) {
-  for (const device_filter& Filter : List.FilterList) {
+inline std::ostream &operator<<(std::ostream &Out,
+                                const device_filter_list &List) {
+  for (const device_filter &Filter : List.FilterList) {
     Out << Filter;
     Out << ",";
   }

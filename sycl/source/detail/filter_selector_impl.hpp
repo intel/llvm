@@ -23,7 +23,7 @@ namespace ONEAPI {
 namespace detail {
 
 typedef struct sycl::detail::device_filter filter;
-  
+
 class filter_selector_impl {
 public:
   filter_selector_impl(const std::string &filter);
