@@ -7686,6 +7686,30 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   assert(JA.getInputs().size() == Inputs.size() &&
          "Not have inputs for all dependence actions??");
 
+  // For FPGA, we wrap the host objects before archiving them when using
+  // -fsycl-link.  This allows for better extraction control from the
+  // archive when we need the host objects for subsequent compilations.
+  if (OffloadingKind == Action::OFK_None &&
+      C.getArgs().hasArg(options::OPT_fintelfpga) &&
+      C.getArgs().hasArg(options::OPT_fsycl_link_EQ)) {
+
+    // Add offload targets and inputs.
+    CmdArgs.push_back(C.getArgs().MakeArgString(
+        Twine("-kind=") + Action::GetOffloadKindName(OffloadingKind)));
+    CmdArgs.push_back(
+        TCArgs.MakeArgString(Twine("-target=") + Triple.getTriple()));
+
+    // Add input.
+    assert(Inputs[0].isFilename() && "Invalid input.");
+    CmdArgs.push_back(TCArgs.MakeArgString(Inputs[0].getFilename()));
+
+    C.addCommand(std::make_unique<Command>(
+        JA, *this, ResponseFileSupport::None(),
+        TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
+        CmdArgs, Inputs));
+    return;
+  }
+
   // Add offload targets and inputs.
   for (unsigned I = 0; I < Inputs.size(); ++I) {
     // Get input's Offload Kind and ToolChain.
