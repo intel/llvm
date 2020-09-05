@@ -3612,6 +3612,9 @@ class OffloadingActionBuilder final {
     /// List of objects to extract FPGA dependency info from
     ActionList FPGAObjectInputs;
 
+    /// List of static archives to extract FPGA dependency info from
+    ActionList FPGAArchiveInputs;
+
     /// List of CUDA architectures to use in this compilation with NVPTX targets.
     SmallVector<CudaArch, 8> GpuArchList;
 
@@ -4060,15 +4063,19 @@ class OffloadingActionBuilder final {
             // triple calls for it (provided a valid subarch).
             ActionList BEInputs;
             BEInputs.push_back(BuildCodeAction);
-            for (Action *A : FPGAObjectInputs) {
-              // Send any known objects through the unbundler to grab the
-              // dependency file associated.
+            auto unbundleAdd = [&](Action *A, types::ID T) {
               ActionList AL;
               AL.push_back(A);
-              Action *UnbundleAction = C.MakeAction<OffloadUnbundlingJobAction>(
-                  AL, types::TY_FPGA_Dependencies);
+              Action *UnbundleAction =
+                  C.MakeAction<OffloadUnbundlingJobAction>(AL, T);
               BEInputs.push_back(UnbundleAction);
-            }
+            };
+            // Send any known objects/archives through the unbundler to grab the
+            // dependency file associated.
+            for (Action *A : FPGAObjectInputs)
+              unbundleAdd(A, types::TY_FPGA_Dependencies);
+            for (Action *A : FPGAArchiveInputs)
+              unbundleAdd(A, types::TY_FPGA_Dependencies_List);
             for (const auto &A : DeviceLibObjects)
               BEInputs.push_back(A);
             BuildCodeAction =
@@ -4193,6 +4200,7 @@ class OffloadingActionBuilder final {
       Arg *SYCLAddTargets = Args.getLastArg(options::OPT_fsycl_add_targets_EQ);
       bool HasValidSYCLRuntime = C.getInputArgs().hasFlag(options::OPT_fsycl,
                                               options::OPT_fno_sycl, false);
+      bool SYCLfpgaTriple = false;
       if (SYCLTargets || SYCLAddTargets) {
         if (SYCLTargets) {
           llvm::StringMap<StringRef> FoundNormalizedTriples;
@@ -4210,6 +4218,8 @@ class OffloadingActionBuilder final {
             FoundNormalizedTriples[NormalizedName] = Val;
 
             SYCLTripleList.push_back(TT);
+            if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
+              SYCLfpgaTriple = true;
           }
         }
         if (SYCLAddTargets) {
@@ -4233,12 +4243,29 @@ class OffloadingActionBuilder final {
         const char *SYCLTargetArch = SYCLfpga ? "spir64_fpga" : "spir64";
         SYCLTripleList.push_back(
             C.getDriver().MakeSYCLDeviceTriple(SYCLTargetArch));
+        if (SYCLfpga)
+          SYCLfpgaTriple = true;
       }
 
       // Set the FPGA output type based on command line (-fsycl-link).
       if (auto * A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ))
         FPGAOutType = (A->getValue() == StringRef("early"))
                          ? types::TY_FPGA_AOCR : types::TY_FPGA_AOCX;
+
+      // Populate FPGA static archives that could contain dep files to be
+      // incorporated into the aoc compilation
+      if (SYCLfpgaTriple) {
+        SmallVector<const char *, 16> LinkArgs(getLinkerArgs(C, Args));
+        for (const StringRef &LA : LinkArgs) {
+          if (isStaticArchiveFile(LA) && hasOffloadSections(C, LA, Args)) {
+            const llvm::opt::OptTable &Opts = C.getDriver().getOpts();
+            Arg *InputArg = MakeInputArg(Args, Opts, Args.MakeArgString(LA));
+            Action *Current =
+                C.MakeAction<InputAction>(*InputArg, types::TY_Archive);
+            FPGAArchiveInputs.push_back(Current);
+          }
+        }
+      }
 
       DeviceLinkerInputs.resize(ToolChains.size());
       return initializeGpuArchMap();
@@ -5975,12 +6002,14 @@ InputInfo Driver::BuildJobsForActionNoCache(
     // Do a check for a dependency file unbundle for FPGA.  This is out of line
     // from a regular unbundle, so just create and return the name of the
     // unbundled file.
-    if (JA->getType() == types::TY_FPGA_Dependencies) {
+    if (JA->getType() == types::TY_FPGA_Dependencies ||
+        JA->getType() == types::TY_FPGA_Dependencies_List) {
+      std::string Ext(types::getTypeTempSuffix(JA->getType()));
       std::string TmpFileName =
-          C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseInput), "d");
+          C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseInput), Ext);
       const char *TmpFile =
           C.addTempFile(C.getArgs().MakeArgString(TmpFileName));
-      Result = InputInfo(types::TY_FPGA_Dependencies, TmpFile, TmpFile);
+      Result = InputInfo(JA->getType(), TmpFile, TmpFile);
       UnbundlingResults.push_back(Result);
     } else {
       // Now that we have all the results generated, select the one that should

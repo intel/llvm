@@ -225,7 +225,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
       // Add any FPGA library lists.  These come in as special tempfile lists.
       CmdArgs.push_back(Args.MakeArgString(Twine("-library-list=") +
           Filename));
-    else if (II.getType() == types::TY_FPGA_Dependencies)
+    else if (II.getType() == types::TY_FPGA_Dependencies ||
+             II.getType() == types::TY_FPGA_Dependencies_List)
       FPGADepFiles.push_back(II);
     else
       CmdArgs.push_back(C.getArgs().MakeArgString(Filename));
@@ -277,9 +278,13 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
   if (!FPGADepFiles.empty()) {
     SmallString<128> DepOpt("-dep-files=");
     for (unsigned I = 0; I < FPGADepFiles.size(); ++I) {
+      SmallString<64> FileName;
+      if (FPGADepFiles[I].getType() == types::TY_FPGA_Dependencies_List)
+        FileName += "@";
+      FileName += FPGADepFiles[I].getFilename();
       if (I)
         DepOpt += ',';
-      DepOpt += FPGADepFiles[I].getFilename();
+      DepOpt += FileName;
     }
     CmdArgs.push_back(C.getArgs().MakeArgString(DepOpt));
   }
