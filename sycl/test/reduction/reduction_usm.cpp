@@ -42,7 +42,8 @@ void test(T Identity, size_t WGSize, size_t NWItems, usm::alloc AllocType) {
     return;
   if (AllocType == usm::alloc::device) {
     event E = Q.submit([&](handler &CGH) {
-      CGH.single_task<SpecializationKernelName>(
+      CGH.single_task<KernelNameGroup<SpecializationKernelName,
+                                      class KernelName_nCGedyQcDjVZG>>(
           [=]() { *ReduVarPtr = Identity; });
     });
     E.wait();
@@ -64,7 +65,8 @@ void test(T Identity, size_t WGSize, size_t NWItems, usm::alloc AllocType) {
     range<1> GlobalRange(NWItems);
     range<1> LocalRange(WGSize);
     nd_range<1> NDRange(GlobalRange, LocalRange);
-    CGH.parallel_for<SpecializationKernelName>(
+    CGH.parallel_for<KernelNameGroup<SpecializationKernelName,
+                                     class KernelName_QhyGIsZzTKcB>>(
         NDRange, Redu, [=](nd_item<1> NDIt, auto &Sum) {
           Sum.combine(In[NDIt.get_global_linear_id()]);
         });
