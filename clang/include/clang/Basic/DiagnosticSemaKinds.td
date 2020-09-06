@@ -10977,7 +10977,6 @@ def err_sycl_kernel_incorrectly_named : Error<
   "kernel %select{name is missing"
   "|needs to have a globally-visible name"
   "|name is invalid. Unscoped enum requires fixed underlying type"
-  "|name cannot be a type in the \"std\" namespace"
   "}0">;
 def err_sycl_kernel_not_function_object
     : Error<"kernel parameter must be a lambda or function object">;

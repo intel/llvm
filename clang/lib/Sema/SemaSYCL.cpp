@@ -2727,38 +2727,34 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D,
     auto *NS = dyn_cast_or_null<NamespaceDecl>(DC);
 
     if (!NS) {
-      const TagDecl *TD = isa<ClassTemplateDecl>(D)
-                              ? cast<ClassTemplateDecl>(D)->getTemplatedDecl()
-                              : dyn_cast<TagDecl>(D);
-      if (!TD)
-        break;
+      if (!DC->isTranslationUnit()) {
+        const TagDecl *TD = isa<ClassTemplateDecl>(D)
+                                ? cast<ClassTemplateDecl>(D)->getTemplatedDecl()
+                                : dyn_cast<TagDecl>(D);
 
-      const bool KernelNameIsMissing = TD->getName().empty();
-      if (KernelNameIsMissing)
-        Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named)
-            << /* kernel name is missing */ 0;
-      else if (!DC->isTranslationUnit()) {
-        // defined class constituting the kernel name is not globally
-        // accessible - contradicts the spec
-        if (!UnnamedLambdaSupport) {
-          if (TD->isCompleteDefinition())
+        if (TD && !UnnamedLambdaSupport) {
+          // defined class constituting the kernel name is not globally
+          // accessible - contradicts the spec
+          const bool KernelNameIsMissing = TD->getName().empty();
+          if (KernelNameIsMissing) {
             Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named)
-                << /* kernel name is not globally-visible */ 1;
-          else
-            Diag.Report(KernelLocation, diag::warn_sycl_implicit_decl);
-          Diag.Report(D->getSourceRange().getBegin(), diag::note_previous_decl)
-              << TD->getName();
+                << /* kernel name is missing */ 0;
+            // Don't emit note if kernel name was completely omitted
+          } else {
+            if (TD->isCompleteDefinition())
+              Diag.Report(KernelLocation,
+                          diag::err_sycl_kernel_incorrectly_named)
+                  << /* kernel name is not globally-visible */ 1;
+            else
+              Diag.Report(KernelLocation, diag::warn_sycl_implicit_decl);
+            Diag.Report(D->getSourceRange().getBegin(),
+                        diag::note_previous_decl)
+                << TD->getName();
+          }
         }
       }
       break;
     }
-
-    if (NS->isStdNamespace()) {
-      Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named)
-          << /* name cannot be a type in the std namespace */ 3;
-      return;
-    }
-
     ++NamespaceCnt;
     const StringRef NSInlinePrefix = NS->isInline() ? "inline " : "";
     NSStr.insert(
@@ -2841,13 +2837,8 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
     ;
   const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
 
-  if (!RD) {
-    if (T->isNullPtrType())
-      Diag.Report(KernelLocation, diag::err_sycl_kernel_incorrectly_named)
-          << /* name cannot be a type in the std namespace */ 3;
-
+  if (!RD)
     return;
-  }
 
   // see if this is a template specialization ...
   if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
