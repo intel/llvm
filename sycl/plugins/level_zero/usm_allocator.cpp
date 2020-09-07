@@ -76,7 +76,12 @@ static void *AlignPtrDown(void *Ptr, const size_t Alignment) {
 // Aligns the pointer up to the specified alignment
 // (e.g. returns 16 for Size = 13, Alignment = 8)
 static void *AlignPtrUp(void *Ptr, const size_t Alignment) {
-  return static_cast<char *>(AlignPtrDown(Ptr, Alignment)) + Alignment;
+  void *AlignedPtr = AlignPtrDown(Ptr, Alignment);
+  // Special case when the pointer is already aligned
+  if (Ptr == AlignedPtr) {
+    return Ptr;
+  }
+  return static_cast<char *>(AlignedPtr) + Alignment;
 }
 
 // Aligns the value up to the specified alignment
@@ -150,6 +155,7 @@ public:
   bool hasAvail();
 
   Bucket &getBucket();
+  const Bucket &getBucket() const;
 
   void freeChunk(void *Ptr);
 };
@@ -230,7 +236,8 @@ bool operator==(const Slab &Lhs, const Slab &Rhs) {
 }
 
 std::ostream &operator<<(std::ostream &Os, const Slab &Slab) {
-  Os << "Slab<" << Slab.getPtr() << ", " << Slab.getEnd() << ">";
+  Os << "Slab<" << Slab.getPtr() << ", " << Slab.getEnd() << ", "
+     << Slab.getBucket().getSize() << ">";
   return Os;
 }
 
@@ -280,6 +287,7 @@ void *Slab::getFreeChunk() {
 }
 
 Bucket &Slab::getBucket() { return bucket; }
+const Bucket &Slab::getBucket() const { return bucket; }
 
 size_t Slab::getChunkSize() const { return bucket.getSize(); }
 

@@ -59,8 +59,8 @@ int main() {
     assert(p != nullptr);
     ptrs[count++] = p;
 
-    for (size_t alignment = 1; alignment <= alignmentLimit && alignment < size;
-         alignment *= 2) {
+    // Also test cases with alignment > size
+    for (size_t alignment = 1; alignment <= alignmentLimit; alignment *= 2) {
       uint8_t *s = (uint8_t *)aligned_alloc_device(alignment, size - 1, q);
       assert(s != nullptr);
       assert(((size_t)s) % alignment == 0);
