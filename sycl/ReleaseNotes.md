@@ -128,7 +128,7 @@ Release notes for commit range 5976ff0..1fc0e4f
   - [2377920]
   - [2c50c03]
   - [50628db]
-  - [678cd95]
+  - Inline assembly isn't supported on CUDA [678cd95]
   - Group algorithms for MUL/AND/OR/XOR are not fully enabled as the SPIR-V
     version isn't automatically raised from 1.1 to 1.3 [96da39e]
 
