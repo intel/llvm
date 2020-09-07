@@ -4,6 +4,10 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER  %t1.out
 
+// This test is expected to reliably work with USM allocator which is
+// currently enabled only on level zero.
+// REQUIRES: level_zero
+
 //==------ smem_concurrent.cpp - Concurrent USM allocation test -----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

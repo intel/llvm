@@ -4,6 +4,10 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER  %t1.out
 
+// This test is expected to reliably work with USM allocator which is
+// currently enabled only on level zero.
+// REQUIRES: level_zero
+
 //==---------- dmem_varied.cpp - Test various sizes and alignments ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -14,7 +18,6 @@
 
 #include <CL/sycl.hpp>
 
-#include <thread>
 #include <vector>
 
 using namespace cl::sycl;
