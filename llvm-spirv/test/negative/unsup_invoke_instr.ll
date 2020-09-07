@@ -1,3 +1,4 @@
+; XFAIL: windows
 ;Translator does not parse some llvm instructions
 ;and emit errror message in that case.
 ; RUN: llvm-as %s -o %t.bc
