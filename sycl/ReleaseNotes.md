@@ -9,15 +9,14 @@ Release notes for commit range 5976ff0..1fc0e4f
   - Assigned the source location of the kernel caller function to the artificial
     initialization code generated in the kernel body. It enables profiling tools
     to meaningfully the initialization code [6744364]
-  - Provided compile-time warning if size of kernel arguments exceeds 2KiB
-    [e00ab74]
+  - Provided compile-time warning if size of kernel arguments exceeds 2KiB in
+    GPU AOT mode [e00ab74]
   - Changed default SYCL standard to SYCL-2020 [67acf81]
-  - Removed deprecated spelling of IntelReqdSubGroupSize attribute [9dda36f]
+  - Removed deprecated `[[cl::intel_reqd_sub_group_size(N)]]` attribute
+    [9dda36f]
   - Enable USM address spaces by default for the FPGA hardware [7896819]
   - Assume SYCL device functions are convergent [047e2ec]
-  - Added Dead Argument Elimination optimization and enabled by default
-    [b0d98dc] [f53ede9]
-  - Improved integration header generation [7e1b4b5] [e2b5fda]
+  - Added Dead Argument Elimination optimization [b0d98dc] [f53ede9]
   - Simplified the error checking of arrays by only visiting 1x [c709986]
   - Stop emitting kernel arguments metadata [f658918]
   - Enabled `-f[no-]sycl-early-optimizations` on Windows [e1e3658]
@@ -29,11 +28,10 @@ Release notes for commit range 5976ff0..1fc0e4f
     make compiler define `_SYCL_ID_QUERIES_FIT_IN_INT_` macro which will signal
     runtime to emit `__builtin_assume()` for execution range less than `INT_MAX`
     limitation [3e4da3c]
-  - Make call location available when emitting kernel diagnostics [c767edc]
+  - Enabled template trail for kernel diagnostics [c767edc]
   - Disabled createIndVarSimplifyPass for SPIR target in SYCL mode [76ffef7]
-  - Run Dead Argument Elimination when LLVM optimizations are applied as well.
-    We cannot run Dead Argument Elimination for ESIMD since the pointers to SPIR
-    kernel functions are saved in `!genx.kernels metadata` [cf10351]
+  - Run Dead Argument Elimination when LLVM optimizations are applied as well
+    [cf10351]
 
 ### SYCL Library
   - Eliminated circular dependency between `event` and `queue` classes [31843cc]
@@ -72,20 +70,21 @@ Release notes for commit range 5976ff0..1fc0e4f
 
 ## Bug fixes
 ### SYCL Compiler
-  - Fixed crash on array of pointers as capture of kernel-lambda [1fc0e4f]
+  - Fixed crash when array of pointers is a kernel argument [1fc0e4f]
   - Allowed for `-P -fsycl` to be used on Windows when offloading [a21d7ef]
   - Fixed looking for tools (e.g. aoc, ocloc, opencl-aot) with full name on
     Windows (i.e. with `.exe` suffix) [78a86da]
-  - Eliminated compiler crash on invalid declaration [0c220ca]
+  - Eliminated compiler crash if invalid declaration is used as kernel argument
+    [0c220ca]
   - Switch SPIRV debug info to legacy mode to support old OpenCL RTs [500a0b8]
   - Disabled vectorizers in SYCL device code when early optimizations are
     enabled [20921b1]
-  - Enabled USM indirect access for interoperability kernels [ebf5c4e]
   - Fixed crash when kernel argument is a multi-dimensional array [36f6ab6]
   - Fixed `cl::sycl::INTELlsu::load()` method to return value instead of
     reference [82e5323]
   - Disabled "early" optimizations for Intel FPGA by default [f8902b8]
-  - Allowed for passing of pointer fields of struct argument of kernel [926eb32]
+  - Fixed regression in case when non-USM pointer was a member of a struct which
+    is passed to device as a kernel argument [926eb32]
   - Fixed NULL-pointer dereference in some cases [bdc2b85]
   - Adjusted AUX targets with lang options [43862a3]
 
@@ -108,6 +107,7 @@ Release notes for commit range 5976ff0..1fc0e4f
   - Fixed thread-safety issue, which took place when using stream class [4688cb3]
   - Unified usm `queue`'s `memcpy`/`memset` methods behavior for corner cases
     [7b7bab6]
+  - Enabled USM indirect access for interoperability kernels [ebf5c4e]
 
 ## API/ABI breakages
 
@@ -125,12 +125,13 @@ Release notes for commit range 5976ff0..1fc0e4f
     can happen when a SYCL application is built using MS Visual Studio 2019
     version below 16.3.0
     The workaround is to enable `-std=c++17` for the failing MSVC version.
-  - [2377920]
-  - [2c50c03]
-  - [50628db]
-  - Inline assembly isn't supported on CUDA [678cd95]
+  - Employing read sampler for image accessor may result in sporadic issues with
+    Level Zero plugin/backend [2c50c03]
+  - Printing internal defines isn't supported on Windows [50628db]
   - Group algorithms for MUL/AND/OR/XOR are not fully enabled as the SPIR-V
     version isn't automatically raised from 1.1 to 1.3 [96da39e]
+  - We cannot run Dead Argument Elimination for ESIMD since the pointers to SPIR
+    kernel functions are saved in `!genx.kernels metadata` [cf10351]
 
 # August'20 release notes
 
