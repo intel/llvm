@@ -442,6 +442,12 @@ SPIRVToLLVM::transOCLPipeStorageTypeName(SPIRV::SPIRVTypePipeStorage *PST) {
          kSPIRVTypeName::PipeStorage;
 }
 
+std::string SPIRVToLLVM::transVCTypeName(SPIRVTypeBufferSurfaceINTEL *PST) {
+  if (PST->hasAccessQualifier())
+    return VectorComputeUtil::getVCBufferSurfaceName(PST->getAccessQualifier());
+  return VectorComputeUtil::getVCBufferSurfaceName();
+}
+
 Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
   auto Loc = TypeMap.find(T);
   if (Loc != TypeMap.end())
@@ -530,6 +536,14 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
   // OpenCL Compiler does not use this instruction
   case OpTypeVmeImageINTEL:
     return nullptr;
+
+  case OpTypeBufferSurfaceINTEL: {
+    auto PST = static_cast<SPIRVTypeBufferSurfaceINTEL *>(T);
+    return mapType(T,
+                   getOrCreateOpaquePtrType(M, transVCTypeName(PST),
+                                            SPIRAddressSpace::SPIRAS_Global));
+  }
+
   default: {
     auto OC = T->getOpCode();
     if (isOpaqueGenericTypeOpCode(OC) || isSubgroupAvcINTELTypeOpCode(OC)) {
@@ -1653,6 +1667,25 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     if (BVar->isBuiltin(&BVKind))
       BuiltinGVMap[LVar] = BVKind;
     return mapValue(BV, LVar);
+  }
+
+  case OpVariableLengthArrayINTEL: {
+    auto *VLA = static_cast<SPIRVVariableLengthArrayINTEL *>(BV);
+    llvm::Type *Ty = transType(BV->getType()->getPointerElementType());
+    llvm::Value *ArrSize = transValue(VLA->getOperand(0), F, BB, false);
+    return mapValue(
+        BV, new AllocaInst(Ty, SPIRAS_Private, ArrSize, BV->getName(), BB));
+  }
+  case OpSaveMemoryINTEL: {
+    Function *StackSave = Intrinsic::getDeclaration(M, Intrinsic::stacksave);
+    return mapValue(BV, CallInst::Create(StackSave, "", BB));
+  }
+  case OpRestoreMemoryINTEL: {
+    auto *Restore = static_cast<SPIRVRestoreMemoryINTEL *>(BV);
+    llvm::Value *Ptr = transValue(Restore->getOperand(0), F, BB, false);
+    Function *StackRestore =
+        Intrinsic::getDeclaration(M, Intrinsic::stackrestore);
+    return mapValue(BV, CallInst::Create(StackRestore, {Ptr}, "", BB));
   }
 
   case OpFunctionParameter: {
@@ -3757,6 +3790,9 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
   Function *F = static_cast<Function *>(getTranslatedValue(BF));
   assert(F && "Invalid translated function");
   if (F->getCallingConv() != CallingConv::SPIR_KERNEL)
+    return true;
+
+  if (BF->hasDecorate(DecorationVectorComputeFunctionINTEL))
     return true;
 
   // Generate metadata for kernel_arg_addr_space

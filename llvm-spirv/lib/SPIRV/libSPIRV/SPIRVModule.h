@@ -89,6 +89,7 @@ class SPIRVInstTemplateBase;
 class SPIRVAsmTargetINTEL;
 class SPIRVAsmINTEL;
 class SPIRVAsmCallINTEL;
+class SPIRVTypeBufferSurfaceINTEL;
 
 typedef SPIRVBasicBlock SPIRVLabel;
 struct SPIRVTypeImageDescriptor;
@@ -163,7 +164,6 @@ public:
   virtual void setMemoryModel(SPIRVMemoryModelKind) = 0;
   virtual void setName(SPIRVEntry *, const std::string &) = 0;
   virtual void setSourceLanguage(SourceLanguage, SPIRVWord) = 0;
-  virtual void optimizeDecorates() = 0;
   virtual void setAutoAddCapability(bool E) { AutoAddCapability = E; }
   virtual void setValidateCapability(bool E) { ValidateCapability = E; }
   virtual void setAutoAddExtensions(bool E) { AutoAddExtensions = E; }
@@ -243,6 +243,8 @@ public:
   virtual SPIRVTypePipe *addPipeType() = 0;
   virtual SPIRVType *addSubgroupAvcINTELType(Op) = 0;
   virtual SPIRVTypeVmeImageINTEL *addVmeImageINTELType(SPIRVTypeImage *) = 0;
+  virtual SPIRVTypeBufferSurfaceINTEL *
+  addBufferSurfaceINTELType(SPIRVAccessQualifierKind Access) = 0;
   virtual void createForwardPointers() = 0;
 
   // Constants creation functions
@@ -459,16 +461,6 @@ public:
   virtual bool
   isAllowedToUseExtension(ExtensionID RequestedExtension) const final {
     return TranslationOpts.isAllowedToUseExtension(RequestedExtension);
-  }
-
-  virtual bool
-  isAllowedToUseExtensions(const SPIRVExtSet &RequestedExtensions) const final {
-    for (const auto &Ext : RequestedExtensions) {
-      if (!TranslationOpts.isAllowedToUseExtension(Ext))
-        return false;
-    }
-
-    return true;
   }
 
   virtual bool isGenArgNameMDEnabled() const final {
