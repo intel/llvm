@@ -642,6 +642,13 @@ endif()
 
 if (LLVM_BUILD_STATIC)
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+  # Remove shared library suffixes from use in find_library
+  foreach (shared_lib_suffix ${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_IMPORT_LIBRARY_SUFFIX})
+    list(FIND CMAKE_FIND_LIBRARY_SUFFIXES ${shared_lib_suffix} shared_lib_suffix_idx)
+    if(NOT ${shared_lib_suffix_idx} EQUAL -1)
+      list(REMOVE_AT CMAKE_FIND_LIBRARY_SUFFIXES ${shared_lib_suffix_idx})
+    endif()
+  endforeach()
 endif()
 
 # Use libtool instead of ar if you are both on an Apple host, and targeting Apple.
@@ -960,16 +967,6 @@ endif()
 # Build with _FILE_OFFSET_BITS=64 on Solaris to match g++ >= 9.
 if (UNIX AND ${CMAKE_SYSTEM_NAME} MATCHES "SunOS")
           add_definitions("-D_FILE_OFFSET_BITS=64")
-endif()
-
-# Work around a broken bfd ld behavior. When linking a binary with a
-# foo.so library, it will try to find any library that foo.so uses and
-# check its symbols. This is wasteful (the check was done when foo.so
-# was created) and can fail since it is not the dynamic linker and
-# doesn't know how to handle search paths correctly.
-if (UNIX AND NOT APPLE AND NOT CMAKE_SYSTEM_NAME MATCHES "SunOS|AIX|OS390")
-  set(CMAKE_EXE_LINKER_FLAGS
-      "${CMAKE_EXE_LINKER_FLAGS} -Wl,-allow-shlib-undefined")
 endif()
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)

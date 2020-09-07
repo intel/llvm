@@ -11,10 +11,14 @@
 
 #include "mlir-c/StandardAttributes.h"
 #include "mlir-c/StandardTypes.h"
+#include "llvm/ADT/SmallVector.h"
+#include <pybind11/stl.h>
 
 namespace py = pybind11;
 using namespace mlir;
 using namespace mlir::python;
+
+using llvm::SmallVector;
 
 //------------------------------------------------------------------------------
 // Docstrings (trivial, non-duplicated docstrings are included inline).
@@ -28,11 +32,57 @@ Returns a new MlirModule or raises a ValueError if the parsing fails.
 See also: https://mlir.llvm.org/docs/LangRef/
 )";
 
-static const char kContextParseType[] = R"(Parses the assembly form of a type.
+static const char kContextParseTypeDocstring[] =
+    R"(Parses the assembly form of a type.
 
 Returns a Type object or raises a ValueError if the type cannot be parsed.
 
 See also: https://mlir.llvm.org/docs/LangRef/#type-system
+)";
+
+static const char kContextGetUnknownLocationDocstring[] =
+    R"(Gets a Location representing an unknown location)";
+
+static const char kContextGetFileLocationDocstring[] =
+    R"(Gets a Location representing a file, line and column)";
+
+static const char kContextCreateBlockDocstring[] =
+    R"(Creates a detached block)";
+
+static const char kContextCreateRegionDocstring[] =
+    R"(Creates a detached region)";
+
+static const char kRegionAppendBlockDocstring[] =
+    R"(Appends a block to a region.
+
+Raises:
+  ValueError: If the block is already attached to another region.
+)";
+
+static const char kRegionInsertBlockDocstring[] =
+    R"(Inserts a block at a postiion in a region.
+
+Raises:
+  ValueError: If the block is already attached to another region.
+)";
+
+static const char kRegionFirstBlockDocstring[] =
+    R"(Gets the first block in a region.
+
+Blocks can also be accessed via the `blocks` container.
+
+Raises:
+  IndexError: If the region has no blocks.
+)";
+
+static const char kBlockNextInRegionDocstring[] =
+    R"(Gets the next block in the enclosing region.
+
+Blocks can also be accessed via the `blocks` container of the owning region.
+This method exists to mirror the lower level API and should not be preferred.
+
+Raises:
+  IndexError: If there are no further blocks.
 )";
 
 static const char kOperationStrDunderDocstring[] =
@@ -105,6 +155,38 @@ private:
 };
 
 } // namespace
+
+//------------------------------------------------------------------------------
+// Type-checking utilities.
+//------------------------------------------------------------------------------
+
+namespace {
+
+/// Checks whether the given type is an integer or float type.
+int mlirTypeIsAIntegerOrFloat(MlirType type) {
+  return mlirTypeIsAInteger(type) || mlirTypeIsABF16(type) ||
+         mlirTypeIsAF16(type) || mlirTypeIsAF32(type) || mlirTypeIsAF64(type);
+}
+
+} // namespace
+
+//------------------------------------------------------------------------------
+// PyBlock, PyRegion, and PyOperation.
+//------------------------------------------------------------------------------
+
+void PyRegion::attachToParent() {
+  if (!detached) {
+    throw SetPyError(PyExc_ValueError, "Region is already attached to an op");
+  }
+  detached = false;
+}
+
+void PyBlock::attachToParent() {
+  if (!detached) {
+    throw SetPyError(PyExc_ValueError, "Block is already attached to an op");
+  }
+  detached = false;
+}
 
 //------------------------------------------------------------------------------
 // PyAttribute.
@@ -401,6 +483,102 @@ public:
   }
 };
 
+/// Complex Type subclass - ComplexType.
+class PyComplexType : public PyConcreteType<PyComplexType> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsAComplex;
+  static constexpr const char *pyClassName = "ComplexType";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    c.def_static(
+        "get_complex",
+        [](PyType &elementType) {
+          // The element must be a floating point or integer scalar type.
+          if (mlirTypeIsAIntegerOrFloat(elementType.type)) {
+            MlirType t = mlirComplexTypeGet(elementType.type);
+            return PyComplexType(t);
+          }
+          throw SetPyError(
+              PyExc_ValueError,
+              llvm::Twine("invalid '") +
+                  py::repr(py::cast(elementType)).cast<std::string>() +
+                  "' and expected floating point or integer type.");
+        },
+        py::keep_alive<0, 1>(), "Create a complex type");
+    c.def_property_readonly(
+        "element_type",
+        [](PyComplexType &self) -> PyType {
+          MlirType t = mlirComplexTypeGetElementType(self.type);
+          return PyType(t);
+        },
+        "Returns element type.");
+  }
+};
+
+/// Vector Type subclass - VectorType.
+class PyVectorType : public PyConcreteType<PyVectorType> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsAVector;
+  static constexpr const char *pyClassName = "VectorType";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    c.def_static(
+        "get_vector",
+        [](std::vector<int64_t> shape, PyType &elementType) {
+          // The element must be a floating point or integer scalar type.
+          if (mlirTypeIsAIntegerOrFloat(elementType.type)) {
+            MlirType t =
+                mlirVectorTypeGet(shape.size(), shape.data(), elementType.type);
+            return PyVectorType(t);
+          }
+          throw SetPyError(
+              PyExc_ValueError,
+              llvm::Twine("invalid '") +
+                  py::repr(py::cast(elementType)).cast<std::string>() +
+                  "' and expected floating point or integer type.");
+        },
+        py::keep_alive<0, 2>(), "Create a vector type");
+  }
+};
+
+/// Tuple Type subclass - TupleType.
+class PyTupleType : public PyConcreteType<PyTupleType> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsATuple;
+  static constexpr const char *pyClassName = "TupleType";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    c.def_static(
+        "get_tuple",
+        [](PyMlirContext &context, py::list elementList) {
+          intptr_t num = py::len(elementList);
+          // Mapping py::list to SmallVector.
+          SmallVector<MlirType, 4> elements;
+          for (auto element : elementList)
+            elements.push_back(element.cast<PyType>().type);
+          MlirType t = mlirTupleTypeGet(context.context, num, elements.data());
+          return PyTupleType(t);
+        },
+        py::keep_alive<0, 1>(), "Create a tuple type");
+    c.def(
+        "get_type",
+        [](PyTupleType &self, intptr_t pos) -> PyType {
+          MlirType t = mlirTupleTypeGetType(self.type, pos);
+          return PyType(t);
+        },
+        py::keep_alive<0, 1>(), "Returns the pos-th type in the tuple type.");
+    c.def_property_readonly(
+        "num_types",
+        [](PyTupleType &self) -> intptr_t {
+          return mlirTupleTypeGetNumTypes(self.type);
+        },
+        "Returns the number of types contained in a tuple.");
+  }
+};
+
 } // namespace
 
 //------------------------------------------------------------------------------
@@ -454,7 +632,59 @@ void mlir::python::populateIRSubmodule(py::module &m) {
             }
             return PyType(type);
           },
-          py::keep_alive<0, 1>(), kContextParseType);
+          py::keep_alive<0, 1>(), kContextParseTypeDocstring)
+      .def(
+          "get_unknown_location",
+          [](PyMlirContext &self) {
+            return PyLocation(mlirLocationUnknownGet(self.context));
+          },
+          py::keep_alive<0, 1>(), kContextGetUnknownLocationDocstring)
+      .def(
+          "get_file_location",
+          [](PyMlirContext &self, std::string filename, int line, int col) {
+            return PyLocation(mlirLocationFileLineColGet(
+                self.context, filename.c_str(), line, col));
+          },
+          py::keep_alive<0, 1>(), kContextGetFileLocationDocstring,
+          py::arg("filename"), py::arg("line"), py::arg("col"))
+      .def(
+          "create_region",
+          [](PyMlirContext &self) {
+            // The creating context is explicitly captured on regions to
+            // facilitate illegal assemblies of objects from multiple contexts
+            // that would invalidate the memory model.
+            return PyRegion(self.context, mlirRegionCreate(),
+                            /*detached=*/true);
+          },
+          py::keep_alive<0, 1>(), kContextCreateRegionDocstring)
+      .def(
+          "create_block",
+          [](PyMlirContext &self, std::vector<PyType> pyTypes) {
+            // In order for the keep_alive extend the proper lifetime, all
+            // types must be from the same context.
+            for (auto pyType : pyTypes) {
+              if (!mlirContextEqual(mlirTypeGetContext(pyType.type),
+                                    self.context)) {
+                throw SetPyError(
+                    PyExc_ValueError,
+                    "All types used to construct a block must be from "
+                    "the same context as the block");
+              }
+            }
+            llvm::SmallVector<MlirType, 4> types(pyTypes.begin(),
+                                                 pyTypes.end());
+            return PyBlock(self.context,
+                           mlirBlockCreate(types.size(), &types[0]),
+                           /*detached=*/true);
+          },
+          py::keep_alive<0, 1>(), kContextCreateBlockDocstring);
+
+  py::class_<PyLocation>(m, "Location").def("__repr__", [](PyLocation &self) {
+    PyPrintAccumulator printAccum;
+    mlirLocationPrint(self.loc, printAccum.getCallback(),
+                      printAccum.getUserData());
+    return printAccum.join();
+  });
 
   // Mapping of Module
   py::class_<PyModule>(m, "Module")
@@ -474,6 +704,70 @@ void mlir::python::populateIRSubmodule(py::module &m) {
             return printAccum.join();
           },
           kOperationStrDunderDocstring);
+
+  // Mapping of PyRegion.
+  py::class_<PyRegion>(m, "Region")
+      .def(
+          "append_block",
+          [](PyRegion &self, PyBlock &block) {
+            if (!mlirContextEqual(self.context, block.context)) {
+              throw SetPyError(
+                  PyExc_ValueError,
+                  "Block must have been created from the same context as "
+                  "this region");
+            }
+
+            block.attachToParent();
+            mlirRegionAppendOwnedBlock(self.region, block.block);
+          },
+          kRegionAppendBlockDocstring)
+      .def(
+          "insert_block",
+          [](PyRegion &self, int pos, PyBlock &block) {
+            if (!mlirContextEqual(self.context, block.context)) {
+              throw SetPyError(
+                  PyExc_ValueError,
+                  "Block must have been created from the same context as "
+                  "this region");
+            }
+            block.attachToParent();
+            // TODO: Make this return a failure and raise if out of bounds.
+            mlirRegionInsertOwnedBlock(self.region, pos, block.block);
+          },
+          kRegionInsertBlockDocstring)
+      .def_property_readonly(
+          "first_block",
+          [](PyRegion &self) {
+            MlirBlock block = mlirRegionGetFirstBlock(self.region);
+            if (mlirBlockIsNull(block)) {
+              throw SetPyError(PyExc_IndexError, "Region has no blocks");
+            }
+            return PyBlock(self.context, block, /*detached=*/false);
+          },
+          kRegionFirstBlockDocstring);
+
+  // Mapping of PyBlock.
+  py::class_<PyBlock>(m, "Block")
+      .def_property_readonly(
+          "next_in_region",
+          [](PyBlock &self) {
+            MlirBlock block = mlirBlockGetNextInRegion(self.block);
+            if (mlirBlockIsNull(block)) {
+              throw SetPyError(PyExc_IndexError,
+                               "Attempt to read past last block");
+            }
+            return PyBlock(self.context, block, /*detached=*/false);
+          },
+          py::keep_alive<0, 1>(), kBlockNextInRegionDocstring)
+      .def(
+          "__str__",
+          [](PyBlock &self) {
+            PyPrintAccumulator printAccum;
+            mlirBlockPrint(self.block, printAccum.getCallback(),
+                           printAccum.getUserData());
+            return printAccum.join();
+          },
+          kTypeStrDunderDocstring);
 
   // Mapping of Type.
   py::class_<PyAttribute>(m, "Attribute")
@@ -591,4 +885,7 @@ void mlir::python::populateIRSubmodule(py::module &m) {
   PyF32Type::bind(m);
   PyF64Type::bind(m);
   PyNoneType::bind(m);
+  PyComplexType::bind(m);
+  PyVectorType::bind(m);
+  PyTupleType::bind(m);
 }
