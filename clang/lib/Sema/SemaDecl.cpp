@@ -3217,11 +3217,11 @@ static void adjustDeclContextForDeclaratorDecl(DeclaratorDecl *NewD,
     FixSemaDC(VD->getDescribedVarTemplate());
 }
 
-template <typename AttributeName>
+template <typename AttributeType>
 static void checkDimensionsAndSetDiagnostics(Sema &S, FunctionDecl *New,
                                              FunctionDecl *Old) {
-  auto *NewDeclAttr = New->getAttr<AttributeName>();
-  auto *OldDeclAttr = Old->getAttr<AttributeName>();
+  AttributeType *NewDeclAttr = New->getAttr<AttributeType>();
+  AttributeType *OldDeclAttr = Old->getAttr<AttributeType>();
   if ((NewDeclAttr->getXDim() != OldDeclAttr->getXDim()) ||
       (NewDeclAttr->getYDim() != OldDeclAttr->getYDim()) ||
       (NewDeclAttr->getZDim() != OldDeclAttr->getZDim())) {

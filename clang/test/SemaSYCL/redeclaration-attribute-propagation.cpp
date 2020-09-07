@@ -1,6 +1,8 @@
-// RUN: %clang_cc1 %s -fsyntax-only -fsycl -fsycl-is-device -triple spir64 -verify
-// RUN: %clang_cc1 %s -fsyntax-only -fsycl -fsycl-is-device -triple spir64 -DTRIGGER_ERROR -verify
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl -fsycl-is-device -triple spir64 | FileCheck %s
+// RUN: %clang_cc1 %s -I %S/Inputs -fsyntax-only -fsycl -fsycl-is-device -triple spir64 -verify
+// RUN: %clang_cc1 %s -I %S/Inputs -fsyntax-only -fsycl -fsycl-is-device -triple spir64 -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 %s -I %S/Inputs -fsyntax-only -ast-dump -fsycl -fsycl-is-device -triple spir64 | FileCheck %s
+
+#include <sycl.hpp>
 
 #ifndef TRIGGER_ERROR
 //first case - good case
@@ -22,11 +24,11 @@ void
 func2() {}
 
 //third case - expect error
-[[cl::reqd_work_group_size(4, 4, 4)]] // expected-note {{conflicting attribute is here}}
+[[cl::reqd_work_group_size(1, 2, 3)]] // expected-note {{conflicting attribute is here}}
 void
 func3();
 
-[[cl::reqd_work_group_size(1, 1, 1)]] // expected-note 2 {{conflicting attribute is here}}
+[[cl::reqd_work_group_size(4, 4, 4)]] // expected-note 2 {{conflicting attribute is here}}
 void
 // expected-warning@+1 {{attribute 'reqd_work_group_size' is already applied with different parameters}}
 func3() {} // expected-error {{'reqd_work_group_size' attribute conflicts with ''reqd_work_group_size'' attribute}}
@@ -39,28 +41,29 @@ func4();
 [[intelfpga::max_work_group_size(8, 8, 8)]] // expected-note {{conflicting attribute is here}}
 void
 // expected-warning@+1 {{attribute 'max_work_group_size' is already applied with different parameters}}
-func4(); // expected-error {{'max_work_group_size' attribute conflicts with ''max_work_group_size'' attribute}}
+func4() {} // expected-error {{'max_work_group_size' attribute conflicts with ''max_work_group_size'' attribute}}
 #endif
 
 template <typename Name, typename Type>
-[[clang::sycl_kernel]] void __my_kernel__(Type bar) {
-  bar();
+__attribute__((sycl_kernel)) void kernel(Type kernelFunc) {
+  kernelFunc();
 #ifndef TRIGGER_ERROR
   func1();
 #else
   func2();
   func3();
+  func4();
 #endif
 }
 
 template <typename Name, typename Type>
-void parallel_for(Type func) {
-  __my_kernel__<Name>(func);
+void parallel_for(Type kernelFunc) {
+  kernel<Name>(kernelFunc);
 }
 
-void invoke_foo2() {
+void use() {
 #ifndef TRIGGER_ERROR
-  // CHECK-LABEL:  FunctionDecl {{.*}} invoke_foo2 'void ()'
+  // CHECK-LABEL:  FunctionDecl {{.*}} use 'void ()'
   // CHECK:  `-FunctionDecl {{.*}}KernelName 'void ()'
   // CHECK:  -SYCLIntelMaxWorkGroupSizeAttr {{.*}} Inherited 4 4 4
   // CHECK:  -SYCLIntelNoGlobalWorkOffsetAttr {{.*}} Inherited Enabled
