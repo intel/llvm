@@ -1,4 +1,3 @@
-// XFAIL: cuda, opencl, level_zero
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 //
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
@@ -29,10 +28,10 @@ bool verifyProfiling(event Event) {
   assert(Submit <= Start);
   assert(Start <= End);
 
-  bool Fail = sycl::info::event_command_status::complete !=
+  bool Pass = sycl::info::event_command_status::complete ==
               Event.get_info<sycl::info::event::command_execution_status>();
 
-  return Fail;
+  return Pass;
 }
 
 // The test checks that get_profiling_info waits for command asccociated with
@@ -45,28 +44,32 @@ int main() {
   }
   int Values[Size] = {0};
 
-  buffer<int, 1> BufferFrom(Data, range<1>(Size));
-  buffer<int, 1> BufferTo(Values, range<1>(Size));
+  {
+    buffer<int, 1> BufferFrom(Data, range<1>(Size));
+    buffer<int, 1> BufferTo(Values, range<1>(Size));
 
-  // buffer copy
-  queue copyQueue{sycl::property::queue::enable_profiling()};
-  event copyEvent = copyQueue.submit([&](sycl::handler &Cgh) {
-    accessor<int, 1, access::mode::read, access::target::global_buffer>
-        AccessorFrom(BufferFrom, Cgh, range<1>(Size));
-    accessor<int, 1, access::mode::write, access::target::global_buffer>
-        AccessorTo(BufferTo, Cgh, range<1>(Size));
-    Cgh.copy(AccessorFrom, AccessorTo);
-  });
+    // buffer copy
+    queue copyQueue{sycl::property::queue::enable_profiling()};
+    event copyEvent = copyQueue.submit([&](sycl::handler &Cgh) {
+      accessor<int, 1, access::mode::read, access::target::global_buffer>
+          AccessorFrom(BufferFrom, Cgh, range<1>(Size));
+      accessor<int, 1, access::mode::write, access::target::global_buffer>
+          AccessorTo(BufferTo, Cgh, range<1>(Size));
+      Cgh.copy(AccessorFrom, AccessorTo);
+    });
+
+    // kernel launch
+    queue kernelQueue{sycl::property::queue::enable_profiling()};
+    event kernelEvent = kernelQueue.submit([&](sycl::handler &CGH) {
+      CGH.single_task<class EmptyKernel>([=]() {});
+    });
+
+    assert(verifyProfiling(copyEvent) && verifyProfiling(kernelEvent));
+  }
 
   for (size_t I = 0; I < Size; ++I) {
     assert(Data[I] == Values[I]);
   }
 
-  // kernel launch
-  queue kernelQueue{sycl::property::queue::enable_profiling()};
-  event kernelEvent = kernelQueue.submit([&](sycl::handler &CGH) {
-    CGH.single_task<class EmptyKernel>([=]() {});
-  });
-
-  return verifyProfiling(copyEvent) || verifyProfiling(kernelEvent);
+  return 0;
 }
