@@ -56,7 +56,7 @@ enum KernelInvocationKind {
 
 const static std::string InitMethodName = "__init";
 const static std::string FinalizeMethodName = "__finalize";
-constexpr unsigned GPUMaxKernelArgsNum = 2000;
+constexpr unsigned GPUMaxKernelArgsSize = 2048;
 
 namespace {
 
@@ -1656,32 +1656,35 @@ public:
   using SyclKernelFieldHandler::leaveStruct;
 };
 
-class SyclKernelNumArgsChecker : public SyclKernelFieldHandler {
+class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
   SourceLocation KernelLoc;
-  unsigned NumOfParams = 0;
+  unsigned SizeOfParams = 0;
+
+  void addParam(QualType ArgTy) {
+    SizeOfParams +=
+        SemaRef.getASTContext().getTypeSizeInChars(ArgTy).getQuantity();
+  }
 
   bool handleSpecialType(QualType FieldTy) {
     const CXXRecordDecl *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
     assert(InitMethod && "The accessor/sampler must have the __init method");
-    NumOfParams += InitMethod->getNumParams();
+    for (const ParmVarDecl *Param : InitMethod->parameters())
+      addParam(Param->getType());
     return true;
   }
 
 public:
-  SyclKernelNumArgsChecker(Sema &S, SourceLocation Loc)
+  SyclKernelArgsSizeChecker(Sema &S, SourceLocation Loc)
       : SyclKernelFieldHandler(S), KernelLoc(Loc) {}
 
-  ~SyclKernelNumArgsChecker() {
+  ~SyclKernelArgsSizeChecker() {
     if (SemaRef.Context.getTargetInfo().getTriple().getSubArch() ==
-        llvm::Triple::SPIRSubArch_gen) {
-      if (NumOfParams > GPUMaxKernelArgsNum) {
-        SemaRef.Diag(KernelLoc, diag::warn_sycl_kernel_too_many_args)
-            << NumOfParams << GPUMaxKernelArgsNum;
-        SemaRef.Diag(KernelLoc, diag::note_sycl_kernel_args_count);
-      }
-    }
+        llvm::Triple::SPIRSubArch_gen)
+      if (SizeOfParams > GPUMaxKernelArgsSize)
+        SemaRef.Diag(KernelLoc, diag::warn_sycl_kernel_too_big_args)
+            << SizeOfParams << GPUMaxKernelArgsSize;
   }
 
   bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
@@ -1703,12 +1706,12 @@ public:
   }
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
-    NumOfParams++;
+    addParam(FieldTy);
     return true;
   }
 
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
-    NumOfParams++;
+    addParam(FieldTy);
     return true;
   }
 
@@ -1717,17 +1720,17 @@ public:
   }
 
   bool handleSyclHalfType(FieldDecl *FD, QualType FieldTy) final {
-    NumOfParams++;
+    addParam(FieldTy);
     return true;
   }
 
   bool handleSyclStreamType(FieldDecl *FD, QualType FieldTy) final {
-    NumOfParams++;
+    addParam(FieldTy);
     return true;
   }
   bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &,
                             QualType FieldTy) final {
-    NumOfParams++;
+    addParam(FieldTy);
     return true;
   }
   using SyclKernelFieldHandler::handleSyclHalfType;
@@ -1749,6 +1752,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   const CXXRecordDecl *KernelObj;
   llvm::SmallVector<Expr *, 16> MemberExprBases;
   FunctionDecl *KernelCallerFunc;
+  SourceLocation KernelCallerSrcLoc; // KernelCallerFunc source location.
   // Contains a count of how many containers we're in.  This is used by the
   // pointer-struct-wrapping code to ensure that we don't try to wrap
   // non-top-level pointers.
@@ -1818,7 +1822,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     QualType ParamType = KernelParameter->getOriginalType();
     Expr *DRE = SemaRef.BuildDeclRefExpr(KernelParameter, ParamType, VK_LValue,
-                                         SourceLocation());
+                                         KernelCallerSrcLoc);
     return DRE;
   }
 
@@ -1830,7 +1834,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     QualType ParamType = KernelParameter->getOriginalType();
     Expr *DRE = SemaRef.BuildDeclRefExpr(KernelParameter, ParamType, VK_LValue,
-                                         SourceLocation());
+                                         KernelCallerSrcLoc);
 
     // Struct Type kernel arguments are decomposed. The pointer fields are
     // then wrapped inside a compiler generated struct. Therefore when
@@ -1842,6 +1846,10 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
       DRE = buildMemberExpr(DRE, Pointer);
       ParamType = Pointer->getType();
     }
+
+    DRE =
+        ImplicitCastExpr::Create(SemaRef.Context, ParamType, CK_LValueToRValue,
+                                 DRE, /*BasePath=*/nullptr, VK_RValue);
 
     if (PointerTy->getPointeeType().getAddressSpace() !=
         ParamType->getPointeeType().getAddressSpace())
@@ -1873,7 +1881,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
   void addFieldInit(FieldDecl *FD, QualType Ty, MultiExprArg ParamRef) {
     InitializationKind InitKind =
-        InitializationKind::CreateCopy(SourceLocation(), SourceLocation());
+        InitializationKind::CreateCopy(KernelCallerSrcLoc, KernelCallerSrcLoc);
     addFieldInit(FD, Ty, ParamRef, InitKind);
   }
 
@@ -1910,10 +1918,10 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   MemberExpr *buildMemberExpr(Expr *Base, ValueDecl *Member) {
     DeclAccessPair MemberDAP = DeclAccessPair::make(Member, AS_none);
     MemberExpr *Result = SemaRef.BuildMemberExpr(
-        Base, /*IsArrow */ false, SourceLocation(), NestedNameSpecifierLoc(),
-        SourceLocation(), Member, MemberDAP,
+        Base, /*IsArrow */ false, KernelCallerSrcLoc, NestedNameSpecifierLoc(),
+        KernelCallerSrcLoc, Member, MemberDAP,
         /*HadMultipleCandidates*/ false,
-        DeclarationNameInfo(Member->getDeclName(), SourceLocation()),
+        DeclarationNameInfo(Member->getDeclName(), KernelCallerSrcLoc),
         Member->getType(), VK_LValue, OK_Ordinary);
     return Result;
   }
@@ -1941,7 +1949,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     for (size_t I = 0; I < NumParams; ++I) {
       QualType ParamType = KernelParameters[I]->getOriginalType();
       ParamDREs[I] = SemaRef.BuildDeclRefExpr(KernelParameters[I], ParamType,
-                                              VK_LValue, SourceLocation());
+                                              VK_LValue, KernelCallerSrcLoc);
     }
 
     MemberExpr *MethodME = buildMemberExpr(MemberExprBases.back(), Method);
@@ -1951,12 +1959,12 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     ResultTy = ResultTy.getNonLValueExprType(SemaRef.Context);
     llvm::SmallVector<Expr *, 4> ParamStmts;
     const auto *Proto = cast<FunctionProtoType>(Method->getType());
-    SemaRef.GatherArgumentsForCall(SourceLocation(), Method, Proto, 0,
+    SemaRef.GatherArgumentsForCall(KernelCallerSrcLoc, Method, Proto, 0,
                                    ParamDREs, ParamStmts);
     // [kernel_obj or wrapper object].accessor.__init(_ValueType*,
     // range<int>, range<int>, id<int>)
     AddTo.push_back(CXXMemberCallExpr::Create(
-        SemaRef.Context, MethodME, ParamStmts, ResultTy, VK, SourceLocation(),
+        SemaRef.Context, MethodME, ParamStmts, ResultTy, VK, KernelCallerSrcLoc,
         FPOptionsOverride()));
   }
 
@@ -1978,7 +1986,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
   InitListExpr *createInitListExpr(QualType InitTy, uint64_t NumChildInits) {
     InitListExpr *ILE = new (SemaRef.getASTContext()) InitListExpr(
-        SemaRef.getASTContext(), SourceLocation(), {}, SourceLocation());
+        SemaRef.getASTContext(), KernelCallerSrcLoc, {}, KernelCallerSrcLoc);
     ILE->reserveInits(SemaRef.getASTContext(), NumChildInits);
     ILE->setType(InitTy);
 
@@ -2004,8 +2012,9 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     TypeSourceInfo *TSInfo =
         KernelObj->isLambda() ? KernelObj->getLambdaTypeInfo() : nullptr;
     VarDecl *VD = VarDecl::Create(
-        Ctx, DC, SourceLocation(), SourceLocation(), KernelObj->getIdentifier(),
-        QualType(KernelObj->getTypeForDecl(), 0), TSInfo, SC_None);
+        Ctx, DC, KernelObj->getLocation(), KernelObj->getLocation(),
+        KernelObj->getIdentifier(), QualType(KernelObj->getTypeForDecl(), 0),
+        TSInfo, SC_None);
 
     return VD;
   }
@@ -2013,7 +2022,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   // Default inits the type, then calls the init-method in the body.
   bool handleSpecialType(FieldDecl *FD, QualType Ty) {
     addFieldInit(FD, Ty, None,
-                 InitializationKind::CreateDefault(SourceLocation()));
+                 InitializationKind::CreateDefault(KernelCallerSrcLoc));
 
     addFieldMemberExpr(FD, Ty);
 
@@ -2027,7 +2036,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
   bool handleSpecialType(const CXXBaseSpecifier &BS, QualType Ty) {
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
-    addBaseInit(BS, Ty, InitializationKind::CreateDefault(SourceLocation()));
+    addBaseInit(BS, Ty, InitializationKind::CreateDefault(KernelCallerSrcLoc));
     createSpecialMethodCall(RecordDecl, InitMethodName, BodyStmts);
     return true;
   }
@@ -2040,15 +2049,16 @@ public:
         KernelObjClone(createKernelObjClone(S.getASTContext(),
                                             DC.getKernelDecl(), KernelObj)),
         VarEntity(InitializedEntity::InitializeVariable(KernelObjClone)),
-        KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc) {
+        KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc),
+        KernelCallerSrcLoc(KernelCallerFunc->getLocation()) {
     CollectionInitExprs.push_back(createInitListExpr(KernelObj));
     markParallelWorkItemCalls();
 
     Stmt *DS = new (S.Context) DeclStmt(DeclGroupRef(KernelObjClone),
-                                        SourceLocation(), SourceLocation());
+                                        KernelCallerSrcLoc, KernelCallerSrcLoc);
     BodyStmts.push_back(DS);
     DeclRefExpr *KernelObjCloneRef = DeclRefExpr::Create(
-        S.Context, NestedNameSpecifierLoc(), SourceLocation(), KernelObjClone,
+        S.Context, NestedNameSpecifierLoc(), KernelCallerSrcLoc, KernelObjClone,
         false, DeclarationNameInfo(), QualType(KernelObj->getTypeForDecl(), 0),
         VK_LValue);
     MemberExprBases.push_back(KernelObjCloneRef);
@@ -2096,7 +2106,7 @@ public:
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
     Expr *PointerRef =
-        createPointerParamReferenceExpr(FD->getType(), StructDepth != 0);
+        createPointerParamReferenceExpr(FieldTy, StructDepth != 0);
     addFieldInit(FD, FieldTy, PointerRef);
     return true;
   }
@@ -2159,7 +2169,7 @@ public:
     CXXCastPath BasePath;
     QualType DerivedTy(RD->getTypeForDecl(), 0);
     QualType BaseTy = BS.getType();
-    SemaRef.CheckDerivedToBaseConversion(DerivedTy, BaseTy, SourceLocation(),
+    SemaRef.CheckDerivedToBaseConversion(DerivedTy, BaseTy, KernelCallerSrcLoc,
                                          SourceRange(), &BasePath,
                                          /*IgnoreBaseAccess*/ true);
     auto Cast = ImplicitCastExpr::Create(
@@ -2208,11 +2218,11 @@ public:
         Index, SizeT->isSignedIntegerType()};
 
     auto IndexLiteral = IntegerLiteral::Create(
-        SemaRef.getASTContext(), IndexVal, SizeT, SourceLocation());
+        SemaRef.getASTContext(), IndexVal, SizeT, KernelCallerSrcLoc);
 
     ExprResult IndexExpr = SemaRef.CreateBuiltinArraySubscriptExpr(
-        MemberExprBases.back(), SourceLocation{}, IndexLiteral,
-        SourceLocation{});
+        MemberExprBases.back(), KernelCallerSrcLoc, IndexLiteral,
+        KernelCallerSrcLoc);
 
     assert(!IndexExpr.isInvalid());
     MemberExprBases.push_back(IndexExpr.get());
@@ -2468,7 +2478,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
 
   SyclKernelFieldChecker FieldChecker(*this);
   SyclKernelUnionChecker UnionChecker(*this);
-  SyclKernelNumArgsChecker NumArgsChecker(*this, Args[0]->getExprLoc());
+  SyclKernelArgsSizeChecker ArgsSizeChecker(*this, Args[0]->getExprLoc());
   // check that calling kernel conforms to spec
   QualType KernelParamTy = KernelFunc->getParamDecl(0)->getType();
   if (KernelParamTy->isReferenceType()) {
@@ -2488,9 +2498,9 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   KernelObjVisitor Visitor{*this};
   DiagnosingSYCLKernel = true;
   Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker,
-                           NumArgsChecker);
+                           ArgsSizeChecker);
   Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker,
-                            NumArgsChecker);
+                            ArgsSizeChecker);
   DiagnosingSYCLKernel = false;
   if (!FieldChecker.isValid() || !UnionChecker.isValid())
     KernelFunc->setInvalidDecl();

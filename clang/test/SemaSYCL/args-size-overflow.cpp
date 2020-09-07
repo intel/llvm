@@ -13,11 +13,9 @@ __attribute__((sycl_kernel)) void kernel(F KernelFunc) {
 template <typename Name, typename F>
 void parallel_for(F KernelFunc) {
 #ifdef GPU
-  // expected-warning@+8 {{kernel argument count (2001) exceeds supported maximum of 2000 on GPU}}
-  // expected-note@+7 {{array elements and fields of a class/struct may be counted separately}}
+  // expected-warning@+6 {{size of kernel arguments (7994 bytes) exceeds supported maximum of 2048 bytes on GPU}}
 #elif ERROR
-  // expected-error@+5 {{kernel argument count (2001) exceeds supported maximum of 2000 on GPU}}
-  // expected-note@+4 {{array elements and fields of a class/struct may be counted separately}}
+  // expected-error@+4 {{size of kernel arguments (7994 bytes) exceeds supported maximum of 2048 bytes on GPU}}
 #else
   // expected-no-diagnostics
 #endif

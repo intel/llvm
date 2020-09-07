@@ -715,6 +715,43 @@ protected:
 
   friend class Command;
   friend class DispatchHostTask;
+
+  /// Stream buffers structure.
+  ///
+  /// The structure contains all buffers for a stream object.
+  struct StreamBuffers {
+    StreamBuffers(size_t StreamBufferSize, size_t FlushBufferSize)
+        // Initialize stream buffer with zeros, this is needed for two reasons:
+        // 1. We don't need to care about end of line when printing out
+        // streamed data.
+        // 2. Offset is properly initialized.
+        : Data(StreamBufferSize, 0),
+          Buf(Data.data(), range<1>(StreamBufferSize),
+              {property::buffer::use_host_ptr()}),
+          FlushBuf(range<1>(FlushBufferSize)) {}
+
+    // Vector on the host side which is used to initialize the stream
+    // buffer
+    std::vector<char> Data;
+
+    // Stream buffer
+    buffer<char, 1> Buf;
+
+    // Global flush buffer
+    buffer<char, 1> FlushBuf;
+  };
+
+  friend class stream_impl;
+
+  // Protects stream buffers pool
+  std::mutex StreamBuffersPoolMutex;
+  std::map<stream_impl *, StreamBuffers> StreamBuffersPool;
+
+  /// Allocate buffers in the pool for a provided stream
+  void allocateStreamBuffers(stream_impl *, size_t, size_t);
+
+  /// Deallocate buffers in the pool for a provided stream
+  void deallocateStreamBuffers(stream_impl *);
 };
 
 } // namespace detail
