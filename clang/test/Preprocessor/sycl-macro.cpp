@@ -8,7 +8,6 @@
 // RUN: %clang_cc1 -fno-sycl-id-queries-fit-in-int %s -E -dM | FileCheck \
 // RUN: --check-prefix=CHECK-NO-SYCL_FIT_IN_INT %s
 
-
 // CHECK-NOT:#define __SYCL_DEVICE_ONLY__ 1
 // CHECK-NOT:#define SYCL_EXTERNAL
 // CHECK-NOT:#define CL_SYCL_LANGUAGE_VERSION 121
