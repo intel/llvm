@@ -179,13 +179,18 @@ public:
       return FilterList;
     }
 
-    Initialized = true;
     const char *ValStr = BaseT::getRawValue();
     if (ValStr) {
       std::string FilterString = ValStr;
       static device_filter_list DFL = FilterString;
       FilterList = &DFL;
     }
+    // as mentioned above, configuration parameters are process only once.
+    // If multiple threads are checking this env var at the same time,
+    // they will end up setting the configration to the same value.
+    // If other threads check after one thread already set configration,
+    // the threads will get the same value as the first thread.
+    Initialized = true;
     return FilterList;
   }
 };
