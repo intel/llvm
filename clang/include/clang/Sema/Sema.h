@@ -322,9 +322,6 @@ public:
   SYCLIntegrationHeader(DiagnosticsEngine &Diag, bool UnnamedLambdaSupport,
                         Sema &S);
 
-  /// Get c++ version to support version mismatch diagnostics
-  int getCppVersion();
-
   /// Emits contents of the header into given stream.
   void emit(raw_ostream &Out);
 
