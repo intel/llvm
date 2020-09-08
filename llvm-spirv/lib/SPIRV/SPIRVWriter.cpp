@@ -354,6 +354,13 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
           return mapType(T, BM->addQueueType());
         }
       }
+      if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute)) {
+        if (STName.startswith(kVCType::VCBufferSurface)) {
+          // VCBufferSurface always have Access Qualifier
+          auto Access = getAccessQualifier(STName);
+          return mapType(T, BM->addBufferSurfaceINTELType(Access));
+        }
+      }
 
       if (isPointerToOpaqueStructType(T)) {
         return mapType(
@@ -929,9 +936,13 @@ public:
       assert(IdxGroupNode &&
              "Invalid operand in the MDNode for LLVMParallelAccessIndices");
       auto IdxGroupArrayPairIt = IndexGroupArrayMap.find(IdxGroupNode);
-      assert(IdxGroupArrayPairIt != IndexGroupArrayMap.end() &&
-             "Absent entry for this index group node");
-      ArrayVariablesVec.push_back(IdxGroupArrayPairIt->second);
+      // TODO: Some LLVM IR optimizations (e.g. loop inlining as part of
+      // the function inlining) can result in invalid parallel_access_indices
+      // metadata. Only valid cases will pass the subsequent check and
+      // survive the translation. This check should be replaced with an
+      // assertion once all known cases are handled.
+      if (IdxGroupArrayPairIt != IndexGroupArrayMap.end())
+        ArrayVariablesVec.push_back(IdxGroupArrayPairIt->second);
     }
   }
 
@@ -1299,11 +1310,26 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
             transValue(Sel->getFalseValue(), BB, true, FuncTransMode::Pointer),
             BB));
 
-  if (AllocaInst *Alc = dyn_cast<AllocaInst>(V))
+  if (AllocaInst *Alc = dyn_cast<AllocaInst>(V)) {
+    if (Alc->isArrayAllocation()) {
+      if (!BM->checkExtension(ExtensionID::SPV_INTEL_variable_length_array,
+                              SPIRVEC_InvalidInstruction,
+                              toString(Alc) +
+                                  "\nTranslation of dynamic alloca requires "
+                                  "SPV_INTEL_variable_length_array extension."))
+        return nullptr;
+
+      SPIRVValue *Length = transValue(Alc->getArraySize(), BB);
+      assert(Length && "Couldn't translate array size!");
+      return mapValue(V, BM->addInstTemplate(OpVariableLengthArrayINTEL,
+                                             {Length->getId()}, BB,
+                                             transType(Alc->getType())));
+    }
     return mapValue(
         V, BM->addVariable(transType(Alc->getType()), false,
                            SPIRVLinkageTypeKind::LinkageTypeInternal, nullptr,
                            Alc->getName().str(), StorageClassFunction, BB));
+  }
 
   if (auto *Switch = dyn_cast<SwitchInst>(V)) {
     std::vector<SPIRVSwitch::PairTy> Pairs;
@@ -1541,6 +1567,12 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
       CI->setCalledFunction(cast<Function>(Alias->getAliasee()));
     }
     return mapValue(V, transCallInst(CI, BB));
+  }
+
+  if (Instruction *Inst = dyn_cast<Instruction>(V)) {
+    BM->getErrorLog().checkError(false, SPIRVEC_InvalidInstruction,
+                                 toString(Inst) + "\n", nullptr, __FILE__,
+                                 __LINE__);
   }
 
   llvm_unreachable("Not implemented");
@@ -2268,6 +2300,33 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     }
     return nullptr;
   }
+  case Intrinsic::stacksave: {
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_variable_length_array)) {
+      auto *Ty = transType(II->getType());
+      return BM->addInstTemplate(OpSaveMemoryINTEL, BB, Ty);
+    }
+    BM->getErrorLog().checkError(
+        BM->isSPIRVAllowUnknownIntrinsicsEnabled(), SPIRVEC_InvalidFunctionCall,
+        toString(II) + "\nTranslation of llvm.stacksave intrinsic requires "
+                       "SPV_INTEL_variable_length_array extension or "
+                       "-spirv-allow-unknown-intrinsics option.");
+    break;
+  }
+  case Intrinsic::stackrestore: {
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_variable_length_array)) {
+      auto *Ptr = transValue(II->getArgOperand(0), BB);
+      return BM->addInstTemplate(OpRestoreMemoryINTEL, {Ptr->getId()}, BB,
+                                 nullptr);
+    }
+    BM->getErrorLog().checkError(
+        BM->isSPIRVAllowUnknownIntrinsicsEnabled(), SPIRVEC_InvalidFunctionCall,
+        toString(II) + "\nTranslation of llvm.restore intrinsic requires "
+                       "SPV_INTEL_variable_length_array extension or "
+                       "-spirv-allow-unknown-intrinsics option.");
+    break;
+  }
   // We can just ignore/drop some intrinsics, like optimizations hint.
   case Intrinsic::invariant_start:
   case Intrinsic::invariant_end:
@@ -2716,7 +2775,6 @@ bool LLVMToSPIRV::translate() {
   if (!transExecutionMode())
     return false;
 
-  BM->optimizeDecorates();
   BM->resolveUnknownStructFields();
   BM->createForwardPointers();
   DbgTran->transDebugMetadata();

@@ -258,6 +258,16 @@ public:
   bool applyCombineAddP2IToPtrAdd(MachineInstr &MI,
                                   std::pair<Register, bool> &PtrRegAndCommute);
 
+  /// Transform anyext(trunc(x)) to x.
+  bool matchCombineAnyExtTrunc(MachineInstr &MI, Register &Reg);
+  bool applyCombineAnyExtTrunc(MachineInstr &MI, Register &Reg);
+
+  /// Transform [asz]ext([asz]ext(x)) to [asz]ext x.
+  bool matchCombineExtOfExt(MachineInstr &MI,
+                            std::tuple<Register, unsigned> &MatchInfo);
+  bool applyCombineExtOfExt(MachineInstr &MI,
+                            std::tuple<Register, unsigned> &MatchInfo);
+
   /// Return true if any explicit use operand on \p MI is defined by a
   /// G_IMPLICIT_DEF.
   bool matchAnyExplicitUseIsUndef(MachineInstr &MI);
@@ -341,6 +351,13 @@ public:
   /// \param [out] Replacement - A register the G_AND should be replaced with on
   /// success.
   bool matchAndWithTrivialMask(MachineInstr &MI, Register &Replacement);
+
+  /// \return true if \p MI is a G_SEXT_INREG that can be erased.
+  bool matchRedundantSExtInReg(MachineInstr &MI);
+
+  /// Combine inverting a result of a compare into the opposite cond code.
+  bool matchNotCmp(MachineInstr &MI, Register &CmpReg);
+  bool applyNotCmp(MachineInstr &MI, Register &CmpReg);
 
   /// Try to transform \p MI by using all of the above
   /// combine functions. Returns true if changed.
