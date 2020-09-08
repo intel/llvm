@@ -17,7 +17,7 @@ Release notes for commit range 5976ff0..1fc0e4f
   - Enable USM address spaces by default for the FPGA hardware [7896819]
   - Assume SYCL device functions are convergent [047e2ec]
   - Added Dead Argument Elimination optimization [b0d98dc] [f53ede9]
-  - Simplified the error checking of arrays by only visiting 1x [c709986]
+  - Simplified the error checking of arrays by only visiting once [c709986]
   - Stop emitting kernel arguments metadata [f658918]
   - Enabled `-f[no-]sycl-early-optimizations` on Windows [e1e3658]
   - Allow for mutable kernel function objects for SYCL-1.2.1 [1dbc358]
@@ -36,7 +36,8 @@ Release notes for commit range 5976ff0..1fc0e4f
 ### SYCL Library
   - Eliminated circular dependency between `event` and `queue` classes [31843cc]
   - Added `ONEAPI::filter_selector` [174fd168f18]
-  - Added support for Cavium ThunderX2 and Raspberry Pi 4 [2f632f8]
+  - Added CPU-agnostic code path to the host device runtime (validated on
+    AArch64 systems) [2f632f8]
   - Added support for `bool2`, `bool3`, `bool4`, `bool8`, `bool16` [4dfd500]
   - Allowed for creating lots of host accessors [b206293]
   - Improved execution graph traversal [f2eaa23]
@@ -83,8 +84,8 @@ Release notes for commit range 5976ff0..1fc0e4f
   - Fixed `cl::sycl::INTELlsu::load()` method to return value instead of
     reference [82e5323]
   - Disabled "early" optimizations for Intel FPGA by default [f8902b8]
-  - Fixed regression in case when non-USM pointer was a member of a struct which
-    is passed to device as a kernel argument [926eb32]
+  - Fixed regression on unused non-USM pointers inside struct type kernel
+    arguments [926eb32]
   - Fixed NULL-pointer dereference in some cases [bdc2b85]
   - Adjusted AUX targets with lang options [43862a3]
 
@@ -101,7 +102,7 @@ Release notes for commit range 5976ff0..1fc0e4f
   - Fixed printing types of variables by GDB in some cases [93e1387]
   - Aligned `cl::sycl::handler::require` API with the SYCL specification
     [68c275c]
-  - Fixed undefinded behaviour in memory management intrinsics [4ff2eee]
+  - Fixed undefined behaviour in memory management intrinsics [4ff2eee]
   - Fixed race condition when using sampler in parallel [34f0c10]
   - Fixed race condition in `ProgramManager` class, which lead to hang [e6fd911]
   - Fixed thread-safety issue, which took place when using stream class [4688cb3]
