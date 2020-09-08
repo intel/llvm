@@ -33,12 +33,12 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
                -DOpenCL_INCLUDE_DIR=${OpenCL_INCLUDE_DIRS}
                -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
                -DCMAKE_INSTALL_LIBDIR:PATH=lib${LLVM_LIBDIR_SUFFIX}
+               ${AUX_CMAKE_FLAGS}
                LOG_DOWNLOAD 1
                LOG_UPDATE 1
                LOG_CONFIGURE 1
                LOG_BUILD 1
                LOG_INSTALL 1
-               ${AUX_CMAKE_FLAGS}
     STEP_TARGETS      configure,build,install
     DEPENDS           ocl-headers
     BUILD_BYPRODUCTS ${LEVEL_ZERO_LOADER}
