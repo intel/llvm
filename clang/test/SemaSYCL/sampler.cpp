@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -S -I %S/Inputs -fsycl -fsycl-is-device -triple spir64 -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -S -fsycl -fsycl-is-device -triple spir64 -ast-dump %s | FileCheck %s
 
-#include <sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
