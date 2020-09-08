@@ -24,11 +24,11 @@ void
 func2() {}
 
 //third case - expect error
-[[cl::reqd_work_group_size(1, 2, 3)]] // expected-note {{conflicting attribute is here}}
+[[cl::reqd_work_group_size(4, 4, 4)]] // expected-note {{conflicting attribute is here}}
 void
 func3();
 
-[[cl::reqd_work_group_size(4, 4, 4)]] // expected-note 2 {{conflicting attribute is here}}
+[[cl::reqd_work_group_size(1, 1, 1)]] // expected-note 2 {{conflicting attribute is here}}
 void
 // expected-warning@+1 {{attribute 'reqd_work_group_size' is already applied with different parameters}}
 func3() {} // expected-error {{'reqd_work_group_size' attribute conflicts with ''reqd_work_group_size'' attribute}}
