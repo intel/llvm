@@ -110,7 +110,7 @@ class Slab {
   std::vector<bool> Chunks;
 
   // Total number of allocated chunks at the moment.
-  size_t NumAllocated;
+  size_t NumAllocated = 0;
 
   // The bucket which the slab belongs to
   Bucket &bucket;
@@ -122,7 +122,7 @@ class Slab {
   ListIter SlabListIter;
 
   // Hints where to start search for free chunk in a slab
-  size_t FirstFreeChunkIdx;
+  size_t FirstFreeChunkIdx = 0;
 
   // Return the index of the first available chunk, -1 otherwize
   size_t FindFirstAvailableChunkIdx() const;
@@ -245,7 +245,7 @@ Slab::Slab(Bucket &Bkt)
     : MemPtr(Bkt.getMemHandle().allocate(settings::SlabSize)),
       // In case if bucket size is not that SlabSize % b.getSize() == 0, we
       // would have some padding at the end of the slab.
-      Chunks(settings::SlabSize / Bkt.getSize()), NumAllocated{},
+      Chunks(settings::SlabSize / Bkt.getSize()), NumAllocated{0},
       bucket(Bkt), SlabListIter{}, FirstFreeChunkIdx{0} {
 
   regSlab(*this);
