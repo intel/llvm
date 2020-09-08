@@ -21,6 +21,8 @@ struct struct_with_pointer {
   int data;
   int *ptr1;   // Unused pointer
   float *ptr2; // Unused pointer
+  int *ptr_array1[2];    // Unused pointer array
+  int *ptr_array2[2][3]; // Unused pointer array
 };
 
 int main(int argc, char **argv) {

@@ -159,7 +159,6 @@ public:
   // Module changing functions
   bool importBuiltinSet(const std::string &, SPIRVId *) override;
   bool importBuiltinSetWithId(const std::string &, SPIRVId) override;
-  void optimizeDecorates() override;
   void setAddressingModel(SPIRVAddressingModelKind AM) override {
     AddrModel = AM;
   }
@@ -248,6 +247,8 @@ public:
   void createForwardPointers() override;
   SPIRVType *addSubgroupAvcINTELType(Op) override;
   SPIRVTypeVmeImageINTEL *addVmeImageINTELType(SPIRVTypeImage *T) override;
+  SPIRVTypeBufferSurfaceINTEL *
+  addBufferSurfaceINTELType(SPIRVAccessQualifierKind Access) override;
 
   // Constant creation functions
   SPIRVInstruction *addBranchInst(SPIRVLabel *, SPIRVBasicBlock *) override;
@@ -534,51 +535,6 @@ void SPIRVModuleImpl::addLine(SPIRVEntry *E, SPIRVId FileNameId, SPIRVWord Line,
   E->setLine(CurrentLine);
 }
 
-// Creates decoration group and group decorates from decorates shared by
-// multiple targets.
-void SPIRVModuleImpl::optimizeDecorates() {
-  SPIRVDBG(spvdbgs() << "[optimizeDecorates] begin\n");
-  for (auto I = DecorateSet.begin(), E = DecorateSet.end(); I != E;) {
-    auto D = *I;
-    SPIRVDBG(spvdbgs() << "  check " << *D << '\n');
-    if (D->getOpCode() == OpMemberDecorate) {
-      ++I;
-      continue;
-    }
-    auto ER = DecorateSet.equal_range(D);
-    SPIRVDBG(spvdbgs() << "  equal range " << **ER.first << " to ";
-             if (ER.second != DecorateSet.end()) spvdbgs() << **ER.second;
-             else spvdbgs() << "end"; spvdbgs() << '\n');
-    if (std::distance(ER.first, ER.second) < 2) {
-      I = ER.second;
-      SPIRVDBG(spvdbgs() << "  skip equal range \n");
-      continue;
-    }
-    SPIRVDBG(spvdbgs() << "  add deco group. erase equal range\n");
-    auto G = add(new SPIRVDecorationGroup(this, getId()));
-    std::vector<SPIRVId> Targets;
-    Targets.push_back(D->getTargetId());
-    const_cast<SPIRVDecorateGeneric *>(D)->setTargetId(G->getId());
-    G->getDecorations().insert(D);
-    for (I = ER.first; I != ER.second; ++I) {
-      auto E = *I;
-      if (*E == *D)
-        continue;
-      Targets.push_back(E->getTargetId());
-    }
-
-    // WordCount is only 16 bits.  We can only have 65535 - FixedWC targtets per
-    // group.
-    // For now, just skip using a group if the number of targets to too big
-    if (Targets.size() < 65530) {
-      DecorateSet.erase(ER.first, ER.second);
-      auto GD = add(new SPIRVGroupDecorate(G, Targets));
-      DecGroupVec.push_back(G);
-      GroupDecVec.push_back(GD);
-    }
-  }
-}
-
 SPIRVValue *SPIRVModuleImpl::addSamplerConstant(SPIRVType *TheType,
                                                 SPIRVWord AddrMode,
                                                 SPIRVWord ParametricMode,
@@ -612,9 +568,9 @@ void SPIRVModuleImpl::addCapability(SPIRVCapabilityKind Cap) {
   if (AutoAddExtensions) {
     // While we are reading existing SPIR-V we need to read it as-is and don't
     // add required extensions for each entry automatically
-    for (auto &E : CapObj->getRequiredExtensions()) {
-      addExtension(E);
-    }
+    auto Ext = CapObj->getRequiredExtension();
+    if (Ext.hasValue())
+      addExtension(Ext.getValue());
   }
 
   CapMap.insert(std::make_pair(Cap, CapObj));
@@ -656,7 +612,8 @@ void SPIRVModuleImpl::layoutEntry(SPIRVEntry *E) {
   } break;
   case OpExtInst: {
     SPIRVExtInst *EI = static_cast<SPIRVExtInst *>(E);
-    if (EI->getExtSetKind() == SPIRVEIS_Debug &&
+    if ((EI->getExtSetKind() == SPIRVEIS_Debug ||
+         EI->getExtSetKind() == SPIRVEIS_OpenCL_DebugInfo_100) &&
         EI->getExtOp() != SPIRVDebug::Declare &&
         EI->getExtOp() != SPIRVDebug::Value &&
         EI->getExtOp() != SPIRVDebug::Scope &&
@@ -723,9 +680,9 @@ SPIRVEntry *SPIRVModuleImpl::addEntry(SPIRVEntry *Entry) {
   if (AutoAddExtensions) {
     // While we are reading existing SPIR-V we need to read it as-is and don't
     // add required extensions for each entry automatically
-    for (auto &E : Entry->getRequiredExtensions()) {
-      addExtension(E);
-    }
+    auto Ext = Entry->getRequiredExtension();
+    if (Ext.hasValue())
+      addExtension(Ext.getValue());
   }
 
   return Entry;
@@ -964,6 +921,11 @@ void SPIRVModuleImpl::createForwardPointers() {
 SPIRVTypeVmeImageINTEL *
 SPIRVModuleImpl::addVmeImageINTELType(SPIRVTypeImage *T) {
   return addType(new SPIRVTypeVmeImageINTEL(this, getId(), T));
+}
+
+SPIRVTypeBufferSurfaceINTEL *
+SPIRVModuleImpl::addBufferSurfaceINTELType(SPIRVAccessQualifierKind Access) {
+  return addType(new SPIRVTypeBufferSurfaceINTEL(this, getId(), Access));
 }
 
 SPIRVType *SPIRVModuleImpl::addSubgroupAvcINTELType(Op TheOpCode) {
@@ -1230,9 +1192,9 @@ SPIRVInstruction *SPIRVModuleImpl::addExtInst(
 
 SPIRVEntry *SPIRVModuleImpl::addDebugInfo(SPIRVWord InstId, SPIRVType *TheType,
                                           const std::vector<SPIRVWord> &Args) {
-  return addEntry(new SPIRVExtInst(this, getId(), TheType, SPIRVEIS_Debug,
-                                   ExtInstSetIds[SPIRVEIS_Debug], InstId,
-                                   Args));
+  return addEntry(
+      new SPIRVExtInst(this, getId(), TheType, SPIRVEIS_OpenCL_DebugInfo_100,
+                       ExtInstSetIds[getDebugInfoEIS()], InstId, Args));
 }
 
 SPIRVInstruction *
@@ -1878,7 +1840,6 @@ std::istream &operator>>(std::istream &I, SPIRVModule &M) {
       M.add(Entry);
   }
 
-  MI.optimizeDecorates();
   MI.resolveUnknownStructFields();
   MI.createForwardPointers();
   return I;

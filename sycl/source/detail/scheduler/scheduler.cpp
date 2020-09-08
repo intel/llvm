@@ -238,6 +238,19 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req) {
   EnqueueLeaves(Record->MWriteLeaves);
 }
 
+void Scheduler::allocateStreamBuffers(stream_impl *Impl,
+                                      size_t StreamBufferSize,
+                                      size_t FlushBufferSize) {
+  std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
+  StreamBuffersPool.insert(
+      {Impl, StreamBuffers(StreamBufferSize, FlushBufferSize)});
+}
+
+void Scheduler::deallocateStreamBuffers(stream_impl *Impl) {
+  std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
+  StreamBuffersPool.erase(Impl);
+}
+
 Scheduler::Scheduler() {
   sycl::device HostDevice;
   DefaultHostQueue = QueueImplPtr(

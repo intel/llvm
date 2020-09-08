@@ -70,6 +70,7 @@ enum SPIRVInstructionSchemaKind {
 enum SPIRVExtInstSetKind {
   SPIRVEIS_OpenCL,
   SPIRVEIS_Debug,
+  SPIRVEIS_OpenCL_DebugInfo_100,
   SPIRVEIS_Count,
 };
 
@@ -120,6 +121,7 @@ template <> inline void SPIRVMap<ExtensionID, std::string>::init() {
 template <> inline void SPIRVMap<SPIRVExtInstSetKind, std::string>::init() {
   add(SPIRVEIS_OpenCL, "OpenCL.std");
   add(SPIRVEIS_Debug, "SPIRV.debug");
+  add(SPIRVEIS_OpenCL_DebugInfo_100, "OpenCL.DebugInfo.100");
 }
 typedef SPIRVMap<SPIRVExtInstSetKind, std::string> SPIRVBuiltinSetNameMap;
 

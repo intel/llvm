@@ -255,6 +255,9 @@ void PreprocessMetadata::preprocessVectorComputeMetadata(Module *M,
   auto EM = B->addNamedMD(kSPIRVMD::ExecutionMode);
 
   for (auto &F : *M) {
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+      continue;
+
     // Add VC float control execution modes
     // RoundMode and FloatMode are always same for all types in VC
     // While Denorm could be different for double, float and half

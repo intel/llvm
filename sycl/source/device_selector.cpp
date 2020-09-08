@@ -6,14 +6,20 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/sycl/ONEAPI/filter_selector.hpp>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/filter_selector_impl.hpp>
 #include <detail/force_device.hpp>
 // 4.6.1 Device selection class
+
+#include <algorithm>
+#include <cctype>
+#include <regex>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -157,5 +163,29 @@ int host_selector::operator()(const device &dev) const {
   return Score;
 }
 
+namespace ONEAPI {
+
+filter_selector::filter_selector(const std::string &Input)
+    : impl(std::make_shared<detail::filter_selector_impl>(Input)) {}
+
+int filter_selector::operator()(const device &Dev) const {
+  return impl->operator()(Dev);
+}
+
+void filter_selector::reset() const { impl->reset(); }
+
+device filter_selector::select_device() const {
+  static std::mutex FilterMutex;
+
+  std::lock_guard<std::mutex> Guard(FilterMutex);
+
+  device Result = device_selector::select_device();
+
+  reset();
+
+  return Result;
+}
+
+} // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

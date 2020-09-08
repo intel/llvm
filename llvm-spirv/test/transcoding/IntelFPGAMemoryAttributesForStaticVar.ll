@@ -48,8 +48,8 @@
 
 ; CHECK-SPIRV: Capability FPGAMemoryAttributesINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_memory_attributes"
-; CHECK-SPIRV: Decorate {{[0-9]+}} MemoryINTEL "DEFAULT"
 ; CHECK-SPIRV: Decorate {{[0-9]+}} UserSemantic "foobarbaz"
+; CHECK-SPIRV: Decorate {{[0-9]+}} MemoryINTEL "DEFAULT"
 ; CHECK-SPIRV: Decorate {{[0-9]+}} MemoryINTEL "MLAB"
 ; CHECK-SPIRV: Decorate {{[0-9]+}} NumbanksINTEL 2
 ; CHECK-SPIRV: Decorate {{[0-9]+}} ForcePow2DepthINTEL 0

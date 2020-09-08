@@ -1,9 +1,9 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
 
 // This test checks that compiler generates correct kernel arguments for
 // arrays, Accessor arrays, and structs containing Accessors.
 
-#include <sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 using namespace cl::sycl;
 
@@ -123,8 +123,8 @@ int main() {
 // CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp{{.*}})'
 // CHECK-NEXT: InitListExpr {{.*}} 'struct_acc_t'
 // CHECK-NEXT: InitListExpr {{.*}} 'Accessor [2]'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'Accessor [2]'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'Accessor [2]'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'Accessor'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'Accessor'
 
 // Check __init functions are called
 // CHECK: CXXMemberCallExpr {{.*}} 'void'

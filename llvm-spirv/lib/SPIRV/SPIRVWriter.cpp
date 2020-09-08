@@ -175,7 +175,7 @@ bool LLVMToSPIRV::isBuiltinTransToExtInst(Function *F,
   SPIRVExtInstSetKind Set = SPIRVEIS_Count;
   if (!SPIRVExtSetShortNameMap::rfind(ExtSetName.str(), &Set))
     return false;
-  assert((Set == SPIRVEIS_OpenCL || Set == SPIRVEIS_Debug) &&
+  assert((Set == SPIRVEIS_OpenCL || Set == BM->getDebugInfoEIS()) &&
          "Unsupported extended instruction set");
 
   auto ExtOpName = S.substr(Loc + 1);
@@ -352,6 +352,13 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
           return mapType(T, BM->addDeviceEventType());
         case OpTypeQueue:
           return mapType(T, BM->addQueueType());
+        }
+      }
+      if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute)) {
+        if (STName.startswith(kVCType::VCBufferSurface)) {
+          // VCBufferSurface always have Access Qualifier
+          auto Access = getAccessQualifier(STName);
+          return mapType(T, BM->addBufferSurfaceINTELType(Access));
         }
       }
 
@@ -563,7 +570,10 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
       // Order of integer numbers in MD node follows the order of function
       // parameters on which we shall attach the appropriate decoration. Add
       // decoration only if MD value is not negative.
-      int LocID = getMDOperandAsInt(BufferLocation, ArgNo);
+      int LocID = -1;
+      if (!isa<MDString>(BufferLocation->getOperand(ArgNo)) &&
+          !isa<MDNode>(BufferLocation->getOperand(ArgNo)))
+        LocID = getMDOperandAsInt(BufferLocation, ArgNo);
       if (LocID >= 0) {
         BM->addCapability(CapabilityFPGABufferLocationINTEL);
         BA->addDecorate(DecorationBufferLocationINTEL, LocID);
@@ -926,9 +936,13 @@ public:
       assert(IdxGroupNode &&
              "Invalid operand in the MDNode for LLVMParallelAccessIndices");
       auto IdxGroupArrayPairIt = IndexGroupArrayMap.find(IdxGroupNode);
-      assert(IdxGroupArrayPairIt != IndexGroupArrayMap.end() &&
-             "Absent entry for this index group node");
-      ArrayVariablesVec.push_back(IdxGroupArrayPairIt->second);
+      // TODO: Some LLVM IR optimizations (e.g. loop inlining as part of
+      // the function inlining) can result in invalid parallel_access_indices
+      // metadata. Only valid cases will pass the subsequent check and
+      // survive the translation. This check should be replaced with an
+      // assertion once all known cases are handled.
+      if (IdxGroupArrayPairIt != IndexGroupArrayMap.end())
+        ArrayVariablesVec.push_back(IdxGroupArrayPairIt->second);
     }
   }
 
@@ -961,6 +975,7 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
     return spv::LoopControlMaskNone;
 
   size_t LoopControl = spv::LoopControlMaskNone;
+  std::vector<std::pair<SPIRVWord, SPIRVWord>> ParametersToSort;
 
   // Unlike with most of the cases, some loop metadata specifications
   // can occur multiple times - for these, all correspondent tokens
@@ -985,13 +1000,13 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
       else if (S == "llvm.loop.unroll.count" &&
                !(LoopControl & LoopControlDontUnrollMask)) {
         size_t I = getMDOperandAsInt(Node, 1);
-        Parameters.push_back(I);
+        ParametersToSort.emplace_back(spv::LoopControlPartialCountMask, I);
         LoopControl |= spv::LoopControlPartialCountMask;
       } else if (S == "llvm.loop.ivdep.enable")
         LoopControl |= spv::LoopControlDependencyInfiniteMask;
       else if (S == "llvm.loop.ivdep.safelen") {
         size_t I = getMDOperandAsInt(Node, 1);
-        Parameters.push_back(I);
+        ParametersToSort.emplace_back(spv::LoopControlDependencyLengthMask, I);
         LoopControl |= spv::LoopControlDependencyLengthMask;
       } else if (BM->isAllowedToUseExtension(
                      ExtensionID::SPV_INTEL_fpga_loop_controls)) {
@@ -1000,13 +1015,15 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           size_t I = getMDOperandAsInt(Node, 1);
-          Parameters.push_back(I);
+          ParametersToSort.emplace_back(
+              spv::LoopControlInitiationIntervalINTELMask, I);
           LoopControl |= spv::LoopControlInitiationIntervalINTELMask;
         } else if (S == "llvm.loop.max_concurrency.count") {
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           size_t I = getMDOperandAsInt(Node, 1);
-          Parameters.push_back(I);
+          ParametersToSort.emplace_back(spv::LoopControlMaxConcurrencyINTELMask,
+                                        I);
           LoopControl |= spv::LoopControlMaxConcurrencyINTELMask;
         } else if (S == "llvm.loop.parallel_access_indices") {
           // Intel FPGA IVDep loop attribute
@@ -1024,7 +1041,8 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           size_t I = getMDOperandAsInt(Node, 1);
-          Parameters.push_back(I);
+          ParametersToSort.emplace_back(spv::LoopControlPipelineEnableINTELMask,
+                                        I);
           LoopControl |= spv::LoopControlPipelineEnableINTELMask;
         } else if (S == "llvm.loop.coalesce.enable") {
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
@@ -1034,19 +1052,22 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           size_t I = getMDOperandAsInt(Node, 1);
-          Parameters.push_back(I);
+          ParametersToSort.emplace_back(spv::LoopControlLoopCoalesceINTELMask,
+                                        I);
           LoopControl |= spv::LoopControlLoopCoalesceINTELMask;
         } else if (S == "llvm.loop.max_interleaving.count") {
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           size_t I = getMDOperandAsInt(Node, 1);
-          Parameters.push_back(I);
+          ParametersToSort.emplace_back(
+              spv::LoopControlMaxInterleavingINTELMask, I);
           LoopControl |= spv::LoopControlMaxInterleavingINTELMask;
         } else if (S == "llvm.loop.intel.speculated.iterations.count") {
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           size_t I = getMDOperandAsInt(Node, 1);
-          Parameters.push_back(I);
+          ParametersToSort.emplace_back(
+              spv::LoopControlSpeculatedIterationsINTELMask, I);
           LoopControl |= spv::LoopControlSpeculatedIterationsINTELMask;
         }
       }
@@ -1058,15 +1079,26 @@ LLVMToSPIRV::getLoopControl(const BranchInst *Branch,
   if (!DependencyArrayParameters.empty()) {
     // The first parameter states the number of <array, safelen> pairs to be
     // listed
-    Parameters.push_back(DependencyArrayParameters.size());
+    ParametersToSort.emplace_back(spv::LoopControlDependencyArrayINTELMask,
+                                  DependencyArrayParameters.size());
     for (auto &ArraySflnPair : DependencyArrayParameters) {
-      Parameters.push_back(ArraySflnPair.first);
-      Parameters.push_back(ArraySflnPair.second);
+      ParametersToSort.emplace_back(spv::LoopControlDependencyArrayINTELMask,
+                                    ArraySflnPair.first);
+      ParametersToSort.emplace_back(spv::LoopControlDependencyArrayINTELMask,
+                                    ArraySflnPair.second);
     }
     BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
     BM->addCapability(CapabilityFPGALoopControlsINTEL);
     LoopControl |= spv::LoopControlDependencyArrayINTELMask;
   }
+
+  std::sort(ParametersToSort.begin(), ParametersToSort.end(),
+            [](const std::pair<SPIRVWord, SPIRVWord> &CompareLeft,
+               const std::pair<SPIRVWord, SPIRVWord> &CompareRight) {
+              return CompareLeft.first < CompareRight.first;
+            });
+  for (auto Param : ParametersToSort)
+    Parameters.push_back(Param.second);
 
   return static_cast<spv::LoopControlMask>(LoopControl);
 }
@@ -1278,11 +1310,26 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
             transValue(Sel->getFalseValue(), BB, true, FuncTransMode::Pointer),
             BB));
 
-  if (AllocaInst *Alc = dyn_cast<AllocaInst>(V))
+  if (AllocaInst *Alc = dyn_cast<AllocaInst>(V)) {
+    if (Alc->isArrayAllocation()) {
+      if (!BM->checkExtension(ExtensionID::SPV_INTEL_variable_length_array,
+                              SPIRVEC_InvalidInstruction,
+                              toString(Alc) +
+                                  "\nTranslation of dynamic alloca requires "
+                                  "SPV_INTEL_variable_length_array extension."))
+        return nullptr;
+
+      SPIRVValue *Length = transValue(Alc->getArraySize(), BB);
+      assert(Length && "Couldn't translate array size!");
+      return mapValue(V, BM->addInstTemplate(OpVariableLengthArrayINTEL,
+                                             {Length->getId()}, BB,
+                                             transType(Alc->getType())));
+    }
     return mapValue(
         V, BM->addVariable(transType(Alc->getType()), false,
                            SPIRVLinkageTypeKind::LinkageTypeInternal, nullptr,
                            Alc->getName().str(), StorageClassFunction, BB));
+  }
 
   if (auto *Switch = dyn_cast<SwitchInst>(V)) {
     std::vector<SPIRVSwitch::PairTy> Pairs;
@@ -1522,6 +1569,12 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     return mapValue(V, transCallInst(CI, BB));
   }
 
+  if (Instruction *Inst = dyn_cast<Instruction>(V)) {
+    BM->getErrorLog().checkError(false, SPIRVEC_InvalidInstruction,
+                                 toString(Inst) + "\n", nullptr, __FILE__,
+                                 __LINE__);
+  }
+
   llvm_unreachable("Not implemented");
   return nullptr;
 }
@@ -1608,7 +1661,8 @@ bool LLVMToSPIRV::transBuiltinSet() {
   if (!BM->importBuiltinSet("OpenCL.std", &EISId))
     return false;
   if (SPIRVMDWalker(*M).getNamedMD("llvm.dbg.cu")) {
-    if (!BM->importBuiltinSet("SPIRV.debug", &EISId))
+    if (!BM->importBuiltinSet(
+            SPIRVBuiltinSetNameMap::map(BM->getDebugInfoEIS()), &EISId))
       return false;
   }
   return true;
@@ -2246,6 +2300,33 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     }
     return nullptr;
   }
+  case Intrinsic::stacksave: {
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_variable_length_array)) {
+      auto *Ty = transType(II->getType());
+      return BM->addInstTemplate(OpSaveMemoryINTEL, BB, Ty);
+    }
+    BM->getErrorLog().checkError(
+        BM->isSPIRVAllowUnknownIntrinsicsEnabled(), SPIRVEC_InvalidFunctionCall,
+        toString(II) + "\nTranslation of llvm.stacksave intrinsic requires "
+                       "SPV_INTEL_variable_length_array extension or "
+                       "-spirv-allow-unknown-intrinsics option.");
+    break;
+  }
+  case Intrinsic::stackrestore: {
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_variable_length_array)) {
+      auto *Ptr = transValue(II->getArgOperand(0), BB);
+      return BM->addInstTemplate(OpRestoreMemoryINTEL, {Ptr->getId()}, BB,
+                                 nullptr);
+    }
+    BM->getErrorLog().checkError(
+        BM->isSPIRVAllowUnknownIntrinsicsEnabled(), SPIRVEC_InvalidFunctionCall,
+        toString(II) + "\nTranslation of llvm.restore intrinsic requires "
+                       "SPV_INTEL_variable_length_array extension or "
+                       "-spirv-allow-unknown-intrinsics option.");
+    break;
+  }
   // We can just ignore/drop some intrinsics, like optimizations hint.
   case Intrinsic::invariant_start:
   case Intrinsic::invariant_end:
@@ -2694,7 +2775,6 @@ bool LLVMToSPIRV::translate() {
   if (!transExecutionMode())
     return false;
 
-  BM->optimizeDecorates();
   BM->resolveUnknownStructFields();
   BM->createForwardPointers();
   DbgTran->transDebugMetadata();

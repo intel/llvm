@@ -21,7 +21,7 @@
 #define KERNEL_FUNCTOR_WITH_SIZE(SIZE)                                         \
   class KernelFunctor##SIZE {                                                  \
   public:                                                                      \
-    [[cl::intel_reqd_sub_group_size(SIZE)]] void                               \
+    [[intel::reqd_sub_group_size(SIZE)]] void                                  \
     operator()(cl::sycl::nd_item<1> Item) const {                              \
       const auto GID = Item.get_global_id();                                   \
     }                                                                          \
