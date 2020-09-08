@@ -76,7 +76,7 @@ inline std::ostream &operator<<(std::ostream &Out,
   } else if (Filter.DeviceType == info::device_type::all) {
     Out << std::string("*");
   }
-  if (!Filter.HasDeviceNum) {
+  if (Filter.HasDeviceNum) {
     Out << std::string(":") << Filter.DeviceNum;
   }
   return Out;
