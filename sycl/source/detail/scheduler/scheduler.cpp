@@ -226,7 +226,7 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
 // static
 void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req) {
   MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
-  auto EnqueueLeaves = [](CircularBuffer<Command *> &Leaves) {
+  auto EnqueueLeaves = [](LeavesCollection &Leaves) {
     for (Command *Cmd : Leaves) {
       EnqueueResultT Res;
       bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
@@ -236,6 +236,19 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req) {
   };
   EnqueueLeaves(Record->MReadLeaves);
   EnqueueLeaves(Record->MWriteLeaves);
+}
+
+void Scheduler::allocateStreamBuffers(stream_impl *Impl,
+                                      size_t StreamBufferSize,
+                                      size_t FlushBufferSize) {
+  std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
+  StreamBuffersPool.insert(
+      {Impl, StreamBuffers(StreamBufferSize, FlushBufferSize)});
+}
+
+void Scheduler::deallocateStreamBuffers(stream_impl *Impl) {
+  std::lock_guard<std::mutex> lock(StreamBuffersPoolMutex);
+  StreamBuffersPool.erase(Impl);
 }
 
 Scheduler::Scheduler() {
@@ -262,6 +275,10 @@ void Scheduler::lockSharedTimedMutex(
   // try_lock in the loop above will be executed, so using a single lock here
   Lock.lock();
 #endif // _WIN32
+}
+
+MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
+  return Req->MSYCLMemObj->MRecord.get();
 }
 
 } // namespace detail

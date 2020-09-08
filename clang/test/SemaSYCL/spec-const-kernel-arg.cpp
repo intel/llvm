@@ -1,17 +1,17 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
 
 // This test checks that compiler generates correct initialization for spec
 // constants
 
-#include <sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 struct SpecConstantsWrapper {
-  cl::sycl::experimental::spec_constant<int, class sc_name1> SC1;
-  cl::sycl::experimental::spec_constant<int, class sc_name2> SC2;
+  cl::sycl::ONEAPI::experimental::spec_constant<int, class sc_name1> SC1;
+  cl::sycl::ONEAPI::experimental::spec_constant<int, class sc_name2> SC2;
 };
 
 int main() {
-  cl::sycl::experimental::spec_constant<char, class MyInt32Const> SC;
+  cl::sycl::ONEAPI::experimental::spec_constant<char, class MyInt32Const> SC;
   SpecConstantsWrapper W;
   cl::sycl::kernel_single_task<class kernel_sc>(
       [=]() {
@@ -23,7 +23,7 @@ int main() {
 // CHECK: FunctionDecl {{.*}}kernel_sc{{.*}} 'void ()'
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}'
 // CHECK-NEXT: InitListExpr {{.*}}'(lambda at {{.*}}'
-// CHECK-NEXT: CXXConstructExpr {{.*}}'cl::sycl::experimental::spec_constant<char, class MyInt32Const>':'cl::sycl::experimental::spec_constant<char, MyInt32Const>'
+// CHECK-NEXT: CXXConstructExpr {{.*}}'cl::sycl::ONEAPI::experimental::spec_constant<char, class MyInt32Const>':'cl::sycl::ONEAPI::experimental::spec_constant<char, MyInt32Const>'
 // CHECK-NEXT: InitListExpr {{.*}} 'SpecConstantsWrapper'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::experimental::spec_constant<int, class sc_name1>':'cl::sycl::experimental::spec_constant<int, sc_name1>'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::experimental::spec_constant<int, class sc_name2>':'cl::sycl::experimental::spec_constant<int, sc_name2>'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::ONEAPI::experimental::spec_constant<int, class sc_name1>':'cl::sycl::ONEAPI::experimental::spec_constant<int, sc_name1>'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'cl::sycl::ONEAPI::experimental::spec_constant<int, class sc_name2>':'cl::sycl::ONEAPI::experimental::spec_constant<int, sc_name2>'

@@ -9,7 +9,7 @@
 #include <numeric>
 #include <vector>
 using namespace sycl;
-using namespace sycl::intel;
+using namespace sycl::ONEAPI;
 
 template <typename T>
 class store_kernel;
@@ -24,7 +24,9 @@ void store_test(queue q, size_t N) {
       auto st = store_buf.template get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<store_kernel<T>>(range<1>(N), [=](item<1> it) {
         size_t gid = it.get_id(0);
-        auto atm = atomic_ref<T, intel::memory_order::relaxed, intel::memory_scope::device, access::address_space::global_space>(st[0]);
+        auto atm = atomic_ref<T, ONEAPI::memory_order::relaxed,
+                              ONEAPI::memory_scope::device,
+                              access::address_space::global_space>(st[0]);
         atm.store(T(gid));
       });
     });

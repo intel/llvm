@@ -11,8 +11,11 @@
 
 #include "llvm/CodeGen/GlobalISel/Utils.h"
 #include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/APInt.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
+#include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -27,6 +30,7 @@
 #define DEBUG_TYPE "globalisel-utils"
 
 using namespace llvm;
+using namespace MIPatternMatch;
 
 Register llvm::constrainRegToClass(MachineRegisterInfo &MRI,
                                    const TargetInstrInfo &TII,
@@ -338,7 +342,7 @@ Optional<ValueAndVReg> llvm::getConstantVRegValWithLookThrough(
   return ValueAndVReg{Val.getSExtValue(), VReg};
 }
 
-const llvm::ConstantFP *
+const ConstantFP *
 llvm::getConstantFPVRegVal(Register VReg, const MachineRegisterInfo &MRI) {
   MachineInstr *MI = MRI.getVRegDef(VReg);
   if (TargetOpcode::G_FCONSTANT != MI->getOpcode())
@@ -348,12 +352,12 @@ llvm::getConstantFPVRegVal(Register VReg, const MachineRegisterInfo &MRI) {
 
 namespace {
 struct DefinitionAndSourceRegister {
-  llvm::MachineInstr *MI;
+  MachineInstr *MI;
   Register Reg;
 };
 } // namespace
 
-static llvm::Optional<DefinitionAndSourceRegister>
+static Optional<DefinitionAndSourceRegister>
 getDefSrcRegIgnoringCopies(Register Reg, const MachineRegisterInfo &MRI) {
   Register DefSrcReg = Reg;
   auto *DefMI = MRI.getVRegDef(Reg);
@@ -363,7 +367,7 @@ getDefSrcRegIgnoringCopies(Register Reg, const MachineRegisterInfo &MRI) {
   while (DefMI->getOpcode() == TargetOpcode::COPY) {
     Register SrcReg = DefMI->getOperand(1).getReg();
     auto SrcTy = MRI.getType(SrcReg);
-    if (!SrcTy.isValid() || SrcTy != DstTy)
+    if (!SrcTy.isValid())
       break;
     DefMI = MRI.getVRegDef(SrcReg);
     DefSrcReg = SrcReg;
@@ -371,8 +375,8 @@ getDefSrcRegIgnoringCopies(Register Reg, const MachineRegisterInfo &MRI) {
   return DefinitionAndSourceRegister{DefMI, DefSrcReg};
 }
 
-llvm::MachineInstr *llvm::getDefIgnoringCopies(Register Reg,
-                                               const MachineRegisterInfo &MRI) {
+MachineInstr *llvm::getDefIgnoringCopies(Register Reg,
+                                         const MachineRegisterInfo &MRI) {
   Optional<DefinitionAndSourceRegister> DefSrcReg =
       getDefSrcRegIgnoringCopies(Reg, MRI);
   return DefSrcReg ? DefSrcReg->MI : nullptr;
@@ -385,8 +389,8 @@ Register llvm::getSrcRegIgnoringCopies(Register Reg,
   return DefSrcReg ? DefSrcReg->Reg : Register();
 }
 
-llvm::MachineInstr *llvm::getOpcodeDef(unsigned Opcode, Register Reg,
-                                       const MachineRegisterInfo &MRI) {
+MachineInstr *llvm::getOpcodeDef(unsigned Opcode, Register Reg,
+                                 const MachineRegisterInfo &MRI) {
   MachineInstr *DefMI = getDefIgnoringCopies(Reg, MRI);
   return DefMI && DefMI->getOpcode() == Opcode ? DefMI : nullptr;
 }
@@ -666,4 +670,73 @@ Optional<int> llvm::getSplatIndex(MachineInstr &MI) {
     return None;
 
   return SplatValue;
+}
+
+static bool isBuildVectorOp(unsigned Opcode) {
+  return Opcode == TargetOpcode::G_BUILD_VECTOR ||
+         Opcode == TargetOpcode::G_BUILD_VECTOR_TRUNC;
+}
+
+// TODO: Handle mixed undef elements.
+static bool isBuildVectorConstantSplat(const MachineInstr &MI,
+                                       const MachineRegisterInfo &MRI,
+                                       int64_t SplatValue) {
+  if (!isBuildVectorOp(MI.getOpcode()))
+    return false;
+
+  const unsigned NumOps = MI.getNumOperands();
+  for (unsigned I = 1; I != NumOps; ++I) {
+    Register Element = MI.getOperand(I).getReg();
+    int64_t ElementValue;
+    if (!mi_match(Element, MRI, m_ICst(ElementValue)) ||
+        ElementValue != SplatValue)
+      return false;
+  }
+
+  return true;
+}
+
+Optional<int64_t>
+llvm::getBuildVectorConstantSplat(const MachineInstr &MI,
+                                  const MachineRegisterInfo &MRI) {
+  if (!isBuildVectorOp(MI.getOpcode()))
+    return None;
+
+  const unsigned NumOps = MI.getNumOperands();
+  Optional<int64_t> Scalar;
+  for (unsigned I = 1; I != NumOps; ++I) {
+    Register Element = MI.getOperand(I).getReg();
+    int64_t ElementValue;
+    if (!mi_match(Element, MRI, m_ICst(ElementValue)))
+      return None;
+    if (!Scalar)
+      Scalar = ElementValue;
+    else if (*Scalar != ElementValue)
+      return None;
+  }
+
+  return Scalar;
+}
+
+bool llvm::isBuildVectorAllZeros(const MachineInstr &MI,
+                                 const MachineRegisterInfo &MRI) {
+  return isBuildVectorConstantSplat(MI, MRI, 0);
+}
+
+bool llvm::isBuildVectorAllOnes(const MachineInstr &MI,
+                                const MachineRegisterInfo &MRI) {
+  return isBuildVectorConstantSplat(MI, MRI, -1);
+}
+
+bool llvm::isConstTrueVal(const TargetLowering &TLI, int64_t Val, bool IsVector,
+                          bool IsFP) {
+  switch (TLI.getBooleanContents(IsVector, IsFP)) {
+  case TargetLowering::UndefinedBooleanContent:
+    return Val & 0x1;
+  case TargetLowering::ZeroOrOneBooleanContent:
+    return Val == 1;
+  case TargetLowering::ZeroOrNegativeOneBooleanContent:
+    return Val == -1;
+  }
+  llvm_unreachable("Invalid boolean contents");
 }

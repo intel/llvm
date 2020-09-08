@@ -25,10 +25,13 @@ int main() {
   Queue.submit([&](cl::sycl::handler &cgh) {
     // Executing kernel
     cgh.parallel_for<no_operands_kernel>(
-        NumOfWorkItems, [=](cl::sycl::id<1> WIid) [[cl::intel_reqd_sub_group_size(8)]] {
+        NumOfWorkItems, [=](cl::sycl::id<1> WIid)
+                            [[intel::reqd_sub_group_size(8)]] {
+// clang-format off
 #if defined(INLINE_ASM) && defined(__SYCL_DEVICE_ONLY__)
           asm("barrier");
 #endif
         });
+    // clang-format on
   });
 }

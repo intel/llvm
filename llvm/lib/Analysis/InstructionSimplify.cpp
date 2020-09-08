@@ -3796,10 +3796,7 @@ static const Value *SimplifyWithOpReplaced(Value *V, Value *Op, Value *RepOp,
     // TODO: This is an unusual limitation because better analysis results in
     //       worse simplification. InstCombine can do this fold more generally
     //       by dropping the flags. Remove this fold to save compile-time?
-    if (isa<OverflowingBinaryOperator>(B))
-      if (Q.IIQ.hasNoSignedWrap(B) || Q.IIQ.hasNoUnsignedWrap(B))
-        return nullptr;
-    if (isa<PossiblyExactOperator>(B) && Q.IIQ.isExact(B))
+    if (canCreatePoison(cast<Operator>(I)))
       return nullptr;
 
     if (MaxRecurse) {
@@ -3927,12 +3924,18 @@ static Value *simplifySelectWithICmpCond(Value *CondVal, Value *TrueVal,
   if (!match(CondVal, m_ICmp(Pred, m_Value(CmpLHS), m_Value(CmpRHS))))
     return nullptr;
 
-  if (ICmpInst::isEquality(Pred) && match(CmpRHS, m_Zero())) {
+  // Canonicalize ne to eq predicate.
+  if (Pred == ICmpInst::ICMP_NE) {
+    Pred = ICmpInst::ICMP_EQ;
+    std::swap(TrueVal, FalseVal);
+  }
+
+  if (Pred == ICmpInst::ICMP_EQ && match(CmpRHS, m_Zero())) {
     Value *X;
     const APInt *Y;
     if (match(CmpLHS, m_And(m_Value(X), m_APInt(Y))))
       if (Value *V = simplifySelectBitTest(TrueVal, FalseVal, X, Y,
-                                           Pred == ICmpInst::ICMP_EQ))
+                                           /*TrueWhenUnset=*/true))
         return V;
 
     // Test for a bogus zero-shift-guard-op around funnel-shift or rotate.
@@ -3943,13 +3946,7 @@ static Value *simplifySelectWithICmpCond(Value *CondVal, Value *TrueVal,
                                                           m_Value(ShAmt)));
     // (ShAmt == 0) ? fshl(X, *, ShAmt) : X --> X
     // (ShAmt == 0) ? fshr(*, X, ShAmt) : X --> X
-    if (match(TrueVal, isFsh) && FalseVal == X && CmpLHS == ShAmt &&
-        Pred == ICmpInst::ICMP_EQ)
-      return X;
-    // (ShAmt != 0) ? X : fshl(X, *, ShAmt) --> X
-    // (ShAmt != 0) ? X : fshr(*, X, ShAmt) --> X
-    if (match(FalseVal, isFsh) && TrueVal == X && CmpLHS == ShAmt &&
-        Pred == ICmpInst::ICMP_NE)
+    if (match(TrueVal, isFsh) && FalseVal == X && CmpLHS == ShAmt)
       return X;
 
     // Test for a zero-shift-guard-op around rotates. These are used to
@@ -3963,11 +3960,6 @@ static Value *simplifySelectWithICmpCond(Value *CondVal, Value *TrueVal,
                                 m_Intrinsic<Intrinsic::fshr>(m_Value(X),
                                                              m_Deferred(X),
                                                              m_Value(ShAmt)));
-    // (ShAmt != 0) ? fshl(X, X, ShAmt) : X --> fshl(X, X, ShAmt)
-    // (ShAmt != 0) ? fshr(X, X, ShAmt) : X --> fshr(X, X, ShAmt)
-    if (match(TrueVal, isRotate) && FalseVal == X && CmpLHS == ShAmt &&
-        Pred == ICmpInst::ICMP_NE)
-      return TrueVal;
     // (ShAmt == 0) ? X : fshl(X, X, ShAmt) --> fshl(X, X, ShAmt)
     // (ShAmt == 0) ? X : fshr(X, X, ShAmt) --> fshr(X, X, ShAmt)
     if (match(FalseVal, isRotate) && TrueVal == X && CmpLHS == ShAmt &&
@@ -3994,17 +3986,6 @@ static Value *simplifySelectWithICmpCond(Value *CondVal, Value *TrueVal,
         SimplifyWithOpReplaced(TrueVal, CmpRHS, CmpLHS, Q, MaxRecurse) ==
             FalseVal)
       return FalseVal;
-  } else if (Pred == ICmpInst::ICMP_NE) {
-    if (SimplifyWithOpReplaced(TrueVal, CmpLHS, CmpRHS, Q, MaxRecurse) ==
-            FalseVal ||
-        SimplifyWithOpReplaced(TrueVal, CmpRHS, CmpLHS, Q, MaxRecurse) ==
-            FalseVal)
-      return TrueVal;
-    if (SimplifyWithOpReplaced(FalseVal, CmpLHS, CmpRHS, Q, MaxRecurse) ==
-            TrueVal ||
-        SimplifyWithOpReplaced(FalseVal, CmpRHS, CmpLHS, Q, MaxRecurse) ==
-            TrueVal)
-      return TrueVal;
   }
 
   return nullptr;
@@ -4077,9 +4058,15 @@ static Value *SimplifySelectInst(Value *Cond, Value *TrueVal, Value *FalseVal,
   if (TrueVal == FalseVal)
     return TrueVal;
 
-  if (Q.isUndefValue(TrueVal)) // select ?, undef, X -> X
+  // If the true or false value is undef, we can fold to the other value as
+  // long as the other value isn't poison.
+  // select ?, undef, X -> X
+  if (Q.isUndefValue(TrueVal) &&
+      isGuaranteedNotToBeUndefOrPoison(FalseVal, Q.CxtI, Q.DT))
     return FalseVal;
-  if (Q.isUndefValue(FalseVal)) // select ?, X, undef -> X
+  // select ?, X, undef -> X
+  if (Q.isUndefValue(FalseVal) &&
+      isGuaranteedNotToBeUndefOrPoison(TrueVal, Q.CxtI, Q.DT))
     return TrueVal;
 
   // Deal with partial undef vector constants: select ?, VecC, VecC' --> VecC''
@@ -4100,9 +4087,11 @@ static Value *SimplifySelectInst(Value *Cond, Value *TrueVal, Value *FalseVal,
       // one element is undef, choose the defined element as the safe result.
       if (TEltC == FEltC)
         NewC.push_back(TEltC);
-      else if (Q.isUndefValue(TEltC))
+      else if (Q.isUndefValue(TEltC) &&
+               isGuaranteedNotToBeUndefOrPoison(FEltC))
         NewC.push_back(FEltC);
-      else if (Q.isUndefValue(FEltC))
+      else if (Q.isUndefValue(FEltC) &&
+               isGuaranteedNotToBeUndefOrPoison(TEltC))
         NewC.push_back(TEltC);
       else
         break;
@@ -4294,7 +4283,7 @@ Value *llvm::SimplifyInsertElementInst(Value *Vec, Value *Val, Value *Idx,
   auto *ValC = dyn_cast<Constant>(Val);
   auto *IdxC = dyn_cast<Constant>(Idx);
   if (VecC && ValC && IdxC)
-    return ConstantFoldInsertElementInstruction(VecC, ValC, IdxC);
+    return ConstantExpr::getInsertElement(VecC, ValC, IdxC);
 
   // For fixed-length vector, fold into undef if index is out of bounds.
   if (auto *CI = dyn_cast<ConstantInt>(Idx)) {
@@ -4359,7 +4348,7 @@ static Value *SimplifyExtractElementInst(Value *Vec, Value *Idx,
   auto *VecVTy = cast<VectorType>(Vec->getType());
   if (auto *CVec = dyn_cast<Constant>(Vec)) {
     if (auto *CIdx = dyn_cast<Constant>(Idx))
-      return ConstantFoldExtractElementInstruction(CVec, CIdx);
+      return ConstantExpr::getExtractElement(CVec, CIdx);
 
     // The index is not relevant if our vector is a splat.
     if (auto *Splat = CVec->getSplatValue())
@@ -4395,6 +4384,10 @@ Value *llvm::SimplifyExtractElementInst(Value *Vec, Value *Idx,
 
 /// See if we can fold the given phi. If not, returns null.
 static Value *SimplifyPHINode(PHINode *PN, const SimplifyQuery &Q) {
+  // WARNING: no matter how worthwhile it may seem, we can not perform PHI CSE
+  //          here, because the PHI we may succeed simplifying to was not
+  //          def-reachable from the original PHI!
+
   // If all of the PHI's incoming values are the same then replace the PHI node
   // with the common value.
   Value *CommonValue = nullptr;
@@ -4527,7 +4520,7 @@ static Value *SimplifyShuffleVectorInst(Value *Op0, Value *Op1,
   unsigned MaskNumElts = Mask.size();
   ElementCount InVecEltCount = InVecTy->getElementCount();
 
-  bool Scalable = InVecEltCount.Scalable;
+  bool Scalable = InVecEltCount.isScalable();
 
   SmallVector<int, 32> Indices;
   Indices.assign(Mask.begin(), Mask.end());
@@ -4536,7 +4529,7 @@ static Value *SimplifyShuffleVectorInst(Value *Op0, Value *Op1,
   // replace that input vector with undef.
   if (!Scalable) {
     bool MaskSelects0 = false, MaskSelects1 = false;
-    unsigned InVecNumElts = InVecEltCount.Min;
+    unsigned InVecNumElts = InVecEltCount.getKnownMinValue();
     for (unsigned i = 0; i != MaskNumElts; ++i) {
       if (Indices[i] == -1)
         continue;
@@ -4557,15 +4550,16 @@ static Value *SimplifyShuffleVectorInst(Value *Op0, Value *Op1,
   // If all operands are constant, constant fold the shuffle. This
   // transformation depends on the value of the mask which is not known at
   // compile time for scalable vectors
-  if (!Scalable && Op0Const && Op1Const)
-    return ConstantFoldShuffleVectorInstruction(Op0Const, Op1Const, Mask);
+  if (Op0Const && Op1Const)
+    return ConstantExpr::getShuffleVector(Op0Const, Op1Const, Mask);
 
   // Canonicalization: if only one input vector is constant, it shall be the
   // second one. This transformation depends on the value of the mask which
   // is not known at compile time for scalable vectors
   if (!Scalable && Op0Const && !Op1Const) {
     std::swap(Op0, Op1);
-    ShuffleVectorInst::commuteShuffleMask(Indices, InVecEltCount.Min);
+    ShuffleVectorInst::commuteShuffleMask(Indices,
+                                          InVecEltCount.getKnownMinValue());
   }
 
   // A splat of an inserted scalar constant becomes a vector constant:
@@ -5224,6 +5218,16 @@ static APInt getMaxMinLimit(Intrinsic::ID IID, unsigned BitWidth) {
   }
 }
 
+static ICmpInst::Predicate getMaxMinPredicate(Intrinsic::ID IID) {
+  switch (IID) {
+  case Intrinsic::smax: return ICmpInst::ICMP_SGE;
+  case Intrinsic::smin: return ICmpInst::ICMP_SLE;
+  case Intrinsic::umax: return ICmpInst::ICMP_UGE;
+  case Intrinsic::umin: return ICmpInst::ICMP_ULE;
+  default: llvm_unreachable("Unexpected intrinsic");
+  }
+}
+
 /// Given a min/max intrinsic, see if it can be removed based on having an
 /// operand that is another min/max intrinsic with shared operand(s). The caller
 /// is expected to swap the operand arguments to handle commutation.
@@ -5315,6 +5319,12 @@ static Value *simplifyBinaryIntrinsic(Function *F, Value *Op0, Value *Op1,
       return V;
     if (Value *V = foldMinMaxSharedOp(IID, Op1, Op0))
       return V;
+
+    ICmpInst::Predicate Pred = getMaxMinPredicate(IID);
+    if (isICmpTrue(Pred, Op0, Op1, Q.getWithoutUndef(), RecursionLimit))
+      return Op0;
+    if (isICmpTrue(Pred, Op1, Op0, Q.getWithoutUndef(), RecursionLimit))
+      return Op1;
 
     break;
   }

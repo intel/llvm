@@ -52,40 +52,28 @@ namespace VectorComputeUtil {
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-enum VCRoundMode {
-  RTE, // Round to nearest or even
-  RTP, // Round towards +ve inf
-  RTN, // Round towards -ve inf
-  RTZ, // Round towards zero
-};
-enum VCDenormMode {
-  FlushToZero,
-  Preserve,
-};
-enum VCFloatMode {
-  IEEE, // Single precision float IEEE mode
-  ALT,  // Single precision float ALT mode
-};
 enum VCFloatType {
   Double,
   Float,
   Half,
 };
 
-VCRoundMode getVCRoundMode(unsigned FloatControl) noexcept;
-VCDenormMode getVCDenormPreserve(unsigned FloatControl,
-                                 VCFloatType FloatType) noexcept;
-VCFloatMode getVCFloatMode(unsigned FloatControl) noexcept;
+FPRoundingMode getFPRoundingMode(unsigned FloatControl) noexcept;
+FPDenormMode getFPDenormMode(unsigned FloatControl,
+                             VCFloatType FloatType) noexcept;
+FPOperationMode getFPOperationMode(unsigned FloatControl) noexcept;
 
-unsigned getVCFloatControl(VCRoundMode RoundMode) noexcept;
-unsigned getVCFloatControl(VCFloatMode FloatMode) noexcept;
-unsigned getVCFloatControl(VCDenormMode DenormMode,
+unsigned getVCFloatControl(FPRoundingMode RoundMode) noexcept;
+unsigned getVCFloatControl(FPOperationMode FloatMode) noexcept;
+unsigned getVCFloatControl(FPDenormMode DenormMode,
                            VCFloatType FloatType) noexcept;
 
-typedef SPIRV::SPIRVMap<VCRoundMode, spv::ExecutionMode> VCRoundModeExecModeMap;
-typedef SPIRV::SPIRVMap<VCFloatMode, spv::ExecutionMode> VCFloatModeExecModeMap;
-typedef SPIRV::SPIRVMap<VCDenormMode, spv::ExecutionMode>
-    VCDenormModeExecModeMap;
+typedef SPIRV::SPIRVMap<FPRoundingMode, spv::ExecutionMode>
+    FPRoundingModeExecModeMap;
+typedef SPIRV::SPIRVMap<FPOperationMode, spv::ExecutionMode>
+    FPOperationModeExecModeMap;
+typedef SPIRV::SPIRVMap<FPDenormMode, spv::ExecutionMode>
+    FPDenormModeExecModeMap;
 typedef SPIRV::SPIRVMap<VCFloatType, unsigned> VCFloatTypeSizeMap;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -98,6 +86,9 @@ SPIRVStorageClassKind
 getVCGlobalVarStorageClass(SPIRAddressSpace AddressSpace) noexcept;
 SPIRAddressSpace
 getVCGlobalVarAddressSpace(SPIRVStorageClassKind StorageClass) noexcept;
+
+std::string getVCBufferSurfaceName();
+std::string getVCBufferSurfaceName(SPIRVAccessQualifierKind Access);
 
 } // namespace VectorComputeUtil
 
@@ -121,6 +112,10 @@ const static char VCArgumentKind[] = "VCArgumentKind";
 const static char VCArgumentDesc[] = "VCArgumentDesc";
 } // namespace kVCMetadata
 
+namespace kVCType {
+const static char VCBufferSurface[] = "intel.buffer";
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // Map definitions
@@ -129,24 +124,21 @@ const static char VCArgumentDesc[] = "VCArgumentDesc";
 
 namespace SPIRV {
 template <>
-inline void
-SPIRVMap<VectorComputeUtil::VCRoundMode, spv::ExecutionMode>::init() {
-  add(VectorComputeUtil::RTE, spv::ExecutionModeRoundingModeRTE);
-  add(VectorComputeUtil::RTZ, spv::ExecutionModeRoundingModeRTZ);
-  add(VectorComputeUtil::RTP, spv::ExecutionModeRoundingModeRTPINTEL);
-  add(VectorComputeUtil::RTN, spv::ExecutionModeRoundingModeRTNINTEL);
+inline void SPIRVMap<spv::FPRoundingMode, spv::ExecutionMode>::init() {
+  add(spv::FPRoundingModeRTE, spv::ExecutionModeRoundingModeRTE);
+  add(spv::FPRoundingModeRTZ, spv::ExecutionModeRoundingModeRTZ);
+  add(spv::FPRoundingModeRTP, spv::ExecutionModeRoundingModeRTPINTEL);
+  add(spv::FPRoundingModeRTN, spv::ExecutionModeRoundingModeRTNINTEL);
 }
 template <>
-inline void
-SPIRVMap<VectorComputeUtil::VCDenormMode, spv::ExecutionMode>::init() {
-  add(VectorComputeUtil::FlushToZero, spv::ExecutionModeDenormFlushToZero);
-  add(VectorComputeUtil::Preserve, spv::ExecutionModeDenormPreserve);
+inline void SPIRVMap<spv::FPDenormMode, spv::ExecutionMode>::init() {
+  add(spv::FPDenormModeFlushToZero, spv::ExecutionModeDenormFlushToZero);
+  add(spv::FPDenormModePreserve, spv::ExecutionModeDenormPreserve);
 }
 template <>
-inline void
-SPIRVMap<VectorComputeUtil::VCFloatMode, spv::ExecutionMode>::init() {
-  add(VectorComputeUtil::IEEE, spv::ExecutionModeFloatingPointModeIEEEINTEL);
-  add(VectorComputeUtil::ALT, spv::ExecutionModeFloatingPointModeALTINTEL);
+inline void SPIRVMap<spv::FPOperationMode, spv::ExecutionMode>::init() {
+  add(spv::FPOperationModeIEEE, spv::ExecutionModeFloatingPointModeIEEEINTEL);
+  add(spv::FPOperationModeALT, spv::ExecutionModeFloatingPointModeALTINTEL);
 }
 template <>
 inline void SPIRVMap<VectorComputeUtil::VCFloatType, unsigned>::init() {

@@ -1,7 +1,7 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -Wno-sycl-2017-compat -verify -pedantic -DTRIGGER_ERROR %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -Wno-sycl-2017-compat -verify -pedantic -DTRIGGER_ERROR %s
 
-#include "sycl.hpp"
+#include "Inputs/sycl.hpp"
 
 class another_property {};
 

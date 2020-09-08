@@ -48,7 +48,7 @@ func @alloca_missing_input_type() {
 
 // -----
 
-func @alloca_mising_result_type() {
+func @alloca_missing_result_type() {
   // expected-error@+1 {{expected trailing function type with one argument and one result}}
   llvm.alloca %size x !llvm.i32 : (!llvm.i64) -> ()
 }
@@ -58,13 +58,6 @@ func @alloca_mising_result_type() {
 func @alloca_non_function_type() {
   // expected-error@+1 {{expected trailing function type with one argument and one result}}
   llvm.alloca %size x !llvm.i32 : !llvm.ptr<i32>
-}
-
-// -----
-
-func @alloca_nonpositive_alignment(%size : !llvm.i64) {
-  // expected-error@+1 {{expected positive alignment}}
-  llvm.alloca %size x !llvm.i32 {alignment = -1} : (!llvm.i64) -> (!llvm.ptr<i32>)
 }
 
 // -----
@@ -463,9 +456,9 @@ func @cmpxchg_expected_ptr(%f32_ptr : !llvm.ptr<float>, %f32 : !llvm.float) {
 // -----
 
 // CHECK-LABEL: @cmpxchg_mismatched_operands
-func @cmpxchg_mismatched_operands(%f32_ptr : !llvm.ptr<float>, %i32 : !llvm.i32) {
+func @cmpxchg_mismatched_operands(%i64_ptr : !llvm.ptr<i64>, %i32 : !llvm.i32) {
   // expected-error@+1 {{expected LLVM IR element type for operand #0 to match type for all other operands}}
-  %0 = "llvm.cmpxchg"(%f32_ptr, %i32, %i32) {success_ordering=2,failure_ordering=2} : (!llvm.ptr<float>, !llvm.i32, !llvm.i32) -> !llvm.struct<(i32, i1)>
+  %0 = "llvm.cmpxchg"(%i64_ptr, %i32, %i32) {success_ordering=2,failure_ordering=2} : (!llvm.ptr<i64>, !llvm.i32, !llvm.i32) -> !llvm.struct<(i32, i1)>
   llvm.return
 }
 
@@ -602,4 +595,11 @@ llvm.func @caller(%arg0: !llvm.i32) -> !llvm.i32 {
 func @invalid_ordering_in_fence() {
   // expected-error @+1 {{can be given only acquire, release, acq_rel, and seq_cst orderings}}
   llvm.fence syncscope("agent") monotonic
+}
+
+// -----
+
+// expected-error @+1 {{invalid data layout descriptor}}
+module attributes {llvm.data_layout = "#vjkr32"} {
+  func @invalid_data_layout()
 }

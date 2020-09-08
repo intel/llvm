@@ -580,6 +580,7 @@ static const char *getPlatformName(MachO::PlatformType Type) {
   case MachO::PLATFORM_IOSSIMULATOR:     return "iossimulator";
   case MachO::PLATFORM_TVOSSIMULATOR:    return "tvossimulator";
   case MachO::PLATFORM_WATCHOSSIMULATOR: return "watchossimulator";
+  case MachO::PLATFORM_DRIVERKIT:        return "driverkit";
   }
   llvm_unreachable("Invalid Mach-O platform type");
 }
@@ -796,6 +797,12 @@ void MCAsmStreamer::emitXCOFFLocalCommonSymbol(MCSymbol *LabelSym,
   OS << ',' << Log2_32(ByteAlignment);
 
   EmitEOL();
+
+  // Print symbol's rename (original name contains invalid character(s)) if
+  // there is one.
+  MCSymbolXCOFF *XSym = cast<MCSymbolXCOFF>(CsectSym);
+  if (XSym->hasRename())
+    emitXCOFFRenameDirective(XSym, XSym->getSymbolTableName());
 }
 
 void MCAsmStreamer::emitXCOFFSymbolLinkageWithVisibility(
@@ -1815,8 +1822,11 @@ void MCAsmStreamer::EmitWinCFIEndProc(SMLoc Loc) {
   EmitEOL();
 }
 
-// TODO: Implement
 void MCAsmStreamer::EmitWinCFIFuncletOrFuncEnd(SMLoc Loc) {
+  MCStreamer::EmitWinCFIFuncletOrFuncEnd(Loc);
+
+  OS << "\t.seh_endfunclet";
+  EmitEOL();
 }
 
 void MCAsmStreamer::EmitWinCFIStartChained(SMLoc Loc) {

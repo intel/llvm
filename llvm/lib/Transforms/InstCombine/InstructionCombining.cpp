@@ -114,6 +114,9 @@ using namespace llvm::PatternMatch;
 
 #define DEBUG_TYPE "instcombine"
 
+STATISTIC(NumWorklistIterations,
+          "Number of instruction combining iterations performed");
+
 STATISTIC(NumCombined , "Number of insts combined");
 STATISTIC(NumConstProp, "Number of constant folds");
 STATISTIC(NumDeadInst , "Number of dead inst eliminated");
@@ -956,7 +959,8 @@ Instruction *InstCombinerImpl::FoldOpIntoSelect(Instruction &Op,
       return nullptr;
 
     // If vectors, verify that they have the same number of elements.
-    if (SrcTy && SrcTy->getNumElements() != DestTy->getNumElements())
+    if (SrcTy && cast<FixedVectorType>(SrcTy)->getNumElements() !=
+                     cast<FixedVectorType>(DestTy)->getNumElements())
       return nullptr;
   }
 
@@ -2368,7 +2372,7 @@ Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
     // gep (bitcast [c x ty]* X to <c x ty>*), Y, Z --> gep X, Y, Z
     auto areMatchingArrayAndVecTypes = [](Type *ArrTy, Type *VecTy,
                                           const DataLayout &DL) {
-      auto *VecVTy = cast<VectorType>(VecTy);
+      auto *VecVTy = cast<FixedVectorType>(VecTy);
       return ArrTy->getArrayElementType() == VecVTy->getElementType() &&
              ArrTy->getArrayNumElements() == VecVTy->getNumElements() &&
              DL.getTypeAllocSize(ArrTy) == DL.getTypeAllocSize(VecTy);
@@ -3647,10 +3651,14 @@ bool InstCombinerImpl::run() {
         BasicBlock *InstParent = I->getParent();
         BasicBlock::iterator InsertPos = I->getIterator();
 
-        // If we replace a PHI with something that isn't a PHI, fix up the
-        // insertion point.
-        if (!isa<PHINode>(Result) && isa<PHINode>(InsertPos))
-          InsertPos = InstParent->getFirstInsertionPt();
+        // Are we replace a PHI with something that isn't a PHI, or vice versa?
+        if (isa<PHINode>(Result) != isa<PHINode>(I)) {
+          // We need to fix up the insertion point.
+          if (isa<PHINode>(I)) // PHI -> Non-PHI
+            InsertPos = InstParent->getFirstInsertionPt();
+          else // Non-PHI -> PHI
+            InsertPos = InstParent->getFirstNonPHI()->getIterator();
+        }
 
         InstParent->getInstList().insert(InsertPos, Result);
 
@@ -3776,8 +3784,12 @@ static bool prepareICWorklistFromFunction(Function &F, const DataLayout &DL,
     if (Visited.count(&BB))
       continue;
 
-    unsigned NumDeadInstInBB = removeAllNonTerminatorAndEHPadInstructions(&BB);
-    MadeIRChange |= NumDeadInstInBB > 0;
+    unsigned NumDeadInstInBB;
+    unsigned NumDeadDbgInstInBB;
+    std::tie(NumDeadInstInBB, NumDeadDbgInstInBB) =
+        removeAllNonTerminatorAndEHPadInstructions(&BB);
+
+    MadeIRChange |= NumDeadInstInBB + NumDeadDbgInstInBB > 0;
     NumDeadInst += NumDeadInstInBB;
   }
 
@@ -3832,6 +3844,7 @@ static bool combineInstructionsOverFunction(
   // Iterate while there is work to do.
   unsigned Iteration = 0;
   while (true) {
+    ++NumWorklistIterations;
     ++Iteration;
 
     if (Iteration > InfiniteLoopDetectionThreshold) {

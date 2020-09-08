@@ -1455,22 +1455,44 @@ std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
 
 /// Check if access qualifier is encoded in the type Name.
 bool hasAccessQualifiedName(StringRef TyName) {
-  if (TyName.endswith("_ro_t") || TyName.endswith("_wo_t") ||
-      TyName.endswith("_rw_t"))
-    return true;
-  return false;
+  if (TyName.size() < 5)
+    return false;
+  auto Acc = TyName.substr(TyName.size() - 5, 3);
+  return llvm::StringSwitch<bool>(Acc)
+      .Case(kAccessQualPostfix::ReadOnly, true)
+      .Case(kAccessQualPostfix::WriteOnly, true)
+      .Case(kAccessQualPostfix::ReadWrite, true)
+      .Default(false);
+}
+
+SPIRVAccessQualifierKind getAccessQualifier(StringRef TyName) {
+  return SPIRSPIRVAccessQualifierMap::map(
+      getAccessQualifierFullName(TyName).str());
+}
+
+StringRef getAccessQualifierPostfix(SPIRVAccessQualifierKind Access) {
+  switch (Access) {
+  case AccessQualifierReadOnly:
+    return kAccessQualPostfix::ReadOnly;
+  case AccessQualifierWriteOnly:
+    return kAccessQualPostfix::WriteOnly;
+  case AccessQualifierReadWrite:
+    return kAccessQualPostfix::ReadWrite;
+  default:
+    assert(false && "Unrecognized access qualifier!");
+    return kAccessQualPostfix::ReadWrite;
+  }
 }
 
 /// Get access qualifier from the type Name.
-StringRef getAccessQualifier(StringRef TyName) {
+StringRef getAccessQualifierFullName(StringRef TyName) {
   assert(hasAccessQualifiedName(TyName) &&
          "Type is not qualified with access.");
-  auto Acc = TyName.substr(TyName.size() - 4, 2);
+  auto Acc = TyName.substr(TyName.size() - 5, 3);
   return llvm::StringSwitch<StringRef>(Acc)
-      .Case("ro", "read_only")
-      .Case("wo", "write_only")
-      .Case("rw", "read_write")
-      .Default("");
+      .Case(kAccessQualPostfix::ReadOnly, kAccessQualName::ReadOnly)
+      .Case(kAccessQualPostfix::WriteOnly, kAccessQualName::WriteOnly)
+      .Case(kAccessQualPostfix::ReadWrite, kAccessQualName::ReadWrite);
 }
 
 /// Translates OpenCL image type names to SPIR-V.
@@ -1479,7 +1501,7 @@ Type *getSPIRVImageTypeFromOCL(Module *M, Type *ImageTy) {
   auto ImageTypeName = ImageTy->getPointerElementType()->getStructName();
   StringRef Acc = kAccessQualName::ReadOnly;
   if (hasAccessQualifiedName(ImageTypeName))
-    Acc = getAccessQualifier(ImageTypeName);
+    Acc = getAccessQualifierFullName(ImageTypeName);
   return getOrCreateOpaquePtrType(M, mapOCLTypeNameToSPIRV(ImageTypeName, Acc));
 }
 

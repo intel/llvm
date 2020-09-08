@@ -33,7 +33,7 @@ template <typename T> void check(queue &Queue, size_t G = 240, size_t L = 60) {
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
 
       cgh.parallel_for<sycl_subgr<T>>(NdRange, [=](nd_item<1> NdItem) {
-        intel::sub_group SG = NdItem.get_sub_group();
+        ONEAPI::sub_group SG = NdItem.get_sub_group();
         size_t lid = SG.get_local_id().get(0);
         size_t gid = NdItem.get_global_id(0);
         size_t SGoff = gid - lid;

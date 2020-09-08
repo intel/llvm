@@ -128,17 +128,16 @@ LogicalResult getMemRefAlignment(LLVMTypeConverter &typeConverter, T op,
 
   // TODO: this should use the MLIR data layout when it becomes available and
   // stop depending on translation.
-  LLVM::LLVMDialect *dialect = typeConverter.getDialect();
   llvm::LLVMContext llvmContext;
   align = LLVM::TypeToLLVMIRTranslator(llvmContext)
               .getPreferredAlignment(elementTy.cast<LLVM::LLVMType>(),
-                                     dialect->getDataLayout());
+                                     typeConverter.getDataLayout());
   return success();
 }
 
 // Helper that returns the base address of a memref.
-LogicalResult getBase(ConversionPatternRewriter &rewriter, Location loc,
-                      Value memref, MemRefType memRefType, Value &base) {
+static LogicalResult getBase(ConversionPatternRewriter &rewriter, Location loc,
+                             Value memref, MemRefType memRefType, Value &base) {
   // Inspect stride and offset structure.
   //
   // TODO: flat memory only for now, generalize
@@ -154,8 +153,9 @@ LogicalResult getBase(ConversionPatternRewriter &rewriter, Location loc,
 }
 
 // Helper that returns a pointer given a memref base.
-LogicalResult getBasePtr(ConversionPatternRewriter &rewriter, Location loc,
-                         Value memref, MemRefType memRefType, Value &ptr) {
+static LogicalResult getBasePtr(ConversionPatternRewriter &rewriter,
+                                Location loc, Value memref,
+                                MemRefType memRefType, Value &ptr) {
   Value base;
   if (failed(getBase(rewriter, loc, memref, memRefType, base)))
     return failure();
@@ -165,9 +165,9 @@ LogicalResult getBasePtr(ConversionPatternRewriter &rewriter, Location loc,
 }
 
 // Helper that returns a bit-casted pointer given a memref base.
-LogicalResult getBasePtr(ConversionPatternRewriter &rewriter, Location loc,
-                         Value memref, MemRefType memRefType, Type type,
-                         Value &ptr) {
+static LogicalResult getBasePtr(ConversionPatternRewriter &rewriter,
+                                Location loc, Value memref,
+                                MemRefType memRefType, Type type, Value &ptr) {
   Value base;
   if (failed(getBase(rewriter, loc, memref, memRefType, base)))
     return failure();
@@ -179,9 +179,10 @@ LogicalResult getBasePtr(ConversionPatternRewriter &rewriter, Location loc,
 
 // Helper that returns vector of pointers given a memref base and an index
 // vector.
-LogicalResult getIndexedPtrs(ConversionPatternRewriter &rewriter, Location loc,
-                             Value memref, Value indices, MemRefType memRefType,
-                             VectorType vType, Type iType, Value &ptrs) {
+static LogicalResult getIndexedPtrs(ConversionPatternRewriter &rewriter,
+                                    Location loc, Value memref, Value indices,
+                                    MemRefType memRefType, VectorType vType,
+                                    Type iType, Value &ptrs) {
   Value base;
   if (failed(getBase(rewriter, loc, memref, memRefType, base)))
     return failure();
@@ -1024,6 +1025,25 @@ public:
   bool hasBoundedRewriteRecursion() const final { return true; }
 };
 
+/// Returns true if the memory underlying `memRefType` has a contiguous layout.
+/// Strides are written to `strides`.
+static bool isContiguous(MemRefType memRefType,
+                         SmallVectorImpl<int64_t> &strides) {
+  int64_t offset;
+  auto successStrides = getStridesAndOffset(memRefType, strides, offset);
+  bool isContiguous = (strides.back() == 1);
+  if (isContiguous) {
+    auto sizes = memRefType.getShape();
+    for (int index = 0, e = strides.size() - 2; index < e; ++index) {
+      if (strides[index] != strides[index + 1] * sizes[index + 1]) {
+        isContiguous = false;
+        break;
+      }
+    }
+  }
+  return succeeded(successStrides) && isContiguous;
+}
+
 class VectorTypeCastOpConversion : public ConvertToLLVMPattern {
 public:
   explicit VectorTypeCastOpConversion(MLIRContext *context,
@@ -1057,22 +1077,9 @@ public:
     if (!llvmTargetDescriptorTy || !llvmTargetDescriptorTy.isStructTy())
       return failure();
 
-    int64_t offset;
-    SmallVector<int64_t, 4> strides;
-    auto successStrides =
-        getStridesAndOffset(sourceMemRefType, strides, offset);
-    bool isContiguous = (strides.back() == 1);
-    if (isContiguous) {
-      auto sizes = sourceMemRefType.getShape();
-      for (int index = 0, e = strides.size() - 2; index < e; ++index) {
-        if (strides[index] != strides[index + 1] * sizes[index + 1]) {
-          isContiguous = false;
-          break;
-        }
-      }
-    }
     // Only contiguous source tensors supported atm.
-    if (failed(successStrides) || !isContiguous)
+    SmallVector<int64_t, 4> strides;
+    if (!isContiguous(sourceMemRefType, strides))
       return failure();
 
     auto int64Ty = LLVM::LLVMType::getInt64Ty(rewriter.getContext());
@@ -1139,6 +1146,10 @@ public:
         AffineMap::getMinorIdentityMap(xferOp.permutation_map().getNumInputs(),
                                        xferOp.getVectorType().getRank(),
                                        op->getContext()))
+      return failure();
+    // Only contiguous source tensors supported atm.
+    SmallVector<int64_t, 4> strides;
+    if (!isContiguous(xferOp.getMemRefType(), strides))
       return failure();
 
     auto toLLVMTy = [&](Type t) { return typeConverter.convertType(t); };

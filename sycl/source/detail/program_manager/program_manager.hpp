@@ -67,14 +67,16 @@ public:
   RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M,
                                       const string_class &KernelName,
                                       const context &Context,
+                                      const device &Device,
                                       bool JITCompilationIsRequired = false);
   RT::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
-                                const context &Context);
+                                const context &Context, const device &Device);
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
   /// \param M idenfies the OS module the kernel comes from (multiple OS modules
   ///          may have kernels with the same name)
   /// \param Context the context to build the program with
+  /// \param Device the device for which the program is built
   /// \param KernelName the kernel's name
   /// \param Prg provides build context information, such as
   ///        current specialization constants settings; can be nullptr.
@@ -83,12 +85,14 @@ public:
   /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
   ///        add a check that kernel is compiled, otherwise don't add the check.
   RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
+                                  const device &Device,
                                   const string_class &KernelName,
                                   const program_impl *Prg = nullptr,
                                   bool JITCompilationIsRequired = false);
   std::pair<RT::PiKernel, std::mutex *>
   getOrCreateKernel(OSModuleHandle M, const context &Context,
-                    const string_class &KernelName, const program_impl *Prg);
+                    const device &Device, const string_class &KernelName,
+                    const program_impl *Prg);
   RT::PiProgram getPiProgramFromPiKernel(RT::PiKernel Kernel,
                                          const ContextImplPtr Context);
 
@@ -102,13 +106,14 @@ public:
   /// \param Prg the program object to get spec constant settings from.
   ///        Passing program_impl by raw reference is OK, since it is not
   ///        captured anywhere once the function returns.
+  /// \param Device the device assosiated with the native program
   /// \param NativePrg the native program, target for spec constant setting; if
   ///        not null then overrides the native program in Prg
   /// \param Img A source of the information about which constants need
   ///        setting and symboling->integer spec constnant ID mapping. If not
   ///        null, overrides native program->binary image binding maintained by
   ///        the program manager.
-  void flushSpecConstants(const program_impl &Prg,
+  void flushSpecConstants(const program_impl &Prg, pi::PiDevice Device,
                           pi::PiProgram NativePrg = nullptr,
                           const RTDeviceBinaryImage *Img = nullptr);
   uint32_t getDeviceLibReqMask(const RTDeviceBinaryImage &Img);
@@ -118,16 +123,16 @@ public:
   /// \param M identifies the OS module the kernel comes from (multiple OS
   ///        modules may have kernels with the same name).
   /// \param Context the context associated with the kernel.
+  /// \param Device the device associated with the context.
   /// \param NativePrg the PI program associated with the kernel.
   /// \param KernelName the name of the kernel.
   /// \param KnownProgram indicates whether the PI program is guaranteed to
   ///        be known to program manager (built with its API) or not (not
   ///        cacheable or constructed with interoperability).
-  KernelArgMask getEliminatedKernelArgMask(OSModuleHandle M,
-                                           const context &Context,
-                                           pi::PiProgram NativePrg,
-                                           const string_class &KernelName,
-                                           bool KnownProgram);
+  KernelArgMask
+  getEliminatedKernelArgMask(OSModuleHandle M, const context &Context,
+                             const device &Device, pi::PiProgram NativePrg,
+                             const string_class &KernelName, bool KnownProgram);
 
 private:
   ProgramManager();
@@ -137,14 +142,15 @@ private:
 
   RTDeviceBinaryImage &getDeviceImage(OSModuleHandle M, KernelSetId KSId,
                                       const context &Context,
+                                      const device &Device,
                                       bool JITCompilationIsRequired = false);
   using ProgramPtr = unique_ptr_class<remove_pointer_t<RT::PiProgram>,
                                       decltype(&::piProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
                    const string_class &CompileOptions,
-                   const string_class &LinkOptions,
-                   const std::vector<RT::PiDevice> &Devices,
-                   std::map<DeviceLibExt, RT::PiProgram> &CachedLibPrograms,
+                   const string_class &LinkOptions, const RT::PiDevice &Device,
+                   std::map<std::pair<DeviceLibExt, RT::PiDevice>,
+                            RT::PiProgram> &CachedLibPrograms,
                    uint32_t DeviceLibReqMask);
   /// Provides a new kernel set id for grouping kernel names together
   KernelSetId getNextKernelSetId() const;
@@ -192,7 +198,7 @@ private:
 
   // Keeps track of pi_program to image correspondence. Needed for:
   // - knowing which specialization constants are used in the program and
-  //   injecting their current values before compiling the SPIRV; the binary
+  //   injecting their current values before compiling the SPIR-V; the binary
   //   image object has info about all spec constants used in the module
   // - finding kernel argument masks for kernels associated with each
   //   pi_program
@@ -215,7 +221,7 @@ private:
   std::unordered_map<const RTDeviceBinaryImage *, KernelNameToArgMaskMap>
       m_EliminatedKernelArgMasks;
 
-  /// True iff a SPIRV file has been specified with an environment variable
+  /// True iff a SPIR-V file has been specified with an environment variable
   bool m_UseSpvFile = false;
 };
 } // namespace detail

@@ -208,8 +208,11 @@
 /* Define to 1 if you have the <sys/types.h> header file. */
 #cmakedefine HAVE_SYS_TYPES_H ${HAVE_SYS_TYPES_H}
 
+/* Define to 1 if you have the <sysexits.h> header file. */
+#cmakedefine HAVE_SYSEXITS_H ${HAVE_SYSEXITS_H}
+
 /* Define if the setupterm() function is supported this platform. */
-#cmakedefine HAVE_TERMINFO ${HAVE_TERMINFO}
+#cmakedefine LLVM_ENABLE_TERMINFO ${LLVM_ENABLE_TERMINFO}
 
 /* Define if the xar_open() function is supported this platform. */
 #cmakedefine HAVE_LIBXAR ${HAVE_LIBXAR}

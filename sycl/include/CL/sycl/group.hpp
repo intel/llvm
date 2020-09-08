@@ -263,11 +263,11 @@ public:
                      access::fence_space>::type accessSpace =
                      access::fence_space::global_and_local) const {
     uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
-    // TODO: currently, there is no good way in SPIRV to set the memory
+    // TODO: currently, there is no good way in SPIR-V to set the memory
     // barrier only for load operations or only for store operations.
     // The full read-and-write barrier is used and the template parameter
-    // 'accessMode' is ignored for now. Either SPIRV or SYCL spec may be
-    // changed to address this discrepancy between SPIRV and SYCL,
+    // 'accessMode' is ignored for now. Either SPIR-V or SYCL spec may be
+    // changed to address this discrepancy between SPIR-V and SYCL,
     // or if we decide that 'accessMode' is the important feature then
     // we can fix this later, for example, by using OpenCL 1.2 functions
     // read_mem_fence() and write_mem_fence().
@@ -375,6 +375,20 @@ protected:
                   "inconsistent group constructor arguments");
   }
 };
+
+namespace detail {
+template <int Dims> group<Dims> store_group(const group<Dims> *g) {
+  return get_or_store(g);
+}
+} // namespace detail
+
+template <int Dims> group<Dims> this_group() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return detail::Builder::getElement(detail::declptr<group<Dims>>());
+#else
+  return detail::store_group<Dims>(nullptr);
+#endif
+}
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

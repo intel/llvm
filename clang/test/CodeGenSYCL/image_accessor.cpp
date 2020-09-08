@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -I %S/Inputs -disable-llvm-passes -emit-llvm %s -o %t.ll
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o %t.ll
 // RUN: FileCheck < %t.ll --enable-var-scope %s --check-prefix=CHECK-1DRO
 // RUN: FileCheck < %t.ll --enable-var-scope %s --check-prefix=CHECK-2DRO
 // RUN: FileCheck < %t.ll --enable-var-scope %s --check-prefix=CHECK-3DRO
@@ -31,7 +31,7 @@
 // CHECK-3DWO: call spir_func void @{{.*}}__init{{.*}}(%{{.*}}cl::sycl::accessor{{.*}} %{{[0-9]+}}, %opencl.image3d_wo_t addrspace(1)* %{{[0-9]+}})
 //
 // TODO: Add tests for the image_array opencl datatype support.
-#include "sycl.hpp"
+#include "Inputs/sycl.hpp"
 
 int main() {
 

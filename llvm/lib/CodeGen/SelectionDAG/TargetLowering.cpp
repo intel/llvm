@@ -250,7 +250,7 @@ bool TargetLowering::findOptimalMemOpLowering(
       bool Fast;
       if (NumMemOps && Op.allowOverlap() && NewVTSize < Size &&
           allowsMisalignedMemoryAccesses(
-              VT, DstAS, Op.isFixedDstAlign() ? Op.getDstAlign().value() : 0,
+              VT, DstAS, Op.isFixedDstAlign() ? Op.getDstAlign().value() : 1,
               MachineMemOperand::MONone, &Fast) &&
           Fast)
         VTSize = Size;
@@ -5737,6 +5737,11 @@ SDValue TargetLowering::getNegatedExpression(SDValue Op, SelectionDAG &DAG,
       return SDValue();
   }
 
+  auto RemoveDeadNode = [&](SDValue N) {
+    if (N && N.getNode()->use_empty())
+      DAG.RemoveDeadNode(N.getNode());
+  };
+
   SDLoc DL(Op);
 
   switch (Opcode) {
@@ -5815,13 +5820,17 @@ SDValue TargetLowering::getNegatedExpression(SDValue Op, SelectionDAG &DAG,
     // Negate the X if its cost is less or equal than Y.
     if (NegX && (CostX <= CostY)) {
       Cost = CostX;
-      return DAG.getNode(ISD::FSUB, DL, VT, NegX, Y, Flags);
+      SDValue N = DAG.getNode(ISD::FSUB, DL, VT, NegX, Y, Flags);
+      RemoveDeadNode(NegY);
+      return N;
     }
 
     // Negate the Y if it is not expensive.
     if (NegY) {
       Cost = CostY;
-      return DAG.getNode(ISD::FSUB, DL, VT, NegY, X, Flags);
+      SDValue N = DAG.getNode(ISD::FSUB, DL, VT, NegY, X, Flags);
+      RemoveDeadNode(NegX);
+      return N;
     }
     break;
   }
@@ -5858,7 +5867,9 @@ SDValue TargetLowering::getNegatedExpression(SDValue Op, SelectionDAG &DAG,
     // Negate the X if its cost is less or equal than Y.
     if (NegX && (CostX <= CostY)) {
       Cost = CostX;
-      return DAG.getNode(Opcode, DL, VT, NegX, Y, Flags);
+      SDValue N = DAG.getNode(Opcode, DL, VT, NegX, Y, Flags);
+      RemoveDeadNode(NegY);
+      return N;
     }
 
     // Ignore X * 2.0 because that is expected to be canonicalized to X + X.
@@ -5869,7 +5880,9 @@ SDValue TargetLowering::getNegatedExpression(SDValue Op, SelectionDAG &DAG,
     // Negate the Y if it is not expensive.
     if (NegY) {
       Cost = CostY;
-      return DAG.getNode(Opcode, DL, VT, X, NegY, Flags);
+      SDValue N = DAG.getNode(Opcode, DL, VT, X, NegY, Flags);
+      RemoveDeadNode(NegX);
+      return N;
     }
     break;
   }
@@ -5898,13 +5911,17 @@ SDValue TargetLowering::getNegatedExpression(SDValue Op, SelectionDAG &DAG,
     // Negate the X if its cost is less or equal than Y.
     if (NegX && (CostX <= CostY)) {
       Cost = std::min(CostX, CostZ);
-      return DAG.getNode(Opcode, DL, VT, NegX, Y, NegZ, Flags);
+      SDValue N = DAG.getNode(Opcode, DL, VT, NegX, Y, NegZ, Flags);
+      RemoveDeadNode(NegY);
+      return N;
     }
 
     // Negate the Y if it is not expensive.
     if (NegY) {
       Cost = std::min(CostY, CostZ);
-      return DAG.getNode(Opcode, DL, VT, X, NegY, NegZ, Flags);
+      SDValue N = DAG.getNode(Opcode, DL, VT, X, NegY, NegZ, Flags);
+      RemoveDeadNode(NegX);
+      return N;
     }
     break;
   }
@@ -6129,7 +6146,7 @@ bool TargetLowering::expandMUL(SDNode *N, SDValue &Lo, SDValue &Hi, EVT HiLoVT,
 }
 
 // Check that (every element of) Z is undef or not an exact multiple of BW.
-static bool isNonZeroModBitWidth(SDValue Z, unsigned BW) {
+static bool isNonZeroModBitWidthOrUndef(SDValue Z, unsigned BW) {
   return ISD::matchUnaryPredicate(
       Z,
       [=](ConstantSDNode *C) { return !C || C->getAPIntValue().urem(BW) != 0; },
@@ -6156,9 +6173,35 @@ bool TargetLowering::expandFunnelShift(SDNode *Node, SDValue &Result,
 
   EVT ShVT = Z.getValueType();
 
+  // If a funnel shift in the other direction is more supported, use it.
+  unsigned RevOpcode = IsFSHL ? ISD::FSHR : ISD::FSHL;
+  if (!isOperationLegalOrCustom(Node->getOpcode(), VT) &&
+      isOperationLegalOrCustom(RevOpcode, VT) && isPowerOf2_32(BW)) {
+    if (isNonZeroModBitWidthOrUndef(Z, BW)) {
+      // fshl X, Y, Z -> fshr X, Y, -Z
+      // fshr X, Y, Z -> fshl X, Y, -Z
+      SDValue Zero = DAG.getConstant(0, DL, ShVT);
+      Z = DAG.getNode(ISD::SUB, DL, VT, Zero, Z);
+    } else {
+      // fshl X, Y, Z -> fshr (srl X, 1), (fshr X, Y, 1), ~Z
+      // fshr X, Y, Z -> fshl (fshl X, Y, 1), (shl Y, 1), ~Z
+      SDValue One = DAG.getConstant(1, DL, ShVT);
+      if (IsFSHL) {
+        Y = DAG.getNode(RevOpcode, DL, VT, X, Y, One);
+        X = DAG.getNode(ISD::SRL, DL, VT, X, One);
+      } else {
+        X = DAG.getNode(RevOpcode, DL, VT, X, Y, One);
+        Y = DAG.getNode(ISD::SHL, DL, VT, Y, One);
+      }
+      Z = DAG.getNOT(DL, Z, ShVT);
+    }
+    Result = DAG.getNode(RevOpcode, DL, VT, X, Y, Z);
+    return true;
+  }
+
   SDValue ShX, ShY;
   SDValue ShAmt, InvShAmt;
-  if (isNonZeroModBitWidth(Z, BW)) {
+  if (isNonZeroModBitWidthOrUndef(Z, BW)) {
     // fshl: X << C | Y >> (BW - C)
     // fshr: X << (BW - C) | Y >> C
     // where C = Z % BW is not zero
@@ -6210,12 +6253,9 @@ bool TargetLowering::expandROT(SDNode *Node, SDValue &Result,
   EVT ShVT = Op1.getValueType();
   SDValue Zero = DAG.getConstant(0, DL, ShVT);
 
-  assert(isPowerOf2_32(EltSizeInBits) && EltSizeInBits > 1 &&
-         "Expecting the type bitwidth to be a power of 2");
-
   // If a rotate in the other direction is supported, use it.
   unsigned RevRot = IsLeft ? ISD::ROTR : ISD::ROTL;
-  if (isOperationLegalOrCustom(RevRot, VT)) {
+  if (isOperationLegalOrCustom(RevRot, VT) && isPowerOf2_32(EltSizeInBits)) {
     SDValue Sub = DAG.getNode(ISD::SUB, DL, ShVT, Zero, Op1);
     Result = DAG.getNode(RevRot, DL, VT, Op0, Sub);
     return true;
@@ -6228,18 +6268,31 @@ bool TargetLowering::expandROT(SDNode *Node, SDValue &Result,
                         !isOperationLegalOrCustomOrPromote(ISD::AND, VT)))
     return false;
 
-  // Otherwise,
-  //   (rotl x, c) -> (or (shl x, (and c, w-1)), (srl x, (and -c, w-1)))
-  //   (rotr x, c) -> (or (srl x, (and c, w-1)), (shl x, (and -c, w-1)))
-  //
   unsigned ShOpc = IsLeft ? ISD::SHL : ISD::SRL;
   unsigned HsOpc = IsLeft ? ISD::SRL : ISD::SHL;
   SDValue BitWidthMinusOneC = DAG.getConstant(EltSizeInBits - 1, DL, ShVT);
-  SDValue NegOp1 = DAG.getNode(ISD::SUB, DL, ShVT, Zero, Op1);
-  SDValue And0 = DAG.getNode(ISD::AND, DL, ShVT, Op1, BitWidthMinusOneC);
-  SDValue And1 = DAG.getNode(ISD::AND, DL, ShVT, NegOp1, BitWidthMinusOneC);
-  Result = DAG.getNode(ISD::OR, DL, VT, DAG.getNode(ShOpc, DL, VT, Op0, And0),
-                       DAG.getNode(HsOpc, DL, VT, Op0, And1));
+  SDValue ShVal;
+  SDValue HsVal;
+  if (isPowerOf2_32(EltSizeInBits)) {
+    // (rotl x, c) -> x << (c & (w - 1)) | x >> (-c & (w - 1))
+    // (rotr x, c) -> x >> (c & (w - 1)) | x << (-c & (w - 1))
+    SDValue NegOp1 = DAG.getNode(ISD::SUB, DL, ShVT, Zero, Op1);
+    SDValue ShAmt = DAG.getNode(ISD::AND, DL, ShVT, Op1, BitWidthMinusOneC);
+    ShVal = DAG.getNode(ShOpc, DL, VT, Op0, ShAmt);
+    SDValue HsAmt = DAG.getNode(ISD::AND, DL, ShVT, NegOp1, BitWidthMinusOneC);
+    HsVal = DAG.getNode(HsOpc, DL, VT, Op0, HsAmt);
+  } else {
+    // (rotl x, c) -> x << (c % w) | x >> 1 >> (w - 1 - (c % w))
+    // (rotr x, c) -> x >> (c % w) | x << 1 << (w - 1 - (c % w))
+    SDValue BitWidthC = DAG.getConstant(EltSizeInBits, DL, ShVT);
+    SDValue ShAmt = DAG.getNode(ISD::UREM, DL, ShVT, Op1, BitWidthC);
+    ShVal = DAG.getNode(ShOpc, DL, VT, Op0, ShAmt);
+    SDValue HsAmt = DAG.getNode(ISD::SUB, DL, ShVT, BitWidthMinusOneC, ShAmt);
+    SDValue One = DAG.getConstant(1, DL, ShVT);
+    HsVal =
+        DAG.getNode(HsOpc, DL, VT, DAG.getNode(HsOpc, DL, VT, Op0, One), HsAmt);
+  }
+  Result = DAG.getNode(ISD::OR, DL, VT, ShVal, HsVal);
   return true;
 }
 
@@ -6258,7 +6311,7 @@ bool TargetLowering::expandFP_TO_SINT(SDNode *Node, SDValue &Result,
   if (Node->isStrictFPOpcode())
     // When a NaN is converted to an integer a trap is allowed. We can't
     // use this expansion here because it would eliminate that trap. Other
-    // traps are also allowed and cannot be eliminated. See 
+    // traps are also allowed and cannot be eliminated. See
     // IEEE 754-2008 sec 5.8.
     return false;
 
@@ -6329,7 +6382,7 @@ bool TargetLowering::expandFP_TO_UINT(SDNode *Node, SDValue &Result,
       getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), DstVT);
 
   // Only expand vector types if we have the appropriate vector bit operations.
-  unsigned SIntOpcode = Node->isStrictFPOpcode() ? ISD::STRICT_FP_TO_SINT : 
+  unsigned SIntOpcode = Node->isStrictFPOpcode() ? ISD::STRICT_FP_TO_SINT :
                                                    ISD::FP_TO_SINT;
   if (DstVT.isVector() && (!isOperationLegalOrCustom(SIntOpcode, DstVT) ||
                            !isOperationLegalOrCustomOrPromote(ISD::XOR, SrcVT)))
@@ -6344,8 +6397,8 @@ bool TargetLowering::expandFP_TO_UINT(SDNode *Node, SDValue &Result,
   if (APFloat::opOverflow &
       APF.convertFromAPInt(SignMask, false, APFloat::rmNearestTiesToEven)) {
     if (Node->isStrictFPOpcode()) {
-      Result = DAG.getNode(ISD::STRICT_FP_TO_SINT, dl, { DstVT, MVT::Other }, 
-                           { Node->getOperand(0), Src }); 
+      Result = DAG.getNode(ISD::STRICT_FP_TO_SINT, dl, { DstVT, MVT::Other },
+                           { Node->getOperand(0), Src });
       Chain = Result.getValue(1);
     } else
       Result = DAG.getNode(ISD::FP_TO_SINT, dl, DstVT, Src);
@@ -6383,9 +6436,9 @@ bool TargetLowering::expandFP_TO_UINT(SDNode *Node, SDValue &Result,
                                    DAG.getConstant(SignMask, dl, DstVT));
     SDValue SInt;
     if (Node->isStrictFPOpcode()) {
-      SDValue Val = DAG.getNode(ISD::STRICT_FSUB, dl, { SrcVT, MVT::Other }, 
+      SDValue Val = DAG.getNode(ISD::STRICT_FSUB, dl, { SrcVT, MVT::Other },
                                 { Chain, Src, FltOfs });
-      SInt = DAG.getNode(ISD::STRICT_FP_TO_SINT, dl, { DstVT, MVT::Other }, 
+      SInt = DAG.getNode(ISD::STRICT_FP_TO_SINT, dl, { DstVT, MVT::Other },
                          { Val.getValue(1), Val });
       Chain = SInt.getValue(1);
     } else {
@@ -6724,6 +6777,9 @@ TargetLowering::scalarizeVectorLoad(LoadSDNode *LD,
   EVT DstVT = LD->getValueType(0);
   ISD::LoadExtType ExtType = LD->getExtensionType();
 
+  if (SrcVT.isScalableVector())
+    report_fatal_error("Cannot scalarize scalable vector loads");
+
   unsigned NumElem = SrcVT.getVectorNumElements();
 
   EVT SrcEltVT = SrcVT.getScalarType();
@@ -6810,6 +6866,9 @@ SDValue TargetLowering::scalarizeVectorStore(StoreSDNode *ST,
   SDValue BasePtr = ST->getBasePtr();
   SDValue Value = ST->getValue();
   EVT StVT = ST->getMemoryVT();
+
+  if (StVT.isScalableVector())
+    report_fatal_error("Cannot scalarize scalable vector stores");
 
   // The type of the data we want to save
   EVT RegVT = Value.getValueType();
@@ -7162,7 +7221,7 @@ TargetLowering::IncrementMemoryAddress(SDValue Addr, SDValue Mask,
   SDValue Increment;
   EVT AddrVT = Addr.getValueType();
   EVT MaskVT = Mask.getValueType();
-  assert(DataVT.getVectorNumElements() == MaskVT.getVectorNumElements() &&
+  assert(DataVT.getVectorElementCount() == MaskVT.getVectorElementCount() &&
          "Incompatible types of Data and Mask");
   if (IsCompressedMemory) {
     if (DataVT.isScalableVector())
@@ -7328,6 +7387,7 @@ SDValue TargetLowering::expandAddSubSat(SDNode *Node, SelectionDAG &DAG) const {
     return DAG.getNode(ISD::SUB, dl, VT, Max, RHS);
   }
 
+  // uadd.sat(a, b) -> umin(a, ~b) + b
   if (Opcode == ISD::UADDSAT && isOperationLegalOrCustom(ISD::UMIN, VT)) {
     SDValue InvRHS = DAG.getNOT(dl, RHS, VT);
     SDValue Min = DAG.getNode(ISD::UMIN, dl, VT, LHS, InvRHS);

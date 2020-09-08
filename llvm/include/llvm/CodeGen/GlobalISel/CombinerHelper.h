@@ -33,6 +33,7 @@ class GISelKnownBits;
 class MachineDominatorTree;
 class LegalizerInfo;
 struct LegalityQuery;
+class TargetLowering;
 
 struct PreferredTuple {
   LLT Ty;                // The result type of the extend.
@@ -50,6 +51,11 @@ struct IndexedLoadStoreMatchInfo {
 struct PtrAddChain {
   int64_t Imm;
   Register Base;
+};
+
+struct RegisterImmPair {
+  Register Reg;
+  int64_t Imm;
 };
 
 using OperandBuildSteps =
@@ -89,6 +95,8 @@ public:
   GISelKnownBits *getKnownBits() const {
     return KB;
   }
+
+  const TargetLowering &getTargetLowering() const;
 
   /// \return true if the combine is running prior to legalization, or if \p
   /// Query is legal on the target.
@@ -134,6 +142,10 @@ public:
 
   bool matchSextTruncSextLoad(MachineInstr &MI);
   bool applySextTruncSextLoad(MachineInstr &MI);
+
+  /// Match sext_inreg(load p), imm -> sextload p
+  bool matchSextInRegOfLoad(MachineInstr &MI, std::tuple<Register, unsigned> &MatchInfo);
+  bool applySextInRegOfLoad(MachineInstr &MI, std::tuple<Register, unsigned> &MatchInfo);
 
   bool matchElideBrByInvertingCond(MachineInstr &MI);
   void applyElideBrByInvertingCond(MachineInstr &MI);
@@ -218,6 +230,12 @@ public:
   bool matchCombineMulToShl(MachineInstr &MI, unsigned &ShiftVal);
   bool applyCombineMulToShl(MachineInstr &MI, unsigned &ShiftVal);
 
+  // Transform a G_SHL with an extended source into a narrower shift if
+  // possible.
+  bool matchCombineShlOfExtend(MachineInstr &MI, RegisterImmPair &MatchData);
+  bool applyCombineShlOfExtend(MachineInstr &MI,
+                               const RegisterImmPair &MatchData);
+
   /// Reduce a shift by a constant to an unmerge and a shift on a half sized
   /// type. This will not produce a shift smaller than \p TargetShiftSize.
   bool matchCombineShiftToUnmerge(MachineInstr &MI, unsigned TargetShiftSize,
@@ -233,6 +251,23 @@ public:
   bool matchCombineP2IToI2P(MachineInstr &MI, Register &Reg);
   bool applyCombineP2IToI2P(MachineInstr &MI, Register &Reg);
 
+  /// Transform G_ADD (G_PTRTOINT x), y -> G_PTRTOINT (G_PTR_ADD x, y)
+  /// Transform G_ADD y, (G_PTRTOINT x) -> G_PTRTOINT (G_PTR_ADD x, y)
+  bool matchCombineAddP2IToPtrAdd(MachineInstr &MI,
+                                  std::pair<Register, bool> &PtrRegAndCommute);
+  bool applyCombineAddP2IToPtrAdd(MachineInstr &MI,
+                                  std::pair<Register, bool> &PtrRegAndCommute);
+
+  /// Transform anyext(trunc(x)) to x.
+  bool matchCombineAnyExtTrunc(MachineInstr &MI, Register &Reg);
+  bool applyCombineAnyExtTrunc(MachineInstr &MI, Register &Reg);
+
+  /// Transform [asz]ext([asz]ext(x)) to [asz]ext x.
+  bool matchCombineExtOfExt(MachineInstr &MI,
+                            std::tuple<Register, unsigned> &MatchInfo);
+  bool applyCombineExtOfExt(MachineInstr &MI,
+                            std::tuple<Register, unsigned> &MatchInfo);
+
   /// Return true if any explicit use operand on \p MI is defined by a
   /// G_IMPLICIT_DEF.
   bool matchAnyExplicitUseIsUndef(MachineInstr &MI);
@@ -247,6 +282,13 @@ public:
   /// Return true if a G_STORE instruction \p MI is storing an undef value.
   bool matchUndefStore(MachineInstr &MI);
 
+  /// Return true if a G_SELECT instruction \p MI has an undef comparison.
+  bool matchUndefSelectCmp(MachineInstr &MI);
+
+  /// Return true if a G_SELECT instruction \p MI has a constant comparison. If
+  /// true, \p OpIdx will store the operand index of the known selected value.
+  bool matchConstantSelectCmp(MachineInstr &MI, unsigned &OpIdx);
+
   /// Replace an instruction with a G_FCONSTANT with value \p C.
   bool replaceInstWithFConstant(MachineInstr &MI, double C);
 
@@ -258,6 +300,9 @@ public:
 
   /// Delete \p MI and replace all of its uses with its \p OpIdx-th operand.
   bool replaceSingleDefInstWithOperand(MachineInstr &MI, unsigned OpIdx);
+
+  /// Delete \p MI and replace all of its uses with \p Replacement.
+  bool replaceSingleDefInstWithReg(MachineInstr &MI, Register Replacement);
 
   /// Return true if \p MOP1 and \p MOP2 are register operands are defined by
   /// equivalent instructions.
@@ -293,6 +338,26 @@ public:
   /// Replace \p MI with a series of instructions described in \p MatchInfo.
   bool applyBuildInstructionSteps(MachineInstr &MI,
                                   InstructionStepsMatchInfo &MatchInfo);
+
+  /// Match ashr (shl x, C), C -> sext_inreg (C)
+  bool matchAshrShlToSextInreg(MachineInstr &MI,
+                               std::tuple<Register, int64_t> &MatchInfo);
+  bool applyAshShlToSextInreg(MachineInstr &MI,
+                              std::tuple<Register, int64_t> &MatchInfo);
+  /// \return true if \p MI is a G_AND instruction whose RHS is a mask where
+  /// LHS & mask == LHS. (E.g., an all-ones value.)
+  ///
+  /// \param [in] MI - The G_AND instruction.
+  /// \param [out] Replacement - A register the G_AND should be replaced with on
+  /// success.
+  bool matchAndWithTrivialMask(MachineInstr &MI, Register &Replacement);
+
+  /// \return true if \p MI is a G_SEXT_INREG that can be erased.
+  bool matchRedundantSExtInReg(MachineInstr &MI);
+
+  /// Combine inverting a result of a compare into the opposite cond code.
+  bool matchNotCmp(MachineInstr &MI, Register &CmpReg);
+  bool applyNotCmp(MachineInstr &MI, Register &CmpReg);
 
   /// Try to transform \p MI by using all of the above
   /// combine functions. Returns true if changed.

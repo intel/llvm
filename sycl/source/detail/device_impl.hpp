@@ -101,6 +101,11 @@ public:
     return (!is_host() && (MType == PI_DEVICE_TYPE_ACC));
   }
 
+  /// Return device type
+  ///
+  /// \return the type of the device
+  RT::PiDeviceType get_device_type() const { return MType; }
+
   /// Get associated SYCL platform
   ///
   /// If this SYCL device is an OpenCL device then the SYCL platform
@@ -211,6 +216,11 @@ public:
   //
   /// \return true if the SYCL device has the given feature.
   bool has(aspect Aspect) const;
+
+  /// Gets the single instance of the Host Device
+  ///
+  /// \return the host device_impl singleton
+  static std::shared_ptr<device_impl> getHostDeviceImpl();
 
 private:
   explicit device_impl(pi_native_handle InteropDevice, RT::PiDevice Device,

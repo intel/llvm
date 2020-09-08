@@ -258,6 +258,7 @@ struct AssignStmt;
 struct AssignedGotoStmt;
 struct PauseStmt;
 struct OpenACCConstruct;
+struct AccEndCombinedDirective;
 struct OpenACCDeclarativeConstruct;
 struct OpenMPConstruct;
 struct OpenMPDeclarativeConstruct;
@@ -517,6 +518,7 @@ struct ExecutableConstruct {
       common::Indirection<WhereConstruct>, common::Indirection<ForallConstruct>,
       common::Indirection<CompilerDirective>,
       common::Indirection<OpenACCConstruct>,
+      common::Indirection<AccEndCombinedDirective>,
       common::Indirection<OpenMPConstruct>,
       common::Indirection<OmpEndLoopDirective>>
       u;
@@ -545,7 +547,8 @@ struct ProgramUnit {
   std::variant<common::Indirection<MainProgram>,
       common::Indirection<FunctionSubprogram>,
       common::Indirection<SubroutineSubprogram>, common::Indirection<Module>,
-      common::Indirection<Submodule>, common::Indirection<BlockData>>
+      common::Indirection<Submodule>, common::Indirection<BlockData>,
+      common::Indirection<CompilerDirective>>
       u;
 };
 
@@ -3458,6 +3461,10 @@ struct OmpDependClause {
 // 2.7.1 nowait-clause -> NOWAIT
 EMPTY_CLASS(OmpNowait);
 
+// dist_schedule clause does not fit in generic clause class for tablegen.
+// Therefore it is declared separatly here.
+WRAPPER_CLASS(OmpDistScheduleClause, std::optional<ScalarIntExpr>);
+
 // OpenMP Clauses
 struct OmpClause {
   UNION_CLASS_BOILERPLATE(OmpClause);
@@ -3834,8 +3841,10 @@ struct AccObjectListWithModifier {
 
 // 2.5.13: + | * | max | min | iand | ior | ieor | .and. | .or. | .eqv. | .neqv.
 struct AccReductionOperator {
-  UNION_CLASS_BOILERPLATE(AccReductionOperator);
-  std::variant<DefinedOperator, ProcedureDesignator> u;
+  ENUM_CLASS(
+      Operator, Plus, Multiply, Max, Min, Iand, Ior, Ieor, And, Or, Eqv, Neqv)
+  WRAPPER_CLASS_BOILERPLATE(AccReductionOperator, Operator);
+  CharBlock source;
 };
 
 struct AccObjectListWithReduction {
@@ -3846,6 +3855,16 @@ struct AccObjectListWithReduction {
 struct AccWaitArgument {
   TUPLE_CLASS_BOILERPLATE(AccWaitArgument);
   std::tuple<std::optional<ScalarIntExpr>, std::list<ScalarIntExpr>> t;
+};
+
+struct AccTileExpr {
+  TUPLE_CLASS_BOILERPLATE(AccTileExpr);
+  CharBlock source;
+  std::tuple<std::optional<ScalarIntConstantExpr>> t; // if null then *
+};
+
+struct AccTileExprList {
+  WRAPPER_CLASS_BOILERPLATE(AccTileExprList, std::list<AccTileExpr>);
 };
 
 struct AccSizeExpr {
@@ -3970,6 +3989,7 @@ struct OpenACCStandaloneDeclarativeConstruct {
 
 struct AccBeginCombinedDirective {
   TUPLE_CLASS_BOILERPLATE(AccBeginCombinedDirective);
+  CharBlock source;
   std::tuple<AccCombinedDirective, AccClauseList> t;
 };
 
@@ -3981,7 +4001,9 @@ struct AccEndCombinedDirective {
 struct OpenACCCombinedConstruct {
   TUPLE_CLASS_BOILERPLATE(OpenACCCombinedConstruct);
   CharBlock source;
-  std::tuple<AccBeginCombinedDirective, Block,
+  OpenACCCombinedConstruct(AccBeginCombinedDirective &&a)
+      : t({std::move(a), std::nullopt, std::nullopt}) {}
+  std::tuple<AccBeginCombinedDirective, std::optional<DoConstruct>,
       std::optional<AccEndCombinedDirective>>
       t;
 };

@@ -375,7 +375,7 @@ static void getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
     break;
   case llvm::Triple::r600:
   case llvm::Triple::amdgcn:
-    amdgpu::getAMDGPUTargetFeatures(D, Args, Features);
+    amdgpu::getAMDGPUTargetFeatures(D, Triple, Args, Features);
     break;
   case llvm::Triple::msp430:
     msp430::getMSP430TargetFeatures(D, Args, Features);
@@ -2113,6 +2113,31 @@ void Clang::AddX86TargetArgs(const ArgList &Args,
     CmdArgs.push_back("-mfloat-abi");
     CmdArgs.push_back("soft");
     CmdArgs.push_back("-mstack-alignment=4");
+  }
+
+  // Handle -mtune.
+
+  // Default to "generic" unless -march is present or targetting the PS4.
+  std::string TuneCPU;
+  if (!Args.hasArg(clang::driver::options::OPT_march_EQ) &&
+      !getToolChain().getTriple().isPS4CPU())
+    TuneCPU = "generic";
+
+  // Override based on -mtune.
+  if (const Arg *A = Args.getLastArg(clang::driver::options::OPT_mtune_EQ)) {
+    StringRef Name = A->getValue();
+
+    if (Name == "native") {
+      Name = llvm::sys::getHostCPUName();
+      if (!Name.empty())
+        TuneCPU = std::string(Name);
+    } else
+      TuneCPU = std::string(Name);
+  }
+
+  if (!TuneCPU.empty()) {
+    CmdArgs.push_back("-tune-cpu");
+    CmdArgs.push_back(Args.MakeArgString(TuneCPU));
   }
 }
 
@@ -4123,6 +4148,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-sycl-opt");
     }
+    // Turn on Dead Parameter Elimination Optimization with early optimizations
+    if (!RawTriple.isNVPTX() &&
+        Args.hasFlag(options::OPT_fsycl_dead_args_optimization,
+                     options::OPT_fno_sycl_dead_args_optimization, false))
+      CmdArgs.push_back("-fenable-sycl-dae");
 
     // Pass the triple of host when doing SYCL
     auto AuxT = llvm::Triple(llvm::sys::getProcessTriple());
@@ -4171,8 +4201,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       SYCLStdArg->render(Args, CmdArgs);
       CmdArgs.push_back("-fsycl-std-layout-kernel-params");
     } else {
-      // Ensure the default version in SYCL mode is 1.2.1 (aka 2017)
-      CmdArgs.push_back("-sycl-std=2017");
+      // Ensure the default version in SYCL mode is 2020
+      CmdArgs.push_back("-sycl-std=2020");
     }
   }
 
@@ -4335,6 +4365,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (Args.getLastArg(options::OPT_save_temps_EQ))
     Args.AddLastArg(CmdArgs, options::OPT_save_temps_EQ);
+
+  if (Args.hasFlag(options::OPT_fmemprof, options::OPT_fno_memprof, false))
+    Args.AddLastArg(CmdArgs, options::OPT_fmemprof);
 
   // Embed-bitcode option.
   // Only white-listed flags below are allowed to be embedded.
@@ -5712,7 +5745,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       LanguageStandard = llvm::StringSwitch<StringRef>(StdArg->getValue())
                              .Case("c++14", "-std=c++14")
                              .Case("c++17", "-std=c++17")
-                             .Case("c++latest", "-std=c++2a")
+                             .Case("c++latest", "-std=c++20")
                              .Default("");
       if (LanguageStandard.empty())
         D.Diag(clang::diag::warn_drv_unused_argument)
@@ -5779,7 +5812,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // FIXME: Find a better way to determine whether the language has modules
   // support by default, or just assume that all languages do.
   bool HaveModules =
-      Std && (Std->containsValue("c++2a") || Std->containsValue("c++latest"));
+      Std && (Std->containsValue("c++2a") || Std->containsValue("c++20") ||
+              Std->containsValue("c++latest"));
   RenderModulesOptions(C, D, Args, Input, Output, CmdArgs, HaveModules);
 
   if (Args.hasFlag(options::OPT_fpch_validate_input_files_content,
@@ -5962,10 +5996,17 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                     options::OPT_fno_gnu_inline_asm, true))
     CmdArgs.push_back("-fno-gnu-inline-asm");
 
+  bool EnableSYCLEarlyOptimizations =
+      Args.hasFlag(options::OPT_fsycl_early_optimizations,
+                   options::OPT_fno_sycl_early_optimizations,
+                   Triple.getSubArch() != llvm::Triple::SPIRSubArch_fpga);
+
   // Enable vectorization per default according to the optimization level
   // selected. For optimization levels that want vectorization we use the alias
   // option to simplify the hasFlag logic.
   bool EnableVec = shouldEnableVectorizerAtOLevel(Args, false);
+  if (UseSYCLTriple && EnableSYCLEarlyOptimizations)
+    EnableVec = false; // But disable vectorization for SYCL device code
   OptSpecifier VectorizeAliasOption =
       EnableVec ? options::OPT_O_Group : options::OPT_fvectorize;
   if (Args.hasFlag(options::OPT_fvectorize, VectorizeAliasOption,
@@ -5974,6 +6015,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // -fslp-vectorize is enabled based on the optimization level selected.
   bool EnableSLPVec = shouldEnableVectorizerAtOLevel(Args, true);
+  if (UseSYCLTriple && EnableSYCLEarlyOptimizations)
+    EnableSLPVec = false; // But disable vectorization for SYCL device code
   OptSpecifier SLPVectAliasOption =
       EnableSLPVec ? options::OPT_O_Group : options::OPT_fslp_vectorize;
   if (Args.hasFlag(options::OPT_fslp_vectorize, SLPVectAliasOption,
@@ -6219,11 +6262,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasArg(options::OPT_fsycl_unnamed_lambda))
       CmdArgs.push_back("-fsycl-unnamed-lambda");
 
-    // Enable generation of USM address spaces as opt-in.
+    // Enable generation of USM address spaces for FPGA.
     // __ENABLE_USM_ADDR_SPACE__ will be used during compilation of SYCL headers
     if (getToolChain().getTriple().getSubArch() ==
-            llvm::Triple::SPIRSubArch_fpga &&
-        Args.hasArg(options::OPT_fsycl_enable_usm_address_spaces))
+        llvm::Triple::SPIRSubArch_fpga)
       CmdArgs.push_back("-D__ENABLE_USM_ADDR_SPACE__");
   }
 
@@ -7677,18 +7719,28 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   TranslatorArgs.push_back(Output.getFilename());
   if (getToolChain().getTriple().isSYCLDeviceEnvironment()) {
     TranslatorArgs.push_back("-spirv-max-version=1.1");
-    std::string ExtArg("-spirv-ext=+all");
+    TranslatorArgs.push_back("-spirv-debug-info-version=legacy");
     if (C.getArgs().hasArg(options::OPT_fsycl_esimd))
       TranslatorArgs.push_back("-spirv-allow-unknown-intrinsics");
+
     // Disable SPV_INTEL_usm_storage_classes by default since it adds new
     // storage classes that represent global_device and global_host address
     // spaces, which are not supported for all targets. With the extension
     // disable the storage classes will be lowered to CrossWorkgroup storage
-    // class that is mapped to just global address space.
-    if (!(getToolChain().getTriple().getSubArch() ==
-              llvm::Triple::SPIRSubArch_fpga &&
-          TCArgs.hasArg(options::OPT_fsycl_enable_usm_address_spaces)))
-      ExtArg += ",-SPV_INTEL_usm_storage_classes";
+    // class that is mapped to just global address space. The extension is
+    // supposed to be enabled only for FPGA hardware.
+    std::string ExtArg("-spirv-ext=+all,-SPV_INTEL_usm_storage_classes");
+    if (getToolChain().getTriple().getSubArch() ==
+        llvm::Triple::SPIRSubArch_fpga) {
+      for (auto *A : TCArgs) {
+        if (A->getOption().matches(options::OPT_Xs_separate) ||
+            A->getOption().matches(options::OPT_Xs)) {
+          StringRef ArgString(A->getValue());
+          if (ArgString == "hardware" || ArgString == "simulation")
+            ExtArg = "-spirv-ext=+all";
+        }
+      }
+    }
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
   }
   for (auto I : Inputs) {
@@ -7807,6 +7859,11 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // OPT_fsycl_device_code_split is not checked as it is an alias to
   // -fsycl-device-code-split=per_source
 
+  // Turn on Dead Parameter Elimination Optimization with early optimizations
+  if (!getToolChain().getTriple().isNVPTX() &&
+      TCArgs.hasFlag(options::OPT_fsycl_dead_args_optimization,
+                     options::OPT_fno_sycl_dead_args_optimization, false))
+    addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
   if (JA.getType() == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR
     // transformations (like specialization constant intrinsic lowering) and

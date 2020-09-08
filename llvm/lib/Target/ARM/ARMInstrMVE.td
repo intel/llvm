@@ -4055,6 +4055,8 @@ class MVE_VMAXMINNMA<string iname, string suffix, bit size, bit bit_12,
   let Inst{4} = 0b0;
   let Inst{3-1} = Qm{2-0};
   let Inst{0} = 0b1;
+
+  let isCommutable = 1;
 }
 
 multiclass MVE_VMAXMINNMA_m<string iname, MVEVectorVTInfo VTI,
@@ -5827,6 +5829,7 @@ class MVE_vldst24_base<bit writeback, bit fourregs, bits<2> stage, bits<2> size,
   let mayLoad = load;
   let mayStore = !eq(load,0);
   let hasSideEffects = 0;
+  let validForTailPredication = load;
 }
 
 // A parameter class used to encapsulate all the ways the writeback

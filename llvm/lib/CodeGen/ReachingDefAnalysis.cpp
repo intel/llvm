@@ -272,8 +272,10 @@ int ReachingDefAnalysis::getReachingDef(MachineInstr *MI, int PhysReg) const {
 }
 
 MachineInstr* ReachingDefAnalysis::getReachingLocalMIDef(MachineInstr *MI,
-                                                    int PhysReg) const {
-  return getInstFromId(MI->getParent(), getReachingDef(MI, PhysReg));
+                                                         int PhysReg) const {
+  return hasLocalDefBefore(MI, PhysReg)
+    ? getInstFromId(MI->getParent(), getReachingDef(MI, PhysReg))
+    : nullptr;
 }
 
 bool ReachingDefAnalysis::hasSameReachingDef(MachineInstr *A, MachineInstr *B,
@@ -387,6 +389,19 @@ ReachingDefAnalysis::getGlobalUses(MachineInstr *MI, int PhysReg,
   }
 }
 
+void
+ReachingDefAnalysis::getGlobalReachingDefs(MachineInstr *MI, int PhysReg,
+                                           InstSet &Defs) const {
+  if (auto *Def = getUniqueReachingMIDef(MI, PhysReg)) {
+    Defs.insert(Def);
+    return;
+  }
+
+  SmallPtrSet<MachineBasicBlock *, 2> Visited;
+  for (auto *MBB : MI->getParent()->predecessors())
+    getLiveOuts(MBB, PhysReg, Defs);
+}
+
 void ReachingDefAnalysis::getLiveOuts(MachineBasicBlock *MBB, int PhysReg,
                                       InstSet &Defs) const {
   SmallPtrSet<MachineBasicBlock*, 2> VisitedBBs;
@@ -421,7 +436,9 @@ MachineInstr *ReachingDefAnalysis::getUniqueReachingMIDef(MachineInstr *MI,
 
   SmallPtrSet<MachineBasicBlock*, 4> VisitedBBs;
   SmallPtrSet<MachineInstr*, 2> Incoming;
-  for (auto *Pred : MI->getParent()->predecessors())
+  MachineBasicBlock *Parent = MI->getParent();
+  VisitedBBs.insert(Parent);
+  for (auto *Pred : Parent->predecessors())
     getLiveOuts(Pred, PhysReg, Incoming, VisitedBBs);
 
   // If we have a local def and an incoming instruction, then there's not a

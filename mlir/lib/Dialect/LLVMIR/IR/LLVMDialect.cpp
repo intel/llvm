@@ -124,7 +124,7 @@ static void printAllocaOp(OpAsmPrinter &p, AllocaOp &op) {
                                   op.getContext());
 
   p << op.getOperationName() << ' ' << op.arraySize() << " x " << elemTy;
-  if (op.alignment().hasValue() && op.alignment()->getSExtValue() != 0)
+  if (op.alignment().hasValue() && *op.alignment() != 0)
     p.printOptionalAttrDict(op.getAttrs());
   else
     p.printOptionalAttrDict(op.getAttrs(), {"alignment"});
@@ -914,9 +914,8 @@ static LogicalResult verify(AddressOfOp op) {
     return op.emitOpError(
         "must reference a global defined by 'llvm.mlir.global' or 'llvm.func'");
 
-  if (global &&
-      global.getType().getPointerTo(global.addr_space().getZExtValue()) !=
-          op.getResult().getType())
+  if (global && global.getType().getPointerTo(global.addr_space()) !=
+                    op.getResult().getType())
     return op.emitOpError(
         "the type must be a pointer to the type of the referenced global");
 
@@ -1668,23 +1667,7 @@ static LogicalResult verify(FenceOp &op) {
 // LLVMDialect initialization, type parsing, and registration.
 //===----------------------------------------------------------------------===//
 
-namespace mlir {
-namespace LLVM {
-namespace detail {
-struct LLVMDialectImpl {
-  LLVMDialectImpl() : layout("") {}
-
-  /// Default data layout to use.
-  // TODO: this should be moved to some Op equivalent to LLVM module and
-  // eventually replaced with a proper MLIR data layout.
-  llvm::DataLayout layout;
-};
-} // end namespace detail
-} // end namespace LLVM
-} // end namespace mlir
-
 void LLVMDialect::initialize() {
-  impl = new detail::LLVMDialectImpl();
   // clang-format off
   addTypes<LLVMVoidType,
            LLVMHalfType,
@@ -1715,12 +1698,8 @@ void LLVMDialect::initialize() {
   allowUnknownOperations();
 }
 
-LLVMDialect::~LLVMDialect() { delete impl; }
-
 #define GET_OP_CLASSES
 #include "mlir/Dialect/LLVMIR/LLVMOps.cpp.inc"
-
-const llvm::DataLayout &LLVMDialect::getDataLayout() { return impl->layout; }
 
 /// Parse a type registered to this dialect.
 Type LLVMDialect::parseType(DialectAsmParser &parser) const {
@@ -1730,6 +1709,39 @@ Type LLVMDialect::parseType(DialectAsmParser &parser) const {
 /// Print a type registered to this dialect.
 void LLVMDialect::printType(Type type, DialectAsmPrinter &os) const {
   return detail::printType(type.cast<LLVMType>(), os);
+}
+
+LogicalResult LLVMDialect::verifyDataLayoutString(
+    StringRef descr, llvm::function_ref<void(const Twine &)> reportError) {
+  llvm::Expected<llvm::DataLayout> maybeDataLayout =
+      llvm::DataLayout::parse(descr);
+  if (maybeDataLayout)
+    return success();
+
+  std::string message;
+  llvm::raw_string_ostream messageStream(message);
+  llvm::logAllUnhandledErrors(maybeDataLayout.takeError(), messageStream);
+  reportError("invalid data layout descriptor: " + messageStream.str());
+  return failure();
+}
+
+/// Verify LLVM dialect attributes.
+LogicalResult LLVMDialect::verifyOperationAttribute(Operation *op,
+                                                    NamedAttribute attr) {
+  // If the data layout attribute is present, it must use the LLVM data layout
+  // syntax. Try parsing it and report errors in case of failure. Users of this
+  // attribute may assume it is well-formed and can pass it to the (asserting)
+  // llvm::DataLayout constructor.
+  if (attr.first.strref() != LLVM::LLVMDialect::getDataLayoutAttrName())
+    return success();
+  if (auto stringAttr = attr.second.dyn_cast<StringAttr>())
+    return verifyDataLayoutString(
+        stringAttr.getValue(),
+        [op](const Twine &message) { op->emitOpError() << message.str(); });
+
+  return op->emitOpError() << "expected '"
+                           << LLVM::LLVMDialect::getDataLayoutAttrName()
+                           << "' to be a string attribute";
 }
 
 /// Verify LLVMIR function argument attributes.

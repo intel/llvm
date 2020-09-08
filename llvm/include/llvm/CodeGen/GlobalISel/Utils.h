@@ -16,6 +16,7 @@
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/Register.h"
+#include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/Support/Alignment.h"
 #include "llvm/Support/LowLevelTypeImpl.h"
 #include "llvm/Support/MachineValueType.h"
@@ -151,9 +152,8 @@ const ConstantFP* getConstantFPVRegVal(Register VReg,
 MachineInstr *getOpcodeDef(unsigned Opcode, Register Reg,
                            const MachineRegisterInfo &MRI);
 
-/// Find the def instruction for \p Reg, folding away any trivial copies. Note
-/// it may still return a COPY, if it changes the type. May return nullptr if \p
-/// Reg is not a generic virtual register.
+/// Find the def instruction for \p Reg, folding away any trivial copies. May
+/// return nullptr if \p Reg is not a generic virtual register.
 MachineInstr *getDefIgnoringCopies(Register Reg,
                                    const MachineRegisterInfo &MRI);
 
@@ -228,5 +228,23 @@ LLT getGCDType(LLT OrigTy, LLT TargetTy);
 /// If \p MI is not a splat, returns None.
 Optional<int> getSplatIndex(MachineInstr &MI);
 
+/// Returns a scalar constant of a G_BUILD_VECTOR splat if it exists.
+Optional<int64_t> getBuildVectorConstantSplat(const MachineInstr &MI,
+                                              const MachineRegisterInfo &MRI);
+
+/// Return true if the specified instruction is a G_BUILD_VECTOR or
+/// G_BUILD_VECTOR_TRUNC where all of the elements are 0 or undef.
+bool isBuildVectorAllZeros(const MachineInstr &MI,
+                           const MachineRegisterInfo &MRI);
+
+/// Return true if the specified instruction is a G_BUILD_VECTOR or
+/// G_BUILD_VECTOR_TRUNC where all of the elements are ~0 or undef.
+bool isBuildVectorAllOnes(const MachineInstr &MI,
+                          const MachineRegisterInfo &MRI);
+
+/// Returns true if given the TargetLowering's boolean contents information,
+/// the value \p Val contains a true value.
+bool isConstTrueVal(const TargetLowering &TLI, int64_t Val, bool IsVector,
+                    bool IsFP);
 } // End namespace llvm.
 #endif

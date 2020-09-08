@@ -328,6 +328,13 @@ const static char WriteOnly[] = "write_only";
 const static char ReadWrite[] = "read_write";
 } // namespace kAccessQualName
 
+namespace kAccessQualPostfix {
+const static char ReadOnly[] = "_ro";
+const static char WriteOnly[] = "_wo";
+const static char ReadWrite[] = "_rw";
+const static char Type[] = "_t";
+} // namespace kAccessQualPostfix
+
 namespace kMangledName {
 const static char Sampler[] = "11ocl_sampler";
 const static char AtomicPrefixIncoming[] = "U7_Atomic";
@@ -882,7 +889,13 @@ std::string mapOCLTypeNameToSPIRV(StringRef Name, StringRef Acc = "");
 bool hasAccessQualifiedName(StringRef TyName);
 
 /// Get access qualifier from the type name.
-StringRef getAccessQualifier(StringRef TyName);
+SPIRVAccessQualifierKind getAccessQualifier(StringRef TyName);
+
+/// Get access qualifier from the type name.
+StringRef getAccessQualifierPostfix(SPIRVAccessQualifierKind Access);
+
+/// Get access qualifier from the type name.
+StringRef getAccessQualifierFullName(StringRef TyName);
 
 bool eraseUselessFunctions(Module *M);
 

@@ -195,6 +195,13 @@ module LLVM_ExecutionEngine {
 
 }
 
+module LLVM_FileCheck {
+  requires cplusplus
+
+  umbrella "FileCheck"
+  module * { export * }
+}
+
 // Orc utilities that don't depend only on Support (not ExecutionEngine or
 // IR). This is a workaround for ExecutionEngine's broken layering, and will
 // be removed in the future.
@@ -253,6 +260,7 @@ module LLVM_intrinsic_gen {
   module IR_CFG { header "IR/CFG.h" export * }
   module IR_ConstantRange { header "IR/ConstantRange.h" export * }
   module IR_Dominators { header "IR/Dominators.h" export * }
+  module IR_FixedPointBuilder { header "IR/FixedPointBuilder.h" export * }
   module Analysis_PostDominators { header "Analysis/PostDominators.h" export * }
   module Analysis_DomTreeUpdater { header "Analysis/DomTreeUpdater.h" export * }
   module IR_IRBuilder { header "IR/IRBuilder.h" export * }

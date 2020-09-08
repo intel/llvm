@@ -2322,6 +2322,9 @@ the target with or without a "-mno-" in front corresponding to the absence
 of the feature, as well as ``arch="CPU"`` which will change the default "CPU"
 for the function.
 
+For X86, the attribute also allows ``tune="CPU"`` to optimize the generated
+code for the given CPU without changing the available instructions.
+
 For AArch64, the attribute also allows the "branch-protection=<args>" option,
 where the permissible arguments and their effect on code generation are the same
 as for the command-line option ``-mbranch-protection``.
@@ -3473,29 +3476,15 @@ code. See `cl_intel_required_subgroup_size
 for details.
 
 SYCL documentation:
-The [[cl::intel_reqd_sub_group_size(n)]] and [[intel::reqd_sub_group_size(n)]]
-attribute indicates that the kernel must be compiled and executed with a
-sub-group of size n. The value of n must be set to a sub-group size supported
-by the device, or device compilation will fail.
+The [[intel::reqd_sub_group_size(n)]] attribute indicates that the kernel must
+be compiled and executed with a sub-group of size n. The value of n must be set
+to a sub-group size supported by the device, or device compilation will fail.
 
 In addition to device functions, the required sub-group size attribute may also
 be specified in the definition of a named functor object and lambda functions,
 as in the examples below:
 
 .. code-block:: c++
-
-  class Functor
-  {
-      void operator()(item<1> item) [[cl::intel_reqd_sub_group_size(16)]]
-      {
-          /* kernel code */
-      }
-  }
-
-  kernel<class kernel_name>(
-  []() [[cl::intel_reqd_sub_group_size(n)]] {
-       /* kernel code */
-  });
 
   class Functor
   {
@@ -3813,6 +3802,38 @@ def NoAliasDocs : Documentation {
 The ``noalias`` attribute indicates that the only memory accesses inside
 function are loads and stores from objects pointed to by its pointer-typed
 arguments, with arbitrary offsets.
+  }];
+}
+
+def NSErrorDomainDocs : Documentation {
+  let Category = DocCatDecl;
+  let Content = [{
+In Cocoa frameworks in Objective-C, one can group related error codes in enums
+and categorize these enums with error domains.
+
+The ``ns_error_domain`` attribute indicates a global ``NSString`` constant
+representing the error domain that an error code belongs to. For pointer
+uniqueness and code size this is a constant symbol, not a literal.
+
+The domain and error code need to be used together. The ``ns_error_domain``
+attribute links error codes to their domain at the source level.
+
+This metadata is useful for documentation purposes, for static analysis, and for
+improving interoperability between Objective-C and Swift. It is not used for
+code generation in Objective-C.
+
+For example:
+
+  .. code-block:: objc
+
+    #define NS_ERROR_ENUM(_type, _name, _domain)  \
+      enum _name : _type _name; enum __attribute__((ns_error_domain(_domain))) _name : _type
+
+    extern NSString *const MyErrorDomain;
+    typedef NS_ERROR_ENUM(unsigned char, MyErrorEnum, MyErrorDomain) {
+      MyErrFirst,
+      MyErrSecond,
+    };
   }];
 }
 

@@ -468,7 +468,7 @@ void AssertOp::getCanonicalizationPatterns(OwningRewritePatternList &patterns,
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(AssumeAlignmentOp op) {
-  unsigned alignment = op.alignment().getZExtValue();
+  unsigned alignment = op.alignment();
   if (!llvm::isPowerOf2_32(alignment))
     return op.emitOpError("alignment must be power of 2");
   return success();
@@ -564,7 +564,8 @@ static ParseResult parseGenericAtomicRMWOp(OpAsmParser &parser,
     return failure();
 
   Region *body = result.addRegion();
-  if (parser.parseRegion(*body, llvm::None, llvm::None))
+  if (parser.parseRegion(*body, llvm::None, llvm::None) ||
+      parser.parseOptionalAttrDict(result.attributes))
     return failure();
   result.types.push_back(memrefType.cast<MemRefType>().getElementType());
   return success();
@@ -1779,6 +1780,14 @@ bool FPToSIOp::areCastCompatible(Type a, Type b) {
 }
 
 //===----------------------------------------------------------------------===//
+// FPToUIOp
+//===----------------------------------------------------------------------===//
+
+bool FPToUIOp::areCastCompatible(Type a, Type b) {
+  return a.isa<FloatType>() && b.isSignlessInteger();
+}
+
+//===----------------------------------------------------------------------===//
 // FPTruncOp
 //===----------------------------------------------------------------------===//
 
@@ -2302,6 +2311,15 @@ OpFoldResult SubIOp::fold(ArrayRef<Attribute> operands) {
 
   return constFoldBinaryOp<IntegerAttr>(operands,
                                         [](APInt a, APInt b) { return a - b; });
+}
+
+//===----------------------------------------------------------------------===//
+// UIToFPOp
+//===----------------------------------------------------------------------===//
+
+// uitofp is applicable from integer types to float types.
+bool UIToFPOp::areCastCompatible(Type a, Type b) {
+  return a.isSignlessInteger() && b.isa<FloatType>();
 }
 
 //===----------------------------------------------------------------------===//

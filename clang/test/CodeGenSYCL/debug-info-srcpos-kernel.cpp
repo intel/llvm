@@ -1,14 +1,15 @@
-// RUN: %clang -fsycl-device-only %s -S -emit-llvm -O0 -I %S/Inputs -g -o - | FileCheck %s
+// RUN: %clang -fsycl-device-only %s -S -emit-llvm -O0 -g -o - | FileCheck %s
 //
 // Verify the SYCL kernel routine is marked artificial and has no source
 // correlation.
 //
-// The SYCL kernel should have no source correlation of its own, so it needs
-// to be marked artificial or it will inherit source correlation from the
-// surrounding code.
+// In order to placate the profiling tools, which can't cope with instructions
+// mapped to line 0, we've made the change so that the artificial code in a
+// SYCL kernel gets the source line info for the kernel caller function (the
+// 'kernel' template function on line 15 in this file).
 //
 
-#include <sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
@@ -33,8 +34,11 @@ int main() {
 // CHECK-SAME: scope: [[FILE]]
 // CHECK-SAME: file: [[FILE]]
 // CHECK-SAME: flags: DIFlagArtificial | DIFlagPrototyped
-// CHECK: [[LINE_A0]] = !DILocation(line: 0
+// CHECK: [[LINE_A0]] = !DILocation(line: 15,{{.*}}scope: [[KERNEL]]
 // CHECK: [[LINE_B0]] = !DILocation(line: 0
 
+// TODO: [[LINE_B0]] should be mapped to line 15 as well. That said,
+// this 'line 0' assignment is less problematic as the lambda function
+// call would be inlined in most cases.
 // TODO: SYCL specific fail - analyze and enable
 // XFAIL: windows-msvc
