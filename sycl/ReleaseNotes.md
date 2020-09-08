@@ -8,7 +8,7 @@ Release notes for commit range 5976ff0..1fc0e4f
 ### SYCL Compiler
   - Assigned the source location of the kernel caller function to the artificial
     initialization code generated in the kernel body. It enables profiling tools
-    to meaningfully the initialization code [6744364]
+    to meaningfully attribute the initialization code [6744364]
   - Provided compile-time warning if size of kernel arguments exceeds 2KiB in
     GPU AOT mode [e00ab74]
   - Changed default SYCL standard to SYCL-2020 [67acf81]
@@ -98,7 +98,7 @@ Release notes for commit range 5976ff0..1fc0e4f
   - Fixed waiting for events on Level Zero [e503662]
   - Added missing constructors and propety methods for context, program and
     sampler[30b8acc]
-  - Improved support for GDB [93e1387]
+  - Fixed printing types of variables by GDB in some cases [93e1387]
   - Aligned `cl::sycl::handler::require` API with the SYCL specification
     [68c275c]
   - Fixed undefinded behaviour in memory management intrinsics [4ff2eee]
