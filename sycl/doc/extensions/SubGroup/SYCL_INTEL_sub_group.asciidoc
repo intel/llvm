@@ -68,7 +68,9 @@ Providing a generic group abstraction encapsulating the shared functionality of 
 
 === Attributes
 
-The +[[intel::reqd_sub_group_size(n)]]+ attribute indicates that the kernel must be compiled and executed with a sub-group of size _n_.  The value of _n_ must be a compile-time integral constant expression.  The value of _n_ must be set to a sub-group size that is both supported by the device and compatible with all language features used by the kernel, or device compilation will fail.  The set of valid sub-group sizes can be queried as described below.
+The +[[intel::reqd_sub_group_size(S)]]+ attribute indicates that the kernel must be compiled and executed with a specific sub-group size.  The value of _S_ must be a compile-time integral constant expression or one of the following keywords: +auto+, +core+.  If the value of _S_ is an integer, it must be set to a valid sub-group size supported by the device (as reported by +info::device::sub_group_sizes+).  If the requested sub-group size is not compatible with any language features used by the kernel, device compilation will fail.  If the value of _S_ is +auto+, the device compiler is free to select any of the valid sub-group sizes from +info::device::sub_group_sizes+; the manner in which the sub-group size is selected is implementation-defined.  If the value of _S_ is +core+, the device compiler will select the device's core sub-group size (as reported by the +info::device::core_sub_group_size+ query) for all kernels with this attribute.
+
+If no required sub-group size attribute appears on a kernel, the default behavior is as-if +[[intel::reqd_sub_group_size(auto)]]+ was specified.  This behavior may be overridden by an implementation (e.g. via compiler flags).
 
 In addition to device functions, the required sub-group size attribute may also be specified in the definition of a named functor object, as in the example below:
 
@@ -85,13 +87,17 @@ class Functor
 
 It is illegal for a kernel or function to call a function with a mismatched sub-group size requirement, and the compiler should produce an error in this case.  The +reqd_sub_group_size+ attribute is not propagated from a device function to callers of the function, and must be specified explicitly when a kernel is defined.
 
+=== Compiler Flags
+
+The +-fsycl-core-sub-group-size+ flag compiles all kernels in the translation unit as though +[[intel::reqd_sub_group_size(core)]]+ was specified.
+
 === Sub-group Queries
 
-Several aspects of sub-group functionality are implementation-defined: the size and number of sub-groups is implementation-defined (and may differ for each kernel); and different devices may make different guarantees with respect to how sub-groups within a work-group are scheduled.  Developers can query these behaviors at a device level and for individual kernels.  The sub-group size for a given combination of kernel and launch configuration is fixed, and guaranteed to be reflected by device and kernel queries.
+Several aspects of sub-group functionality are implementation-defined: the size and number of sub-groups for certain work-group sizes is implementation-defined (and may differ for each kernel); and different devices may make different guarantees with respect to how sub-groups within a work-group are scheduled.  Developers can query these behaviors at a device level and for individual kernels.  The sub-group size for a given combination of kernel and launch configuration is fixed, and guaranteed to be reflected by device and kernel queries.
 
-Each sub-group in a work-group is one-dimensional.  If the total number of work-items in a work-group is evenly divisible by the sub-group size, all sub-groups in the work-group will contain the same number of work-items.  If the total number of work-items in a work-group is not evenly divisible by the sub-group size, the number of work-items in the final sub-group is equal to the remainder of the total work-group size divided by the sub-group size.
+Each sub-group in a work-group is one-dimensional.  If the number of work-items in the highest-numbered dimension of a work-group is evenly divisible by the sub-group size, all sub-groups in the work-group will contain the same number of work-items.  Additionally, the numbering of work-items in a sub-group reflects the linear numbering of the work-items in the work-group.  Specifically, if a work-item has linear ID i~s~ in the sub-group and linear ID i~w~ in the work-group, the work-item with linear ID i~s~+1 in the sub-group has linear ID i~w~+1 in the work-group.
 
-To maximize portability across devices, developers should not assume that work-items within a sub-group execute in lockstep, nor that two sub-groups within a work-group will make independent forward progress with respect to one another.
+To maximize portability across devices, developers should not assume that work-items within a sub-group execute in lockstep, that two sub-groups within a work-group will make independent forward progress with respect to one another, nor that remainders arising from work-group division will be handled in a specific way.
 
 The device descriptors below are added to the +info::device+ enumeration class:
 
@@ -106,9 +112,13 @@ The device descriptors below are added to the +info::device+ enumeration class:
 |+bool+
 |Returns +true+ if the device supports independent forward progress of sub-groups with respect to other sub-groups in the same work-group.
 
+|+info::device::core_sub_group_size+
+|+size_t+
+|Return a sub-group size supported by this device that is guaranteed to support all core language features for the device.
+
 |+info::device::sub_group_sizes+
 |+vector_class<size_t>+
-|Returns a vector_class of +size_t+ containing the set of sub-group sizes supported by the device.
+|Returns a vector_class of +size_t+ containing the set of sub-group sizes supported by the device.  Each sub-group size is a power of 2 in the range [1, 2^32^-1].  Not all sub-group sizes are guaranteed to be compatible with all core language features; any incompatibilities are implementation-defined.
 |===
 
 An additional query is added to the +kernel+ class, enabling an input value to be passed to `get_info`.  The original `get_info` query from the SYCL_INTEL_device_specific_kernel_queries extension should be used for queries that do not specify an input type.
@@ -295,6 +305,13 @@ Yes, this is required by OpenCL devices.  Devices that do not require the work-g
 Yes, the four shuffles in this extension are a defining feature of sub-groups.  Higher-level algorithms (such as those in the +SubGroupAlgorithms+ proposal) may build on them, the same way as higher-level algorithms using work-groups build on work-group local memory.
 --
 
+. What should the sub-group size compatible with all features be called?
++
+--
+*RESOLVED*:
+The name adopted is "core", to convey that it supports all core (non-optional) language features and is an integral part of sub-group support provided by the device.  Other names considered are listed here for posterity: "default", "stable", "fixed", "primary".  With the exception of "primary", these terms are easy to misunderstand (i.e. the "default" size may not be chosen by default, the "stable" size is unrelated to the software release cycle, the "fixed" sub-group size may change between devices or compiler releases).  "core" was selected over "primary" because of its simplicity.
+--
+
 //. asd
 //+
 //--
@@ -315,6 +332,7 @@ Yes, the four shuffles in this extension are a defining feature of sub-groups.  
 |5|2020-04-21|John Pennycook|*Restore sub-group shuffles as member functions*
 |6|2020-04-22|John Pennycook|*Align with SYCL_INTEL_device_specific_kernel_queries*
 |7|2020-07-13|John Pennycook|*Clarify that reqd_sub_group_size must be a compile-time constant*
+|8|2020-09-08|John Pennycook|*Provide some basic correctness guarantees*
 |========================================
 
 //************************************************************************
