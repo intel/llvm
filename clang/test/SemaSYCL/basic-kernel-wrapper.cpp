@@ -1,9 +1,9 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
 
 // This test checks that compiler generates correct kernel wrapper for basic
 // case.
 
-#include <sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 template <typename Acc>
 struct AccWrapper { Acc accessor; };

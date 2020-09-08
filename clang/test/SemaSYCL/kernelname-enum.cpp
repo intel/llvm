@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -fsycl-int-header=%t.h -fsyntax-only -Wno-sycl-2017-compat -verify %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-int-header=%t.h -fsyntax-only -Wno-sycl-2017-compat -verify %s
 
-#include "sycl.hpp"
+#include "Inputs/sycl.hpp"
 
 enum unscoped_enum_int : int {
   val_1,

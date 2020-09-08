@@ -1,11 +1,11 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -I %S/Inputs -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s -o %t.out
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s
 
 // This test checks the integration header generated when:
 // 1. Kernel argument is a pointer.
 // 2. Kernel argument is a struct containing a pointer.
 
-#include <sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 struct struct_with_pointer {
   int data_in_struct;

@@ -1,9 +1,9 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -triple spir64_gen -DGPU -fsycl-is-device -fsyntax-only -verify %s
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -triple spir64 -fsycl-is-device -fsyntax-only -verify %s
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -triple spir64_gen -Wno-sycl-strict -fsycl-is-device -fsyntax-only -verify %s
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -triple spir64_gen -Werror=sycl-strict -DERROR -fsycl-is-device -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl -triple spir64_gen -DGPU -fsycl-is-device -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl -triple spir64 -fsycl-is-device -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl -triple spir64_gen -Wno-sycl-strict -fsycl-is-device -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl -triple spir64_gen -Werror=sycl-strict -DERROR -fsycl-is-device -fsyntax-only -verify %s
 
-#include <sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 template <typename Name, typename F>
 __attribute__((sycl_kernel)) void kernel(F KernelFunc) {

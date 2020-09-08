@@ -1,8 +1,8 @@
-// RUN: %clang_cc1 %s -I %S/Inputs -fsyntax-only -fsycl -fsycl-is-device -triple spir64 -Wno-sycl-2017-compat -verify
-// RUN: %clang_cc1 %s -I %S/Inputs -fsyntax-only -fsycl -fsycl-is-device -triple spir64 -DTRIGGER_ERROR -Wno-sycl-2017-compat -verify
-// RUN: %clang_cc1 %s -I %S/Inputs -fsyntax-only -ast-dump -fsycl -fsycl-is-device -triple spir64 -Wno-sycl-2017-compat | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl -fsycl-is-device -triple spir64 -Wno-sycl-2017-compat -verify
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl -fsycl-is-device -triple spir64 -DTRIGGER_ERROR -Wno-sycl-2017-compat -verify
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl -fsycl-is-device -triple spir64 -Wno-sycl-2017-compat | FileCheck %s
 
-#include <sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 #ifndef TRIGGER_ERROR
 //first case - good case
