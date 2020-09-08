@@ -185,29 +185,30 @@ struct _pi_device : _pi_object {
 };
 
 struct _pi_context : _pi_object {
-  _pi_context(pi_device Device)
-      : Device{Device}, ZeCommandListInit{nullptr}, ZeEventPool{nullptr},
-        NumEventsAvailableInEventPool{}, NumEventsLiveInEventPool{} {
-    // TODO: when support for multiple devices is added, here we should
-    // loop over all the devices and initialize allocator context for each
-    // pair (context, device)
-    SharedMemAllocContexts.emplace(
-        std::piecewise_construct, std::make_tuple(Device),
-        std::make_tuple(std::unique_ptr<SystemMemory>(
-            new USMSharedMemoryAlloc(this, Device))));
-    DeviceMemAllocContexts.emplace(
-        std::piecewise_construct, std::make_tuple(Device),
-        std::make_tuple(std::unique_ptr<SystemMemory>(
-            new USMDeviceMemoryAlloc(this, Device))));
+  _pi_context(pi_uint32 NumDevices, const pi_device *Devs)
+      : Devices{Devs, Devs + NumDevices}, ZeCommandListInit{nullptr},
+        ZeEventPool{nullptr}, NumEventsAvailableInEventPool{},
+        NumEventsLiveInEventPool{} {
+    // Create USM allocator context for each pair (device, context).
+    for (uint32_t I; I < NumDevices; I++) {
+      pi_device Device = Devs[I];
+      SharedMemAllocContexts.emplace(
+          std::piecewise_construct, std::make_tuple(Device),
+          std::make_tuple(std::unique_ptr<SystemMemory>(
+              new USMSharedMemoryAlloc(this, Device))));
+      DeviceMemAllocContexts.emplace(
+          std::piecewise_construct, std::make_tuple(Device),
+          std::make_tuple(std::unique_ptr<SystemMemory>(
+              new USMDeviceMemoryAlloc(this, Device))));
+    }
   }
 
   // A L0 context handle is primarily used during creation and management of
   // resources that may be used by multiple devices.
   ze_context_handle_t ZeContext;
 
-  // Keep the device here (must be exactly one) to return it when PI context
-  // is queried for devices.
-  pi_device Device;
+  // Keep the PI devices this PI context was created for.
+  std::vector<pi_device> Devices;
 
   // Immediate Level Zero command list for the device in this context, to be
   // used for initializations. To be created as:
