@@ -13,7 +13,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #include "Inputs/sycl.hpp"
 
 template <typename name, typename Func>
