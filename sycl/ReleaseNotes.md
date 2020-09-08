@@ -20,7 +20,8 @@ Release notes for commit range 5976ff0..1fc0e4f
   - Simplified the error checking of arrays by only visiting once [c709986]
   - Stop emitting kernel arguments metadata [f658918]
   - Enabled `-f[no-]sycl-early-optimizations` on Windows [e1e3658]
-  - Allow for mutable kernel function objects for SYCL-1.2.1 [1dbc358]
+  - Mutable kernel functions are now explicitly forbidden in SYCL 2020
+    [1dbc358]
   - Moved hardware targeted extensions to `INTEL` namespace [3084982]
   - Added support for union types as kernel parameters [5adfd79]
   - Renamed `-fsycl-std-optimizations` to `-fsycl-early-optimizations` [077a507]
