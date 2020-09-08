@@ -123,13 +123,13 @@ Release notes for commit range 5976ff0..1fc0e4f
   - Linkage errors with the following message:
     `error LNK2005: "bool const std::_Is_integral<bool>" (??$_Is_integral@_N@std@@3_NB) already defined`
     can happen when a SYCL application is built using MS Visual Studio 2019
-    version below 16.3.0
-    The workaround is to enable `-std=c++17` for the failing MSVC version.
+    version below 16.3.0 if user specifies `-std=c++14` or `/std:c++14`.
   - Employing read sampler for image accessor may result in sporadic issues with
     Level Zero plugin/backend [2c50c03]
   - Printing internal defines isn't supported on Windows [50628db]
-  - Group algorithms for MUL/AND/OR/XOR are not fully enabled as the SPIR-V
-    version isn't automatically raised from 1.1 to 1.3 [96da39e]
+  - Group algorithms for MUL/AND/OR/XOR cannot be enabled for group scope due to
+    SPIR-V limitations, and are not enabled for sub-group scope yet as the
+    SPIR-V version isn't automatically raised from 1.1 to 1.3 [96da39e]
   - We cannot run Dead Argument Elimination for ESIMD since the pointers to SPIR
     kernel functions are saved in `!genx.kernels metadata` [cf10351]
 
