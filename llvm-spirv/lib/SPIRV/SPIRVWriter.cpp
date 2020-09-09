@@ -2964,17 +2964,26 @@ SPIRVInstruction *LLVMToSPIRV::transBuiltinToInst(StringRef DemangledName,
       !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_blocking_pipes))
     return nullptr;
 
-  if (OpFixedSqrtINTEL <= OC && OC <= OpFixedExpINTEL &&
-      !BM->isAllowedToUseExtension(
-          ExtensionID::SPV_INTEL_arbitrary_precision_fixed_point))
-    return nullptr;
+  if (OpFixedSqrtINTEL <= OC && OC <= OpFixedExpINTEL)
+    BM->getErrorLog().checkError(
+        BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_arbitrary_precision_fixed_point),
+        SPIRVEC_InvalidInstruction,
+        CI->getCalledOperand()->getName().str() +
+            "\nFixed point instructions can't be translated correctly without "
+            "enabled SPV_INTEL_arbitrary_precision_fixed_point extension!\n");
 
-  if (((OpArbitraryFloatSinCosPiINTEL <= OC &&
-        OC <= OpArbitraryFloatCastToIntINTEL) ||
-       (OpArbitraryFloatAddINTEL <= OC && OC <= OpArbitraryFloatPowNINTEL)) &&
-      !BM->isAllowedToUseExtension(
-          ExtensionID::SPV_INTEL_arbitrary_precision_floating_point))
-    return nullptr;
+  if ((OpArbitraryFloatSinCosPiINTEL <= OC &&
+       OC <= OpArbitraryFloatCastToIntINTEL) ||
+      (OpArbitraryFloatAddINTEL <= OC && OC <= OpArbitraryFloatPowNINTEL))
+    BM->getErrorLog().checkError(
+        BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_arbitrary_precision_floating_point),
+        SPIRVEC_InvalidInstruction,
+        CI->getCalledOperand()->getName().str() +
+            "\nFloating point instructions can't be translated correctly "
+            "without enabled SPV_INTEL_arbitrary_precision_floating_point "
+            "extension!\n");
 
   auto Inst = transBuiltinToInstWithoutDecoration(OC, CI, BB);
   addDecorations(Inst, Dec);
