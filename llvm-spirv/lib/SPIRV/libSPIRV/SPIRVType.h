@@ -167,15 +167,15 @@ public:
     }
     return CV;
   }
-  SPIRVExtSet getRequiredExtensions() const override {
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
     switch (BitWidth) {
     case 8:
     case 16:
     case 32:
     case 64:
-      return SPIRVExtSet();
+      return {};
     default:
-      return getSet(ExtensionID::SPV_INTEL_arbitrary_precision_integers);
+      return ExtensionID::SPV_INTEL_arbitrary_precision_integers;
     }
   }
 
@@ -183,7 +183,12 @@ protected:
   _SPIRV_DEF_ENCDEC3(Id, BitWidth, IsSigned)
   void validate() const override {
     SPIRVEntry::validate();
-    assert(BitWidth > 1 && BitWidth <= 64 && "Invalid bit width");
+    assert(BitWidth > 1 &&
+           (BitWidth <= 64 ||
+            (Module->isAllowedToUseExtension(
+                 ExtensionID::SPV_INTEL_arbitrary_precision_integers) &&
+             BitWidth <= 1024)) &&
+           "Invalid bit width");
   }
 
 private:
@@ -824,6 +829,51 @@ bool isType(const T1 *Ty, unsigned Bits = 0) {
   return static_cast<const T2 *>(Ty)->getBitWidth() == Bits;
 }
 
+class SPIRVTypeBufferSurfaceINTEL : public SPIRVType {
+public:
+  const static Op OC = OpTypeBufferSurfaceINTEL;
+  const static SPIRVWord FixedWC = 2;
+  SPIRVTypeBufferSurfaceINTEL(SPIRVModule *M, SPIRVId TheId,
+                              SPIRVAccessQualifierKind TheAccess)
+      : SPIRVType(M, FixedWC + 1, OC, TheId), AccessKind(TheAccess) {
+    validate();
+  }
+  SPIRVTypeBufferSurfaceINTEL(SPIRVModule *M, SPIRVId TheId)
+      : SPIRVType(M, FixedWC, OC, TheId) {
+    validate();
+  }
+  SPIRVTypeBufferSurfaceINTEL() : SPIRVType(OC) {}
+
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityVectorComputeINTEL);
+  }
+
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return {ExtensionID::SPV_INTEL_vector_compute};
+  }
+
+  bool hasAccessQualifier() const { return AccessKind.hasValue(); }
+  SPIRVAccessQualifierKind getAccessQualifier() const {
+    assert(hasAccessQualifier());
+    return AccessKind.getValue();
+  }
+
+protected:
+  _SPIRV_DEF_ENCDEC2(Id, AccessKind)
+  void validate() const override {
+    assert(OpCode == OC);
+    assert(WordCount == FixedWC + (AccessKind ? 1 : 0));
+  }
+  void setWordCount(SPIRVWord TheWC) override {
+    if (TheWC > FixedWC)
+      AccessKind = SPIRVAccessQualifierKind::AccessQualifierMax;
+    WordCount = TheWC;
+  }
+
+private:
+  llvm::Optional<SPIRVAccessQualifierKind> AccessKind;
+};
+
 // SPV_INTEL_device_side_avc_motion_estimation extension types
 class SPIRVTypeVmeImageINTEL : public SPIRVType {
 public:
@@ -848,8 +898,8 @@ public:
     return getVec(CapabilitySubgroupAvcMotionEstimationINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_device_side_avc_motion_estimation);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_device_side_avc_motion_estimation;
   }
 
 protected:
@@ -903,8 +953,8 @@ public:
     return getVec(CapabilitySubgroupAvcMotionEstimationINTEL);
   }
 
-  SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(ExtensionID::SPV_INTEL_device_side_avc_motion_estimation);
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_device_side_avc_motion_estimation;
   }
 
   SPIRVValue *getOperand() { return getValue(Opn); }

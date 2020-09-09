@@ -1,8 +1,8 @@
-// RUN: %clang_cc1 -fsycl -fsycl-is-device -I %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
 // This test checks a kernel argument that is union with both array and non-array fields.
 
-#include "sycl.hpp"
+#include "Inputs/sycl.hpp"
 
 using namespace cl::sycl;
 

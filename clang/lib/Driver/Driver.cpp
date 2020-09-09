@@ -46,6 +46,7 @@
 #include "ToolChains/VEToolchain.h"
 #include "ToolChains/WebAssembly.h"
 #include "ToolChains/XCore.h"
+#include "ToolChains/ZOS.h"
 #include "clang/Basic/TargetID.h"
 #include "clang/Basic/Version.h"
 #include "clang/Config/config.h"
@@ -3875,6 +3876,8 @@ class OffloadingActionBuilder final {
       };
 
       bool NoDeviceLibs = false;
+      // Currently, libc, libm-fp32 will be linked in by default. In order
+      // to use libm-fp64, -fsycl-device-lib=libm-fp64/all should be used.
       llvm::StringMap<bool> devicelib_link_info = {
           {"libc", true}, {"libm-fp32", true}, {"libm-fp64", false}};
       if (Arg *A = Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
@@ -3902,17 +3905,11 @@ class OffloadingActionBuilder final {
         }
       }
 
-      StringRef LibSysUtils;
       SmallString<128> LibLoc(TC->getDriver().Dir);
-      if (isMSVCEnv) {
-        llvm::sys::path::append(LibLoc, "/../bin");
-        LibSysUtils = "libsycl-msvc";
-      } else {
-        llvm::sys::path::append(LibLoc, "/../lib");
-        LibSysUtils = "libsycl-glibc";
-      }
+      llvm::sys::path::append(LibLoc, "/../lib");
+      StringRef LibSuffix = isMSVCEnv ? ".obj" : ".o";
       SmallVector<DeviceLibOptInfo, 5> sycl_device_wrapper_libs = {
-          {LibSysUtils, "libc"},
+          {"libsycl-crt", "libc"},
           {"libsycl-complex", "libm-fp32"},
           {"libsycl-complex-fp64", "libm-fp64"},
           {"libsycl-cmath", "libm-fp32"},
@@ -3934,16 +3931,18 @@ class OffloadingActionBuilder final {
             continue;
           SmallString<128> LibName(LibLoc);
           llvm::sys::path::append(LibName, Lib.devicelib_name);
-          llvm::sys::path::replace_extension(LibName, ".o");
-          Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
-                                       Args.MakeArgString(LibName));
-          auto *SYCLDeviceLibsInputAction =
-              C.MakeAction<InputAction>(*InputArg, types::TY_Object);
-          auto *SYCLDeviceLibsUnbundleAction =
-              C.MakeAction<OffloadUnbundlingJobAction>(
-                  SYCLDeviceLibsInputAction);
-          addDeviceDepences(SYCLDeviceLibsUnbundleAction);
-          DeviceLinkObjects.push_back(SYCLDeviceLibsUnbundleAction);
+          llvm::sys::path::replace_extension(LibName, LibSuffix);
+          if (llvm::sys::fs::exists(LibName)) {
+            Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
+                                         Args.MakeArgString(LibName));
+            auto *SYCLDeviceLibsInputAction =
+                C.MakeAction<InputAction>(*InputArg, types::TY_Object);
+            auto *SYCLDeviceLibsUnbundleAction =
+                C.MakeAction<OffloadUnbundlingJobAction>(
+                    SYCLDeviceLibsInputAction);
+            addDeviceDepences(SYCLDeviceLibsUnbundleAction);
+            DeviceLinkObjects.push_back(SYCLDeviceLibsUnbundleAction);
+          }
         }
       };
       addInputs(sycl_devicelib_wrapper);
@@ -6727,6 +6726,9 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
       break;
     case llvm::Triple::Hurd:
       TC = std::make_unique<toolchains::Hurd>(*this, Target, Args);
+      break;
+    case llvm::Triple::ZOS:
+      TC = std::make_unique<toolchains::ZOS>(*this, Target, Args);
       break;
     default:
       // Of these targets, Hexagon is the only one that might have
