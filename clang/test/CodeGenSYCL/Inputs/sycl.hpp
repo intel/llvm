@@ -94,12 +94,12 @@ public:
   bool operator!=(const property_list &rhs) const { return false; }
 };
 
-namespace ext {
 namespace INTEL {
 namespace property {
 // Compile time known accessor property
-template <int>
-class buffer_location {};
+struct buffer_location {
+  template <int> class instance {};
+};
 } // namespace property
 } // namespace INTEL
 
@@ -107,7 +107,6 @@ namespace ONEAPI {
 template <typename... properties>
 class accessor_property_list {};
 } // namespace ONEAPI
-} // namespace ext
 
 template <int dim>
 struct id {

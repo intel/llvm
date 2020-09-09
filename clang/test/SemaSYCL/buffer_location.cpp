@@ -14,8 +14,8 @@ struct Base {
   cl::sycl::accessor<char, 1, cl::sycl::access::mode::read,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::ext::ONEAPI::accessor_property_list<
-                         cl::sycl::ext::INTEL::property::buffer_location<1>>>
+                     cl::sycl::ONEAPI::accessor_property_list<
+                         cl::sycl::INTEL::property::buffer_location::instance<1>>>
       AccField;
 };
 
@@ -23,8 +23,8 @@ struct Captured : Base,
                   cl::sycl::accessor<char, 1, cl::sycl::access::mode::read,
                                      cl::sycl::access::target::global_buffer,
                                      cl::sycl::access::placeholder::false_t,
-                                     cl::sycl::ext::ONEAPI::accessor_property_list<
-                                         cl::sycl::ext::INTEL::property::buffer_location<1>>> {
+                                     cl::sycl::ONEAPI::accessor_property_list<
+                                         cl::sycl::INTEL::property::buffer_location::instance<1>>> {
   int C;
 };
 
@@ -35,30 +35,30 @@ int main() {
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::ext::ONEAPI::accessor_property_list<
-                         cl::sycl::ext::INTEL::property::buffer_location<2>>>
+                     cl::sycl::ONEAPI::accessor_property_list<
+                         cl::sycl::INTEL::property::buffer_location::instance<2>>>
       // CHECK: SYCLIntelBufferLocationAttr {{.*}} Implicit 2
       accessorA;
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::ext::ONEAPI::accessor_property_list<
+                     cl::sycl::ONEAPI::accessor_property_list<
                          another_property,
-                         cl::sycl::ext::INTEL::property::buffer_location<3>>>
+                         cl::sycl::INTEL::property::buffer_location::instance<3>>>
       // CHECK: SYCLIntelBufferLocationAttr {{.*}} Implicit 3
       accessorB;
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::ext::ONEAPI::accessor_property_list<
+                     cl::sycl::ONEAPI::accessor_property_list<
                          another_property>>
       accessorC;
 #else
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::ext::ONEAPI::accessor_property_list<
-                         cl::sycl::ext::INTEL::property::buffer_location<-2>>>
+                     cl::sycl::ONEAPI::accessor_property_list<
+                         cl::sycl::INTEL::property::buffer_location::instance<-2>>>
       accessorD;
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
@@ -68,9 +68,9 @@ int main() {
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
                      cl::sycl::access::placeholder::false_t,
-                     cl::sycl::ext::ONEAPI::accessor_property_list<
-                         cl::sycl::ext::INTEL::property::buffer_location<1>,
-                         cl::sycl::ext::INTEL::property::buffer_location<2>>>
+                     cl::sycl::ONEAPI::accessor_property_list<
+                         cl::sycl::INTEL::property::buffer_location::instance<1>,
+                         cl::sycl::INTEL::property::buffer_location::instance<2>>>
       accessorF;
 #endif
   cl::sycl::kernel_single_task<class kernel_function>(

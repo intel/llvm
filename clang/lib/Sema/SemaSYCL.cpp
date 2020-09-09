@@ -1270,20 +1270,8 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
       llvm::DenseSet<QualType> Visited;
       checkSYCLType(SemaRef, TemplateArgTy, Loc, Visited);
 
-      if (TAL.size() < 6) {
-        // Not enough arguments for this parameter pack.
-        SemaRef.Diag(Loc.getBegin(),
-                     diag::err_template_arg_list_different_arity)
-            << /*not enough args*/ 0
-            << (int)SemaRef.getTemplateNameKindForDiagnostics(
-                   TemplateName(CTSD->getSpecializedTemplate()))
-            << CTSD;
-        SemaRef.Diag(CTSD->getLocation(), diag::note_template_decl_here)
-            << CTSD->getSourceRange();
-        return;
-      }
-
-      checkPropertyListType(TAL.get(5), Loc.getBegin());
+      if (TAL.size() > 5)
+        checkPropertyListType(TAL.get(5), Loc.getBegin());
     }
   }
 
@@ -3472,14 +3460,15 @@ bool Util::isPropertyListType(const QualType &Ty) {
 }
 
 bool Util::isSyclBufferLocationType(const QualType &Ty) {
-  const StringRef &Name = "buffer_location";
+  const StringRef &PropertyName = "buffer_location";
+  const StringRef &InstanceName = "instance";
   std::array<DeclContextDesc, 6> Scopes = {
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "ext"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "INTEL"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "property"},
-      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
+    Util::DeclContextDesc{Decl::Kind::Namespace, "cl"},
+    Util::DeclContextDesc{Decl::Kind::Namespace, "sycl"},
+    Util::DeclContextDesc{Decl::Kind::Namespace, "INTEL"},
+    Util::DeclContextDesc{Decl::Kind::Namespace, "property"},
+    Util::DeclContextDesc{Decl::Kind::CXXRecord, PropertyName},
+    Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, InstanceName}};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
@@ -3495,10 +3484,9 @@ bool Util::isSyclType(const QualType &Ty, StringRef Name, bool Tmpl) {
 
 bool Util::isAccessorPropertyListType(const QualType &Ty) {
   const StringRef &Name = "accessor_property_list";
-  std::array<DeclContextDesc, 5> Scopes = {
+  std::array<DeclContextDesc, 4> Scopes = {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "ext"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "ONEAPI"},
       Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
   return matchQualifiedTypeName(Ty, Scopes);
