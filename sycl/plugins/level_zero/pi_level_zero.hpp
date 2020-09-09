@@ -32,6 +32,8 @@
 
 #include <level_zero/ze_api.h>
 
+#include "usm_allocator.hpp"
+
 template <class To, class From> To pi_cast(From Value) {
   // TODO: see if more sanity checks are possible.
   assert(sizeof(From) == sizeof(To));
@@ -87,6 +89,46 @@ struct _pi_platform {
   // Current number of L0 Command Lists created on this platform.
   // this number must not exceed ZeMaxCommandListCache.
   std::atomic<int> ZeGlobalCommandListCount{0};
+};
+
+// Implements memory allocation via L0 RT for USM allocator interface.
+class USMMemoryAllocBase : public SystemMemory {
+protected:
+  pi_context Context;
+  pi_device Device;
+  // Internal allocation routine which must be implemented for each allocation
+  // type
+  virtual pi_result allocateImpl(void **ResultPtr, size_t Size,
+                                 pi_uint32 Alignment) = 0;
+
+public:
+  USMMemoryAllocBase(pi_context Ctx, pi_device Dev)
+      : Context{Ctx}, Device{Dev} {}
+  void *allocate(size_t Size) override final;
+  void *allocate(size_t Size, size_t Alignment) override final;
+  void deallocate(void *Ptr) override final;
+};
+
+// Allocation routines for shared memory type
+class USMSharedMemoryAlloc : public USMMemoryAllocBase {
+protected:
+  pi_result allocateImpl(void **ResultPtr, size_t Size,
+                         pi_uint32 Alignment) override;
+
+public:
+  USMSharedMemoryAlloc(pi_context Ctx, pi_device Dev)
+      : USMMemoryAllocBase(Ctx, Dev) {}
+};
+
+// Allocation routines for device memory type
+class USMDeviceMemoryAlloc : public USMMemoryAllocBase {
+protected:
+  pi_result allocateImpl(void **ResultPtr, size_t Size,
+                         pi_uint32 Alignment) override;
+
+public:
+  USMDeviceMemoryAlloc(pi_context Ctx, pi_device Dev)
+      : USMMemoryAllocBase(Ctx, Dev) {}
 };
 
 struct _pi_device : _pi_object {
@@ -145,7 +187,19 @@ struct _pi_device : _pi_object {
 struct _pi_context : _pi_object {
   _pi_context(pi_device Device)
       : Device{Device}, ZeCommandListInit{nullptr}, ZeEventPool{nullptr},
-        NumEventsAvailableInEventPool{}, NumEventsLiveInEventPool{} {}
+        NumEventsAvailableInEventPool{}, NumEventsLiveInEventPool{} {
+    // TODO: when support for multiple devices is added, here we should
+    // loop over all the devices and initialize allocator context for each
+    // pair (context, device)
+    SharedMemAllocContexts.emplace(
+        std::piecewise_construct, std::make_tuple(Device),
+        std::make_tuple(std::unique_ptr<SystemMemory>(
+            new USMSharedMemoryAlloc(this, Device))));
+    DeviceMemAllocContexts.emplace(
+        std::piecewise_construct, std::make_tuple(Device),
+        std::make_tuple(std::unique_ptr<SystemMemory>(
+            new USMDeviceMemoryAlloc(this, Device))));
+  }
 
   // A L0 context handle is primarily used during creation and management of
   // resources that may be used by multiple devices.
@@ -173,6 +227,12 @@ struct _pi_context : _pi_object {
   // If event is destroyed then decrement number of events living in the pool
   // and destroy the pool if there are no alive events.
   ze_result_t decrementAliveEventsInPool(ze_event_pool_handle_t pool);
+
+  // Store USM allocator context(internal allocator structures)
+  // for USM shared/host and device allocations. There is 1 allocator context
+  // per each pair of (context, device) per each memory type.
+  std::unordered_map<pi_device, USMAllocContext> SharedMemAllocContexts;
+  std::unordered_map<pi_device, USMAllocContext> DeviceMemAllocContexts;
 
 private:
   // Following member variables are used to manage assignment of events
