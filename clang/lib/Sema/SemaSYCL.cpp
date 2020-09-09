@@ -82,10 +82,6 @@ public:
   static bool isSyclHalfType(const QualType &Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
-  /// property_list class.
-  static bool isPropertyListType(const QualType &Ty);
-
-  /// Checks whether given clang type is a full specialization of the SYCL
   /// accessor_property_list class.
   static bool isAccessorPropertyListType(const QualType &Ty);
 
@@ -1198,8 +1194,6 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
       return;
     }
     QualType PropListTy = PropList.getAsType();
-    if (Util::isPropertyListType(PropListTy))
-      return;
     if (!Util::isAccessorPropertyListType(PropListTy)) {
       SemaRef.Diag(Loc,
                    diag::err_sycl_invalid_accessor_property_template_param);
@@ -1421,9 +1415,6 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
       return;
     const auto PropList = cast<TemplateArgument>(AccTy->getTemplateArgs()[5]);
     QualType PropListTy = PropList.getAsType();
-    // property_list contains runtime properties, it shouldn't be handled here.
-    if (Util::isPropertyListType(PropListTy))
-      return;
     const auto *AccPropListDecl =
         cast<ClassTemplateSpecializationDecl>(PropListTy->getAsRecordDecl());
     const auto TemplArg = AccPropListDecl->getTemplateArgs()[0];
@@ -3453,10 +3444,6 @@ bool Util::isSyclSpecConstantType(const QualType &Ty) {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "experimental"},
       Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, Name}};
   return matchQualifiedTypeName(Ty, Scopes);
-}
-
-bool Util::isPropertyListType(const QualType &Ty) {
-  return isSyclType(Ty, "property_list");
 }
 
 bool Util::isSyclBufferLocationType(const QualType &Ty) {
