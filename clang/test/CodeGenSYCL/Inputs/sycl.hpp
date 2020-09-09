@@ -142,7 +142,7 @@ struct _ImplT {
 template <typename dataT, int dimensions, access::mode accessmode,
           access::target accessTarget = access::target::global_buffer,
           access::placeholder isPlaceholder = access::placeholder::false_t,
-          typename propertyListT = property_list>
+          typename propertyListT = ONEAPI::accessor_property_list<>>
 class accessor {
 
 public:
