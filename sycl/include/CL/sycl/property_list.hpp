@@ -13,6 +13,10 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ONEAPI {
+template <typename... PropsT>
+class accessor_property_list;
+}
 
 /// Objects of the property_list class are containers for the SYCL properties
 ///
@@ -46,6 +50,9 @@ public:
   template <typename PropT> bool has_property() const {
     return has_property_helper<PropT>();
   }
+
+  template <typename... PropsT>
+  operator ONEAPI::accessor_property_list<PropsT...>();
 };
 
 } // namespace sycl
