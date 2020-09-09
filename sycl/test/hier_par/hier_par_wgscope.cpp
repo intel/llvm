@@ -1,3 +1,7 @@
+// TODO: Enable compilation w/o -fno-sycl-early-optimizations option.
+// See https://github.com/intel/llvm/issues/2264 for more details.
+// XFAIL: gpu && (level_zero || opencl) && linux
+
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
