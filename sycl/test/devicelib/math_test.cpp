@@ -12,22 +12,17 @@ namespace s = cl::sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-#define TEST_NUM 38
+#define TEST_NUM 36
 
-float ref_val[TEST_NUM] = {
-    1, 0, 0, 0, 0, 0, 0, 1, 1, 0.5,
-    0, 2, 0, 0, 1, 0, 2, 0, 0, 0,
-    0, 0, 1, 0, 1, 2, 0, 1, 2, 5,
-    0, 0, 0, 0, 0.5, 0.5, NAN, NAN};
+float ref_val[TEST_NUM] = {1, 0, 0, 0, 0, 0, 0, 1, 1,   0.5, 0,   0,
+                           1, 0, 2, 0, 0, 0, 0, 0, 1,   0,   1,   2,
+                           0, 1, 2, 5, 0, 0, 0, 0, 0.5, 0.5, NAN, NAN};
 
 float refIptr = 1;
 
 void device_math_test(s::queue &deviceQueue) {
   s::range<1> numOfItems{TEST_NUM};
   float result[TEST_NUM] = {-1};
-
-  // Variable exponent is an integer value to store the exponent in frexp function
-  int exponent = -1;
 
   // Variable iptr stores the integral part of float point in modf function
   float iptr = -1;
@@ -36,14 +31,12 @@ void device_math_test(s::queue &deviceQueue) {
   int quo = -1;
   {
     s::buffer<float, 1> buffer1(result, numOfItems);
-    s::buffer<int, 1> buffer2(&exponent, s::range<1>{1});
-    s::buffer<float, 1> buffer3(&iptr, s::range<1>{1});
-    s::buffer<int, 1> buffer4(&quo, s::range<1>{1});
+    s::buffer<float, 1> buffer2(&iptr, s::range<1>{1});
+    s::buffer<int, 1> buffer3(&quo, s::range<1>{1});
     deviceQueue.submit([&](cl::sycl::handler &cgh) {
       auto res_access = buffer1.template get_access<sycl_write>(cgh);
-      auto exp_access = buffer2.template get_access<sycl_write>(cgh);
-      auto iptr_access = buffer3.template get_access<sycl_write>(cgh);
-      auto quo_access = buffer4.template get_access<sycl_write>(cgh);
+      auto iptr_access = buffer2.template get_access<sycl_write>(cgh);
+      auto quo_access = buffer3.template get_access<sycl_write>(cgh);
       cgh.single_task<class DeviceMathTest>([=]() {
         int i = 0;
         res_access[i++] = cosf(0.0f);
@@ -56,8 +49,6 @@ void device_math_test(s::queue &deviceQueue) {
         res_access[i++] = coshf(0.0f);
         res_access[i++] = expf(0.0f);
         res_access[i++] = fmodf(1.5f, 1.0f);
-        res_access[i++] = frexpf(0.0f, &exp_access[0]);
-        res_access[i++] = ldexpf(1.0f, 1);
         res_access[i++] = log10f(1.0f);
         res_access[i++] = modff(1.0f, &iptr_access[0]);
         res_access[i++] = powf(1.0f, 1.0f);
@@ -96,9 +87,6 @@ void device_math_test(s::queue &deviceQueue) {
 
   // Test modf integral part
   assert(approx_equal_fp(iptr, refIptr));
-
-  // Test frexp exponent
-  assert(exponent == 0);
 
   // Test remquo sign
   assert(quo == 0);
