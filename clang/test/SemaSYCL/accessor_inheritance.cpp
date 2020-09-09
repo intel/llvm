@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
-#include <sycl.hpp>
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+#include "Inputs/sycl.hpp"
 
 struct Base {
   int A, B;

@@ -1,9 +1,9 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -ast-dump %s | FileCheck %s
 
 // This test checks that compiler generates correct initialization for spec
 // constants
 
-#include <sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 struct SpecConstantsWrapper {
   cl::sycl::ONEAPI::experimental::spec_constant<int, class sc_name1> SC1;

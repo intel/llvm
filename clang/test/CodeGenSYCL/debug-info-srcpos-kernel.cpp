@@ -1,4 +1,4 @@
-// RUN: %clang -fsycl-device-only %s -S -emit-llvm -O0 -I %S/Inputs -g -o - | FileCheck %s
+// RUN: %clang -fsycl-device-only %s -S -emit-llvm -O0 -g -o - | FileCheck %s
 //
 // Verify the SYCL kernel routine is marked artificial and has no source
 // correlation.
@@ -9,7 +9,7 @@
 // 'kernel' template function on line 15 in this file).
 //
 
-#include <sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
