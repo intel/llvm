@@ -125,7 +125,7 @@ Release notes for commit range 5976ff0..1fc0e4f
   - Linkage errors with the following message:
     `error LNK2005: "bool const std::_Is_integral<bool>" (??$_Is_integral@_N@std@@3_NB) already defined`
     can happen when a SYCL application is built using MS Visual Studio 2019
-    version below 16.3.0 if user specifies `-std=c++14` or `/std:c++14`.
+    version below 16.3.0 and user specifies `-std=c++14` or `/std:c++14`.
   - Employing read sampler for image accessor may result in sporadic issues with
     Level Zero plugin/backend [2c50c03]
   - Printing internal defines isn't supported on Windows [50628db]
