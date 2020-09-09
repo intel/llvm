@@ -1298,6 +1298,18 @@ public:
     return isValid();
   }
 
+  bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
+    while (FieldTy->isAnyPointerType()) {
+      FieldTy = QualType{FieldTy->getPointeeOrArrayElementType(), 0};
+      if (FieldTy->isVariableArrayType()) {
+        Diag.Report(FD->getLocation(), diag::err_vla_unsupported);
+        IsInvalid = true;
+        break;
+      }
+    }
+    return isValid();
+  }
+
   bool handleOtherType(FieldDecl *FD, QualType FieldTy) final {
     Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type) << FieldTy;
     IsInvalid = true;
