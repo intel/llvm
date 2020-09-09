@@ -152,12 +152,6 @@ template <int Dims> struct NotIntMsg<range<Dims>> {
       "`-fno-sycl-id-queries-fit-in-int' to disable range check.";
 };
 
-template <int Dims> struct NotIntMsg<nd_range<Dims>> {
-  constexpr static const char *Msg =
-      "Provided nd_range is out of integer limits. Pass "
-      "`-fno-sycl-id-queries-fit-in-int' to disable range check.";
-};
-
 template <int Dims> struct NotIntMsg<id<Dims>> {
   constexpr static const char *Msg =
       "Provided offset is out of integer limits. Pass "
@@ -184,31 +178,14 @@ checkValueRange(const T &V) {
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
   for (size_t Dim = 0; Dim < Dims; ++Dim)
     checkValueRangeImpl<T>(V[Dim]);
-#else
-  (void)V;
-#endif
-}
-
-template <int Dims, typename T>
-typename std::enable_if<std::is_same<T, nd_range<Dims>>::value>::type
-checkValueRange(const T &V) {
-#if __SYCL_ID_QUERIES_FIT_IN_INT__
-  checkValueRange<Dims>(V.get_global_range());
-  checkValueRange<Dims>(V.get_local_range());
-  checkValueRange<Dims>(V.get_offset());
 
   {
     unsigned long long Product = 1;
     for (size_t Dim = 0; Dim < Dims; ++Dim) {
-      Product *= V.get_global_range()[Dim];
+      Product *= V[Dim];
       // check value now to prevent product overflow in the end
       checkValueRangeImpl<T>(Product);
     }
-  }
-
-  for (size_t Dim = 0; Dim < Dims; ++Dim) {
-    unsigned long long Sum = V.get_global_range()[Dim] + V.get_offset()[Dim];
-    checkValueRangeImpl<T>(Sum);
   }
 #else
   (void)V;
@@ -229,6 +206,20 @@ void checkValueRange(const range<Dims> &R, const id<Dims> &O) {
 #else
   (void)R;
   (void)O;
+#endif
+}
+
+template <int Dims, typename T>
+typename std::enable_if<std::is_same<T, nd_range<Dims>>::value>::type
+checkValueRange(const T &V) {
+#if __SYCL_ID_QUERIES_FIT_IN_INT__
+  checkValueRange<Dims>(V.get_global_range());
+  checkValueRange<Dims>(V.get_local_range());
+  checkValueRange<Dims>(V.get_offset());
+
+  checkValueRange<Dims>(V.get_global_range(), V.get_offset());
+#else
+  (void)V;
 #endif
 }
 
