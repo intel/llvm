@@ -1,11 +1,8 @@
-// TODO: Enable compilation w/o -fno-sycl-early-optimizations option.
-// See https://github.com/intel/llvm/issues/2264 for more details.
-
 // UNSUPPORTED: cuda
 // CUDA compilation and runtime do not yet support sub-groups.
 //
-// RUN: %clangxx -fsycl -fno-sycl-early-optimizations -fsycl-unnamed-lambda -std=c++14 %s -o %t.out
-// RUN: %clangxx -fsycl -fno-sycl-early-optimizations -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple -std=c++14 -D SG_GPU %s -o %t_gpu.out
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -std=c++14 %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple -std=c++14 -D SG_GPU %s -o %t_gpu.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
