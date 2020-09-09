@@ -3450,12 +3450,13 @@ bool Util::isSyclBufferLocationType(const QualType &Ty) {
   const StringRef &PropertyName = "buffer_location";
   const StringRef &InstanceName = "instance";
   std::array<DeclContextDesc, 6> Scopes = {
-    Util::DeclContextDesc{Decl::Kind::Namespace, "cl"},
-    Util::DeclContextDesc{Decl::Kind::Namespace, "sycl"},
-    Util::DeclContextDesc{Decl::Kind::Namespace, "INTEL"},
-    Util::DeclContextDesc{Decl::Kind::Namespace, "property"},
-    Util::DeclContextDesc{Decl::Kind::CXXRecord, PropertyName},
-    Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, InstanceName}};
+      Util::DeclContextDesc{Decl::Kind::Namespace, "cl"},
+      Util::DeclContextDesc{Decl::Kind::Namespace, "sycl"},
+      Util::DeclContextDesc{Decl::Kind::Namespace, "INTEL"},
+      Util::DeclContextDesc{Decl::Kind::Namespace, "property"},
+      Util::DeclContextDesc{Decl::Kind::CXXRecord, PropertyName},
+      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization,
+                            InstanceName}};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 
