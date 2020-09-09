@@ -2714,11 +2714,13 @@ static SmallVector<const char *, 16> getLinkerArgs(Compilation &C,
   return LibArgs;
 }
 
-static bool IsSYCLDeviceLibObj(std::string ObjFilePath) {
+static bool IsSYCLDeviceLibObj(std::string ObjFilePath, bool isMSVCEnv) {
   StringRef ObjFileName = llvm::sys::path::filename(ObjFilePath);
-  bool Ret = (ObjFileName.startswith("libsycl-") && ObjFileName.endswith(".o"))
-                 ? true
-                 : false;
+  StringRef ObjSuffix = isMSVCEnv ? ".obj" : ".o";
+  bool Ret =
+      (ObjFileName.startswith("libsycl-") && ObjFileName.endswith(ObjSuffix))
+          ? true
+          : false;
   return Ret;
 }
 
@@ -3799,8 +3801,11 @@ class OffloadingActionBuilder final {
               return ABRT_Inactive;
             // For SYCL device libraries, don't need to add them to
             // FPGAObjectInputs as there is no FPGA dep files inside.
+
             if (Args.hasArg(options::OPT_fintelfpga) &&
-                !IsSYCLDeviceLibObj(FileName))
+                !IsSYCLDeviceLibObj(FileName, C.getDefaultToolChain()
+                                                  .getTriple()
+                                                  .isWindowsMSVCEnvironment()))
               FPGAObjectInputs.push_back(IA);
           }
           // When creating FPGA device fat objects, all host objects are
