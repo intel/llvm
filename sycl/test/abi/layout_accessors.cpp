@@ -1,6 +1,8 @@
 // RUN: %clangxx -fsycl -c -fno-color-diagnostics -Xclang -fdump-record-layouts %s | FileCheck %s
 // REQUIRES: linux
 
+// clang-format off
+
 #include <CL/sycl/accessor.hpp>
 
 using namespace cl::sycl;
@@ -13,7 +15,7 @@ void hostAcc(accessor<int, 1, access::mode::read, access::target::host_buffer> A
   (void)Acc.get_size();
 }
 
-// CHECK: 0 | class cl::sycl::accessor<int, 1, cl::sycl::access::mode::read, cl::sycl::access::target::host_buffer, cl::sycl::access::placeholder::false_t, class cl::sycl::property_list>
+// CHECK: 0 | class cl::sycl::accessor<int, 1, cl::sycl::access::mode::read, cl::sycl::access::target::host_buffer, cl::sycl::access::placeholder::false_t, class cl::sycl::ONEAPI::accessor_property_list<> >
 // CHECK-NEXT:  0 |   class cl::sycl::detail::AccessorBaseHost (base)
 // CHECK-NEXT:  0 |     class std::shared_ptr<class cl::sycl::detail::AccessorImplHost> impl
 // CHECK-NEXT:  0 |       class std::__shared_ptr<class cl::sycl::detail::AccessorImplHost, __gnu_cxx::_S_atomic> (base)
@@ -34,7 +36,7 @@ void hostAcc(accessor<int, 1, access::mode::read, access::target::global_buffer>
   (void)Acc.get_size();
 }
 
-// CHECK: 0 | class cl::sycl::accessor<int, 1, cl::sycl::access::mode::read, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t, class cl::sycl::property_list>
+// CHECK: 0 | class cl::sycl::accessor<int, 1, cl::sycl::access::mode::read, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t, class cl::sycl::ONEAPI::accessor_property_list<> >
 // CHECK-NEXT: 0 |   class cl::sycl::detail::AccessorBaseHost (base)
 // CHECK-NEXT: 0 |     class std::shared_ptr<class cl::sycl::detail::AccessorImplHost> impl
 // CHECK-NEXT: 0 |       class std::__shared_ptr<class cl::sycl::detail::AccessorImplHost, __gnu_cxx::_S_atomic> (base)
@@ -55,7 +57,7 @@ void hostAcc(accessor<int, 1, access::mode::read_write, access::target::local> A
   (void)Acc.get_size();
 }
 
-// CHECK: 0 | class cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local, cl::sycl::access::placeholder::false_t, class cl::sycl::property_list>
+// CHECK: 0 | class cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local, cl::sycl::access::placeholder::false_t, class cl::sycl::ONEAPI::accessor_property_list<> >
 // CHECK-NEXT: 0 |   class cl::sycl::detail::LocalAccessorBaseHost (base)
 // CHECK-NEXT: 0 |     class std::shared_ptr<class cl::sycl::detail::LocalAccessorImplHost> impl
 // CHECK-NEXT: 0 |       class std::__shared_ptr<class cl::sycl::detail::LocalAccessorImplHost, __gnu_cxx::_S_atomic> (base)
@@ -75,7 +77,7 @@ void hostAcc(accessor<int, 1, access::mode::read_write, access::target::local> A
 void hostAcc(accessor<int4, 1, access::mode::read_write, access::target::host_image> Acc) {
   (void)Acc.get_count();
 }
-// CHECK: 0 | class cl::sycl::accessor<class cl::sycl::vec<int, 4>, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::host_image, cl::sycl::access::placeholder::false_t, class cl::sycl::property_list>
+// CHECK: 0 | class cl::sycl::accessor<class cl::sycl::vec<int, 4>, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::host_image, cl::sycl::access::placeholder::false_t, class cl::sycl::ONEAPI::accessor_property_list<> >
 // CHECK-NEXT: 0 |   class cl::sycl::detail::image_accessor<class cl::sycl::vec<int, 4>, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::host_image, cl::sycl::access::placeholder::false_t> (base)
 // CHECK-NEXT: 0 |     class cl::sycl::detail::AccessorBaseHost (base)
 // CHECK-NEXT: 0 |       class std::shared_ptr<class cl::sycl::detail::AccessorImplHost> impl
@@ -97,7 +99,7 @@ void hostAcc(accessor<int4, 1, access::mode::read_write, access::target::host_im
 void hostAcc(accessor<int4, 1, access::mode::read, access::target::image> Acc) {
   (void)Acc.get_count();
 }
-// CHECK: 0 | class cl::sycl::accessor<class cl::sycl::vec<int, 4>, 1, cl::sycl::access::mode::read, cl::sycl::access::target::image, cl::sycl::access::placeholder::false_t, class cl::sycl::property_list>
+// CHECK: 0 | class cl::sycl::accessor<class cl::sycl::vec<int, 4>, 1, cl::sycl::access::mode::read, cl::sycl::access::target::image, cl::sycl::access::placeholder::false_t, class cl::sycl::ONEAPI::accessor_property_list<> >
 // CHECK-NEXT: 0 |   class cl::sycl::detail::image_accessor<class cl::sycl::vec<int, 4>, 1, cl::sycl::access::mode::read, cl::sycl::access::target::image, cl::sycl::access::placeholder::false_t> (base)
 // CHECK-NEXT: 0 |     class cl::sycl::detail::AccessorBaseHost (base)
 // CHECK-NEXT: 0 |       class std::shared_ptr<class cl::sycl::detail::AccessorImplHost> impl
