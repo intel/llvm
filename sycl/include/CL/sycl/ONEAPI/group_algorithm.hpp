@@ -946,10 +946,9 @@ inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                                                BinaryOperation>::value);
 }
 
-template <typename Group> bool leader(Group g) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
+template <typename Group>
+detail::enable_if_t<detail::is_generic_group<Group>::value, bool>
+leader(Group g) {
 #ifdef __SYCL_DEVICE_ONLY__
   typename Group::linear_id_type linear_id =
       sycl::detail::get_local_linear_id(g);
