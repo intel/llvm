@@ -4155,7 +4155,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fenable-sycl-dae");
 
     // Pass the triple of host when doing SYCL
-    auto AuxT = llvm::Triple(llvm::sys::getProcessTriple());
+    llvm::Triple AuxT = C.getDefaultToolChain().getTriple();
+    if (Args.hasFlag(options::OPT_fsycl_device_only, OptSpecifier(), false))
+      AuxT = llvm::Triple(llvm::sys::getProcessTriple());
     std::string NormalizedTriple = AuxT.normalize();
     CmdArgs.push_back("-aux-triple");
     CmdArgs.push_back(Args.MakeArgString(NormalizedTriple));
