@@ -336,7 +336,7 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
     std::vector<Value *> Vectors;
     Loads.push_back(LD);
     if (HasIndexArg) {
-      auto *VecTy = cast<VectorType>(
+      auto *VecTy = cast<FixedVectorType>(
           LD->getPointerOperandType()->getPointerElementType());
       Value *EmptyVec = UndefValue::get(VecTy);
       Vectors.push_back(EmptyVec);
@@ -1937,7 +1937,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     IRBuilder<> Builder(BB);
     auto Scalar = transValue(VTS->getScalar(), F, BB);
     auto Vector = transValue(VTS->getVector(), F, BB);
-    auto *VecTy = cast<VectorType>(Vector->getType());
+    auto *VecTy = cast<FixedVectorType>(Vector->getType());
     unsigned VecSize = VecTy->getNumElements();
     auto NewVec = Builder.CreateVectorSplat(VecSize, Scalar, Scalar->getName());
     NewVec->takeName(Scalar);
@@ -1965,8 +1965,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
     unsigned M = Mat->getType()->getArrayNumElements();
 
-    auto *VecTy = cast<VectorType>(Vec->getType());
-    VectorType *VTy = FixedVectorType::get(VecTy->getElementType(), M);
+    auto *VecTy = cast<FixedVectorType>(Vec->getType());
+    FixedVectorType *VTy = FixedVectorType::get(VecTy->getElementType(), M);
     auto ETy = VTy->getElementType();
     unsigned N = VecTy->getNumElements();
     Value *V = Builder.CreateVectorSplat(M, ConstantFP::get(ETy, 0.0));
@@ -1994,7 +1994,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto Matrix = transValue(MTS->getMatrix(), F, BB);
     uint64_t ColNum = Matrix->getType()->getArrayNumElements();
     auto ColType = cast<ArrayType>(Matrix->getType())->getElementType();
-    auto VecSize = cast<VectorType>(ColType)->getNumElements();
+    auto VecSize = cast<FixedVectorType>(ColType)->getNumElements();
     auto NewVec = Builder.CreateVectorSplat(VecSize, Scalar, Scalar->getName());
     NewVec->takeName(Scalar);
 
@@ -2031,8 +2031,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     // where sum is defined as vector sum.
 
     unsigned M = Mat->getType()->getArrayNumElements();
-    VectorType *VTy =
-        cast<VectorType>(cast<ArrayType>(Mat->getType())->getElementType());
+    FixedVectorType *VTy = cast<FixedVectorType>(
+        cast<ArrayType>(Mat->getType())->getElementType());
     unsigned N = VTy->getNumElements();
     auto ETy = VTy->getElementType();
     Value *V = Builder.CreateVectorSplat(N, ConstantFP::get(ETy, 0.0));
@@ -2086,10 +2086,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
     unsigned C1 = M1->getType()->getArrayNumElements();
     unsigned C2 = M2->getType()->getArrayNumElements();
-    VectorType *V1Ty =
-        cast<VectorType>(cast<ArrayType>(M1->getType())->getElementType());
-    VectorType *V2Ty =
-        cast<VectorType>(cast<ArrayType>(M2->getType())->getElementType());
+    FixedVectorType *V1Ty =
+        cast<FixedVectorType>(cast<ArrayType>(M1->getType())->getElementType());
+    FixedVectorType *V2Ty =
+        cast<FixedVectorType>(cast<ArrayType>(M2->getType())->getElementType());
     unsigned R1 = V1Ty->getNumElements();
     unsigned R2 = V2Ty->getNumElements();
     auto ETy = V1Ty->getElementType();
@@ -2127,8 +2127,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     IRBuilder<> Builder(BB);
     auto Matrix = transValue(TR->getMatrix(), F, BB);
     unsigned ColNum = Matrix->getType()->getArrayNumElements();
-    VectorType *ColTy =
-        cast<VectorType>(cast<ArrayType>(Matrix->getType())->getElementType());
+    FixedVectorType *ColTy = cast<FixedVectorType>(
+        cast<ArrayType>(Matrix->getType())->getElementType());
     unsigned RowNum = ColTy->getNumElements();
 
     auto VTy = FixedVectorType::get(ColTy->getElementType(), ColNum);
@@ -4268,7 +4268,7 @@ Instruction *SPIRVToLLVM::transOCLAllAny(SPIRVInstruction *I, BasicBlock *BB) {
                auto OldArg = CI->getOperand(0);
                auto NewArgTy = FixedVectorType::get(
                    Int32Ty,
-                   cast<VectorType>(OldArg->getType())->getNumElements());
+                   cast<FixedVectorType>(OldArg->getType())->getNumElements());
                auto NewArg =
                    CastInst::CreateSExtOrBitCast(OldArg, NewArgTy, "", CI);
                Args[0] = NewArg;
@@ -4294,16 +4294,17 @@ Instruction *SPIRVToLLVM::transOCLRelational(SPIRVInstruction *I,
                Type *IntTy = Type::getInt32Ty(*Context);
                RetTy = IntTy;
                if (CI->getType()->isVectorTy()) {
-                 if (cast<VectorType>(CI->getOperand(0)->getType())
+                 if (cast<FixedVectorType>(CI->getOperand(0)->getType())
                          ->getElementType()
                          ->isDoubleTy())
                    IntTy = Type::getInt64Ty(*Context);
-                 if (cast<VectorType>(CI->getOperand(0)->getType())
+                 if (cast<FixedVectorType>(CI->getOperand(0)->getType())
                          ->getElementType()
                          ->isHalfTy())
                    IntTy = Type::getInt16Ty(*Context);
                  RetTy = FixedVectorType::get(
-                     IntTy, cast<VectorType>(CI->getType())->getNumElements());
+                     IntTy,
+                     cast<FixedVectorType>(CI->getType())->getNumElements());
                }
                return CI->getCalledFunction()->getName().str();
              },
@@ -4312,7 +4313,7 @@ Instruction *SPIRVToLLVM::transOCLRelational(SPIRVInstruction *I,
                if (NewCI->getType()->isVectorTy())
                  RetTy = FixedVectorType::get(
                      Type::getInt1Ty(*Context),
-                     cast<VectorType>(NewCI->getType())->getNumElements());
+                     cast<FixedVectorType>(NewCI->getType())->getNumElements());
                return CastInst::CreateTruncOrBitCast(NewCI, RetTy, "",
                                                      NewCI->getNextNode());
              },
