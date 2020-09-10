@@ -84,7 +84,7 @@ int main() {
 #else
         //expected-error@+1{{buffer_location template parameter must be a non-negative integer}}
         accessorD.use();
-        //expected-error@+1{{Sixth template parameter of the accessor must be of accessor_property_list or property_list type}}
+        //expected-error@+1{{sixth template parameter of the accessor must be of accessor_property_list type}}
         accessorE.use();
         //expected-error@+1{{Can't apply buffer_location property twice to the same accessor}}
         accessorF.use();

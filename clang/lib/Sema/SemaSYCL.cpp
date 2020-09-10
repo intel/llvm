@@ -1256,16 +1256,18 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
            "Should only be called on SYCL accessor types.");
 
     RecordDecl *RecD = Ty->getAsRecordDecl();
-    if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RecD)) {
+    if (const ClassTemplateSpecializationDecl *CTSD =
+            dyn_cast<ClassTemplateSpecializationDecl>(RecD)) {
       const TemplateArgumentList &TAL = CTSD->getTemplateArgs();
 
       TemplateArgument TA = TAL.get(0);
       const QualType TemplateArgTy = TA.getAsType();
-      llvm::DenseSet<QualType> Visited;
-      checkSYCLType(SemaRef, TemplateArgTy, Loc, Visited);
 
       if (TAL.size() > 5)
         checkPropertyListType(TAL.get(5), Loc.getBegin());
+
+      llvm::DenseSet<QualType> Visited;
+      checkSYCLType(SemaRef, TemplateArgTy, Loc, Visited);
     }
   }
 
