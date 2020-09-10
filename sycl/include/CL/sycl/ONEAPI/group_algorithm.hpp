@@ -423,11 +423,11 @@ broadcast(Group g, T x) {
 }
 
 template <typename Group, typename T, class BinaryOperation>
-EnableIfIsScalarArithmeticNativeOp<T, BinaryOperation>
+detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+                     detail::is_scalar_arithmetic<T>::value &&
+                     detail::is_native_op<T, BinaryOperation>::value),
+                    T>
 reduce(Group, T x, BinaryOperation binary_op) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(x, x)), T>::value ||
@@ -445,11 +445,11 @@ reduce(Group, T x, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename T, class BinaryOperation>
-EnableIfIsVectorArithmeticNativeOp<T, BinaryOperation>
+detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+                     detail::is_vector_arithmetic<T>::value &&
+                     detail::is_native_op<T, BinaryOperation>::value),
+                    T>
 reduce(Group g, T x, BinaryOperation binary_op) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(x[0], x[0])),
@@ -465,8 +465,12 @@ reduce(Group g, T x, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename T, class BinaryOperation>
-EnableIfIsNonNativeOp<T, BinaryOperation> reduce(Group g, T x,
-                                                 BinaryOperation op) {
+detail::enable_if_t<(detail::is_sub_group<Group>::value &&
+                     ((!detail::is_arithmetic<T>::value &&
+                       std::is_trivially_copyable<T>::value) ||
+                      !detail::is_native_op<T, BinaryOperation>::value)),
+                    T>
+reduce(Group g, T x, BinaryOperation op) {
   static_assert(sycl::detail::is_sub_group<Group>::value,
                 "reduce algorithm with user-defined types and operators"
                 "only supports ONEAPI::sub_group class.");
@@ -481,11 +485,13 @@ EnableIfIsNonNativeOp<T, BinaryOperation> reduce(Group g, T x,
 }
 
 template <typename Group, typename V, typename T, class BinaryOperation>
-EnableIfIsScalarArithmeticNativeOp<T, BinaryOperation>
+detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+                     detail::is_scalar_arithmetic<V>::value &&
+                     detail::is_scalar_arithmetic<T>::value &&
+                     detail::is_native_op<V, BinaryOperation>::value &&
+                     detail::is_native_op<T, BinaryOperation>::value),
+                    T>
 reduce(Group g, V x, T init, BinaryOperation binary_op) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(init, x)), T>::value ||
@@ -502,11 +508,13 @@ reduce(Group g, V x, T init, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename V, typename T, class BinaryOperation>
-EnableIfIsVectorArithmeticNativeOp<T, BinaryOperation>
+detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+                     detail::is_vector_arithmetic<V>::value &&
+                     detail::is_vector_arithmetic<T>::value &&
+                     detail::is_native_op<V, BinaryOperation>::value &&
+                     detail::is_native_op<T, BinaryOperation>::value),
+                    T>
 reduce(Group g, V x, T init, BinaryOperation binary_op) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(init[0], x[0])),
@@ -528,11 +536,14 @@ reduce(Group g, V x, T init, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename V, typename T, class BinaryOperation>
-EnableIfIsNonNativeOp<T, BinaryOperation> reduce(Group g, V x, T init,
-                                                 BinaryOperation op) {
-  static_assert(sycl::detail::is_sub_group<Group>::value,
-                "reduce algorithm with user-defined types and operators"
-                "only supports ONEAPI::sub_group class.");
+detail::enable_if_t<(detail::is_sub_group<Group>::value &&
+                     ((!(detail::is_arithmetic<T>::value &&
+                         detail::is_arithmetic<V>::value) &&
+                       (std::is_trivially_copyable<T>::value &&
+                        std::is_trivially_copyable<V>::value)) ||
+                      !detail::is_native_op<T, BinaryOperation>::value)),
+                    T>
+reduce(Group g, V x, T init, BinaryOperation op) {
   T result = x;
   for (int mask = 1; mask < g.get_max_local_range()[0]; mask *= 2) {
     T tmp = g.shuffle_xor(result, id<1>(mask));
@@ -544,26 +555,23 @@ EnableIfIsNonNativeOp<T, BinaryOperation> reduce(Group g, V x, T init,
 }
 
 template <typename Group, typename Ptr, class BinaryOperation>
-EnableIfIsPointer<Ptr, typename Ptr::element_type>
+detail::enable_if_t<
+    (detail::is_generic_group<Group>::value && detail::is_pointer<Ptr>::value &&
+     detail::is_arithmetic<typename detail::remove_pointer<Ptr>::type>::value),
+    typename detail::remove_pointer<Ptr>::type>
 reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
+  using T = typename detail::remove_pointer<Ptr>::type;
   // FIXME: Do not special-case for half precision
   static_assert(
-      std::is_same<decltype(binary_op(*first, *first)),
-                   typename Ptr::element_type>::value ||
-          (std::is_same<typename Ptr::element_type, half>::value &&
+      std::is_same<decltype(binary_op(*first, *first)), T>::value ||
+          (std::is_same<T, half>::value &&
            std::is_same<decltype(binary_op(*first, *first)), float>::value),
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   typename Ptr::element_type partial =
-      sycl::detail::identity<typename Ptr::element_type,
-                             BinaryOperation>::value;
+      sycl::detail::identity<T, BinaryOperation>::value;
   sycl::detail::for_each(g, first, last,
-                         [&](const typename Ptr::element_type &x) {
-                           partial = binary_op(partial, x);
-                         });
+                         [&](const T &x) { partial = binary_op(partial, x); });
   return reduce(g, partial, binary_op);
 #else
   (void)g;
@@ -575,11 +583,15 @@ reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename Ptr, typename T, class BinaryOperation>
-EnableIfIsPointer<Ptr, T> reduce(Group g, Ptr first, Ptr last, T init,
-                                 BinaryOperation binary_op) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
+detail::enable_if_t<
+    (detail::is_generic_group<Group>::value && detail::is_pointer<Ptr>::value &&
+     detail::is_arithmetic<typename detail::remove_pointer<Ptr>::type>::value &&
+     detail::is_arithmetic<T>::value &&
+     detail::is_native_op<typename detail::remove_pointer<Ptr>::type,
+                          BinaryOperation>::value &&
+     detail::is_native_op<T, BinaryOperation>::value),
+    T>
+reduce(Group g, Ptr first, Ptr last, T init, BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(init, *first)), T>::value ||
@@ -587,12 +599,11 @@ EnableIfIsPointer<Ptr, T> reduce(Group g, Ptr first, Ptr last, T init,
            std::is_same<decltype(binary_op(init, *first)), float>::value),
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  T partial = sycl::detail::identity<typename Ptr::element_type,
-                                     BinaryOperation>::value;
-  sycl::detail::for_each(g, first, last,
-                         [&](const typename Ptr::element_type &x) {
-                           partial = binary_op(partial, x);
-                         });
+  T partial = sycl::detail::identity<T, BinaryOperation>::value;
+  sycl::detail::for_each(
+      g, first, last, [&](const typename detail::remove_pointer<Ptr>::type &x) {
+        partial = binary_op(partial, x);
+      });
   return reduce(g, partial, init, binary_op);
 #else
   (void)g;
