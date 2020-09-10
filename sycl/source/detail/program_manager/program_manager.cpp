@@ -374,9 +374,9 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
     // FIXME: disable the fallback device libraries online link as not all
     // backend supports spv online link. Need to enable it when all backends
     // support spv online link.
-    /* if (Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV &&
+    if (Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV &&
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
-      DeviceLibReqMask = getDeviceLibReqMask(Img); */
+      DeviceLibReqMask = getDeviceLibReqMask(Img);
 
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, Img.getCompileOptions(),
@@ -780,16 +780,12 @@ ProgramManager::ProgramPtr ProgramManager::build(
     LinkOpts = LinkOptions.c_str();
   }
 
-  // The Level Zero driver support for online linking currently has bugs, but
-  // we think the DPC++ runtime support is ready.  This environment variable
-  // gates the runtime support for online linking, so we can try enabling if a
-  // new driver is released before the next DPC++ release.
-  static bool EnableLevelZeroLink = std::getenv("SYCL_ENABLE_LEVEL_ZERO_LINK");
-  if (!EnableLevelZeroLink) {
-    if (Context->getPlugin().getBackend() == backend::level_zero) {
-      LinkDeviceLibs = false;
-    }
-  }
+  // TODO: Because online linking isn't implemented yet on Level Zero, the
+  // compiler always links against the fallback device libraries.  Once
+  // online linking is supported on all backends, we should remove the line
+  // below and also change the compiler, so it no longer links the fallback
+  // code unconditionally.
+  LinkDeviceLibs = false;
 
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
   // We do not link with other device libraries, because it may fail
