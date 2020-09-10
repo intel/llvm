@@ -313,11 +313,11 @@ none_of(Group g, Ptr first, Ptr last, Predicate pred) {
 }
 
 template <typename Group, typename T>
-EnableIfIsTriviallyCopyable<T> broadcast(Group, T x,
-                                         typename Group::id_type local_id) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
+detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+                     std::is_trivially_copyable<T>::value &&
+                     !detail::is_vector_arithmetic<T>::value),
+                    T>
+broadcast(Group, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupBroadcast<Group>(x, local_id);
 #else
@@ -329,11 +329,10 @@ EnableIfIsTriviallyCopyable<T> broadcast(Group, T x,
 }
 
 template <typename Group, typename T>
-EnableIfIsVectorArithmetic<T> broadcast(Group g, T x,
-                                        typename Group::id_type local_id) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
+detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+                     detail::is_vector_arithmetic<T>::value),
+                    T>
+broadcast(Group g, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
   for (int s = 0; s < x.get_size(); ++s) {
@@ -350,11 +349,11 @@ EnableIfIsVectorArithmetic<T> broadcast(Group g, T x,
 }
 
 template <typename Group, typename T>
-EnableIfIsTriviallyCopyable<T>
+detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+                     std::is_trivially_copyable<T>::value &&
+                     !detail::is_vector_arithmetic<T>::value),
+                    T>
 broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
   return broadcast(
       g, x,
@@ -369,11 +368,10 @@ broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 }
 
 template <typename Group, typename T>
-EnableIfIsVectorArithmetic<T>
+detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+                     detail::is_vector_arithmetic<T>::value),
+                    T>
 broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
   for (int s = 0; s < x.get_size(); ++s) {
@@ -390,10 +388,11 @@ broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 }
 
 template <typename Group, typename T>
-EnableIfIsTriviallyCopyable<T> broadcast(Group g, T x) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
+detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+                     std::is_trivially_copyable<T>::value &&
+                     !detail::is_vector_arithmetic<T>::value),
+                    T>
+broadcast(Group g, T x) {
 #ifdef __SYCL_DEVICE_ONLY__
   return broadcast(g, x, 0);
 #else
@@ -405,10 +404,10 @@ EnableIfIsTriviallyCopyable<T> broadcast(Group g, T x) {
 }
 
 template <typename Group, typename T>
-EnableIfIsVectorArithmetic<T> broadcast(Group g, T x) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
+detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+                     detail::is_vector_arithmetic<T>::value),
+                    T>
+broadcast(Group g, T x) {
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
   for (int s = 0; s < x.get_size(); ++s) {
