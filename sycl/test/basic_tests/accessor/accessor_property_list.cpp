@@ -8,7 +8,7 @@
 
 #include <type_traits>
 
-using namespace sycl::ext::ONEAPI;
+using namespace sycl::ONEAPI;
 
 int main() {
   {
@@ -44,9 +44,6 @@ int main() {
 
     static_assert(PL.get_property<property::no_alias>() == no_alias,
                   "Properties are not equal");
-    property::no_alias<false> NAfalse;
-    static_assert(PL.get_property<property::no_alias>() != NAfalse,
-                  "Properties are equal");
   }
 
   {
@@ -99,7 +96,7 @@ int main() {
     sycl::accessor<int, 1, sycl::access::mode::read_write,
                    sycl::access::target::global_buffer,
                    sycl::access::placeholder::true_t,
-                   accessor_property_list<property::no_alias<>>>
+                   accessor_property_list<property::no_alias::instance<>>>
         acc_2(acc_1);
   }
 

@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "CL/sycl/accessor_property_list.hpp"
+#include "CL/sycl/ONEAPI/accessor_property_list.hpp"
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/image_impl.hpp>
@@ -274,22 +274,22 @@ public:
   template <typename DataT, access::mode AccessMode>
   accessor<detail::EnableIfImgAccDataT<DataT>, Dimensions, AccessMode,
            access::target::image, access::placeholder::false_t,
-           property_list>
+           ONEAPI::accessor_property_list<>>
   get_access(handler &commandGroupHandler) {
     return accessor<DataT, Dimensions, AccessMode, access::target::image,
                     access::placeholder::false_t,
-                    property_list>(*this,
+                    ONEAPI::accessor_property_list<>>(*this,
                                                       commandGroupHandler);
   }
 
   template <typename DataT, access::mode AccessMode>
   accessor<detail::EnableIfImgAccDataT<DataT>, Dimensions, AccessMode,
            access::target::host_image, access::placeholder::false_t,
-           property_list>
+           ONEAPI::accessor_property_list<>>
   get_access() {
     return accessor<DataT, Dimensions, AccessMode, access::target::host_image,
                     access::placeholder::false_t,
-                    property_list>(*this);
+                    ONEAPI::accessor_property_list<>>(*this);
   }
 
   template <typename Destination = std::nullptr_t>

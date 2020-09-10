@@ -51,8 +51,10 @@ public:
     return has_property_helper<PropT>();
   }
 
-  template <typename... PropsT>
-  operator ONEAPI::accessor_property_list<PropsT...>();
+  template <typename... T> operator ONEAPI::accessor_property_list<T...>();
+
+private:
+  template <typename... PropsT> friend class ONEAPI::accessor_property_list;
 };
 
 } // namespace sycl

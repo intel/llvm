@@ -17,11 +17,12 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace detail {} // namespace detail
-namespace ext {
+namespace detail {
+// This helper template must be specialized for nestend instance template
+// of each compile-time-constant property.
+template <typename T> struct IsCxPropertyInstance : std::false_type {};
+} // namespace detail
 namespace ONEAPI {
-
-template <typename T> struct is_property : std::false_type {};
 
 template <typename T> struct is_compile_time_property : std::false_type {};
 
@@ -46,13 +47,16 @@ class accessor_property_list : protected detail::PropertyListBase {
   template <template <auto...> class T, auto...T1, auto...T2>
   struct AreSameTemplate<T<T1...>, T<T2...>> : std::true_type {};
 #endif
+  // This template helps to identify if PropListT parameter pack contains
+  // property of PropT type, where PropT is a nested instance template of
+  // compile-time-constant property.
   template <typename PropT, typename... PropListT>
   struct ContainsProperty;
   template <typename PropT> struct ContainsProperty<PropT> : std::false_type {};
   template <typename PropT, typename Head, typename... Tail>
   struct ContainsProperty<PropT, Head, Tail...>
       : std::conditional<AreSameTemplate<PropT, Head>::value ||
-                             !is_compile_time_property<PropT>::value,
+                             !detail::IsCxPropertyInstance<PropT>::value,
                          std::true_type,
                          ContainsProperty<PropT, Tail...>>::type {};
 
@@ -72,6 +76,25 @@ class accessor_property_list : protected detail::PropertyListBase {
     using Rest = void;
   };
 
+#if __cplusplus >= 201703L
+  // This template serves the same purpose as ContainsProperty, but operates on
+  // template template arguments.
+  template <typename ContainerT, template <auto...> typename PropT,
+            auto... Args>
+  struct ContainsPropertyInstance
+      : std::conditional_t<
+            AreSameTemplate<PropT<Args...>, typename ContainerT::Head>::value ||
+                !detail::IsCxPropertyInstance<typename ContainerT::Head>::value,
+            std::true_type,
+            ContainsPropertyInstance<typename ContainerT::Rest, PropT,
+                                     Args...>> {};
+
+  template <template <auto...> typename PropT, auto... Args>
+  struct ContainsPropertyInstance<void, PropT, Args...> : std::false_type {};
+#endif
+
+  // This template checks if to lists of properties contain the same set of
+  // compile-time-constant properties in any order.
   template <typename ContainerT, typename... OtherProps>
   struct ContainsSameProperties
       : std::conditional<
@@ -82,6 +105,8 @@ class accessor_property_list : protected detail::PropertyListBase {
   struct ContainsSameProperties<void, OtherProps...> : std::true_type {};
 
 #if __cplusplus >= 201703L
+  // This template helps to extract exact property instance type based on
+  // template template argument.
   template <typename ContainerT, template <auto...> class PropT, auto... Args>
   struct GetCxPropertyHelper {
     using type = typename std::conditional_t<
@@ -104,8 +129,13 @@ class accessor_property_list : protected detail::PropertyListBase {
       : std::conditional<
             std::is_base_of<detail::DataLessPropertyBase, T>::value ||
                 std::is_base_of<detail::PropertyWithDataBase, T>::value ||
-                is_compile_time_property<T>::value,
+                detail::IsCxPropertyInstance<T>::value,
             AllProperties<Tail...>, std::false_type>::type {};
+
+  accessor_property_list(
+      std::bitset<detail::DataLessPropKind::DataLessPropKindSize> DataLessProps,
+      std::vector<std::shared_ptr<detail::PropertyWithDataBase>> PropsWithData)
+      : detail::PropertyListBase(DataLessProps, PropsWithData) {}
 
 public:
   template <
@@ -113,6 +143,9 @@ public:
   accessor_property_list(PropsT... Props) : detail::PropertyListBase(false) {
     ctorHelper(Props...);
   }
+
+  accessor_property_list(const sycl::property_list &Props)
+      : detail::PropertyListBase(Props.MDataLessProps, Props.MPropsWithData) {}
 
   template <typename... OtherProps,
             typename = typename std::enable_if<
@@ -124,8 +157,8 @@ public:
       : detail::PropertyListBase(OtherList.MDataLessProps,
                                  OtherList.MPropsWithData) {}
 
-  template <typename PropT,
-            typename = std::enable_if<!is_compile_time_property<PropT>::value>>
+  template <typename PropT, typename = typename std::enable_if<
+                                !is_compile_time_property<PropT>::value>::type>
   PropT get_property() const {
     if (!has_property<PropT>())
       throw sycl::invalid_object_error("The property is not found",
@@ -141,21 +174,42 @@ public:
   }
 
 #if __cplusplus >= 201703L
+  template <typename T>
+  static constexpr
+      typename std::enable_if_t<is_compile_time_property<T>::value, bool>
+      has_property() {
+    return ContainsPropertyInstance<PropertyContainer<PropsT...>,
+                                    T::template instance>::value;
+  }
+
+  template <typename T, typename = typename std::enable_if_t<
+                            is_compile_time_property<T>::value>>
+  static constexpr auto get_property() {
+    return typename GetCxPropertyHelper<PropertyContainer<PropsT...>,
+                                        T::template instance>::type{};
+  }
+  /*
   template <template <auto...> class PropT, auto... Args>
   static constexpr
-      typename std::enable_if<is_compile_time_property<PropT<Args...>>::value,
-                              bool>::type
-      has_property() {
-    return ContainsProperty<PropT<Args...>, PropsT...>::value;
+      typename std::enable_if<detail::IsCxPropertyInstance<typename
+  PropT::instance<Args...>>::value, bool>::type has_property() { return
+  ContainsProperty<typename PropT::instance<Args...>, PropsT...>::value;
   }
   template <template <auto...> class PropT, auto... Args,
             typename = typename std::enable_if<
-                is_compile_time_property<PropT<Args...>>::value>::type>
-  static constexpr auto get_property() {
-    return typename GetCxPropertyHelper<PropertyContainer<PropsT...>, PropT,
-                                        Args...>::type{};
+                detail::IsCxPropertyInstance<typename
+  PropT::instance<Args...>>::value>::type> static constexpr auto get_property()
+  { return typename GetCxPropertyHelper<PropertyContainer<PropsT...>, typename
+  PropT::instance, Args...>::type{};
   }
+  */
 #endif
+
+  template <typename... OtherPropsT>
+  static constexpr bool areSameCxProperties() {
+    return ContainsSameProperties<PropertyContainer<OtherPropsT...>,
+                                  PropsT...>::value;
+  }
 
 private:
   template <typename... OtherProps> friend class accessor_property_list;
@@ -163,14 +217,8 @@ private:
             sycl::access::placeholder, typename>
   friend class accessor;
 
-public:
-  template <typename... OtherPropsT>
-  static constexpr bool areSameCxProperties() {
-    return ContainsSameProperties<PropertyContainer<OtherPropsT...>,
-                                  PropsT...>::value;
-  }
+  friend class sycl::property_list;
 };
 } // namespace ONEAPI
-} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

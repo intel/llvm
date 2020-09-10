@@ -9,7 +9,7 @@
 #pragma once
 
 #include <CL/__spirv/spirv_types.hpp>
-#include <CL/sycl/accessor_property_list.hpp>
+#include <CL/sycl/ONEAPI/accessor_property_list.hpp>
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/detail/accessor_impl.hpp>
@@ -25,6 +25,7 @@
 #include <CL/sycl/pointers.hpp>
 #include <CL/sycl/properties/accessor_properties.hpp>
 #include <CL/sycl/property_list.hpp>
+#include <CL/sycl/property_list_conversion.hpp>
 #include <CL/sycl/sampler.hpp>
 
 #include <type_traits>
@@ -218,7 +219,7 @@ template <typename DataT, int Dimensions = 1,
           access::mode AccessMode = access::mode::read_write,
           access::target AccessTarget = access::target::global_buffer,
           access::placeholder IsPlaceholder = access::placeholder::false_t,
-          typename PropertyListT = property_list>
+          typename PropertyListT = ONEAPI::accessor_property_list<>>
 class accessor;
 
 namespace detail {
@@ -226,15 +227,20 @@ template <typename T>
 using IsPropertyListT = typename std::is_base_of<PropertyListBase, T>;
 
 template <typename T>
-using IsRunTimePropertyListT = typename std::is_same<property_list, T>;
+using IsRunTimePropertyListT =
+    typename std::is_same<ONEAPI::accessor_property_list<>, T>;
 
-template <typename T> struct IsOneapiPropertyListT {
+template <typename T> struct IsCxPropertyList {
   constexpr static bool value = false;
 };
 
 template <typename... Props>
-struct IsOneapiPropertyListT<ext::ONEAPI::accessor_property_list<Props...>> {
+struct IsCxPropertyList<ONEAPI::accessor_property_list<Props...>> {
   constexpr static bool value = true;
+};
+
+template <> struct IsCxPropertyList<ONEAPI::accessor_property_list<>> {
+  constexpr static bool value = false;
 };
 
 // The function extends or truncates number of dimensions of objects of id
@@ -770,7 +776,8 @@ protected:
                  AccessMode == access::mode::read),
                 "Access mode can be only read for constant buffers");
 
-  static_assert(detail::IsPropertyListT<PropertyListT>::value, "PropertyListT must be property_list or accessor_property_list");
+  static_assert(detail::IsPropertyListT<PropertyListT>::value,
+                "PropertyListT must be accessor_property_list");
 
   using AccessorCommonT = detail::accessor_common<DataT, Dimensions, AccessMode,
                                                   AccessTarget, IsPlaceholder>;
@@ -972,13 +979,13 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename... PropTypes,
             typename detail::enable_if_t<
-                detail::IsOneapiPropertyListT<PropertyListT>::value &&
+                detail::IsCxPropertyList<PropertyListT>::value &&
                 std::is_same<T, DataT>::value && Dims == 0 &&
                 ((!IsPlaceH && IsHostBuf) ||
                  (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))> * = nullptr>
-  accessor(buffer<T, 1, AllocatorT> &BufferRef,
-           const ext::ONEAPI::accessor_property_list<PropTypes...>
-               &PropertyList = {})
+  accessor(
+      buffer<T, 1, AllocatorT> &BufferRef,
+      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
     (void)PropertyList;
@@ -1022,12 +1029,12 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename... PropTypes,
             typename = typename detail::enable_if_t<
-                detail::IsOneapiPropertyListT<PropertyListT>::value &&
+                detail::IsCxPropertyList<PropertyListT>::value &&
                 std::is_same<T, DataT>::value && (Dims == 0) &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
-  accessor(buffer<T, 1, AllocatorT> &BufferRef, handler &CommandGroupHandler,
-           const ext::ONEAPI::accessor_property_list<PropTypes...>
-               &PropertyList = {})
+  accessor(
+      buffer<T, 1, AllocatorT> &BufferRef, handler &CommandGroupHandler,
+      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
     (void)CommandGroupHandler;
@@ -1074,13 +1081,13 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename... PropTypes,
             typename = detail::enable_if_t<
-                detail::IsOneapiPropertyListT<PropertyListT>::value &&
+                detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>() &&
                 ((!IsPlaceH && IsHostBuf) ||
                  (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
-  accessor(buffer<T, Dims, AllocatorT> &BufferRef,
-           const ext::ONEAPI::accessor_property_list<PropTypes...>
-               &PropertyList = {})
+  accessor(
+      buffer<T, Dims, AllocatorT> &BufferRef,
+      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<Dimensions>(), BufferRef.get_range(), BufferRef.get_range()) {
     (void)PropertyList;
@@ -1114,12 +1121,12 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
             typename = detail::enable_if_t<
-                detail::IsOneapiPropertyListT<PropertyListT>::value &&
+                detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>() && IsValidTag<TagT>() && IsPlaceH &&
                 (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
-  accessor(buffer<T, Dims, AllocatorT> &BufferRef, TagT,
-           const ext::ONEAPI::accessor_property_list<PropTypes...>
-               &PropertyList = {})
+  accessor(
+      buffer<T, Dims, AllocatorT> &BufferRef, TagT,
+      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
       : accessor(BufferRef, PropertyList) {}
 #endif
 
@@ -1151,12 +1158,12 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename... PropTypes,
             typename = detail::enable_if_t<
-                detail::IsOneapiPropertyListT<PropertyListT>::value &&
+                detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>() &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
-  accessor(buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
-           const ext::ONEAPI::accessor_property_list<PropTypes...>
-               &PropertyList = {})
+  accessor(
+      buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
+      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.get_range()) {
     (void)CommandGroupHandler;
@@ -1190,13 +1197,13 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
             typename = detail::enable_if_t<
-                detail::IsOneapiPropertyListT<PropertyListT>::value &&
+                detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>() && IsValidTag<TagT>() && !IsPlaceH &&
                 (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
-  accessor(buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
-           TagT,
-           const ext::ONEAPI::accessor_property_list<PropTypes...>
-               &PropertyList = {})
+  accessor(
+      buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
+      TagT,
+      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
       : accessor(BufferRef, CommandGroupHandler, PropertyList) {}
 
 #endif
@@ -1215,14 +1222,13 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename... PropTypes,
             typename = detail::enable_if_t<
-                detail::IsOneapiPropertyListT<PropertyListT>::value &&
+                detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>() &&
                 ((!IsPlaceH && IsHostBuf) ||
                  (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
-  accessor(buffer<T, Dims, AllocatorT> &BufferRef,
-           range<Dimensions> AccessRange,
-           const ext::ONEAPI::accessor_property_list<PropTypes...>
-               &PropertyList = {})
+  accessor(
+      buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
+      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
       : accessor(BufferRef, AccessRange, {}, PropertyList) {}
 
 #if __cplusplus > 201402L
@@ -1241,13 +1247,13 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
             typename = detail::enable_if_t<
-                detail::IsOneapiPropertyListT<PropertyListT>::value &&
+                detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>() && IsValidTag<TagT>() && IsPlaceH &&
                 (IsGlobalBuf || IsConstantBuf)>>
-  accessor(buffer<T, Dims, AllocatorT> &BufferRef,
-           range<Dimensions> AccessRange, TagT,
-           const ext::ONEAPI::accessor_property_list<PropTypes...>
-               &PropertyList = {})
+  accessor(
+      buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
+      TagT,
+      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
       : accessor(BufferRef, AccessRange, {}, PropertyList) {}
 #endif
 
@@ -1265,13 +1271,13 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename... PropTypes,
             typename = detail::enable_if_t<
-                detail::IsOneapiPropertyListT<PropertyListT>::value &&
+                detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>() &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
-  accessor(buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
-           range<Dimensions> AccessRange,
-           const ext::ONEAPI::accessor_property_list<PropTypes...>
-               &PropertyList = {})
+  accessor(
+      buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
+      range<Dimensions> AccessRange,
+      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
       : accessor(BufferRef, CommandGroupHandler, AccessRange, {},
                  PropertyList) {}
 
@@ -1292,13 +1298,13 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
             typename = detail::enable_if_t<
-                detail::IsOneapiPropertyListT<PropertyListT>::value &&
+                detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>() && IsValidTag<TagT>() && !IsPlaceH &&
                 (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
-  accessor(buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
-           range<Dimensions> AccessRange, TagT,
-           const ext::ONEAPI::accessor_property_list<PropTypes...>
-               &PropertyList = {})
+  accessor(
+      buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
+      range<Dimensions> AccessRange, TagT,
+      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
       : accessor(BufferRef, CommandGroupHandler, AccessRange, {},
                  PropertyList) {}
 #endif
@@ -1333,14 +1339,14 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename... PropTypes,
             typename = detail::enable_if_t<
-                detail::IsOneapiPropertyListT<PropertyListT>::value &&
+                detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>() &&
                 ((!IsPlaceH && IsHostBuf) ||
                  (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
-  accessor(buffer<T, Dims, AllocatorT> &BufferRef,
-           range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
-           const ext::ONEAPI::accessor_property_list<PropTypes...>
-               &PropertyList = {})
+  accessor(
+      buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
+      id<Dimensions> AccessOffset,
+      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
     (void)PropertyList;
@@ -1375,13 +1381,13 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
             typename = detail::enable_if_t<
-                detail::IsOneapiPropertyListT<PropertyListT>::value &&
+                detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>() && IsValidTag<TagT>() && IsPlaceH &&
                 (IsGlobalBuf || IsConstantBuf)>>
-  accessor(buffer<T, Dims, AllocatorT> &BufferRef,
-           range<Dimensions> AccessRange, id<Dimensions> AccessOffset, TagT,
-           const ext::ONEAPI::accessor_property_list<PropTypes...>
-               &PropertyList = {})
+  accessor(
+      buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
+      id<Dimensions> AccessOffset, TagT,
+      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
       : accessor(BufferRef, AccessRange, AccessOffset, PropertyList) {}
 #endif
 
@@ -1414,13 +1420,13 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename... PropTypes,
             typename = detail::enable_if_t<
-                detail::IsOneapiPropertyListT<PropertyListT>::value &&
+                detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>() &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
-  accessor(buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
-           range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
-           const ext::ONEAPI::accessor_property_list<PropTypes...>
-               &PropertyList = {})
+  accessor(
+      buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
+      range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
+      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
     (void)CommandGroupHandler;
@@ -1456,13 +1462,13 @@ public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
             typename = detail::enable_if_t<
-                detail::IsOneapiPropertyListT<PropertyListT>::value &&
+                detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>() && IsValidTag<TagT>() && !IsPlaceH &&
                 (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
-  accessor(buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
-           range<Dimensions> AccessRange, id<Dimensions> AccessOffset, TagT,
-           const ext::ONEAPI::accessor_property_list<PropTypes...>
-               &PropertyList = {})
+  accessor(
+      buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
+      range<Dimensions> AccessRange, id<Dimensions> AccessOffset, TagT,
+      const ONEAPI::accessor_property_list<PropTypes...> &PropertyList = {})
       : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
                  PropertyList) {}
 #endif
@@ -1470,14 +1476,14 @@ public:
   template <typename... NewPropsT>
   accessor(
       const accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder,
-                     ext::ONEAPI::accessor_property_list<NewPropsT...>> &Other)
+                     ONEAPI::accessor_property_list<NewPropsT...>> &Other)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(Other.impl)
 #else
       : detail::AccessorBaseHost(Other)
 #endif
   {
-    static_assert(detail::IsOneapiPropertyListT<PropertyListT>::value,
+    static_assert(detail::IsCxPropertyList<PropertyListT>::value,
                   "Conversion is only available for accessor_property_list");
     static_assert(PropertyListT::template areSameCxProperties<NewPropsT...>(),
                   "Compile-time-constant properties must be the same");
@@ -1607,10 +1613,10 @@ accessor(buffer<DataT, Dimensions, AllocatorT>)
 template <typename DataT, int Dimensions, typename AllocatorT,
           typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>,
-         const ext::ONEAPI::accessor_property_list<PropsT...> &)
+         const ONEAPI::accessor_property_list<PropsT...> &)
     ->accessor<DataT, Dimensions, access::mode::read_write,
                target::global_buffer, access::placeholder::true_t,
-               ext::ONEAPI::accessor_property_list<PropsT...>>;
+               ONEAPI::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1>
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1)
@@ -1621,11 +1627,11 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, Type1)
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1,
-         const ext::ONEAPI::accessor_property_list<PropsT...> &)
+         const ONEAPI::accessor_property_list<PropsT...> &)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type1>(),
                detail::deduceAccessTarget<Type1, Type1>(target::global_buffer),
                access::placeholder::true_t,
-               ext::ONEAPI::accessor_property_list<PropsT...>>;
+               ONEAPI::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2>
@@ -1637,11 +1643,11 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2)
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2,
-         const ext::ONEAPI::accessor_property_list<PropsT...> &)
+         const ONEAPI::accessor_property_list<PropsT...> &)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type2>(),
                detail::deduceAccessTarget<Type1, Type2>(target::global_buffer),
                access::placeholder::true_t,
-               ext::ONEAPI::accessor_property_list<PropsT...>>;
+               ONEAPI::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3>
@@ -1653,11 +1659,11 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3)
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3,
-         const ext::ONEAPI::accessor_property_list<PropsT...> &)
+         const ONEAPI::accessor_property_list<PropsT...> &)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type2, Type3>(),
                detail::deduceAccessTarget<Type2, Type3>(target::global_buffer),
                access::placeholder::true_t,
-               ext::ONEAPI::accessor_property_list<PropsT...>>;
+               ONEAPI::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename Type4>
@@ -1669,11 +1675,11 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4)
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename Type4, typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
-         const ext::ONEAPI::accessor_property_list<PropsT...> &)
+         const ONEAPI::accessor_property_list<PropsT...> &)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type3, Type4>(),
                detail::deduceAccessTarget<Type3, Type4>(target::global_buffer),
                access::placeholder::true_t,
-               ext::ONEAPI::accessor_property_list<PropsT...>>;
+               ONEAPI::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler)
@@ -1683,10 +1689,10 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler)
 template <typename DataT, int Dimensions, typename AllocatorT,
           typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler,
-         const ext::ONEAPI::accessor_property_list<PropsT...> &)
+         const ONEAPI::accessor_property_list<PropsT...> &)
     ->accessor<DataT, Dimensions, access::mode::read_write,
                target::global_buffer, access::placeholder::false_t,
-               ext::ONEAPI::accessor_property_list<PropsT...>>;
+               ONEAPI::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1)
@@ -1697,11 +1703,11 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1)
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1,
-         const ext::ONEAPI::accessor_property_list<PropsT...> &)
+         const ONEAPI::accessor_property_list<PropsT...> &)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type1>(),
                detail::deduceAccessTarget<Type1, Type1>(target::global_buffer),
                access::placeholder::false_t,
-               ext::ONEAPI::accessor_property_list<PropsT...>>;
+               ONEAPI::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2>
@@ -1713,11 +1719,11 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2)
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2,
-         const ext::ONEAPI::accessor_property_list<PropsT...> &)
+         const ONEAPI::accessor_property_list<PropsT...> &)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type2>(),
                detail::deduceAccessTarget<Type1, Type2>(target::global_buffer),
                access::placeholder::false_t,
-               ext::ONEAPI::accessor_property_list<PropsT...>>;
+               ONEAPI::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3>
@@ -1729,11 +1735,11 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3)
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
-         const ext::ONEAPI::accessor_property_list<PropsT...> &)
+         const ONEAPI::accessor_property_list<PropsT...> &)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type2, Type3>(),
                detail::deduceAccessTarget<Type2, Type3>(target::global_buffer),
                access::placeholder::false_t,
-               ext::ONEAPI::accessor_property_list<PropsT...>>;
+               ONEAPI::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename Type4>
@@ -1746,11 +1752,11 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename Type4, typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
-         Type4, const ext::ONEAPI::accessor_property_list<PropsT...> &)
+         Type4, const ONEAPI::accessor_property_list<PropsT...> &)
     ->accessor<DataT, Dimensions, detail::deduceAccessMode<Type3, Type4>(),
                detail::deduceAccessTarget<Type3, Type4>(target::global_buffer),
                access::placeholder::false_t,
-               ext::ONEAPI::accessor_property_list<PropsT...>>;
+               ONEAPI::accessor_property_list<PropsT...>>;
 #endif
 
 /// Local accessor

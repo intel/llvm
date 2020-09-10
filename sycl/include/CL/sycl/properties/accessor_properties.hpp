@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "CL/sycl/accessor_property_list.hpp"
+#include <CL/sycl/ONEAPI/accessor_property_list.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/property_helper.hpp>
 #include <type_traits>
@@ -35,87 +35,82 @@ constexpr const auto &noinit =
 
 #endif
 
-namespace ext {
 namespace INTEL {
 namespace property {
-template <int A> struct buffer_location {
-  constexpr bool operator==(const buffer_location<A> &) const { return true; }
-  constexpr bool operator!=(const buffer_location<A> &) const { return false; }
-  template <bool B>
-  constexpr bool operator==(const buffer_location<B> &) const {
-    return false;
-  }
-  template <bool B>
-  constexpr bool operator!=(const buffer_location<B> &) const {
-    return true;
-  }
+struct buffer_location {
+  template <int A> struct instance {
+    constexpr bool operator==(const buffer_location::instance<A> &) const {
+      return true;
+    }
+    constexpr bool operator!=(const buffer_location::instance<A> &) const {
+      return false;
+    }
+    template <int B>
+    constexpr bool operator==(const buffer_location::instance<B> &) const {
+      return false;
+    }
+    template <int B>
+    constexpr bool operator!=(const buffer_location::instance<B> &) const {
+      return true;
+    }
+  };
 };
-
 } // namespace property
+#if __cplusplus > 201402L
+template <int A>
+inline constexpr property::buffer_location::instance<A> buffer_location;
+#endif
 } // namespace INTEL
 namespace ONEAPI {
 namespace property {
-template <bool A = true> struct no_offset {
-  constexpr bool operator==(const no_offset<A> &) const {
-    return true;
-  }
-  constexpr bool operator!=(const no_offset<A> &) const {
-    return false;
-  }
-  template <bool B>
-  constexpr bool operator==(const no_offset<B> &) const {
-    return false;
-  }
-  template <bool B>
-  constexpr bool operator!=(const no_offset<B> &) const {
-    return true;
-  }
+struct no_offset {
+  template <bool B = true> struct instance {
+    constexpr bool operator==(const no_offset::instance<B> &) const {
+      return true;
+    }
+    constexpr bool operator!=(const no_offset::instance<B> &) const {
+      return false;
+    }
+  };
 };
-template <bool A = true> struct no_alias {
-  constexpr bool operator==(const no_alias<A> &) const {
-    return true;
-  }
-  constexpr bool operator!=(const no_alias<A> &) const {
-    return false;
-  }
-  template <bool B>
-  constexpr bool operator==(const no_alias<B> &) const {
-    return false;
-  }
-  template <bool B>
-  constexpr bool operator!=(const no_alias<B> &) const {
-    return true;
-  }
-
+struct no_alias {
+  template <bool B = true> struct instance {
+    constexpr bool operator==(const no_alias::instance<B> &) const {
+      return true;
+    }
+    constexpr bool operator!=(const no_alias::instance<B> &) const {
+      return false;
+    }
+  };
 };
 } // namespace property
 
 #if __cplusplus > 201402L
 
-inline constexpr property::no_offset no_offset;
-inline constexpr property::no_alias no_alias;
-
-#else
-
-namespace {
-constexpr const auto &no_offset =
-    sycl::detail::InlineVariableHelper<property::no_offset<>>::value;
-constexpr const auto &no_alias =
-    sycl::detail::InlineVariableHelper<property::no_alias<>>::value;
-} // namespace
+inline constexpr property::no_offset::instance no_offset;
+inline constexpr property::no_alias::instance no_alias;
 
 #endif
 
-template <bool B>
-struct is_compile_time_property<ext::ONEAPI::property::no_offset<B>>
-    : std::true_type {};
-template <bool B>
-struct is_compile_time_property<ext::ONEAPI::property::no_alias<B>>
-    : std::true_type {};
-template <int I>
-struct is_compile_time_property<ext::INTEL::property::buffer_location<I>>
+template <>
+struct is_compile_time_property<ONEAPI::property::no_offset> : std::true_type {
+};
+template <>
+struct is_compile_time_property<ONEAPI::property::no_alias> : std::true_type {};
+template <>
+struct is_compile_time_property<INTEL::property::buffer_location>
     : std::true_type {};
 } // namespace ONEAPI
-} // namespace ext
+namespace detail {
+template <int I>
+struct IsCxPropertyInstance<INTEL::property::buffer_location::instance<I>>
+    : std::true_type {};
+template <>
+struct IsCxPropertyInstance<ONEAPI::property::no_alias::instance<>>
+    : std::true_type {};
+template <>
+struct IsCxPropertyInstance<ONEAPI::property::no_offset::instance<>>
+    : std::true_type {};
+} // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
