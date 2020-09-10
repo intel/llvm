@@ -190,10 +190,9 @@ using EnableIfIsNonNativeOp = cl::sycl::detail::enable_if_t<
         !cl::sycl::detail::is_native_op<T, BinaryOperation>::value,
     T>;
 
-template <typename Group> bool all_of(Group, bool pred) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
+template <typename Group>
+detail::enable_if_t<detail::is_generic_group<Group>::value, bool>
+all_of(Group, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAll<Group>(pred);
 #else
@@ -204,19 +203,19 @@ template <typename Group> bool all_of(Group, bool pred) {
 }
 
 template <typename Group, typename T, class Predicate>
-bool all_of(Group g, T x, Predicate pred) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
+detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+                     detail::is_arithmetic<T>::value),
+                    bool>
+all_of(Group g, T x, Predicate pred) {
   return all_of(g, pred(x));
 }
 
 template <typename Group, typename Ptr, class Predicate>
-EnableIfIsPointer<Ptr, bool> all_of(Group g, Ptr first, Ptr last,
-                                    Predicate pred) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
+detail::enable_if_t<
+    (detail::is_generic_group<Group>::value && detail::is_pointer<Ptr>::value &&
+     detail::is_arithmetic<typename detail::remove_pointer<Ptr>::type>::value),
+    bool>
+all_of(Group g, Ptr first, Ptr last, Predicate pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   bool partial = true;
   sycl::detail::for_each(
@@ -233,10 +232,9 @@ EnableIfIsPointer<Ptr, bool> all_of(Group g, Ptr first, Ptr last,
 #endif
 }
 
-template <typename Group> bool any_of(Group, bool pred) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
+template <typename Group>
+detail::enable_if_t<detail::is_generic_group<Group>::value, bool>
+any_of(Group, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAny<Group>(pred);
 #else
@@ -247,20 +245,20 @@ template <typename Group> bool any_of(Group, bool pred) {
 }
 
 template <typename Group, typename T, class Predicate>
-bool any_of(Group g, T x, Predicate pred) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
+detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+                     detail::is_arithmetic<T>::value),
+                    bool>
+any_of(Group g, T x, Predicate pred) {
   return any_of(g, pred(x));
 }
 
 template <typename Group, typename Ptr, class Predicate>
-EnableIfIsPointer<Ptr, bool> any_of(Group g, Ptr first, Ptr last,
-                                    Predicate pred) {
+detail::enable_if_t<
+    (detail::is_generic_group<Group>::value && detail::is_pointer<Ptr>::value &&
+     detail::is_arithmetic<typename detail::remove_pointer<Ptr>::type>::value),
+    bool>
+any_of(Group g, Ptr first, Ptr last, Predicate pred) {
 #ifdef __SYCL_DEVICE_ONLY__
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
   bool partial = false;
   sycl::detail::for_each(
       g, first, last,
@@ -276,10 +274,9 @@ EnableIfIsPointer<Ptr, bool> any_of(Group g, Ptr first, Ptr last,
 #endif
 }
 
-template <typename Group> bool none_of(Group, bool pred) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
+template <typename Group>
+detail::enable_if_t<detail::is_generic_group<Group>::value, bool>
+none_of(Group, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::spirv::GroupAll<Group>(!pred);
 #else
@@ -290,20 +287,20 @@ template <typename Group> bool none_of(Group, bool pred) {
 }
 
 template <typename Group, typename T, class Predicate>
-bool none_of(Group g, T x, Predicate pred) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
+detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+                     detail::is_arithmetic<T>::value),
+                    bool>
+none_of(Group g, T x, Predicate pred) {
   return none_of(g, pred(x));
 }
 
 template <typename Group, typename Ptr, class Predicate>
-EnableIfIsPointer<Ptr, bool> none_of(Group g, Ptr first, Ptr last,
-                                     Predicate pred) {
+detail::enable_if_t<
+    (detail::is_generic_group<Group>::value && detail::is_pointer<Ptr>::value &&
+     detail::is_arithmetic<typename detail::remove_pointer<Ptr>::type>::value),
+    bool>
+none_of(Group g, Ptr first, Ptr last, Predicate pred) {
 #ifdef __SYCL_DEVICE_ONLY__
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
   return !any_of(g, first, last, pred);
 #else
   (void)g;
