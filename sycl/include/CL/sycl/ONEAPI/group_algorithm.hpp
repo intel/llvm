@@ -785,11 +785,11 @@ exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-EnableIfIsVectorArithmeticNativeOp<T, BinaryOperation>
+detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+                     detail::is_vector_arithmetic<T>::value &&
+                     detail::is_native_op<T, BinaryOperation>::value),
+                    T>
 inclusive_scan(Group g, T x, BinaryOperation binary_op) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(x[0], x[0])),
@@ -805,11 +805,11 @@ inclusive_scan(Group g, T x, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename T, class BinaryOperation>
-EnableIfIsScalarArithmeticNativeOp<T, BinaryOperation>
+detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+                     detail::is_scalar_arithmetic<T>::value &&
+                     detail::is_native_op<T, BinaryOperation>::value),
+                    T>
 inclusive_scan(Group, T x, BinaryOperation binary_op) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(std::is_same<decltype(binary_op(x, x)), T>::value ||
                     (std::is_same<T, half>::value &&
@@ -826,11 +826,13 @@ inclusive_scan(Group, T x, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename V, class BinaryOperation, typename T>
-EnableIfIsScalarArithmeticNativeOp<T, BinaryOperation>
+detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+                     detail::is_scalar_arithmetic<V>::value &&
+                     detail::is_scalar_arithmetic<T>::value &&
+                     detail::is_native_op<V, BinaryOperation>::value &&
+                     detail::is_native_op<T, BinaryOperation>::value),
+                    T>
 inclusive_scan(Group g, V x, BinaryOperation binary_op, T init) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(std::is_same<decltype(binary_op(init, x)), T>::value ||
                     (std::is_same<T, half>::value &&
@@ -849,11 +851,13 @@ inclusive_scan(Group g, V x, BinaryOperation binary_op, T init) {
 }
 
 template <typename Group, typename V, class BinaryOperation, typename T>
-EnableIfIsVectorArithmeticNativeOp<T, BinaryOperation>
+detail::enable_if_t<(detail::is_generic_group<Group>::value &&
+                     detail::is_vector_arithmetic<V>::value &&
+                     detail::is_vector_arithmetic<T>::value &&
+                     detail::is_native_op<V, BinaryOperation>::value &&
+                     detail::is_native_op<T, BinaryOperation>::value),
+                    T>
 inclusive_scan(Group g, V x, BinaryOperation binary_op, T init) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(init[0], x[0])), T>::value ||
@@ -869,12 +873,18 @@ inclusive_scan(Group g, V x, BinaryOperation binary_op, T init) {
 
 template <typename Group, typename InPtr, typename OutPtr,
           class BinaryOperation, typename T>
-EnableIfIsPointer<InPtr, OutPtr>
+detail::enable_if_t<
+    (detail::is_generic_group<Group>::value &&
+     detail::is_pointer<InPtr>::value && detail::is_pointer<OutPtr>::value &&
+     detail::is_arithmetic<
+         typename detail::remove_pointer<InPtr>::type>::value &&
+     detail::is_arithmetic<T>::value &&
+     detail::is_native_op<typename detail::remove_pointer<InPtr>::type,
+                          BinaryOperation>::value &&
+     detail::is_native_op<T, BinaryOperation>::value),
+    OutPtr>
 inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                BinaryOperation binary_op, T init) {
-  static_assert(sycl::detail::is_generic_group<Group>::value,
-                "Group algorithms only support the sycl::group and "
-                "ONEAPI::sub_group class.");
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(init, *first)), T>::value ||
@@ -914,9 +924,16 @@ inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
 
 template <typename Group, typename InPtr, typename OutPtr,
           class BinaryOperation>
-EnableIfIsPointer<InPtr, OutPtr> inclusive_scan(Group g, InPtr first,
-                                                InPtr last, OutPtr result,
-                                                BinaryOperation binary_op) {
+detail::enable_if_t<
+    (detail::is_generic_group<Group>::value &&
+     detail::is_pointer<InPtr>::value && detail::is_pointer<OutPtr>::value &&
+     detail::is_arithmetic<
+         typename detail::remove_pointer<InPtr>::type>::value &&
+     detail::is_native_op<typename detail::remove_pointer<InPtr>::type,
+                          BinaryOperation>::value),
+    OutPtr>
+inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
+               BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(*first, *first)),
