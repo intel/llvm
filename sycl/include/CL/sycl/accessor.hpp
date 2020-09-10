@@ -851,7 +851,7 @@ protected:
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim> MemRange, id<AdjustedDim> Offset) {
     MData = Ptr;
-    [[clang::unroll]]
+    #pragma unroll
     for (int I = 0; I < AdjustedDim; ++I) {
       getOffset()[I] = Offset[I];
       getAccessRange()[I] = AccessRange[I];
@@ -1389,7 +1389,7 @@ protected:
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim>, id<AdjustedDim>) {
     MData = Ptr;
-    [[clang::unroll]]
+    #pragma unroll
     for (int I = 0; I < AdjustedDim; ++I)
       getSize()[I] = AccessRange[I];
   }
