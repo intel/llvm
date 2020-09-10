@@ -2754,13 +2754,13 @@ pi_result piKernelGetSubGroupInfo(pi_kernel Kernel, pi_device Device,
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
   if (ParamName == PI_KERNEL_MAX_SUB_GROUP_SIZE) {
-    ReturnValue(size_t{ZeKernelProperties.maxSubgroupSize});
+    ReturnValue(uint32_t{ZeKernelProperties.maxSubgroupSize});
   } else if (ParamName == PI_KERNEL_MAX_NUM_SUB_GROUPS) {
-    ReturnValue(size_t{ZeKernelProperties.maxNumSubgroups});
+    ReturnValue(uint32_t{ZeKernelProperties.maxNumSubgroups});
   } else if (ParamName == PI_KERNEL_COMPILE_NUM_SUB_GROUPS) {
-    ReturnValue(size_t{ZeKernelProperties.requiredNumSubGroups});
+    ReturnValue(uint32_t{ZeKernelProperties.requiredNumSubGroups});
   } else if (ParamName == PI_KERNEL_COMPILE_SUB_GROUP_SIZE_INTEL) {
-    ReturnValue(size_t{ZeKernelProperties.requiredSubgroupSize});
+    ReturnValue(uint32_t{ZeKernelProperties.requiredSubgroupSize});
   } else {
     die("piKernelGetSubGroupInfo: parameter not implemented");
     return {};
