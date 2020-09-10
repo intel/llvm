@@ -1769,8 +1769,10 @@ public:
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t,
             typename PropertyListT = property_list>
-  void fill(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT> Dst,
-            const T &Pattern) {
+  void
+  fill(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>
+           Dst,
+       const T &Pattern) {
     throwIfActionIsCreated();
     // TODO add check:T must be an integral scalar value or a SYCL vector type
     static_assert(isValidTargetForExplicitOp(AccessTarget),

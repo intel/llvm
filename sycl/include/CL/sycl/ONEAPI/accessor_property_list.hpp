@@ -44,14 +44,13 @@ class accessor_property_list : protected detail::PropertyListBase {
   template <template <class...> class T, class T1, class T2>
   struct AreSameTemplate<T<T1>, T<T2>> : std::true_type {};
 #if __cplusplus >= 201703L
-  template <template <auto...> class T, auto...T1, auto...T2>
+  template <template <auto...> class T, auto... T1, auto... T2>
   struct AreSameTemplate<T<T1...>, T<T2...>> : std::true_type {};
 #endif
   // This template helps to identify if PropListT parameter pack contains
   // property of PropT type, where PropT is a nested instance template of
   // compile-time-constant property.
-  template <typename PropT, typename... PropListT>
-  struct ContainsProperty;
+  template <typename PropT, typename... PropListT> struct ContainsProperty;
   template <typename PropT> struct ContainsProperty<PropT> : std::false_type {};
   template <typename PropT, typename Head, typename... Tail>
   struct ContainsProperty<PropT, Head, Tail...>

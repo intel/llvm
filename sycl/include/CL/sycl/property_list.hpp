@@ -14,8 +14,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ONEAPI {
-template <typename... PropsT>
-class accessor_property_list;
+template <typename... PropsT> class accessor_property_list;
 }
 
 /// Objects of the property_list class are containers for the SYCL properties
