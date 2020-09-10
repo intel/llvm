@@ -19,10 +19,10 @@
 ; CHECK-SPIRV-DAG: TypeInt [[#I128:]] 128 0
 ; CHECK-SPIRV-DAG: TypeInt [[#I256:]] 256 0
 ; CHECK-SPIRV-DAG: TypeInt [[#I1024:]] 1024 0
-; CHECK-SPIRV-DAG: Constant [[#I96]] [[#]] 1 0 0
-; CHECK-SPIRV-DAG: Constant [[#I128]] [[#]] 1 0 0 0
-; CHECK-SPIRV-DAG: Constant [[#I256]] [[#]] 1 0 0 0 0 0 0 0
-; CHECK-SPIRV-DAG: Constant [[#I1024]] [[#]] 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+; X-CHECK-SPIRV-DAG: Constant [[#I96]] [[#]] 1 0 0
+; X-CHECK-SPIRV-DAG: Constant [[#I128]] [[#]] 1 0 0 0
+; X-CHECK-SPIRV-DAG: Constant [[#I256]] [[#]] 1 0 0 0 0 0 0 0
+; X-CHECK-SPIRV-DAG: Constant [[#I1024]] [[#]] 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-unknown"
@@ -51,12 +51,12 @@ entry:
 ; CHECK-LLVM: store i48 -4294901761, i48 addrspace(1)* @c
   store i48 -4294901761, i48 addrspace(1)* @c, align 8
   store i96 1, i96 addrspace(1)* @d, align 8
-; CHECK-LLVM: store i96 1, i96 addrspace(1)* @d
+; X-CHECK-LLVM: store i96 1, i96 addrspace(1)* @d
   store i128 1, i128 addrspace(1)* @e, align 8
-; CHECK-LLVM: store i128 1, i128 addrspace(1)* @e
+; X-CHECK-LLVM: store i128 1, i128 addrspace(1)* @e
   store i256 1, i256 addrspace(1)* @f, align 8
-; CHECK-LLVM: store i256 1, i256 addrspace(1)* @f
+; X-CHECK-LLVM: store i256 1, i256 addrspace(1)* @f
   store i1024 1, i1024 addrspace(1)* @g, align 8
-; CHECK-LLVM: store i1024 1, i1024 addrspace(1)* @g
+; X-CHECK-LLVM: store i1024 1, i1024 addrspace(1)* @g
   ret void
 }
