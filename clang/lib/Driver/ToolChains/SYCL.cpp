@@ -278,13 +278,11 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
   if (!FPGADepFiles.empty()) {
     SmallString<128> DepOpt("-dep-files=");
     for (unsigned I = 0; I < FPGADepFiles.size(); ++I) {
-      SmallString<64> FileName;
-      if (FPGADepFiles[I].getType() == types::TY_FPGA_Dependencies_List)
-        FileName += "@";
-      FileName += FPGADepFiles[I].getFilename();
       if (I)
         DepOpt += ',';
-      DepOpt += FileName;
+      if (FPGADepFiles[I].getType() == types::TY_FPGA_Dependencies_List)
+        DepOpt += "@";
+      DepOpt += FPGADepFiles[I].getFilename();
     }
     CmdArgs.push_back(C.getArgs().MakeArgString(DepOpt));
   }
