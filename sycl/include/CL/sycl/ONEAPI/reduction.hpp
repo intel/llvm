@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "CL/sycl/ONEAPI/accessor_property_list.hpp"
 #include <CL/sycl/ONEAPI/group_algorithm.hpp>
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/handler.hpp>
@@ -348,11 +349,12 @@ public:
   using reducer_type = reducer<T, BinaryOperation>;
   using result_type = T;
   using binary_operation = BinaryOperation;
-  using accessor_type =
-      accessor<T, Dims, AccMode, access::target::global_buffer, IsPlaceholder>;
+  using accessor_type = accessor < T, Dims, AccMode,
+        access::target::global_buffer, IsPlaceholder,
+        ONEAPI::accessor_property_list<>>;
   using rw_accessor_type =
       accessor<T, Dims, access::mode::read_write, access::target::global_buffer,
-               IsPlaceholder>;
+               IsPlaceholder, ONEAPI::accessor_property_list<>>;
   static constexpr access::mode accessor_mode = AccMode;
   static constexpr int accessor_dim = Dims;
   static constexpr int buffer_dim = (Dims == 0) ? 1 : Dims;

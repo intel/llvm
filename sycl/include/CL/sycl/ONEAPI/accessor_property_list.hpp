@@ -212,9 +212,6 @@ public:
 
 private:
   template <typename... OtherProps> friend class accessor_property_list;
-  template <typename, int, sycl::access::mode, sycl::access::target,
-            sycl::access::placeholder, typename>
-  friend class accessor;
 
   friend class sycl::property_list;
 };
