@@ -536,8 +536,8 @@ template <typename Group, typename V, typename T, class BinaryOperation>
 detail::enable_if_t<(detail::is_sub_group<Group>::value &&
                      std::is_trivially_copyable<T>::value &&
                      std::is_trivially_copyable<V>::value &&
-                     (!std::is_arithmetic<T>::value ||
-                      !std::is_arithmetic<V>::value ||
+                     (!detail::is_arithmetic<T>::value ||
+                      !detail::is_arithmetic<V>::value ||
                       !detail::is_native_op<T, BinaryOperation>::value)),
                     T>
 reduce(Group g, V x, T init, BinaryOperation op) {
