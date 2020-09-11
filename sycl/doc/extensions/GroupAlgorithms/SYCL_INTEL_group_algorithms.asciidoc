@@ -118,7 +118,7 @@ The following function objects alias objects in the +<functional>+ header from t
 - +cl::sycl::intel::bit_xor+
 - +cl::sycl::intel::logical_and+
 - +cl::sycl::intel::logical_or+
-/
+
 New function objects without {cpp} standard library equivalents are defined in the table below:
 
 |===
