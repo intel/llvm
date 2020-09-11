@@ -290,9 +290,8 @@ protected:
   using ConstRefType = const DataT &;
   using PtrType = detail::const_if_const_AS<AS, DataT> *;
 
-  using AccType = accessor < DataT, Dimensions, AccessMode, AccessTarget,
-        IsPlaceholder,
-        PropertyListT>;
+  using AccType = accessor<DataT, Dimensions, AccessMode, AccessTarget,
+                           IsPlaceholder, PropertyListT>;
 
   // The class which allows to access value of N dimensional accessor using N
   // subscript operators, e.g. accessor[2][2][3]
@@ -688,10 +687,11 @@ class __image_array_slice__ {
   }
 
 public:
-  __image_array_slice__(accessor<DataT, Dimensions, AccessMode,
-                                 access::target::image_array, IsPlaceholder>
-                            BaseAcc,
-                        size_t Idx)
+  __image_array_slice__(
+      accessor<DataT, Dimensions, AccessMode, access::target::image_array,
+               IsPlaceholder, ONEAPI::accessor_property_list<>>
+          BaseAcc,
+      size_t Idx)
       : MBaseAcc(BaseAcc), MIdx(Idx) {}
 
   template <typename CoordT, int Dims = Dimensions,
@@ -746,7 +746,7 @@ public:
 private:
   size_t MIdx;
   accessor<DataT, Dimensions, AccessMode, access::target::image_array,
-           IsPlaceholder>
+           IsPlaceholder, ONEAPI::accessor_property_list<>>
       MBaseAcc;
 };
 
@@ -781,9 +781,9 @@ protected:
   static_assert(detail::IsPropertyListT<PropertyListT>::value,
                 "PropertyListT must be accessor_property_list");
 
-  using AccessorCommonT = detail::accessor_common < DataT, Dimensions,
-        AccessMode, AccessTarget, IsPlaceholder,
-        PropertyListT>;
+  using AccessorCommonT =
+      detail::accessor_common<DataT, Dimensions, AccessMode, AccessTarget,
+                              IsPlaceholder, PropertyListT>;
 
   constexpr static int AdjustedDim = Dimensions == 0 ? 1 : Dimensions;
 
