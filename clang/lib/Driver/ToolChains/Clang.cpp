@@ -5172,7 +5172,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     else if (IsWindowsMSVC)
       ImplyVCPPCXXVer = true;
 
-    if (IsSYCL && !Args.hasArg(options::OPT__SLASH_std))
+    if (IsSYCL && types::isCXX(InputType) &&
+        !Args.hasArg(options::OPT__SLASH_std))
       // For DPC++, we default to -std=c++17 for all compilations.  Use of -std
       // on the command line will override.
       CmdArgs.push_back("-std=c++17");
