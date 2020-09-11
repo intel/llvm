@@ -466,14 +466,11 @@ reduce(Group g, T x, BinaryOperation binary_op) {
 
 template <typename Group, typename T, class BinaryOperation>
 detail::enable_if_t<(detail::is_sub_group<Group>::value &&
-                     ((!detail::is_arithmetic<T>::value &&
-                       std::is_trivially_copyable<T>::value) ||
+                     std::is_trivially_copyable<T>::value &&
+                     (!detail::is_arithmetic<T>::value ||
                       !detail::is_native_op<T, BinaryOperation>::value)),
                     T>
 reduce(Group g, T x, BinaryOperation op) {
-  static_assert(sycl::detail::is_sub_group<Group>::value,
-                "reduce algorithm with user-defined types and operators"
-                "only supports ONEAPI::sub_group class.");
   T result = x;
   for (int mask = 1; mask < g.get_max_local_range()[0]; mask *= 2) {
     T tmp = g.shuffle_xor(result, id<1>(mask));
@@ -537,10 +534,10 @@ reduce(Group g, V x, T init, BinaryOperation binary_op) {
 
 template <typename Group, typename V, typename T, class BinaryOperation>
 detail::enable_if_t<(detail::is_sub_group<Group>::value &&
-                     ((!(detail::is_arithmetic<T>::value &&
-                         detail::is_arithmetic<V>::value) &&
-                       (std::is_trivially_copyable<T>::value &&
-                        std::is_trivially_copyable<V>::value)) ||
+                     std::is_trivially_copyable<T>::value &&
+                     std::is_trivially_copyable<V>::value &&
+                     (!std::is_arithmetic<T>::value ||
+                      !std::is_arithmetic<V>::value ||
                       !detail::is_native_op<T, BinaryOperation>::value)),
                     T>
 reduce(Group g, V x, T init, BinaryOperation op) {
