@@ -17,6 +17,13 @@ int main() {
   }
 
   {
+    // No properties
+    accessor_property_list PL{};
+    static_assert(!PL.has_property<property::no_alias>(), "Property is found");
+    static_assert(!PL.has_property<property::no_offset>(), "Property is found");
+  }
+
+  {
     // Single CT property
     accessor_property_list PL{no_alias};
     static_assert(PL.has_property<property::no_alias>(), "Property not found");

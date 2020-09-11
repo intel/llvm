@@ -55,7 +55,7 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
   template <typename PropT, typename Head, typename... Tail>
   struct ContainsProperty<PropT, Head, Tail...>
       : std::conditional<AreSameTemplate<PropT, Head>::value ||
-                             !detail::IsCxPropertyInstance<PropT>::value,
+                             !sycl::detail::IsCxPropertyInstance<PropT>::value,
                          std::true_type,
                          ContainsProperty<PropT, Tail...>>::type {};
 
@@ -82,8 +82,11 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
             auto... Args>
   struct ContainsPropertyInstance
       : std::conditional_t<
-            AreSameTemplate<PropT<Args...>, typename ContainerT::Head>::value ||
-                !detail::IsCxPropertyInstance<typename ContainerT::Head>::value,
+            !std::is_same_v<typename ContainerT::Head, void> &&
+                (AreSameTemplate<PropT<Args...>,
+                                 typename ContainerT::Head>::value ||
+                 !sycl::detail::IsCxPropertyInstance<
+                     typename ContainerT::Head>::value),
             std::true_type,
             ContainsPropertyInstance<typename ContainerT::Rest, PropT,
                                      Args...>> {};
@@ -126,25 +129,29 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
   template <typename T, typename... Tail>
   struct AllProperties<T, Tail...>
       : std::conditional<
-            std::is_base_of<detail::DataLessPropertyBase, T>::value ||
-                std::is_base_of<detail::PropertyWithDataBase, T>::value ||
-                detail::IsCxPropertyInstance<T>::value,
+            std::is_base_of<sycl::detail::DataLessPropertyBase, T>::value ||
+                std::is_base_of<sycl::detail::PropertyWithDataBase, T>::value ||
+                sycl::detail::IsCxPropertyInstance<T>::value,
             AllProperties<Tail...>, std::false_type>::type {};
 
   accessor_property_list(
-      std::bitset<detail::DataLessPropKind::DataLessPropKindSize> DataLessProps,
-      std::vector<std::shared_ptr<detail::PropertyWithDataBase>> PropsWithData)
-      : detail::PropertyListBase(DataLessProps, PropsWithData) {}
+      std::bitset<sycl::detail::DataLessPropKind::DataLessPropKindSize>
+          DataLessProps,
+      std::vector<std::shared_ptr<sycl::detail::PropertyWithDataBase>>
+          PropsWithData)
+      : sycl::detail::PropertyListBase(DataLessProps, PropsWithData) {}
 
 public:
   template <
       typename = typename std::enable_if<AllProperties<PropsT...>::value>::type>
-  accessor_property_list(PropsT... Props) : detail::PropertyListBase(false) {
+  accessor_property_list(PropsT... Props)
+      : sycl::detail::PropertyListBase(false) {
     ctorHelper(Props...);
   }
 
   accessor_property_list(const sycl::property_list &Props)
-      : detail::PropertyListBase(Props.MDataLessProps, Props.MPropsWithData) {}
+      : sycl::detail::PropertyListBase(Props.MDataLessProps,
+                                       Props.MPropsWithData) {}
 
   template <typename... OtherProps,
             typename = typename std::enable_if<
@@ -153,8 +160,8 @@ public:
                 ContainsSameProperties<PropertyContainer<OtherProps...>,
                                        PropsT...>::value>::type>
   accessor_property_list(const accessor_property_list<OtherProps...> &OtherList)
-      : detail::PropertyListBase(OtherList.MDataLessProps,
-                                 OtherList.MPropsWithData) {}
+      : sycl::detail::PropertyListBase(OtherList.MDataLessProps,
+                                       OtherList.MPropsWithData) {}
 
   template <typename PropT, typename = typename std::enable_if<
                                 !is_compile_time_property<PropT>::value>::type>
@@ -181,8 +188,9 @@ public:
                                     T::template instance>::value;
   }
 
-  template <typename T, typename = typename std::enable_if_t<
-                            is_compile_time_property<T>::value>>
+  template <typename T,
+            typename = typename std::enable_if_t<
+                is_compile_time_property<T>::value && has_property<T>()>>
   static constexpr auto get_property() {
     return typename GetCxPropertyHelper<PropertyContainer<PropsT...>,
                                         T::template instance>::type{};
