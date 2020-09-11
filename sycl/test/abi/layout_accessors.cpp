@@ -23,7 +23,7 @@ void hostAcc(accessor<int, 1, access::mode::read, access::target::host_buffer> A
 // CHECK-NEXT:  0 |         std::__shared_ptr<class cl::sycl::detail::AccessorImplHost, __gnu_cxx::_S_atomic>::element_type * _M_ptr
 // CHECK-NEXT:  8 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
 // CHECK-NEXT:  8 |           _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
-// CHECK-NEXT:  0 |   class cl::sycl::detail::accessor_common<int, 1, cl::sycl::access::mode::read, cl::sycl::access::target::host_buffer, cl::sycl::access::placeholder::false_t> (base) (empty)
+// CHECK-NEXT:  0 |   class cl::sycl::detail::accessor_common<int, 1, cl::sycl::access::mode::read, cl::sycl::access::target::host_buffer, cl::sycl::access::placeholder::false_t, class cl::sycl::ONEAPI::accessor_property_list<> > (base) (empty)
 // CHECK-NEXT: 16 |   char [16] padding
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
 // CHECK-NEXT: nvsize=32, nvalign=8]
@@ -44,7 +44,7 @@ void hostAcc(accessor<int, 1, access::mode::read, access::target::global_buffer>
 // CHECK-NEXT: 0 |         std::__shared_ptr<class cl::sycl::detail::AccessorImplHost, __gnu_cxx::_S_atomic>::element_type * _M_ptr
 // CHECK-NEXT: 8 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
 // CHECK-NEXT: 8 |           _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
-// CHECK-NEXT: 0 |   class cl::sycl::detail::accessor_common<int, 1, cl::sycl::access::mode::read, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t> (base) (empty)
+// CHECK-NEXT: 0 |   class cl::sycl::detail::accessor_common<int, 1, cl::sycl::access::mode::read, cl::sycl::access::target::global_buffer, cl::sycl::access::placeholder::false_t, class cl::sycl::ONEAPI::accessor_property_list<> > (base) (empty)
 // CHECK-NEXT: 16 |   char [16] padding
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
 // CHECK-NEXT: nvsize=32, nvalign=8]
@@ -65,7 +65,7 @@ void hostAcc(accessor<int, 1, access::mode::read_write, access::target::local> A
 // CHECK-NEXT: 0 |         std::__shared_ptr<class cl::sycl::detail::LocalAccessorImplHost, __gnu_cxx::_S_atomic>::element_type * _M_ptr
 // CHECK-NEXT: 8 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
 // CHECK-NEXT: 8 |           _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
-// CHECK-NEXT: 0 |   class cl::sycl::detail::accessor_common<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local, cl::sycl::access::placeholder::false_t> (base) (empty)
+// CHECK-NEXT: 0 |   class cl::sycl::detail::accessor_common<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local, cl::sycl::access::placeholder::false_t, class cl::sycl::ONEAPI::accessor_property_list<> > (base) (empty)
 // CHECK-NEXT: 16 |   char [16] padding
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
 // CHECK-NEXT: nvsize=32, nvalign=8]

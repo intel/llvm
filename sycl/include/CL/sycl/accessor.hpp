@@ -260,7 +260,8 @@ static T<NewDim> convertToArrayOfN(T<OldDim> OldObj) {
 __SYCL_EXPORT device getDeviceFromHandler(handler &CommandGroupHandlerRef);
 
 template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder>
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT = ONEAPI::accessor_property_list<>>
 class accessor_common {
 protected:
   constexpr static bool IsPlaceH = IsPlaceholder == access::placeholder::true_t;
@@ -289,8 +290,9 @@ protected:
   using ConstRefType = const DataT &;
   using PtrType = detail::const_if_const_AS<AS, DataT> *;
 
-  using AccType =
-      accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder>;
+  using AccType = accessor < DataT, Dimensions, AccessMode, AccessTarget,
+        IsPlaceholder,
+        PropertyListT>;
 
   // The class which allows to access value of N dimensional accessor using N
   // subscript operators, e.g. accessor[2][2][3]
@@ -763,7 +765,7 @@ class accessor :
     public detail::AccessorBaseHost,
 #endif
     public detail::accessor_common<DataT, Dimensions, AccessMode, AccessTarget,
-                                   IsPlaceholder> {
+                                   IsPlaceholder, PropertyListT> {
 protected:
   static_assert((AccessTarget == access::target::global_buffer ||
                  AccessTarget == access::target::constant_buffer ||
@@ -779,8 +781,9 @@ protected:
   static_assert(detail::IsPropertyListT<PropertyListT>::value,
                 "PropertyListT must be accessor_property_list");
 
-  using AccessorCommonT = detail::accessor_common<DataT, Dimensions, AccessMode,
-                                                  AccessTarget, IsPlaceholder>;
+  using AccessorCommonT = detail::accessor_common < DataT, Dimensions,
+        AccessMode, AccessTarget, IsPlaceholder,
+        PropertyListT>;
 
   constexpr static int AdjustedDim = Dimensions == 0 ? 1 : Dimensions;
 
