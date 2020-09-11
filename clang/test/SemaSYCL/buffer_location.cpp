@@ -21,7 +21,7 @@ struct Base {
       AccField;
 };
 
-struct Captured 
+struct Captured
     : Base,
       cl::sycl::accessor<char, 1, cl::sycl::access::mode::read,
                          cl::sycl::access::target::global_buffer,
