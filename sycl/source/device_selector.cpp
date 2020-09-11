@@ -8,10 +8,12 @@
 
 #include <CL/sycl/ONEAPI/filter_selector.hpp>
 #include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/filter_selector_impl.hpp>
 #include <detail/force_device.hpp>
@@ -34,10 +36,22 @@ static bool isDeviceOfPreferredSyclBe(const device &Device) {
          backend::level_zero;
 }
 
+static bool isDeviceOfPreferredNumber(detail::device_filter_list *FilterList,
+                                      int index) {
+  for (const detail::device_filter &Filter : FilterList->get()) {
+    if (Filter.HasDeviceNum && Filter.DeviceNum == index)
+      return true;
+  }
+  return false;
+}
+
 device device_selector::select_device() const {
   vector_class<device> devices = device::get_devices();
   int score = REJECT_DEVICE_SCORE;
   const device *res = nullptr;
+
+  detail::device_filter_list *FilterList =
+      detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
 
   for (const auto &dev : devices) {
     int dev_score = (*this)(dev);
@@ -58,6 +72,13 @@ device device_selector::select_device() const {
     // A negative score means that a device must not be selected.
     if (dev_score < 0)
       continue;
+
+    // If SYCL_DEVICE_FILTER is set, give a bonus point for the device
+    // whose index matches with desired device number.
+    int index = &dev - &devices[0];
+    if (FilterList && isDeviceOfPreferredNumber(FilterList, index)) {
+      dev_score += 30;
+    }
 
     // SYCL spec says: "If more than one device receives the high score then
     // one of those tied devices will be returned, but which of the devices
