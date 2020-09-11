@@ -68,7 +68,7 @@ Providing a generic group abstraction encapsulating the shared functionality of 
 
 === Attributes
 
-The +[[intel::reqd_sub_group_size(S)]]+ attribute indicates that the kernel must be compiled and executed with a specific sub-group size.  The value of _S_ must be a compile-time integral constant expression or one of the following keywords: +auto+, +core+.  If the value of _S_ is an integer, it must be set to a valid sub-group size supported by the device (as reported by +info::device::sub_group_sizes+).  If the requested sub-group size is not compatible with any language features used by the kernel, device compilation will fail.  If the value of _S_ is +auto+, the device compiler is free to select any of the valid sub-group sizes from +info::device::sub_group_sizes+; the manner in which the sub-group size is selected is implementation-defined.  If the value of _S_ is +core+, the device compiler will select the device's core sub-group size (as reported by the +info::device::core_sub_group_size+ query) for all kernels with this attribute.
+The +[[intel::reqd_sub_group_size(S)]]+ attribute indicates that the kernel must be compiled and executed with a specific sub-group size.  The value of _S_ must be a compile-time integral constant expression or one of the following keywords: +auto+, +core+.  If the value of _S_ is an integer, the kernel should only be submitted to a device that supports that sub-group size (as reported by +info::device::sub_group_sizes+).  If the kernel is submitted to a device that does not support the requested sub-group size, or a device on which the requested sub-group size is incompatible with any language features used by the kernel, the implementation must throw a synchronous exception with the `errc::feature_not_supported` error code from the kernel invocation command.  If the value of _S_ is +auto+, the implementation is free to select any of the valid sub-group sizes associated with the device to which the kernel is submitted; the manner in which the sub-group size is selected is implementation-defined.  If the value of _S_ is +core+, the implementation will select the device's core sub-group size (as reported by the +info::device::core_sub_group_size+ query) for all kernels with this attribute.
 
 If no required sub-group size attribute appears on a kernel, the default behavior is as-if +[[intel::reqd_sub_group_size(auto)]]+ was specified.  This behavior may be overridden by an implementation (e.g. via compiler flags).
 
@@ -118,7 +118,7 @@ The device descriptors below are added to the +info::device+ enumeration class:
 
 |+info::device::sub_group_sizes+
 |+vector_class<size_t>+
-|Returns a vector_class of +size_t+ containing the set of sub-group sizes supported by the device.  Each sub-group size is a power of 2 in the range [1, 2^32^-1].  Not all sub-group sizes are guaranteed to be compatible with all core language features; any incompatibilities are implementation-defined.
+|Returns a vector_class of +size_t+ containing the set of sub-group sizes supported by the device.  Each sub-group size is a power of 2 in the range [1, 2^31^].  Not all sub-group sizes are guaranteed to be compatible with all core language features; any incompatibilities are implementation-defined.
 |===
 
 An additional query is added to the +kernel+ class, enabling an input value to be passed to `get_info`.  The original `get_info` query from the SYCL_INTEL_device_specific_kernel_queries extension should be used for queries that do not specify an input type.
@@ -153,7 +153,7 @@ The kernel descriptors below are added to the +info::kernel_device_specific+ enu
 |+info::kernel_device_specific::compile_sub_group_size+
 |N/A
 |+uint32_t+
-|Returns the required sub-group size specified by the kernel, or 0 (if not specified).
+|Returns the required sub-group size specified by the kernel. Returns 0 if the requested size was `auto`, and returns the device's core sub-group size if the requested size was `core`.
 |===
 
 === The sub_group Class
