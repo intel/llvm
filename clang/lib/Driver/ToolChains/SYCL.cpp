@@ -127,6 +127,10 @@ const char *SYCL::Linker::constructLLVMLinkCommand(Compilation &C,
   // TODO: temporary workaround for a problem with warnings reported by
   // llvm-link when driver links LLVM modules with empty modules
   CmdArgs.push_back("--suppress-warnings");
+  // Add user -Xsycl-target-link options
+  const toolchains::SYCLToolChain &TC =
+      static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+  TC.TranslateLinkerTargetArgs(Args, CmdArgs);
   SmallString<128> ExecPath(C.getDriver().Dir);
   llvm::sys::path::append(ExecPath, "llvm-link");
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
@@ -316,7 +320,6 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
   TC.TranslateBackendTargetArgs(Args, CmdArgs);
-  TC.TranslateLinkerTargetArgs(Args, CmdArgs);
   // Look for -reuse-exe=XX option
   if (Arg *A = Args.getLastArg(options::OPT_reuse_exe_EQ)) {
     Args.ClaimAllArgs(options::OPT_reuse_exe_EQ);
@@ -360,7 +363,6 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
   TC.TranslateBackendTargetArgs(Args, CmdArgs);
-  TC.TranslateLinkerTargetArgs(Args, CmdArgs);
   SmallString<128> ExecPath(
       getToolChain().GetProgramPath(makeExeName(C, "ocloc")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
@@ -394,7 +396,6 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(Compilation &C,
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
 
   TC.TranslateBackendTargetArgs(Args, CmdArgs);
-  TC.TranslateLinkerTargetArgs(Args, CmdArgs);
   SmallString<128> ExecPath(
       getToolChain().GetProgramPath(makeExeName(C, "opencl-aot")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
