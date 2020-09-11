@@ -349,9 +349,9 @@ public:
   using reducer_type = reducer<T, BinaryOperation>;
   using result_type = T;
   using binary_operation = BinaryOperation;
-  using accessor_type = accessor < T, Dims, AccMode,
-        access::target::global_buffer, IsPlaceholder,
-        ONEAPI::accessor_property_list<>>;
+  using accessor_type =
+      accessor<T, Dims, AccMode, access::target::global_buffer, IsPlaceholder,
+               ONEAPI::accessor_property_list<>>;
   using rw_accessor_type =
       accessor<T, Dims, access::mode::read_write, access::target::global_buffer,
                IsPlaceholder, ONEAPI::accessor_property_list<>>;
