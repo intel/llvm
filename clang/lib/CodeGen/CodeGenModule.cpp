@@ -3674,6 +3674,7 @@ CodeGenModule::GetOrCreateLLVMGlobal(StringRef MangledName,
     }
 
     // Make sure the result is of the correct type.
+printf("1.  %d %d\n", Entry->getType()->getAddressSpace(), Ty->getAddressSpace());
     if (Entry->getType()->getAddressSpace() != Ty->getAddressSpace())
       return llvm::ConstantExpr::getAddrSpaceCast(Entry, Ty);
 
@@ -3685,11 +3686,13 @@ CodeGenModule::GetOrCreateLLVMGlobal(StringRef MangledName,
 
   auto AddrSpace = GetGlobalVarAddressSpace(D);
   auto TargetAddrSpace = getContext().getTargetAddressSpace(AddrSpace);
+printf("2.  %d %d\n", AddrSpace, TargetAddrSpace);
 
   auto *GV = new llvm::GlobalVariable(
       getModule(), Ty->getElementType(), false,
       llvm::GlobalValue::ExternalLinkage, nullptr, MangledName, nullptr,
       llvm::GlobalVariable::NotThreadLocal, TargetAddrSpace);
+GV->dump();
 
   // If we already created a global with the same mangled name (but different
   // type) before, take its name and remove it from its parent.
@@ -4884,22 +4887,28 @@ void CodeGenModule::EmitAliasDefinition(GlobalDecl GD) {
   // if a deferred decl.
   llvm::Constant *Aliasee;
   llvm::GlobalValue::LinkageTypes LT;
+  unsigned AS;
+  unsigned TargetAS;
   if (isa<llvm::FunctionType>(DeclTy)) {
     Aliasee = GetOrCreateLLVMFunction(AA->getAliasee(), DeclTy, GD,
                                       /*ForVTable=*/false);
     LT = getFunctionLinkage(GD);
+    AS = Aliasee->getType()->getPointerAddressSpace();
+    TargetAS = AS;
   } else {
     Aliasee = GetOrCreateLLVMGlobal(AA->getAliasee(),
                                     llvm::PointerType::getUnqual(DeclTy),
                                     /*D=*/nullptr);
     LT = getLLVMLinkageVarDefinition(cast<VarDecl>(GD.getDecl()),
                                      D->getType().isConstQualified());
+    AS = Aliasee->getType()->getPointerAddressSpace();
+    TargetAS = ArgInfoAddressSpace(LangAS::opencl_global);
   }
+printf("3. %d %d\n", AS, TargetAS);
 
   // Create the new alias itself, but don't set a name yet.
-  unsigned AS = Aliasee->getType()->getPointerAddressSpace();
   auto *GA =
-      llvm::GlobalAlias::create(DeclTy, AS, LT, "", Aliasee, &getModule());
+      llvm::GlobalAlias::create(DeclTy, TargetAS, LT, "", Aliasee, &getModule());
 
   if (Entry) {
     if (GA->getAliasee() == Entry) {
@@ -4919,8 +4928,7 @@ void CodeGenModule::EmitAliasDefinition(GlobalDecl GD) {
     GA->takeName(Entry);
 
     Entry->replaceAllUsesWith(
-        llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(GA,
-                                                             Entry->getType()));
+        llvm::ConstantExpr::getBitCast(GA, Entry->getType()));
     Entry->eraseFromParent();
   } else {
     GA->setName(MangledName);
