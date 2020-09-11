@@ -93,7 +93,7 @@ The +-fsycl-core-sub-group-size+ flag compiles all kernels in the translation un
 
 === Sub-group Queries
 
-Several aspects of sub-group functionality are implementation-defined: the size and number of sub-groups for certain work-group sizes is implementation-defined (and may differ for each kernel); and different devices may make different guarantees with respect to how sub-groups within a work-group are scheduled.  Developers can query these behaviors at a device level and for individual kernels.  The sub-group size for a given combination of kernel and launch configuration is fixed, and guaranteed to be reflected by device and kernel queries.
+Several aspects of sub-group functionality are implementation-defined: the size and number of sub-groups for certain work-group sizes is implementation-defined (and may differ for each kernel); and different devices may make different guarantees with respect to how sub-groups within a work-group are scheduled.  Developers can query these behaviors at a device level and for individual kernels.  The sub-group size for a given combination of kernel, device and work-group size is fixed.
 
 Each sub-group in a work-group is one-dimensional.  If the number of work-items in the highest-numbered dimension of a work-group is evenly divisible by the sub-group size, all sub-groups in the work-group will contain the same number of work-items.  Additionally, the numbering of work-items in a sub-group reflects the linear numbering of the work-items in the work-group.  Specifically, if a work-item has linear ID i~s~ in the sub-group and linear ID i~w~ in the work-group, the work-item with linear ID i~s~+1 in the sub-group has linear ID i~w~+1 in the work-group.
 
