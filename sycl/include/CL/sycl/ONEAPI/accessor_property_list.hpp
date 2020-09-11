@@ -37,7 +37,7 @@ template <typename T> struct is_compile_time_property : std::false_type {};
 ///
 /// \ingroup sycl_api
 template <typename... PropsT>
-class accessor_property_list : protected detail::PropertyListBase {
+class accessor_property_list : protected sycl::detail::PropertyListBase {
   // These structures check if compile-time-constant property is present in
   // list. For runtime properties this check is always true.
   template <class T, class U> struct AreSameTemplate : std::is_same<T, U> {};
@@ -187,21 +187,6 @@ public:
     return typename GetCxPropertyHelper<PropertyContainer<PropsT...>,
                                         T::template instance>::type{};
   }
-  /*
-  template <template <auto...> class PropT, auto... Args>
-  static constexpr
-      typename std::enable_if<detail::IsCxPropertyInstance<typename
-  PropT::instance<Args...>>::value, bool>::type has_property() { return
-  ContainsProperty<typename PropT::instance<Args...>, PropsT...>::value;
-  }
-  template <template <auto...> class PropT, auto... Args,
-            typename = typename std::enable_if<
-                detail::IsCxPropertyInstance<typename
-  PropT::instance<Args...>>::value>::type> static constexpr auto get_property()
-  { return typename GetCxPropertyHelper<PropertyContainer<PropsT...>, typename
-  PropT::instance, Args...>::type{};
-  }
-  */
 #endif
 
   template <typename... OtherPropsT>
