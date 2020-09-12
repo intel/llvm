@@ -36,10 +36,20 @@ static bool isDeviceOfPreferredSyclBe(const device &Device) {
          backend::level_zero;
 }
 
+// Return true if the given device 'Dev' matches with any filter
 static bool isDeviceOfPreferredNumber(detail::device_filter_list *FilterList,
-                                      int index) {
+				      const device& Dev, int Index) {
+  info::device_type Type = Dev.get_info<info::device::device_type>();
+  backend Backend;
+  if (Type == info::device_type::host)
+    Backend = backend::host;
+  else
+    Backend = detail::getSyclObjImpl(Dev)->getPlugin().getBackend();
+  
   for (const detail::device_filter &Filter : FilterList->get()) {
-    if (Filter.HasDeviceNum && Filter.DeviceNum == index)
+    if ((Filter.Backend == Backend || Filter.Backend == backend::all) &&
+	(Filter.DeviceType == Type || Filter.DeviceType == info::device_type::all) &&
+	(Filter.HasDeviceNum && Filter.DeviceNum == Index))
       return true;
   }
   return false;
@@ -76,7 +86,7 @@ device device_selector::select_device() const {
     // If SYCL_DEVICE_FILTER is set, give a bonus point for the device
     // whose index matches with desired device number.
     int index = &dev - &devices[0];
-    if (FilterList && isDeviceOfPreferredNumber(FilterList, index)) {
+    if (FilterList && isDeviceOfPreferredNumber(FilterList, dev, index)) {
       dev_score += 30;
     }
 
