@@ -1,5 +1,6 @@
 // RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-int-header=%t.h -fsyntax-only -Wno-sycl-2017-compat -verify %s
 
+// expected-error@Inputs/sycl.hpp:220 2{{kernel name is invalid. Unscoped enum requires fixed underlying type}}
 #include "Inputs/sycl.hpp"
 
 enum unscoped_enum_int : int {
@@ -7,7 +8,7 @@ enum unscoped_enum_int : int {
   val_2
 };
 
-// expected-note@+1 {{'unscoped_enum_no_type_set' declared here}}
+// expected-note@+1 1+ {{'unscoped_enum_no_type_set' declared here}}
 enum unscoped_enum_no_type_set {
   val_3,
   val_4
@@ -29,9 +30,14 @@ public:
   void operator()() const {}
 };
 
-// expected-error@+2 {{kernel name is invalid. Unscoped enum requires fixed underlying type}}
 template <unscoped_enum_no_type_set EnumType>
 class dummy_functor_2 {
+public:
+  void operator()() const {}
+};
+
+template <template <unscoped_enum_no_type_set EnumType> class C>
+class templated_functor {
 public:
   void operator()() const {}
 };
@@ -54,6 +60,7 @@ int main() {
   dummy_functor_2<val_3> f2;
   dummy_functor_3<scoped_enum_int::val_2> f3;
   dummy_functor_4<scoped_enum_no_type_set::val_4> f4;
+  templated_functor<dummy_functor_2> f5;
 
   cl::sycl::queue q;
 
@@ -62,7 +69,13 @@ int main() {
   });
 
   q.submit([&](cl::sycl::handler &cgh) {
+    // expected-note@+1{{in instantiation of function template specialization}}
     cgh.single_task(f2);
+  });
+
+  q.submit([&](cl::sycl::handler &cgh) {
+    // expected-note@+1{{in instantiation of function template specialization}}
+    cgh.single_task(f5);
   });
 
   q.submit([&](cl::sycl::handler &cgh) {
