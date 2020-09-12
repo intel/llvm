@@ -22,6 +22,8 @@
 
 #include <level_zero/zet_api.h>
 
+#include "usm_allocator.hpp"
+
 namespace {
 
 // Controls Level Zero calls serialization to w/a Level Zero driver being not MT
@@ -1491,10 +1493,16 @@ pi_result piContextRelease(pi_context Context) {
 
   assert(Context);
   if (--(Context->RefCount) == 0) {
+    auto ZeContext = Context->ZeContext;
     // Destroy the command list used for initializations
     ZE_CALL(zeCommandListDestroy(Context->ZeCommandListInit));
-    ZE_CALL(zeContextDestroy(Context->ZeContext));
     delete Context;
+
+    // Destruction of some members of pi_context uses L0 context
+    // and therefore it must be valid at that point.
+    // Technically it should be placed to the destructor of pi_context
+    // but this makes API error handling more complex.
+    ZE_CALL(zeContextDestroy(ZeContext));
   }
   return PI_SUCCESS;
 }
@@ -2746,13 +2754,13 @@ pi_result piKernelGetSubGroupInfo(pi_kernel Kernel, pi_device Device,
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
   if (ParamName == PI_KERNEL_MAX_SUB_GROUP_SIZE) {
-    ReturnValue(size_t{ZeKernelProperties.maxSubgroupSize});
+    ReturnValue(uint32_t{ZeKernelProperties.maxSubgroupSize});
   } else if (ParamName == PI_KERNEL_MAX_NUM_SUB_GROUPS) {
-    ReturnValue(size_t{ZeKernelProperties.maxNumSubgroups});
+    ReturnValue(uint32_t{ZeKernelProperties.maxNumSubgroups});
   } else if (ParamName == PI_KERNEL_COMPILE_NUM_SUB_GROUPS) {
-    ReturnValue(size_t{ZeKernelProperties.requiredNumSubGroups});
+    ReturnValue(uint32_t{ZeKernelProperties.requiredNumSubGroups});
   } else if (ParamName == PI_KERNEL_COMPILE_SUB_GROUP_SIZE_INTEL) {
-    ReturnValue(size_t{ZeKernelProperties.requiredSubgroupSize});
+    ReturnValue(uint32_t{ZeKernelProperties.requiredSubgroupSize});
   } else {
     die("piKernelGetSubGroupInfo: parameter not implemented");
     return {};
@@ -4057,7 +4065,6 @@ pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
 pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
                             pi_usm_mem_properties *Properties, size_t Size,
                             pi_uint32 Alignment) {
-
   assert(Context);
   // Check that incorrect bits are not set in the properties.
   assert(!Properties || (Properties && !(*Properties & ~PI_MEM_ALLOC_FLAGS)));
@@ -4071,11 +4078,17 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
   return PI_SUCCESS;
 }
 
-pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
-                              pi_device Device,
-                              pi_usm_mem_properties *Properties, size_t Size,
-                              pi_uint32 Alignment) {
+static bool ShouldUseUSMAllocator() {
+  // Enable allocator by default if it's not explicitly disabled
+  return std::getenv("SYCL_PI_LEVEL0_DISABLE_USM_ALLOCATOR") == nullptr;
+}
 
+static const bool UseUSMAllocator = ShouldUseUSMAllocator();
+
+pi_result USMDeviceAllocImpl(void **ResultPtr, pi_context Context,
+                             pi_device Device,
+                             pi_usm_mem_properties *Properties, size_t Size,
+                             pi_uint32 Alignment) {
   assert(Context);
   assert(Device);
   // Check that incorrect bits are not set in the properties.
@@ -4091,11 +4104,10 @@ pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
   return PI_SUCCESS;
 }
 
-pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
-                              pi_device Device,
-                              pi_usm_mem_properties *Properties, size_t Size,
-                              pi_uint32 Alignment) {
-
+pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
+                             pi_device Device,
+                             pi_usm_mem_properties *Properties, size_t Size,
+                             pi_uint32 Alignment) {
   assert(Context);
   assert(Device);
   // Check that incorrect bits are not set in the properties.
@@ -4113,9 +4125,168 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   return PI_SUCCESS;
 }
 
-pi_result piextUSMFree(pi_context Context, void *Ptr) {
+pi_result USMFreeImpl(pi_context Context, void *Ptr) {
   ZE_CALL(zeMemFree(Context->ZeContext, Ptr));
   return PI_SUCCESS;
+}
+
+// Exception type to pass allocation errors
+class UsmAllocationException {
+  const pi_result Error;
+
+public:
+  UsmAllocationException(pi_result Err) : Error{Err} {}
+  pi_result getError() const { return Error; }
+};
+
+pi_result USMSharedMemoryAlloc::allocateImpl(void **ResultPtr, size_t Size,
+                                             pi_uint32 Alignment) {
+  return USMSharedAllocImpl(ResultPtr, Context, Device, nullptr, Size,
+                            Alignment);
+}
+
+pi_result USMDeviceMemoryAlloc::allocateImpl(void **ResultPtr, size_t Size,
+                                             pi_uint32 Alignment) {
+  return USMDeviceAllocImpl(ResultPtr, Context, Device, nullptr, Size,
+                            Alignment);
+}
+
+void *USMMemoryAllocBase::allocate(size_t Size) {
+  void *Ptr = nullptr;
+
+  auto Res = allocateImpl(&Ptr, Size, sizeof(void *));
+  if (Res != PI_SUCCESS) {
+    throw UsmAllocationException(Res);
+  }
+
+  return Ptr;
+}
+
+void *USMMemoryAllocBase::allocate(size_t Size, size_t Alignment) {
+  void *Ptr = nullptr;
+
+  auto Res = allocateImpl(&Ptr, Size, Alignment);
+  if (Res != PI_SUCCESS) {
+    throw UsmAllocationException(Res);
+  }
+  return Ptr;
+}
+
+void USMMemoryAllocBase::deallocate(void *Ptr) {
+  auto Res = USMFreeImpl(Context, Ptr);
+  if (Res != PI_SUCCESS) {
+    throw UsmAllocationException(Res);
+  }
+}
+
+pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
+                              pi_device Device,
+                              pi_usm_mem_properties *Properties, size_t Size,
+                              pi_uint32 Alignment) {
+  if (!UseUSMAllocator ||
+      // L0 spec says that allocation fails if Alignment != 2^n, in order to
+      // keep the same behavior for the allocator, just call L0 API directly and
+      // return the error code.
+      ((Alignment & (Alignment - 1)) != 0)) {
+    return USMDeviceAllocImpl(ResultPtr, Context, Device, Properties, Size,
+                              Alignment);
+  }
+
+  try {
+    auto It = Context->DeviceMemAllocContexts.find(Device);
+    if (It == Context->DeviceMemAllocContexts.end())
+      return PI_INVALID_VALUE;
+
+    *ResultPtr = It->second.allocate(Size, Alignment);
+  } catch (const UsmAllocationException &Ex) {
+    *ResultPtr = nullptr;
+    return Ex.getError();
+  }
+
+  return PI_SUCCESS;
+}
+
+pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
+                              pi_device Device,
+                              pi_usm_mem_properties *Properties, size_t Size,
+                              pi_uint32 Alignment) {
+  if (!UseUSMAllocator ||
+      // L0 spec says that allocation fails if Alignment != 2^n, in order to
+      // keep the same behavior for the allocator, just call L0 API directly and
+      // return the error code.
+      ((Alignment & (Alignment - 1)) != 0)) {
+    return USMSharedAllocImpl(ResultPtr, Context, Device, Properties, Size,
+                              Alignment);
+  }
+
+  try {
+    auto It = Context->SharedMemAllocContexts.find(Device);
+    if (It == Context->SharedMemAllocContexts.end())
+      return PI_INVALID_VALUE;
+
+    *ResultPtr = It->second.allocate(Size, Alignment);
+  } catch (const UsmAllocationException &Ex) {
+    *ResultPtr = nullptr;
+    return Ex.getError();
+  }
+
+  return PI_SUCCESS;
+}
+
+pi_result piextUSMFree(pi_context Context, void *Ptr) {
+  if (!UseUSMAllocator) {
+    return USMFreeImpl(Context, Ptr);
+  }
+
+  // Query the device of the allocation to determine the right allocator context
+  ze_device_handle_t ZeDeviceHandle;
+  ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
+
+  // Query memory type of the pointer we're freeing to determine the correct
+  // way to do it(directly or via the allocator)
+  ZE_CALL(zeMemGetAllocProperties(
+      Context->ZeContext, Ptr, &ZeMemoryAllocationProperties, &ZeDeviceHandle));
+
+  // TODO: when support for multiple devices is implemented, here
+  // we should do the following:
+  // - Find pi_device instance corresponding to ZeDeviceHandle we've just got if
+  // exist
+  // - Use that pi_device to find the right allocator context and free the
+  // pointer.
+
+  // The allocation doesn't belong to any device for which USM allocator is
+  // enabled.
+  if (Context->Device->ZeDevice != ZeDeviceHandle) {
+    return USMFreeImpl(Context, Ptr);
+  }
+
+  auto DeallocationHelper =
+      [Context,
+       Ptr](std::unordered_map<pi_device, USMAllocContext> &AllocContextMap) {
+        try {
+          auto It = AllocContextMap.find(Context->Device);
+          if (It == AllocContextMap.end())
+            return PI_INVALID_VALUE;
+
+          // The right context is found, deallocate the pointer
+          It->second.deallocate(Ptr);
+        } catch (const UsmAllocationException &Ex) {
+          return Ex.getError();
+        }
+
+        return PI_SUCCESS;
+      };
+
+  switch (ZeMemoryAllocationProperties.type) {
+  case ZE_MEMORY_TYPE_SHARED:
+    return DeallocationHelper(Context->SharedMemAllocContexts);
+  case ZE_MEMORY_TYPE_DEVICE:
+    return DeallocationHelper(Context->DeviceMemAllocContexts);
+  default:
+    // Handled below
+    break;
+  }
+  return USMFreeImpl(Context, Ptr);
 }
 
 pi_result piextKernelSetArgPointer(pi_kernel Kernel, pi_uint32 ArgIndex,

@@ -4155,7 +4155,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fenable-sycl-dae");
 
     // Pass the triple of host when doing SYCL
-    auto AuxT = llvm::Triple(llvm::sys::getProcessTriple());
+    llvm::Triple AuxT = C.getDefaultToolChain().getTriple();
+    if (Args.hasFlag(options::OPT_fsycl_device_only, OptSpecifier(), false))
+      AuxT = llvm::Triple(llvm::sys::getProcessTriple());
     std::string NormalizedTriple = AuxT.normalize();
     CmdArgs.push_back("-aux-triple");
     CmdArgs.push_back(Args.MakeArgString(NormalizedTriple));
@@ -7399,7 +7401,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   bool IsMSVCEnv =
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   types::ID InputType(Input.getType());
-  bool IsFPGADepUnbundle = (JA.getType() == types::TY_FPGA_Dependencies);
+  bool IsFPGADepUnbundle = JA.getType() == types::TY_FPGA_Dependencies;
+  bool IsFPGADepLibUnbundle = JA.getType() == types::TY_FPGA_Dependencies_List;
   bool IsArchiveUnbundle =
       (!IsMSVCEnv && C.getDriver().getOffloadStaticLibSeen() &&
        (types::isArchive(InputType) || InputType == types::TY_Object));
@@ -7415,7 +7418,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     else
       TypeArg = "aoo";
   }
-  if (InputType == types::TY_FPGA_AOCO ||
+  if (InputType == types::TY_FPGA_AOCO || IsFPGADepLibUnbundle ||
       (IsMSVCEnv && types::isArchive(InputType)))
     TypeArg = "aoo";
   if (IsFPGADepUnbundle)
@@ -7474,7 +7477,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       Triples += Dep.DependentBoundArch;
     }
   }
-  if (IsFPGADepUnbundle) {
+  if (IsFPGADepUnbundle || IsFPGADepLibUnbundle) {
     // TODO - We are currently using the target triple inputs to slot a location
     // of the dependency information into the bundle.  It would be good to
     // separate this out to an explicit option in the bundler for the dependency
@@ -7495,7 +7498,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   // When dealing with -fintelfpga, there is an additional unbundle step
   // that occurs for the dependency file.  In that case, do not use the
   // dependent information, but just the output file.
-  if (IsFPGADepUnbundle)
+  if (IsFPGADepUnbundle || IsFPGADepLibUnbundle)
     UB += Outputs[0].getFilename();
   else {
     for (unsigned I = 0; I < Outputs.size(); ++I) {

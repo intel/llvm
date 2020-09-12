@@ -11036,9 +11036,10 @@ def err_sycl_compiletime_property_duplication : Error<
 def err_sycl_invalid_property_list_param_number : Error<
   "%0 must have exactly one template parameter">;
 def err_sycl_invalid_accessor_property_template_param : Error<
-  "Fifth template parameter of the accessor must be of a property_list type">;
-def err_sycl_invalid_property_list_template_param : Error<
-  "%select{property_list|property_list pack argument|buffer_location}0 "
+  "sixth template parameter of the accessor must be of accessor_property_list "
+  "type">;
+def err_sycl_invalid_accessor_property_list_template_param : Error<
+  "%select{accessor_property_list|accessor_property_list pack argument|buffer_location}0 "
   "template parameter must be a "
   "%select{parameter pack|type|non-negative integer}1">;
 def warn_sycl_pass_by_value_deprecated 
