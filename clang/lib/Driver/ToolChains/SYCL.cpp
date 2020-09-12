@@ -207,7 +207,8 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
 static const char *makeExeName(Compilation &C, StringRef Name) {
   llvm::SmallString<8> ExeName(Name);
-  if (C.getDriver().IsCLMode())
+  const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+  if (HostTC->getTriple().isWindowsMSVCEnvironment())
     ExeName.append(".exe");
   return C.getArgs().MakeArgString(ExeName);
 }
