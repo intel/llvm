@@ -38,18 +38,19 @@ static bool isDeviceOfPreferredSyclBe(const device &Device) {
 
 // Return true if the given device 'Dev' matches with any filter
 static bool isDeviceOfPreferredNumber(detail::device_filter_list *FilterList,
-				      const device& Dev, int Index) {
+                                      const device &Dev, int Index) {
   info::device_type Type = Dev.get_info<info::device::device_type>();
   backend Backend;
   if (Type == info::device_type::host)
     Backend = backend::host;
   else
     Backend = detail::getSyclObjImpl(Dev)->getPlugin().getBackend();
-  
+
   for (const detail::device_filter &Filter : FilterList->get()) {
     if ((Filter.Backend == Backend || Filter.Backend == backend::all) &&
-	(Filter.DeviceType == Type || Filter.DeviceType == info::device_type::all) &&
-	(Filter.HasDeviceNum && Filter.DeviceNum == Index))
+        (Filter.DeviceType == Type ||
+         Filter.DeviceType == info::device_type::all) &&
+        (Filter.HasDeviceNum && Filter.DeviceNum == Index))
       return true;
   }
   return false;
