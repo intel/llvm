@@ -1788,20 +1788,21 @@ llvm::Triple Driver::MakeSYCLDeviceTriple(StringRef TargetArch) const {
 // Print the help from any of the given tools which are used for AOT
 // compilation for SYCL
 void Driver::PrintSYCLToolHelp(const Compilation &C) const {
-  SmallVector<std::tuple<llvm::Triple, StringRef, StringRef>, 4> HelpArgs;
+  SmallVector<std::tuple<llvm::Triple, StringRef, StringRef, StringRef>, 4>
+      HelpArgs;
   // Populate the vector with the tools and help options
   if (Arg *A = C.getArgs().getLastArg(options::OPT_fsycl_help_EQ)) {
     StringRef AV(A->getValue());
     llvm::Triple T;
     if (AV == "gen" || AV == "all")
       HelpArgs.push_back(std::make_tuple(MakeSYCLDeviceTriple("spir64_gen"),
-                                         "ocloc", "--help"));
+                                         "ocloc", "--help", ""));
     if (AV == "fpga" || AV == "all")
-      HelpArgs.push_back(
-          std::make_tuple(MakeSYCLDeviceTriple("spir64_fpga"), "aoc", "-help"));
+      HelpArgs.push_back(std::make_tuple(MakeSYCLDeviceTriple("spir64_fpga"),
+                                         "aoc", "-help", "-sycl"));
     if (AV == "x86_64" || AV == "all")
       HelpArgs.push_back(std::make_tuple(MakeSYCLDeviceTriple("spir64_x86_64"),
-                                         "opencl-aot", "--help"));
+                                         "opencl-aot", "--help", ""));
     if (HelpArgs.empty()) {
       C.getDriver().Diag(diag::err_drv_unsupported_option_argument)
                          << A->getOption().getName() << AV;
@@ -1814,7 +1815,8 @@ void Driver::PrintSYCLToolHelp(const Compilation &C) const {
     llvm::outs() << "Emitting help information for " << std::get<1>(HA) << '\n'
         << "Use triple of '" << std::get<0>(HA).normalize() <<
         "' to enable ahead of time compilation\n";
-    std::vector<StringRef> ToolArgs = { std::get<1>(HA), std::get<2>(HA) };
+    std::vector<StringRef> ToolArgs = {std::get<1>(HA), std::get<2>(HA),
+                                       std::get<3>(HA)};
     SmallString<128> ExecPath(
         C.getDefaultToolChain().GetProgramPath(std::get<1>(HA).data()));
     auto ToolBinary = llvm::sys::findProgramByName(ExecPath);
@@ -1824,7 +1826,10 @@ void Driver::PrintSYCLToolHelp(const Compilation &C) const {
     }
     // do not run the tools with -###.
     if (C.getArgs().hasArg(options::OPT__HASH_HASH_HASH)) {
-      llvm::errs() << "\"" << ExecPath << "\" \"" << ToolArgs[1] << "\"\n";
+      llvm::errs() << "\"" << ExecPath << "\" \"" << ToolArgs[1] << "\"";
+      if (!ToolArgs[2].empty())
+        llvm::errs() << " \"" << ToolArgs[2] << "\"";
+      llvm::errs() << "\n";
       continue;
     }
     // Run the Tool.
