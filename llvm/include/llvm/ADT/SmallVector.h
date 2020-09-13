@@ -62,6 +62,13 @@ protected:
   /// This function will report a fatal error if it cannot increase capacity.
   void grow_pod(void *FirstEl, size_t MinSize, size_t TSize);
 
+  /// Report that MinSize doesn't fit into this vector's size type. Throws
+  /// std::length_error or calls report_fatal_error.
+  LLVM_ATTRIBUTE_NORETURN static void report_size_overflow(size_t MinSize);
+  /// Report that this vector is already at maximum capacity. Throws
+  /// std::length_error or calls report_fatal_error.
+  LLVM_ATTRIBUTE_NORETURN static void report_at_maximum_capacity();
+
 public:
   size_t size() const { return Size; }
   size_t capacity() const { return Capacity; }
@@ -268,32 +275,16 @@ template <typename T, bool TriviallyCopyable>
 void SmallVectorTemplateBase<T, TriviallyCopyable>::grow(size_t MinSize) {
   // Ensure we can fit the new capacity.
   // This is only going to be applicable when the capacity is 32 bit.
-  if (MinSize > this->SizeTypeMax()) {
-    std::string Reason = "SmallVector unable to grow. Requested capacity (" +
-                         std::to_string(MinSize) +
-                         ") is larger than maximum value for size type (" +
-                         std::to_string(this->SizeTypeMax()) + ")";
-#ifdef LLVM_ENABLE_EXCEPTIONS
-    throw std::length_error(Reason);
-#else
-    report_fatal_error(Reason);
-#endif
-  }
+  if (MinSize > this->SizeTypeMax())
+    this->report_size_overflow(MinSize);
 
   // Ensure we can meet the guarantee of space for at least one more element.
   // The above check alone will not catch the case where grow is called with a
   // default MinSize of 0, but the current capacity cannot be increased.
   // This is only going to be applicable when the capacity is 32 bit.
-  if (this->capacity() == this->SizeTypeMax()) {
-    std::string Reason =
-        "SmallVector capacity unable to grow. Already at maximum size " +
-        std::to_string(this->SizeTypeMax());
-#ifdef LLVM_ENABLE_EXCEPTIONS
-    throw std::length_error(Reason);
-#else
-    report_fatal_error(Reason);
-#endif
-  }
+  if (this->capacity() == this->SizeTypeMax())
+    this->report_at_maximum_capacity();
+
   // Always grow, even from zero.
   size_t NewCapacity = size_t(NextPowerOf2(this->capacity() + 2));
   NewCapacity = std::min(std::max(NewCapacity, MinSize), this->SizeTypeMax());
