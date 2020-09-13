@@ -185,7 +185,7 @@ public:
       static device_filter_list DFL = FilterString;
       FilterList = &DFL;
     }
-    // as mentioned above, configuration parameters are process only once.
+    // As mentioned above, configuration parameters are processed only once.
     // If multiple threads are checking this env var at the same time,
     // they will end up setting the configration to the same value.
     // If other threads check after one thread already set configration,

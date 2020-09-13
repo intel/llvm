@@ -17,7 +17,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-device_filter::device_filter(std::string &FilterString) {
+device_filter::device_filter(const std::string &FilterString) {
   const std::array<std::pair<std::string, info::device_type>, 5>
       SyclDeviceTypeMap = {{{"host", info::device_type::host},
                             {"cpu", info::device_type::cpu},
@@ -83,15 +83,14 @@ device_filter::device_filter(std::string &FilterString) {
       DeviceNum = stoi(FilterString.substr(ColonPos + 1));
       HasDeviceNum = true;
     } catch (...) {
-      char message[100];
-      strcpy(message, "Invalid device filter: ");
-      std::strcat(message, FilterString.c_str());
-      std::strcat(message,
-                  "\nPossible backend values are {opencl,level_zero,cuda,*}.");
-      std::strcat(message, "\nPossible device types are {host,cpu,gpu,acc,*}.");
-      std::strcat(message,
-                  "\nDevice number should be an non-negative integer.\n");
-      throw cl::sycl::invalid_parameter_error(message, PI_INVALID_VALUE);
+      std::string Message =
+          std::string("Invalid device filter: ") + FilterString +
+          std::string(
+              "\nPossible backend values are {host,opencl,level_zero,cuda,*}.\n"
+              "Possible device types are {host,cpu,gpu,acc,*}.\n"
+              "Device number should be an non-negative integer.\n");
+      throw cl::sycl::invalid_parameter_error(Message.c_str(),
+                                              PI_INVALID_VALUE);
     }
   }
 }

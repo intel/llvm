@@ -29,7 +29,7 @@ struct device_filter {
   int MatchesSeen = 0;
 
   device_filter(){};
-  device_filter(std::string &FilterString);
+  device_filter(const std::string &FilterString);
   friend std::ostream &operator<<(std::ostream &Out,
                                   const device_filter &Filter);
 };
@@ -72,7 +72,7 @@ inline std::ostream &operator<<(std::ostream &Out,
   } else if (Filter.DeviceType == info::device_type::gpu) {
     Out << std::string("gpu");
   } else if (Filter.DeviceType == info::device_type::accelerator) {
-    Out << std::string("acceclerator");
+    Out << std::string("accelerator");
   } else if (Filter.DeviceType == info::device_type::all) {
     Out << std::string("*");
   }
