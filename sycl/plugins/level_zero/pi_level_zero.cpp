@@ -754,9 +754,23 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   assert(Platform);
 
   // Create PI platform from the given Level Zero driver handle.
+  // TODO: get the platform from the platforms' cache.
   auto ZeDriver = pi_cast<ze_driver_handle_t>(NativeHandle);
   *Platform = new _pi_platform(ZeDriver);
   return PI_SUCCESS;
+}
+
+// Get the cahched PI device created for the L0 device handle.
+// Return NULL if no such PI device found.
+pi_device _pi_platform::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
+
+  std::lock_guard<std::mutex> Lock(this->PiDevicesCacheMutex);
+  auto it = std::find_if(PiDevicesCache.begin(), PiDevicesCache.end(),
+                         [&](pi_device &D) { return D->ZeDevice == ZeDevice; });
+  if (it != PiDevicesCache.end()) {
+    return *it;
+  }
+  return nullptr;
 }
 
 pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
@@ -1396,6 +1410,7 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   assert(Platform);
 
   // Create PI device from the given Level Zero device handle.
+  // TODO: get the device from the devices' cache.
   auto ZeDevice = pi_cast<ze_device_handle_t>(NativeHandle);
   *Device = new _pi_device(ZeDevice, Platform);
   return (*Device)->initialize();
@@ -1860,6 +1875,9 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   // Have the "0" device in context to own the image. Rely on Level-Zero
   // drivers to perform migration as necessary for sharing it across multiple
   // devices in the context.
+  //
+  // TODO: figure out if we instead need explicit copying for acessing
+  // the image from other devices in the context.
   //
   pi_device Device = Context->Devices[0];
   ze_image_handle_t ZeHImage;
@@ -3144,6 +3162,9 @@ pi_result piSamplerCreate(pi_context Context,
   // drivers to perform migration as necessary for sharing it across multiple
   // devices in the context.
   //
+  // TODO: figure out if we instead need explicit copying for acessing
+  // the sampler from other devices in the context.
+  //
   pi_device Device = Context->Devices[0];
 
   ze_sampler_handle_t ZeSampler;
@@ -4274,28 +4295,20 @@ pi_result piextUSMFree(pi_context Context, void *Ptr) {
   ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
 
   // Query memory type of the pointer we're freeing to determine the correct
-  // way to do it(directly or via the allocator)
+  // way to do it(directly or via an allocator)
   ZE_CALL(zeMemGetAllocProperties(
       Context->ZeContext, Ptr, &ZeMemoryAllocationProperties, &ZeDeviceHandle));
 
-  // TODO: when support for multiple devices is implemented, here
-  // we should do the following:
-  // - Find pi_device instance corresponding to ZeDeviceHandle we've just got if
-  // exist
-  // - Use that pi_device to find the right allocator context and free the
-  // pointer.
-
-  // The allocation doesn't belong to any device for which USM allocator is
-  // enabled.
-  if (Context->Device->ZeDevice != ZeDeviceHandle) {
-    return USMFreeImpl(Context, Ptr);
-  }
+  // All devices in the context are of the same platform.
+  auto Platform = Context->Devices[0]->Platform;
+  auto Device = Platform->getDeviceFromNativeHandle(ZeDeviceHandle);
+  assert(Device);
 
   auto DeallocationHelper =
-      [Context,
+      [Context, Device,
        Ptr](std::unordered_map<pi_device, USMAllocContext> &AllocContextMap) {
         try {
-          auto It = AllocContextMap.find(Context->Device);
+          auto It = AllocContextMap.find(Device);
           if (It == AllocContextMap.end())
             return PI_INVALID_VALUE;
 
@@ -4554,14 +4567,13 @@ pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
   }
   case PI_MEM_ALLOC_DEVICE:
     if (ZeDeviceHandle) {
-      auto it = std::find_if(
-          Context->Devices.begin(), Context->Devices.end(),
-          [&](pi_device &D) { return D->ZeDevice == ZeDeviceHandle; });
-      if (it != Context->Devices.end()) {
-        ReturnValue(*it);
-      }
+      // All devices in the context are of the same platform.
+      auto Platform = Context->Devices[0]->Platform;
+      auto Device = Platform->getDeviceFromNativeHandle(ZeDeviceHandle);
+      return Device ? ReturnValue(Device) : PI_INVALID_VALUE;
+    } else {
+      return PI_INVALID_VALUE;
     }
-    return PI_INVALID_VALUE;
   case PI_MEM_ALLOC_BASE_PTR: {
     void *Base;
     ZE_CALL(zeMemGetAddressRange(Context->ZeContext, Ptr, &Base, nullptr));
