@@ -22,7 +22,7 @@ template <typename T> class pointer_kernel;
 
 using namespace cl::sycl;
 
-template <typename T>
+template <typename SpecializationKernelName, typename T>
 void check_pointer(queue &Queue, size_t G = 256, size_t L = 64) {
   try {
     nd_range<1> NdRange(G, L);
@@ -39,29 +39,30 @@ void check_pointer(queue &Queue, size_t G = 256, size_t L = 64) {
       auto acc_xor = buf_xor.template get_access<access::mode::read_write>(cgh);
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
 
-      cgh.parallel_for<pointer_kernel<T>>(NdRange, [=](nd_item<1> NdItem) {
-        ONEAPI::sub_group SG = NdItem.get_sub_group();
-        uint32_t wggid = NdItem.get_global_id(0);
-        uint32_t sgid = SG.get_group_id().get(0);
-        if (wggid == 0)
-          sgsizeacc[0] = SG.get_max_local_range()[0];
+      cgh.parallel_for<SpecializationKernelName>(
+          NdRange, [=](nd_item<1> NdItem) {
+            ONEAPI::sub_group SG = NdItem.get_sub_group();
+            uint32_t wggid = NdItem.get_global_id(0);
+            uint32_t sgid = SG.get_group_id().get(0);
+            if (wggid == 0)
+              sgsizeacc[0] = SG.get_max_local_range()[0];
 
-        T *ptr = static_cast<T *>(0x0) + wggid;
+            T *ptr = static_cast<T *>(0x0) + wggid;
 
-        /*GID of middle element in every subgroup*/
-        acc[NdItem.get_global_id()] =
-            SG.shuffle(ptr, SG.get_max_local_range()[0] / 2);
+            /*GID of middle element in every subgroup*/
+            acc[NdItem.get_global_id()] =
+                SG.shuffle(ptr, SG.get_max_local_range()[0] / 2);
 
-        /* Save GID-SGID */
-        acc_up[NdItem.get_global_id()] = SG.shuffle_up(ptr, sgid);
+            /* Save GID-SGID */
+            acc_up[NdItem.get_global_id()] = SG.shuffle_up(ptr, sgid);
 
-        /* Save GID+SGID */
-        acc_down[NdItem.get_global_id()] = SG.shuffle_down(ptr, sgid);
+            /* Save GID+SGID */
+            acc_down[NdItem.get_global_id()] = SG.shuffle_down(ptr, sgid);
 
-        /* Save GID with SGLID = ( SGLID XOR SGID ) % SGMaxSize */
-        acc_xor[NdItem.get_global_id()] =
-            SG.shuffle_xor(ptr, sgid % SG.get_max_local_range()[0]);
-      });
+            /* Save GID with SGLID = ( SGLID XOR SGID ) % SGMaxSize */
+            acc_xor[NdItem.get_global_id()] =
+                SG.shuffle_xor(ptr, sgid % SG.get_max_local_range()[0]);
+          });
     });
     auto acc = buf.template get_access<access::mode::read_write>();
     auto acc_up = buf_up.template get_access<access::mode::read_write>();
@@ -116,7 +117,7 @@ void check_pointer(queue &Queue, size_t G = 256, size_t L = 64) {
   }
 }
 
-template <typename T, typename Generator>
+template <typename SpecializationKernelName, typename T, typename Generator>
 void check_struct(queue &Queue, Generator &Gen, size_t G = 256, size_t L = 64) {
 
   // Fill a vector with values that will be shuffled
@@ -140,29 +141,30 @@ void check_struct(queue &Queue, Generator &Gen, size_t G = 256, size_t L = 64) {
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       auto in = buf_in.template get_access<access::mode::read>(cgh);
 
-      cgh.parallel_for<pointer_kernel<T>>(NdRange, [=](nd_item<1> NdItem) {
-        ONEAPI::sub_group SG = NdItem.get_sub_group();
-        uint32_t wggid = NdItem.get_global_id(0);
-        uint32_t sgid = SG.get_group_id().get(0);
-        if (wggid == 0)
-          sgsizeacc[0] = SG.get_max_local_range()[0];
+      cgh.parallel_for<SpecializationKernelName>(
+          NdRange, [=](nd_item<1> NdItem) {
+            ONEAPI::sub_group SG = NdItem.get_sub_group();
+            uint32_t wggid = NdItem.get_global_id(0);
+            uint32_t sgid = SG.get_group_id().get(0);
+            if (wggid == 0)
+              sgsizeacc[0] = SG.get_max_local_range()[0];
 
-        T val = in[wggid];
+            T val = in[wggid];
 
-        /*GID of middle element in every subgroup*/
-        acc[NdItem.get_global_id()] =
-            SG.shuffle(val, SG.get_max_local_range()[0] / 2);
+            /*GID of middle element in every subgroup*/
+            acc[NdItem.get_global_id()] =
+                SG.shuffle(val, SG.get_max_local_range()[0] / 2);
 
-        /* Save GID-SGID */
-        acc_up[NdItem.get_global_id()] = SG.shuffle_up(val, sgid);
+            /* Save GID-SGID */
+            acc_up[NdItem.get_global_id()] = SG.shuffle_up(val, sgid);
 
-        /* Save GID+SGID */
-        acc_down[NdItem.get_global_id()] = SG.shuffle_down(val, sgid);
+            /* Save GID+SGID */
+            acc_down[NdItem.get_global_id()] = SG.shuffle_down(val, sgid);
 
-        /* Save GID with SGLID = ( SGLID XOR SGID ) % SGMaxSize */
-        acc_xor[NdItem.get_global_id()] =
-            SG.shuffle_xor(val, sgid % SG.get_max_local_range()[0]);
-      });
+            /* Save GID with SGLID = ( SGLID XOR SGID ) % SGMaxSize */
+            acc_xor[NdItem.get_global_id()] =
+                SG.shuffle_xor(val, sgid % SG.get_max_local_range()[0]);
+          });
     });
     auto acc = buf.template get_access<access::mode::read_write>();
     auto acc_up = buf_up.template get_access<access::mode::read_write>();
@@ -220,18 +222,20 @@ int main() {
   }
 
   // Test shuffle of pointer types
-  check_pointer<int>(Queue);
+  check_pointer<class KernelName_mNiN, int>(Queue);
 
   // Test shuffle of non-native types
   auto ComplexFloatGenerator = [state = std::complex<float>(0, 1)]() mutable {
     return state += std::complex<float>(2, 2);
   };
-  check_struct<std::complex<float>>(Queue, ComplexFloatGenerator);
+  check_struct<class KernelName_zHfIPOLOFsXiZiCvG, std::complex<float>>(
+      Queue, ComplexFloatGenerator);
 
   auto ComplexDoubleGenerator = [state = std::complex<double>(0, 1)]() mutable {
     return state += std::complex<double>(2, 2);
   };
-  check_struct<std::complex<double>>(Queue, ComplexDoubleGenerator);
+  check_struct<class KernelName_CjlHUmnuxWtyejZFD, std::complex<double>>(
+      Queue, ComplexDoubleGenerator);
 
   std::cout << "Test passed." << std::endl;
   return 0;

@@ -24,11 +24,11 @@ int main() {
     std::cout << "Skipping test\n";
     return 0;
   }
-  check<int>(Queue);
-  check<unsigned int>(Queue);
-  check<long>(Queue);
-  check<unsigned long>(Queue);
-  check<float>(Queue);
+  check<class KernelName_AJprOaCZgUmsYFRTTGNw, int>(Queue);
+  check<class KernelName_ShKFIYTqaI, unsigned int>(Queue);
+  check<class KernelName_TovsKTk, long>(Queue);
+  check<class KernelName_JqbvoN, unsigned long>(Queue);
+  check<class KernelName_mAWqKSWTT, float>(Queue);
   std::cout << "Test passed." << std::endl;
   return 0;
 }
