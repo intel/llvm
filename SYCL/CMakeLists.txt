@@ -7,16 +7,20 @@ if(CHECK_SYCL_ALL)
     string(REPLACE ":" ";" BE_LIST ${BACKEND})
     list (GET BE_LIST 0 TARGET_BE)
     list (GET BE_LIST 1 TARGET_DEVICES)
+
     message("Run on ${TARGET_DEVICES} for ${TARGET_BE}")
-    add_custom_target(check-sycl-${TARGET_BE}
-      COMMAND ${TEST_SUITE_LIT} ${TEST_SUITE_LIT_FLAGS} --param sycl_be=${TARGET_BE} --param target_devices=${TARGET_DEVICES} .
-      COMMENT "Running the SYCL tests for ${TARGET_BE} backend"
+
+    string(REPLACE "," "_" TARGET check-sycl-${TARGET_BE}-${TARGET_DEVICES})
+
+    add_custom_target(${TARGET}
+      COMMAND python3 ${TEST_SUITE_LIT} ${TEST_SUITE_LIT_FLAGS} --param sycl_be=${TARGET_BE} --param target_devices=${TARGET_DEVICES} .
+      COMMENT "Running the SYCL tests for ${TARGET} backend"
       WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
       DEPENDS ${TEST_SUITE_TARGETS}
       USES_TERMINAL
     )
-    set_target_properties(check-sycl-${TARGET_BE} PROPERTIES FOLDER "SYCL Level Zero tests")
-    add_dependencies(check-sycl-all check-sycl-${TARGET_BE})
+    set_target_properties(${TARGET} PROPERTIES FOLDER "SYCL Level Zero tests")
+    add_dependencies(check-sycl-all ${TARGET})
 
   endforeach()
 endif(CHECK_SYCL_ALL)
