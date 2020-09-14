@@ -28,6 +28,7 @@
 #include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/CodeGen/FunctionLoweringInfo.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
@@ -2029,7 +2030,9 @@ SDValue SelectionDAG::CreateStackTemporary(TypeSize Bytes, Align Alignment) {
   int StackID = 0;
   if (Bytes.isScalable())
     StackID = TFI->getStackIDForScalableVectors();
-  int FrameIdx = MFI.CreateStackObject(Bytes, Alignment,
+  // The stack id gives an indication of whether the object is scalable or
+  // not, so it's safe to pass in the minimum size here.
+  int FrameIdx = MFI.CreateStackObject(Bytes.getKnownMinSize(), Alignment,
                                        false, nullptr, StackID);
   return getFrameIndex(FrameIdx, TLI->getFrameIndexTy(getDataLayout()));
 }
@@ -3367,49 +3370,19 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
   }
   case ISD::ABS: {
     Known2 = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
-
-    // If the source's MSB is zero then we know the rest of the bits already.
-    if (Known2.isNonNegative()) {
-      Known.Zero = Known2.Zero;
-      Known.One = Known2.One;
-      break;
-    }
-
-    // We only know that the absolute values's MSB will be zero iff there is
-    // a set bit that isn't the sign bit (otherwise it could be INT_MIN).
-    Known2.One.clearSignBit();
-    if (Known2.One.getBoolValue()) {
-      Known.Zero = APInt::getSignMask(BitWidth);
-      break;
-    }
+    Known = Known2.abs();
     break;
   }
   case ISD::UMIN: {
     Known = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
     Known2 = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
-
-    // UMIN - we know that the result will have the maximum of the
-    // known zero leading bits of the inputs.
-    unsigned LeadZero = Known.countMinLeadingZeros();
-    LeadZero = std::max(LeadZero, Known2.countMinLeadingZeros());
-
-    Known.Zero &= Known2.Zero;
-    Known.One &= Known2.One;
-    Known.Zero.setHighBits(LeadZero);
+    Known = KnownBits::umin(Known, Known2);
     break;
   }
   case ISD::UMAX: {
     Known = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
     Known2 = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
-
-    // UMAX - we know that the result will have the maximum of the
-    // known one leading bits of the inputs.
-    unsigned LeadOne = Known.countMinLeadingOnes();
-    LeadOne = std::max(LeadOne, Known2.countMinLeadingOnes());
-
-    Known.Zero &= Known2.Zero;
-    Known.One &= Known2.One;
-    Known.One.setHighBits(LeadOne);
+    Known = KnownBits::umax(Known, Known2);
     break;
   }
   case ISD::SMIN:
@@ -3443,12 +3416,13 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
       }
     }
 
-    // Fallback - just get the shared known bits of the operands.
     Known = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
     if (Known.isUnknown()) break; // Early-out
     Known2 = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
-    Known.Zero &= Known2.Zero;
-    Known.One &= Known2.One;
+    if (IsMax)
+      Known = KnownBits::smax(Known, Known2);
+    else
+      Known = KnownBits::smin(Known, Known2);
     break;
   }
   case ISD::FrameIndex:
@@ -6049,7 +6023,8 @@ static SDValue getMemcpyLoadsAndStores(SelectionDAG &DAG, const SDLoc &dl,
     SrcAlign = Alignment;
   assert(SrcAlign && "SrcAlign must be set");
   ConstantDataArraySlice Slice;
-  bool CopyFromConstant = isMemSrcFromConstant(Src, Slice);
+  // If marked as volatile, perform a copy even when marked as constant.
+  bool CopyFromConstant = !isVol && isMemSrcFromConstant(Src, Slice);
   bool isZeroConstant = CopyFromConstant && Slice.Array == nullptr;
   unsigned Limit = AlwaysInline ? ~0U : TLI.getMaxStoresPerMemcpy(OptSize);
   const MemOp Op = isZeroConstant

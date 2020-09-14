@@ -191,11 +191,25 @@ static bool matchSelectWithOptionalNotCond(Value *V, Value *&Cond, Value *&A,
     Pred = ICmpInst::getSwappedPredicate(Pred);
   }
 
+  // Check for inverted variants of min/max by swapping operands.
+  bool Inversed = false;
   switch (Pred) {
-  case CmpInst::ICMP_UGT: Flavor = SPF_UMAX; break;
-  case CmpInst::ICMP_ULT: Flavor = SPF_UMIN; break;
-  case CmpInst::ICMP_SGT: Flavor = SPF_SMAX; break;
-  case CmpInst::ICMP_SLT: Flavor = SPF_SMIN; break;
+  case CmpInst::ICMP_ULE:
+  case CmpInst::ICMP_UGE:
+  case CmpInst::ICMP_SLE:
+  case CmpInst::ICMP_SGE:
+    Pred = CmpInst::getInversePredicate(Pred);
+    Inversed = true;
+    break;
+  default:
+    break;
+  }
+
+  switch (Pred) {
+  case CmpInst::ICMP_UGT: Flavor = Inversed ? SPF_UMIN : SPF_UMAX; break;
+  case CmpInst::ICMP_ULT: Flavor = Inversed ? SPF_UMAX : SPF_UMIN; break;
+  case CmpInst::ICMP_SGT: Flavor = Inversed ? SPF_SMIN : SPF_SMAX; break;
+  case CmpInst::ICMP_SLT: Flavor = Inversed ? SPF_SMAX : SPF_SMIN; break;
   default: break;
   }
 
@@ -1463,6 +1477,7 @@ public:
     AU.addRequired<TargetLibraryInfoWrapperPass>();
     AU.addRequired<TargetTransformInfoWrapperPass>();
     if (UseMemorySSA) {
+      AU.addRequired<AAResultsWrapperPass>();
       AU.addRequired<MemorySSAWrapperPass>();
       AU.addPreserved<MemorySSAWrapperPass>();
     }
@@ -1504,6 +1519,7 @@ INITIALIZE_PASS_BEGIN(EarlyCSEMemSSALegacyPass, "early-cse-memssa",
                       "Early CSE w/ MemorySSA", false, false)
 INITIALIZE_PASS_DEPENDENCY(TargetTransformInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
+INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(MemorySSAWrapperPass)

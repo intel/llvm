@@ -41,17 +41,19 @@ public:
   Arena(SourceManager &SourceMgr, const LangOptions &LangOpts,
         const TokenBuffer &Tokens);
 
-  const SourceManager &sourceManager() const { return SourceMgr; }
-  const LangOptions &langOptions() const { return LangOpts; }
+  const SourceManager &getSourceManager() const { return SourceMgr; }
+  const LangOptions &getLangOptions() const { return LangOpts; }
 
-  const TokenBuffer &tokenBuffer() const;
-  llvm::BumpPtrAllocator &allocator() { return Allocator; }
+  const TokenBuffer &getTokenBuffer() const;
+  llvm::BumpPtrAllocator &getAllocator() { return Allocator; }
 
+private:
   /// Add \p Buffer to the underlying source manager, tokenize it and store the
-  /// resulting tokens. Useful when there is a need to materialize tokens that
-  /// were not written in user code.
+  /// resulting tokens. Used exclusively in `FactoryImpl` to materialize tokens
+  /// that were not written in user code.
   std::pair<FileID, ArrayRef<Token>>
   lexBuffer(std::unique_ptr<llvm::MemoryBuffer> Buffer);
+  friend class FactoryImpl;
 
 private:
   SourceManager &SourceMgr;
@@ -79,8 +81,8 @@ public:
   /// set when the node is added as a child to another one.
   Node(NodeKind Kind);
 
-  NodeKind kind() const { return static_cast<NodeKind>(Kind); }
-  NodeRole role() const { return static_cast<NodeRole>(Role); }
+  NodeKind getKind() const { return static_cast<NodeKind>(Kind); }
+  NodeRole getRole() const { return static_cast<NodeRole>(Role); }
 
   /// Whether the node is detached from a tree, i.e. does not have a parent.
   bool isDetached() const;
@@ -99,11 +101,11 @@ public:
   /// modifiable.
   bool canModify() const { return CanModify; }
 
-  const Tree *parent() const { return Parent; }
-  Tree *parent() { return Parent; }
+  const Tree *getParent() const { return Parent; }
+  Tree *getParent() { return Parent; }
 
-  const Node *nextSibling() const { return NextSibling; }
-  Node *nextSibling() { return NextSibling; }
+  const Node *getNextSibling() const { return NextSibling; }
+  Node *getNextSibling() { return NextSibling; }
 
   /// Dumps the structure of a subtree. For debugging and testing purposes.
   std::string dump(const SourceManager &SM) const;
@@ -142,7 +144,7 @@ public:
   Leaf(const Token *T);
   static bool classof(const Node *N);
 
-  const Token *token() const { return Tok; }
+  const Token *getToken() const { return Tok; }
 
 private:
   const Token *Tok;
@@ -154,16 +156,18 @@ public:
   using Node::Node;
   static bool classof(const Node *N);
 
-  Node *firstChild() { return FirstChild; }
-  const Node *firstChild() const { return FirstChild; }
+  Node *getFirstChild() { return FirstChild; }
+  const Node *getFirstChild() const { return FirstChild; }
 
-  Leaf *firstLeaf();
-  const Leaf *firstLeaf() const {
-    return const_cast<Tree *>(this)->firstLeaf();
+  Leaf *findFirstLeaf();
+  const Leaf *findFirstLeaf() const {
+    return const_cast<Tree *>(this)->findFirstLeaf();
   }
 
-  Leaf *lastLeaf();
-  const Leaf *lastLeaf() const { return const_cast<Tree *>(this)->lastLeaf(); }
+  Leaf *findLastLeaf();
+  const Leaf *findLastLeaf() const {
+    return const_cast<Tree *>(this)->findLastLeaf();
+  }
 
 protected:
   /// Find the first node with a corresponding role.

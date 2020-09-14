@@ -1558,9 +1558,15 @@ void DAGCombiner::Run(CombineLevel AtLevel) {
       DAG.ReplaceAllUsesWith(N, &RV);
     }
 
-    // Push the new node and any users onto the worklist
-    AddToWorklist(RV.getNode());
-    AddUsersToWorklist(RV.getNode());
+    // Push the new node and any users onto the worklist.  Omit this if the
+    // new node is the EntryToken (e.g. if a store managed to get optimized
+    // out), because re-visiting the EntryToken and its users will not uncover
+    // any additional opportunities, but there may be a large number of such
+    // users, potentially causing compile time explosion.
+    if (RV.getOpcode() != ISD::EntryToken) {
+      AddToWorklist(RV.getNode());
+      AddUsersToWorklist(RV.getNode());
+    }
 
     // Finally, if the node is now dead, remove it from the graph.  The node
     // may not be dead if the replacement process recursively simplified to
@@ -7011,12 +7017,15 @@ SDValue DAGCombiner::mergeTruncStores(StoreSDNode *N) {
 
   // Check if the offsets line up for the native data layout of this target.
   bool NeedBswap = false;
+  bool NeedRotate = false;
   if (!checkOffsets(Layout.isLittleEndian())) {
     // Special-case: check if byte offsets line up for the opposite endian.
-    // TODO: We could use rotates for 16/32-bit merge pairs.
-    if (NarrowNumBits != 8 || !checkOffsets(Layout.isBigEndian()))
+    if (NarrowNumBits == 8 && checkOffsets(Layout.isBigEndian()))
+      NeedBswap = true;
+    else if (NumStores == 2 && checkOffsets(Layout.isBigEndian()))
+      NeedRotate = true;
+    else
       return SDValue();
-    NeedBswap = true;
   }
 
   SDLoc DL(N);
@@ -7026,11 +7035,16 @@ SDValue DAGCombiner::mergeTruncStores(StoreSDNode *N) {
     SourceValue = DAG.getNode(ISD::TRUNCATE, DL, WideVT, SourceValue);
   }
 
-  // Before legalize we can introduce illegal bswaps which will be later
+  // Before legalize we can introduce illegal bswaps/rotates which will be later
   // converted to an explicit bswap sequence. This way we end up with a single
   // store and byte shuffling instead of several stores and byte shuffling.
-  if (NeedBswap)
+  if (NeedBswap) {
     SourceValue = DAG.getNode(ISD::BSWAP, DL, WideVT, SourceValue);
+  } else if (NeedRotate) {
+    assert(WideNumBits % 2 == 0 && "Unexpected type for rotate");
+    SDValue RotAmt = DAG.getConstant(WideNumBits / 2, DL, WideVT);
+    SourceValue = DAG.getNode(ISD::ROTR, DL, WideVT, SourceValue, RotAmt);
+  }
 
   SDValue NewStore =
       DAG.getStore(Chain, DL, SourceValue, FirstStore->getBasePtr(),
@@ -7390,9 +7404,9 @@ SDValue DAGCombiner::visitXOR(SDNode *N) {
         if (N0.hasOneUse()) {
           // FIXME Can we handle multiple uses? Could we token factor the chain
           // results from the new/old setcc?
-          SDValue SetCC = DAG.getSetCC(SDLoc(N0), VT, LHS, RHS, NotCC,
-                                       N0.getOperand(0),
-                                       N0Opcode == ISD::STRICT_FSETCCS);
+          SDValue SetCC =
+              DAG.getSetCC(SDLoc(N0), VT, LHS, RHS, NotCC, SDNodeFlags(),
+                           N0.getOperand(0), N0Opcode == ISD::STRICT_FSETCCS);
           CombineTo(N, SetCC);
           DAG.ReplaceAllUsesOfValueWith(N0.getValue(1), SetCC.getValue(1));
           recursivelyDeleteUnusedNodes(N0.getNode());
@@ -14026,7 +14040,8 @@ SDValue DAGCombiner::visitFNEG(SDNode *N) {
 }
 
 static SDValue visitFMinMax(SelectionDAG &DAG, SDNode *N,
-                            APFloat (*Op)(const APFloat &, const APFloat &)) {
+                            APFloat (*Op)(const APFloat &, const APFloat &),
+                            bool PropagatesNaN) {
   SDValue N0 = N->getOperand(0);
   SDValue N1 = N->getOperand(1);
   EVT VT = N->getValueType(0);
@@ -14044,23 +14059,30 @@ static SDValue visitFMinMax(SelectionDAG &DAG, SDNode *N,
       !isConstantFPBuildVectorOrConstantFP(N1))
     return DAG.getNode(N->getOpcode(), SDLoc(N), VT, N1, N0);
 
+  // minnum(X, nan) -> X
+  // maxnum(X, nan) -> X
+  // minimum(X, nan) -> nan
+  // maximum(X, nan) -> nan
+  if (N1CFP && N1CFP->isNaN())
+    return PropagatesNaN ? N->getOperand(1) : N->getOperand(0);
+
   return SDValue();
 }
 
 SDValue DAGCombiner::visitFMINNUM(SDNode *N) {
-  return visitFMinMax(DAG, N, minnum);
+  return visitFMinMax(DAG, N, minnum, /* PropagatesNaN */ false);
 }
 
 SDValue DAGCombiner::visitFMAXNUM(SDNode *N) {
-  return visitFMinMax(DAG, N, maxnum);
+  return visitFMinMax(DAG, N, maxnum, /* PropagatesNaN */ false);
 }
 
 SDValue DAGCombiner::visitFMINIMUM(SDNode *N) {
-  return visitFMinMax(DAG, N, minimum);
+  return visitFMinMax(DAG, N, minimum, /* PropagatesNaN */ true);
 }
 
 SDValue DAGCombiner::visitFMAXIMUM(SDNode *N) {
-  return visitFMinMax(DAG, N, maximum);
+  return visitFMinMax(DAG, N, maximum, /* PropagatesNaN */ true);
 }
 
 SDValue DAGCombiner::visitFABS(SDNode *N) {

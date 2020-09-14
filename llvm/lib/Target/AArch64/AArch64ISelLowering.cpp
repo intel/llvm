@@ -139,6 +139,12 @@ static bool isMergePassthruOpcode(unsigned Opc) {
   case AArch64ISD::SIGN_EXTEND_INREG_MERGE_PASSTHRU:
   case AArch64ISD::ZERO_EXTEND_INREG_MERGE_PASSTHRU:
   case AArch64ISD::FCEIL_MERGE_PASSTHRU:
+  case AArch64ISD::FFLOOR_MERGE_PASSTHRU:
+  case AArch64ISD::FNEARBYINT_MERGE_PASSTHRU:
+  case AArch64ISD::FRINT_MERGE_PASSTHRU:
+  case AArch64ISD::FROUND_MERGE_PASSTHRU:
+  case AArch64ISD::FROUNDEVEN_MERGE_PASSTHRU:
+  case AArch64ISD::FTRUNC_MERGE_PASSTHRU:
     return true;
   }
 }
@@ -958,8 +964,10 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
       }
     }
 
-    for (auto VT : {MVT::nxv8i8, MVT::nxv4i16, MVT::nxv2i32})
+    for (auto VT : {MVT::nxv8i8, MVT::nxv4i16, MVT::nxv2i32}) {
       setOperationAction(ISD::EXTRACT_SUBVECTOR, VT, Custom);
+      setOperationAction(ISD::INSERT_SUBVECTOR, VT, Custom);
+    }
 
     setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::i8, Custom);
     setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::i16, Custom);
@@ -976,6 +984,12 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
         setOperationAction(ISD::FNEG, VT, Custom);
         setOperationAction(ISD::FSUB, VT, Custom);
         setOperationAction(ISD::FCEIL, VT, Custom);
+        setOperationAction(ISD::FFLOOR, VT, Custom);
+        setOperationAction(ISD::FNEARBYINT, VT, Custom);
+        setOperationAction(ISD::FRINT, VT, Custom);
+        setOperationAction(ISD::FROUND, VT, Custom);
+        setOperationAction(ISD::FROUNDEVEN, VT, Custom);
+        setOperationAction(ISD::FTRUNC, VT, Custom);
       }
     }
 
@@ -1482,6 +1496,12 @@ const char *AArch64TargetLowering::getTargetNodeName(unsigned Opcode) const {
     MAKE_CASE(AArch64ISD::SIGN_EXTEND_INREG_MERGE_PASSTHRU)
     MAKE_CASE(AArch64ISD::ZERO_EXTEND_INREG_MERGE_PASSTHRU)
     MAKE_CASE(AArch64ISD::FCEIL_MERGE_PASSTHRU)
+    MAKE_CASE(AArch64ISD::FFLOOR_MERGE_PASSTHRU)
+    MAKE_CASE(AArch64ISD::FNEARBYINT_MERGE_PASSTHRU)
+    MAKE_CASE(AArch64ISD::FRINT_MERGE_PASSTHRU)
+    MAKE_CASE(AArch64ISD::FROUND_MERGE_PASSTHRU)
+    MAKE_CASE(AArch64ISD::FROUNDEVEN_MERGE_PASSTHRU)
+    MAKE_CASE(AArch64ISD::FTRUNC_MERGE_PASSTHRU)
     MAKE_CASE(AArch64ISD::SETCC_MERGE_ZERO)
     MAKE_CASE(AArch64ISD::ADC)
     MAKE_CASE(AArch64ISD::SBC)
@@ -3346,6 +3366,24 @@ SDValue AArch64TargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
   case Intrinsic::aarch64_sve_frintp:
     return DAG.getNode(AArch64ISD::FCEIL_MERGE_PASSTHRU, dl, Op.getValueType(),
                        Op.getOperand(2), Op.getOperand(3), Op.getOperand(1));
+  case Intrinsic::aarch64_sve_frintm:
+    return DAG.getNode(AArch64ISD::FFLOOR_MERGE_PASSTHRU, dl, Op.getValueType(),
+                       Op.getOperand(2), Op.getOperand(3), Op.getOperand(1));                     
+  case Intrinsic::aarch64_sve_frinti:
+    return DAG.getNode(AArch64ISD::FNEARBYINT_MERGE_PASSTHRU, dl, Op.getValueType(),
+                       Op.getOperand(2), Op.getOperand(3), Op.getOperand(1));
+  case Intrinsic::aarch64_sve_frintx:
+    return DAG.getNode(AArch64ISD::FRINT_MERGE_PASSTHRU, dl, Op.getValueType(),
+                       Op.getOperand(2), Op.getOperand(3), Op.getOperand(1));
+  case Intrinsic::aarch64_sve_frinta:
+    return DAG.getNode(AArch64ISD::FROUND_MERGE_PASSTHRU, dl, Op.getValueType(),
+                       Op.getOperand(2), Op.getOperand(3), Op.getOperand(1));
+  case Intrinsic::aarch64_sve_frintn:
+    return DAG.getNode(AArch64ISD::FROUNDEVEN_MERGE_PASSTHRU, dl, Op.getValueType(),
+                       Op.getOperand(2), Op.getOperand(3), Op.getOperand(1));
+  case Intrinsic::aarch64_sve_frintz:
+    return DAG.getNode(AArch64ISD::FTRUNC_MERGE_PASSTHRU, dl, Op.getValueType(),
+                       Op.getOperand(2), Op.getOperand(3), Op.getOperand(1));
   case Intrinsic::aarch64_sve_convert_to_svbool: {
     EVT OutVT = Op.getValueType();
     EVT InVT = Op.getOperand(1).getValueType();
@@ -3645,6 +3683,18 @@ SDValue AArch64TargetLowering::LowerOperation(SDValue Op,
     return LowerToPredicatedOp(Op, DAG, AArch64ISD::FNEG_MERGE_PASSTHRU);
   case ISD::FCEIL:
     return LowerToPredicatedOp(Op, DAG, AArch64ISD::FCEIL_MERGE_PASSTHRU);
+  case ISD::FFLOOR:
+    return LowerToPredicatedOp(Op, DAG, AArch64ISD::FFLOOR_MERGE_PASSTHRU);
+  case ISD::FNEARBYINT:
+    return LowerToPredicatedOp(Op, DAG, AArch64ISD::FNEARBYINT_MERGE_PASSTHRU);
+  case ISD::FRINT:
+    return LowerToPredicatedOp(Op, DAG, AArch64ISD::FRINT_MERGE_PASSTHRU);
+  case ISD::FROUND:
+    return LowerToPredicatedOp(Op, DAG, AArch64ISD::FROUND_MERGE_PASSTHRU);
+  case ISD::FROUNDEVEN:
+    return LowerToPredicatedOp(Op, DAG, AArch64ISD::FROUNDEVEN_MERGE_PASSTHRU);
+  case ISD::FTRUNC:
+    return LowerToPredicatedOp(Op, DAG, AArch64ISD::FTRUNC_MERGE_PASSTHRU);
   case ISD::FP_ROUND:
   case ISD::STRICT_FP_ROUND:
     return LowerFP_ROUND(Op, DAG);
@@ -9051,9 +9101,34 @@ SDValue AArch64TargetLowering::LowerINSERT_SUBVECTOR(SDValue Op,
   EVT InVT = Op.getOperand(1).getValueType();
   unsigned Idx = cast<ConstantSDNode>(Op.getOperand(2))->getZExtValue();
 
-  // We don't have any patterns for scalable vector yet.
-  if (InVT.isScalableVector())
+  if (InVT.isScalableVector()) {
+    SDLoc DL(Op);
+    EVT VT = Op.getValueType();
+
+    if (!isTypeLegal(VT) || !VT.isInteger())
+      return SDValue();
+
+    SDValue Vec0 = Op.getOperand(0);
+    SDValue Vec1 = Op.getOperand(1);
+
+    // Ensure the subvector is half the size of the main vector.
+    if (VT.getVectorElementCount() != (InVT.getVectorElementCount() * 2))
+      return SDValue();
+
+    // Extend elements of smaller vector...
+    EVT WideVT = InVT.widenIntegerVectorElementType(*(DAG.getContext()));
+    SDValue ExtVec = DAG.getNode(ISD::ANY_EXTEND, DL, WideVT, Vec1);
+
+    if (Idx == 0) {
+      SDValue HiVec0 = DAG.getNode(AArch64ISD::UUNPKHI, DL, WideVT, Vec0);
+      return DAG.getNode(AArch64ISD::UZP1, DL, VT, ExtVec, HiVec0);
+    } else if (Idx == InVT.getVectorMinNumElements()) {
+      SDValue LoVec0 = DAG.getNode(AArch64ISD::UUNPKLO, DL, WideVT, Vec0);
+      return DAG.getNode(AArch64ISD::UZP1, DL, VT, LoVec0, ExtVec);
+    }
+
     return SDValue();
+  }
 
   // This will be matched by custom code during ISelDAGToDAG.
   if (Idx == 0 && isPackedVectorType(InVT, DAG) && Op.getOperand(0).isUndef())
@@ -12953,6 +13028,31 @@ static SDValue splitStores(SDNode *N, TargetLowering::DAGCombinerInfo &DCI,
                       S->getMemOperand()->getFlags());
 }
 
+static SDValue performUzpCombine(SDNode *N, SelectionDAG &DAG) {
+  SDLoc DL(N);
+  SDValue Op0 = N->getOperand(0);
+  SDValue Op1 = N->getOperand(1);
+  EVT ResVT = N->getValueType(0);
+
+  // uzp1(unpklo(uzp1(x, y)), z) => uzp1(x, z)
+  if (Op0.getOpcode() == AArch64ISD::UUNPKLO) {
+    if (Op0.getOperand(0).getOpcode() == AArch64ISD::UZP1) {
+      SDValue X = Op0.getOperand(0).getOperand(0);
+      return DAG.getNode(AArch64ISD::UZP1, DL, ResVT, X, Op1);
+    }
+  }
+
+  // uzp1(x, unpkhi(uzp1(y, z))) => uzp1(x, z)
+  if (Op1.getOpcode() == AArch64ISD::UUNPKHI) {
+    if (Op1.getOperand(0).getOpcode() == AArch64ISD::UZP1) {
+      SDValue Z = Op1.getOperand(0).getOperand(1);
+      return DAG.getNode(AArch64ISD::UZP1, DL, ResVT, Op0, Z);
+    }
+  }
+
+  return SDValue();
+}
+
 /// Target-specific DAG combine function for post-increment LD1 (lane) and
 /// post-increment LD1R.
 static SDValue performPostLD1Combine(SDNode *N,
@@ -14294,6 +14394,8 @@ SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
     return performPostLD1Combine(N, DCI, false);
   case AArch64ISD::NVCAST:
     return performNVCASTCombine(N);
+  case AArch64ISD::UZP1:
+    return performUzpCombine(N, DAG);
   case ISD::INSERT_VECTOR_ELT:
     return performPostLD1Combine(N, DCI, true);
   case ISD::INTRINSIC_VOID:

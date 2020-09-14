@@ -697,7 +697,7 @@ bool CombinerHelper::findPostIndexCandidate(MachineInstr &MI, Register &Addr,
     return false;
 
   LLVM_DEBUG(dbgs() << "Searching for post-indexing opportunity for: " << MI);
-
+  // FIXME: The following use traversal needs a bail out for patholigical cases.
   for (auto &Use : MRI.use_nodbg_instructions(Base)) {
     if (Use.getOpcode() != TargetOpcode::G_PTR_ADD)
       continue;
@@ -824,6 +824,11 @@ bool CombinerHelper::matchCombineIndexedLoadStore(MachineInstr &MI, IndexedLoadS
       Opcode != TargetOpcode::G_ZEXTLOAD && Opcode != TargetOpcode::G_STORE)
     return false;
 
+  // For now, no targets actually support these opcodes so don't waste time
+  // running these unless we're forced to for testing.
+  if (!ForceLegalIndexing)
+    return false;
+
   MatchInfo.IsPre = findPreIndexCandidate(MI, MatchInfo.Addr, MatchInfo.Base,
                                           MatchInfo.Offset);
   if (!MatchInfo.IsPre &&
@@ -876,14 +881,12 @@ void CombinerHelper::applyCombineIndexedLoadStore(
   LLVM_DEBUG(dbgs() << "    Combinined to indexed operation");
 }
 
-bool CombinerHelper::matchElideBrByInvertingCond(MachineInstr &MI) {
+bool CombinerHelper::matchOptBrCondByInvertingCond(MachineInstr &MI) {
   if (MI.getOpcode() != TargetOpcode::G_BR)
     return false;
 
   // Try to match the following:
   // bb1:
-  //   %c(s32) = G_ICMP pred, %a, %b
-  //   %c1(s1) = G_TRUNC %c(s32)
   //   G_BRCOND %c1, %bb2
   //   G_BR %bb3
   // bb2:
@@ -893,7 +896,7 @@ bool CombinerHelper::matchElideBrByInvertingCond(MachineInstr &MI) {
   // The above pattern does not have a fall through to the successor bb2, always
   // resulting in a branch no matter which path is taken. Here we try to find
   // and replace that pattern with conditional branch to bb3 and otherwise
-  // fallthrough to bb2.
+  // fallthrough to bb2. This is generally better for branch predictors.
 
   MachineBasicBlock *MBB = MI.getParent();
   MachineBasicBlock::iterator BrIt(MI);
@@ -908,40 +911,34 @@ bool CombinerHelper::matchElideBrByInvertingCond(MachineInstr &MI) {
   // Check that the next block is the conditional branch target.
   if (!MBB->isLayoutSuccessor(BrCond->getOperand(1).getMBB()))
     return false;
-
-  MachineInstr *CmpMI = MRI.getVRegDef(BrCond->getOperand(0).getReg());
-  if (!CmpMI || CmpMI->getOpcode() != TargetOpcode::G_ICMP ||
-      !MRI.hasOneNonDBGUse(CmpMI->getOperand(0).getReg()))
-    return false;
   return true;
 }
 
-bool CombinerHelper::tryElideBrByInvertingCond(MachineInstr &MI) {
-  if (!matchElideBrByInvertingCond(MI))
-    return false;
-  applyElideBrByInvertingCond(MI);
-  return true;
-}
-
-void CombinerHelper::applyElideBrByInvertingCond(MachineInstr &MI) {
+void CombinerHelper::applyOptBrCondByInvertingCond(MachineInstr &MI) {
   MachineBasicBlock *BrTarget = MI.getOperand(0).getMBB();
   MachineBasicBlock::iterator BrIt(MI);
   MachineInstr *BrCond = &*std::prev(BrIt);
-  MachineInstr *CmpMI = MRI.getVRegDef(BrCond->getOperand(0).getReg());
 
-  CmpInst::Predicate InversePred = CmpInst::getInversePredicate(
-      (CmpInst::Predicate)CmpMI->getOperand(1).getPredicate());
+  Builder.setInstrAndDebugLoc(*BrCond);
+  LLT Ty = MRI.getType(BrCond->getOperand(0).getReg());
+  // FIXME: Does int/fp matter for this? If so, we might need to restrict
+  // this to i1 only since we might not know for sure what kind of
+  // compare generated the condition value.
+  auto True = Builder.buildConstant(
+      Ty, getICmpTrueVal(getTargetLowering(), false, false));
+  auto Xor = Builder.buildXor(Ty, BrCond->getOperand(0), True);
 
-  // Invert the G_ICMP condition.
-  Observer.changingInstr(*CmpMI);
-  CmpMI->getOperand(1).setPredicate(InversePred);
-  Observer.changedInstr(*CmpMI);
+  auto *FallthroughBB = BrCond->getOperand(1).getMBB();
+  Observer.changingInstr(MI);
+  MI.getOperand(0).setMBB(FallthroughBB);
+  Observer.changedInstr(MI);
 
-  // Change the conditional branch target.
+  // Change the conditional branch to use the inverted condition and
+  // new target block.
   Observer.changingInstr(*BrCond);
+  BrCond->getOperand(0).setReg(Xor.getReg(0));
   BrCond->getOperand(1).setMBB(BrTarget);
   Observer.changedInstr(*BrCond);
-  MI.eraseFromParent();
 }
 
 static bool shouldLowerMemFuncForSize(const MachineFunction &MF) {
@@ -1816,6 +1813,12 @@ bool CombinerHelper::applyCombineExtOfExt(
   return false;
 }
 
+bool CombinerHelper::matchCombineFNegOfFNeg(MachineInstr &MI, Register &Reg) {
+  assert(MI.getOpcode() == TargetOpcode::G_FNEG && "Expected a G_FNEG");
+  Register SrcReg = MI.getOperand(1).getReg();
+  return mi_match(SrcReg, MRI, m_GFNeg(m_Reg(Reg)));
+}
+
 bool CombinerHelper::matchAnyExplicitUseIsUndef(MachineInstr &MI) {
   return any_of(MI.explicit_uses(), [this](const MachineOperand &MO) {
     return MO.isReg() &&
@@ -1982,6 +1985,12 @@ bool CombinerHelper::matchOperandIsZero(MachineInstr &MI, unsigned OpIdx) {
   return matchConstantOp(MI.getOperand(OpIdx), 0) &&
          canReplaceReg(MI.getOperand(0).getReg(), MI.getOperand(OpIdx).getReg(),
                        MRI);
+}
+
+bool CombinerHelper::matchOperandIsUndef(MachineInstr &MI, unsigned OpIdx) {
+  MachineOperand &MO = MI.getOperand(OpIdx);
+  return MO.isReg() &&
+         getOpcodeDef(TargetOpcode::G_IMPLICIT_DEF, MO.getReg(), MRI);
 }
 
 bool CombinerHelper::replaceInstWithFConstant(MachineInstr &MI, double C) {
@@ -2238,13 +2247,13 @@ static bool isConstValidTrue(const TargetLowering &TLI, unsigned ScalarSizeBits,
          isConstTrueVal(TLI, Cst, IsVector, IsFP);
 }
 
-bool CombinerHelper::matchNotCmp(MachineInstr &MI, Register &CmpReg) {
+bool CombinerHelper::matchNotCmp(MachineInstr &MI,
+                                 SmallVectorImpl<Register> &RegsToNegate) {
   assert(MI.getOpcode() == TargetOpcode::G_XOR);
   LLT Ty = MRI.getType(MI.getOperand(0).getReg());
   const auto &TLI = *Builder.getMF().getSubtarget().getTargetLowering();
   Register XorSrc;
   Register CstReg;
-  int64_t Cst;
   // We match xor(src, true) here.
   if (!mi_match(MI.getOperand(0).getReg(), MRI,
                 m_GXor(m_Reg(XorSrc), m_Reg(CstReg))))
@@ -2253,15 +2262,51 @@ bool CombinerHelper::matchNotCmp(MachineInstr &MI, Register &CmpReg) {
   if (!MRI.hasOneNonDBGUse(XorSrc))
     return false;
 
-  // Now try match src to either icmp or fcmp.
+  // Check that XorSrc is the root of a tree of comparisons combined with ANDs
+  // and ORs. The suffix of RegsToNegate starting from index I is used a work
+  // list of tree nodes to visit.
+  RegsToNegate.push_back(XorSrc);
+  // Remember whether the comparisons are all integer or all floating point.
+  bool IsInt = false;
   bool IsFP = false;
-  if (!mi_match(XorSrc, MRI, m_GICmp(m_Pred(), m_Reg(), m_Reg()))) {
-    // Try fcmp.
-    if (!mi_match(XorSrc, MRI, m_GFCmp(m_Pred(), m_Reg(), m_Reg())))
+  for (unsigned I = 0; I < RegsToNegate.size(); ++I) {
+    Register Reg = RegsToNegate[I];
+    if (!MRI.hasOneNonDBGUse(Reg))
       return false;
-    IsFP = true;
+    MachineInstr *Def = MRI.getVRegDef(Reg);
+    switch (Def->getOpcode()) {
+    default:
+      // Don't match if the tree contains anything other than ANDs, ORs and
+      // comparisons.
+      return false;
+    case TargetOpcode::G_ICMP:
+      if (IsFP)
+        return false;
+      IsInt = true;
+      // When we apply the combine we will invert the predicate.
+      break;
+    case TargetOpcode::G_FCMP:
+      if (IsInt)
+        return false;
+      IsFP = true;
+      // When we apply the combine we will invert the predicate.
+      break;
+    case TargetOpcode::G_AND:
+    case TargetOpcode::G_OR:
+      // Implement De Morgan's laws:
+      // ~(x & y) -> ~x | ~y
+      // ~(x | y) -> ~x & ~y
+      // When we apply the combine we will change the opcode and recursively
+      // negate the operands.
+      RegsToNegate.push_back(Def->getOperand(1).getReg());
+      RegsToNegate.push_back(Def->getOperand(2).getReg());
+      break;
+    }
   }
 
+  // Now we know whether the comparisons are integer or floating point, check
+  // the constant in the xor.
+  int64_t Cst;
   if (Ty.isVector()) {
     MachineInstr *CstDef = MRI.getVRegDef(CstReg);
     auto MaybeCst = getBuildVectorConstantSplat(*CstDef, MRI);
@@ -2276,25 +2321,38 @@ bool CombinerHelper::matchNotCmp(MachineInstr &MI, Register &CmpReg) {
       return false;
   }
 
-  CmpReg = XorSrc;
   return true;
 }
 
-bool CombinerHelper::applyNotCmp(MachineInstr &MI, Register &CmpReg) {
-  MachineInstr *CmpDef = MRI.getVRegDef(CmpReg);
-  assert(CmpDef && "Should have been given an MI reg");
-  assert(CmpDef->getOpcode() == TargetOpcode::G_ICMP ||
-         CmpDef->getOpcode() == TargetOpcode::G_FCMP);
+bool CombinerHelper::applyNotCmp(MachineInstr &MI,
+                                 SmallVectorImpl<Register> &RegsToNegate) {
+  for (Register Reg : RegsToNegate) {
+    MachineInstr *Def = MRI.getVRegDef(Reg);
+    Observer.changingInstr(*Def);
+    // For each comparison, invert the opcode. For each AND and OR, change the
+    // opcode.
+    switch (Def->getOpcode()) {
+    default:
+      llvm_unreachable("Unexpected opcode");
+    case TargetOpcode::G_ICMP:
+    case TargetOpcode::G_FCMP: {
+      MachineOperand &PredOp = Def->getOperand(1);
+      CmpInst::Predicate NewP = CmpInst::getInversePredicate(
+          (CmpInst::Predicate)PredOp.getPredicate());
+      PredOp.setPredicate(NewP);
+      break;
+    }
+    case TargetOpcode::G_AND:
+      Def->setDesc(Builder.getTII().get(TargetOpcode::G_OR));
+      break;
+    case TargetOpcode::G_OR:
+      Def->setDesc(Builder.getTII().get(TargetOpcode::G_AND));
+      break;
+    }
+    Observer.changedInstr(*Def);
+  }
 
-  Observer.changingInstr(*CmpDef);
-  MachineOperand &PredOp = CmpDef->getOperand(1);
-  CmpInst::Predicate NewP = CmpInst::getInversePredicate(
-      (CmpInst::Predicate)PredOp.getPredicate());
-  PredOp.setPredicate(NewP);
-  Observer.changedInstr(*CmpDef);
-
-  replaceRegWith(MRI, MI.getOperand(0).getReg(),
-                 CmpDef->getOperand(0).getReg());
+  replaceRegWith(MRI, MI.getOperand(0).getReg(), MI.getOperand(1).getReg());
   MI.eraseFromParent();
   return true;
 }

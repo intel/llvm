@@ -48,14 +48,14 @@ static bool hasMultiplyAddBody(Region &r) {
   auto c = m_Val(r.getArgument(2));
   // TODO: Update this detection once we have  matcher support for specifying
   // that any permutation of operands matches.
-  auto pattern1 = m_Op<YieldOp>(m_Op<AddFOp>(m_Op<MulFOp>(a, b), c));
-  auto pattern2 = m_Op<YieldOp>(m_Op<AddFOp>(c, m_Op<MulFOp>(a, b)));
-  auto pattern3 = m_Op<YieldOp>(m_Op<AddFOp>(m_Op<MulFOp>(b, a), c));
-  auto pattern4 = m_Op<YieldOp>(m_Op<AddFOp>(c, m_Op<MulFOp>(b, a)));
-  auto pattern5 = m_Op<YieldOp>(m_Op<AddIOp>(m_Op<MulIOp>(a, b), c));
-  auto pattern6 = m_Op<YieldOp>(m_Op<AddIOp>(c, m_Op<MulIOp>(a, b)));
-  auto pattern7 = m_Op<YieldOp>(m_Op<AddIOp>(m_Op<MulIOp>(b, a), c));
-  auto pattern8 = m_Op<YieldOp>(m_Op<AddIOp>(c, m_Op<MulIOp>(b, a)));
+  auto pattern1 = m_Op<linalg::YieldOp>(m_Op<AddFOp>(m_Op<MulFOp>(a, b), c));
+  auto pattern2 = m_Op<linalg::YieldOp>(m_Op<AddFOp>(c, m_Op<MulFOp>(a, b)));
+  auto pattern3 = m_Op<linalg::YieldOp>(m_Op<AddFOp>(m_Op<MulFOp>(b, a), c));
+  auto pattern4 = m_Op<linalg::YieldOp>(m_Op<AddFOp>(c, m_Op<MulFOp>(b, a)));
+  auto pattern5 = m_Op<linalg::YieldOp>(m_Op<AddIOp>(m_Op<MulIOp>(a, b), c));
+  auto pattern6 = m_Op<linalg::YieldOp>(m_Op<AddIOp>(c, m_Op<MulIOp>(a, b)));
+  auto pattern7 = m_Op<linalg::YieldOp>(m_Op<AddIOp>(m_Op<MulIOp>(b, a), c));
+  auto pattern8 = m_Op<linalg::YieldOp>(m_Op<AddIOp>(c, m_Op<MulIOp>(b, a)));
   return pattern1.match(&r.front().back()) ||
          pattern2.match(&r.front().back()) ||
          pattern3.match(&r.front().back()) ||
@@ -69,7 +69,7 @@ static bool hasMultiplyAddBody(Region &r) {
 static LogicalResult isContraction(Operation *op) {
   // TODO: interface for named ops.
   if (isa<linalg::BatchMatmulOp, linalg::MatmulOp, linalg::MatvecOp,
-          linalg::DotOp>(op))
+          linalg::VecmatOp, linalg::DotOp>(op))
     return success();
 
   auto genericOp = dyn_cast<linalg::GenericOp>(op);
@@ -366,4 +366,99 @@ LogicalResult LinalgCopyVTWForwardingPattern::matchAndRewrite(
   rewriter.eraseOp(xferOp);
 
   return success();
+}
+
+template <class ConvOp, int N>
+LogicalResult ConvOpVectorization<ConvOp, N>::matchAndRewrite(
+    ConvOp op, PatternRewriter &rewriter) const {
+  unsigned dimSize = 3;
+  Location loc = op.getLoc();
+  MLIRContext *context = op.getContext();
+  edsc::ScopedContext scope(rewriter, loc);
+
+  ShapedType inShapeType = op.getInputShapedType(0);
+  ShapedType kShapeType = op.getInputShapedType(1);
+
+  ArrayRef<int64_t> inShape = inShapeType.getShape();
+  ArrayRef<int64_t> kShape = kShapeType.getShape();
+
+  if (!inShapeType.hasStaticShape() || !kShapeType.hasStaticShape())
+    return failure();
+
+  SmallVector<AffineExpr, 4> mapping;
+  // Fail to apply when the size of not vectorized dimension is not 1 or
+  // when the size of vectorized dimension is not dimSize.
+  for (unsigned i = 0; i < N; i++) {
+    if (!mask[i] && (inShape[i] != 1 || kShape[i] != 1))
+      return failure();
+    if (mask[i] && (inShape[i] != dimSize || kShape[i] != dimSize))
+      return failure();
+
+    if (mask[i])
+      mapping.push_back(getAffineDimExpr(i, context));
+  }
+
+  Value input = op.getInput(0);
+  Value kernel = op.getInput(1);
+  Value output = op.getOutputBuffer(0);
+
+  unsigned rank = inShapeType.getRank();
+  unsigned numDims = mapping.size();
+  Type elemType = inShapeType.getElementType();
+
+  auto map = AffineMap::get(rank, 0, mapping, context);
+  SmallVector<Value, 4> zeros(rank, std_constant_index(0));
+  auto vecType =
+      VectorType::get(SmallVector<int64_t, 4>(numDims, dimSize), elemType);
+
+  auto inputVec = vector_transfer_read(vecType, input, zeros, map);
+  auto kernelVec = vector_transfer_read(vecType, kernel, zeros, map);
+
+  auto acc = std_constant(elemType, rewriter.getZeroAttr(elemType));
+
+  std::array<AffineMap, 3> indexingMaps{
+      AffineMap::getMultiDimIdentityMap(numDims, context),
+      AffineMap::getMultiDimIdentityMap(numDims, context),
+      AffineMap::get(numDims, 0, {}, context)};
+
+  std::vector<StringRef> iteratorTypes(numDims, "reduction");
+
+  auto result = rewriter.create<vector::ContractionOp>(
+      loc, inputVec, kernelVec, acc,
+      rewriter.getAffineMapArrayAttr(indexingMaps),
+      rewriter.getStrArrayAttr(iteratorTypes));
+
+  rewriter.create<StoreOp>(loc, result, output, ValueRange(zeros));
+  rewriter.eraseOp(op);
+  return success();
+}
+
+void mlir::linalg::populateConvVectorizationPatterns(
+    MLIRContext *context, OwningRewritePatternList &patterns) {
+  patterns.insert<ConvOpVectorization<linalg::ConvWOp, 1>>(
+      context, SmallVector<bool, 4>{true});
+
+  patterns.insert<ConvOpVectorization<linalg::ConvNWCOp, 3>>(
+      context, SmallVector<bool, 4>{false, true, true});
+
+  patterns.insert<ConvOpVectorization<linalg::ConvNCWOp, 3>>(
+      context, SmallVector<bool, 4>{false, true, true});
+
+  patterns.insert<ConvOpVectorization<linalg::ConvHWOp, 2>>(
+      context, SmallVector<bool, 4>{true, true});
+
+  patterns.insert<ConvOpVectorization<linalg::ConvNHWCOp, 4>>(
+      context, SmallVector<bool, 4>{false, true, true, true});
+
+  patterns.insert<ConvOpVectorization<linalg::ConvNCHWOp, 4>>(
+      context, SmallVector<bool, 4>{false, true, true, true});
+
+  patterns.insert<ConvOpVectorization<linalg::ConvDHWOp, 3>>(
+      context, SmallVector<bool, 4>{true, true, true});
+
+  patterns.insert<ConvOpVectorization<linalg::ConvNDHWCOp, 5>>(
+      context, SmallVector<bool, 4>{false, true, true, true, true});
+
+  patterns.insert<ConvOpVectorization<linalg::ConvNCDHWOp, 5>>(
+      context, SmallVector<bool, 4>{false, true, true, true, true});
 }

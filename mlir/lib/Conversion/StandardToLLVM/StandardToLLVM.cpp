@@ -642,9 +642,11 @@ void MemRefDescriptor::setConstantStride(OpBuilder &builder, Location loc,
             createIndexAttrConstant(builder, loc, indexType, stride));
 }
 
-LLVM::LLVMType MemRefDescriptor::getElementType() {
-  return value.getType().cast<LLVM::LLVMType>().getStructElementType(
-      kAlignedPtrPosInMemRefDescriptor);
+LLVM::LLVMPointerType MemRefDescriptor::getElementPtrType() {
+  return value.getType()
+      .cast<LLVM::LLVMType>()
+      .getStructElementType(kAlignedPtrPosInMemRefDescriptor)
+      .cast<LLVM::LLVMPointerType>();
 }
 
 /// Creates a MemRef descriptor structure from a list of individual values
@@ -894,7 +896,7 @@ Value ConvertToLLVMPattern::getStridedElementPtr(
 Value ConvertToLLVMPattern::getDataPtr(
     Location loc, MemRefType type, Value memRefDesc, ValueRange indices,
     ConversionPatternRewriter &rewriter) const {
-  LLVM::LLVMType ptrType = MemRefDescriptor(memRefDesc).getElementType();
+  LLVM::LLVMType ptrType = MemRefDescriptor(memRefDesc).getElementPtrType();
   int64_t offset;
   SmallVector<int64_t, 4> strides;
   auto successStrides = getStridesAndOffset(type, strides, offset);
@@ -1893,11 +1895,17 @@ struct AllocLikeOpLowering : public ConvertOpToLLVMPattern<AllocLikeOp> {
       // Adjust the allocation size to consider alignment.
       if (Optional<uint64_t> alignment = allocOp.alignment()) {
         accessAlignment = createIndexConstant(rewriter, loc, *alignment);
-        cumulativeSize = rewriter.create<LLVM::SubOp>(
-            loc,
-            rewriter.create<LLVM::AddOp>(loc, cumulativeSize, accessAlignment),
-            one);
+      } else if (!memRefType.getElementType().isSignlessIntOrIndexOrFloat()) {
+        // In the case where no alignment is specified, we may want to override
+        // `malloc's` behavior. `malloc` typically aligns at the size of the
+        // biggest scalar on a target HW. For non-scalars, use the natural
+        // alignment of the LLVM type given by the LLVM DataLayout.
+        accessAlignment =
+            this->getSizeInBytes(loc, memRefType.getElementType(), rewriter);
       }
+      if (accessAlignment)
+        cumulativeSize =
+            rewriter.create<LLVM::AddOp>(loc, cumulativeSize, accessAlignment);
       callArgs.push_back(cumulativeSize);
     }
     auto allocFuncSymbol = rewriter.getSymbolRefAttr(allocFunc);

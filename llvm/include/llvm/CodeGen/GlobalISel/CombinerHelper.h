@@ -147,9 +147,10 @@ public:
   bool matchSextInRegOfLoad(MachineInstr &MI, std::tuple<Register, unsigned> &MatchInfo);
   bool applySextInRegOfLoad(MachineInstr &MI, std::tuple<Register, unsigned> &MatchInfo);
 
-  bool matchElideBrByInvertingCond(MachineInstr &MI);
-  void applyElideBrByInvertingCond(MachineInstr &MI);
-  bool tryElideBrByInvertingCond(MachineInstr &MI);
+  /// If a brcond's true block is not the fallthrough, make it so by inverting
+  /// the condition and swapping operands.
+  bool matchOptBrCondByInvertingCond(MachineInstr &MI);
+  void applyOptBrCondByInvertingCond(MachineInstr &MI);
 
   /// If \p MI is G_CONCAT_VECTORS, try to combine it.
   /// Returns true if MI changed.
@@ -268,6 +269,9 @@ public:
   bool applyCombineExtOfExt(MachineInstr &MI,
                             std::tuple<Register, unsigned> &MatchInfo);
 
+  /// Transform fneg(fneg(x)) to x.
+  bool matchCombineFNegOfFNeg(MachineInstr &MI, Register &Reg);
+
   /// Return true if any explicit use operand on \p MI is defined by a
   /// G_IMPLICIT_DEF.
   bool matchAnyExplicitUseIsUndef(MachineInstr &MI);
@@ -321,6 +325,9 @@ public:
   /// Check if operand \p OpIdx is zero.
   bool matchOperandIsZero(MachineInstr &MI, unsigned OpIdx);
 
+  /// Check if operand \p OpIdx is undef.
+  bool matchOperandIsUndef(MachineInstr &MI, unsigned OpIdx);
+
   /// Erase \p MI
   bool eraseInst(MachineInstr &MI);
 
@@ -356,8 +363,8 @@ public:
   bool matchRedundantSExtInReg(MachineInstr &MI);
 
   /// Combine inverting a result of a compare into the opposite cond code.
-  bool matchNotCmp(MachineInstr &MI, Register &CmpReg);
-  bool applyNotCmp(MachineInstr &MI, Register &CmpReg);
+  bool matchNotCmp(MachineInstr &MI, SmallVectorImpl<Register> &RegsToNegate);
+  bool applyNotCmp(MachineInstr &MI, SmallVectorImpl<Register> &RegsToNegate);
 
   /// Try to transform \p MI by using all of the above
   /// combine functions. Returns true if changed.

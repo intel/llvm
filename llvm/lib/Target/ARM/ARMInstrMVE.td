@@ -1918,6 +1918,7 @@ class MVE_VQxDMULH_Base<string iname, string suffix, bits<2> size, bit rounding,
   let Inst{12-8} = 0b01011;
   let Inst{4} = 0b0;
   let Inst{0} = 0b0;
+  let validForTailPredication = 1;
 }
 
 multiclass MVE_VQxDMULH_m<string iname, MVEVectorVTInfo VTI,
@@ -4382,6 +4383,10 @@ let Predicates = [HasMVEInt] in {
 // vector types (v4i1<>v8i1, etc.) also as part of lowering vector shuffles.
 def predicate_cast : SDNode<"ARMISD::PREDICATE_CAST", SDTUnaryOp>;
 
+def load_align4 : PatFrag<(ops node:$ptr), (load node:$ptr), [{
+  return cast<LoadSDNode>(N)->getAlignment() >= 4;
+}]>;
+
 let Predicates = [HasMVEInt] in {
   foreach VT = [ v4i1, v8i1, v16i1 ] in {
     def : Pat<(i32 (predicate_cast (VT VCCR:$src))),
@@ -4392,6 +4397,13 @@ let Predicates = [HasMVEInt] in {
     foreach VT2 = [ v4i1, v8i1, v16i1 ] in
       def : Pat<(VT  (predicate_cast (VT2 VCCR:$src))),
                 (VT  (COPY_TO_REGCLASS (VT2 VCCR:$src), VCCR))>;
+  }
+
+  // If we happen to be casting from a load we can convert that straight
+  // into a predicate load, so long as the load is of the correct type.
+  foreach VT = [ v4i1, v8i1, v16i1 ] in {
+    def : Pat<(VT (predicate_cast (i32 (load_align4 taddrmode_imm7<2>:$addr)))),
+              (VT (VLDR_P0_off taddrmode_imm7<2>:$addr))>;
   }
 
   // Here we match the specific SDNode type 'ARMVectorRegCastImpl'
@@ -5442,6 +5454,7 @@ class MVE_VxxMUL_qr<string iname, string suffix,
   let Inst{12} = 0b0;
   let Inst{8} = 0b0;
   let Inst{5} = 0b1;
+  let validForTailPredication = 1;
 }
 
 multiclass MVE_VxxMUL_qr_m<string iname, MVEVectorVTInfo VTI, bit bit_28,
@@ -5699,6 +5712,7 @@ def MVE_VDWDUPu8  : MVE_VxWDUP<"vdwdup", "u8",  0b00, 0b1>;
 def MVE_VDWDUPu16 : MVE_VxWDUP<"vdwdup", "u16", 0b01, 0b1>;
 def MVE_VDWDUPu32 : MVE_VxWDUP<"vdwdup", "u32", 0b10, 0b1>;
 
+let isReMaterializable = 1 in
 class MVE_VCTPInst<string suffix, bits<2> size, list<dag> pattern=[]>
   : MVE_p<(outs VCCR:$P0), (ins rGPR:$Rn), NoItinerary, "vctp", suffix,
           "$Rn", vpred_n, "", pattern> {
