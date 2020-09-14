@@ -836,7 +836,7 @@ class KernelObjVisitor {
   // type (which doesn't exist in cases where it is a FieldDecl in the
   // 'root'), and Wrapper is the current struct being unwrapped.
   template <typename ParentTy, typename... HandlerTys>
-  void visitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
+  void visitComplexRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
                    const CXXRecordDecl *Wrapper, QualType RecordTy,
                    HandlerTys &... Handlers) {
     (void)std::initializer_list<int>{
@@ -846,6 +846,19 @@ class KernelObjVisitor {
     (void)std::initializer_list<int>{
         (Handlers.leaveStruct(Owner, Parent, RecordTy), 0)...};
   }
+
+  template <typename ParentTy, typename... HandlerTys>
+  void visitSimpleRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
+                   const CXXRecordDecl *Wrapper, QualType RecordTy,
+                   HandlerTys &... Handlers) {
+    (void)std::initializer_list<int>{
+        (Handlers.handleNonDecompStruct(Owner, Parent, RecordTy), 0)...};
+  }
+
+  template <typename ParentTy, typename... HandlerTys>
+  void visitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
+                   const CXXRecordDecl *Wrapper, QualType RecordTy,
+                   HandlerTys &... Handlers);
 
   template <typename ParentTy, typename... HandlerTys>
   void VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
@@ -916,8 +929,15 @@ class KernelObjVisitor {
                             HandlerTys &... Handlers);
 
   template <typename... HandlerTys>
-  void visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
-                  QualType ArrayTy, HandlerTys &... Handlers) {
+  void visitSimpleArray(const CXXRecordDecl *Owner, FieldDecl *Field,
+                        QualType ArrayTy, HandlerTys &... Handlers) {
+    (void)std::initializer_list<int>{
+        (Handlers.handleSimpleArrayType(Field, ArrayTy), 0)...};
+  }
+
+  template <typename... HandlerTys>
+  void visitComplexArray(const CXXRecordDecl *Owner, FieldDecl *Field,
+                         QualType ArrayTy, HandlerTys &... Handlers) {
     // Array workflow is:
     // handleArrayType
     // enterArray
@@ -947,6 +967,10 @@ class KernelObjVisitor {
     (void)std::initializer_list<int>{
         (Handlers.leaveArray(Field, ArrayTy, ET), 0)...};
   }
+
+  template <typename... HandlerTys>
+  void visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
+                  QualType ArrayTy, HandlerTys &... Handlers);
 
   template <typename... HandlerTys>
   void visitField(const CXXRecordDecl *Owner, FieldDecl *Field,
@@ -1011,6 +1035,10 @@ class SyclKernelFieldHandlerBase {
 public:
   static constexpr const bool VisitUnionBody = false;
   static constexpr const bool VisitNthArrayElement = true;
+  // Opt-in based on whether we should visit inside Simple containers (structs,
+  // arrays). All of the 'check' types should likely be true, the int-header,
+  // and kernel decl creation types should not.
+  static constexpr const bool VisitInsideSimpleContainers = true;
   // Mark these virtual so that we can use override in the implementer classes,
   // despite virtual dispatch never being used.
 
@@ -1046,6 +1074,28 @@ public:
   virtual bool handleScalarType(FieldDecl *, QualType) { return true; }
   // Most handlers shouldn't be handling this, just the field checker.
   virtual bool handleOtherType(FieldDecl *, QualType) { return true; }
+
+  // Handle a simple struct that doesn't need to be decomposed, only called on
+  // handlers with VisitInsideSimpleContainers as false.  Replaces
+  // handleStructType, enterStruct, leaveStruct, and visiting of sub-elements.
+  virtual bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *,
+                                     QualType) {
+    // TODO: Should this assert? Empty would have to do something about it.
+    return true;
+  }
+  virtual bool handleNonDecompStruct(const CXXRecordDecl *,
+                                     const CXXBaseSpecifier &, QualType) {
+    // TODO: Should this assert? Empty would have to do something about it.
+    return true;
+  }
+
+  // Instead of handleArrayType, enterArray, leaveArray, and nextElement (plus
+  // descending down the elements), this function gets called in the event of an
+  // array containing simple elements (even in the case of an MD array).
+  virtual bool handleSimpleArrayType(FieldDecl *, QualType) {
+    // TODO: Should this assert? Empty would have to do something about it.
+    return true;
+  }
 
   // The following are only used for keeping track of where we are in the base
   // class/field graph. Int Headers use this to calculate offset, most others
@@ -1118,6 +1168,14 @@ template <bool B, bool... Rest> struct AnyTrue {
   static constexpr bool Value = B || AnyTrue<Rest...>::Value;
 };
 
+template<bool B, bool... Rest> struct AllTrue;
+
+template <bool B> struct AllTrue<B> { static constexpr bool Value = B; };
+
+template <bool B, bool... Rest> struct AllTrue {
+  static constexpr bool Value = B && AnyTrue<Rest...>::Value;
+};
+
 template <typename ParentTy, typename... Handlers>
 void KernelObjVisitor::VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
                                   const CXXRecordDecl *Wrapper,
@@ -1144,6 +1202,53 @@ void KernelObjVisitor::visitNthArrayElement(const CXXRecordDecl *Owner,
         Owner, ArrayField, ElementTy, Index,
         HandlerFilter<Handlers::VisitNthArrayElement, Handlers>(handlers)
             .Handler...);
+}
+
+template <typename ParentTy, typename... HandlerTys>
+void KernelObjVisitor::visitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
+                                   const CXXRecordDecl *Wrapper,
+                                   QualType RecordTy,
+                                   HandlerTys &... Handlers) {
+  if (RecordTy->getAsRecordDecl()->hasAttr<SYCLRequiresDecompositionAttr>()) {
+    visitComplexRecord(Owner, Parent, Wrapper, RecordTy, Handlers...);
+  } else {
+    if (!AllTrue<HandlerTys::VisitInsideSimpleContainers...>::Value)
+      visitSimpleRecord(
+          Owner, Parent, Wrapper, RecordTy,
+          HandlerFilter<!HandlerTys::VisitInsideSimpleContainers, HandlerTys>(
+              Handlers)
+              .Handler...);
+
+    if (AnyTrue<HandlerTys::VisitInsideSimpleContainers...>::Value)
+      visitComplexRecord(
+          Owner, Parent, Wrapper, RecordTy,
+          HandlerFilter<HandlerTys::VisitInsideSimpleContainers, HandlerTys>(
+              Handlers)
+              .Handler...);
+  }
+}
+
+template <typename... HandlerTys>
+void KernelObjVisitor::visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
+                                  QualType ArrayTy, HandlerTys &... Handlers) {
+
+  if (Field->hasAttr<SYCLRequiresDecompositionAttr>()) {
+    visitComplexArray(Owner, Field, ArrayTy, Handlers...);
+  } else {
+    if (!AllTrue<HandlerTys::VisitInsideSimpleContainers...>::Value)
+      visitSimpleArray(
+          Owner, Field, ArrayTy,
+          HandlerFilter<!HandlerTys::VisitInsideSimpleContainers, HandlerTys>(
+              Handlers)
+              .Handler...);
+
+    if (AnyTrue<HandlerTys::VisitInsideSimpleContainers...>::Value)
+      visitComplexArray(
+          Owner, Field, ArrayTy,
+          HandlerFilter<HandlerTys::VisitInsideSimpleContainers, HandlerTys>(
+              Handlers)
+              .Handler...);
+  }
 }
 
 // A type to check the validity of all of the argument types.
@@ -1381,6 +1486,132 @@ public:
   }
 };
 
+// A type to mark whether a collection requires decomposition.
+class SyclKernelDecompMarker : public SyclKernelFieldHandler {
+  llvm::SmallVector<bool, 16> CollectionStack;
+
+public:
+  static constexpr const bool VisitUnionBody = false;
+  static constexpr const bool VisitNthArrayElement = false;
+
+  SyclKernelDecompMarker(Sema &S) : SyclKernelFieldHandler(S) {
+    // In order to prevent checking this over and over, just add a dummy-base
+    // entry.
+    CollectionStack.push_back(true);
+  }
+
+  bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &,
+                              QualType) final {
+    CollectionStack.back() = true;
+    return true;
+  }
+  bool handleSyclAccessorType(FieldDecl *, QualType) final {
+    CollectionStack.back() = true;
+    return true;
+  }
+
+  bool handleSyclSamplerType(const CXXRecordDecl *, const CXXBaseSpecifier &,
+                             QualType) final {
+    CollectionStack.back() = true;
+    return true;
+  }
+  bool handleSyclSamplerType(FieldDecl *, QualType) final {
+    CollectionStack.back() = true;
+    return true;
+  }
+  bool handleSyclSpecConstantType(FieldDecl *, QualType) final {
+    CollectionStack.back() = true;
+    return true;
+  }
+  bool handleSyclStreamType(const CXXRecordDecl *, const CXXBaseSpecifier &,
+                            QualType) final {
+    CollectionStack.back() = true;
+    return true;
+  }
+  bool handleSyclStreamType(FieldDecl *, QualType) final {
+    CollectionStack.back() = true;
+    return true;
+  }
+  bool handleSyclHalfType(const CXXRecordDecl *, const CXXBaseSpecifier &,
+                          QualType) final {
+    CollectionStack.back() = true;
+    return true;
+  }
+  bool handleSyclHalfType(FieldDecl *, QualType) final {
+    CollectionStack.back() = true;
+    return true;
+  }
+
+  bool handlePointerType(FieldDecl *, QualType) final {
+    CollectionStack.back() = true;
+    return true;
+  }
+
+  // Stream is always decomposed (and whether it gets decomposed is handled in
+  // handleSyclStreamType), but we need a CollectionStack entry to capture the
+  // accessors that get handled.
+  bool enterStream(const CXXRecordDecl *, FieldDecl *, QualType) final {
+    CollectionStack.push_back(false);
+    return true;
+  }
+  bool leaveStream(const CXXRecordDecl *, FieldDecl *, QualType Ty) final {
+    CollectionStack.pop_back();
+    return true;
+  }
+
+  bool enterStruct(const CXXRecordDecl *, FieldDecl *, QualType) final {
+    CollectionStack.push_back(false);
+    return true;
+  }
+
+  bool leaveStruct(const CXXRecordDecl *, FieldDecl *, QualType Ty) final {
+    if (CollectionStack.pop_back_val()) {
+      RecordDecl *RD = Ty->getAsRecordDecl();
+      if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
+        RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
+            SemaRef.getASTContext()));
+      CollectionStack.back() = true;
+    }
+    return true;
+  }
+
+  bool enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
+                   QualType) final {
+    CollectionStack.push_back(false);
+    return true;
+  }
+
+  bool leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
+                   QualType Ty) final {
+    if (CollectionStack.pop_back_val()) {
+      RecordDecl *RD = Ty->getAsRecordDecl();
+      if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
+        RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
+            SemaRef.getASTContext()));
+      CollectionStack.back() = true;
+    }
+
+    return true;
+  }
+
+  bool enterArray(FieldDecl *, QualType ArrayTy, QualType ElementTy) final {
+    CollectionStack.push_back(false);
+    return true;
+  }
+
+  bool leaveArray(FieldDecl *FD, QualType ArrayTy, QualType ElementTy) final {
+    if (CollectionStack.pop_back_val()) {
+      // Cannot assert, since in MD arrays we'll end up marking them multiple
+      // times.
+      if (!FD->hasAttr<SYCLRequiresDecompositionAttr>())
+        FD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
+            SemaRef.getASTContext()));
+      CollectionStack.back() = true;
+    }
+    return true;
+  }
+};
+
 // A type to Create and own the FunctionDecl for the kernel.
 class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   FunctionDecl *KernelDecl;
@@ -1515,6 +1746,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   }
 
 public:
+  static constexpr const bool VisitInsideSimpleContainers = false;
   SyclKernelDeclCreator(Sema &S, StringRef Name, SourceLocation Loc,
                         bool IsInline, bool IsSIMDKernel)
       : SyclKernelFieldHandler(S),
@@ -1630,8 +1862,29 @@ public:
     return true;
   }
 
+  bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
+    // Arrays are always wrapped in a struct since they cannot be passed
+    // directly.
+    RecordDecl *WrappedPointer = wrapField(FD, FieldTy);
+    QualType ModTy = SemaRef.getASTContext().getRecordType(WrappedPointer);
+    addParam(FD, ModTy);
+    return true;
+  }
+
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
     addParam(FD, FieldTy);
+    return true;
+  }
+
+  bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
+                             QualType Ty) final {
+    addParam(FD, Ty);
+    return true;
+  }
+
+  bool handleNonDecompStruct(const CXXRecordDecl *Base,
+                             const CXXBaseSpecifier &BS, QualType Ty) final {
+    addParam(BS, Ty);
     return true;
   }
 
@@ -1691,6 +1944,7 @@ class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
   }
 
 public:
+  static constexpr const bool VisitInsideSimpleContainers = false;
   SyclKernelArgsSizeChecker(Sema &S, SourceLocation Loc)
       : SyclKernelFieldHandler(S), KernelLoc(Loc) {}
 
@@ -1727,6 +1981,23 @@ public:
 
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
     addParam(FieldTy);
+    return true;
+  }
+
+  bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
+    addParam(FieldTy);
+    return true;
+  }
+
+  bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
+                             QualType Ty) final {
+    addParam(Ty);
+    return true;
+  }
+
+  bool handleNonDecompStruct(const CXXRecordDecl *Base,
+                             const CXXBaseSpecifier &BS, QualType Ty) final {
+    addParam(Ty);
     return true;
   }
 
@@ -1875,6 +2146,23 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return DRE;
   }
 
+  Expr *createSimpleArrayParamReferenceExpr(QualType ArrayTy) {
+    ParmVarDecl *KernelParameter =
+        DeclCreator.getParamVarDeclsForCurrentField()[0];
+    QualType ParamType = KernelParameter->getOriginalType();
+    Expr *DRE = SemaRef.BuildDeclRefExpr(KernelParameter, ParamType, VK_LValue,
+                                         KernelCallerSrcLoc);
+
+    // Unwrapp the array.
+    CXXRecordDecl *WrapperStruct = ParamType->getAsCXXRecordDecl();
+    FieldDecl *ArrayField = *(WrapperStruct->field_begin());
+    DRE = buildMemberExpr(DRE, ArrayField);
+
+    // TODO: do we need to do the L->R val conversion?  I think this should
+    // happen automatically.
+    return DRE;
+  }
+
   // Returns 'true' if the thing we're visiting (Based on the FD/QualType pair)
   // is an element of an array.  This will determine whether we do
   // MemberExprBases in some cases or not, AND determines how we initialize
@@ -1902,8 +2190,11 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
   void addFieldInit(FieldDecl *FD, QualType Ty, MultiExprArg ParamRef,
                     InitializationKind InitKind) {
-    InitializedEntity Entity = getFieldEntity(FD, Ty);
+    addFieldInit(FD, Ty, ParamRef, InitKind, getFieldEntity(FD, Ty));
+  }
 
+  void addFieldInit(FieldDecl *FD, QualType Ty, MultiExprArg ParamRef,
+                    InitializationKind InitKind, InitializedEntity Entity) {
     InitializationSequence InitSeq(SemaRef, Entity, InitKind, ParamRef);
     ExprResult Init = InitSeq.Perform(SemaRef, Entity, InitKind, ParamRef);
 
@@ -1918,6 +2209,22 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
         SemaRef.Context, &BS, /*IsInheritedVirtualBase*/ false, &VarEntity);
     InitializationSequence InitSeq(SemaRef, Entity, InitKind, None);
     ExprResult Init = InitSeq.Perform(SemaRef, Entity, InitKind, None);
+
+    InitListExpr *ParentILE = CollectionInitExprs.back();
+    ParentILE->updateInit(SemaRef.getASTContext(), ParentILE->getNumInits(),
+                          Init.get());
+  }
+
+  void addSimpleBaseInit(const CXXBaseSpecifier &BS, QualType Ty) {
+    InitializationKind InitKind =
+        InitializationKind::CreateCopy(KernelCallerSrcLoc, KernelCallerSrcLoc);
+
+    InitializedEntity Entity = InitializedEntity::InitializeBase(
+        SemaRef.Context, &BS, /*IsInheritedVirtualBase*/ false, &VarEntity);
+
+    Expr *ParamRef = createParamReferenceExpr();
+    InitializationSequence InitSeq(SemaRef, Entity, InitKind, ParamRef);
+    ExprResult Init = InitSeq.Perform(SemaRef, Entity, InitKind, ParamRef);
 
     InitListExpr *ParentILE = CollectionInitExprs.back();
     ParentILE->updateInit(SemaRef.getASTContext(), ParentILE->getNumInits(),
@@ -2057,6 +2364,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   }
 
 public:
+  static constexpr const bool VisitInsideSimpleContainers = false;
   SyclKernelBodyCreator(Sema &S, SyclKernelDeclCreator &DC,
                         const CXXRecordDecl *KernelObj,
                         FunctionDecl *KernelCallerFunc)
@@ -2125,6 +2433,30 @@ public:
     addFieldInit(FD, FieldTy, PointerRef);
     return true;
   }
+
+  bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
+    Expr *ArrayRef = createSimpleArrayParamReferenceExpr(FieldTy);
+    InitializationKind InitKind = InitializationKind::CreateDirect({}, {}, {});
+
+    InitializedEntity Entity =
+        InitializedEntity::InitializeMember(FD, &VarEntity, /*Implicit*/ true);
+
+    addFieldInit(FD, FieldTy, ArrayRef, InitKind, Entity);
+    return true;
+  }
+
+  bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
+                             QualType Ty) final {
+    addSimpleFieldInit(FD, Ty);
+    return true;
+  }
+
+  bool handleNonDecompStruct(const CXXRecordDecl *Base,
+                             const CXXBaseSpecifier &BS, QualType Ty) final {
+    addSimpleBaseInit(BS, Ty);
+    return true;
+  }
+
 
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
     addSimpleFieldInit(FD, FieldTy);
@@ -2286,10 +2618,9 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
 
   void addParam(const FieldDecl *FD, QualType ArgTy,
                 SYCLIntegrationHeader::kernel_param_kind_t Kind) {
-    addParam(FD, ArgTy, Kind, offsetOf(FD, ArgTy));
+    addParam(ArgTy, Kind, offsetOf(FD, ArgTy));
   }
-  void addParam(const FieldDecl *FD, QualType ArgTy,
-                SYCLIntegrationHeader::kernel_param_kind_t Kind,
+  void addParam(QualType ArgTy, SYCLIntegrationHeader::kernel_param_kind_t Kind,
                 uint64_t OffsetAdj) {
     uint64_t Size;
     Size = SemaRef.getASTContext().getTypeSizeInChars(ArgTy).getQuantity();
@@ -2306,6 +2637,7 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   }
 
 public:
+  static constexpr const bool VisitInsideSimpleContainers = false;
   SyclKernelIntHeaderCreator(Sema &S, SYCLIntegrationHeader &H,
                              const CXXRecordDecl *KernelObj, QualType NameType,
                              StringRef Name, StringRef StableName)
@@ -2358,7 +2690,7 @@ public:
     // offsetOf calculation wouldn't work correctly. Therefore, we need to call
     // a version of addParam where we calculate the offset based on the true
     // FieldDecl/FieldType pair, rather than the SampleArg type.
-    addParam(FD, SamplerArg->getType(), SYCLIntegrationHeader::kind_sampler,
+    addParam(SamplerArg->getType(), SYCLIntegrationHeader::kind_sampler,
              offsetOf(FD, FieldTy));
     return true;
   }
@@ -2388,6 +2720,25 @@ public:
 
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
     addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
+    return true;
+  }
+
+  bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
+    // I think this is right, we need to always wrap arrays.
+    addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
+    return true;
+  }
+
+  bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
+                             QualType Ty) final {
+    addParam(FD, Ty, SYCLIntegrationHeader::kind_std_layout);
+    return true;
+  }
+
+  bool handleNonDecompStruct(const CXXRecordDecl *Base,
+                             const CXXBaseSpecifier &, QualType Ty) final {
+    addParam(Ty, SYCLIntegrationHeader::kind_std_layout,
+             offsetOf(Base, Ty->getAsCXXRecordDecl()));
     return true;
   }
 
@@ -2491,8 +2842,6 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
       }
   }
 
-  SyclKernelFieldChecker FieldChecker(*this);
-  SyclKernelUnionChecker UnionChecker(*this);
   SyclKernelArgsSizeChecker ArgsSizeChecker(*this, Args[0]->getExprLoc());
   // check that calling kernel conforms to spec
   QualType KernelParamTy = KernelFunc->getParamDecl(0)->getType();
@@ -2510,12 +2859,15 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   if (KernelObj->isInvalidDecl())
     return;
 
+  SyclKernelFieldChecker FieldChecker(*this);
+  SyclKernelUnionChecker UnionChecker(*this);
+  SyclKernelDecompMarker DecompMarker(*this);
   KernelObjVisitor Visitor{*this};
   DiagnosingSYCLKernel = true;
   Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker,
-                           ArgsSizeChecker);
+                           ArgsSizeChecker, DecompMarker);
   Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker,
-                            ArgsSizeChecker);
+                            ArgsSizeChecker, DecompMarker);
   DiagnosingSYCLKernel = false;
   if (!FieldChecker.isValid() || !UnionChecker.isValid())
     KernelFunc->setInvalidDecl();
