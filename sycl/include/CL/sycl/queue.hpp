@@ -149,6 +149,8 @@ public:
 
   queue(queue &&RHS) = default;
 
+  ~queue(); // forward declaration
+
   queue &operator=(const queue &RHS) = default;
 
   queue &operator=(queue &&RHS) = default;

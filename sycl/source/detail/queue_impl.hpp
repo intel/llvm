@@ -124,6 +124,16 @@ public:
     }
   }
 
+  /// command resources are usually released from queue.wait(), but
+  /// if that is not invoked, then they may still need releasing.
+  void releaseUninvokedResources() {
+    for (std::weak_ptr<event_impl> &EventImplWeakPtr : MEvents) {
+      if (std::shared_ptr<event_impl> EventImplPtr = EventImplWeakPtr.lock())
+        detail::Scheduler::getInstance().cleanupFinishedCommands(
+            std::move(EventImplPtr));
+    }
+  }
+
   /// \return an OpenCL interoperability queue handle.
   cl_command_queue get() {
     if (!MHostQueue) {
