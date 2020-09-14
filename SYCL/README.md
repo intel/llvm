@@ -10,7 +10,9 @@ This directory contains SYCL-related tests distributed in subdirectories:
  - Basic - tests used for sanity testing. Building, executing and checks are
    defined using insource comments with LIT syntax.
  - External - contains infrastructure for running tests which sources are
-   stored outside of this repository.
+   stored outside of this repository (see [External/README.md](External/README.md) for details).
+ - ExtraTests - contains infrastructure for picking up LIT style tests
+   from external directory passed in SYCL_EXTRA_TESTS_SRC. 
 
 # Execution
 ```
@@ -22,14 +24,12 @@ cd build
 cmake -G Ninja \
         -DTEST_SUITE_SUBDIRS=SYCL \
         -DTEST_SUITE_LIT=<PATH_TO_llvm-lit> \
-        -DCHECK_SYCL_ALL="PI_OPENCL:cpu,acc,gpu,host;PI_LEVEL_ZERO:gpu,host" \
-        -C<CMAKE_CHASHED_CONFIG> \
+        -DCHECK_SYCL_ALL="PI_OPENCL:cpu,acc,gpu,host;PI_OPENCL:cpu;PI_OPENCL:gpu;PI_OPENCL:acc;PI_OPENCL:host;PI_LEVEL_ZERO:gpu,host;PI_LEVEL_ZERO:gpu;PI_LEVEL_ZERO:host" \
         -DSYCL_EXTERNAL_TESTS="RSBench" \
         ..
-# Building full list of tests in subdir
-ninja check
-# or
-llvm-lit .
+# Build and run full list of tests for all supported combinations of target
+backends and devices.
+ninja check-sycl-all -k0
 # Get list of available tests
 llvm-lit . --show-tests
 # Run specific test
