@@ -18,7 +18,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-// This helper template must be specialized for nestend instance template
+// This helper template must be specialized for nested instance template
 // of each compile-time-constant property.
 template <typename T> struct IsCxPropertyInstance : std::false_type {};
 } // namespace detail
