@@ -1,8 +1,4 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 #include <CL/sycl.hpp>
 
@@ -28,19 +24,6 @@ int main() {
     accessor_property_list PL{no_alias};
     static_assert(PL.has_property<property::no_alias>(), "Property not found");
     static_assert(!PL.has_property<property::no_offset>(), "Property is found");
-  }
-
-  {
-    // Single RT property
-    accessor_property_list PL{sycl::noinit};
-    assert(PL.has_property<sycl::property::noinit>() && "Property not found");
-  }
-
-  {
-    // Compile time and runtime properties
-    accessor_property_list PL{sycl::noinit, no_alias};
-    assert(PL.has_property<property::no_alias>() && "Property not found");
-    assert(PL.has_property<sycl::property::noinit>() && "Property not found");
   }
 
   {
