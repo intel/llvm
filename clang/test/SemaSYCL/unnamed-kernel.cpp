@@ -66,7 +66,6 @@ public:
 
     using ValidAlias = MyWrapper;
     q.submit([&](cl::sycl::handler &h) {
-      
       h.single_task<ValidAlias>([] {});
     });
 
@@ -102,8 +101,8 @@ public:
 int main() {
   cl::sycl::queue q;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-// expected-error@Inputs/sycl.hpp:220 {{kernel name is missing}}
-// expected-note@+2{{in instantiation of function template specialization}}
+  // expected-error@Inputs/sycl.hpp:220 {{kernel name is missing}}
+  // expected-note@+2{{in instantiation of function template specialization}}
 #endif
   q.submit([&](cl::sycl::handler &h) { h.single_task([] {}); });
 

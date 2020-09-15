@@ -34,8 +34,14 @@ void use() {
     int Array[1991];
   } Args;
   auto L = [=]() { (void)Args; };
-#if defined(GPU) || defined(ERROR)
-  // expected-note@+2 {{in instantiation of function template specialization 'parallel_for<Foo}}
+#ifdef GPU
+  // expected-note@+8 {{in instantiation of function template specialization 'parallel_for<Foo}}
+#elif ERROR
+  // expected-note@+6 {{Foo declared here}}
+  // expected-error@22 {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
+  // expected-note@+4 {{in instantiation of function template specialization 'parallel_for<Foo}}
+#else
+  // expected-no-diagnostics
 #endif
   parallel_for<class Foo>(L);
 }

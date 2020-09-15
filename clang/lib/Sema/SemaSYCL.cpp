@@ -2475,12 +2475,14 @@ public:
 
 } // namespace
 
-class SYCLKernelNameTypeVisitor : public TypeVisitor<SYCLKernelNameTypeVisitor>,
-                        public ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor> {
+class SYCLKernelNameTypeVisitor
+    : public TypeVisitor<SYCLKernelNameTypeVisitor>,
+      public ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor> {
   Sema &S;
   SourceLocation Loc;
   using InnerTypeVisitor = TypeVisitor<SYCLKernelNameTypeVisitor>;
-  using InnerTAVisitor = ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor>;
+  using InnerTAVisitor =
+      ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor>;
 
 public:
   SYCLKernelNameTypeVisitor(Sema &S, SourceLocation Loc) : S(S), Loc(Loc) {}
@@ -2524,6 +2526,7 @@ public:
     bool UnnamedLambdaEnabled =
         S.getASTContext().getLangOpts().SYCLUnnamedLambda;
     if (Tag && !Tag->getDeclContext()->isTranslationUnit() &&
+        !dyn_cast_or_null<NamespaceDecl>(Tag->getDeclContext()) &&
         !UnnamedLambdaEnabled) {
       const bool KernelNameIsMissing = Tag->getName().empty();
       if (KernelNameIsMissing) {
@@ -2553,7 +2556,7 @@ public:
     }
     return;
   }
-  
+
   void VisitIntegralTemplateArgument(const TemplateArgument &TA) {
     QualType T = TA.getIntegralType();
     if (const EnumType *ET = T->getAs<EnumType>()) {
