@@ -4896,7 +4896,6 @@ void CodeGenModule::EmitAliasDefinition(GlobalDecl GD) {
                                     /*D=*/nullptr);
     LT = getLLVMLinkageVarDefinition(cast<VarDecl>(GD.getDecl()),
                                      D->getType().isConstQualified());
-    // Create the alias in the same address space as that of the aliasee.
   }
 
   // Create the new alias itself, but don't set a name yet.
