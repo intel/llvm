@@ -411,50 +411,46 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   MPM.add(createCFGSimplificationPass());      // Merge & remove BBs
   MPM.add(createReassociatePass());           // Reassociate expressions
 
-  // Do not run loop pass pipeline in "SYCL Optimization Mode". Loop
-  // optimizations rely on TTI, which is not accurate for SPIR target.
-  if (!SYCLOptimizationMode) {
-    // Begin the loop pass pipeline.
-    if (EnableSimpleLoopUnswitch) {
-      // The simple loop unswitch pass relies on separate cleanup passes.
-      // Schedule them first so when we re-process a loop they run before other
-      // loop passes.
-      MPM.add(createLoopInstSimplifyPass());
-      MPM.add(createLoopSimplifyCFGPass());
-    }
-    // Rotate Loop - disable header duplication at -Oz
-    MPM.add(createLoopRotatePass(SizeLevel == 2 ? 0 : -1));
-    // TODO: Investigate promotion cap for O1.
-    MPM.add(createLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap));
-    if (EnableSimpleLoopUnswitch)
-      MPM.add(createSimpleLoopUnswitchLegacyPass());
-    else
-      MPM.add(
-          createLoopUnswitchPass(SizeLevel || OptLevel < 3, DivergentTarget));
-    // FIXME: We break the loop pass pipeline here in order to do full
-    // simplify-cfg. Eventually loop-simplifycfg should be enhanced to replace
-    // the need for this.
-    MPM.add(createCFGSimplificationPass());
-    MPM.add(createInstructionCombiningPass());
-    // We resume loop passes creating a second loop pipeline here.
-    // TODO: this pass hurts performance due to promotions of induction
-    // variables from 32-bit value to 64-bit values. I assume it's because SPIR
-    // is a virtual target with unlimited # of registers and pass doesn't take
-    // into account that on real HW this promotion is not beneficial.
-    MPM.add(createIndVarSimplifyPass());      // Canonicalize indvars
-    MPM.add(createLoopIdiomPass());           // Recognize idioms like memset.
-    addExtensionsToPM(EP_LateLoopOptimizations, MPM);
-    MPM.add(createLoopDeletionPass());        // Delete dead loops
-
-    if (EnableLoopInterchange)
-      MPM.add(createLoopInterchangePass()); // Interchange loops
-
-    // Unroll small loops
-    MPM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,
-                                       ForgetAllSCEVInLoopUnroll));
-    addExtensionsToPM(EP_LoopOptimizerEnd, MPM);
-    // This ends the loop pass pipelines.
+  // Begin the loop pass pipeline.
+  if (EnableSimpleLoopUnswitch) {
+    // The simple loop unswitch pass relies on separate cleanup passes. Schedule
+    // them first so when we re-process a loop they run before other loop
+    // passes.
+    MPM.add(createLoopInstSimplifyPass());
+    MPM.add(createLoopSimplifyCFGPass());
   }
+  // Rotate Loop - disable header duplication at -Oz
+  MPM.add(createLoopRotatePass(SizeLevel == 2 ? 0 : -1));
+  // TODO: Investigate promotion cap for O1.
+  MPM.add(createLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap));
+  if (EnableSimpleLoopUnswitch)
+    MPM.add(createSimpleLoopUnswitchLegacyPass());
+  else
+    MPM.add(createLoopUnswitchPass(SizeLevel || OptLevel < 3, DivergentTarget));
+  // FIXME: We break the loop pass pipeline here in order to do full
+  // simplify-cfg. Eventually loop-simplifycfg should be enhanced to replace the
+  // need for this.
+  MPM.add(createCFGSimplificationPass());
+  MPM.add(createInstructionCombiningPass());
+  // We resume loop passes creating a second loop pipeline here.
+  // TODO: this pass hurts performance due to promotions of induction variables
+  // from 32-bit value to 64-bit values. I assume it's because SPIR is a virtual
+  // target with unlimited # of registers and pass doesn't take into account
+  // that on real HW this promotion is not beneficial.
+  if (!SYCLOptimizationMode)
+    MPM.add(createIndVarSimplifyPass());      // Canonicalize indvars
+  MPM.add(createLoopIdiomPass());             // Recognize idioms like memset.
+  addExtensionsToPM(EP_LateLoopOptimizations, MPM);
+  MPM.add(createLoopDeletionPass());          // Delete dead loops
+
+  if (EnableLoopInterchange)
+    MPM.add(createLoopInterchangePass()); // Interchange loops
+
+  // Unroll small loops
+  MPM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,
+                                     ForgetAllSCEVInLoopUnroll));
+  addExtensionsToPM(EP_LoopOptimizerEnd, MPM);
+  // This ends the loop pass pipelines.
 
   if (OptLevel > 1) {
     MPM.add(createMergedLoadStoreMotionPass()); // Merge ld/st in diamonds
