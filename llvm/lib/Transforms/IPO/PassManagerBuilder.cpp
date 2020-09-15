@@ -790,7 +790,8 @@ void PassManagerBuilder::populateModulePassManager(
       MPM.add(createCorrelatedValuePropagationPass());
       MPM.add(createInstructionCombiningPass());
       MPM.add(createLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap));
-      MPM.add(createLoopUnswitchPass(SizeLevel || OptLevel < 3, DivergentTarget));
+      MPM.add(
+          createLoopUnswitchPass(SizeLevel || OptLevel < 3, DivergentTarget));
       MPM.add(createCFGSimplificationPass());
       MPM.add(createInstructionCombiningPass());
     }
