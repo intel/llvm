@@ -1488,8 +1488,9 @@ public:
   {
     static_assert(detail::IsCxPropertyList<PropertyListT>::value,
                   "Conversion is only available for accessor_property_list");
-    static_assert(PropertyListT::template areSameCxProperties<NewPropsT...>(),
-                  "Compile-time-constant properties must be the same");
+    static_assert(
+        PropertyListT::template areSameCompileTimeProperties<NewPropsT...>(),
+        "Compile-time-constant properties must be the same");
   }
 
   constexpr bool is_placeholder() const { return IsPlaceH; }

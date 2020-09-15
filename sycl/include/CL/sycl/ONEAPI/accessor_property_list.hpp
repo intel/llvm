@@ -17,10 +17,14 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+// Forward declaration
+template <typename, int, access::mode, access::target, access::placeholder,
+          typename PropertyListT>
+class accessor;
 namespace detail {
 // This helper template must be specialized for nested instance template
 // of each compile-time-constant property.
-template <typename T> struct IsCxPropertyInstance : std::false_type {};
+template <typename T> struct IsCompileTimePropertyInstance : std::false_type {};
 } // namespace detail
 namespace ONEAPI {
 
@@ -44,6 +48,9 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
   template <template <class...> class T, class T1, class T2>
   struct AreSameTemplate<T<T1>, T<T2>> : std::true_type {};
 #if __cplusplus >= 201703L
+  // Declaring non-type template parameters with auto is a C++17 feature. Since
+  // the extension is written against SYCL 2020, which implies use of C++17,
+  // there's no need to provide alternative implementations for older standards.
   template <template <auto...> class T, auto... T1, auto... T2>
   struct AreSameTemplate<T<T1...>, T<T2...>> : std::true_type {};
 #endif
@@ -54,13 +61,13 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
   template <typename PropT> struct ContainsProperty<PropT> : std::false_type {};
   template <typename PropT, typename Head, typename... Tail>
   struct ContainsProperty<PropT, Head, Tail...>
-      : std::conditional<AreSameTemplate<PropT, Head>::value ||
-                             !sycl::detail::IsCxPropertyInstance<PropT>::value,
-                         std::true_type,
-                         ContainsProperty<PropT, Tail...>>::type {};
+      : std::conditional<
+            AreSameTemplate<PropT, Head>::value ||
+                !sycl::detail::IsCompileTimePropertyInstance<PropT>::value,
+            std::true_type, ContainsProperty<PropT, Tail...>>::type {};
 
-  // The following structures help to check if two property lists contain the
-  // same compile-time-constant properties.
+  // PropertyContainer is a helper structure, that holds list of properties.
+  // It is used to avoid multiple parameter packs in templates.
   template <typename...> struct PropertyContainer {
     using Head = void;
     using Rest = void;
@@ -85,7 +92,7 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
             !std::is_same_v<typename ContainerT::Head, void> &&
                 (AreSameTemplate<PropT<Args...>,
                                  typename ContainerT::Head>::value ||
-                 !sycl::detail::IsCxPropertyInstance<
+                 !sycl::detail::IsCompileTimePropertyInstance<
                      typename ContainerT::Head>::value),
             std::true_type,
             ContainsPropertyInstance<typename ContainerT::Rest, PropT,
@@ -108,30 +115,36 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
 
 #if __cplusplus >= 201703L
   // This template helps to extract exact property instance type based on
-  // template template argument.
+  // template template argument. If there's an instance of target property in
+  // ContainerT, find instance template and use it as type. Otherwise, just
+  // use void as return type.
   template <typename ContainerT, template <auto...> class PropT, auto... Args>
-  struct GetCxPropertyHelper {
+  struct GetCompileTimePropertyHelper {
     using type = typename std::conditional_t<
         AreSameTemplate<typename ContainerT::Head, PropT<Args...>>::value,
         typename ContainerT::Head,
-        typename GetCxPropertyHelper<typename ContainerT::Rest, PropT,
-                                     Args...>::type>;
+        typename GetCompileTimePropertyHelper<typename ContainerT::Rest, PropT,
+                                              Args...>::type>;
   };
   template <typename Head, template <auto...> class PropT, auto... Args>
-  struct GetCxPropertyHelper<PropertyContainer<Head>, PropT, Args...> {
+  struct GetCompileTimePropertyHelper<PropertyContainer<Head>, PropT, Args...> {
     using type = typename std::conditional_t<
         AreSameTemplate<Head, PropT<Args...>>::value, Head, void>;
   };
 #endif
 
-  // The structs validate that all objects passed are SYCL properties
+  // The structs validate that all objects passed are SYCL properties.
+  // Properties are either run time SYCL 1.2.1 properties, and thus derive from
+  // either DataLessPropertyBase or from PropertyWithDataBase, or
+  // compile-time-constant properties, and thus specialize
+  // IsCompileTimePropertyInstance template.
   template <typename... Tail> struct AllProperties : std::true_type {};
   template <typename T, typename... Tail>
   struct AllProperties<T, Tail...>
       : std::conditional<
             std::is_base_of<sycl::detail::DataLessPropertyBase, T>::value ||
                 std::is_base_of<sycl::detail::PropertyWithDataBase, T>::value ||
-                sycl::detail::IsCxPropertyInstance<T>::value,
+                sycl::detail::IsCompileTimePropertyInstance<T>::value,
             AllProperties<Tail...>, std::false_type>::type {};
 
   accessor_property_list(
@@ -192,21 +205,27 @@ public:
             typename = typename std::enable_if_t<
                 is_compile_time_property<T>::value && has_property<T>()>>
   static constexpr auto get_property() {
-    return typename GetCxPropertyHelper<PropertyContainer<PropsT...>,
-                                        T::template instance>::type{};
+    return typename GetCompileTimePropertyHelper<PropertyContainer<PropsT...>,
+                                                 T::template instance>::type{};
   }
 #endif
 
-  template <typename... OtherPropsT>
-  static constexpr bool areSameCxProperties() {
-    return ContainsSameProperties<PropertyContainer<OtherPropsT...>,
-                                  PropsT...>::value;
-  }
-
 private:
+  template <typename, int, access::mode, access::target, access::placeholder,
+            typename PropertyListT>
+  friend class sycl::accessor;
+
   template <typename... OtherProps> friend class accessor_property_list;
 
   friend class sycl::property_list;
+
+  // Helper method, used by accessor to restrict conversions to compatible
+  // property lists.
+  template <typename... OtherPropsT>
+  static constexpr bool areSameCompileTimeProperties() {
+    return ContainsSameProperties<PropertyContainer<OtherPropsT...>,
+                                  PropsT...>::value;
+  }
 };
 } // namespace ONEAPI
 } // namespace sycl

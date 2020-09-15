@@ -103,13 +103,13 @@ struct is_compile_time_property<INTEL::property::buffer_location>
 } // namespace ONEAPI
 namespace detail {
 template <int I>
-struct IsCxPropertyInstance<INTEL::property::buffer_location::instance<I>>
+struct IsCompileTimePropertyInstance<
+    INTEL::property::buffer_location::instance<I>> : std::true_type {};
+template <>
+struct IsCompileTimePropertyInstance<ONEAPI::property::no_alias::instance<>>
     : std::true_type {};
 template <>
-struct IsCxPropertyInstance<ONEAPI::property::no_alias::instance<>>
-    : std::true_type {};
-template <>
-struct IsCxPropertyInstance<ONEAPI::property::no_offset::instance<>>
+struct IsCompileTimePropertyInstance<ONEAPI::property::no_offset::instance<>>
     : std::true_type {};
 } // namespace detail
 } // namespace sycl
