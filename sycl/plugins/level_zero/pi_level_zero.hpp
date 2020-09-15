@@ -192,7 +192,7 @@ struct _pi_context : _pi_object {
         ZeEventPool{nullptr}, NumEventsAvailableInEventPool{},
         NumEventsLiveInEventPool{} {
     // Create USM allocator context for each pair (device, context).
-    for (uint32_t I; I < NumDevices; I++) {
+    for (uint32_t I = 0; I < NumDevices; I++) {
       pi_device Device = Devs[I];
       SharedMemAllocContexts.emplace(
           std::piecewise_construct, std::make_tuple(Device),
