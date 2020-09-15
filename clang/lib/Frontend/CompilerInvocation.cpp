@@ -823,14 +823,10 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
           Args.getLastArg(OPT_emit_llvm_uselists, OPT_no_emit_llvm_uselists))
     Opts.EmitLLVMUseLists = A->getOption().getID() == OPT_emit_llvm_uselists;
 
-  // ESIMD GPU Back-end requires optimized IR
-  bool IsSyclESIMD = Args.hasFlag(options::OPT_fsycl_esimd,
-                                  options::OPT_fno_sycl_esimd, false);
-
   Opts.DisableLLVMPasses =
       Args.hasArg(OPT_disable_llvm_passes) ||
       (Args.hasArg(OPT_fsycl_is_device) && Triple.isSPIR() &&
-       Args.hasArg(OPT_fno_sycl_early_optimizations) && !IsSyclESIMD);
+       Args.hasArg(OPT_fno_sycl_early_optimizations));
   Opts.DisableLifetimeMarkers = Args.hasArg(OPT_disable_lifetimemarkers);
 
   const llvm::Triple::ArchType DebugEntryValueArchs[] = {
@@ -2612,6 +2608,8 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
     Opts.SYCLValueFitInMaxInt =
         Args.hasFlag(options::OPT_fsycl_id_queries_fit_in_int,
                      options::OPT_fno_sycl_id_queries_fit_in_int, false);
+    Opts.SYCLIntHeader =
+        std::string(Args.getLastArgValue(OPT_fsycl_int_header));
   }
 
   Opts.IncludeDefaultHeader = Args.hasArg(OPT_finclude_default_header);
@@ -2671,8 +2669,6 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   else if (Args.hasArg(OPT_gpu_max_threads_per_block_EQ))
     Diags.Report(diag::warn_ignored_hip_only_option)
         << Args.getLastArg(OPT_gpu_max_threads_per_block_EQ)->getAsString(Args);
-
-  Opts.SYCLIntHeader = std::string(Args.getLastArgValue(OPT_fsycl_int_header));
 
   if (Opts.ObjC) {
     if (Arg *arg = Args.getLastArg(OPT_fobjc_runtime_EQ)) {
