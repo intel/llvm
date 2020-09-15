@@ -4892,8 +4892,7 @@ void CodeGenModule::EmitAliasDefinition(GlobalDecl GD) {
     AS = Aliasee->getType()->getPointerAddressSpace();
   } else {
     AS = ArgInfoAddressSpace(GetGlobalVarAddressSpace(/*D=*/nullptr));
-    Aliasee = GetOrCreateLLVMGlobal(AA->getAliasee(),
-                                    DeclTy->getPointerTo(AS),
+    Aliasee = GetOrCreateLLVMGlobal(AA->getAliasee(), DeclTy->getPointerTo(AS),
                                     /*D=*/nullptr);
     LT = getLLVMLinkageVarDefinition(cast<VarDecl>(GD.getDecl()),
                                      D->getType().isConstQualified());
