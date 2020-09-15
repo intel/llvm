@@ -6769,7 +6769,8 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
                            bool *EmitCodeView) const {
   unsigned RTOptionID = options::OPT__SLASH_MT;
   bool isNVPTX = getToolChain().getTriple().isNVPTX();
-  bool isSYCL = Args.hasArg(options::OPT_fsycl) ||
+  bool isSYCL =
+      Args.hasArg(options::OPT_fsycl) ||
       getToolChain().getTriple().getEnvironment() == llvm::Triple::SYCLDevice;
   // For SYCL Windows, /MD is the default.
   if (isSYCL)
