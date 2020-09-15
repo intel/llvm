@@ -15,7 +15,7 @@ void kernel() __attribute__((sycl_device)) {
 
   auto v0 = slm_load<int, 32>(offsets);
 
-  slm_fence(3);
+  esimd_fence(3);
   esimd_barrier();
 
   v0 = v0 + v1;
