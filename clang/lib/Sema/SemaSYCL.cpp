@@ -2523,7 +2523,8 @@ public:
   void VisitTagDecl(const TagDecl *Tag) {
     bool UnnamedLambdaEnabled =
         S.getASTContext().getLangOpts().SYCLUnnamedLambda;
-    if (Tag && !UnnamedLambdaEnabled) {
+    if (Tag && !Tag->getDeclContext()->isTranslationUnit() &&
+        !UnnamedLambdaEnabled) {
       const bool KernelNameIsMissing = Tag->getName().empty();
       if (KernelNameIsMissing) {
         S.Diag(Loc, diag::err_sycl_kernel_incorrectly_named)
