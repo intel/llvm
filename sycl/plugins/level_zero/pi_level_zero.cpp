@@ -4299,37 +4299,40 @@ pi_result piextUSMFree(pi_context Context, void *Ptr) {
   ZE_CALL(zeMemGetAllocProperties(
       Context->ZeContext, Ptr, &ZeMemoryAllocationProperties, &ZeDeviceHandle));
 
-  // All devices in the context are of the same platform.
-  auto Platform = Context->Devices[0]->Platform;
-  auto Device = Platform->getDeviceFromNativeHandle(ZeDeviceHandle);
-  assert(Device);
+  if (ZeDeviceHandle) {
+    // All devices in the context are of the same platform.
+    auto Platform = Context->Devices[0]->Platform;
+    auto Device = Platform->getDeviceFromNativeHandle(ZeDeviceHandle);
+    assert(Device);
 
-  auto DeallocationHelper =
-      [Context, Device,
-       Ptr](std::unordered_map<pi_device, USMAllocContext> &AllocContextMap) {
-        try {
-          auto It = AllocContextMap.find(Device);
-          if (It == AllocContextMap.end())
-            return PI_INVALID_VALUE;
+    auto DeallocationHelper =
+        [Context, Device,
+         Ptr](std::unordered_map<pi_device, USMAllocContext> &AllocContextMap) {
+          try {
+            auto It = AllocContextMap.find(Device);
+            if (It == AllocContextMap.end())
+              return PI_INVALID_VALUE;
 
-          // The right context is found, deallocate the pointer
-          It->second.deallocate(Ptr);
-        } catch (const UsmAllocationException &Ex) {
-          return Ex.getError();
-        }
+            // The right context is found, deallocate the pointer
+            It->second.deallocate(Ptr);
+          } catch (const UsmAllocationException &Ex) {
+            return Ex.getError();
+          }
 
-        return PI_SUCCESS;
-      };
+          return PI_SUCCESS;
+        };
 
-  switch (ZeMemoryAllocationProperties.type) {
-  case ZE_MEMORY_TYPE_SHARED:
-    return DeallocationHelper(Context->SharedMemAllocContexts);
-  case ZE_MEMORY_TYPE_DEVICE:
-    return DeallocationHelper(Context->DeviceMemAllocContexts);
-  default:
-    // Handled below
-    break;
+    switch (ZeMemoryAllocationProperties.type) {
+    case ZE_MEMORY_TYPE_SHARED:
+      return DeallocationHelper(Context->SharedMemAllocContexts);
+    case ZE_MEMORY_TYPE_DEVICE:
+      return DeallocationHelper(Context->DeviceMemAllocContexts);
+    default:
+      // Handled below
+      break;
+    }
   }
+
   return USMFreeImpl(Context, Ptr);
 }
 
