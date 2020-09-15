@@ -5138,12 +5138,12 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
   // For an FPGA archive, we add the unbundling step above to take care of
   // the device side, but also unbundle here to extract the host side
+  bool EarlyLink = false;
+  if (const Arg *A = Args.getLastArg(options::OPT_fsycl_link_EQ))
+    EarlyLink = A->getValue() == StringRef("early");
   for (auto &LI : LinkerInputs) {
     Action *UnbundlerInput = nullptr;
     auto wrapObject = [&] {
-      bool EarlyLink = false;
-      if (const Arg *A = Args.getLastArg(options::OPT_fsycl_link_EQ))
-        EarlyLink = A->getValue() == StringRef("early");
       if (EarlyLink && Args.hasArg(options::OPT_fintelfpga)) {
         // Only wrap the object with -fsycl-link=early
         auto *BC = C.MakeAction<OffloadWrapperJobAction>(LI, types::TY_LLVM_BC);
