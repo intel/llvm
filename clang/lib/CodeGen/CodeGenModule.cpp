@@ -3674,7 +3674,6 @@ CodeGenModule::GetOrCreateLLVMGlobal(StringRef MangledName,
     }
 
     // Make sure the result is of the correct type.
-printf("1.  %d %d\n", Entry->getType()->getAddressSpace(), Ty->getAddressSpace());
     if (Entry->getType()->getAddressSpace() != Ty->getAddressSpace())
       return llvm::ConstantExpr::getAddrSpaceCast(Entry, Ty);
 
@@ -3686,13 +3685,11 @@ printf("1.  %d %d\n", Entry->getType()->getAddressSpace(), Ty->getAddressSpace()
 
   auto AddrSpace = GetGlobalVarAddressSpace(D);
   auto TargetAddrSpace = getContext().getTargetAddressSpace(AddrSpace);
-printf("2.  %d %d\n", AddrSpace, TargetAddrSpace);
 
   auto *GV = new llvm::GlobalVariable(
       getModule(), Ty->getElementType(), false,
       llvm::GlobalValue::ExternalLinkage, nullptr, MangledName, nullptr,
       llvm::GlobalVariable::NotThreadLocal, TargetAddrSpace);
-GV->dump();
 
   // If we already created a global with the same mangled name (but different
   // type) before, take its name and remove it from its parent.
@@ -4899,13 +4896,12 @@ void CodeGenModule::EmitAliasDefinition(GlobalDecl GD) {
                                     /*D=*/nullptr);
     LT = getLLVMLinkageVarDefinition(cast<VarDecl>(GD.getDecl()),
                                      D->getType().isConstQualified());
-    AS = Aliasee->getType()->getPointerAddressSpace();
-    TargetAS = ArgInfoAddressSpace(LangAS::opencl_global);
+    // Create the alias in the same address space as that of the aliasee.
   }
 
   // Create the new alias itself, but don't set a name yet.
   auto *GA =
-      llvm::GlobalAlias::create(DeclTy, TargetAS, LT, "", Aliasee, &getModule());
+      llvm::GlobalAlias::create(DeclTy, AS, LT, "", Aliasee, &getModule());
 
   if (Entry) {
     if (GA->getAliasee() == Entry) {
