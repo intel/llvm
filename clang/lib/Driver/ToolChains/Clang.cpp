@@ -6769,14 +6769,25 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
                            bool *EmitCodeView) const {
   unsigned RTOptionID = options::OPT__SLASH_MT;
   bool isNVPTX = getToolChain().getTriple().isNVPTX();
+  bool isSYCL = Args.hasArg(options::OPT_fsycl) ||
+      getToolChain().getTriple().getEnvironment() == llvm::Triple::SYCLDevice;
+  // For SYCL Windows, /MD is the default.
+  if (isSYCL)
+    RTOptionID = options::OPT__SLASH_MD;
 
   if (Args.hasArg(options::OPT__SLASH_LDd))
-    // The /LDd option implies /MTd. The dependent lib part can be overridden,
-    // but defining _DEBUG is sticky.
-    RTOptionID = options::OPT__SLASH_MTd;
+    // The /LDd option implies /MTd (/MDd for SYCL). The dependent lib part
+    // can be overridden but defining _DEBUG is sticky.
+    RTOptionID = isSYCL ? options::OPT__SLASH_MDd : options::OPT__SLASH_MTd;
 
-  if (Arg *A = Args.getLastArg(options::OPT__SLASH_M_Group))
+  if (Arg *A = Args.getLastArg(options::OPT__SLASH_M_Group)) {
     RTOptionID = A->getOption().getID();
+    if (isSYCL && (RTOptionID == options::OPT__SLASH_MT ||
+                   RTOptionID == options::OPT__SLASH_MTd))
+      // Use of /MT or /MTd is not supported for SYCL.
+      getToolChain().getDriver().Diag(diag::err_drv_unsupported_opt_dpcpp)
+          << A->getOption().getName();
+  }
 
   StringRef FlagForCRT;
   switch (RTOptionID) {
