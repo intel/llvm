@@ -589,9 +589,8 @@
 // CHECK-LINK-NOLIBSYCL: "{{.*}}link{{(.exe)?}}"
 // CHECK-LINK-NOLIBSYCL-NOT: "-defaultlib:sycl.lib"
 
-/// Check sycld.lib is chosen with /MDd and /MTd
+/// Check sycld.lib is chosen with /MDd
 // RUN:  %clang_cl -fsycl /MDd %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
-// RUN:  %clang_cl -fsycl /MTd %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
 // CHECK-LINK-SYCL-DEBUG: "--dependent-lib=sycld"
 // CHECK-LINK-SYCL-DEBUG-NOT: "-defaultlib:sycld.lib"
 
