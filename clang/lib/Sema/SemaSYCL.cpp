@@ -2475,15 +2475,15 @@ public:
 
 } // namespace
 
-class SYCLTypeVisitor : public TypeVisitor<SYCLTypeVisitor>,
-                        public ConstTemplateArgumentVisitor<SYCLTypeVisitor> {
+class SYCLKernelNameTypeVisitor : public TypeVisitor<SYCLKernelNameTypeVisitor>,
+                        public ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor> {
   Sema &S;
   SourceLocation Loc;
-  using InnerTypeVisitor = TypeVisitor<SYCLTypeVisitor>;
-  using InnerTAVisitor = ConstTemplateArgumentVisitor<SYCLTypeVisitor>;
+  using InnerTypeVisitor = TypeVisitor<SYCLKernelNameTypeVisitor>;
+  using InnerTAVisitor = ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor>;
 
 public:
-  SYCLTypeVisitor(Sema &S, SourceLocation Loc) : S(S), Loc(Loc) {}
+  SYCLKernelNameTypeVisitor(Sema &S, SourceLocation Loc) : S(S), Loc(Loc) {}
 
   void Visit(QualType T) {
     if (T.isNull())
@@ -2553,6 +2553,7 @@ public:
     }
     return;
   }
+  
   void VisitIntegralTemplateArgument(const TemplateArgument &TA) {
     QualType T = TA.getIntegralType();
     if (const EnumType *ET = T->getAs<EnumType>()) {
@@ -2616,8 +2617,8 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
     return;
 
   KernelObjVisitor Visitor{*this};
-  SYCLTypeVisitor KernelTypeVisitor(*this, Args[0]->getExprLoc());
-  (void)KernelTypeVisitor.Visit(KernelNameType);
+  SYCLKernelNameTypeVisitor KernelTypeVisitor(*this, Args[0]->getExprLoc());
+  KernelTypeVisitor.Visit(KernelNameType);
   DiagnosingSYCLKernel = true;
   Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker,
                            ArgsSizeChecker);
