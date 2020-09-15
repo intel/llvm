@@ -103,7 +103,7 @@ protected:
                                      PI_INVALID_VALUE);
   }
 
-  // Stores enable/not enabled for simple properties
+  // Stores enabled/disabled for simple properties
   std::bitset<DataLessPropKind::DataLessPropKindSize> MDataLessProps;
   // Stores shared_ptrs to complex properties
   std::vector<std::shared_ptr<PropertyWithDataBase>> MPropsWithData;

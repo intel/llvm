@@ -102,7 +102,7 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
   struct ContainsPropertyInstance<void, PropT, Args...> : std::false_type {};
 #endif
 
-  // This template checks if to lists of properties contain the same set of
+  // This template checks if two lists of properties contain the same set of
   // compile-time-constant properties in any order.
   template <typename ContainerT, typename... OtherProps>
   struct ContainsSameProperties
