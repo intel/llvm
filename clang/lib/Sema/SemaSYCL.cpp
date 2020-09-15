@@ -1173,7 +1173,7 @@ template <bool B, bool... Rest> struct AllTrue;
 template <bool B> struct AllTrue<B> { static constexpr bool Value = B; };
 
 template <bool B, bool... Rest> struct AllTrue {
-  static constexpr bool Value = B && AnyTrue<Rest...>::Value;
+  static constexpr bool Value = B && AllTrue<Rest...>::Value;
 };
 
 template <typename ParentTy, typename... Handlers>
