@@ -22,11 +22,11 @@ extern "C" void used_aliaser() __attribute__((alias("func")));
 
 // CHECK-DAG: @used_int = addrspace(1) constant i32 5, align 4
 extern "C" const int used_int = 5;
-// CHECK-DAG: @alias_used_int = alias i32, addrspacecast (i32 addrspace(1)* @used_int to i32*)
+// CHECK-DAG: @alias_used_int = alias i32, i32 addrspace(1)* @used_int
 extern "C" const int alias_used_int __attribute__((alias("used_int")));
 // CHECK-DAG: @vint = addrspace(1) constant i32 7, align 4
 extern "C" const int vint = 7;
-// CHECK-DAG: @used_alias_used_int = alias i32, addrspacecast (i32 addrspace(1)* @vint to i32*)
+// CHECK-DAG: @used_alias_used_int = alias i32, i32 addrspace(1)* @vint
 extern "C" const int used_alias_used_int __attribute__((alias("vint")));
 
 // CHECK-DAG: define spir_func void @{{.*}}bar{{.*}}
