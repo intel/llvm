@@ -1862,15 +1862,15 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
       ParamType = Pointer->getType();
     }
 
-    DRE =
-        ImplicitCastExpr::Create(SemaRef.Context, ParamType, CK_LValueToRValue,
-                                 DRE, /*BasePath=*/nullptr, VK_RValue);
+    DRE = ImplicitCastExpr::Create(SemaRef.Context, ParamType,
+                                   CK_LValueToRValue, DRE, /*BasePath=*/nullptr,
+                                   VK_RValue, FPOptionsOverride());
 
     if (PointerTy->getPointeeType().getAddressSpace() !=
         ParamType->getPointeeType().getAddressSpace())
       DRE = ImplicitCastExpr::Create(SemaRef.Context, PointerTy,
                                      CK_AddressSpaceConversion, DRE, nullptr,
-                                     VK_RValue);
+                                     VK_RValue, FPOptionsOverride());
 
     return DRE;
   }
@@ -2189,7 +2189,7 @@ public:
                                          /*IgnoreBaseAccess*/ true);
     auto Cast = ImplicitCastExpr::Create(
         SemaRef.Context, BaseTy, CK_DerivedToBase, MemberExprBases.back(),
-        /* CXXCastPath=*/&BasePath, VK_LValue);
+        /* CXXCastPath=*/&BasePath, VK_LValue, FPOptionsOverride());
     MemberExprBases.push_back(Cast);
 
     addCollectionInitListExpr(BaseTy->getAsCXXRecordDecl());
