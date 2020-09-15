@@ -837,8 +837,8 @@ class KernelObjVisitor {
   // 'root'), and Wrapper is the current struct being unwrapped.
   template <typename ParentTy, typename... HandlerTys>
   void visitComplexRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
-                   const CXXRecordDecl *Wrapper, QualType RecordTy,
-                   HandlerTys &... Handlers) {
+                          const CXXRecordDecl *Wrapper, QualType RecordTy,
+                          HandlerTys &... Handlers) {
     (void)std::initializer_list<int>{
         (Handlers.enterStruct(Owner, Parent, RecordTy), 0)...};
     VisitRecordHelper(Wrapper, Wrapper->bases(), Handlers...);
@@ -849,8 +849,8 @@ class KernelObjVisitor {
 
   template <typename ParentTy, typename... HandlerTys>
   void visitSimpleRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
-                   const CXXRecordDecl *Wrapper, QualType RecordTy,
-                   HandlerTys &... Handlers) {
+                         const CXXRecordDecl *Wrapper, QualType RecordTy,
+                         HandlerTys &... Handlers) {
     (void)std::initializer_list<int>{
         (Handlers.handleNonDecompStruct(Owner, Parent, RecordTy), 0)...};
   }
@@ -1168,7 +1168,7 @@ template <bool B, bool... Rest> struct AnyTrue {
   static constexpr bool Value = B || AnyTrue<Rest...>::Value;
 };
 
-template<bool B, bool... Rest> struct AllTrue;
+template <bool B, bool... Rest> struct AllTrue;
 
 template <bool B> struct AllTrue<B> { static constexpr bool Value = B; };
 
@@ -2456,7 +2456,6 @@ public:
     addSimpleBaseInit(BS, Ty);
     return true;
   }
-
 
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
     addSimpleFieldInit(FD, FieldTy);
