@@ -26,7 +26,7 @@ int main() {
     default_selector ds;
     device d = ds.select_device();
     string name = d.get_platform().get_info<info::platform::name>();
-    
+
     assert(name.find("CUDA") != string::npos);
     cout << "CUDA GPU Device is found: " << boolalpha << d.is_gpu()
          << std::endl;
