@@ -25,7 +25,7 @@ int main() {
     default_selector ds;
     device d = ds.select_device();
     string name = d.get_platform().get_info<info::platform::name>();
-    assert(name.find("OpneCL") != string::npos);
+    assert(name.find("OpenCL") != string::npos);
     std::cout << "ACC Device is found: " << std::boolalpha << d.is_accelerator()
               << std::endl;
   }
