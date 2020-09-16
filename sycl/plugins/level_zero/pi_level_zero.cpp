@@ -2783,6 +2783,7 @@ pi_result piKernelRelease(pi_kernel Kernel) {
 
   assert(Kernel);
   if (--(Kernel->RefCount) == 0) {
+    zeKernelDestroy(Kernel->ZeKernel);
     delete Kernel;
   }
   return PI_SUCCESS;
@@ -3022,16 +3023,18 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
       // Event has been signaled: If the fence for the associated command list
       // is signalled, then reset the fence and command list and add them to the
       // available list for reuse in PI calls.
-      EventList[I]->Queue->ZeCommandListFenceMapMutex.lock();
-      ze_result_t ZeResult = ZE_CALL_NOCHECK(zeFenceQueryStatus(
-          EventList[I]
-              ->Queue->ZeCommandListFenceMap[EventList[I]->ZeCommandList]));
-      if (ZeResult == ZE_RESULT_SUCCESS) {
-        EventList[I]->Queue->resetCommandListFenceEntry(
-            EventList[I]->ZeCommandList, true);
-        EventList[I]->ZeCommandList = nullptr;
+      if (EventList[I]->Queue->RefCount > 0) {
+        EventList[I]->Queue->ZeCommandListFenceMapMutex.lock();
+        ze_result_t ZeResult = ZE_CALL_NOCHECK(zeFenceQueryStatus(
+            EventList[I]
+                ->Queue->ZeCommandListFenceMap[EventList[I]->ZeCommandList]));
+        if (ZeResult == ZE_RESULT_SUCCESS) {
+          EventList[I]->Queue->resetCommandListFenceEntry(
+              EventList[I]->ZeCommandList, true);
+          EventList[I]->ZeCommandList = nullptr;
+        }
+        EventList[I]->Queue->ZeCommandListFenceMapMutex.unlock();
       }
-      EventList[I]->Queue->ZeCommandListFenceMapMutex.unlock();
     }
   }
   return PI_SUCCESS;
@@ -3063,7 +3066,7 @@ pi_result piEventRelease(pi_event Event) {
       // If the fence associated with this command list has signalled, then
       // Reset the Command List Used in this event and put it back on the
       // available list.
-      if (Event->Queue->ZeCommandQueue) {
+      if (Event->Queue->RefCount > 0) {
         Event->Queue->ZeCommandListFenceMapMutex.lock();
         ze_result_t ZeResult = ZE_CALL_NOCHECK(zeFenceQueryStatus(
             Event->Queue->ZeCommandListFenceMap[Event->ZeCommandList]));
