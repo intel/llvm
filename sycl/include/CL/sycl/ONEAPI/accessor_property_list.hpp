@@ -101,6 +101,7 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
   // This template checks if two lists of properties contain the same set of
   // compile-time-constant properties in any order. Run time properties are
   // skipped.
+  template <typename ContainerT, typename... OtherProps>
   struct ContainsSameProperties
       : std::conditional<
             !detail::IsCompileTimePropertyInstance<
