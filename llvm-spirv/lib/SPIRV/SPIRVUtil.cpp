@@ -141,7 +141,7 @@ std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed) {
     }
     return SignPrefix + Stem;
   }
-  if (auto VecTy = dyn_cast<VectorType>(Ty)) {
+  if (auto VecTy = dyn_cast<FixedVectorType>(Ty)) {
     Type *EleTy = VecTy->getElementType();
     unsigned Size = VecTy->getNumElements();
     std::stringstream Ss;
@@ -740,7 +740,7 @@ void makeVector(Instruction *InsPos, std::vector<Value *> &Ops,
 void expandVector(Instruction *InsPos, std::vector<Value *> &Ops,
                   size_t VecPos) {
   auto Vec = Ops[VecPos];
-  auto *VT = dyn_cast<VectorType>(Vec->getType());
+  auto *VT = dyn_cast<FixedVectorType>(Vec->getType());
   if (!VT)
     return;
   size_t N = VT->getNumElements();
@@ -1047,7 +1047,7 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
     return SPIR::RefParamType(new SPIR::PrimitiveType(SPIR::PRIMITIVE_FLOAT));
   if (Ty->isDoubleTy())
     return SPIR::RefParamType(new SPIR::PrimitiveType(SPIR::PRIMITIVE_DOUBLE));
-  if (auto *VecTy = dyn_cast<VectorType>(Ty)) {
+  if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
     return SPIR::RefParamType(new SPIR::VectorType(
         transTypeDesc(VecTy->getElementType(), Info), VecTy->getNumElements()));
   }
@@ -1161,7 +1161,7 @@ Value *getScalarOrArray(Value *V, unsigned Size, Instruction *Pos) {
 Constant *getScalarOrVectorConstantInt(Type *T, uint64_t V, bool IsSigned) {
   if (auto IT = dyn_cast<IntegerType>(T))
     return ConstantInt::get(IT, V);
-  if (auto VT = dyn_cast<VectorType>(T)) {
+  if (auto VT = dyn_cast<FixedVectorType>(T)) {
     std::vector<Constant *> EV(
         VT->getNumElements(),
         getScalarOrVectorConstantInt(VT->getElementType(), V, IsSigned));
@@ -1538,7 +1538,7 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
     if (II->getArgOperand(0)->getType() != Ty)
       return false;
     int NumElems = 1;
-    if (auto *VecTy = dyn_cast<VectorType>(Ty)) {
+    if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
       NumElems = VecTy->getNumElements();
       Ty = VecTy->getElementType();
     }
