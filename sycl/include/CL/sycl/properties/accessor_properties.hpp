@@ -39,19 +39,13 @@ namespace INTEL {
 namespace property {
 struct buffer_location {
   template <int A> struct instance {
-    constexpr bool operator==(const buffer_location::instance<A> &) const {
-      return true;
-    }
-    constexpr bool operator!=(const buffer_location::instance<A> &) const {
-      return false;
-    }
     template <int B>
     constexpr bool operator==(const buffer_location::instance<B> &) const {
-      return false;
+      return A == B;
     }
     template <int B>
     constexpr bool operator!=(const buffer_location::instance<B> &) const {
-      return true;
+      return A != B;
     }
   };
 };

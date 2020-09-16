@@ -61,10 +61,8 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
   template <typename PropT> struct ContainsProperty<PropT> : std::false_type {};
   template <typename PropT, typename Head, typename... Tail>
   struct ContainsProperty<PropT, Head, Tail...>
-      : std::conditional<
-            AreSameTemplate<PropT, Head>::value ||
-                !sycl::detail::IsCompileTimePropertyInstance<PropT>::value,
-            std::true_type, ContainsProperty<PropT, Tail...>>::type {};
+      : std::conditional<AreSameTemplate<PropT, Head>::value, std::true_type,
+                         ContainsProperty<PropT, Tail...>>::type {};
 
   // PropertyContainer is a helper structure, that holds list of properties.
   // It is used to avoid multiple parameter packs in templates.
@@ -90,10 +88,8 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
   struct ContainsPropertyInstance
       : std::conditional_t<
             !std::is_same_v<typename ContainerT::Head, void> &&
-                (AreSameTemplate<PropT<Args...>,
-                                 typename ContainerT::Head>::value ||
-                 !sycl::detail::IsCompileTimePropertyInstance<
-                     typename ContainerT::Head>::value),
+                AreSameTemplate<PropT<Args...>,
+                                typename ContainerT::Head>::value,
             std::true_type,
             ContainsPropertyInstance<typename ContainerT::Rest, PropT,
                                      Args...>> {};
@@ -103,11 +99,14 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
 #endif
 
   // This template checks if two lists of properties contain the same set of
-  // compile-time-constant properties in any order.
-  template <typename ContainerT, typename... OtherProps>
+  // compile-time-constant properties in any order. Run time properties are
+  // skipped.
   struct ContainsSameProperties
       : std::conditional<
-            ContainsProperty<typename ContainerT::Head, OtherProps...>::value,
+            !detail::IsCompileTimePropertyInstance<
+                typename ContainerT::Head>::value ||
+                ContainsProperty<typename ContainerT::Head,
+                                 OtherProps...>::value,
             ContainsSameProperties<typename ContainerT::Rest, OtherProps...>,
             std::false_type>::type {};
   template <typename... OtherProps>

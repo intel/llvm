@@ -11,6 +11,7 @@ int main() {
   {
     // Single RT property
     accessor_property_list PL{sycl::noinit};
+    static_assert(!PL.has_property<property::no_offset>(), "Property is found");
     assert(PL.has_property<sycl::property::noinit>() && "Property not found");
   }
 
