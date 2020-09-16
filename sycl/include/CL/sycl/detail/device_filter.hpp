@@ -20,7 +20,7 @@ namespace sycl {
 namespace detail {
 
 struct device_filter {
-  backend Backend = backend::host;
+  backend Backend = backend::all;
   info::device_type DeviceType = info::device_type::all;
   int DeviceNum = 0;
   bool HasBackend = false;
@@ -39,8 +39,9 @@ class device_filter_list {
 
 public:
   device_filter_list() {}
-  device_filter_list(std::string &FilterString);
+  device_filter_list(const std::string &FilterString);
   device_filter_list(device_filter &Filter);
+  void addFilter(device_filter &Filter);
   std::vector<device_filter> &get() { return FilterList; }
   friend std::ostream &operator<<(std::ostream &Out,
                                   const device_filter_list &List);
@@ -50,34 +51,34 @@ inline std::ostream &operator<<(std::ostream &Out,
                                 const device_filter &Filter) {
   switch (Filter.Backend) {
   case backend::host:
-    Out << std::string("host");
+    Out << "host";
     break;
   case backend::opencl:
-    Out << std::string("opencl");
+    Out << "opencl";
     break;
   case backend::level_zero:
-    Out << std::string("level-zero");
+    Out << "level-zero";
     break;
   case backend::cuda:
-    Out << std::string("cuda");
+    Out << "cuda";
     break;
   case backend::all:
-    Out << std::string("*");
+    Out << "*";
   }
-  Out << std::string(":");
+  Out << ":";
   if (Filter.DeviceType == info::device_type::host) {
-    Out << std::string("host");
+    Out << "host";
   } else if (Filter.DeviceType == info::device_type::cpu) {
-    Out << std::string("cpu");
+    Out << "cpu";
   } else if (Filter.DeviceType == info::device_type::gpu) {
-    Out << std::string("gpu");
+    Out << "gpu";
   } else if (Filter.DeviceType == info::device_type::accelerator) {
-    Out << std::string("accelerator");
+    Out << "accelerator";
   } else if (Filter.DeviceType == info::device_type::all) {
-    Out << std::string("*");
+    Out << "*";
   }
   if (Filter.HasDeviceNum) {
-    Out << std::string(":") << Filter.DeviceNum;
+    Out << ":" << Filter.DeviceNum;
   }
   return Out;
 }

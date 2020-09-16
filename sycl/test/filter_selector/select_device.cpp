@@ -1,9 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %t.out
-// RUN: env SYCL_DEVICE_FILTER="*" %t.out
-// RUN: env SYCL_DEVICE_FILTER=cpu %t.out
-// RUN: env SYCL_DEVICE_FILTER=level_zero:gpu %t.out
-// RUN: env SYCL_DEVICE_FILTER=opencl:gpu %t.out
+// RU: env SYCL_DEVICE_FILTER="*" %t.out
+// RU: env SYCL_DEVICE_FILTER=cpu %t.out
+// RU: env SYCL_DEVICE_FILTER=level_zero:gpu %t.out
+// RU: env SYCL_DEVICE_FILTER=opencl:gpu %t.out
 // RUN: env SYCL_DEVICE_FILTER=cpu,level_zero:gpu %t.out
 // RUN: env SYCL_DEVICE_FILTER=opencl:acc:0 %t.out
 //
@@ -11,11 +10,14 @@
 // when SYCL_DEVICE_FILTER is set
 // Checks that no device is selected when no device of desired type is
 // available.
+//
+// REQUIRES: opencl,level_zero,host,cpu,gpu,accelerator
 
 #include <CL/sycl.hpp>
 #include <iostream>
 
 using namespace cl::sycl;
+using namespace std;
 
 int main() {
   const char *envVal = std::getenv("SYCL_DEVICE_FILTER");
@@ -25,16 +27,20 @@ int main() {
     forcedPIs = envVal;
   }
   if (!envVal || forcedPIs == "*" ||
-      forcedPIs.find("gpu:level_zero") != std::string::npos) {
+      forcedPIs.find("level_zero:gpu") != std::string::npos) {
     default_selector ds;
     device d = ds.select_device();
+    string name = d.get_platform().get_info<info::platform::name>();
+    assert(name.find("Level-Zero") != string::npos);
     std::cout << "Level-zero GPU Device is found: " << std::boolalpha
               << d.is_gpu() << std::endl;
   }
-  if (!envVal || forcedPIs == "*" ||
-      forcedPIs.find("gpu:opencl") != std::string::npos) {
+  if (envVal && forcedPIs != "*" &&
+      forcedPIs.find("opencl:gpu") != std::string::npos) {
     gpu_selector gs;
     device d = gs.select_device();
+    string name = d.get_platform().get_info<info::platform::name>();
+    assert(name.find("OpenCL") != string::npos);
     std::cout << "OpenCL GPU Device is found: " << std::boolalpha << d.is_gpu()
               << std::endl;
   }
@@ -57,8 +63,6 @@ int main() {
     std::cout << "ACC device is found: " << d.is_accelerator() << std::endl;
   }
   if (envVal && (forcedPIs.find("cpu") == std::string::npos &&
-                 // remove the following condition when SYCL_DEVICE_FILTER
-                 // filter works in device selectors
                  forcedPIs.find("opencl") == std::string::npos &&
                  forcedPIs.find("*") == std::string::npos)) {
     try {
@@ -68,7 +72,7 @@ int main() {
       std::cout << "Expectedly, CPU device is not found." << std::endl;
       return 0; // expected
     }
-    std::cout << "Error: CPU device is found" << std::endl;
+    std::cerr << "Error: CPU device is found" << std::endl;
     return -1;
   }
 

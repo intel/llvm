@@ -37,8 +37,10 @@ static bool isDeviceOfPreferredSyclBe(const device &Device) {
 }
 
 // Return true if the given device 'Dev' matches with any filter
-static bool isDeviceOfPreferredNumber(detail::device_filter_list *FilterList,
-                                      const device &Dev, int Index) {
+static bool isForcedDevice(const device &Dev, int Index=-1) {
+  detail::device_filter_list *FilterList =
+    detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
+
   if (!FilterList)
     return false;
   info::device_type Type = Dev.get_info<info::device::device_type>();
@@ -51,9 +53,10 @@ static bool isDeviceOfPreferredNumber(detail::device_filter_list *FilterList,
   for (const detail::device_filter &Filter : FilterList->get()) {
     if ((Filter.Backend == Backend || Filter.Backend == backend::all) &&
         (Filter.DeviceType == Type ||
-         Filter.DeviceType == info::device_type::all) &&
-        (Filter.HasDeviceNum && Filter.DeviceNum == Index))
-      return true;
+         Filter.DeviceType == info::device_type::all)) {
+      if (Index < 0 || (Filter.HasDeviceNum && Filter.DeviceNum == Index))
+	return true;
+    }
   }
   return false;
 }
@@ -62,9 +65,6 @@ device device_selector::select_device() const {
   vector_class<device> devices = device::get_devices();
   int score = REJECT_DEVICE_SCORE;
   const device *res = nullptr;
-
-  detail::device_filter_list *FilterList =
-      detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
 
   for (const auto &dev : devices) {
     int dev_score = (*this)(dev);
@@ -89,8 +89,8 @@ device device_selector::select_device() const {
     // If SYCL_DEVICE_FILTER is set, give a bonus point for the device
     // whose index matches with desired device number.
     int index = &dev - &devices[0];
-    if (isDeviceOfPreferredNumber(FilterList, dev, index)) {
-      dev_score += 30;
+    if (isForcedDevice(dev, index)) {
+      dev_score += 1000;
     }
 
     // SYCL spec says: "If more than one device receives the high score then
@@ -137,7 +137,11 @@ int default_selector::operator()(const device &dev) const {
     Score = 50;
 
   // override always wins
-  if (dev.get_info<info::device::device_type>() == detail::get_forced_type())
+  // filter device gets a high point.
+  if (isForcedDevice(dev))
+    Score += 1000;
+  
+  else if (dev.get_info<info::device::device_type>() == detail::get_forced_type())
     Score += 1000;
 
   if (dev.is_gpu())
@@ -156,7 +160,16 @@ int gpu_selector::operator()(const device &dev) const {
   int Score = REJECT_DEVICE_SCORE;
 
   if (dev.is_gpu()) {
-    Score = 1000;
+    detail::device_filter_list *FilterList =
+      detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
+    if (FilterList) {
+      if (isForcedDevice(dev))
+	Score = 1000;
+      else
+	return Score;
+    } else {
+      Score = 1000;
+    }
     // Give preference to device of SYCL BE.
     if (isDeviceOfPreferredSyclBe(dev))
       Score += 50;
@@ -166,8 +179,18 @@ int gpu_selector::operator()(const device &dev) const {
 
 int cpu_selector::operator()(const device &dev) const {
   int Score = REJECT_DEVICE_SCORE;
+
   if (dev.is_cpu()) {
-    Score = 1000;
+    detail::device_filter_list *FilterList =
+      detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
+    if (FilterList) {
+      if (isForcedDevice(dev))
+	Score = 1000;
+      else
+	return Score;
+    } else {
+      Score = 1000;
+    }
     // Give preference to device of SYCL BE.
     if (isDeviceOfPreferredSyclBe(dev))
       Score += 50;
@@ -177,8 +200,18 @@ int cpu_selector::operator()(const device &dev) const {
 
 int accelerator_selector::operator()(const device &dev) const {
   int Score = REJECT_DEVICE_SCORE;
+
   if (dev.is_accelerator()) {
-    Score = 1000;
+    detail::device_filter_list *FilterList =
+      detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
+    if (FilterList) {
+      if (isForcedDevice(dev))
+	Score = 1000;
+      else
+	return Score;
+    } else {
+      Score = 1000;
+    }
     // Give preference to device of SYCL BE.
     if (isDeviceOfPreferredSyclBe(dev))
       Score += 50;
@@ -188,6 +221,7 @@ int accelerator_selector::operator()(const device &dev) const {
 
 int host_selector::operator()(const device &dev) const {
   int Score = REJECT_DEVICE_SCORE;
+
   if (dev.is_host()) {
     Score = 1000;
     // Give preference to device of SYCL BE.
