@@ -2621,7 +2621,8 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
 
   KernelObjVisitor Visitor{*this};
   SYCLKernelNameTypeVisitor KernelTypeVisitor(*this, Args[0]->getExprLoc());
-  KernelTypeVisitor.Visit(KernelNameType);
+  if (LangOpts.SYCLIsDevice)
+    KernelTypeVisitor.Visit(KernelNameType);
   DiagnosingSYCLKernel = true;
   Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker,
                            ArgsSizeChecker);
