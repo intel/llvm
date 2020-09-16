@@ -181,7 +181,6 @@ public:
 
     const char *ValStr = BaseT::getRawValue();
     if (ValStr) {
-      // std::string FilterString = ValStr;
       static device_filter_list DFL{ValStr};
       FilterList = &DFL;
     }
