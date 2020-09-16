@@ -17,7 +17,7 @@
 using namespace sycl;
 using namespace sycl::ONEAPI;
 
-template <class BinaryOperation, int TestNumber>
+template <class SpecializationKernelName, int TestNumber>
 class exclusive_scan_kernel;
 
 // std::exclusive_scan isn't implemented yet, so use serial implementation
@@ -37,17 +37,17 @@ OutputIterator exclusive_scan(InputIterator first, InputIterator last,
 }
 } // namespace emu
 
-template <typename InputContainer, typename OutputContainer,
-          class BinaryOperation>
+template <typename SpecializationKernelName, typename InputContainer,
+          typename OutputContainer, class BinaryOperation>
 void test(queue q, InputContainer input, OutputContainer output,
           BinaryOperation binary_op,
           typename OutputContainer::value_type identity) {
   typedef typename InputContainer::value_type InputT;
   typedef typename OutputContainer::value_type OutputT;
-  typedef class exclusive_scan_kernel<BinaryOperation, 0> kernel_name0;
-  typedef class exclusive_scan_kernel<BinaryOperation, 1> kernel_name1;
-  typedef class exclusive_scan_kernel<BinaryOperation, 2> kernel_name2;
-  typedef class exclusive_scan_kernel<BinaryOperation, 3> kernel_name3;
+  typedef class exclusive_scan_kernel<SpecializationKernelName, 0> kernel_name0;
+  typedef class exclusive_scan_kernel<SpecializationKernelName, 1> kernel_name1;
+  typedef class exclusive_scan_kernel<SpecializationKernelName, 2> kernel_name2;
+  typedef class exclusive_scan_kernel<SpecializationKernelName, 3> kernel_name3;
   OutputT init = 42;
   size_t N = input.size();
   size_t G = 16;
@@ -136,13 +136,17 @@ int main() {
   std::fill(output.begin(), output.end(), 0);
 
 #if __cplusplus >= 201402L
-  test(q, input, output, plus<>(), 0);
-  test(q, input, output, minimum<>(), std::numeric_limits<int>::max());
-  test(q, input, output, maximum<>(), std::numeric_limits<int>::lowest());
+  test<class KernelNamePlusV>(q, input, output, plus<>(), 0);
+  test<class KernelNameMinimumV>(q, input, output, minimum<>(),
+                                 std::numeric_limits<int>::max());
+  test<class KernelNameMaximumV>(q, input, output, maximum<>(),
+                                 std::numeric_limits<int>::lowest());
 #endif
-  test(q, input, output, plus<int>(), 0);
-  test(q, input, output, minimum<int>(), std::numeric_limits<int>::max());
-  test(q, input, output, maximum<int>(), std::numeric_limits<int>::lowest());
+  test<class KernelName_VzAPutpBRRJrQPB>(q, input, output, plus<int>(), 0);
+  test<class KernelName_UXdGbr>(q, input, output, minimum<int>(),
+                                std::numeric_limits<int>::max());
+  test<class KernelName_saYaodNyJknrPW>(q, input, output, maximum<int>(),
+                                        std::numeric_limits<int>::lowest());
 
   std::cout << "Test passed." << std::endl;
 }

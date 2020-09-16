@@ -16,17 +16,13 @@
 using namespace sycl;
 using namespace sycl::ONEAPI;
 
-template <class BinaryOperation>
-class reduce_kernel;
-
-template <typename InputContainer, typename OutputContainer,
-          class BinaryOperation>
+template <typename SpecializationKernelName, typename InputContainer,
+          typename OutputContainer, class BinaryOperation>
 void test(queue q, InputContainer input, OutputContainer output,
           BinaryOperation binary_op,
           typename OutputContainer::value_type identity) {
   typedef typename InputContainer::value_type InputT;
   typedef typename OutputContainer::value_type OutputT;
-  typedef class reduce_kernel<BinaryOperation> kernel_name;
   OutputT init = 42;
   size_t N = input.size();
   size_t G = 16;
@@ -37,15 +33,17 @@ void test(queue q, InputContainer input, OutputContainer output,
     q.submit([&](handler &cgh) {
       auto in = in_buf.template get_access<access::mode::read>(cgh);
       auto out = out_buf.template get_access<access::mode::discard_write>(cgh);
-      cgh.parallel_for<kernel_name>(nd_range<1>(G, G), [=](nd_item<1> it) {
-        group<1> g = it.get_group();
-        int lid = it.get_local_id(0);
-        out[0] = reduce(g, in[lid], binary_op);
-        out[1] = reduce(g, in[lid], init, binary_op);
-        out[2] = reduce(g, in.get_pointer(), in.get_pointer() + N, binary_op);
-        out[3] =
-            reduce(g, in.get_pointer(), in.get_pointer() + N, init, binary_op);
-      });
+      cgh.parallel_for<SpecializationKernelName>(
+          nd_range<1>(G, G), [=](nd_item<1> it) {
+            group<1> g = it.get_group();
+            int lid = it.get_local_id(0);
+            out[0] = reduce(g, in[lid], binary_op);
+            out[1] = reduce(g, in[lid], init, binary_op);
+            out[2] =
+                reduce(g, in.get_pointer(), in.get_pointer() + N, binary_op);
+            out[3] = reduce(g, in.get_pointer(), in.get_pointer() + N, init,
+                            binary_op);
+          });
     });
   }
   // std::reduce is not implemented yet, so use std::accumulate instead
@@ -74,13 +72,17 @@ int main() {
   std::fill(output.begin(), output.end(), 0);
 
 #if __cplusplus >= 201402L
-  test(q, input, output, plus<>(), 0);
-  test(q, input, output, minimum<>(), std::numeric_limits<int>::max());
-  test(q, input, output, maximum<>(), std::numeric_limits<int>::lowest());
+  test<class KernelNamePlusV>(q, input, output, plus<>(), 0);
+  test<class KernelNameMinimumV>(q, input, output, minimum<>(),
+                                 std::numeric_limits<int>::max());
+  test<class KernelNameMaximumV>(q, input, output, maximum<>(),
+                                 std::numeric_limits<int>::lowest());
 #endif
-  test(q, input, output, plus<int>(), 0);
-  test(q, input, output, minimum<int>(), std::numeric_limits<int>::max());
-  test(q, input, output, maximum<int>(), std::numeric_limits<int>::lowest());
+  test<class KernelNamePlusI>(q, input, output, plus<int>(), 0);
+  test<class KernelNameMinimumI>(q, input, output, minimum<int>(),
+                                 std::numeric_limits<int>::max());
+  test<class KernelNameMaximumI>(q, input, output, maximum<int>(),
+                                 std::numeric_limits<int>::lowest());
 
   std::cout << "Test passed." << std::endl;
 }
