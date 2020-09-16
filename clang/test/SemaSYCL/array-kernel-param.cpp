@@ -63,7 +63,6 @@ int main() {
         int local = *a_ptrs[1];
       });
 
-
   a_kernel<class kernel_C>(
       [=]() {
         struct_acc.member_acc[2].use();
