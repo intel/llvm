@@ -805,7 +805,7 @@ unsigned encodeVecTypeHint(Type *Ty) {
       llvm_unreachable("invalid integer type");
     }
   }
-  if (VectorType *VecTy = dyn_cast<VectorType>(Ty)) {
+  if (FixedVectorType *VecTy = dyn_cast<FixedVectorType>(Ty)) {
     Type *EleTy = VecTy->getElementType();
     unsigned Size = VecTy->getNumElements();
     return Size << 16 | encodeVecTypeHint(EleTy);

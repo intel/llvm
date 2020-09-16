@@ -1335,23 +1335,24 @@ void OCL20ToSPIRV::visitCallRelational(CallInst *CI, StringRef DemangledName) {
         if (CI->getOperand(0)->getType()->isVectorTy())
           Ret = FixedVectorType::get(
               Type::getInt1Ty(*Ctx),
-              cast<VectorType>(CI->getOperand(0)->getType())->getNumElements());
+              cast<FixedVectorType>(CI->getOperand(0)->getType())
+                  ->getNumElements());
         return SPIRVName;
       },
       [=](CallInst *NewCI) -> Instruction * {
         Value *False = nullptr, *True = nullptr;
         if (NewCI->getType()->isVectorTy()) {
           Type *IntTy = Type::getInt32Ty(*Ctx);
-          if (cast<VectorType>(NewCI->getOperand(0)->getType())
+          if (cast<FixedVectorType>(NewCI->getOperand(0)->getType())
                   ->getElementType()
                   ->isDoubleTy())
             IntTy = Type::getInt64Ty(*Ctx);
-          if (cast<VectorType>(NewCI->getOperand(0)->getType())
+          if (cast<FixedVectorType>(NewCI->getOperand(0)->getType())
                   ->getElementType()
                   ->isHalfTy())
             IntTy = Type::getInt16Ty(*Ctx);
           Type *VTy = FixedVectorType::get(
-              IntTy, cast<VectorType>(NewCI->getType())->getNumElements());
+              IntTy, cast<FixedVectorType>(NewCI->getType())->getNumElements());
           False = Constant::getNullValue(VTy);
           True = Constant::getAllOnesValue(VTy);
         } else {
@@ -1618,7 +1619,7 @@ static void processSubgroupBlockReadWriteINTEL(CallInst *CI,
                                                OCLBuiltinTransInfo &Info,
                                                const Type *DataTy, Module *M) {
   unsigned VectorNumElements = 1;
-  if (auto *VecTy = dyn_cast<VectorType>(DataTy))
+  if (auto *VecTy = dyn_cast<FixedVectorType>(DataTy))
     VectorNumElements = VecTy->getNumElements();
   unsigned ElementBitSize = DataTy->getScalarSizeInBits();
   Info.Postfix = "_";
