@@ -49,23 +49,7 @@ public:
 
 inline std::ostream &operator<<(std::ostream &Out,
                                 const device_filter &Filter) {
-  switch (Filter.Backend) {
-  case backend::host:
-    Out << "host";
-    break;
-  case backend::opencl:
-    Out << "opencl";
-    break;
-  case backend::level_zero:
-    Out << "level-zero";
-    break;
-  case backend::cuda:
-    Out << "cuda";
-    break;
-  case backend::all:
-    Out << "*";
-  }
-  Out << ":";
+  Out << Filter.Backend << ":";
   if (Filter.DeviceType == info::device_type::host) {
     Out << "host";
   } else if (Filter.DeviceType == info::device_type::cpu) {
