@@ -2507,7 +2507,12 @@ public:
     }
   }
 
-  void Visit(const TemplateArgument &TA) { InnerTAVisitor::Visit(TA); }
+  void Visit(const TemplateArgument &TA) {
+    if (TA.isNull())
+      return;
+    else
+      InnerTAVisitor::Visit(TA);
+  }
 
   void VisitEnumType(const EnumType *T) {
     const EnumDecl *ED = T->getDecl();
@@ -2620,6 +2625,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
 
   KernelObjVisitor Visitor{*this};
   SYCLKernelNameTypeVisitor KernelTypeVisitor(*this, Args[0]->getExprLoc());
+  // Emit diagnostics for SYCL device kernels only
   if (LangOpts.SYCLIsDevice)
     KernelTypeVisitor.Visit(KernelNameType);
   DiagnosingSYCLKernel = true;
