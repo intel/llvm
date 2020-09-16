@@ -6824,6 +6824,16 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
     // users want.  The /Za flag to cl.exe turns this off, but it's not
     // implemented in clang.
     CmdArgs.push_back("--dependent-lib=oldnames");
+
+    // Add SYCL dependent library
+    if (Args.hasArg(options::OPT_fsycl) &&
+        !Args.hasArg(options::OPT_nolibsycl)) {
+      if (RTOptionID == options::OPT__SLASH_MDd ||
+          RTOptionID == options::OPT__SLASH_MTd)
+        CmdArgs.push_back("--dependent-lib=sycld");
+      else
+        CmdArgs.push_back("--dependent-lib=sycl");
+    }
   }
 
   if (Arg *ShowIncludes =

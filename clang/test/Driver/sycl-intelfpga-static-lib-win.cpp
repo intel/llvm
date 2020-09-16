@@ -11,7 +11,7 @@
 // RUN: lib -out:%t.lib %t1_bundle.obj
 
 /// Check phases with static lib
-// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fintelfpga %t.lib -ccc-print-phases 2>&1 \
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all -fintelfpga %t.lib -ccc-print-phases 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHECK_PHASES %s
 // CHECK_PHASES: 0: input, "[[INPUT:.+\.lib]]", object, (host-sycl)
 // CHECK_PHASES: 1: linker, {0}, image, (host-sycl)
@@ -27,7 +27,7 @@
 // CHECK_PHASES: 11: offload, "host-sycl (x86_64-pc-windows-msvc)" {1}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {10}, image
 
 /// Check for unbundle and use of deps in static lib
-// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fintelfpga %t.lib -### 2>&1 \
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all -fintelfpga %t.lib -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHECK_UNBUNDLE %s
 // CHECK_UNBUNDLE: clang-offload-bundler" "-type=aoo" "-targets=sycl-fpga_dep" "-inputs={{.*}}" "-outputs=[[DEPFILES:.+\.txt]]" "-unbundle"
 // CHECK_UNBUNDLE: aoc{{.*}} "-dep-files=@[[DEPFILES]]"
