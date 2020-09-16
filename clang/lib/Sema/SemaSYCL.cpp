@@ -2479,13 +2479,14 @@ class SYCLKernelNameTypeVisitor
     : public TypeVisitor<SYCLKernelNameTypeVisitor>,
       public ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor> {
   Sema &S;
-  SourceLocation Loc;
+  SourceLocation KernelInvocationFuncLoc;
   using InnerTypeVisitor = TypeVisitor<SYCLKernelNameTypeVisitor>;
   using InnerTAVisitor =
       ConstTemplateArgumentVisitor<SYCLKernelNameTypeVisitor>;
 
 public:
-  SYCLKernelNameTypeVisitor(Sema &S, SourceLocation Loc) : S(S), Loc(Loc) {}
+  SYCLKernelNameTypeVisitor(Sema &S, SourceLocation KernelInvocationFuncLoc)
+      : S(S), KernelInvocationFuncLoc(KernelInvocationFuncLoc) {}
 
   void Visit(QualType T) {
     if (T.isNull())
@@ -2511,10 +2512,12 @@ public:
   void VisitEnumType(const EnumType *T) {
     const EnumDecl *ED = T->getDecl();
     if (!ED->isScoped() && !ED->isFixed()) {
-      S.Diag(Loc, diag::err_sycl_kernel_incorrectly_named) << 2;
+      S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
+          << /* kernel name is invalid. Unscoped enum requires fixed underlying
+                type */
+          2;
       S.Diag(ED->getSourceRange().getBegin(), diag::note_entity_declared_at)
           << ED;
-      return;
     }
   }
 
@@ -2526,42 +2529,38 @@ public:
     bool UnnamedLambdaEnabled =
         S.getASTContext().getLangOpts().SYCLUnnamedLambda;
     if (Tag && !Tag->getDeclContext()->isTranslationUnit() &&
-        !dyn_cast_or_null<NamespaceDecl>(Tag->getDeclContext()) &&
-        !UnnamedLambdaEnabled) {
+        !isa<NamespaceDecl>(Tag->getDeclContext()) && !UnnamedLambdaEnabled) {
       const bool KernelNameIsMissing = Tag->getName().empty();
       if (KernelNameIsMissing) {
-        S.Diag(Loc, diag::err_sycl_kernel_incorrectly_named)
+        S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
             << /* kernel name is missing */ 0;
-        return;
       } else {
         if (Tag->isCompleteDefinition())
-          S.Diag(Loc, diag::err_sycl_kernel_incorrectly_named)
+          S.Diag(KernelInvocationFuncLoc,
+                 diag::err_sycl_kernel_incorrectly_named)
               << /* kernel name is not globally-visible */ 1;
         else
-          S.Diag(Loc, diag::warn_sycl_implicit_decl);
+          S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
 
         S.Diag(Tag->getSourceRange().getBegin(), diag::note_previous_decl)
             << Tag->getName();
-        return;
       }
     }
   }
 
   void VisitTypeTemplateArgument(const TemplateArgument &TA) {
     QualType T = TA.getAsType();
-    if (const auto *ET = T->getAs<EnumType>()) {
+    if (const auto *ET = T->getAs<EnumType>())
       VisitEnumType(ET);
-    } else {
+    else
       Visit(T);
-    }
     return;
   }
 
   void VisitIntegralTemplateArgument(const TemplateArgument &TA) {
     QualType T = TA.getIntegralType();
-    if (const EnumType *ET = T->getAs<EnumType>()) {
+    if (const EnumType *ET = T->getAs<EnumType>())
       VisitEnumType(ET);
-    }
     return;
   }
 

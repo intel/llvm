@@ -8,7 +8,7 @@ enum unscoped_enum_int : int {
   val_2
 };
 
-// expected-note@+1 1+ {{'unscoped_enum_no_type_set' declared here}}
+// expected-note@+1 2 {{'unscoped_enum_no_type_set' declared here}}
 enum unscoped_enum_no_type_set {
   val_3,
   val_4

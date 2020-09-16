@@ -4,6 +4,7 @@
 // RUN: %clang_cc1 -fsycl -triple spir64_gen -Werror=sycl-strict -DERROR -fsycl-is-device -fsyntax-only -verify %s
 
 #include "Inputs/sycl.hpp"
+class Foo;
 
 template <typename Name, typename F>
 __attribute__((sycl_kernel)) void kernel(F KernelFunc) {
@@ -34,14 +35,8 @@ void use() {
     int Array[1991];
   } Args;
   auto L = [=]() { (void)Args; };
-#ifdef GPU
-  // expected-note@+8 {{in instantiation of function template specialization 'parallel_for<Foo}}
-#elif ERROR
-  // expected-note@+6 {{Foo declared here}}
-  // expected-error@22 {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
-  // expected-note@+4 {{in instantiation of function template specialization 'parallel_for<Foo}}
-#else
-  // expected-no-diagnostics
+#if defined(GPU) || defined(ERROR)
+  // expected-note@+2 {{in instantiation of function template specialization 'parallel_for<Foo}}
 #endif
-  parallel_for<class Foo>(L);
+  parallel_for<Foo>(L);
 }
