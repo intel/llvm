@@ -643,6 +643,216 @@ media_block_store(AccessorTy acc, unsigned x, unsigned y, simd<T, m * n> vals) {
 SYCL_EXTERNAL void slm_init(uint32_t size) {}
 
 #endif
+
+/// \brief esimd_get_value
+///
+/// @param acc the SYCL accessor.
+///
+/// Returns the binding table index value.
+///
+template <typename AccessorTy>
+ESIMD_INLINE ESIMD_NODEBUG uint32_t esimd_get_value(AccessorTy acc) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_EXPLICIT_SIMD__)
+  return __esimd_get_value(AccessorPrivateProxy::getNativeImageObj(acc));
+#else
+  return __esimd_get_value(acc);
+#endif // __SYCL_DEVICE_ONLY__ && __SYCL_EXPLICIT_SIMD__
+}
+
+/// \brief Raw sends load.
+///
+/// @param msgDst the old value of the destination operand.
+///
+/// @param msgSrc0 the first source operand of send message.
+///
+/// @param msgSrc1 the second source operand of send message.
+///
+/// @param exDesc the extended message descriptor.
+///
+/// @param msgDesc the message descriptor.
+///
+/// @param execSize the execution size, which must be a compile time constant.
+///
+/// @param sfid the shared function ID, which must be a compile time constant.
+///
+/// @param numSrc0 the number of GRFs for source-0, which must be a compile time
+/// constant.
+///
+/// @param numSrc1 the number of GRFs for source-1, which must be a compile time
+/// constant.
+///
+/// @param numDst the number of GRFs for destination, which must be a compile
+/// time constant.
+///
+/// @param isEOT the flag that indicates whether this is an EOT message, which
+/// must be a compile time constant (optional - default to 0).
+///
+/// @param isSendc the flag that indicates whether sendc should be used, which
+/// must be a compile time constant (optional - default to 0).
+///
+/// @param mask the predicate to specify enabled channels (optional - default to
+/// on).
+///
+/// Returns a simd vector of type T1 and size n1.
+///
+/// Raw send APIs are used to implement the send messages on Intel® processor
+/// graphics.
+/// https://01.org/sites/default/files/documentation/intel-gfx-prm-osrc-icllp-vol02a-commandreference-instructions_2.pdf
+///
+template <typename T1, int n1, typename T2, int n2, typename T3, int n3,
+          int N = 16>
+ESIMD_INLINE ESIMD_NODEBUG simd<T1, n1>
+esimd_raw_sends_load(simd<T1, n1> msgDst, simd<T2, n2> msgSrc0,
+                     simd<T3, n3> msgSrc1, uint32_t exDesc, uint32_t msgDesc,
+                     uint8_t execSize, uint8_t sfid, uint8_t numSrc0,
+                     uint8_t numSrc1, uint8_t numDst, uint8_t isEOT = 0,
+                     uint8_t isSendc = 0, simd<uint16_t, N> mask = 1) {
+  constexpr unsigned _Width1 = n1 * sizeof(T1);
+  static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
+  constexpr unsigned _Width2 = n2 * sizeof(T2);
+  static_assert(_Width2 % 32 == 0, "Invalid size for raw send msgSrc0");
+  constexpr unsigned _Width3 = n3 * sizeof(T3);
+  static_assert(_Width3 % 32 == 0, "Invalid size for raw send msgSrc1");
+
+  uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
+  return __esimd_raw_sends_load<T1, n1, T2, n2, T3, n3, N>(
+      modifier, execSize, mask.data(), numSrc0, numSrc1, numDst, sfid, exDesc,
+      msgDesc, msgSrc0.data(), msgSrc1.data(), msgDst.data());
+}
+
+/// \brief Raw send load.
+///
+/// @param msgDst the old value of the destination operand.
+///
+/// @param msgSrc0 the first source operand of send message.
+///
+/// @param exDesc the extended message descriptor.
+///
+/// @param msgDesc the message descriptor.
+///
+/// @param execSize the execution size, which must be a compile time constant.
+///
+/// @param sfid the shared function ID, which must be a compile time constant.
+///
+/// @param numSrc0 the number of GRFs for source-0, which must be a compile time
+/// constant.
+///
+/// @param numDst the number of GRFs for destination, which must be a compile
+/// time constant.
+///
+/// @param isEOT the flag that indicates whether this is an EOT message, which
+/// must be a compile time constant (optional - default to 0).
+///
+/// @param isSendc the flag that indicates whether sendc should be used, which
+/// must be a compile time constant (optional - default to 0).
+///
+/// @param mask the predicate to specify enabled channels (optional - default to
+/// on).
+///
+/// Returns a simd vector of type T1 and size n1.
+///
+template <typename T1, int n1, typename T2, int n2, int N = 16>
+ESIMD_INLINE ESIMD_NODEBUG simd<T1, n1>
+esimd_raw_send_load(simd<T1, n1> msgDst, simd<T2, n2> msgSrc0, uint32_t exDesc,
+                    uint32_t msgDesc, uint8_t execSize, uint8_t sfid,
+                    uint8_t numSrc0, uint8_t numDst, uint8_t isEOT = 0,
+                    uint8_t isSendc = 0, simd<uint16_t, N> mask = 1) {
+  constexpr unsigned _Width1 = n1 * sizeof(T1);
+  static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
+  constexpr unsigned _Width2 = n2 * sizeof(T2);
+  static_assert(_Width2 % 32 == 0, "Invalid size for raw send msgSrc0");
+
+  uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
+  return __esimd_raw_send_load<T1, n1, T2, n2, N>(
+      modifier, execSize, mask.data(), numSrc0, numDst, sfid, exDesc, msgDesc,
+      msgSrc0.data(), msgDst.data());
+}
+
+/// \brief Raw sends store.
+///
+/// @param msgSrc0 the first source operand of send message.
+///
+/// @param msgSrc1 the second source operand of send message.
+///
+/// @param exDesc the extended message descriptor.
+///
+/// @param msgDesc the message descriptor.
+///
+/// @param execSize the execution size, which must be a compile time constant.
+///
+/// @param sfid the shared function ID, which must be a compile time constant.
+///
+/// @param numSrc0 the number of GRFs for source-0, which must be a compile time
+/// constant.
+///
+/// @param numSrc1 the number of GRFs for source-1, which must be a compile time
+/// constant.
+///
+/// @param isEOT the flag that indicates whether this is an EOT message, which
+/// must be a compile time constant (optional - default to 0).
+///
+/// @param isSendc the flag that indicates whether sendc should be used, which
+/// must be a compile time constant (optional - default to 0).
+///
+/// @param mask the predicate to specify enabled channels (optional - default to
+/// on).
+///
+template <typename T1, int n1, typename T2, int n2, int N = 16>
+ESIMD_INLINE ESIMD_NODEBUG void
+esimd_raw_sends_store(simd<T1, n1> msgSrc0, simd<T2, n2> msgSrc1,
+                      uint32_t exDesc, uint32_t msgDesc, uint8_t execSize,
+                      uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
+                      uint8_t isEOT = 0, uint8_t isSendc = 0,
+                      simd<uint16_t, N> mask = 1) {
+  constexpr unsigned _Width1 = n1 * sizeof(T1);
+  static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
+  constexpr unsigned _Width2 = n2 * sizeof(T2);
+  static_assert(_Width2 % 32 == 0, "Invalid size for raw send msgSrc1");
+
+  uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
+  __esimd_raw_sends_store<T1, n1, T2, n2, N>(
+      modifier, execSize, mask.data(), numSrc0, numSrc1, sfid, exDesc, msgDesc,
+      msgSrc0.data(), msgSrc1.data());
+}
+
+/// \brief Raw send store.
+///
+/// @param msgSrc0 the first source operand of send message.
+///
+/// @param exDesc the extended message descriptor.
+///
+/// @param msgDesc the message descriptor.
+///
+/// @param execSize the execution size, which must be a compile time constant.
+///
+/// @param sfid the shared function ID, which must be a compile time constant.
+///
+/// @param numSrc0 the number of GRFs for source-0, which must be a compile time
+/// constant.
+///
+/// @param isEOT the flag that indicates whether this is an EOT message, which
+/// must be a compile time constant (optional - default to 0).
+///
+/// @param isSendc the flag that indicates whether sendc should be used, which
+/// must be a compile time constant (optional - default to 0).
+///
+/// @param mask the predicate to specify enabled channels (optional - default to
+/// on).
+///
+template <typename T1, int n1, int N = 16>
+ESIMD_INLINE ESIMD_NODEBUG void
+esimd_raw_send_store(simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
+                     uint8_t execSize, uint8_t sfid, uint8_t numSrc0,
+                     uint8_t isEOT = 0, uint8_t isSendc = 0,
+                     simd<uint16_t, N> mask = 1) {
+  constexpr unsigned _Width1 = n1 * sizeof(T1);
+  static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
+
+  uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
+  __esimd_raw_send_store<T1, n1, N>(modifier, execSize, mask.data(), numSrc0,
+                                    sfid, exDesc, msgDesc, msgSrc0.data());
+}
+
 } // namespace gpu
 } // namespace INTEL
 } // namespace sycl

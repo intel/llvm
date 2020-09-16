@@ -1838,7 +1838,7 @@ template <typename T0, typename T1, int SZ> struct esimd_apply_reduced_min {
 
 template <typename T0, typename T1, int SZ,
           template <typename RT, typename T, int N> class OpType>
-T1 esimd_reduce_single(simd<T1, SZ> v) {
+T0 esimd_reduce_single(simd<T1, SZ> v) {
   if constexpr (SZ == 1) {
     return v[0];
   } else {
@@ -1854,7 +1854,7 @@ T1 esimd_reduce_single(simd<T1, SZ> v) {
 
 template <typename T0, typename T1, int N1, int N2,
           template <typename RT, typename T, int N> class OpType>
-T1 esimd_reduce_pair(simd<T1, N1> v1, simd<T1, N2> v2) {
+T0 esimd_reduce_pair(simd<T1, N1> v1, simd<T1, N2> v2) {
   if constexpr (N1 == N2) {
     simd<T0, N1> tmp = OpType<T0, T1, N1>()(v1, v2);
     return esimd_reduce_single<T0, T0, N1, OpType>(tmp);
@@ -1879,7 +1879,7 @@ T1 esimd_reduce_pair(simd<T1, N1> v1, simd<T1, N2> v2) {
 
 template <typename T0, typename T1, int SZ,
           template <typename RT, typename T, int N> class OpType>
-T1 esimd_reduce(simd<T1, SZ> v) {
+T0 esimd_reduce(simd<T1, SZ> v) {
   constexpr bool isPowerOf2 = __esimd::isPowerOf2(SZ);
   if constexpr (isPowerOf2) {
     return esimd_reduce_single<T0, T1, SZ, OpType>(v);
