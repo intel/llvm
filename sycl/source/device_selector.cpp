@@ -37,9 +37,9 @@ static bool isDeviceOfPreferredSyclBe(const device &Device) {
 }
 
 // Return true if the given device 'Dev' matches with any filter
-static bool isForcedDevice(const device &Dev, int Index=-1) {
+static bool isForcedDevice(const device &Dev, int Index = -1) {
   detail::device_filter_list *FilterList =
-    detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
+      detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
 
   if (!FilterList)
     return false;
@@ -55,7 +55,7 @@ static bool isForcedDevice(const device &Dev, int Index=-1) {
         (Filter.DeviceType == Type ||
          Filter.DeviceType == info::device_type::all)) {
       if (Index < 0 || (Filter.HasDeviceNum && Filter.DeviceNum == Index))
-	return true;
+        return true;
     }
   }
   return false;
@@ -140,8 +140,9 @@ int default_selector::operator()(const device &dev) const {
   // filter device gets a high point.
   if (isForcedDevice(dev))
     Score += 1000;
-  
-  else if (dev.get_info<info::device::device_type>() == detail::get_forced_type())
+
+  else if (dev.get_info<info::device::device_type>() ==
+           detail::get_forced_type())
     Score += 1000;
 
   if (dev.is_gpu())
@@ -161,12 +162,12 @@ int gpu_selector::operator()(const device &dev) const {
 
   if (dev.is_gpu()) {
     detail::device_filter_list *FilterList =
-      detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
+        detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
     if (FilterList) {
       if (isForcedDevice(dev))
-	Score = 1000;
+        Score = 1000;
       else
-	return Score;
+        return Score;
     } else {
       Score = 1000;
     }
@@ -182,12 +183,12 @@ int cpu_selector::operator()(const device &dev) const {
 
   if (dev.is_cpu()) {
     detail::device_filter_list *FilterList =
-      detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
+        detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
     if (FilterList) {
       if (isForcedDevice(dev))
-	Score = 1000;
+        Score = 1000;
       else
-	return Score;
+        return Score;
     } else {
       Score = 1000;
     }
@@ -203,12 +204,12 @@ int accelerator_selector::operator()(const device &dev) const {
 
   if (dev.is_accelerator()) {
     detail::device_filter_list *FilterList =
-      detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
+        detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
     if (FilterList) {
       if (isForcedDevice(dev))
-	Score = 1000;
+        Score = 1000;
       else
-	return Score;
+        return Score;
     } else {
       Score = 1000;
     }

@@ -21,14 +21,14 @@ int main() {
     cout << "SYCL_DEVICE_FILTER=" << envVal << std::endl;
     forcedPIs = envVal;
   }
-  
+
   {
     default_selector ds;
     device d = ds.select_device();
     string name = d.get_platform().get_info<info::platform::name>();
     assert(name.find("Level-Zero") != string::npos);
-    cout << "Level-Zero GPU Device is found: " << boolalpha
-	 << d.is_gpu() << std::endl;
+    cout << "Level-Zero GPU Device is found: " << boolalpha << d.is_gpu()
+         << std::endl;
   }
   {
     gpu_selector gs;
@@ -57,7 +57,8 @@ int main() {
     accelerator_selector as;
     try {
       device d = as.select_device();
-      cerr << "ACC device is found in error: " << d.is_accelerator() << std::endl;
+      cerr << "ACC device is found in error: " << d.is_accelerator()
+           << std::endl;
     } catch (...) {
       cout << "Expectedly, ACC device is not found." << std::endl;
     }

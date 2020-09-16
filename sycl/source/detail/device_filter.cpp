@@ -93,9 +93,9 @@ device_filter::device_filter(const std::string &FilterString) {
     } catch (...) {
       std::string Message =
           std::string("Invalid device filter: ") + FilterString +
-              "\nPossible backend values are {host,opencl,level_zero,cuda,*}.\n"
-              "Possible device types are {host,cpu,gpu,acc,*}.\n"
-              "Device number should be an non-negative integer.\n";
+          "\nPossible backend values are {host,opencl,level_zero,cuda,*}.\n"
+          "Possible device types are {host,cpu,gpu,acc,*}.\n"
+          "Device number should be an non-negative integer.\n";
       throw cl::sycl::invalid_parameter_error(Message, PI_INVALID_VALUE);
     }
   }
@@ -121,11 +121,11 @@ device_filter_list::device_filter_list(const std::string &FilterStr) {
   }
 }
 
-device_filter_list::device_filter_list(device_filter& Filter) {
+device_filter_list::device_filter_list(device_filter &Filter) {
   FilterList.push_back(Filter);
 }
 
-void device_filter_list::addFilter(device_filter& Filter) {
+void device_filter_list::addFilter(device_filter &Filter) {
   FilterList.push_back(Filter);
 }
 

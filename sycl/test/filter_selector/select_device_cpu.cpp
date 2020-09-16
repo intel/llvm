@@ -26,15 +26,15 @@ int main() {
     device d = ds.select_device();
     string name = d.get_platform().get_info<info::platform::name>();
     assert(name.find("OpneCL") != string::npos);
-    std::cout << "CPU Device is found: " << std::boolalpha
-              << d.is_cpu() << std::endl;
+    std::cout << "CPU Device is found: " << std::boolalpha << d.is_cpu()
+              << std::endl;
   }
   {
     gpu_selector gs;
     try {
       device d = gs.select_device();
       std::cerr << "GPU Device is found: " << std::boolalpha << d.is_gpu()
-		<< std::endl;
+                << std::endl;
       return -1;
     } catch (...) {
       std::cout << "Expectedly, GPU device is not found." << std::endl;
@@ -55,9 +55,10 @@ int main() {
     accelerator_selector as;
     try {
       device d = as.select_device();
-      std::cerr << "ACC device is found in error: " << d.is_accelerator() << std::endl;
+      std::cerr << "ACC device is found in error: " << d.is_accelerator()
+                << std::endl;
       return -1;
-    } catch(...) {
+    } catch (...) {
       std::cout << "Expectedly, ACC device is not found." << std::endl;
     }
   }

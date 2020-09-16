@@ -21,14 +21,14 @@ int main() {
     cout << "SYCL_DEVICE_FILTER=" << envVal << std::endl;
     forcedPIs = envVal;
   }
-  
+
   {
     default_selector ds;
     device d = ds.select_device();
     string name = d.get_platform().get_info<info::platform::name>();
     assert(name.find("OpenCL") != string::npos);
-    cout << "OpenCL GPU Device is found: " << boolalpha
-	 << d.is_gpu() << std::endl;
+    cout << "OpenCL GPU Device is found: " << boolalpha << d.is_gpu()
+         << std::endl;
   }
   {
     gpu_selector gs;
