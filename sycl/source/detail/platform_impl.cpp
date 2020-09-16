@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cstring>
 #include <regex>
+#include <string>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -121,112 +122,172 @@ vector_class<platform> platform_impl::get_platforms() {
 }
 
 struct DevDescT {
-  const char *devName = nullptr;
-  int devNameSize = 0;
-  const char *devDriverVer = nullptr;
-  int devDriverVerSize = 0;
-
-  const char *platformName = nullptr;
-  int platformNameSize = 0;
-
-  const char *platformVer = nullptr;
-  int platformVerSize = 0;
+  std::string devName;
+  std::string devDriverVer;
+  std::string platName;
+  std::string platVer;
 };
 
 static std::vector<DevDescT> getAllowListDesc() {
-  const char *Str = SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get();
-  if (!Str)
+  std::string allowList(SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get());
+  if (allowList.empty())
     return {};
 
+  std::string deviceName("DeviceName:");
+  std::string driverVersion("DriverVersion:");
+  std::string platformName("PlatformName:");
+  std::string platformVersion("PlatformVersion:");
   std::vector<DevDescT> decDescs;
-  const char devNameStr[] = "DeviceName";
-  const char driverVerStr[] = "DriverVersion";
-  const char platformNameStr[] = "PlatformName";
-  const char platformVerStr[] = "PlatformVersion";
   decDescs.emplace_back();
 
-  std::cout << "Before: " << Str << std::endl;
+  size_t pos = 0;
+  size_t prev = pos;
+  while (pos < allowList.size()) {
+    if ((allowList.compare(pos, deviceName.size(), deviceName)) == 0) {
+      prev = pos;
+      if ((pos = allowList.find("{{", pos)) == std::string::npos) {
+        throw sycl::runtime_error("Malformed syntax in SYCL_DEVICE_ALLOWLIST",
+                                  PI_INVALID_VALUE);
+      }
+      if (pos > prev + deviceName.size()) {
+        throw sycl::runtime_error("Malformed syntax in SYCL_DEVICE_ALLOWLIST",
+                                  PI_INVALID_VALUE);
+      }
 
-  // Replace common special symbols with '.' which matches to any character
-#if 0 // gail
-  std::string tmp(Str);
-  std::replace_if(tmp.begin(), tmp.end(),
-                  [](const char sym) { return '(' == sym || ')' == sym; }, '.');
-  const char * str = tmp.c_str();
-#endif //gail
+      pos = pos + 2;
+      size_t start = pos;
+      if ((pos = allowList.find("}}", pos)) == std::string::npos) {
+        throw sycl::runtime_error("Malformed syntax in SYCL_DEVICE_ALLOWLIST",
+                                  PI_INVALID_VALUE);
+      }
+      decDescs.back().devName = allowList.substr(start, pos - start);
+      pos = pos + 2;
 
-  std::string tmp(Str);
-  std::replace(tmp.begin(), tmp.end(), '(', '.');
-  std::replace(tmp.begin(), tmp.end(), ')', '.');
-  const char * str = tmp.c_str();
-  std::cout << "After : " << str << std::endl;
+      if (allowList[pos] == ',') {
+        pos++;
+      }
+    }
 
-  while ('\0' != *str) {
-    const char **valuePtr = nullptr;
-    int *size = nullptr;
+    else if ((allowList.compare(pos, driverVersion.size(), driverVersion)) ==
+             0) {
+      prev = pos;
+      if ((pos = allowList.find("{{", pos)) == std::string::npos) {
+        throw sycl::runtime_error("Malformed syntax in SYCL_DEVICE_ALLOWLIST",
+                                  PI_INVALID_VALUE);
+      }
+      if (pos > prev + driverVersion.size()) {
+        throw sycl::runtime_error("Malformed syntax in SYCL_DEVICE_ALLOWLIST",
+                                  PI_INVALID_VALUE);
+      }
 
-    // -1 to avoid comparing null terminator
-    if (0 == strncmp(devNameStr, str, sizeof(devNameStr) - 1)) {
-      valuePtr = &decDescs.back().devName;
-      size = &decDescs.back().devNameSize;
-      str += sizeof(devNameStr) - 1;
-    } else if (0 ==
-               strncmp(platformNameStr, str, sizeof(platformNameStr) - 1)) {
-      valuePtr = &decDescs.back().platformName;
-      size = &decDescs.back().platformNameSize;
-      str += sizeof(platformNameStr) - 1;
-    } else if (0 == strncmp(platformVerStr, str, sizeof(platformVerStr) - 1)) {
-      valuePtr = &decDescs.back().platformVer;
-      size = &decDescs.back().platformVerSize;
-      str += sizeof(platformVerStr) - 1;
-    } else if (0 == strncmp(driverVerStr, str, sizeof(driverVerStr) - 1)) {
-      valuePtr = &decDescs.back().devDriverVer;
-      size = &decDescs.back().devDriverVerSize;
-      str += sizeof(driverVerStr) - 1;
-    } else {
+      size_t start = pos + 2;
+      if ((pos = allowList.find("}}", pos)) == std::string::npos) {
+        throw sycl::runtime_error("Malformed syntax in SYCL_DEVICE_ALLOWLIST",
+                                  PI_INVALID_VALUE);
+      }
+      decDescs.back().devDriverVer = allowList.substr(start, pos - start);
+      pos = pos + 2;
+
+      if (allowList[pos] == ',') {
+        pos++;
+      }
+    }
+
+    else if ((allowList.compare(pos, platformName.size(), platformName)) == 0) {
+      prev = pos;
+      if ((pos = allowList.find("{{", pos)) == std::string::npos) {
+        throw sycl::runtime_error("Malformed syntax in SYCL_DEVICE_ALLOWLIST",
+                                  PI_INVALID_VALUE);
+      }
+      if (pos > prev + platformName.size()) {
+        throw sycl::runtime_error("Malformed syntax in SYCL_DEVICE_ALLOWLIST",
+                                  PI_INVALID_VALUE);
+      }
+
+      size_t start = pos + 2;
+      if ((pos = allowList.find("}}", pos)) == std::string::npos) {
+        throw sycl::runtime_error("Malformed syntax in SYCL_DEVICE_ALLOWLIST",
+                                  PI_INVALID_VALUE);
+      }
+      decDescs.back().platName = allowList.substr(start, pos - start);
+      pos = pos + 2;
+
+      if (allowList[pos] == ',') {
+        pos++;
+      }
+
+    }
+
+    else if ((allowList.compare(pos, platformVersion.size(),
+                                platformVersion)) == 0) {
+      prev = pos;
+      if ((pos = allowList.find("{{", pos)) == std::string::npos) {
+        throw sycl::runtime_error("Malformed syntax in SYCL_DEVICE_ALLOWLIST",
+                                  PI_INVALID_VALUE);
+      }
+      if (pos > prev + platformVersion.size()) {
+        throw sycl::runtime_error("Malformed syntax in SYCL_DEVICE_ALLOWLIST",
+                                  PI_INVALID_VALUE);
+      }
+
+      size_t start = pos + 2;
+      if ((pos = allowList.find("}}", pos)) == std::string::npos) {
+        throw sycl::runtime_error("Malformed syntax in SYCL_DEVICE_ALLOWLIST",
+                                  PI_INVALID_VALUE);
+      }
+      decDescs.back().platVer = allowList.substr(start, pos - start);
+      pos = pos + 2;
+    }
+
+    else if (allowList.find('|', pos) != std::string::npos) {
+      pos = allowList.find('|') + 1;
+      while (allowList[pos] == ' ') {
+        pos++;
+      }
+      decDescs.emplace_back();
+    }
+
+    else {
       throw sycl::runtime_error("Unrecognized key in device allowlist",
                                 PI_INVALID_VALUE);
     }
-
-    if (':' != *str)
-      throw sycl::runtime_error("Malformed device allowlist", PI_INVALID_VALUE);
-
-    // Skip ':'
-    str += 1;
-
-    if ('{' != *str || '{' != *(str + 1))
-      throw sycl::runtime_error("Malformed device allowlist", PI_INVALID_VALUE);
-
-    // Skip opening sequence "{{"
-    str += 2;
-
-    *valuePtr = str;
-
-    // Increment until closing sequence is encountered
-    while (('\0' != *str) && ('}' != *str || '}' != *(str + 1)))
-      ++str;
-
-    if ('\0' == *str)
-      throw sycl::runtime_error("Malformed device allowlist", PI_INVALID_VALUE);
-
-    *size = str - *valuePtr;
-
-    // Skip closing sequence "}}"
-    str += 2;
-
-    if ('\0' == *str)
-      break;
-
-    // '|' means that the is another filter
-    if ('|' == *str)
-      decDescs.emplace_back();
-    else if (',' != *str)
-      throw sycl::runtime_error("Malformed device allowlist", PI_INVALID_VALUE);
-
-    ++str;
-  }
-
+  } // while (pos <= allowList.size())
   return decDescs;
+}
+
+std::vector<int> convertVersionString(std::string version) {
+  // version string format is xx.yy.zzzzz
+  std::vector<int> values;
+  size_t pos = 0;
+  size_t start = pos;
+  if ((pos = version.find(".", pos)) == std::string::npos) {
+    throw sycl::runtime_error("Malformed syntax in version string",
+                              PI_INVALID_VALUE);
+  }
+  values.push_back(std::stoi(version.substr(start, pos)));
+  pos++;
+  start = pos;
+  if ((pos = version.find(".", pos)) == std::string::npos) {
+    throw sycl::runtime_error("Malformed syntax in version string",
+                              PI_INVALID_VALUE);
+  }
+  values.push_back(std::stoi(version.substr(start, pos)));
+  pos++;
+  values.push_back(std::stoi(version.substr(pos)));
+
+  return values;
+}
+
+enum MatchState { UNKNOWN, MATCH, NOMATCH };
+
+MatchState matchVersions(std::string version1, std::string version2) {
+  std::vector<int> v1 = convertVersionString(version1);
+  std::vector<int> v2 = convertVersionString(version2);
+  if (v1[0] >= v2[0] && v1[1] >= v2[1] && v1[2] >= v2[2]) {
+    return MatchState::MATCH;
+  } else {
+    return MatchState::NOMATCH;
+  }
 }
 
 static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
@@ -234,6 +295,11 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
   const std::vector<DevDescT> AllowList(getAllowListDesc());
   if (AllowList.empty())
     return;
+
+  MatchState devNameState = UNKNOWN;
+  MatchState devVerState = UNKNOWN;
+  MatchState platNameState = UNKNOWN;
+  MatchState platVerState = UNKNOWN;
 
   const string_class PlatformName =
       sycl::detail::get_platform_info<string_class, info::platform::name>::get(
@@ -254,32 +320,56 @@ static void filterAllowList(vector_class<RT::PiDevice> &PiDevices,
         string_class, info::device::driver_version>::get(Device, Plugin);
 
     for (const DevDescT &Desc : AllowList) {
-      if (nullptr != Desc.platformName &&
-          !std::regex_match(PlatformName,
-                            std::regex(std::string(Desc.platformName,
-                                                   Desc.platformNameSize))))
-        continue;
+      if (!Desc.platName.empty()) {
+        if (!std::regex_match(PlatformName, std::regex(Desc.platName))) {
+          platNameState = MatchState::NOMATCH;
+          continue;
+        } else {
+          platNameState = MatchState::MATCH;
+        }
+      }
 
-      if (nullptr != Desc.platformVer &&
-          !std::regex_match(
-              PlatformVer,
-              std::regex(std::string(Desc.platformVer, Desc.platformVerSize))))
-        continue;
+      if (!Desc.platVer.empty()) {
+        if (!std::regex_match(PlatformVer, std::regex(Desc.platVer))) {
+          platVerState = MatchState::NOMATCH;
+          continue;
+        } else {
+          platVerState = MatchState::MATCH;
+        }
+      }
 
-      if (nullptr != Desc.devName &&
-          !std::regex_match(DeviceName, std::regex(std::string(
-                                            Desc.devName, Desc.devNameSize))))
-        continue;
+      if (!Desc.devName.empty()) {
+        if (!std::regex_match(DeviceName, std::regex(Desc.devName))) {
+          devNameState = MatchState::NOMATCH;
+          continue;
+        } else {
+          devNameState = MatchState::MATCH;
+        }
+      }
 
-      if (nullptr != Desc.devDriverVer &&
-          !std::regex_match(DeviceDriverVer,
-                            std::regex(std::string(Desc.devDriverVer,
-                                                   Desc.devDriverVerSize))))
-        continue;
+      if (!Desc.devDriverVer.empty()) {
+        if (!std::regex_match(DeviceDriverVer, std::regex(Desc.devDriverVer))) {
+          devVerState = matchVersions(DeviceDriverVer, Desc.devDriverVer);
+          if (devVerState == MatchState::NOMATCH) {
+            continue;
+          }
+        } else {
+          devVerState = MatchState::MATCH;
+        }
+      }
 
       PiDevices[InsertIDx++] = Device;
       break;
     }
+  }
+  if (devNameState == MatchState::MATCH && devVerState == MatchState::NOMATCH) {
+    throw sycl::runtime_error("Requested SYCL device not found",
+                              PI_DEVICE_NOT_FOUND);
+  }
+  if (platNameState == MatchState::MATCH &&
+      platVerState == MatchState::NOMATCH) {
+    throw sycl::runtime_error("Requested SYCL platform not found",
+                              PI_DEVICE_NOT_FOUND);
   }
   PiDevices.resize(InsertIDx);
 }
