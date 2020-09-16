@@ -434,8 +434,11 @@ public:
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
 
 protected:
+  // To allow Scheduler construction from GlobalHandler.
+  friend struct GlobalHandler;
+
   Scheduler();
-  static Scheduler instance;
+  // static Scheduler instance;
 
   /// Provides exclusive access to std::shared_timed_mutex object with deadlock
   /// avoidance

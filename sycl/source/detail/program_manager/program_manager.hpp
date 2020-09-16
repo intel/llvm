@@ -14,6 +14,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/stl.hpp>
+#include <CL/sycl/device.hpp>
 #include <detail/spec_constant_impl.hpp>
 
 #include <cstdint>
@@ -135,6 +136,7 @@ public:
                              const string_class &KernelName, bool KnownProgram);
 
 private:
+  friend struct GlobalHandler;
   ProgramManager();
   ~ProgramManager() = default;
   ProgramManager(ProgramManager const &) = delete;

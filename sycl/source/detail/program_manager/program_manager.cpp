@@ -22,6 +22,7 @@
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/spec_constant_impl.hpp>
+#include <detail/global_handler.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -47,9 +48,7 @@ enum BuildState { BS_InProgress, BS_Done, BS_Failed };
 static constexpr char UseSpvEnv[]("SYCL_USE_KERNEL_SPV");
 
 ProgramManager &ProgramManager::getInstance() {
-  // The singleton ProgramManager instance, uses the "magic static" idiom.
-  static ProgramManager Instance;
-  return Instance;
+  return GlobalHandler::instance().program_manager;
 }
 
 static RT::PiProgram createBinaryProgram(const ContextImplPtr Context,
