@@ -22,6 +22,27 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
+#ifdef _WIN32
+namespace detail {
+// SYCL library is designed such a way that STL objects cross DLL boundary,
+// which is not guaranteed to work and considered not safe.
+// Using same dynamic C++ runtime library for sycl[d].dll and for
+// the application using sycl[d].dll is guaranteed to work properly.
+inline constexpr bool isMSVCDynamicCXXRuntime() {
+// The options /MD and /MDd that make the code to use dynamic runtime also
+// define the _DLL macro.
+#ifdef _DLL
+  return true;
+#else
+  return false;
+#endif
+}
+static_assert(isMSVCDynamicCXXRuntime(),
+              "SYCL library is designed to work with dynamic C++ runtime, "
+              "please use /MD or /MDd switches.");
+} // namespace detail
+#endif // _WIN32
+
  template < class T, class Alloc = std::allocator<T> >
  using vector_class = std::vector<T, Alloc>;
 
