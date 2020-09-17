@@ -6273,14 +6273,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         llvm::Triple::SPIRSubArch_fpga)
       CmdArgs.push_back("-D__ENABLE_USM_ADDR_SPACE__");
 
-#if defined(_WIN32)
     // SYCL library is guaranteed to work correctly only with dynamic runtime.
-    if (!D.IsCLMode()) {
+    if (!D.IsCLMode() && C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment()) {
       CmdArgs.push_back("-D_MT");
       CmdArgs.push_back("-D_DLL");
       CmdArgs.push_back("--dependent-lib=msvcrt");
     }
-#endif // _WIN32
   }
 
   if (IsHIP)
