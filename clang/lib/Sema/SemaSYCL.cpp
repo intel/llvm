@@ -2568,11 +2568,9 @@ public:
     TemplateParameterList *TemplateParams = TD->getTemplateParameters();
     for (NamedDecl *P : *TemplateParams) {
       if (NonTypeTemplateParmDecl *TemplateParam =
-              dyn_cast<NonTypeTemplateParmDecl>(P)) {
-        if (const EnumType *ET = TemplateParam->getType()->getAs<EnumType>()) {
+              dyn_cast<NonTypeTemplateParmDecl>(P))
+        if (const EnumType *ET = TemplateParam->getType()->getAs<EnumType>())
           VisitEnumType(ET);
-        }
-      }
     }
   }
 };
