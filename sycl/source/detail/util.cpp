@@ -7,15 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/util.hpp>
+#include <detail/global_handler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
 Sync &Sync::getInstance() {
-  // Use C++11 "magic static" idiom to implement the singleton concept
-  static Sync Instance;
-  return Instance;
+  return GlobalHandler::instance().ISync;
 }
 
 } // namespace detail

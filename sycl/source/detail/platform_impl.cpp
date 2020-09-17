@@ -12,10 +12,12 @@
 #include <detail/force_device.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
+#include <detail/global_handler.hpp>
 
 #include <algorithm>
 #include <cstring>
 #include <regex>
+#include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -31,12 +33,11 @@ PlatformImplPtr platform_impl::getHostPlatformImpl() {
 
 PlatformImplPtr platform_impl::getOrMakePlatformImpl(RT::PiPlatform PiPlatform,
                                                      const plugin &Plugin) {
-  static std::vector<PlatformImplPtr> PlatformCache;
-  static std::mutex PlatformMapMutex;
-
   PlatformImplPtr Result;
   {
-    const std::lock_guard<std::mutex> Guard(PlatformMapMutex);
+    const std::lock_guard<std::mutex> Guard(GlobalHandler::instance().IPlatformMapMutex);
+
+    std::vector<PlatformImplPtr> &PlatformCache = GlobalHandler::instance().IPlatformCache;
 
     // If we've already seen this platform, return the impl
     for (const auto &PlatImpl : PlatformCache) {

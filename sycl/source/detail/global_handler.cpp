@@ -1,16 +1,15 @@
+#include <CL/sycl/detail/spinlock.hpp>
 #include <detail/global_handler.hpp>
-
-#include <mutex>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 GlobalHandler *SyclGlobalObjectsHandler;
-std::mutex GlobalWritesAllowed;
+SpinLock GlobalWritesAllowed;
 
 GlobalHandler &GlobalHandler::instance() {
   if (!SyclGlobalObjectsHandler) {
-    const std::lock_guard<std::mutex> Lock{GlobalWritesAllowed};
+    const std::lock_guard<SpinLock> Lock{GlobalWritesAllowed};
     if (!SyclGlobalObjectsHandler) {
       SyclGlobalObjectsHandler = new GlobalHandler();
     }
@@ -18,6 +17,33 @@ GlobalHandler &GlobalHandler::instance() {
 
   return *SyclGlobalObjectsHandler;
 }
+
+static void shutdown() {
+  if (SyclGlobalObjectsHandler) {
+    const std::lock_guard<SpinLock> Lock{GlobalWritesAllowed};
+    if (SyclGlobalObjectsHandler) {
+      delete SyclGlobalObjectsHandler;
+    }
+  }
+}
+
+#ifdef WIN32
+BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
+  // Perform actions based on the reason for calling.
+  switch (fdwReason) {
+  case DLL_PROCESS_DETACH:
+    shutdown();
+    break;
+  case DLL_PROCESS_ATTACH:
+  case DLL_THREAD_ATTACH:
+  case DLL_THREAD_DETACH:
+    break;
+  }
+  return TRUE; // Successful DLL_PROCESS_ATTACH.
+}
+#else
+__attribute__((destructor)) static void syclUnload() { shutdown(); }
+#endif
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

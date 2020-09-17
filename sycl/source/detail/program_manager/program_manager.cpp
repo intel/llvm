@@ -48,7 +48,7 @@ enum BuildState { BS_InProgress, BS_Done, BS_Failed };
 static constexpr char UseSpvEnv[]("SYCL_USE_KERNEL_SPV");
 
 ProgramManager &ProgramManager::getInstance() {
-  return GlobalHandler::instance().program_manager;
+  return GlobalHandler::instance().IProgramManager;
 }
 
 static RT::PiProgram createBinaryProgram(const ContextImplPtr Context,

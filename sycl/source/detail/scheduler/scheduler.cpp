@@ -142,8 +142,7 @@ Scheduler Scheduler::instance;
 #endif
 
 Scheduler &Scheduler::getInstance() {
-  return GlobalHandler::instance().scheduler;
-//  return instance;
+  return GlobalHandler::instance().IScheduler;
 }
 
 std::vector<EventImplPtr> Scheduler::getWaitList(EventImplPtr Event) {
