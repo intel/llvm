@@ -5145,14 +5145,33 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
   // For an FPGA archive, we add the unbundling step above to take care of
   // the device side, but also unbundle here to extract the host side
-  for (const auto &LI : LinkerInputs) {
+  bool EarlyLink = false;
+  if (const Arg *A = Args.getLastArg(options::OPT_fsycl_link_EQ))
+    EarlyLink = A->getValue() == StringRef("early");
+  for (auto &LI : LinkerInputs) {
     Action *UnbundlerInput = nullptr;
+    auto wrapObject = [&] {
+      if (EarlyLink && Args.hasArg(options::OPT_fintelfpga)) {
+        // Only wrap the object with -fsycl-link=early
+        auto *BC = C.MakeAction<OffloadWrapperJobAction>(LI, types::TY_LLVM_BC);
+        auto *ASM = C.MakeAction<BackendJobAction>(BC, types::TY_PP_Asm);
+        LI = C.MakeAction<AssembleJobAction>(ASM, types::TY_Object);
+      }
+    };
     if (auto *IA = dyn_cast<InputAction>(LI)) {
       if (IA->getType() == types::TY_FPGA_AOCR ||
           IA->getType() == types::TY_FPGA_AOCX) {
         // Add to unbundler.
         UnbundlerInput = LI;
+      } else {
+        std::string FileName = IA->getInputArg().getAsString(Args);
+        if ((IA->getType() == types::TY_Object && !isObjectFile(FileName)) ||
+            IA->getInputArg().getOption().hasFlag(options::LinkerInput))
+          continue;
+        wrapObject();
       }
+    } else {
+      wrapObject();
     }
     if (UnbundlerInput && !PL.empty()) {
       if (auto *IA = dyn_cast<InputAction>(UnbundlerInput)) {
@@ -6166,8 +6185,6 @@ InputInfo Driver::BuildJobsForActionNoCache(
         OffloadingPrefix += "-wrapper";
         if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
           BaseInput = FinalOutput->getValue();
-        else
-          BaseInput = getDefaultImageName();
       }
     }
     Result = InputInfo(A, GetNamedOutputPath(C, *JA, BaseInput, BoundArch,

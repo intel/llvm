@@ -4056,10 +4056,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // device toolchain.
   bool UseSYCLTriple = IsSYCLDevice && (!IsSYCL || IsSYCLOffloadDevice);
 
-  // Adjust IsWindowsXYZ for CUDA/HIP compilations.  Even when compiling in
+  // Adjust IsWindowsXYZ for CUDA/HIP/SYCL compilations.  Even when compiling in
   // device mode (i.e., getToolchain().getTriple() is NVPTX/AMDGCN, not
   // Windows), we need to pass Windows-specific flags to cc1.
-  if (IsCuda || IsHIP)
+  if (IsCuda || IsHIP || IsSYCL)
     IsWindowsMSVC |= AuxTriple && AuxTriple->isWindowsMSVCEnvironment();
 
   // C++ is not supported for IAMCU.
@@ -5199,7 +5199,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                                 /*Joined=*/true);
     else if (IsWindowsMSVC)
       ImplyVCPPCXXVer = true;
-    else if (IsSYCL)
+
+    if (IsSYCL && types::isCXX(InputType) &&
+        !Args.hasArg(options::OPT__SLASH_std))
       // For DPC++, we default to -std=c++17 for all compilations.  Use of -std
       // on the command line will override.
       CmdArgs.push_back("-std=c++17");
@@ -5783,12 +5785,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
 
     if (LanguageStandard.empty()) {
-      if (IsMSVC2015Compatible)
-        if (IsSYCL)
-          // For DPC++, C++17 is the default.
-          LanguageStandard = "-std=c++17";
-        else
-          LanguageStandard = "-std=c++14";
+      if (IsSYCL)
+        // For DPC++, C++17 is the default.
+        LanguageStandard = "-std=c++17";
+      else if (IsMSVC2015Compatible)
+        LanguageStandard = "-std=c++14";
       else
         LanguageStandard = "-std=c++11";
     }
@@ -7731,6 +7732,30 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
   assert(JA.getInputs().size() == Inputs.size() &&
          "Not have inputs for all dependence actions??");
+
+  // For FPGA, we wrap the host objects before archiving them when using
+  // -fsycl-link.  This allows for better extraction control from the
+  // archive when we need the host objects for subsequent compilations.
+  if (OffloadingKind == Action::OFK_None &&
+      C.getArgs().hasArg(options::OPT_fintelfpga) &&
+      C.getArgs().hasArg(options::OPT_fsycl_link_EQ)) {
+
+    // Add offload targets and inputs.
+    CmdArgs.push_back(C.getArgs().MakeArgString(
+        Twine("-kind=") + Action::GetOffloadKindName(OffloadingKind)));
+    CmdArgs.push_back(
+        TCArgs.MakeArgString(Twine("-target=") + Triple.getTriple()));
+
+    // Add input.
+    assert(Inputs[0].isFilename() && "Invalid input.");
+    CmdArgs.push_back(TCArgs.MakeArgString(Inputs[0].getFilename()));
+
+    C.addCommand(std::make_unique<Command>(
+        JA, *this, ResponseFileSupport::None(),
+        TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
+        CmdArgs, Inputs));
+    return;
+  }
 
   // Add offload targets and inputs.
   for (unsigned I = 0; I < Inputs.size(); ++I) {
