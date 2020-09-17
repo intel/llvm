@@ -472,7 +472,8 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   if (OptLevel > 1) {
     MPM.add(createJumpThreadingPass());         // Thread jumps
     MPM.add(createCorrelatedValuePropagationPass());
-    MPM.add(createDeadStoreEliminationPass());  // Delete dead stores
+    if (!SYCLOptimizationMode)
+      MPM.add(createDeadStoreEliminationPass()); // Delete dead stores
     MPM.add(createLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap));
   }
 
