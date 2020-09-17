@@ -2510,8 +2510,7 @@ public:
   void Visit(const TemplateArgument &TA) {
     if (TA.isNull())
       return;
-    else
-      InnerTAVisitor::Visit(TA);
+    InnerTAVisitor::Visit(TA);
   }
 
   void VisitEnumType(const EnumType *T) {
@@ -2533,7 +2532,7 @@ public:
   void VisitTagDecl(const TagDecl *Tag) {
     bool UnnamedLambdaEnabled =
         S.getASTContext().getLangOpts().SYCLUnnamedLambda;
-    if (Tag && !Tag->getDeclContext()->isTranslationUnit() &&
+    if (!Tag->getDeclContext()->isTranslationUnit() &&
         !isa<NamespaceDecl>(Tag->getDeclContext()) && !UnnamedLambdaEnabled) {
       const bool KernelNameIsMissing = Tag->getName().empty();
       if (KernelNameIsMissing) {
@@ -2559,14 +2558,12 @@ public:
       VisitEnumType(ET);
     else
       Visit(T);
-    return;
   }
 
   void VisitIntegralTemplateArgument(const TemplateArgument &TA) {
     QualType T = TA.getIntegralType();
     if (const EnumType *ET = T->getAs<EnumType>())
       VisitEnumType(ET);
-    return;
   }
 
   void VisitTemplateTemplateArgument(const TemplateArgument &TA) {
