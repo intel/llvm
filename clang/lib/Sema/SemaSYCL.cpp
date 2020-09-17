@@ -2499,8 +2499,7 @@ public:
     if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
       const TemplateArgumentList &Args = TSD->getTemplateArgs();
       for (unsigned I = 0; I < Args.size(); I++) {
-        const TemplateArgument &TemplateArg = Args[I];
-        Visit(TemplateArg);
+        Visit(Args[I]);
       }
     } else {
       InnerTypeVisitor::Visit(T.getTypePtr());
@@ -2517,9 +2516,7 @@ public:
     const EnumDecl *ED = T->getDecl();
     if (!ED->isScoped() && !ED->isFixed()) {
       S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-          << /* kernel name is invalid. Unscoped enum requires fixed underlying
-                type */
-          2;
+          << /* Unscoped enum requires fixed underlying type */ 2;
       S.Diag(ED->getSourceRange().getBegin(), diag::note_entity_declared_at)
           << ED;
     }
@@ -2572,8 +2569,7 @@ public:
     for (NamedDecl *P : *TemplateParams) {
       if (NonTypeTemplateParmDecl *TemplateParam =
               dyn_cast<NonTypeTemplateParmDecl>(P)) {
-        QualType T = TemplateParam->getType();
-        if (const EnumType *ET = T->getAs<EnumType>()) {
+        if (const EnumType *ET = TemplateParam->getType()->getAs<EnumType>()) {
           VisitEnumType(ET);
         }
       }
