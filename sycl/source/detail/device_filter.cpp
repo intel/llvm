@@ -24,16 +24,16 @@ device_filter::device_filter(const std::string &FilterString) {
                             {"gpu", info::device_type::gpu},
                             {"acc", info::device_type::accelerator},
                             {"*", info::device_type::all}}};
-  const std::array<std::pair<std::string, backend>, 4> SyclBeMap = {
-      {{"opencl", backend::opencl},
+  const std::array<std::pair<std::string, backend>, 5> SyclBeMap = {
+      {{"host", backend::host},
+       {"opencl", backend::opencl},
        {"level_zero", backend::level_zero},
        {"cuda", backend::cuda},
        {"*", backend::all}}};
 
-  // handle the optional 1st field of the filter, backend
   size_t Cursor = 0;
   size_t ColonPos = 0;
-  auto findElement = [&](auto &Element) {
+  auto findElement = [&](auto Element) {
     size_t Found = FilterString.find(Element.first, Cursor);
     if (Found == std::string::npos)
       return false;
@@ -50,6 +50,8 @@ device_filter::device_filter(const std::string &FilterString) {
       Cursor = Cursor + It->first.size();
     return It->second;
   };
+
+  // Handle the optional 1st field of the filter, backend
   // Check if the first entry matches with a known backend type
   auto It =
       std::find_if(std::begin(SyclBeMap), std::end(SyclBeMap), findElement);
@@ -59,13 +61,17 @@ device_filter::device_filter(const std::string &FilterString) {
 
   // Handle the optional 2nd field of the filter - device type.
   // Check if the 2nd entry matches with any known device type.
-  auto Iter = std::find_if(std::begin(SyclDeviceTypeMap),
-                           std::end(SyclDeviceTypeMap), findElement);
-  // If no match is found, set device_type 'all',
-  // which actually means 'any device_type' will be a match.
-  DeviceType = selectElement(Iter, SyclDeviceTypeMap, info::device_type::all);
+  if (Cursor >= FilterString.size()) {
+    DeviceType = info::device_type::all;
+  } else {
+    auto Iter = std::find_if(std::begin(SyclDeviceTypeMap),
+                             std::end(SyclDeviceTypeMap), findElement);
+    // If no match is found, set device_type 'all',
+    // which actually means 'any device_type' will be a match.
+    DeviceType = selectElement(Iter, SyclDeviceTypeMap, info::device_type::all);
+  }
 
-  // handle the optional 3rd field of the filter, device number
+  // Handle the optional 3rd field of the filter, device number
   // Try to convert the remaining string to an integer.
   // If succeessful, the converted integer is the desired device num.
   if (Cursor < FilterString.size()) {

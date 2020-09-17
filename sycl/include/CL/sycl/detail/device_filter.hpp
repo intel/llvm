@@ -60,6 +60,8 @@ inline std::ostream &operator<<(std::ostream &Out,
     Out << "accelerator";
   } else if (Filter.DeviceType == info::device_type::all) {
     Out << "*";
+  } else {
+    Out << "unknown";
   }
   if (Filter.HasDeviceNum) {
     Out << ":" << Filter.DeviceNum;
