@@ -10,9 +10,9 @@
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
-#include <detail/global_handler.hpp>
 
 #include <algorithm>
 #include <cstring>
@@ -35,9 +35,11 @@ PlatformImplPtr platform_impl::getOrMakePlatformImpl(RT::PiPlatform PiPlatform,
                                                      const plugin &Plugin) {
   PlatformImplPtr Result;
   {
-    const std::lock_guard<std::mutex> Guard(GlobalHandler::instance().IPlatformMapMutex);
+    const std::lock_guard<std::mutex> Guard(
+        GlobalHandler::instance().IPlatformMapMutex);
 
-    std::vector<PlatformImplPtr> &PlatformCache = GlobalHandler::instance().IPlatformCache;
+    std::vector<PlatformImplPtr> &PlatformCache =
+        GlobalHandler::instance().IPlatformCache;
 
     // If we've already seen this platform, return the impl
     for (const auto &PlatImpl : PlatformCache) {

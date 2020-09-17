@@ -13,9 +13,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-Sync &Sync::getInstance() {
-  return GlobalHandler::instance().ISync;
-}
+Sync &Sync::getInstance() { return GlobalHandler::instance().ISync; }
 
 } // namespace detail
 } // namespace sycl

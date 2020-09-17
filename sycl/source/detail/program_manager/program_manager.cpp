@@ -19,10 +19,10 @@
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/spec_constant_impl.hpp>
-#include <detail/global_handler.hpp>
 
 #include <algorithm>
 #include <cassert>

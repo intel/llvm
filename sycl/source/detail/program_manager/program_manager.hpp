@@ -13,8 +13,8 @@
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/util.hpp>
-#include <CL/sycl/stl.hpp>
 #include <CL/sycl/device.hpp>
+#include <CL/sycl/stl.hpp>
 #include <detail/spec_constant_impl.hpp>
 
 #include <cstdint>

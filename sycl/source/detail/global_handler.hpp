@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/program_manager/program_manager.hpp>
-#include <detail/scheduler/scheduler.hpp>
 #include <CL/sycl/detail/util.hpp>
 #include <detail/platform_impl.hpp>
+#include <detail/program_manager/program_manager.hpp>
+#include <detail/scheduler/scheduler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
