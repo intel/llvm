@@ -8,7 +8,7 @@ This document presents an extension on top of the SYCL specification.  The goal 
 
 == Filter Selector
 
-The filter selector is a new device selector class that accepts a string of one or more filters that refine the set of devices that may be returned when the selector's `select_device` method is invoked.  Devices that match the specified filter(s) are ranked by the default_selector to determine which device is ultimately selected.
+The filter selector is a new device selector class that accepts a string of one or more filters that refine the set of devices that may be returned when the selector's `select_device` method is invoked.  Devices that match the specified filter(s) are ranked by the `default_selector` to determine which device is ultimately selected.  The `default_selector` is used to prefer an implementation's preferences for one device over another when multiple devices satisfy the provided filters.
 
 === DSL for Specifying Filters
 
@@ -21,7 +21,7 @@ Backend:DeviceType:RelativeDeviceNumber
 
 Every element of the triple is optional, but a filter must contain at least one component. 
 
-`Backend` specifies the desired backend for the wanted devices. `DeviceType` specifies the type of the desired device.  `RelativeDeviceNumber` refers to the number of device that matches any other requirements, starting from `0`, which means "the first device that matches the requirements".   
+`Backend` specifies the desired backend for the wanted devices. `DeviceType` specifies the type of the desired device.  `RelativeDeviceNumber` refers to the number of device that matches any other requirements, starting from `0`, which means "the first device that matches the requirements".  Incorrect input will result in an a `runtime_error` being thrown.
 
 .Supported Backends
 [width=25%]
