@@ -370,8 +370,12 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
         Args.MakeArgString(std::string("-out:") + Output.getFilename()));
 
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles) &&
-      !C.getDriver().IsCLMode())
-    CmdArgs.push_back("-defaultlib:libcmt");
+      !C.getDriver().IsCLMode()) {
+    if (Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl))
+      CmdArgs.push_back("-defaultlib:msvcrt");
+    else
+      CmdArgs.push_back("-defaultlib:libcmt");
+  }
 
   if (!C.getDriver().IsCLMode() && !Args.hasArg(options::OPT_nostdlib) &&
       Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl)) {

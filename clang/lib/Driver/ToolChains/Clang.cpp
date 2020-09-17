@@ -6272,6 +6272,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (getToolChain().getTriple().getSubArch() ==
         llvm::Triple::SPIRSubArch_fpga)
       CmdArgs.push_back("-D__ENABLE_USM_ADDR_SPACE__");
+
+#if defined(_WIN32)
+    // SYCL library is guaranteed to work correctly only with dynamic runtime.
+    if (!D.IsCLMode()) {
+      CmdArgs.push_back("-D_MT");
+      CmdArgs.push_back("-D_DLL");
+      CmdArgs.push_back("--dependent-lib=msvcrt");
+    }
+#endif // _WIN32
   }
 
   if (IsHIP)
@@ -6835,8 +6844,7 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
     // Add SYCL dependent library
     if (Args.hasArg(options::OPT_fsycl) &&
         !Args.hasArg(options::OPT_nolibsycl)) {
-      if (RTOptionID == options::OPT__SLASH_MDd ||
-          RTOptionID == options::OPT__SLASH_MTd)
+      if (RTOptionID == options::OPT__SLASH_MDd)
         CmdArgs.push_back("--dependent-lib=sycld");
       else
         CmdArgs.push_back("--dependent-lib=sycl");
