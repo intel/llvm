@@ -60,7 +60,10 @@ public:
       : queue_impl(Device,
                    detail::getSyclObjImpl(
                        context(createSyclObjFromImpl<device>(Device), {},
-                               (DefaultContextType == CUDAContextT::primary))),
+                               (DefaultContextType == CUDAContextT::primary)
+                                   ? property_list{property::context::cuda::
+                                                       use_primary_context()}
+                                   : property_list{})),
                    AsyncHandler, PropList){};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided

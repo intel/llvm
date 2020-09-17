@@ -24,7 +24,7 @@ int main() {
     std::cout << "Skipping test\n";
     return 0;
   }
-  check<double>(Queue);
+  check<class KernelName_alTnImqzYasRyHjYg, double>(Queue);
   std::cout << "Test passed." << std::endl;
   return 0;
 }

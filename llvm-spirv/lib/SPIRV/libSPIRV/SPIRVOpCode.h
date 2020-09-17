@@ -196,10 +196,13 @@ inline bool isSubgroupAvcINTELEvaluateOpcode(Op OpCode) {
           OC <= OpSubgroupAvcSicEvaluateWithMultiReferenceInterlacedINTEL);
 }
 
+inline bool isVCOpCode(Op OpCode) { return OpCode == OpTypeBufferSurfaceINTEL; }
+
 inline bool isTypeOpCode(Op OpCode) {
   unsigned OC = OpCode;
   return (OpTypeVoid <= OC && OC <= OpTypePipe) || OC == OpTypePipeStorage ||
-         isSubgroupAvcINTELTypeOpCode(OpCode) || OC == OpTypeVmeImageINTEL;
+         isSubgroupAvcINTELTypeOpCode(OpCode) || OC == OpTypeVmeImageINTEL ||
+         isVCOpCode(OpCode);
 }
 
 inline bool isSpecConstantOpCode(Op OpCode) {

@@ -51,17 +51,18 @@ def PDL_ApplyConstraintOp
     ```
   }];
 
-  let arguments = (ins Variadic<PDL_PositionalValue>:$args,
-                       ArrayAttr:$params,
-                       StrAttr:$name);
-  let assemblyFormat = "$name $params `(` $args `:` type($args) `)` attr-dict";
+  let arguments = (ins StrAttr:$name,
+                       Variadic<PDL_PositionalValue>:$args,
+                       OptionalAttr<ArrayAttr>:$constParams);
+  let assemblyFormat = [{
+    $name ($constParams^)? `(` $args `:` type($args) `)` attr-dict
+  }];
 
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &state, "
-              "ValueRange args, ArrayRef<Attribute> params, "
-              "StringRef name", [{
-      build(builder, state, args, builder.getArrayAttr(params),
-            builder.getStringAttr(name));
+    OpBuilder<"OpBuilder &builder, OperationState &state, StringRef name, "
+              "ValueRange args = {}, ArrayRef<Attribute> params = {}", [{
+      build(builder, state, builder.getStringAttr(name), args,
+            params.empty() ? ArrayAttr() : builder.getArrayAttr(params));
     }]>,
   ];
 }
@@ -135,12 +136,13 @@ def PDL_CreateNativeOp
     ```
   }];
 
-  let arguments = (ins StrAttr:$name, Variadic<PDL_PositionalValue>:$arguments,
-                       ArrayAttr:$constantParams);
+  let arguments = (ins StrAttr:$name,
+                       Variadic<PDL_PositionalValue>:$args,
+                       OptionalAttr<ArrayAttr>:$constParams);
   let results = (outs PDL_PositionalValue:$result);
   let assemblyFormat = [{
-    $name $constantParams (`(` $arguments^ `:` type($arguments) `)`)?
-    `:` type($result) attr-dict
+    $name ($constParams^)? (`(` $args^ `:` type($args) `)`)? `:` type($result)
+    attr-dict
   }];
   let verifier = ?;
 }
@@ -222,7 +224,7 @@ def PDL_OperationOp
     `pdl.operation`s are composed of a name, and a set of attribute, operand,
     and result type values, that map to what those that would be on a
     constructed instance of that operation. The results of a `pdl.operation` are
-    a handle to the operation itself, and a handle to each of the operation 
+    a handle to the operation itself, and a handle to each of the operation
     result values.
 
     When used within a matching context, the name of the operation may be
@@ -294,7 +296,7 @@ def PDL_PatternOp : PDL_Op<"pattern", [IsolatedFromAbove, Symbol]> {
       %resultType = pdl.type
       %inputOperand = pdl.input
       %root, %results = pdl.operation "foo.op"(%inputOperand) -> (%resultType)
-      pdl.rewrite(%root) {
+      pdl.rewrite %root {
         pdl.replace %root with (%inputOperand)
       }
     }
@@ -303,9 +305,13 @@ def PDL_PatternOp : PDL_Op<"pattern", [IsolatedFromAbove, Symbol]> {
 
   let arguments = (ins OptionalAttr<StrAttr>:$rootKind,
                        Confined<I16Attr, [IntNonNegative]>:$benefit,
-                       OptionalAttr<StrAttr>:$sym_name);
-
+                       OptionalAttr<SymbolNameAttr>:$sym_name);
   let regions = (region SizedRegion<1>:$body);
+  let assemblyFormat = [{
+    ($sym_name^)? `:` `benefit` `(` $benefit `)`
+    (`,` `root` `(` $rootKind^ `)`)? attr-dict-with-keyword $body
+  }];
+
   let builders = [
     OpBuilder<"OpBuilder &builder, OperationState &state, "
               "Optional<StringRef> rootKind = llvm::None, "
@@ -380,16 +386,18 @@ def PDL_RewriteOp : PDL_Op<"rewrite", [
     rewrite is specified either via a string name (`name`) to an external
     rewrite function, or via the region body. The rewrite region, if specified,
     must contain a single block and terminate via the `pdl.rewrite_end`
-    operation.
+    operation. If the rewrite is external, it also takes a set of constant
+    parameters and a set of additional positional values defined within the
+    matcher as arguments.
 
     Example:
 
     ```mlir
     // Specify an external rewrite function:
-    pdl.rewrite "myExternalRewriter"(%root)
+    pdl.rewrite %root with "myExternalRewriter"(%value : !pdl.value)
 
     // Specify the rewrite inline using PDL:
-    pdl.rewrite(%root) {
+    pdl.rewrite %root {
       %op = pdl.operation "foo.op"(%arg0, %arg1)
       pdl.replace %root with %op
     }
@@ -397,8 +405,16 @@ def PDL_RewriteOp : PDL_Op<"rewrite", [
   }];
 
   let arguments = (ins PDL_Operation:$root,
-                       OptionalAttr<StrAttr>:$name);
+                       OptionalAttr<StrAttr>:$name,
+                       Variadic<PDL_PositionalValue>:$externalArgs,
+                       OptionalAttr<ArrayAttr>:$externalConstParams);
   let regions = (region AnyRegion:$body);
+  let assemblyFormat = [{
+    $root (`with` $name^ ($externalConstParams^)?
+                         (`(` $externalArgs^ `:` type($externalArgs) `)`)?)?
+          ($body^)?
+    attr-dict-with-keyword
+  }];
 }
 
 def PDL_RewriteEndOp : PDL_Op<"rewrite_end", [Terminator,

@@ -585,7 +585,7 @@ void ASTDeclReader::VisitDecl(Decl *D) {
                            Reader.getContext());
   }
   D->setLocation(ThisDeclLoc);
-  D->setInvalidDecl(Record.readInt());
+  D->InvalidDecl = Record.readInt();
   if (Record.readInt()) { // hasAttrs
     AttrVec Attrs;
     Record.readAttributes(Attrs);
@@ -4666,12 +4666,11 @@ void ASTDeclReader::UpdateDecl(Decl *D,
     }
 
     case UPD_DECL_MARKED_OPENMP_DECLARETARGET: {
-      OMPDeclareTargetDeclAttr::MapTypeTy MapType =
-          static_cast<OMPDeclareTargetDeclAttr::MapTypeTy>(Record.readInt());
-      OMPDeclareTargetDeclAttr::DevTypeTy DevType =
-          static_cast<OMPDeclareTargetDeclAttr::DevTypeTy>(Record.readInt());
+      auto MapType = Record.readEnum<OMPDeclareTargetDeclAttr::MapTypeTy>();
+      auto DevType = Record.readEnum<OMPDeclareTargetDeclAttr::DevTypeTy>();
+      unsigned Level = Record.readInt();
       D->addAttr(OMPDeclareTargetDeclAttr::CreateImplicit(
-          Reader.getContext(), MapType, DevType, readSourceRange(),
+          Reader.getContext(), MapType, DevType, Level, readSourceRange(),
           AttributeCommonInfo::AS_Pragma));
       break;
     }

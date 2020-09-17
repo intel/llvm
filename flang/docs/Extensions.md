@@ -1,11 +1,3 @@
-<!--===- docs/Extensions.md 
-  
-   Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-   See https://llvm.org/LICENSE.txt for license information.
-   SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-  
--->
-
 As a general principle, this compiler will accept by default and
 without complaint many legacy features, extensions to the standard
 language, and features that have been deleted from the standard,
@@ -64,6 +56,7 @@ Extensions, deletions, and legacy features supported by default
 * `NAME=` as synonym for `FILE=`
 * Data edit descriptors without width or other details
 * `D` lines in fixed form as comments or debug code
+* `CARRIAGECONTROL=` on the OPEN and INQUIRE statements
 * `CONVERT=` on the OPEN and INQUIRE statements
 * `DISPOSE=` on the OPEN and INQUIRE statements
 * Leading semicolons are ignored before any statement that

@@ -336,7 +336,7 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
     std::vector<Value *> Vectors;
     Loads.push_back(LD);
     if (HasIndexArg) {
-      auto *VecTy = cast<VectorType>(
+      auto *VecTy = cast<FixedVectorType>(
           LD->getPointerOperandType()->getPointerElementType());
       Value *EmptyVec = UndefValue::get(VecTy);
       Vectors.push_back(EmptyVec);
@@ -442,6 +442,12 @@ SPIRVToLLVM::transOCLPipeStorageTypeName(SPIRV::SPIRVTypePipeStorage *PST) {
          kSPIRVTypeName::PipeStorage;
 }
 
+std::string SPIRVToLLVM::transVCTypeName(SPIRVTypeBufferSurfaceINTEL *PST) {
+  if (PST->hasAccessQualifier())
+    return VectorComputeUtil::getVCBufferSurfaceName(PST->getAccessQualifier());
+  return VectorComputeUtil::getVCBufferSurfaceName();
+}
+
 Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
   auto Loc = TypeMap.find(T);
   if (Loc != TypeMap.end())
@@ -530,6 +536,14 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
   // OpenCL Compiler does not use this instruction
   case OpTypeVmeImageINTEL:
     return nullptr;
+
+  case OpTypeBufferSurfaceINTEL: {
+    auto PST = static_cast<SPIRVTypeBufferSurfaceINTEL *>(T);
+    return mapType(T,
+                   getOrCreateOpaquePtrType(M, transVCTypeName(PST),
+                                            SPIRAddressSpace::SPIRAS_Global));
+  }
+
   default: {
     auto OC = T->getOpCode();
     if (isOpaqueGenericTypeOpCode(OC) || isSubgroupAvcINTELTypeOpCode(OC)) {
@@ -864,6 +878,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
         Parameters.push_back(SafelenMDOp);
       Metadata.push_back(llvm::MDNode::get(*Context, Parameters));
     }
+    ++NumParam;
   }
   if (LC & LoopControlPipelineEnableINTELMask) {
     Metadata.push_back(llvm::MDNode::get(
@@ -1654,6 +1669,25 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return mapValue(BV, LVar);
   }
 
+  case OpVariableLengthArrayINTEL: {
+    auto *VLA = static_cast<SPIRVVariableLengthArrayINTEL *>(BV);
+    llvm::Type *Ty = transType(BV->getType()->getPointerElementType());
+    llvm::Value *ArrSize = transValue(VLA->getOperand(0), F, BB, false);
+    return mapValue(
+        BV, new AllocaInst(Ty, SPIRAS_Private, ArrSize, BV->getName(), BB));
+  }
+  case OpSaveMemoryINTEL: {
+    Function *StackSave = Intrinsic::getDeclaration(M, Intrinsic::stacksave);
+    return mapValue(BV, CallInst::Create(StackSave, "", BB));
+  }
+  case OpRestoreMemoryINTEL: {
+    auto *Restore = static_cast<SPIRVRestoreMemoryINTEL *>(BV);
+    llvm::Value *Ptr = transValue(Restore->getOperand(0), F, BB, false);
+    Function *StackRestore =
+        Intrinsic::getDeclaration(M, Intrinsic::stackrestore);
+    return mapValue(BV, CallInst::Create(StackRestore, {Ptr}, "", BB));
+  }
+
   case OpFunctionParameter: {
     auto BA = static_cast<SPIRVFunctionParameter *>(BV);
     assert(F && "Invalid function");
@@ -1903,7 +1937,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     IRBuilder<> Builder(BB);
     auto Scalar = transValue(VTS->getScalar(), F, BB);
     auto Vector = transValue(VTS->getVector(), F, BB);
-    auto *VecTy = cast<VectorType>(Vector->getType());
+    auto *VecTy = cast<FixedVectorType>(Vector->getType());
     unsigned VecSize = VecTy->getNumElements();
     auto NewVec = Builder.CreateVectorSplat(VecSize, Scalar, Scalar->getName());
     NewVec->takeName(Scalar);
@@ -1931,8 +1965,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
     unsigned M = Mat->getType()->getArrayNumElements();
 
-    auto *VecTy = cast<VectorType>(Vec->getType());
-    VectorType *VTy = FixedVectorType::get(VecTy->getElementType(), M);
+    auto *VecTy = cast<FixedVectorType>(Vec->getType());
+    FixedVectorType *VTy = FixedVectorType::get(VecTy->getElementType(), M);
     auto ETy = VTy->getElementType();
     unsigned N = VecTy->getNumElements();
     Value *V = Builder.CreateVectorSplat(M, ConstantFP::get(ETy, 0.0));
@@ -1960,7 +1994,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto Matrix = transValue(MTS->getMatrix(), F, BB);
     uint64_t ColNum = Matrix->getType()->getArrayNumElements();
     auto ColType = cast<ArrayType>(Matrix->getType())->getElementType();
-    auto VecSize = cast<VectorType>(ColType)->getNumElements();
+    auto VecSize = cast<FixedVectorType>(ColType)->getNumElements();
     auto NewVec = Builder.CreateVectorSplat(VecSize, Scalar, Scalar->getName());
     NewVec->takeName(Scalar);
 
@@ -1997,8 +2031,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     // where sum is defined as vector sum.
 
     unsigned M = Mat->getType()->getArrayNumElements();
-    VectorType *VTy =
-        cast<VectorType>(cast<ArrayType>(Mat->getType())->getElementType());
+    FixedVectorType *VTy = cast<FixedVectorType>(
+        cast<ArrayType>(Mat->getType())->getElementType());
     unsigned N = VTy->getNumElements();
     auto ETy = VTy->getElementType();
     Value *V = Builder.CreateVectorSplat(N, ConstantFP::get(ETy, 0.0));
@@ -2052,10 +2086,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
     unsigned C1 = M1->getType()->getArrayNumElements();
     unsigned C2 = M2->getType()->getArrayNumElements();
-    VectorType *V1Ty =
-        cast<VectorType>(cast<ArrayType>(M1->getType())->getElementType());
-    VectorType *V2Ty =
-        cast<VectorType>(cast<ArrayType>(M2->getType())->getElementType());
+    FixedVectorType *V1Ty =
+        cast<FixedVectorType>(cast<ArrayType>(M1->getType())->getElementType());
+    FixedVectorType *V2Ty =
+        cast<FixedVectorType>(cast<ArrayType>(M2->getType())->getElementType());
     unsigned R1 = V1Ty->getNumElements();
     unsigned R2 = V2Ty->getNumElements();
     auto ETy = V1Ty->getElementType();
@@ -2093,8 +2127,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     IRBuilder<> Builder(BB);
     auto Matrix = transValue(TR->getMatrix(), F, BB);
     unsigned ColNum = Matrix->getType()->getArrayNumElements();
-    VectorType *ColTy =
-        cast<VectorType>(cast<ArrayType>(Matrix->getType())->getElementType());
+    FixedVectorType *ColTy = cast<FixedVectorType>(
+        cast<ArrayType>(Matrix->getType())->getElementType());
     unsigned RowNum = ColTy->getNumElements();
 
     auto VTy = FixedVectorType::get(ColTy->getElementType(), ColNum);
@@ -2336,6 +2370,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     case SPIRVEIS_OpenCL:
       return mapValue(BV, transOCLBuiltinFromExtInst(ExtInst, BB));
     case SPIRVEIS_Debug:
+    case SPIRVEIS_OpenCL_DebugInfo_100:
       return mapValue(BV, DbgTran->transDebugIntrinsic(ExtInst, BB));
     default:
       llvm_unreachable("Unknown extended instruction set!");
@@ -3757,6 +3792,9 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
   if (F->getCallingConv() != CallingConv::SPIR_KERNEL)
     return true;
 
+  if (BF->hasDecorate(DecorationVectorComputeFunctionINTEL))
+    return true;
+
   // Generate metadata for kernel_arg_addr_space
   addOCLKernelArgumentMetadata(
       Context, SPIR_MD_KERNEL_ARG_ADDR_SPACE, BF, F,
@@ -3963,7 +4001,7 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
           static_cast<SPIRVDecorateFunctionFloatingPointModeINTEL const *>(
               FloatModes.at(0));
       auto FloatingMode = DecFlt->getOperationMode();
-#ifdef NDEBUG
+#ifndef NDEBUG
       for (auto *DecPreCast : FloatModes) {
         auto *Dec =
             static_cast<SPIRVDecorateFunctionFloatingPointModeINTEL const *>(
@@ -4230,7 +4268,7 @@ Instruction *SPIRVToLLVM::transOCLAllAny(SPIRVInstruction *I, BasicBlock *BB) {
                auto OldArg = CI->getOperand(0);
                auto NewArgTy = FixedVectorType::get(
                    Int32Ty,
-                   cast<VectorType>(OldArg->getType())->getNumElements());
+                   cast<FixedVectorType>(OldArg->getType())->getNumElements());
                auto NewArg =
                    CastInst::CreateSExtOrBitCast(OldArg, NewArgTy, "", CI);
                Args[0] = NewArg;
@@ -4256,16 +4294,17 @@ Instruction *SPIRVToLLVM::transOCLRelational(SPIRVInstruction *I,
                Type *IntTy = Type::getInt32Ty(*Context);
                RetTy = IntTy;
                if (CI->getType()->isVectorTy()) {
-                 if (cast<VectorType>(CI->getOperand(0)->getType())
+                 if (cast<FixedVectorType>(CI->getOperand(0)->getType())
                          ->getElementType()
                          ->isDoubleTy())
                    IntTy = Type::getInt64Ty(*Context);
-                 if (cast<VectorType>(CI->getOperand(0)->getType())
+                 if (cast<FixedVectorType>(CI->getOperand(0)->getType())
                          ->getElementType()
                          ->isHalfTy())
                    IntTy = Type::getInt16Ty(*Context);
                  RetTy = FixedVectorType::get(
-                     IntTy, cast<VectorType>(CI->getType())->getNumElements());
+                     IntTy,
+                     cast<FixedVectorType>(CI->getType())->getNumElements());
                }
                return CI->getCalledFunction()->getName().str();
              },
@@ -4274,7 +4313,7 @@ Instruction *SPIRVToLLVM::transOCLRelational(SPIRVInstruction *I,
                if (NewCI->getType()->isVectorTy())
                  RetTy = FixedVectorType::get(
                      Type::getInt1Ty(*Context),
-                     cast<VectorType>(NewCI->getType())->getNumElements());
+                     cast<FixedVectorType>(NewCI->getType())->getNumElements());
                return CastInst::CreateTruncOrBitCast(NewCI, RetTy, "",
                                                      NewCI->getNextNode());
              },

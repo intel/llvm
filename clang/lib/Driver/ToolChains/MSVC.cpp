@@ -66,6 +66,20 @@ using namespace llvm::opt;
 static bool getSystemRegistryString(const char *keyPath, const char *valueName,
                                     std::string &value, std::string *phValue);
 
+// Check command line arguments to try and find a toolchain.
+static bool
+findVCToolChainViaCommandLine(const ArgList &Args, std::string &Path,
+                              MSVCToolChain::ToolsetLayout &VSLayout) {
+  // Don't validate the input; trust the value supplied by the user.
+  // The primary motivation is to prevent unnecessary file and registry access.
+  if (Arg *A = Args.getLastArg(options::OPT__SLASH_vctoolsdir)) {
+    Path = A->getValue();
+    VSLayout = MSVCToolChain::ToolsetLayout::VS2017OrNewer;
+    return true;
+  }
+  return false;
+}
+
 // Check various environment variables to try and find a toolchain.
 static bool findVCToolChainViaEnvironment(std::string &Path,
                                           MSVCToolChain::ToolsetLayout &VSLayout) {
@@ -359,10 +373,9 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       !C.getDriver().IsCLMode())
     CmdArgs.push_back("-defaultlib:libcmt");
 
-  if (!Args.hasArg(options::OPT_nostdlib) && Args.hasArg(options::OPT_fsycl) &&
-      !Args.hasArg(options::OPT_nolibsycl)) {
-    if (Args.hasArg(options::OPT__SLASH_MDd) ||
-        Args.hasArg(options::OPT__SLASH_MTd))
+  if (!C.getDriver().IsCLMode() && !Args.hasArg(options::OPT_nostdlib) &&
+      Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl)) {
+    if (Args.hasArg(options::OPT__SLASH_MDd))
       CmdArgs.push_back("-defaultlib:sycld.lib");
     else
       CmdArgs.push_back("-defaultlib:sycl.lib");
@@ -807,11 +820,12 @@ MSVCToolChain::MSVCToolChain(const Driver &D, const llvm::Triple &Triple,
   if (getDriver().getInstalledDir() != getDriver().Dir)
     getProgramPaths().push_back(getDriver().Dir);
 
-  // Check the environment first, since that's probably the user telling us
-  // what they want to use.
-  // Failing that, just try to find the newest Visual Studio version we can
-  // and use its default VC toolchain.
-  findVCToolChainViaEnvironment(VCToolChainPath, VSLayout) ||
+  // Check the command line first, that's the user explicitly telling us what to
+  // use. Check the environment next, in case we're being invoked from a VS
+  // command prompt. Failing that, just try to find the newest Visual Studio
+  // version we can and use its default VC toolchain.
+  findVCToolChainViaCommandLine(Args, VCToolChainPath, VSLayout) ||
+      findVCToolChainViaEnvironment(VCToolChainPath, VSLayout) ||
       findVCToolChainViaSetupConfig(VCToolChainPath, VSLayout) ||
       findVCToolChainViaRegistry(VCToolChainPath, VSLayout);
 }
@@ -1323,15 +1337,18 @@ void MSVCToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
     return;
 
   // Honor %INCLUDE%. It should know essential search paths with vcvarsall.bat.
-  if (llvm::Optional<std::string> cl_include_dir =
-          llvm::sys::Process::GetEnv("INCLUDE")) {
-    SmallVector<StringRef, 8> Dirs;
-    StringRef(*cl_include_dir)
-        .split(Dirs, ";", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-    for (StringRef Dir : Dirs)
-      addSystemInclude(DriverArgs, CC1Args, Dir);
-    if (!Dirs.empty())
-      return;
+  // Skip if the user expressly set a vctoolsdir
+  if (!DriverArgs.getLastArg(options::OPT__SLASH_vctoolsdir)) {
+    if (llvm::Optional<std::string> cl_include_dir =
+            llvm::sys::Process::GetEnv("INCLUDE")) {
+      SmallVector<StringRef, 8> Dirs;
+      StringRef(*cl_include_dir)
+          .split(Dirs, ";", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+      for (StringRef Dir : Dirs)
+        addSystemInclude(DriverArgs, CC1Args, Dir);
+      if (!Dirs.empty())
+        return;
+    }
   }
 
   // When built with access to the proper Windows APIs, try to actually find

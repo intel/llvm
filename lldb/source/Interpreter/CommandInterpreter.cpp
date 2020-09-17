@@ -12,9 +12,6 @@
 #include <string>
 #include <vector>
 
-#include "CommandObjectScript.h"
-#include "lldb/Interpreter/CommandObjectRegexCommand.h"
-
 #include "Commands/CommandObjectApropos.h"
 #include "Commands/CommandObjectBreakpoint.h"
 #include "Commands/CommandObjectCommands.h"
@@ -30,8 +27,10 @@
 #include "Commands/CommandObjectPlugin.h"
 #include "Commands/CommandObjectProcess.h"
 #include "Commands/CommandObjectQuit.h"
+#include "Commands/CommandObjectRegexCommand.h"
 #include "Commands/CommandObjectRegister.h"
 #include "Commands/CommandObjectReproducer.h"
+#include "Commands/CommandObjectScript.h"
 #include "Commands/CommandObjectSession.h"
 #include "Commands/CommandObjectSettings.h"
 #include "Commands/CommandObjectSource.h"
@@ -68,6 +67,7 @@
 #include "lldb/Interpreter/Property.h"
 #include "lldb/Utility/Args.h"
 
+#include "lldb/Target/Language.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/StopInfo.h"
 #include "lldb/Target/TargetList.h"
@@ -2091,19 +2091,21 @@ static void GetHomeInitFile(llvm::SmallVectorImpl<char> &init_file,
   FileSystem::Instance().Resolve(init_file);
 }
 
-static void GetHomeREPLInitFile(llvm::SmallVectorImpl<char> &init_file,
-                                LanguageType language) {
-  std::string init_file_name;
-
-  switch (language) {
-  // TODO: Add support for a language used with a REPL.
-  default:
+static void GetHomeREPLInitFile(llvm::SmallVectorImpl<char> &init_file) {
+  LanguageSet repl_languages = Language::GetLanguagesSupportingREPLs();
+  LanguageType language = eLanguageTypeUnknown;
+  if (auto main_repl_language = repl_languages.GetSingularLanguage())
+    language = *main_repl_language;
+  else
     return;
-  }
 
+  std::string init_file_name =
+      (llvm::Twine(".lldbinit-") +
+       llvm::Twine(Language::GetNameForLanguageType(language)) +
+       llvm::Twine("-repl"))
+          .str();
   FileSystem::Instance().GetHomeDirectory(init_file);
   llvm::sys::path::append(init_file, init_file_name);
-
   FileSystem::Instance().Resolve(init_file);
 }
 
@@ -2192,13 +2194,8 @@ void CommandInterpreter::SourceInitFileHome(CommandReturnObject &result,
 
   llvm::SmallString<128> init_file;
 
-  if (is_repl) {
-    LanguageType language = {};
-    TargetSP target_sp = GetDebugger().GetSelectedTarget();
-    if (target_sp)
-      language = target_sp->GetLanguage();
-    GetHomeREPLInitFile(init_file, language);
-  }
+  if (is_repl)
+    GetHomeREPLInitFile(init_file);
 
   if (init_file.empty())
     GetHomeInitFile(init_file);

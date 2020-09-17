@@ -202,6 +202,10 @@ inline OpAsmPrinter &operator<<(OpAsmPrinter &p,
   llvm::interleaveComma(types, p);
   return p;
 }
+inline OpAsmPrinter &operator<<(OpAsmPrinter &p, const TypeRange &types) {
+  llvm::interleaveComma(types, p);
+  return p;
+}
 inline OpAsmPrinter &operator<<(OpAsmPrinter &p, ArrayRef<Type> types) {
   llvm::interleaveComma(types, p);
   return p;
@@ -420,11 +424,18 @@ public:
                                                      Type type,
                                                      StringRef attrName,
                                                      NamedAttrList &attrs) = 0;
-  OptionalParseResult parseOptionalAttribute(Attribute &result,
-                                             StringRef attrName,
+  template <typename AttrT>
+  OptionalParseResult parseOptionalAttribute(AttrT &result, StringRef attrName,
                                              NamedAttrList &attrs) {
     return parseOptionalAttribute(result, Type(), attrName, attrs);
   }
+
+  /// Specialized variants of `parseOptionalAttribute` that remove potential
+  /// ambiguities in syntax.
+  virtual OptionalParseResult parseOptionalAttribute(ArrayAttr &result,
+                                                     Type type,
+                                                     StringRef attrName,
+                                                     NamedAttrList &attrs) = 0;
 
   /// Parse an arbitrary attribute of a given type and return it in result. This
   /// also adds the attribute to the specified attribute list with the specified
@@ -611,15 +622,22 @@ public:
   /// can only be set to true for regions attached to operations that are
   /// "IsolatedFromAbove".
   virtual ParseResult parseRegion(Region &region,
-                                  ArrayRef<OperandType> arguments,
-                                  ArrayRef<Type> argTypes,
+                                  ArrayRef<OperandType> arguments = {},
+                                  ArrayRef<Type> argTypes = {},
                                   bool enableNameShadowing = false) = 0;
 
   /// Parses a region if present.
   virtual ParseResult parseOptionalRegion(Region &region,
-                                          ArrayRef<OperandType> arguments,
-                                          ArrayRef<Type> argTypes,
+                                          ArrayRef<OperandType> arguments = {},
+                                          ArrayRef<Type> argTypes = {},
                                           bool enableNameShadowing = false) = 0;
+
+  /// Parses a region if present. If the region is present, a new region is
+  /// allocated and placed in `region`. If no region is present or on failure,
+  /// `region` remains untouched.
+  virtual OptionalParseResult parseOptionalRegion(
+      std::unique_ptr<Region> &region, ArrayRef<OperandType> arguments = {},
+      ArrayRef<Type> argTypes = {}, bool enableNameShadowing = false) = 0;
 
   /// Parse a region argument, this argument is resolved when calling
   /// 'parseRegion'.

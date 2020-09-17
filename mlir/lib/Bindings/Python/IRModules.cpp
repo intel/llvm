@@ -11,10 +11,14 @@
 
 #include "mlir-c/StandardAttributes.h"
 #include "mlir-c/StandardTypes.h"
+#include "llvm/ADT/SmallVector.h"
+#include <pybind11/stl.h>
 
 namespace py = pybind11;
 using namespace mlir;
 using namespace mlir::python;
+
+using llvm::SmallVector;
 
 //------------------------------------------------------------------------------
 // Docstrings (trivial, non-duplicated docstrings are included inline).
@@ -28,11 +32,57 @@ Returns a new MlirModule or raises a ValueError if the parsing fails.
 See also: https://mlir.llvm.org/docs/LangRef/
 )";
 
-static const char kContextParseType[] = R"(Parses the assembly form of a type.
+static const char kContextParseTypeDocstring[] =
+    R"(Parses the assembly form of a type.
 
 Returns a Type object or raises a ValueError if the type cannot be parsed.
 
 See also: https://mlir.llvm.org/docs/LangRef/#type-system
+)";
+
+static const char kContextGetUnknownLocationDocstring[] =
+    R"(Gets a Location representing an unknown location)";
+
+static const char kContextGetFileLocationDocstring[] =
+    R"(Gets a Location representing a file, line and column)";
+
+static const char kContextCreateBlockDocstring[] =
+    R"(Creates a detached block)";
+
+static const char kContextCreateRegionDocstring[] =
+    R"(Creates a detached region)";
+
+static const char kRegionAppendBlockDocstring[] =
+    R"(Appends a block to a region.
+
+Raises:
+  ValueError: If the block is already attached to another region.
+)";
+
+static const char kRegionInsertBlockDocstring[] =
+    R"(Inserts a block at a postiion in a region.
+
+Raises:
+  ValueError: If the block is already attached to another region.
+)";
+
+static const char kRegionFirstBlockDocstring[] =
+    R"(Gets the first block in a region.
+
+Blocks can also be accessed via the `blocks` container.
+
+Raises:
+  IndexError: If the region has no blocks.
+)";
+
+static const char kBlockNextInRegionDocstring[] =
+    R"(Gets the next block in the enclosing region.
+
+Blocks can also be accessed via the `blocks` container of the owning region.
+This method exists to mirror the lower level API and should not be preferred.
+
+Raises:
+  IndexError: If there are no further blocks.
 )";
 
 static const char kOperationStrDunderDocstring[] =
@@ -107,6 +157,38 @@ private:
 } // namespace
 
 //------------------------------------------------------------------------------
+// Type-checking utilities.
+//------------------------------------------------------------------------------
+
+namespace {
+
+/// Checks whether the given type is an integer or float type.
+int mlirTypeIsAIntegerOrFloat(MlirType type) {
+  return mlirTypeIsAInteger(type) || mlirTypeIsABF16(type) ||
+         mlirTypeIsAF16(type) || mlirTypeIsAF32(type) || mlirTypeIsAF64(type);
+}
+
+} // namespace
+
+//------------------------------------------------------------------------------
+// PyBlock, PyRegion, and PyOperation.
+//------------------------------------------------------------------------------
+
+void PyRegion::attachToParent() {
+  if (!detached) {
+    throw SetPyError(PyExc_ValueError, "Region is already attached to an op");
+  }
+  detached = false;
+}
+
+void PyBlock::attachToParent() {
+  if (!detached) {
+    throw SetPyError(PyExc_ValueError, "Block is already attached to an op");
+  }
+  detached = false;
+}
+
+//------------------------------------------------------------------------------
 // PyAttribute.
 //------------------------------------------------------------------------------
 
@@ -139,34 +221,37 @@ namespace {
 
 /// CRTP base classes for Python attributes that subclass Attribute and should
 /// be castable from it (i.e. via something like StringAttr(attr)).
-template <typename T>
-class PyConcreteAttribute : public PyAttribute {
+/// By default, attribute class hierarchies are one level deep (i.e. a
+/// concrete attribute class extends PyAttribute); however, intermediate
+/// python-visible base classes can be modeled by specifying a BaseTy.
+template <typename DerivedTy, typename BaseTy = PyAttribute>
+class PyConcreteAttribute : public BaseTy {
 public:
   // Derived classes must define statics for:
   //   IsAFunctionTy isaFunction
   //   const char *pyClassName
-  using ClassTy = py::class_<T, PyAttribute>;
+  using ClassTy = py::class_<DerivedTy, PyAttribute>;
   using IsAFunctionTy = int (*)(MlirAttribute);
 
   PyConcreteAttribute() = default;
-  PyConcreteAttribute(MlirAttribute attr) : PyAttribute(attr) {}
+  PyConcreteAttribute(MlirAttribute attr) : BaseTy(attr) {}
   PyConcreteAttribute(PyAttribute &orig)
       : PyConcreteAttribute(castFrom(orig)) {}
 
   static MlirAttribute castFrom(PyAttribute &orig) {
-    if (!T::isaFunction(orig.attr)) {
+    if (!DerivedTy::isaFunction(orig.attr)) {
       auto origRepr = py::repr(py::cast(orig)).cast<std::string>();
       throw SetPyError(PyExc_ValueError,
                        llvm::Twine("Cannot cast attribute to ") +
-                           T::pyClassName + " (from " + origRepr + ")");
+                           DerivedTy::pyClassName + " (from " + origRepr + ")");
     }
     return orig.attr;
   }
 
   static void bind(py::module &m) {
-    auto cls = ClassTy(m, T::pyClassName);
+    auto cls = ClassTy(m, DerivedTy::pyClassName);
     cls.def(py::init<PyAttribute &>(), py::keep_alive<0, 1>());
-    T::bindDerived(cls);
+    DerivedTy::bindDerived(cls);
   }
 
   /// Implemented by derived classes to add methods to the Python subclass.
@@ -219,33 +304,36 @@ namespace {
 
 /// CRTP base classes for Python types that subclass Type and should be
 /// castable from it (i.e. via something like IntegerType(t)).
-template <typename T>
-class PyConcreteType : public PyType {
+/// By default, type class hierarchies are one level deep (i.e. a
+/// concrete type class extends PyType); however, intermediate python-visible
+/// base classes can be modeled by specifying a BaseTy.
+template <typename DerivedTy, typename BaseTy = PyType>
+class PyConcreteType : public BaseTy {
 public:
   // Derived classes must define statics for:
   //   IsAFunctionTy isaFunction
   //   const char *pyClassName
-  using ClassTy = py::class_<T, PyType>;
+  using ClassTy = py::class_<DerivedTy, BaseTy>;
   using IsAFunctionTy = int (*)(MlirType);
 
   PyConcreteType() = default;
-  PyConcreteType(MlirType t) : PyType(t) {}
-  PyConcreteType(PyType &orig) : PyType(castFrom(orig)) {}
+  PyConcreteType(MlirType t) : BaseTy(t) {}
+  PyConcreteType(PyType &orig) : PyConcreteType(castFrom(orig)) {}
 
   static MlirType castFrom(PyType &orig) {
-    if (!T::isaFunction(orig.type)) {
+    if (!DerivedTy::isaFunction(orig.type)) {
       auto origRepr = py::repr(py::cast(orig)).cast<std::string>();
       throw SetPyError(PyExc_ValueError, llvm::Twine("Cannot cast type to ") +
-                                             T::pyClassName + " (from " +
-                                             origRepr + ")");
+                                             DerivedTy::pyClassName +
+                                             " (from " + origRepr + ")");
     }
     return orig.type;
   }
 
   static void bind(py::module &m) {
-    auto cls = ClassTy(m, T::pyClassName);
+    auto cls = ClassTy(m, DerivedTy::pyClassName);
     cls.def(py::init<PyType &>(), py::keep_alive<0, 1>());
-    T::bindDerived(cls);
+    DerivedTy::bindDerived(cls);
   }
 
   /// Implemented by derived classes to add methods to the Python subclass.
@@ -305,6 +393,423 @@ public:
   }
 };
 
+/// Index Type subclass - IndexType.
+class PyIndexType : public PyConcreteType<PyIndexType> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsAIndex;
+  static constexpr const char *pyClassName = "IndexType";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    c.def(py::init([](PyMlirContext &context) {
+            MlirType t = mlirIndexTypeGet(context.context);
+            return PyIndexType(t);
+          }),
+          py::keep_alive<0, 1>(), "Create a index type.");
+  }
+};
+
+/// Floating Point Type subclass - BF16Type.
+class PyBF16Type : public PyConcreteType<PyBF16Type> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsABF16;
+  static constexpr const char *pyClassName = "BF16Type";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    c.def(py::init([](PyMlirContext &context) {
+            MlirType t = mlirBF16TypeGet(context.context);
+            return PyBF16Type(t);
+          }),
+          py::keep_alive<0, 1>(), "Create a bf16 type.");
+  }
+};
+
+/// Floating Point Type subclass - F16Type.
+class PyF16Type : public PyConcreteType<PyF16Type> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsAF16;
+  static constexpr const char *pyClassName = "F16Type";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    c.def(py::init([](PyMlirContext &context) {
+            MlirType t = mlirF16TypeGet(context.context);
+            return PyF16Type(t);
+          }),
+          py::keep_alive<0, 1>(), "Create a f16 type.");
+  }
+};
+
+/// Floating Point Type subclass - F32Type.
+class PyF32Type : public PyConcreteType<PyF32Type> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsAF32;
+  static constexpr const char *pyClassName = "F32Type";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    c.def(py::init([](PyMlirContext &context) {
+            MlirType t = mlirF32TypeGet(context.context);
+            return PyF32Type(t);
+          }),
+          py::keep_alive<0, 1>(), "Create a f32 type.");
+  }
+};
+
+/// Floating Point Type subclass - F64Type.
+class PyF64Type : public PyConcreteType<PyF64Type> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsAF64;
+  static constexpr const char *pyClassName = "F64Type";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    c.def(py::init([](PyMlirContext &context) {
+            MlirType t = mlirF64TypeGet(context.context);
+            return PyF64Type(t);
+          }),
+          py::keep_alive<0, 1>(), "Create a f64 type.");
+  }
+};
+
+/// None Type subclass - NoneType.
+class PyNoneType : public PyConcreteType<PyNoneType> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsANone;
+  static constexpr const char *pyClassName = "NoneType";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    c.def(py::init([](PyMlirContext &context) {
+            MlirType t = mlirNoneTypeGet(context.context);
+            return PyNoneType(t);
+          }),
+          py::keep_alive<0, 1>(), "Create a none type.");
+  }
+};
+
+/// Complex Type subclass - ComplexType.
+class PyComplexType : public PyConcreteType<PyComplexType> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsAComplex;
+  static constexpr const char *pyClassName = "ComplexType";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    c.def_static(
+        "get_complex",
+        [](PyType &elementType) {
+          // The element must be a floating point or integer scalar type.
+          if (mlirTypeIsAIntegerOrFloat(elementType.type)) {
+            MlirType t = mlirComplexTypeGet(elementType.type);
+            return PyComplexType(t);
+          }
+          throw SetPyError(
+              PyExc_ValueError,
+              llvm::Twine("invalid '") +
+                  py::repr(py::cast(elementType)).cast<std::string>() +
+                  "' and expected floating point or integer type.");
+        },
+        py::keep_alive<0, 1>(), "Create a complex type");
+    c.def_property_readonly(
+        "element_type",
+        [](PyComplexType &self) -> PyType {
+          MlirType t = mlirComplexTypeGetElementType(self.type);
+          return PyType(t);
+        },
+        "Returns element type.");
+  }
+};
+
+class PyShapedType : public PyConcreteType<PyShapedType> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsAShaped;
+  static constexpr const char *pyClassName = "ShapedType";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    c.def_property_readonly(
+        "element_type",
+        [](PyShapedType &self) {
+          MlirType t = mlirShapedTypeGetElementType(self.type);
+          return PyType(t);
+        },
+        py::keep_alive<0, 1>(), "Returns the element type of the shaped type.");
+    c.def_property_readonly(
+        "has_rank",
+        [](PyShapedType &self) -> bool {
+          return mlirShapedTypeHasRank(self.type);
+        },
+        "Returns whether the given shaped type is ranked.");
+    c.def_property_readonly(
+        "rank",
+        [](PyShapedType &self) {
+          self.requireHasRank();
+          return mlirShapedTypeGetRank(self.type);
+        },
+        "Returns the rank of the given ranked shaped type.");
+    c.def_property_readonly(
+        "has_static_shape",
+        [](PyShapedType &self) -> bool {
+          return mlirShapedTypeHasStaticShape(self.type);
+        },
+        "Returns whether the given shaped type has a static shape.");
+    c.def(
+        "is_dynamic_dim",
+        [](PyShapedType &self, intptr_t dim) -> bool {
+          self.requireHasRank();
+          return mlirShapedTypeIsDynamicDim(self.type, dim);
+        },
+        "Returns whether the dim-th dimension of the given shaped type is "
+        "dynamic.");
+    c.def(
+        "get_dim_size",
+        [](PyShapedType &self, intptr_t dim) {
+          self.requireHasRank();
+          return mlirShapedTypeGetDimSize(self.type, dim);
+        },
+        "Returns the dim-th dimension of the given ranked shaped type.");
+    c.def_static(
+        "is_dynamic_size",
+        [](int64_t size) -> bool { return mlirShapedTypeIsDynamicSize(size); },
+        "Returns whether the given dimension size indicates a dynamic "
+        "dimension.");
+    c.def(
+        "is_dynamic_stride_or_offset",
+        [](PyShapedType &self, int64_t val) -> bool {
+          self.requireHasRank();
+          return mlirShapedTypeIsDynamicStrideOrOffset(val);
+        },
+        "Returns whether the given value is used as a placeholder for dynamic "
+        "strides and offsets in shaped types.");
+  }
+
+private:
+  void requireHasRank() {
+    if (!mlirShapedTypeHasRank(type)) {
+      throw SetPyError(
+          PyExc_ValueError,
+          "calling this method requires that the type has a rank.");
+    }
+  }
+};
+
+/// Vector Type subclass - VectorType.
+class PyVectorType : public PyConcreteType<PyVectorType, PyShapedType> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsAVector;
+  static constexpr const char *pyClassName = "VectorType";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    c.def_static(
+        "get_vector",
+        // TODO: Make the location optional and create a default location.
+        [](std::vector<int64_t> shape, PyType &elementType, PyLocation &loc) {
+          MlirType t = mlirVectorTypeGetChecked(shape.size(), shape.data(),
+                                                elementType.type, loc.loc);
+          // TODO: Rework error reporting once diagnostic engine is exposed
+          // in C API.
+          if (mlirTypeIsNull(t)) {
+            throw SetPyError(
+                PyExc_ValueError,
+                llvm::Twine("invalid '") +
+                    py::repr(py::cast(elementType)).cast<std::string>() +
+                    "' and expected floating point or integer type.");
+          }
+          return PyVectorType(t);
+        },
+        py::keep_alive<0, 2>(), "Create a vector type");
+  }
+};
+
+/// Ranked Tensor Type subclass - RankedTensorType.
+class PyRankedTensorType
+    : public PyConcreteType<PyRankedTensorType, PyShapedType> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsARankedTensor;
+  static constexpr const char *pyClassName = "RankedTensorType";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    c.def_static(
+        "get_ranked_tensor",
+        // TODO: Make the location optional and create a default location.
+        [](std::vector<int64_t> shape, PyType &elementType, PyLocation &loc) {
+          MlirType t = mlirRankedTensorTypeGetChecked(
+              shape.size(), shape.data(), elementType.type, loc.loc);
+          // TODO: Rework error reporting once diagnostic engine is exposed
+          // in C API.
+          if (mlirTypeIsNull(t)) {
+            throw SetPyError(
+                PyExc_ValueError,
+                llvm::Twine("invalid '") +
+                    py::repr(py::cast(elementType)).cast<std::string>() +
+                    "' and expected floating point, integer, vector or "
+                    "complex "
+                    "type.");
+          }
+          return PyRankedTensorType(t);
+        },
+        py::keep_alive<0, 2>(), "Create a ranked tensor type");
+  }
+};
+
+/// Unranked Tensor Type subclass - UnrankedTensorType.
+class PyUnrankedTensorType
+    : public PyConcreteType<PyUnrankedTensorType, PyShapedType> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsAUnrankedTensor;
+  static constexpr const char *pyClassName = "UnrankedTensorType";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    c.def_static(
+        "get_unranked_tensor",
+        // TODO: Make the location optional and create a default location.
+        [](PyType &elementType, PyLocation &loc) {
+          MlirType t =
+              mlirUnrankedTensorTypeGetChecked(elementType.type, loc.loc);
+          // TODO: Rework error reporting once diagnostic engine is exposed
+          // in C API.
+          if (mlirTypeIsNull(t)) {
+            throw SetPyError(
+                PyExc_ValueError,
+                llvm::Twine("invalid '") +
+                    py::repr(py::cast(elementType)).cast<std::string>() +
+                    "' and expected floating point, integer, vector or "
+                    "complex "
+                    "type.");
+          }
+          return PyUnrankedTensorType(t);
+        },
+        py::keep_alive<0, 1>(), "Create a unranked tensor type");
+  }
+};
+
+/// Ranked MemRef Type subclass - MemRefType.
+class PyMemRefType : public PyConcreteType<PyMemRefType, PyShapedType> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsARankedTensor;
+  static constexpr const char *pyClassName = "MemRefType";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    // TODO: Add mlirMemRefTypeGet and mlirMemRefTypeGetAffineMap binding
+    // once the affine map binding is completed.
+    c.def_static(
+         "get_contiguous_memref",
+         // TODO: Make the location optional and create a default location.
+         [](PyType &elementType, std::vector<int64_t> shape,
+            unsigned memorySpace, PyLocation &loc) {
+           MlirType t = mlirMemRefTypeContiguousGetChecked(
+               elementType.type, shape.size(), shape.data(), memorySpace,
+               loc.loc);
+           // TODO: Rework error reporting once diagnostic engine is exposed
+           // in C API.
+           if (mlirTypeIsNull(t)) {
+             throw SetPyError(
+                 PyExc_ValueError,
+                 llvm::Twine("invalid '") +
+                     py::repr(py::cast(elementType)).cast<std::string>() +
+                     "' and expected floating point, integer, vector or "
+                     "complex "
+                     "type.");
+           }
+           return PyMemRefType(t);
+         },
+         py::keep_alive<0, 1>(), "Create a memref type")
+        .def_property_readonly(
+            "num_affine_maps",
+            [](PyMemRefType &self) -> intptr_t {
+              return mlirMemRefTypeGetNumAffineMaps(self.type);
+            },
+            "Returns the number of affine layout maps in the given MemRef "
+            "type.")
+        .def_property_readonly(
+            "memory_space",
+            [](PyMemRefType &self) -> unsigned {
+              return mlirMemRefTypeGetMemorySpace(self.type);
+            },
+            "Returns the memory space of the given MemRef type.");
+  }
+};
+
+/// Unranked MemRef Type subclass - UnrankedMemRefType.
+class PyUnrankedMemRefType
+    : public PyConcreteType<PyUnrankedMemRefType, PyShapedType> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsAUnrankedMemRef;
+  static constexpr const char *pyClassName = "UnrankedMemRefType";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    c.def_static(
+         "get_unranked_memref",
+         // TODO: Make the location optional and create a default location.
+         [](PyType &elementType, unsigned memorySpace, PyLocation &loc) {
+           MlirType t = mlirUnrankedMemRefTypeGetChecked(elementType.type,
+                                                         memorySpace, loc.loc);
+           // TODO: Rework error reporting once diagnostic engine is exposed
+           // in C API.
+           if (mlirTypeIsNull(t)) {
+             throw SetPyError(
+                 PyExc_ValueError,
+                 llvm::Twine("invalid '") +
+                     py::repr(py::cast(elementType)).cast<std::string>() +
+                     "' and expected floating point, integer, vector or "
+                     "complex "
+                     "type.");
+           }
+           return PyUnrankedMemRefType(t);
+         },
+         py::keep_alive<0, 1>(), "Create a unranked memref type")
+        .def_property_readonly(
+            "memory_space",
+            [](PyUnrankedMemRefType &self) -> unsigned {
+              return mlirUnrankedMemrefGetMemorySpace(self.type);
+            },
+            "Returns the memory space of the given Unranked MemRef type.");
+  }
+};
+
+/// Tuple Type subclass - TupleType.
+class PyTupleType : public PyConcreteType<PyTupleType> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsATuple;
+  static constexpr const char *pyClassName = "TupleType";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    c.def_static(
+        "get_tuple",
+        [](PyMlirContext &context, py::list elementList) {
+          intptr_t num = py::len(elementList);
+          // Mapping py::list to SmallVector.
+          SmallVector<MlirType, 4> elements;
+          for (auto element : elementList)
+            elements.push_back(element.cast<PyType>().type);
+          MlirType t = mlirTupleTypeGet(context.context, num, elements.data());
+          return PyTupleType(t);
+        },
+        py::keep_alive<0, 1>(), "Create a tuple type");
+    c.def(
+        "get_type",
+        [](PyTupleType &self, intptr_t pos) -> PyType {
+          MlirType t = mlirTupleTypeGetType(self.type, pos);
+          return PyType(t);
+        },
+        py::keep_alive<0, 1>(), "Returns the pos-th type in the tuple type.");
+    c.def_property_readonly(
+        "num_types",
+        [](PyTupleType &self) -> intptr_t {
+          return mlirTupleTypeGetNumTypes(self.type);
+        },
+        "Returns the number of types contained in a tuple.");
+  }
+};
+
 } // namespace
 
 //------------------------------------------------------------------------------
@@ -358,7 +863,59 @@ void mlir::python::populateIRSubmodule(py::module &m) {
             }
             return PyType(type);
           },
-          py::keep_alive<0, 1>(), kContextParseType);
+          py::keep_alive<0, 1>(), kContextParseTypeDocstring)
+      .def(
+          "get_unknown_location",
+          [](PyMlirContext &self) {
+            return PyLocation(mlirLocationUnknownGet(self.context));
+          },
+          py::keep_alive<0, 1>(), kContextGetUnknownLocationDocstring)
+      .def(
+          "get_file_location",
+          [](PyMlirContext &self, std::string filename, int line, int col) {
+            return PyLocation(mlirLocationFileLineColGet(
+                self.context, filename.c_str(), line, col));
+          },
+          py::keep_alive<0, 1>(), kContextGetFileLocationDocstring,
+          py::arg("filename"), py::arg("line"), py::arg("col"))
+      .def(
+          "create_region",
+          [](PyMlirContext &self) {
+            // The creating context is explicitly captured on regions to
+            // facilitate illegal assemblies of objects from multiple contexts
+            // that would invalidate the memory model.
+            return PyRegion(self.context, mlirRegionCreate(),
+                            /*detached=*/true);
+          },
+          py::keep_alive<0, 1>(), kContextCreateRegionDocstring)
+      .def(
+          "create_block",
+          [](PyMlirContext &self, std::vector<PyType> pyTypes) {
+            // In order for the keep_alive extend the proper lifetime, all
+            // types must be from the same context.
+            for (auto pyType : pyTypes) {
+              if (!mlirContextEqual(mlirTypeGetContext(pyType.type),
+                                    self.context)) {
+                throw SetPyError(
+                    PyExc_ValueError,
+                    "All types used to construct a block must be from "
+                    "the same context as the block");
+              }
+            }
+            llvm::SmallVector<MlirType, 4> types(pyTypes.begin(),
+                                                 pyTypes.end());
+            return PyBlock(self.context,
+                           mlirBlockCreate(types.size(), &types[0]),
+                           /*detached=*/true);
+          },
+          py::keep_alive<0, 1>(), kContextCreateBlockDocstring);
+
+  py::class_<PyLocation>(m, "Location").def("__repr__", [](PyLocation &self) {
+    PyPrintAccumulator printAccum;
+    mlirLocationPrint(self.loc, printAccum.getCallback(),
+                      printAccum.getUserData());
+    return printAccum.join();
+  });
 
   // Mapping of Module
   py::class_<PyModule>(m, "Module")
@@ -378,6 +935,70 @@ void mlir::python::populateIRSubmodule(py::module &m) {
             return printAccum.join();
           },
           kOperationStrDunderDocstring);
+
+  // Mapping of PyRegion.
+  py::class_<PyRegion>(m, "Region")
+      .def(
+          "append_block",
+          [](PyRegion &self, PyBlock &block) {
+            if (!mlirContextEqual(self.context, block.context)) {
+              throw SetPyError(
+                  PyExc_ValueError,
+                  "Block must have been created from the same context as "
+                  "this region");
+            }
+
+            block.attachToParent();
+            mlirRegionAppendOwnedBlock(self.region, block.block);
+          },
+          kRegionAppendBlockDocstring)
+      .def(
+          "insert_block",
+          [](PyRegion &self, int pos, PyBlock &block) {
+            if (!mlirContextEqual(self.context, block.context)) {
+              throw SetPyError(
+                  PyExc_ValueError,
+                  "Block must have been created from the same context as "
+                  "this region");
+            }
+            block.attachToParent();
+            // TODO: Make this return a failure and raise if out of bounds.
+            mlirRegionInsertOwnedBlock(self.region, pos, block.block);
+          },
+          kRegionInsertBlockDocstring)
+      .def_property_readonly(
+          "first_block",
+          [](PyRegion &self) {
+            MlirBlock block = mlirRegionGetFirstBlock(self.region);
+            if (mlirBlockIsNull(block)) {
+              throw SetPyError(PyExc_IndexError, "Region has no blocks");
+            }
+            return PyBlock(self.context, block, /*detached=*/false);
+          },
+          kRegionFirstBlockDocstring);
+
+  // Mapping of PyBlock.
+  py::class_<PyBlock>(m, "Block")
+      .def_property_readonly(
+          "next_in_region",
+          [](PyBlock &self) {
+            MlirBlock block = mlirBlockGetNextInRegion(self.block);
+            if (mlirBlockIsNull(block)) {
+              throw SetPyError(PyExc_IndexError,
+                               "Attempt to read past last block");
+            }
+            return PyBlock(self.context, block, /*detached=*/false);
+          },
+          py::keep_alive<0, 1>(), kBlockNextInRegionDocstring)
+      .def(
+          "__str__",
+          [](PyBlock &self) {
+            PyPrintAccumulator printAccum;
+            mlirBlockPrint(self.block, printAccum.getCallback(),
+                           printAccum.getUserData());
+            return printAccum.join();
+          },
+          kTypeStrDunderDocstring);
 
   // Mapping of Type.
   py::class_<PyAttribute>(m, "Attribute")
@@ -489,4 +1110,18 @@ void mlir::python::populateIRSubmodule(py::module &m) {
 
   // Standard type bindings.
   PyIntegerType::bind(m);
+  PyIndexType::bind(m);
+  PyBF16Type::bind(m);
+  PyF16Type::bind(m);
+  PyF32Type::bind(m);
+  PyF64Type::bind(m);
+  PyNoneType::bind(m);
+  PyComplexType::bind(m);
+  PyShapedType::bind(m);
+  PyVectorType::bind(m);
+  PyRankedTensorType::bind(m);
+  PyUnrankedTensorType::bind(m);
+  PyMemRefType::bind(m);
+  PyUnrankedMemRefType::bind(m);
+  PyTupleType::bind(m);
 }

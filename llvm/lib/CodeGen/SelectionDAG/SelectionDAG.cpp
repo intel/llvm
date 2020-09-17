@@ -28,6 +28,7 @@
 #include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/CodeGen/FunctionLoweringInfo.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
@@ -2029,7 +2030,9 @@ SDValue SelectionDAG::CreateStackTemporary(TypeSize Bytes, Align Alignment) {
   int StackID = 0;
   if (Bytes.isScalable())
     StackID = TFI->getStackIDForScalableVectors();
-  int FrameIdx = MFI.CreateStackObject(Bytes, Alignment,
+  // The stack id gives an indication of whether the object is scalable or
+  // not, so it's safe to pass in the minimum size here.
+  int FrameIdx = MFI.CreateStackObject(Bytes.getKnownMinSize(), Alignment,
                                        false, nullptr, StackID);
   return getFrameIndex(FrameIdx, TLI->getFrameIndexTy(getDataLayout()));
 }
@@ -3357,14 +3360,12 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
   }
   case ISD::BITREVERSE: {
     Known2 = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
-    Known.Zero = Known2.Zero.reverseBits();
-    Known.One = Known2.One.reverseBits();
+    Known = Known2.reverseBits();
     break;
   }
   case ISD::BSWAP: {
     Known2 = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
-    Known.Zero = Known2.Zero.byteSwap();
-    Known.One = Known2.One.byteSwap();
+    Known = Known2.byteSwap();
     break;
   }
   case ISD::ABS: {
@@ -3389,29 +3390,13 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
   case ISD::UMIN: {
     Known = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
     Known2 = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
-
-    // UMIN - we know that the result will have the maximum of the
-    // known zero leading bits of the inputs.
-    unsigned LeadZero = Known.countMinLeadingZeros();
-    LeadZero = std::max(LeadZero, Known2.countMinLeadingZeros());
-
-    Known.Zero &= Known2.Zero;
-    Known.One &= Known2.One;
-    Known.Zero.setHighBits(LeadZero);
+    Known = KnownBits::umin(Known, Known2);
     break;
   }
   case ISD::UMAX: {
     Known = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
     Known2 = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
-
-    // UMAX - we know that the result will have the maximum of the
-    // known one leading bits of the inputs.
-    unsigned LeadOne = Known.countMinLeadingOnes();
-    LeadOne = std::max(LeadOne, Known2.countMinLeadingOnes());
-
-    Known.Zero &= Known2.Zero;
-    Known.One &= Known2.One;
-    Known.One.setHighBits(LeadOne);
+    Known = KnownBits::umax(Known, Known2);
     break;
   }
   case ISD::SMIN:
@@ -3445,12 +3430,13 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
       }
     }
 
-    // Fallback - just get the shared known bits of the operands.
     Known = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
     if (Known.isUnknown()) break; // Early-out
     Known2 = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
-    Known.Zero &= Known2.Zero;
-    Known.One &= Known2.One;
+    if (IsMax)
+      Known = KnownBits::smax(Known, Known2);
+    else
+      Known = KnownBits::smin(Known, Known2);
     break;
   }
   case ISD::FrameIndex:
@@ -6051,7 +6037,8 @@ static SDValue getMemcpyLoadsAndStores(SelectionDAG &DAG, const SDLoc &dl,
     SrcAlign = Alignment;
   assert(SrcAlign && "SrcAlign must be set");
   ConstantDataArraySlice Slice;
-  bool CopyFromConstant = isMemSrcFromConstant(Src, Slice);
+  // If marked as volatile, perform a copy even when marked as constant.
+  bool CopyFromConstant = !isVol && isMemSrcFromConstant(Src, Slice);
   bool isZeroConstant = CopyFromConstant && Slice.Array == nullptr;
   unsigned Limit = AlwaysInline ? ~0U : TLI.getMaxStoresPerMemcpy(OptSize);
   const MemOp Op = isZeroConstant
@@ -6979,7 +6966,7 @@ SDValue SelectionDAG::getLoad(ISD::MemIndexedMode AM, ISD::LoadExtType ExtType,
     assert(VT.isVector() == MemVT.isVector() &&
            "Cannot use an ext load to convert to or from a vector!");
     assert((!VT.isVector() ||
-            VT.getVectorNumElements() == MemVT.getVectorNumElements()) &&
+            VT.getVectorElementCount() == MemVT.getVectorElementCount()) &&
            "Cannot use an ext load to change the number of vector elements!");
   }
 
@@ -9076,6 +9063,10 @@ ConstantFPSDNode *llvm::isConstOrConstSplatFP(SDValue N, bool AllowUndefs) {
       return CN;
   }
 
+  if (N.getOpcode() == ISD::SPLAT_VECTOR)
+    if (ConstantFPSDNode *CN = dyn_cast<ConstantFPSDNode>(N.getOperand(0)))
+      return CN;
+
   return nullptr;
 }
 
@@ -9633,24 +9624,24 @@ std::pair<EVT, EVT>
 SelectionDAG::GetDependentSplitDestVTs(const EVT &VT, const EVT &EnvVT,
                                        bool *HiIsEmpty) const {
   EVT EltTp = VT.getVectorElementType();
-  bool IsScalable = VT.isScalableVector();
   // Examples:
   //   custom VL=8  with enveloping VL=8/8 yields 8/0 (hi empty)
   //   custom VL=9  with enveloping VL=8/8 yields 8/1
   //   custom VL=10 with enveloping VL=8/8 yields 8/2
   //   etc.
-  unsigned VTNumElts = VT.getVectorNumElements();
-  unsigned EnvNumElts = EnvVT.getVectorNumElements();
+  ElementCount VTNumElts = VT.getVectorElementCount();
+  ElementCount EnvNumElts = EnvVT.getVectorElementCount();
+  assert(VTNumElts.isScalable() == EnvNumElts.isScalable() &&
+         "Mixing fixed width and scalable vectors when enveloping a type");
   EVT LoVT, HiVT;
-  if (VTNumElts > EnvNumElts) {
+  if (VTNumElts.getKnownMinValue() > EnvNumElts.getKnownMinValue()) {
     LoVT = EnvVT;
-    HiVT = EVT::getVectorVT(*getContext(), EltTp, VTNumElts - EnvNumElts,
-                            IsScalable);
+    HiVT = EVT::getVectorVT(*getContext(), EltTp, VTNumElts - EnvNumElts);
     *HiIsEmpty = false;
   } else {
     // Flag that hi type has zero storage size, but return split envelop type
     // (this would be easier if vector types with zero elements were allowed).
-    LoVT = EVT::getVectorVT(*getContext(), EltTp, VTNumElts, IsScalable);
+    LoVT = EVT::getVectorVT(*getContext(), EltTp, VTNumElts);
     HiVT = EnvVT;
     *HiIsEmpty = true;
   }

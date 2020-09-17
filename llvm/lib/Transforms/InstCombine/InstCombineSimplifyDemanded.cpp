@@ -130,6 +130,9 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
   if (Depth == MaxAnalysisRecursionDepth)
     return nullptr;
 
+  if (isa<ScalableVectorType>(VTy))
+    return nullptr;
+
   Instruction *I = dyn_cast<Instruction>(V);
   if (!I) {
     computeKnownBits(V, Known, Depth, CxtI);
@@ -389,7 +392,8 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
     if (VectorType *DstVTy = dyn_cast<VectorType>(I->getType())) {
       if (VectorType *SrcVTy =
             dyn_cast<VectorType>(I->getOperand(0)->getType())) {
-        if (DstVTy->getNumElements() != SrcVTy->getNumElements())
+        if (cast<FixedVectorType>(DstVTy)->getNumElements() !=
+            cast<FixedVectorType>(SrcVTy)->getNumElements())
           // Don't touch a bitcast between vectors of different element counts.
           return nullptr;
       } else
@@ -1152,6 +1156,19 @@ Value *InstCombinerImpl::SimplifyDemandedVectorElts(Value *V,
     if (IdxNo < VWidth)
       PreInsertDemandedElts.clearBit(IdxNo);
 
+    // If we only demand the element that is being inserted and that element
+    // was extracted from the same index in another vector with the same type,
+    // replace this insert with that other vector.
+    // Note: This is attempted before the call to simplifyAndSetOp because that
+    //       may change UndefElts to a value that does not match with Vec.
+    Value *Vec;
+    if (PreInsertDemandedElts == 0 &&
+        match(I->getOperand(1),
+              m_ExtractElt(m_Value(Vec), m_SpecificInt(IdxNo))) &&
+        Vec->getType() == I->getType()) {
+      return Vec;
+    }
+
     simplifyAndSetOp(I, 0, PreInsertDemandedElts, UndefElts);
 
     // If this is inserting an element that isn't demanded, remove this
@@ -1170,8 +1187,8 @@ Value *InstCombinerImpl::SimplifyDemandedVectorElts(Value *V,
     assert(Shuffle->getOperand(0)->getType() ==
            Shuffle->getOperand(1)->getType() &&
            "Expected shuffle operands to have same type");
-    unsigned OpWidth =
-        cast<VectorType>(Shuffle->getOperand(0)->getType())->getNumElements();
+    unsigned OpWidth = cast<FixedVectorType>(Shuffle->getOperand(0)->getType())
+                           ->getNumElements();
     // Handle trivial case of a splat. Only check the first element of LHS
     // operand.
     if (all_of(Shuffle->getShuffleMask(), [](int Elt) { return Elt == 0; }) &&
@@ -1272,7 +1289,8 @@ Value *InstCombinerImpl::SimplifyDemandedVectorElts(Value *V,
     // this constant vector to single insertelement instruction.
     // shufflevector V, C, <v1, v2, .., ci, .., vm> ->
     // insertelement V, C[ci], ci-n
-    if (OpWidth == Shuffle->getType()->getNumElements()) {
+    if (OpWidth ==
+        cast<FixedVectorType>(Shuffle->getType())->getNumElements()) {
       Value *Op = nullptr;
       Constant *Value = nullptr;
       unsigned Idx = -1u;
@@ -1359,7 +1377,7 @@ Value *InstCombinerImpl::SimplifyDemandedVectorElts(Value *V,
     // Vector->vector casts only.
     VectorType *VTy = dyn_cast<VectorType>(I->getOperand(0)->getType());
     if (!VTy) break;
-    unsigned InVWidth = VTy->getNumElements();
+    unsigned InVWidth = cast<FixedVectorType>(VTy)->getNumElements();
     APInt InputDemandedElts(InVWidth, 0);
     UndefElts2 = APInt(InVWidth, 0);
     unsigned Ratio;

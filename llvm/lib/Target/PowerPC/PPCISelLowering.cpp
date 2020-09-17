@@ -262,6 +262,8 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
   // PPC (the libcall is not available).
   setOperationAction(ISD::FP_TO_SINT, MVT::ppcf128, Custom);
   setOperationAction(ISD::FP_TO_UINT, MVT::ppcf128, Custom);
+  setOperationAction(ISD::STRICT_FP_TO_SINT, MVT::ppcf128, Custom);
+  setOperationAction(ISD::STRICT_FP_TO_UINT, MVT::ppcf128, Custom);
 
   // We do not currently implement these libm ops for PowerPC.
   setOperationAction(ISD::FFLOOR, MVT::ppcf128, Expand);
@@ -860,7 +862,7 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
     setOperationAction(ISD::MUL, MVT::v4f32, Legal);
     setOperationAction(ISD::FMA, MVT::v4f32, Legal);
 
-    if (TM.Options.UnsafeFPMath || Subtarget.hasVSX()) {
+    if (Subtarget.hasVSX()) {
       setOperationAction(ISD::FDIV, MVT::v4f32, Legal);
       setOperationAction(ISD::FSQRT, MVT::v4f32, Legal);
     }
@@ -1234,12 +1236,6 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
     setTargetDAGCombine(ISD::SELECT_CC);
   }
 
-  // Use reciprocal estimates.
-  if (TM.Options.UnsafeFPMath) {
-    setTargetDAGCombine(ISD::FDIV);
-    setTargetDAGCombine(ISD::FSQRT);
-  }
-
   if (Subtarget.hasP9Altivec()) {
     setTargetDAGCombine(ISD::ABS);
     setTargetDAGCombine(ISD::VSELECT);
@@ -1511,6 +1507,8 @@ const char *PPCTargetLowering::getTargetNodeName(unsigned Opcode) const {
     return "PPCISD::TLS_DYNAMIC_MAT_PCREL_ADDR";
   case PPCISD::LD_SPLAT:        return "PPCISD::LD_SPLAT";
   case PPCISD::FNMSUB:          return "PPCISD::FNMSUB";
+  case PPCISD::STRICT_FADDRTZ:
+    return "PPCISD::STRICT_FADDRTZ";
   case PPCISD::STRICT_FCTIDZ:
     return "PPCISD::STRICT_FCTIDZ";
   case PPCISD::STRICT_FCTIWZ:
@@ -1527,6 +1525,7 @@ const char *PPCTargetLowering::getTargetNodeName(unsigned Opcode) const {
     return "PPCISD::STRICT_FCFIDS";
   case PPCISD::STRICT_FCFIDUS:
     return "PPCISD::STRICT_FCFIDUS";
+  case PPCISD::LXVRZX:          return "PPCISD::LXVRZX";
   }
   return nullptr;
 }
@@ -7862,19 +7861,44 @@ SDValue PPCTargetLowering::LowerTRUNCATEVector(SDValue Op,
   //   <uu, uu, uu, uu, uu, uu, LSB2|MSB2, LSB1|MSB1> to
   //   <u, u, u, u, u, u, u, u, u, u, u, u, u, u, LSB2, LSB1>
 
-  assert(Op.getValueType().isVector() && "Vector type expected.");
-
-  SDLoc DL(Op);
-  SDValue N1 = Op.getOperand(0);
-  unsigned SrcSize = N1.getValueType().getSizeInBits();
-  assert(SrcSize <= 128 && "Source must fit in an Altivec/VSX vector");
-  SDValue WideSrc = SrcSize == 128 ? N1 : widenVec(DAG, N1, DL);
-
   EVT TrgVT = Op.getValueType();
+  assert(TrgVT.isVector() && "Vector type expected.");
   unsigned TrgNumElts = TrgVT.getVectorNumElements();
   EVT EltVT = TrgVT.getVectorElementType();
+  if (!isOperationCustom(Op.getOpcode(), TrgVT) ||
+      TrgVT.getSizeInBits() > 128 || !isPowerOf2_32(TrgNumElts) ||
+      !isPowerOf2_32(EltVT.getSizeInBits()))
+    return SDValue();
+
+  SDValue N1 = Op.getOperand(0);
+  EVT SrcVT = N1.getValueType();  
+  unsigned SrcSize = SrcVT.getSizeInBits();
+  if (SrcSize > 256 ||
+      !isPowerOf2_32(SrcVT.getVectorNumElements()) ||
+      !isPowerOf2_32(SrcVT.getVectorElementType().getSizeInBits()))
+    return SDValue();
+  if (SrcSize == 256 && SrcVT.getVectorNumElements() < 2)
+    return SDValue();
+
   unsigned WideNumElts = 128 / EltVT.getSizeInBits();
   EVT WideVT = EVT::getVectorVT(*DAG.getContext(), EltVT, WideNumElts);
+
+  SDLoc DL(Op);
+  SDValue Op1, Op2;
+  if (SrcSize == 256) {
+    EVT VecIdxTy = getVectorIdxTy(DAG.getDataLayout());
+    EVT SplitVT =
+        N1.getValueType().getHalfNumVectorElementsVT(*DAG.getContext());
+    unsigned SplitNumElts = SplitVT.getVectorNumElements();
+    Op1 = DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, SplitVT, N1,
+                      DAG.getConstant(0, DL, VecIdxTy));
+    Op2 = DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, SplitVT, N1,
+                      DAG.getConstant(SplitNumElts, DL, VecIdxTy));
+  }
+  else {
+    Op1 = SrcSize == 128 ? N1 : widenVec(DAG, N1, DL);
+    Op2 = DAG.getUNDEF(WideVT);
+  }
 
   // First list the elements we want to keep.
   unsigned SizeMult = SrcSize / TrgVT.getSizeInBits();
@@ -7891,8 +7915,9 @@ SDValue PPCTargetLowering::LowerTRUNCATEVector(SDValue Op,
     // ShuffV.push_back(i + WideNumElts);
     ShuffV.push_back(WideNumElts + 1);
 
-  SDValue Conv = DAG.getNode(ISD::BITCAST, DL, WideVT, WideSrc);
-  return DAG.getVectorShuffle(WideVT, DL, Conv, DAG.getUNDEF(WideVT), ShuffV);
+  Op1 = DAG.getNode(ISD::BITCAST, DL, WideVT, Op1);
+  Op2 = DAG.getNode(ISD::BITCAST, DL, WideVT, Op2);
+  return DAG.getVectorShuffle(WideVT, DL, Op1, Op2, ShuffV);
 }
 
 /// LowerSELECT_CC - Lower floating point select_cc's into fsel instruction when
@@ -8143,38 +8168,86 @@ SDValue PPCTargetLowering::LowerFP_TO_INT(SDValue Op, SelectionDAG &DAG,
   bool IsSigned = Op.getOpcode() == ISD::FP_TO_SINT ||
                   Op.getOpcode() == ISD::STRICT_FP_TO_SINT;
   SDValue Src = Op.getOperand(IsStrict ? 1 : 0);
+  EVT SrcVT = Src.getValueType();
+  EVT DstVT = Op.getValueType();
+
   // FP to INT conversions are legal for f128.
-  if (Src.getValueType() == MVT::f128)
+  if (SrcVT == MVT::f128)
     return Op;
 
   // Expand ppcf128 to i32 by hand for the benefit of llvm-gcc bootstrap on
   // PPC (the libcall is not available).
-  if (Src.getValueType() == MVT::ppcf128 && !IsStrict) {
-    if (Op.getValueType() == MVT::i32) {
+  if (SrcVT == MVT::ppcf128) {
+    if (DstVT == MVT::i32) {
+      // TODO: Conservatively pass only nofpexcept flag here. Need to check and
+      // set other fast-math flags to FP operations in both strict and
+      // non-strict cases. (FP_TO_SINT, FSUB)
+      SDNodeFlags Flags;
+      Flags.setNoFPExcept(Op->getFlags().hasNoFPExcept());
+
       if (IsSigned) {
         SDValue Lo = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::f64, Src,
                                  DAG.getIntPtrConstant(0, dl));
         SDValue Hi = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::f64, Src,
                                  DAG.getIntPtrConstant(1, dl));
 
-        // Add the two halves of the long double in round-to-zero mode.
-        SDValue Res = DAG.getNode(PPCISD::FADDRTZ, dl, MVT::f64, Lo, Hi);
-
-        // Now use a smaller FP_TO_SINT.
-        return DAG.getNode(ISD::FP_TO_SINT, dl, MVT::i32, Res);
+        // Add the two halves of the long double in round-to-zero mode, and use
+        // a smaller FP_TO_SINT.
+        if (IsStrict) {
+          SDValue Res = DAG.getNode(PPCISD::STRICT_FADDRTZ, dl,
+                                    DAG.getVTList(MVT::f64, MVT::Other),
+                                    {Op.getOperand(0), Lo, Hi}, Flags);
+          return DAG.getNode(ISD::STRICT_FP_TO_SINT, dl,
+                             DAG.getVTList(MVT::i32, MVT::Other),
+                             {Res.getValue(1), Res}, Flags);
+        } else {
+          SDValue Res = DAG.getNode(PPCISD::FADDRTZ, dl, MVT::f64, Lo, Hi);
+          return DAG.getNode(ISD::FP_TO_SINT, dl, MVT::i32, Res);
+        }
       } else {
         const uint64_t TwoE31[] = {0x41e0000000000000LL, 0};
         APFloat APF = APFloat(APFloat::PPCDoubleDouble(), APInt(128, TwoE31));
-        SDValue Tmp = DAG.getConstantFP(APF, dl, MVT::ppcf128);
-        //  X>=2^31 ? (int)(X-2^31)+0x80000000 : (int)X
-        // FIXME: generated code sucks.
-        // TODO: Are there fast-math-flags to propagate to this FSUB?
-        SDValue True = DAG.getNode(ISD::FSUB, dl, MVT::ppcf128, Src, Tmp);
-        True = DAG.getNode(ISD::FP_TO_SINT, dl, MVT::i32, True);
-        True = DAG.getNode(ISD::ADD, dl, MVT::i32, True,
-                           DAG.getConstant(0x80000000, dl, MVT::i32));
-        SDValue False = DAG.getNode(ISD::FP_TO_SINT, dl, MVT::i32, Src);
-        return DAG.getSelectCC(dl, Src, Tmp, True, False, ISD::SETGE);
+        SDValue Cst = DAG.getConstantFP(APF, dl, SrcVT);
+        SDValue SignMask = DAG.getConstant(0x80000000, dl, DstVT);
+        if (IsStrict) {
+          // Sel = Src < 0x80000000
+          // FltOfs = select Sel, 0.0, 0x80000000
+          // IntOfs = select Sel, 0, 0x80000000
+          // Result = fp_to_sint(Src - FltOfs) ^ IntOfs
+          SDValue Chain = Op.getOperand(0);
+          EVT SetCCVT =
+              getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), SrcVT);
+          EVT DstSetCCVT =
+              getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), DstVT);
+          SDValue Sel =
+              DAG.getSetCC(dl, SetCCVT, Src, Cst, ISD::SETLT, Chain, true);
+          Chain = Sel.getValue(1);
+
+          SDValue FltOfs = DAG.getSelect(
+              dl, SrcVT, Sel, DAG.getConstantFP(0.0, dl, SrcVT), Cst);
+          Sel = DAG.getBoolExtOrTrunc(Sel, dl, DstSetCCVT, DstVT);
+
+          SDValue Val = DAG.getNode(ISD::STRICT_FSUB, dl,
+                                    DAG.getVTList(SrcVT, MVT::Other),
+                                    {Chain, Src, FltOfs}, Flags);
+          Chain = Val.getValue(1);
+          SDValue SInt = DAG.getNode(ISD::STRICT_FP_TO_SINT, dl,
+                                     DAG.getVTList(DstVT, MVT::Other),
+                                     {Chain, Val}, Flags);
+          Chain = SInt.getValue(1);
+          SDValue IntOfs = DAG.getSelect(
+              dl, DstVT, Sel, DAG.getConstant(0, dl, DstVT), SignMask);
+          SDValue Result = DAG.getNode(ISD::XOR, dl, DstVT, SInt, IntOfs);
+          return DAG.getMergeValues({Result, Chain}, dl);
+        } else {
+          // X>=2^31 ? (int)(X-2^31)+0x80000000 : (int)X
+          // FIXME: generated code sucks.
+          SDValue True = DAG.getNode(ISD::FSUB, dl, MVT::ppcf128, Src, Cst);
+          True = DAG.getNode(ISD::FP_TO_SINT, dl, MVT::i32, True);
+          True = DAG.getNode(ISD::ADD, dl, MVT::i32, True, SignMask);
+          SDValue False = DAG.getNode(ISD::FP_TO_SINT, dl, MVT::i32, Src);
+          return DAG.getSelectCC(dl, Src, Cst, True, False, ISD::SETGE);
+        }
       }
     }
 
@@ -10750,13 +10823,11 @@ void PPCTargetLowering::ReplaceNodeResults(SDNode *N,
     Results.push_back(LowerFP_TO_INT(SDValue(N, 0), DAG, dl));
     return;
   case ISD::TRUNCATE: {
-    EVT TrgVT = N->getValueType(0);
-    EVT OpVT = N->getOperand(0).getValueType();
-    if (TrgVT.isVector() &&
-        isOperationCustom(N->getOpcode(), TrgVT) &&
-        OpVT.getSizeInBits() <= 128 &&
-        isPowerOf2_32(OpVT.getVectorElementType().getSizeInBits()))
-      Results.push_back(LowerTRUNCATEVector(SDValue(N, 0), DAG));
+    if (!N->getValueType(0).isVector())
+      return;
+    SDValue Lowered = LowerTRUNCATEVector(SDValue(N, 0), DAG);
+    if (Lowered)
+      Results.push_back(Lowered);
     return;
   }
   case ISD::BITCAST:
@@ -12151,7 +12222,11 @@ PPCTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
         .addReg(PPC::RM, RegState::ImplicitDefine);
 
     // Perform addition.
-    BuildMI(*BB, MI, dl, TII->get(PPC::FADD), Dest).addReg(Src1).addReg(Src2);
+    auto MIB = BuildMI(*BB, MI, dl, TII->get(PPC::FADD), Dest)
+                   .addReg(Src1)
+                   .addReg(Src2);
+    if (MI.getFlag(MachineInstr::NoFPExcept))
+      MIB.setMIFlag(MachineInstr::NoFPExcept);
 
     // Restore FPSCR value.
     BuildMI(*BB, MI, dl, TII->get(PPC::MTFSFb)).addImm(1).addReg(MFFSReg);
@@ -13615,6 +13690,46 @@ static SDValue combineBVOfVecSExt(SDNode *N, SelectionDAG &DAG) {
   return SDValue();
 }
 
+// Look for the pattern of a load from a narrow width to i128, feeding
+// into a BUILD_VECTOR of v1i128. Replace this sequence with a PPCISD node
+// (LXVRZX). This node represents a zero extending load that will be matched
+// to the Load VSX Vector Rightmost instructions.
+static SDValue combineBVZEXTLOAD(SDNode *N, SelectionDAG &DAG) {
+  SDLoc DL(N);
+
+  // This combine is only eligible for a BUILD_VECTOR of v1i128.
+  if (N->getValueType(0) != MVT::v1i128)
+    return SDValue();
+
+  SDValue Operand = N->getOperand(0);
+  // Proceed with the transformation if the operand to the BUILD_VECTOR
+  // is a load instruction.
+  if (Operand.getOpcode() != ISD::LOAD)
+    return SDValue();
+
+  LoadSDNode *LD = dyn_cast<LoadSDNode>(Operand);
+  EVT MemoryType = LD->getMemoryVT();
+
+  // This transformation is only valid if the we are loading either a byte,
+  // halfword, word, or doubleword.
+  bool ValidLDType = MemoryType == MVT::i8 || MemoryType == MVT::i16 ||
+                     MemoryType == MVT::i32 || MemoryType == MVT::i64;
+
+  // Ensure that the load from the narrow width is being zero extended to i128.
+  if (!ValidLDType ||
+      (LD->getExtensionType() != ISD::ZEXTLOAD &&
+       LD->getExtensionType() != ISD::EXTLOAD))
+    return SDValue();
+
+  SDValue LoadOps[] = {
+      LD->getChain(), LD->getBasePtr(),
+      DAG.getIntPtrConstant(MemoryType.getScalarSizeInBits(), DL)};
+
+  return DAG.getMemIntrinsicNode(PPCISD::LXVRZX, DL,
+                                 DAG.getVTList(MVT::v1i128, MVT::Other),
+                                 LoadOps, MemoryType, LD->getMemOperand());
+}
+
 SDValue PPCTargetLowering::DAGCombineBuildVector(SDNode *N,
                                                  DAGCombinerInfo &DCI) const {
   assert(N->getOpcode() == ISD::BUILD_VECTOR &&
@@ -13652,6 +13767,14 @@ SDValue PPCTargetLowering::DAGCombineBuildVector(SDNode *N,
       return Reduced;
   }
 
+  // On Power10, the Load VSX Vector Rightmost instructions can be utilized
+  // if this is a BUILD_VECTOR of v1i128, and if the operand to the BUILD_VECTOR
+  // is a load from <valid narrow width> to i128.
+  if (Subtarget.isISA3_1()) {
+    SDValue BVOfZLoad = combineBVZEXTLOAD(N, DAG);
+    if (BVOfZLoad)
+      return BVOfZLoad;
+  }
 
   if (N->getValueType(0) != MVT::v2f64)
     return SDValue();

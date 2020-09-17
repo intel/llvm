@@ -34,8 +34,9 @@
 #include "llvm/CodeGen/Analysis.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/DAGCombine.h"
-#include "llvm/CodeGen/ISDOpcodes.h"
+#include "llvm/CodeGen/FunctionLoweringInfo.h"
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
+#include "llvm/CodeGen/ISDOpcodes.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -4333,6 +4334,12 @@ MVT SITargetLowering::getScalarShiftAmountTy(const DataLayout &, EVT VT) const {
   return (VT == MVT::i16) ? MVT::i16 : MVT::i32;
 }
 
+LLT SITargetLowering::getPreferredShiftAmountTy(LLT Ty) const {
+  return (Ty.getScalarSizeInBits() <= 16 && Subtarget->has16BitInsts())
+             ? Ty.changeElementSize(16)
+             : Ty.changeElementSize(32);
+}
+
 // Answering this is somewhat tricky and depends on the specific device which
 // have different rates for fma or all f64 operations.
 //
@@ -5586,7 +5593,9 @@ buildPCRelGlobalAddress(SelectionDAG &DAG, const GlobalValue *GV,
   // variable, but since the encoding of $symbol starts 4 bytes after the start
   // of the s_add_u32 instruction, we end up with an offset that is 4 bytes too
   // small. This requires us to add 4 to the global variable offset in order to
-  // compute the correct address.
+  // compute the correct address. Similarly for the s_addc_u32 instruction, the
+  // encoding of $symbol starts 12 bytes after the start of the s_add_u32
+  // instruction.
   SDValue PtrLo =
       DAG.getTargetGlobalAddress(GV, DL, MVT::i32, Offset + 4, GAFlags);
   SDValue PtrHi;
@@ -5594,7 +5603,7 @@ buildPCRelGlobalAddress(SelectionDAG &DAG, const GlobalValue *GV,
     PtrHi = DAG.getTargetConstant(0, DL, MVT::i32);
   } else {
     PtrHi =
-        DAG.getTargetGlobalAddress(GV, DL, MVT::i32, Offset + 4, GAFlags + 1);
+        DAG.getTargetGlobalAddress(GV, DL, MVT::i32, Offset + 12, GAFlags + 1);
   }
   return DAG.getNode(AMDGPUISD::PC_ADD_REL_OFFSET, DL, PtrVT, PtrLo, PtrHi);
 }
@@ -11387,6 +11396,50 @@ void SITargetLowering::computeKnownBitsForFrameIndex(
   // wave. We can't use vaddr in MUBUF instructions if we don't know the address
   // calculation won't overflow, so assume the sign bit is never set.
   Known.Zero.setHighBits(getSubtarget()->getKnownHighZeroBitsForFrameIndex());
+}
+
+static void knownBitsForWorkitemID(const GCNSubtarget &ST, GISelKnownBits &KB,
+                                   KnownBits &Known, unsigned Dim) {
+  unsigned MaxValue =
+      ST.getMaxWorkitemID(KB.getMachineFunction().getFunction(), Dim);
+  Known.Zero.setHighBits(countLeadingZeros(MaxValue));
+}
+
+void SITargetLowering::computeKnownBitsForTargetInstr(
+    GISelKnownBits &KB, Register R, KnownBits &Known, const APInt &DemandedElts,
+    const MachineRegisterInfo &MRI, unsigned Depth) const {
+  const MachineInstr *MI = MRI.getVRegDef(R);
+  switch (MI->getOpcode()) {
+  case AMDGPU::G_INTRINSIC: {
+    switch (MI->getIntrinsicID()) {
+    case Intrinsic::amdgcn_workitem_id_x:
+      knownBitsForWorkitemID(*getSubtarget(), KB, Known, 0);
+      break;
+    case Intrinsic::amdgcn_workitem_id_y:
+      knownBitsForWorkitemID(*getSubtarget(), KB, Known, 1);
+      break;
+    case Intrinsic::amdgcn_workitem_id_z:
+      knownBitsForWorkitemID(*getSubtarget(), KB, Known, 2);
+      break;
+    case Intrinsic::amdgcn_mbcnt_lo:
+    case Intrinsic::amdgcn_mbcnt_hi: {
+      // These return at most the wavefront size - 1.
+      unsigned Size = MRI.getType(R).getSizeInBits();
+      Known.Zero.setHighBits(Size - getSubtarget()->getWavefrontSizeLog2());
+      break;
+    }
+    case Intrinsic::amdgcn_groupstaticsize: {
+      // We can report everything over the maximum size as 0. We can't report
+      // based on the actual size because we don't know if it's accurate or not
+      // at any given point.
+      Known.Zero.setHighBits(countLeadingZeros(getSubtarget()->getLocalMemorySize()));
+      break;
+    }
+    default:
+      break;
+    }
+  }
+  }
 }
 
 Align SITargetLowering::computeKnownAlignForTargetInstr(

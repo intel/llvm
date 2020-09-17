@@ -4615,8 +4615,8 @@ Sema::ActOnArraySubscriptExpr(Scope *S, Expr *base, SourceLocation lbLoc,
         << SourceRange(base->getBeginLoc(), rbLoc);
     return ExprError();
   }
-  // If the base is either a MatrixSubscriptExpr or a matrix type, try to create
-  // a new MatrixSubscriptExpr.
+  // If the base is a MatrixSubscriptExpr, try to create a new
+  // MatrixSubscriptExpr.
   auto *matSubscriptE = dyn_cast<MatrixSubscriptExpr>(base);
   if (matSubscriptE) {
     if (CheckAndReportCommaError(idx))
@@ -4627,34 +4627,13 @@ Sema::ActOnArraySubscriptExpr(Scope *S, Expr *base, SourceLocation lbLoc,
     return CreateBuiltinMatrixSubscriptExpr(
         matSubscriptE->getBase(), matSubscriptE->getRowIdx(), idx, rbLoc);
   }
-  Expr *matrixBase = base;
-  bool IsMSPropertySubscript = isMSPropertySubscriptExpr(*this, base);
-  if (!IsMSPropertySubscript) {
-    ExprResult result = CheckPlaceholderExpr(base);
-    if (!result.isInvalid())
-      matrixBase = result.get();
-  }
-  if (matrixBase->getType()->isMatrixType()) {
-    if (CheckAndReportCommaError(idx))
-      return ExprError();
-
-    return CreateBuiltinMatrixSubscriptExpr(matrixBase, idx, nullptr, rbLoc);
-  }
-
-  // A comma-expression as the index is deprecated in C++2a onwards.
-  if (getLangOpts().CPlusPlus20 &&
-      ((isa<BinaryOperator>(idx) && cast<BinaryOperator>(idx)->isCommaOp()) ||
-       (isa<CXXOperatorCallExpr>(idx) &&
-        cast<CXXOperatorCallExpr>(idx)->getOperator() == OO_Comma))) {
-    Diag(idx->getExprLoc(), diag::warn_deprecated_comma_subscript)
-      << SourceRange(base->getBeginLoc(), rbLoc);
-  }
 
   // Handle any non-overload placeholder types in the base and index
   // expressions.  We can't handle overloads here because the other
   // operand might be an overloadable type, in which case the overload
   // resolution for the operator overload should get the first crack
   // at the overload.
+  bool IsMSPropertySubscript = false;
   if (base->getType()->isNonOverloadPlaceholderType()) {
     IsMSPropertySubscript = isMSPropertySubscriptExpr(*this, base);
     if (!IsMSPropertySubscript) {
@@ -4664,6 +4643,24 @@ Sema::ActOnArraySubscriptExpr(Scope *S, Expr *base, SourceLocation lbLoc,
       base = result.get();
     }
   }
+
+  // If the base is a matrix type, try to create a new MatrixSubscriptExpr.
+  if (base->getType()->isMatrixType()) {
+    if (CheckAndReportCommaError(idx))
+      return ExprError();
+
+    return CreateBuiltinMatrixSubscriptExpr(base, idx, nullptr, rbLoc);
+  }
+
+  // A comma-expression as the index is deprecated in C++2a onwards.
+  if (getLangOpts().CPlusPlus20 &&
+      ((isa<BinaryOperator>(idx) && cast<BinaryOperator>(idx)->isCommaOp()) ||
+       (isa<CXXOperatorCallExpr>(idx) &&
+        cast<CXXOperatorCallExpr>(idx)->getOperator() == OO_Comma))) {
+    Diag(idx->getExprLoc(), diag::warn_deprecated_comma_subscript)
+        << SourceRange(base->getBeginLoc(), rbLoc);
+  }
+
   if (idx->getType()->isNonOverloadPlaceholderType()) {
     ExprResult result = CheckPlaceholderExpr(idx);
     if (result.isInvalid()) return ExprError();
@@ -8400,7 +8397,7 @@ static bool IsArithmeticBinaryExpr(Expr *E, BinaryOperatorKind *Opcode,
                                    Expr **RHSExprs) {
   // Don't strip parenthesis: we should not warn if E is in parenthesis.
   E = E->IgnoreImpCasts();
-  E = E->IgnoreConversionOperator();
+  E = E->IgnoreConversionOperatorSingleStep();
   E = E->IgnoreImpCasts();
   if (auto *MTE = dyn_cast<MaterializeTemporaryExpr>(E)) {
     E = MTE->getSubExpr();
@@ -9032,6 +9029,14 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
         Kind = CK_BitCast;
         return Compatible;
       }
+    }
+
+    // Allow assignments between fixed-length and sizeless SVE vectors.
+    if (((LHSType->isSizelessBuiltinType() && RHSType->isVectorType()) ||
+         (LHSType->isVectorType() && RHSType->isSizelessBuiltinType())) &&
+        Context.areCompatibleSveTypes(LHSType, RHSType)) {
+      Kind = CK_BitCast;
+      return Compatible;
     }
 
     return Incompatible;
@@ -9923,6 +9928,22 @@ QualType Sema::CheckVectorOperands(ExprResult &LHS, ExprResult &RHS,
   }
 
   // Okay, the expression is invalid.
+
+  // Returns true if the operands are SVE VLA and VLS types.
+  auto IsSveConversion = [](QualType FirstType, QualType SecondType) {
+    const VectorType *VecType = SecondType->getAs<VectorType>();
+    return FirstType->isSizelessBuiltinType() && VecType &&
+           (VecType->getVectorKind() == VectorType::SveFixedLengthDataVector ||
+            VecType->getVectorKind() ==
+                VectorType::SveFixedLengthPredicateVector);
+  };
+
+  // If there's a sizeless and fixed-length operand, diagnose that.
+  if (IsSveConversion(LHSType, RHSType) || IsSveConversion(RHSType, LHSType)) {
+    Diag(Loc, diag::err_typecheck_vector_not_convertable_sizeless)
+        << LHSType << RHSType;
+    return QualType();
+  }
 
   // If there's a non-vector, non-real operand, diagnose that.
   if ((!RHSVecType && !RHSType->isRealType()) ||

@@ -1,12 +1,13 @@
 // TODO: Enable compilation w/o -fno-sycl-early-optimizations option.
 // See https://github.com/intel/llvm/issues/2264 for more details.
+// XFAIL: gpu
 
 // UNSUPPORTED: cuda || cpu
 // CUDA compilation and runtime do not yet support sub-groups.
 // #2252 Disable until all variants of built-ins are available in OpenCL CPU
 // runtime for every supported ISA
 //
-// RUN: %clangxx -fsycl -fno-sycl-early-optimizations -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out

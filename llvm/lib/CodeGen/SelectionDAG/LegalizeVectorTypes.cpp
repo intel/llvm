@@ -146,6 +146,8 @@ void DAGTypeLegalizer::ScalarizeVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::SHL:
   case ISD::SRA:
   case ISD::SRL:
+  case ISD::ROTL:
+  case ISD::ROTR:
     R = ScalarizeVecRes_BinOp(N);
     break;
   case ISD::FMA:
@@ -1636,9 +1638,10 @@ void DAGTypeLegalizer::SplitVecRes_MLOAD(MaskedLoadSDNode *MLD,
   else
     std::tie(PassThruLo, PassThruHi) = DAG.SplitVector(PassThru, dl);
 
+  unsigned LoSize = MemoryLocation::getSizeOrUnknown(LoMemVT.getStoreSize());
   MachineMemOperand *MMO = DAG.getMachineFunction().getMachineMemOperand(
-      MLD->getPointerInfo(), MachineMemOperand::MOLoad, LoMemVT.getStoreSize(),
-      Alignment, MLD->getAAInfo(), MLD->getRanges());
+      MLD->getPointerInfo(), MachineMemOperand::MOLoad, LoSize, Alignment,
+      MLD->getAAInfo(), MLD->getRanges());
 
   Lo = DAG.getMaskedLoad(LoVT, dl, Ch, Ptr, Offset, MaskLo, PassThruLo, LoMemVT,
                          MMO, MLD->getAddressingMode(), ExtType,
@@ -1652,12 +1655,18 @@ void DAGTypeLegalizer::SplitVecRes_MLOAD(MaskedLoadSDNode *MLD,
     // Generate hi masked load.
     Ptr = TLI.IncrementMemoryAddress(Ptr, MaskLo, dl, LoMemVT, DAG,
                                      MLD->isExpandingLoad());
-    unsigned HiOffset = LoMemVT.getStoreSize();
+    unsigned HiSize = MemoryLocation::getSizeOrUnknown(HiMemVT.getStoreSize());
+
+    MachinePointerInfo MPI;
+    if (LoMemVT.isScalableVector())
+      MPI = MachinePointerInfo(MLD->getPointerInfo().getAddrSpace());
+    else
+      MPI = MLD->getPointerInfo().getWithOffset(
+          LoMemVT.getStoreSize().getFixedSize());
 
     MMO = DAG.getMachineFunction().getMachineMemOperand(
-        MLD->getPointerInfo().getWithOffset(HiOffset),
-        MachineMemOperand::MOLoad, HiMemVT.getStoreSize(), Alignment,
-        MLD->getAAInfo(), MLD->getRanges());
+        MPI, MachineMemOperand::MOLoad, HiSize, Alignment, MLD->getAAInfo(),
+        MLD->getRanges());
 
     Hi = DAG.getMaskedLoad(HiVT, dl, Ch, Ptr, Offset, MaskHi, PassThruHi,
                            HiMemVT, MMO, MLD->getAddressingMode(), ExtType,
@@ -2798,6 +2807,9 @@ void DAGTypeLegalizer::WidenVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::OR:
   case ISD::SUB:
   case ISD::XOR:
+  case ISD::SHL:
+  case ISD::SRA:
+  case ISD::SRL:
   case ISD::FMINNUM:
   case ISD::FMAXNUM:
   case ISD::FMINIMUM:
@@ -2812,6 +2824,8 @@ void DAGTypeLegalizer::WidenVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::SSUBSAT:
   case ISD::SSHLSAT:
   case ISD::USHLSAT:
+  case ISD::ROTL:
+  case ISD::ROTR:
     Res = WidenVecRes_Binary(N);
     break;
 
@@ -2858,12 +2872,6 @@ void DAGTypeLegalizer::WidenVectorResult(SDNode *N, unsigned ResNo) {
 
   case ISD::FPOWI:
     Res = WidenVecRes_POWI(N);
-    break;
-
-  case ISD::SHL:
-  case ISD::SRA:
-  case ISD::SRL:
-    Res = WidenVecRes_Shift(N);
     break;
 
   case ISD::ANY_EXTEND_VECTOR_INREG:
@@ -3482,25 +3490,6 @@ SDValue DAGTypeLegalizer::WidenVecRes_POWI(SDNode *N) {
   EVT WidenVT = TLI.getTypeToTransformTo(*DAG.getContext(), N->getValueType(0));
   SDValue InOp = GetWidenedVector(N->getOperand(0));
   SDValue ShOp = N->getOperand(1);
-  return DAG.getNode(N->getOpcode(), SDLoc(N), WidenVT, InOp, ShOp);
-}
-
-SDValue DAGTypeLegalizer::WidenVecRes_Shift(SDNode *N) {
-  EVT WidenVT = TLI.getTypeToTransformTo(*DAG.getContext(), N->getValueType(0));
-  SDValue InOp = GetWidenedVector(N->getOperand(0));
-  SDValue ShOp = N->getOperand(1);
-
-  EVT ShVT = ShOp.getValueType();
-  if (getTypeAction(ShVT) == TargetLowering::TypeWidenVector) {
-    ShOp = GetWidenedVector(ShOp);
-    ShVT = ShOp.getValueType();
-  }
-  EVT ShWidenVT = EVT::getVectorVT(*DAG.getContext(),
-                                   ShVT.getVectorElementType(),
-                                   WidenVT.getVectorNumElements());
-  if (ShVT != ShWidenVT)
-    ShOp = ModifyToType(ShOp, ShWidenVT);
-
   return DAG.getNode(N->getOpcode(), SDLoc(N), WidenVT, InOp, ShOp);
 }
 

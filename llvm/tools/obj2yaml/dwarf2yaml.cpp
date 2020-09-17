@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Error.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugArangeSet.h"
@@ -49,10 +48,11 @@ void dumpDebugAbbrev(DWARFContext &DCtx, DWARFYAML::Data &Y) {
 
 void dumpDebugStrings(DWARFContext &DCtx, DWARFYAML::Data &Y) {
   StringRef RemainingTable = DCtx.getDWARFObj().getStrSection();
+  Y.DebugStrings.emplace();
   while (RemainingTable.size() > 0) {
     auto SymbolPair = RemainingTable.split('\0');
     RemainingTable = SymbolPair.second;
-    Y.DebugStrings.push_back(SymbolPair.first);
+    Y.DebugStrings->push_back(SymbolPair.first);
   }
 }
 
@@ -318,13 +318,15 @@ void dumpDebugLines(DWARFContext &DCtx, DWARFYAML::Data &Y) {
         DebugLines.Format = dwarf::DWARF32;
         DebugLines.Length = LengthOrDWARF64Prefix;
       }
-      uint64_t LineTableLength = DebugLines.Length;
+      assert(DebugLines.Length);
+      uint64_t LineTableLength = *DebugLines.Length;
       uint64_t SizeOfPrologueLength =
           DebugLines.Format == dwarf::DWARF64 ? 8 : 4;
       DebugLines.Version = LineData.getU16(&Offset);
       DebugLines.PrologueLength =
           LineData.getUnsigned(&Offset, SizeOfPrologueLength);
-      const uint64_t EndPrologue = DebugLines.PrologueLength + Offset;
+      assert(DebugLines.PrologueLength);
+      const uint64_t EndPrologue = *DebugLines.PrologueLength + Offset;
 
       DebugLines.MinInstLength = LineData.getU8(&Offset);
       if (DebugLines.Version >= 4)

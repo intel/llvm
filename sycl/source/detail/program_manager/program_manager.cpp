@@ -218,18 +218,19 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
   }
 }
 
+// TODO replace this with a new PI API function
 static bool isDeviceBinaryTypeSupported(const context &C,
                                         RT::PiDeviceBinaryType Format) {
+  // All formats except PI_DEVICE_BINARY_TYPE_SPIRV are supported.
+  if (Format != PI_DEVICE_BINARY_TYPE_SPIRV)
+    return true;
+
   const backend ContextBackend =
       detail::getSyclObjImpl(C)->getPlugin().getBackend();
 
   // The CUDA backend cannot use SPIR-V
-  if (ContextBackend == backend::cuda && Format == PI_DEVICE_BINARY_TYPE_SPIRV)
+  if (ContextBackend == backend::cuda)
     return false;
-
-  // All formats except PI_DEVICE_BINARY_TYPE_SPIRV are supported.
-  if (Format != PI_DEVICE_BINARY_TYPE_SPIRV)
-    return true;
 
   vector_class<device> Devices = C.get_devices();
 
@@ -240,9 +241,14 @@ static bool isDeviceBinaryTypeSupported(const context &C,
   }
 
   // OpenCL 2.1 and greater require clCreateProgramWithIL
-  if ((ContextBackend == backend::opencl) &&
-      C.get_platform().get_info<info::platform::version>() >= "2.1")
-    return true;
+  if (ContextBackend == backend::opencl) {
+    std::string ver = C.get_platform().get_info<info::platform::version>();
+    if (ver.find("OpenCL 1.0") == std::string::npos &&
+        ver.find("OpenCL 1.1") == std::string::npos &&
+        ver.find("OpenCL 1.2") == std::string::npos &&
+        ver.find("OpenCL 2.0") == std::string::npos)
+      return true;
+  }
 
   for (const device &D : Devices) {
     // We need cl_khr_il_program extension to be present
@@ -371,6 +377,9 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(OSModuleHandle M,
     // If device image is not SPIR-V, DeviceLibReqMask will be 0 which means
     // no fallback device library will be linked.
     uint32_t DeviceLibReqMask = 0;
+    // FIXME: disable the fallback device libraries online link as not all
+    // backend supports spv online link. Need to enable it when all backends
+    // support spv online link.
     if (Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV &&
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
@@ -777,13 +786,12 @@ ProgramManager::ProgramPtr ProgramManager::build(
     LinkOpts = LinkOptions.c_str();
   }
 
-  // Level-Zero plugin doesn't support piProgramCompile/piProgramLink commands,
-  // program is built during piProgramCreate.
-  // TODO: remove this check as soon as piProgramCompile/piProgramLink will be
-  // implemented in Level-Zero plugin.
-  if (Context->getPlugin().getBackend() == backend::level_zero) {
-    LinkDeviceLibs = false;
-  }
+  // TODO: Because online linking isn't implemented yet on Level Zero, the
+  // compiler always links against the fallback device libraries.  Once
+  // online linking is supported on all backends, we should remove the line
+  // below and also change the compiler, so it no longer links the fallback
+  // code unconditionally.
+  LinkDeviceLibs = false;
 
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
   // We do not link with other device libraries, because it may fail

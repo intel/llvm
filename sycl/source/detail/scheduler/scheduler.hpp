@@ -10,11 +10,12 @@
 
 #include <CL/sycl/detail/cg.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
-#include <detail/circular_buffer.hpp>
 #include <detail/scheduler/commands.hpp>
+#include <detail/scheduler/leaves_collection.hpp>
 
 #include <cstddef>
 #include <memory>
+#include <queue>
 #include <set>
 #include <shared_mutex>
 #include <unordered_set>
@@ -189,18 +190,19 @@ using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 ///
 /// \ingroup sycl_graph
 struct MemObjRecord {
-  MemObjRecord(ContextImplPtr CurContext, std::size_t LeafLimit)
-      : MReadLeaves{LeafLimit}, MWriteLeaves{LeafLimit}, MCurContext{
-                                                             CurContext} {}
+  MemObjRecord(ContextImplPtr Ctx, std::size_t LeafLimit,
+               LeavesCollection::AllocateDependencyF AllocateDependency)
+      : MReadLeaves{this, LeafLimit, AllocateDependency},
+        MWriteLeaves{this, LeafLimit, AllocateDependency}, MCurContext{Ctx} {}
 
   // Contains all allocation commands for the memory object.
   std::vector<AllocaCommandBase *> MAllocaCommands;
 
   // Contains latest read only commands working with memory object.
-  CircularBuffer<Command *> MReadLeaves;
+  LeavesCollection MReadLeaves;
 
   // Contains latest write commands working with memory object.
-  CircularBuffer<Command *> MWriteLeaves;
+  LeavesCollection MWriteLeaves;
 
   // The context which has the latest state of the memory object.
   ContextImplPtr MCurContext;
@@ -429,6 +431,8 @@ public:
 
   QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
 
+  static MemObjRecord *getMemObjRecord(const Requirement *const Req);
+
 protected:
   Scheduler();
   static Scheduler instance;
@@ -590,6 +594,10 @@ protected:
 
     void markModifiedIfWrite(MemObjRecord *Record, Requirement *Req);
 
+    /// Used to track commands that need to be visited during graph traversal.
+    std::queue<Command *> MCmdsToVisit;
+    /// Used to track commands that have been visited during graph traversal.
+    std::vector<Command *> MVisitedCmds;
     /// Prints contents of graph to text file in DOT format
     ///
     /// \param ModeName is a stringified printing mode name to be used
@@ -707,6 +715,43 @@ protected:
 
   friend class Command;
   friend class DispatchHostTask;
+
+  /// Stream buffers structure.
+  ///
+  /// The structure contains all buffers for a stream object.
+  struct StreamBuffers {
+    StreamBuffers(size_t StreamBufferSize, size_t FlushBufferSize)
+        // Initialize stream buffer with zeros, this is needed for two reasons:
+        // 1. We don't need to care about end of line when printing out
+        // streamed data.
+        // 2. Offset is properly initialized.
+        : Data(StreamBufferSize, 0),
+          Buf(Data.data(), range<1>(StreamBufferSize),
+              {property::buffer::use_host_ptr()}),
+          FlushBuf(range<1>(FlushBufferSize)) {}
+
+    // Vector on the host side which is used to initialize the stream
+    // buffer
+    std::vector<char> Data;
+
+    // Stream buffer
+    buffer<char, 1> Buf;
+
+    // Global flush buffer
+    buffer<char, 1> FlushBuf;
+  };
+
+  friend class stream_impl;
+
+  // Protects stream buffers pool
+  std::mutex StreamBuffersPoolMutex;
+  std::map<stream_impl *, StreamBuffers> StreamBuffersPool;
+
+  /// Allocate buffers in the pool for a provided stream
+  void allocateStreamBuffers(stream_impl *, size_t, size_t);
+
+  /// Deallocate buffers in the pool for a provided stream
+  void deallocateStreamBuffers(stream_impl *);
 };
 
 } // namespace detail

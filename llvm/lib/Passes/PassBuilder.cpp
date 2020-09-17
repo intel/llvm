@@ -39,6 +39,7 @@
 #include "llvm/Analysis/InstCount.h"
 #include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/Analysis/LazyValueInfo.h"
+#include "llvm/Analysis/Lint.h"
 #include "llvm/Analysis/LoopAccessAnalysis.h"
 #include "llvm/Analysis/LoopCacheAnalysis.h"
 #include "llvm/Analysis/LoopInfo.h"
@@ -110,6 +111,7 @@
 #include "llvm/Transforms/Instrumentation/DataFlowSanitizer.h"
 #include "llvm/Transforms/Instrumentation/GCOVProfiler.h"
 #include "llvm/Transforms/Instrumentation/HWAddressSanitizer.h"
+#include "llvm/Transforms/Instrumentation/HeapProfiler.h"
 #include "llvm/Transforms/Instrumentation/InstrOrderFile.h"
 #include "llvm/Transforms/Instrumentation/InstrProfiling.h"
 #include "llvm/Transforms/Instrumentation/MemorySanitizer.h"
@@ -117,6 +119,7 @@
 #include "llvm/Transforms/Instrumentation/PoisonChecking.h"
 #include "llvm/Transforms/Instrumentation/SanitizerCoverage.h"
 #include "llvm/Transforms/Instrumentation/ThreadSanitizer.h"
+#include "llvm/Transforms/ObjCARC.h"
 #include "llvm/Transforms/Scalar/ADCE.h"
 #include "llvm/Transforms/Scalar/AlignmentFromAssumptions.h"
 #include "llvm/Transforms/Scalar/BDCE.h"
@@ -257,6 +260,10 @@ static cl::opt<bool>
     EnablePGOInlineDeferral("enable-npm-pgo-inline-deferral", cl::init(true),
                             cl::Hidden,
                             cl::desc("Enable inline deferral during PGO"));
+
+static cl::opt<bool> EnableHeapProfiler("enable-heap-prof", cl::init(false),
+                                        cl::Hidden, cl::ZeroOrMore,
+                                        cl::desc("Enable heap profiler"));
 
 PipelineTuningOptions::PipelineTuningOptions() {
   LoopInterleaving = true;
@@ -1034,6 +1041,12 @@ ModulePassManager PassBuilder::buildModuleSimplificationPipeline(
     MPM.addPass(SyntheticCountsPropagation());
 
   MPM.addPass(buildInlinerPipeline(Level, Phase, DebugLogging));
+
+  if (EnableHeapProfiler && Phase != ThinLTOPhase::PreLink) {
+    MPM.addPass(createModuleToFunctionPassAdaptor(HeapProfilerPass()));
+    MPM.addPass(ModuleHeapProfilerPass());
+  }
+
   return MPM;
 }
 

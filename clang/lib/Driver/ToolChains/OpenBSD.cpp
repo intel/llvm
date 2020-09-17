@@ -43,15 +43,6 @@ void openbsd::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-many");
     break;
 
-  case llvm::Triple::sparc:
-  case llvm::Triple::sparcel: {
-    CmdArgs.push_back("-32");
-    std::string CPU = getCPUName(Args, getToolChain().getTriple());
-    CmdArgs.push_back(sparc::getSparcAsmModeForCPU(CPU, getToolChain().getTriple()));
-    AddAssemblerKPIC(getToolChain(), Args, CmdArgs);
-    break;
-  }
-
   case llvm::Triple::sparcv9: {
     CmdArgs.push_back("-64");
     std::string CPU = getCPUName(Args, getToolChain().getTriple());
@@ -311,15 +302,6 @@ std::string OpenBSD::getCompilerRT(const ArgList &Args,
   SmallString<128> Path(getDriver().SysRoot);
   llvm::sys::path::append(Path, "/usr/lib/libcompiler_rt.a");
   return std::string(Path.str());
-}
-
-void OpenBSD::addClangTargetOptions(const ArgList &DriverArgs,
-                                    ArgStringList &CC1Args,
-                                    Action::OffloadKind) const {
-  // Support for .init_array is still new (Aug 2016).
-  if (!DriverArgs.hasFlag(options::OPT_fuse_init_array,
-                          options::OPT_fno_use_init_array, false))
-    CC1Args.push_back("-fno-use-init-array");
 }
 
 Tool *OpenBSD::buildAssembler() const {

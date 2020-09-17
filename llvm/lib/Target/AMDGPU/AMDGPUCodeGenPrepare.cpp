@@ -44,6 +44,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/KnownBits.h"
 #include "llvm/Transforms/Utils/IntegerDivision.h"
 #include <cassert>
 #include <iterator>
@@ -59,6 +60,12 @@ static cl::opt<bool> WidenLoads(
   cl::desc("Widen sub-dword constant address space loads in AMDGPUCodeGenPrepare"),
   cl::ReallyHidden,
   cl::init(false));
+
+static cl::opt<bool> Widen16BitOps(
+  "amdgpu-codegenprepare-widen-16-bit-ops",
+  cl::desc("Widen uniform 16-bit instructions to 32-bit in AMDGPUCodeGenPrepare"),
+  cl::ReallyHidden,
+  cl::init(true));
 
 static cl::opt<bool> UseMul24Intrin(
   "amdgpu-codegenprepare-mul24",
@@ -269,6 +276,9 @@ bool AMDGPUCodeGenPrepare::isSigned(const SelectInst &I) const {
 }
 
 bool AMDGPUCodeGenPrepare::needsPromotionToI32(const Type *T) const {
+  if (!Widen16BitOps)
+    return false;
+
   const IntegerType *IntTy = dyn_cast<IntegerType>(T);
   if (IntTy && IntTy->getBitWidth() > 1 && IntTy->getBitWidth() <= 16)
     return true;

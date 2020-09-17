@@ -390,8 +390,10 @@ static bool checkTargetOptions(const TargetOptions &TargetOpts,
   // We can tolerate different CPUs in many cases, notably when one CPU
   // supports a strict superset of another. When allowing compatible
   // differences skip this check.
-  if (!AllowCompatibleDifferences)
+  if (!AllowCompatibleDifferences) {
     CHECK_TARGET_OPT(CPU, "target CPU");
+    CHECK_TARGET_OPT(TuneCPU, "tune CPU");
+  }
 
 #undef CHECK_TARGET_OPT
 
@@ -3720,7 +3722,9 @@ ASTReader::ReadASTBlock(ModuleFile &F, unsigned ClientLoadCapabilities) {
     }
 
     case LATE_PARSED_TEMPLATE:
-      LateParsedTemplates.append(Record.begin(), Record.end());
+      LateParsedTemplates.emplace_back(
+          std::piecewise_construct, std::forward_as_tuple(&F),
+          std::forward_as_tuple(Record.begin(), Record.end()));
       break;
 
     case OPTIMIZE_PRAGMA_OPTIONS:
@@ -5779,6 +5783,7 @@ bool ASTReader::ParseTargetOptions(const RecordData &Record, bool Complain,
   TargetOptions TargetOpts;
   TargetOpts.Triple = ReadString(Record, Idx);
   TargetOpts.CPU = ReadString(Record, Idx);
+  TargetOpts.TuneCPU = ReadString(Record, Idx);
   TargetOpts.ABI = ReadString(Record, Idx);
   for (unsigned N = Record[Idx++]; N; --N) {
     TargetOpts.FeaturesAsWritten.push_back(ReadString(Record, Idx));
@@ -8393,25 +8398,28 @@ void ASTReader::ReadPendingInstantiations(
 void ASTReader::ReadLateParsedTemplates(
     llvm::MapVector<const FunctionDecl *, std::unique_ptr<LateParsedTemplate>>
         &LPTMap) {
-  for (unsigned Idx = 0, N = LateParsedTemplates.size(); Idx < N;
-       /* In loop */) {
-    FunctionDecl *FD = cast<FunctionDecl>(GetDecl(LateParsedTemplates[Idx++]));
+  for (auto &LPT : LateParsedTemplates) {
+    ModuleFile *FMod = LPT.first;
+    RecordDataImpl &LateParsed = LPT.second;
+    for (unsigned Idx = 0, N = LateParsed.size(); Idx < N;
+         /* In loop */) {
+      FunctionDecl *FD =
+          cast<FunctionDecl>(GetLocalDecl(*FMod, LateParsed[Idx++]));
 
-    auto LT = std::make_unique<LateParsedTemplate>();
-    LT->D = GetDecl(LateParsedTemplates[Idx++]);
+      auto LT = std::make_unique<LateParsedTemplate>();
+      LT->D = GetLocalDecl(*FMod, LateParsed[Idx++]);
 
-    ModuleFile *F = getOwningModuleFile(LT->D);
-    assert(F && "No module");
+      ModuleFile *F = getOwningModuleFile(LT->D);
+      assert(F && "No module");
 
-    unsigned TokN = LateParsedTemplates[Idx++];
-    LT->Toks.reserve(TokN);
-    for (unsigned T = 0; T < TokN; ++T)
-      LT->Toks.push_back(ReadToken(*F, LateParsedTemplates, Idx));
+      unsigned TokN = LateParsed[Idx++];
+      LT->Toks.reserve(TokN);
+      for (unsigned T = 0; T < TokN; ++T)
+        LT->Toks.push_back(ReadToken(*F, LateParsed, Idx));
 
-    LPTMap.insert(std::make_pair(FD, std::move(LT)));
+      LPTMap.insert(std::make_pair(FD, std::move(LT)));
+    }
   }
-
-  LateParsedTemplates.clear();
 }
 
 void ASTReader::LoadSelector(Selector Sel) {

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s -fsyntax-only
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s -fsyntax-only
 // RUN: FileCheck -input-file=%t.h %s
 
 // This test checks the integration header when kernel argument
@@ -21,7 +21,7 @@
 // CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {
 // CHECK-NEXT: //--- _ZTSZ4mainE8kernel_C
 // CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 16 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 12 },
 // CHECK-EMPTY:
 // CHECK-NEXT: };
 
@@ -32,7 +32,7 @@
 
 // CHECK: template <> struct KernelInfo<class kernel_C> {
 
-#include <sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 using namespace cl::sycl;
 

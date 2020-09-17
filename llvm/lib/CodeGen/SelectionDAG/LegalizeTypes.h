@@ -888,7 +888,6 @@ private:
   SDValue WidenVecRes_Convert_StrictFP(SDNode *N);
   SDValue WidenVecRes_FCOPYSIGN(SDNode *N);
   SDValue WidenVecRes_POWI(SDNode *N);
-  SDValue WidenVecRes_Shift(SDNode *N);
   SDValue WidenVecRes_Unary(SDNode *N);
   SDValue WidenVecRes_InregOp(SDNode *N);
 
@@ -986,8 +985,6 @@ private:
   void SplitRes_SELECT_CC   (SDNode *N, SDValue &Lo, SDValue &Hi);
   void SplitRes_UNDEF       (SDNode *N, SDValue &Lo, SDValue &Hi);
   void SplitRes_FREEZE      (SDNode *N, SDValue &Lo, SDValue &Hi);
-
-  void SplitVSETCC(const SDNode *N);
 
   //===--------------------------------------------------------------------===//
   // Generic Expansion: LegalizeTypesGeneric.cpp

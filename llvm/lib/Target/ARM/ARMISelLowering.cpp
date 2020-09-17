@@ -143,7 +143,7 @@ static cl::opt<unsigned> ConstpoolPromotionMaxTotal(
     cl::desc("Maximum size of ALL constants to promote into a constant pool"),
     cl::init(128));
 
-static cl::opt<unsigned>
+cl::opt<unsigned>
 MVEMaxSupportedInterleaveFactor("mve-max-interleave-factor", cl::Hidden,
   cl::desc("Maximum interleave factor for MVE VLDn to generate."),
   cl::init(2));
@@ -13866,10 +13866,13 @@ static SDValue CombineBaseUpdate(SDNode *N,
         NumVecs = 3; break;
       case Intrinsic::arm_neon_vld4:     NewOpc = ARMISD::VLD4_UPD;
         NumVecs = 4; break;
+      case Intrinsic::arm_neon_vld1x2:
+      case Intrinsic::arm_neon_vld1x3:
+      case Intrinsic::arm_neon_vld1x4:
       case Intrinsic::arm_neon_vld2dup:
       case Intrinsic::arm_neon_vld3dup:
       case Intrinsic::arm_neon_vld4dup:
-        // TODO: Support updating VLDxDUP nodes. For now, we just skip
+        // TODO: Support updating VLD1x and VLDxDUP nodes. For now, we just skip
         // combining base updates for such intrinsics.
         continue;
       case Intrinsic::arm_neon_vld2lane: NewOpc = ARMISD::VLD2LN_UPD;

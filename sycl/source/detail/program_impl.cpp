@@ -10,6 +10,7 @@
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/kernel.hpp>
+#include <CL/sycl/property_list.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/spec_constant_impl.hpp>
 
@@ -23,12 +24,15 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-program_impl::program_impl(ContextImplPtr Context)
-    : program_impl(Context, Context->get_info<info::context::devices>()) {}
+program_impl::program_impl(ContextImplPtr Context,
+                           const property_list &PropList)
+    : program_impl(Context, Context->get_info<info::context::devices>(),
+                   PropList) {}
 
 program_impl::program_impl(ContextImplPtr Context,
-                           vector_class<device> DeviceList)
-    : MContext(Context), MDevices(DeviceList) {
+                           vector_class<device> DeviceList,
+                           const property_list &PropList)
+    : MContext(Context), MDevices(DeviceList), MPropList(PropList) {
   if (Context->getDevices().size() > 1) {
     throw feature_not_supported(
         "multiple devices within a context are not supported with "
@@ -39,9 +43,9 @@ program_impl::program_impl(ContextImplPtr Context,
 
 program_impl::program_impl(
     vector_class<shared_ptr_class<program_impl>> ProgramList,
-    string_class LinkOptions)
-    : MState(program_state::linked), MLinkOptions(LinkOptions),
-      MBuildOptions(LinkOptions) {
+    string_class LinkOptions, const property_list &PropList)
+    : MState(program_state::linked), MPropList(PropList),
+      MLinkOptions(LinkOptions), MBuildOptions(LinkOptions) {
   // Verify arguments
   if (ProgramList.empty()) {
     throw runtime_error("Non-empty vector of programs expected",

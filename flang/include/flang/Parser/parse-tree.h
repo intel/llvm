@@ -547,7 +547,8 @@ struct ProgramUnit {
   std::variant<common::Indirection<MainProgram>,
       common::Indirection<FunctionSubprogram>,
       common::Indirection<SubroutineSubprogram>, common::Indirection<Module>,
-      common::Indirection<Submodule>, common::Indirection<BlockData>>
+      common::Indirection<Submodule>, common::Indirection<BlockData>,
+      common::Indirection<CompilerDirective>>
       u;
 };
 
@@ -2548,7 +2549,8 @@ using FileNameExpr = ScalarDefaultCharExpr;
 //         POSITION = scalar-default-char-expr | RECL = scalar-int-expr |
 //         ROUND = scalar-default-char-expr | SIGN = scalar-default-char-expr |
 //         STATUS = scalar-default-char-expr
-//         @ | CONVERT = scalar-default-char-variable
+//         @ | CARRIAGECONTROL = scalar-default-char-variable
+//           | CONVERT = scalar-default-char-variable
 //           | DISPOSE = scalar-default-char-variable
 WRAPPER_CLASS(StatusExpr, ScalarDefaultCharExpr);
 WRAPPER_CLASS(ErrLabel, Label);
@@ -2558,7 +2560,7 @@ struct ConnectSpec {
   struct CharExpr {
     ENUM_CLASS(Kind, Access, Action, Asynchronous, Blank, Decimal, Delim,
         Encoding, Form, Pad, Position, Round, Sign,
-        /* extensions: */ Convert, Dispose)
+        /* extensions: */ Carriagecontrol, Convert, Dispose)
     TUPLE_CLASS_BOILERPLATE(CharExpr);
     std::tuple<Kind, ScalarDefaultCharExpr> t;
   };
@@ -2766,7 +2768,8 @@ WRAPPER_CLASS(FlushStmt, std::list<PositionOrFlushSpec>);
 //         STATUS = scalar-default-char-variable |
 //         UNFORMATTED = scalar-default-char-variable |
 //         WRITE = scalar-default-char-variable
-//         @ | CONVERT = scalar-default-char-variable
+//         @ | CARRIAGECONTROL = scalar-default-char-variable
+//           | CONVERT = scalar-default-char-variable
 //           | DISPOSE = scalar-default-char-variable
 struct InquireSpec {
   UNION_CLASS_BOILERPLATE(InquireSpec);
@@ -2774,7 +2777,7 @@ struct InquireSpec {
     ENUM_CLASS(Kind, Access, Action, Asynchronous, Blank, Decimal, Delim,
         Direct, Encoding, Form, Formatted, Iomsg, Name, Pad, Position, Read,
         Readwrite, Round, Sequential, Sign, Stream, Status, Unformatted, Write,
-        /* extensions: */ Convert, Dispose)
+        /* extensions: */ Carriagecontrol, Convert, Dispose)
     TUPLE_CLASS_BOILERPLATE(CharVar);
     std::tuple<Kind, ScalarDefaultCharVariable> t;
   };
@@ -3840,8 +3843,10 @@ struct AccObjectListWithModifier {
 
 // 2.5.13: + | * | max | min | iand | ior | ieor | .and. | .or. | .eqv. | .neqv.
 struct AccReductionOperator {
-  UNION_CLASS_BOILERPLATE(AccReductionOperator);
-  std::variant<DefinedOperator, ProcedureDesignator> u;
+  ENUM_CLASS(
+      Operator, Plus, Multiply, Max, Min, Iand, Ior, Ieor, And, Or, Eqv, Neqv)
+  WRAPPER_CLASS_BOILERPLATE(AccReductionOperator, Operator);
+  CharBlock source;
 };
 
 struct AccObjectListWithReduction {
@@ -3852,6 +3857,16 @@ struct AccObjectListWithReduction {
 struct AccWaitArgument {
   TUPLE_CLASS_BOILERPLATE(AccWaitArgument);
   std::tuple<std::optional<ScalarIntExpr>, std::list<ScalarIntExpr>> t;
+};
+
+struct AccTileExpr {
+  TUPLE_CLASS_BOILERPLATE(AccTileExpr);
+  CharBlock source;
+  std::tuple<std::optional<ScalarIntConstantExpr>> t; // if null then *
+};
+
+struct AccTileExprList {
+  WRAPPER_CLASS_BOILERPLATE(AccTileExprList, std::list<AccTileExpr>);
 };
 
 struct AccSizeExpr {

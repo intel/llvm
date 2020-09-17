@@ -12,17 +12,17 @@
 /// preprocessor and another one joining the device linking outputs to the host
 /// action.  The same graph should be generated when no -fsycl-targets is used
 /// The same phase graph will be used with -fsycl-use-bitcode
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-device-code-split -fsycl-targets=spir64-unknown-unknown-sycldevice %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64-unknown-unknown-sycldevice %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-DEFAULT-MODE %s
-// RUN:   %clang_cl -ccc-print-phases -fsycl -fsycl-device-code-split=per_source -fsycl-targets=spir64-unknown-unknown-sycldevice %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fsycl-targets=spir64-unknown-unknown-sycldevice %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-CL-MODE %s
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-device-code-split=per_source -fno-sycl-use-bitcode %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fno-sycl-use-bitcode %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-DEFAULT-MODE %s
-// RUN:   %clang_cl -ccc-print-phases -fsycl -fsycl-device-code-split=per_source -fno-sycl-use-bitcode %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fno-sycl-use-bitcode %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-CL-MODE %s
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-device-code-split=per_source -fsycl-use-bitcode %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fsycl-use-bitcode %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-DEFAULT-MODE %s
-// RUN:   %clang_cl -ccc-print-phases -fsycl -fsycl-device-code-split=per_source -fsycl-use-bitcode %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fsycl-use-bitcode %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-CL-MODE %s
 // CHK-PHASES: 0: input, "[[INPUT:.+\.c]]", c, (host-sycl)
 // CHK-PHASES: 1: preprocessor, {0}, cpp-output, (host-sycl)
@@ -49,7 +49,7 @@
 
 /// Check the phases also add a library to make sure it is treated as input by
 /// the device.
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -lsomelib -fsycl -fsycl-device-code-split -fsycl-targets=spir64-unknown-unknown-sycldevice %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -lsomelib -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64-unknown-unknown-sycldevice %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES-LIB %s
 // CHK-PHASES-LIB: 0: input, "somelib", object, (host-sycl)
 // CHK-PHASES-LIB: 1: input, "[[INPUT:.+\.c]]", c, (host-sycl)
@@ -75,7 +75,7 @@
 
 /// Check the phases when using and multiple source files
 // RUN:   echo " " > %t.c
-// RUN:   %clang -ccc-print-phases -lsomelib -target x86_64-unknown-linux-gnu -fsycl -fsycl-device-code-split -fsycl-targets=spir64-unknown-unknown-sycldevice %s %t.c 2>&1 \
+// RUN:   %clang -ccc-print-phases -lsomelib -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64-unknown-unknown-sycldevice %s %t.c 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES-FILES %s
 
 // CHK-PHASES-FILES: 0: input, "somelib", object, (host-sycl)
@@ -112,11 +112,11 @@
 
 /// Check separate compilation with offloading - unbundling actions
 // RUN:   touch %t.o
-// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-device-code-split -o %t.out -lsomelib -fsycl-targets=spir64-unknown-unknown-sycldevice %t.o 2>&1 \
+// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split -o %t.out -lsomelib -fsycl-targets=spir64-unknown-unknown-sycldevice %t.o 2>&1 \
 // RUN:   | FileCheck -DINPUT=%t.o -check-prefix=CHK-UBACTIONS %s
 // RUN:   mkdir -p %t_dir
 // RUN:   touch %t_dir/dummy
-// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-device-code-split -o %t.out -lsomelib -fsycl-targets=spir64-unknown-unknown-sycldevice %t_dir/dummy 2>&1 \
+// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split -o %t.out -lsomelib -fsycl-targets=spir64-unknown-unknown-sycldevice %t_dir/dummy 2>&1 \
 // RUN:   | FileCheck -DINPUT=%t_dir/dummy -check-prefix=CHK-UBACTIONS %s
 // CHK-UBACTIONS: 0: input, "somelib", object, (host-sycl)
 // CHK-UBACTIONS: 1: input, "[[INPUT]]", object, (host-sycl)
@@ -134,7 +134,7 @@
 
 /// Check separate compilation with offloading - unbundling with source
 // RUN:   touch %t.o
-// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -lsomelib -fsycl -fsycl-device-code-split %t.o -fsycl-targets=spir64-unknown-unknown-sycldevice %s 2>&1 \
+// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -lsomelib -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split %t.o -fsycl-targets=spir64-unknown-unknown-sycldevice %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-UBUACTIONS %s
 // CHK-UBUACTIONS: 0: input, "somelib", object, (host-sycl)
 // CHK-UBUACTIONS: 1: input, "[[INPUT1:.+\.o]]", object, (host-sycl)
@@ -161,11 +161,11 @@
 /// ###########################################################################
 
 /// Ahead of Time compilation for fpga, gen, cpu
-// RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl -fsycl-device-code-split -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice %s 2>&1 \
+// RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-PHASES-AOT,CHK-PHASES-FPGA
-// RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl -fsycl-device-code-split -fsycl-targets=spir64_gen-unknown-unknown-sycldevice %s 2>&1 \
+// RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64_gen-unknown-unknown-sycldevice %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-PHASES-AOT,CHK-PHASES-GEN
-// RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl -fsycl-device-code-split -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice %s 2>&1 \
+// RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-PHASES-AOT,CHK-PHASES-CPU
 // CHK-PHASES-AOT: 0: input, "[[INPUT:.+\.c]]", c, (host-sycl)
 // CHK-PHASES-AOT: 1: preprocessor, {0}, cpp-output, (host-sycl)
@@ -196,13 +196,13 @@
 /// ###########################################################################
 
 /// Ahead of Time compilation for fpga, gen, cpu - tool invocation
-// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-device-code-split -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice %s -### 2>&1 \
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-FPGA
-// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-device-code-split -fintelfpga %s -### 2>&1 \
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split -fintelfpga %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-FPGA
-// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-device-code-split -fsycl-targets=spir64_gen-unknown-unknown-sycldevice %s -### 2>&1 \
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64_gen-unknown-unknown-sycldevice %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-GEN
-// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-device-code-split -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice %s -### 2>&1 \
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-CPU
 // CHK-TOOLS-AOT: clang{{.*}} "-fsycl-is-device" {{.*}} "-o" "[[OUTPUT1:.+\.bc]]"
 // CHK-TOOLS-AOT: llvm-link{{.*}} "[[OUTPUT1]]" "-o" "[[OUTPUT2:.+\.bc]]"
@@ -217,7 +217,7 @@
 // CHK-TOOLS-GEN: clang-offload-wrapper{{.*}} "-o=[[OUTPUT8:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" "-target=spir64_gen" "-kind=sycl" "-batch" "[[OUTPUT7]]"
 // CHK-TOOLS-CPU: clang-offload-wrapper{{.*}} "-o=[[OUTPUT8:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" "-target=spir64_x86_64" "-kind=sycl" "-batch" "[[OUTPUT7]]"
 // CHK-TOOLS-AOT: llc{{.*}} "-filetype=obj" "-o" "[[OUTPUT9:.+\.o]]" "[[OUTPUT8]]"
-// CHK-TOOLS-FPGA: clang{{.*}} "-triple" "spir64_fpga-unknown-unknown-sycldevice" {{.*}} "-fsycl-int-header=[[INPUT1:.+\.h]]" "-faddrsig"
+// CHK-TOOLS-FPGA: clang{{.*}} "-triple" "spir64_fpga-unknown-unknown-sycldevice" {{.*}} "-fsycl-int-header=[[INPUT1:.+\.h]]" "-D__ENABLE_USM_ADDR_SPACE__" "-faddrsig"
 // CHK-TOOLS-GEN: clang{{.*}} "-triple" "spir64_gen-unknown-unknown-sycldevice" {{.*}} "-fsycl-int-header=[[INPUT1:.+\.h]]" "-faddrsig"
 // CHK-TOOLS-CPU: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown-sycldevice" {{.*}} "-fsycl-int-header=[[INPUT1:.+\.h]]" "-faddrsig"
 // CHK-TOOLS-AOT: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include" "[[INPUT1]]" {{.*}} "-o" "[[OUTPUT10:.+\.o]]"
@@ -226,7 +226,7 @@
 /// ###########################################################################
 
 /// offload with multiple targets, including AOT
-// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-device-code-split -fsycl-targets=spir64-unknown-unknown-sycldevice,spir64_fpga-unknown-unknown-sycldevice,spir64_gen-unknown-unknown-sycldevice -###  -ccc-print-phases %s 2>&1 \
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64-unknown-unknown-sycldevice,spir64_fpga-unknown-unknown-sycldevice,spir64_gen-unknown-unknown-sycldevice -###  -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG %s
 // CHK-PHASE-MULTI-TARG: 0: input, "[[INPUT:.+\.c]]", c, (host-sycl)
 // CHK-PHASE-MULTI-TARG: 1: preprocessor, {0}, cpp-output, (host-sycl)

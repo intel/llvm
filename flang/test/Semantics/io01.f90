@@ -21,6 +21,7 @@
   integer :: unit10 = 10
   integer :: unit11 = 11
   integer :: n = 40
+  integer, parameter :: const_new_unit = 66
 
   integer(kind=1) :: stat1
   integer(kind=2) :: stat2
@@ -61,6 +62,7 @@
   open(81, convert=convert_(2), dispose=dispose_(2))
 
   open(access='STREAM', 90) ! nonstandard
+  open (unit=91, file='xfile', carriagecontrol='list') ! nonstandard
 
   !ERROR: OPEN statement must have a UNIT or NEWUNIT specifier
   !ERROR: If ACCESS='DIRECT' appears, RECL must also appear
@@ -72,6 +74,9 @@
   !ERROR: Duplicate NEWUNIT specifier
   !ERROR: If NEWUNIT appears, FILE or STATUS must also appear
   open(newunit=n, newunit=nn, iostat=stat4)
+
+  !ERROR: NEWUNIT variable 'const_new_unit' must be definable
+  open(newunit=const_new_unit, status=cc)
 
   !ERROR: Duplicate UNIT specifier
   open(unit=100, unit=100)
@@ -123,4 +128,10 @@
 
   !ERROR: If NEWUNIT appears, FILE or STATUS='SCRATCH' must also appear
   open(newunit=nn, status='old')
+
+  !ERROR: Unimplemented CARRIAGECONTROL value 'fortran'
+  open (unit=116, file='xfile', carriagecontrol='fortran') ! nonstandard
+
+  !ERROR: Invalid CARRIAGECONTROL value 'nonsense'
+  open (unit=116, file='xfile', carriagecontrol='nonsense') ! nonstandard
 end

@@ -127,6 +127,9 @@ public:
 
   lldb::user_id_t GetFileSize(const FileSpec &file_spec) override;
 
+  void AutoCompleteDiskFileOrDirectory(CompletionRequest &request,
+                                       bool only_dir) override;
+
   Status PutFile(const FileSpec &source, const FileSpec &destination,
                  uint32_t uid = UINT32_MAX, uint32_t gid = UINT32_MAX) override;
 
@@ -137,7 +140,7 @@ public:
   Status Unlink(const FileSpec &path) override;
 
   Status RunShellCommand(
-      const char *command,         // Shouldn't be NULL
+      llvm::StringRef shell, llvm::StringRef command,
       const FileSpec &working_dir, // Pass empty FileSpec to use the current
                                    // working directory
       int *status_ptr, // Pass NULL if you don't want the process exit status

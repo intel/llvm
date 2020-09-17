@@ -3476,29 +3476,15 @@ code. See `cl_intel_required_subgroup_size
 for details.
 
 SYCL documentation:
-The [[cl::intel_reqd_sub_group_size(n)]] and [[intel::reqd_sub_group_size(n)]]
-attribute indicates that the kernel must be compiled and executed with a
-sub-group of size n. The value of n must be set to a sub-group size supported
-by the device, or device compilation will fail.
+The [[intel::reqd_sub_group_size(n)]] attribute indicates that the kernel must
+be compiled and executed with a sub-group of size n. The value of n must be set
+to a sub-group size supported by the device, or device compilation will fail.
 
 In addition to device functions, the required sub-group size attribute may also
 be specified in the definition of a named functor object and lambda functions,
 as in the examples below:
 
 .. code-block:: c++
-
-  class Functor
-  {
-      void operator()(item<1> item) [[cl::intel_reqd_sub_group_size(16)]]
-      {
-          /* kernel code */
-      }
-  }
-
-  kernel<class kernel_name>(
-  []() [[cl::intel_reqd_sub_group_size(n)]] {
-       /* kernel code */
-  });
 
   class Functor
   {
@@ -5420,10 +5406,6 @@ to the SVE predicate type ``svbool_t``, this excludes tuple types such as
 ``svint32x4_t``. The behavior of the attribute is undefined unless
 ``N==__ARM_FEATURE_SVE_BITS``, the implementation defined feature macro that is
 enabled under the ``-msve-vector-bits`` flag.
-
-NOTE: This feature is currently WIP, the ``-msve-vector-bits=`` flag defines
-the ``__ARM_FEATURE_SVE_BITS_EXPERIMENTAL`` macro. This feature is complete
-when experimental is dropped.
 
 For more information See `Arm C Language Extensions for SVE
 <https://developer.arm.com/documentation/100987/latest>`_ for more information.

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s -o %t.out
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s
 //
 // CHECK: #include <CL/sycl/detail/kernel_desc.hpp>
@@ -28,7 +28,7 @@
 
 // CHECK: template <> struct KernelInfo<class wrapped_access> {
 
-#include <sycl.hpp>
+#include "Inputs/sycl.hpp"
 
 template <typename Acc>
 struct AccWrapper { Acc accessor; };

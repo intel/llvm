@@ -104,6 +104,17 @@ public:
       replace(&I, Sel);
     }
   }
+  virtual void visitUIToFPInst(UIToFPInst &I) {
+    auto Op = I.getOperand(0);
+    if (isBoolType(Op->getType())) {
+      auto Ty = Type::getInt32Ty(*Context);
+      auto Zero = getScalarOrVectorConstantInt(Ty, 0, false);
+      auto One = getScalarOrVectorConstantInt(Ty, 1, false);
+      assert(Zero && One && "Couldn't create constant int");
+      auto Sel = SelectInst::Create(Op, One, Zero, "", &I);
+      I.setOperand(0, Sel);
+    }
+  }
   bool runOnModule(Module &M) override {
     Context = &M.getContext();
     visit(M);

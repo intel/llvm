@@ -1,9 +1,9 @@
-// RUN: %clang_cc1 -I %S/Inputs -fsycl -fsycl-is-device -fsycl-int-header=%t.h %s -o %t.spv
+// RUN: %clang_cc1 -fsycl -fsycl-is-device -fsycl-int-header=%t.h %s -o %t.spv
 // RUN: FileCheck %s --input-file=%t.h
 
 // Checks that functors are supported as SYCL kernels.
 
-#include "sycl.hpp"
+#include "Inputs/sycl.hpp"
 
 constexpr auto sycl_read_write = cl::sycl::access::mode::read_write;
 constexpr auto sycl_global_buffer = cl::sycl::access::target::global_buffer;

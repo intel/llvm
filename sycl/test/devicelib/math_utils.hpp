@@ -1,6 +1,11 @@
 #ifndef MATH_UTILS
 #include <cmath>
 #include <limits>
+// _USE_MATH_DEFINES must be defined in order to use math constants in MSVC
+#ifdef _WIN32
+#define _USE_MATH_DEFINES 1
+#include <math.h>
+#endif
 
 // Since it is not proper to compare float point using operator ==, this
 // function measures whether the result of cmath function from kernel is

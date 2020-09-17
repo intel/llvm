@@ -10,6 +10,7 @@
 
 #include <CL/sycl/ONEAPI/atomic.hpp>
 #include <CL/sycl/ONEAPI/experimental/builtins.hpp>
+#include <CL/sycl/ONEAPI/filter_selector.hpp>
 #include <CL/sycl/ONEAPI/function_pointer.hpp>
 #include <CL/sycl/ONEAPI/group_algorithm.hpp>
 #include <CL/sycl/ONEAPI/reduction.hpp>
@@ -38,11 +39,7 @@
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/pointers.hpp>
 #include <CL/sycl/program.hpp>
-#include <CL/sycl/properties/accessor_properties.hpp>
-#include <CL/sycl/properties/buffer_properties.hpp>
-#include <CL/sycl/properties/context_properties.hpp>
-#include <CL/sycl/properties/image_properties.hpp>
-#include <CL/sycl/properties/queue_properties.hpp>
+#include <CL/sycl/properties/all_properties.hpp>
 #include <CL/sycl/queue.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/sampler.hpp>

@@ -1212,59 +1212,41 @@ static void computeKnownBitsFromOperator(const Operator *I,
     if (SelectPatternResult::isMinOrMax(SPF)) {
       computeKnownBits(RHS, Known, Depth + 1, Q);
       computeKnownBits(LHS, Known2, Depth + 1, Q);
-    } else {
-      computeKnownBits(I->getOperand(2), Known, Depth + 1, Q);
-      computeKnownBits(I->getOperand(1), Known2, Depth + 1, Q);
+      switch (SPF) {
+      default:
+        llvm_unreachable("Unhandled select pattern flavor!");
+      case SPF_SMAX:
+        Known = KnownBits::smax(Known, Known2);
+        break;
+      case SPF_SMIN:
+        Known = KnownBits::smin(Known, Known2);
+        break;
+      case SPF_UMAX:
+        Known = KnownBits::umax(Known, Known2);
+        break;
+      case SPF_UMIN:
+        Known = KnownBits::umin(Known, Known2);
+        break;
+      }
+      break;
     }
 
-    unsigned MaxHighOnes = 0;
-    unsigned MaxHighZeros = 0;
-    if (SPF == SPF_SMAX) {
-      // If both sides are negative, the result is negative.
-      if (Known.isNegative() && Known2.isNegative())
-        // We can derive a lower bound on the result by taking the max of the
-        // leading one bits.
-        MaxHighOnes =
-            std::max(Known.countMinLeadingOnes(), Known2.countMinLeadingOnes());
-      // If either side is non-negative, the result is non-negative.
-      else if (Known.isNonNegative() || Known2.isNonNegative())
-        MaxHighZeros = 1;
-    } else if (SPF == SPF_SMIN) {
-      // If both sides are non-negative, the result is non-negative.
-      if (Known.isNonNegative() && Known2.isNonNegative())
-        // We can derive an upper bound on the result by taking the max of the
-        // leading zero bits.
-        MaxHighZeros = std::max(Known.countMinLeadingZeros(),
-                                Known2.countMinLeadingZeros());
-      // If either side is negative, the result is negative.
-      else if (Known.isNegative() || Known2.isNegative())
-        MaxHighOnes = 1;
-    } else if (SPF == SPF_UMAX) {
-      // We can derive a lower bound on the result by taking the max of the
-      // leading one bits.
-      MaxHighOnes =
-          std::max(Known.countMinLeadingOnes(), Known2.countMinLeadingOnes());
-    } else if (SPF == SPF_UMIN) {
-      // We can derive an upper bound on the result by taking the max of the
-      // leading zero bits.
-      MaxHighZeros =
-          std::max(Known.countMinLeadingZeros(), Known2.countMinLeadingZeros());
-    } else if (SPF == SPF_ABS) {
+    computeKnownBits(I->getOperand(2), Known, Depth + 1, Q);
+    computeKnownBits(I->getOperand(1), Known2, Depth + 1, Q);
+
+    // Only known if known in both the LHS and RHS.
+    Known.One &= Known2.One;
+    Known.Zero &= Known2.Zero;
+
+    if (SPF == SPF_ABS) {
       // RHS from matchSelectPattern returns the negation part of abs pattern.
       // If the negate has an NSW flag we can assume the sign bit of the result
       // will be 0 because that makes abs(INT_MIN) undefined.
       if (match(RHS, m_Neg(m_Specific(LHS))) &&
           Q.IIQ.hasNoSignedWrap(cast<Instruction>(RHS)))
-        MaxHighZeros = 1;
+        Known.Zero.setSignBit();
     }
 
-    // Only known if known in both the LHS and RHS.
-    Known.One &= Known2.One;
-    Known.Zero &= Known2.Zero;
-    if (MaxHighOnes > 0)
-      Known.One.setHighBits(MaxHighOnes);
-    if (MaxHighZeros > 0)
-      Known.Zero.setHighBits(MaxHighZeros);
     break;
   }
   case Instruction::FPTrunc:
@@ -2413,8 +2395,7 @@ bool isKnownNonZero(const Value *V, const APInt &DemandedElts, unsigned Depth,
     // truncating casts, e.g., int2ptr/ptr2int with appropriate sizes, as well
     // as casts that can alter the value, e.g., AddrSpaceCasts.
     if (const GEPOperator *GEP = dyn_cast<GEPOperator>(V))
-      if (isGEPKnownNonNull(GEP, Depth, Q))
-        return true;
+      return isGEPKnownNonNull(GEP, Depth, Q);
 
     if (auto *BCO = dyn_cast<BitCastOperator>(V))
       return isKnownNonZero(BCO->getOperand(0), Depth, Q);
@@ -2568,11 +2549,13 @@ bool isKnownNonZero(const Value *V, const APInt &DemandedElts, unsigned Depth,
     const Value *Vec = EEI->getVectorOperand();
     const Value *Idx = EEI->getIndexOperand();
     auto *CIdx = dyn_cast<ConstantInt>(Idx);
-    unsigned NumElts = cast<FixedVectorType>(Vec->getType())->getNumElements();
-    APInt DemandedVecElts = APInt::getAllOnesValue(NumElts);
-    if (CIdx && CIdx->getValue().ult(NumElts))
-      DemandedVecElts = APInt::getOneBitSet(NumElts, CIdx->getZExtValue());
-    return isKnownNonZero(Vec, DemandedVecElts, Depth, Q);
+    if (auto *VecTy = dyn_cast<FixedVectorType>(Vec->getType())) {
+      unsigned NumElts = VecTy->getNumElements();
+      APInt DemandedVecElts = APInt::getAllOnesValue(NumElts);
+      if (CIdx && CIdx->getValue().ult(NumElts))
+        DemandedVecElts = APInt::getOneBitSet(NumElts, CIdx->getZExtValue());
+      return isKnownNonZero(Vec, DemandedVecElts, Depth, Q);
+    }
   }
 
   KnownBits Known(BitWidth);
@@ -4330,43 +4313,43 @@ bool llvm::getUnderlyingObjectsForCodeGen(const Value *V,
   return true;
 }
 
-static AllocaInst *
-findAllocaForValue(Value *V, DenseMap<Value *, AllocaInst *> &AllocaForValue) {
-  if (AllocaInst *AI = dyn_cast<AllocaInst>(V))
-    return AI;
-  // See if we've already calculated (or started to calculate) alloca for a
-  // given value.
-  auto I = AllocaForValue.find(V);
-  if (I != AllocaForValue.end())
-    return I->second;
-  // Store 0 while we're calculating alloca for value V to avoid
-  // infinite recursion if the value references itself.
-  AllocaForValue[V] = nullptr;
-  AllocaInst *Res = nullptr;
-  if (CastInst *CI = dyn_cast<CastInst>(V))
-    Res = findAllocaForValue(CI->getOperand(0), AllocaForValue);
-  else if (PHINode *PN = dyn_cast<PHINode>(V)) {
-    for (Value *IncValue : PN->incoming_values()) {
-      // Allow self-referencing phi-nodes.
-      if (IncValue == PN)
-        continue;
-      AllocaInst *IncValueAI = findAllocaForValue(IncValue, AllocaForValue);
-      // AI for incoming values should exist and should all be equal.
-      if (IncValueAI == nullptr || (Res != nullptr && IncValueAI != Res))
-        return nullptr;
-      Res = IncValueAI;
-    }
-  } else if (GetElementPtrInst *EP = dyn_cast<GetElementPtrInst>(V)) {
-    Res = findAllocaForValue(EP->getPointerOperand(), AllocaForValue);
-  }
-  if (Res)
-    AllocaForValue[V] = Res;
-  return Res;
-}
+AllocaInst *llvm::findAllocaForValue(Value *V, bool OffsetZero) {
+  AllocaInst *Result = nullptr;
+  SmallPtrSet<Value *, 4> Visited;
+  SmallVector<Value *, 4> Worklist;
 
-AllocaInst *llvm::findAllocaForValue(Value *V) {
-  DenseMap<Value *, AllocaInst *> AllocaForValue;
-  return ::findAllocaForValue(V, AllocaForValue);
+  auto AddWork = [&](Value *V) {
+    if (Visited.insert(V).second)
+      Worklist.push_back(V);
+  };
+
+  AddWork(V);
+  do {
+    V = Worklist.pop_back_val();
+    assert(Visited.count(V));
+
+    if (AllocaInst *AI = dyn_cast<AllocaInst>(V)) {
+      if (Result && Result != AI)
+        return nullptr;
+      Result = AI;
+    } else if (CastInst *CI = dyn_cast<CastInst>(V)) {
+      AddWork(CI->getOperand(0));
+    } else if (PHINode *PN = dyn_cast<PHINode>(V)) {
+      for (Value *IncValue : PN->incoming_values())
+        AddWork(IncValue);
+    } else if (auto *SI = dyn_cast<SelectInst>(V)) {
+      AddWork(SI->getTrueValue());
+      AddWork(SI->getFalseValue());
+    } else if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(V)) {
+      if (OffsetZero && !GEP->hasAllZeroIndices())
+        return nullptr;
+      AddWork(GEP->getPointerOperand());
+    } else {
+      return nullptr;
+    }
+  } while (!Worklist.empty());
+
+  return Result;
 }
 
 static bool onlyUsedByLifetimeMarkersOrDroppableInstsHelper(
@@ -4808,7 +4791,8 @@ static bool canCreateUndefOrPoison(const Operator *Op, bool PoisonOnly) {
     auto *VTy = cast<VectorType>(Op->getOperand(0)->getType());
     unsigned IdxOp = Op->getOpcode() == Instruction::InsertElement ? 2 : 1;
     auto *Idx = dyn_cast<ConstantInt>(Op->getOperand(IdxOp));
-    if (!Idx || Idx->getZExtValue() >= VTy->getElementCount().Min)
+    if (!Idx ||
+        Idx->getZExtValue() >= VTy->getElementCount().getKnownMinValue())
       return true;
     return false;
   }
@@ -5065,46 +5049,59 @@ bool llvm::propagatesPoison(const Instruction *I) {
   }
 }
 
-const Value *llvm::getGuaranteedNonPoisonOp(const Instruction *I) {
+void llvm::getGuaranteedNonPoisonOps(const Instruction *I,
+                                     SmallPtrSetImpl<const Value *> &Operands) {
   switch (I->getOpcode()) {
     case Instruction::Store:
-      return cast<StoreInst>(I)->getPointerOperand();
+      Operands.insert(cast<StoreInst>(I)->getPointerOperand());
+      break;
 
     case Instruction::Load:
-      return cast<LoadInst>(I)->getPointerOperand();
+      Operands.insert(cast<LoadInst>(I)->getPointerOperand());
+      break;
 
     case Instruction::AtomicCmpXchg:
-      return cast<AtomicCmpXchgInst>(I)->getPointerOperand();
+      Operands.insert(cast<AtomicCmpXchgInst>(I)->getPointerOperand());
+      break;
 
     case Instruction::AtomicRMW:
-      return cast<AtomicRMWInst>(I)->getPointerOperand();
+      Operands.insert(cast<AtomicRMWInst>(I)->getPointerOperand());
+      break;
 
     case Instruction::UDiv:
     case Instruction::SDiv:
     case Instruction::URem:
     case Instruction::SRem:
-      return I->getOperand(1);
+      Operands.insert(I->getOperand(1));
+      break;
 
     case Instruction::Call:
-      if (auto *II = dyn_cast<IntrinsicInst>(I)) {
-        switch (II->getIntrinsicID()) {
-        case Intrinsic::assume:
-          return II->getArgOperand(0);
-        default:
-          return nullptr;
-        }
+    case Instruction::Invoke: {
+      const CallBase *CB = cast<CallBase>(I);
+      if (CB->isIndirectCall())
+        Operands.insert(CB->getCalledOperand());
+      for (unsigned i = 0; i < CB->arg_size(); ++i) {
+        if (CB->paramHasAttr(i, Attribute::NoUndef))
+          Operands.insert(CB->getArgOperand(i));
       }
-      return nullptr;
+      break;
+    }
 
     default:
-      return nullptr;
+      break;
   }
 }
 
 bool llvm::mustTriggerUB(const Instruction *I,
                          const SmallSet<const Value *, 16>& KnownPoison) {
-  auto *NotPoison = getGuaranteedNonPoisonOp(I);
-  return (NotPoison && KnownPoison.count(NotPoison));
+  SmallPtrSet<const Value *, 4> NonPoisonOps;
+  getGuaranteedNonPoisonOps(I, NonPoisonOps);
+
+  for (const auto *V : NonPoisonOps)
+    if (KnownPoison.count(V))
+      return true;
+
+  return false;
 }
 
 

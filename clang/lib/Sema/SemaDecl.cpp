@@ -1763,25 +1763,20 @@ static bool ShouldDiagnoseUnusedDecl(const NamedDecl *D) {
   if (D->isInvalidDecl())
     return false;
 
-  bool Referenced = false;
   if (auto *DD = dyn_cast<DecompositionDecl>(D)) {
     // For a decomposition declaration, warn if none of the bindings are
     // referenced, instead of if the variable itself is referenced (which
     // it is, by the bindings' expressions).
-    for (auto *BD : DD->bindings()) {
-      if (BD->isReferenced()) {
-        Referenced = true;
-        break;
-      }
-    }
+    for (auto *BD : DD->bindings())
+      if (BD->isReferenced())
+        return false;
   } else if (!D->getDeclName()) {
     return false;
   } else if (D->isReferenced() || D->isUsed()) {
-    Referenced = true;
+    return false;
   }
 
-  if (Referenced || D->hasAttr<UnusedAttr>() ||
-      D->hasAttr<ObjCPreciseLifetimeAttr>())
+  if (D->hasAttr<UnusedAttr>() || D->hasAttr<ObjCPreciseLifetimeAttr>())
     return false;
 
   if (isa<LabelDecl>(D))
@@ -3217,6 +3212,22 @@ static void adjustDeclContextForDeclaratorDecl(DeclaratorDecl *NewD,
     FixSemaDC(VD->getDescribedVarTemplate());
 }
 
+template <typename AttributeType>
+static void checkDimensionsAndSetDiagnostics(Sema &S, FunctionDecl *New,
+                                             FunctionDecl *Old) {
+  AttributeType *NewDeclAttr = New->getAttr<AttributeType>();
+  AttributeType *OldDeclAttr = Old->getAttr<AttributeType>();
+  if ((NewDeclAttr->getXDim() != OldDeclAttr->getXDim()) ||
+      (NewDeclAttr->getYDim() != OldDeclAttr->getYDim()) ||
+      (NewDeclAttr->getZDim() != OldDeclAttr->getZDim())) {
+    S.Diag(New->getLocation(), diag::err_conflicting_sycl_function_attributes)
+        << OldDeclAttr << NewDeclAttr;
+    S.Diag(New->getLocation(), diag::warn_duplicate_attribute) << OldDeclAttr;
+    S.Diag(OldDeclAttr->getLocation(), diag::note_conflicting_attribute);
+    S.Diag(NewDeclAttr->getLocation(), diag::note_conflicting_attribute);
+  }
+}
+
 /// MergeFunctionDecl - We just parsed a function 'New' from
 /// declarator D which has the same name and scope as a previous
 /// declaration 'Old'.  Figure out how to resolve this situation,
@@ -3290,6 +3301,15 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD,
       return true;
     }
   }
+
+  if (New->hasAttr<ReqdWorkGroupSizeAttr>() &&
+      Old->hasAttr<ReqdWorkGroupSizeAttr>())
+    checkDimensionsAndSetDiagnostics<ReqdWorkGroupSizeAttr>(*this, New, Old);
+
+  if (New->hasAttr<SYCLIntelMaxWorkGroupSizeAttr>() &&
+      Old->hasAttr<SYCLIntelMaxWorkGroupSizeAttr>())
+    checkDimensionsAndSetDiagnostics<SYCLIntelMaxWorkGroupSizeAttr>(*this, New,
+                                                                    Old);
 
   if (New->hasAttr<InternalLinkageAttr>() &&
       !Old->hasAttr<InternalLinkageAttr>()) {
@@ -8038,7 +8058,7 @@ void Sema::CheckVariableDeclarationType(VarDecl *NewVD) {
     return;
   }
 
-  if (!NewVD->hasLocalStorage() && T->isSizelessType() && !T->isVLST()) {
+  if (!NewVD->hasLocalStorage() && T->isSizelessType()) {
     Diag(NewVD->getLocation(), diag::err_sizeless_nonlocal) << T;
     NewVD->setInvalidDecl();
     return;

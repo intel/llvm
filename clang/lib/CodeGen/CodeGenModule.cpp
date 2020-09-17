@@ -1888,9 +1888,11 @@ void CodeGenModule::setNonAliasAttributes(GlobalDecl GD,
         // We know that GetCPUAndFeaturesAttributes will always have the
         // newest set, since it has the newest possible FunctionDecl, so the
         // new ones should replace the old.
-        F->removeFnAttr("target-cpu");
-        F->removeFnAttr("target-features");
-        F->removeFnAttr("tune-cpu");
+        llvm::AttrBuilder RemoveAttrs;
+        RemoveAttrs.addAttribute("target-cpu");
+        RemoveAttrs.addAttribute("target-features");
+        RemoveAttrs.addAttribute("tune-cpu");
+        F->removeAttributes(llvm::AttributeList::FunctionIndex, RemoveAttrs);
         F->addAttributes(llvm::AttributeList::FunctionIndex, Attrs);
       }
     }
@@ -2046,7 +2048,7 @@ void CodeGenModule::SetFunctionAttributes(GlobalDecl GD, llvm::Function *F,
 }
 
 void CodeGenModule::addUsedGlobal(llvm::GlobalValue *GV) {
-  assert(!GV->isDeclaration() &&
+  assert((isa<llvm::Function>(GV) || !GV->isDeclaration()) &&
          "Only globals with definition can force usage.");
   LLVMUsed.emplace_back(GV);
 }
@@ -2262,6 +2264,30 @@ void CodeGenModule::EmitDeferred() {
   CurDeclsToEmit.swap(DeferredDeclsToEmit);
 
   for (GlobalDecl &D : CurDeclsToEmit) {
+    const ValueDecl *VD = cast<ValueDecl>(D.getDecl());
+    // If emitting for SYCL device, emit the deferred alias
+    // as well as what it aliases.
+    if (LangOpts.SYCLIsDevice) {
+      if (AliasAttr *Attr = VD->getAttr<AliasAttr>()) {
+        StringRef AliaseeName = Attr->getAliasee();
+        auto DDI = DeferredDecls.find(AliaseeName);
+        // Emit what is aliased first.
+        if (DDI != DeferredDecls.end()) {
+          llvm::GlobalValue *AliaseeGV = dyn_cast<llvm::GlobalValue>(
+              GetAddrOfGlobal(DDI->second, ForDefinition));
+          if (!AliaseeGV)
+            AliaseeGV = GetGlobalValue(getMangledName(DDI->second));
+          assert(AliaseeGV);
+          EmitGlobalDefinition(DDI->second, AliaseeGV);
+          // Remove the entry just added to the DeferredDeclsToEmit
+          // since we have emitted it.
+          DeferredDeclsToEmit.pop_back();
+        }
+        // Now emit the alias itself.
+        EmitAliasDefinition(D);
+        continue;
+      }
+    }
     // We should call GetAddrOfGlobal with IsForDefinition set to true in order
     // to get GlobalValue with exactly the type we need, not something that
     // might had been created for another decl with the same mangled name but
@@ -2293,6 +2319,20 @@ void CodeGenModule::EmitDeferred() {
 
     // Otherwise, emit the definition and move on to the next one.
     EmitGlobalDefinition(D, GV);
+
+    if (LangOpts.SYCLIsDevice) {
+      // If there are any aliases deferred for this, emit those now.
+      for (auto It = DeferredAliases.begin(); It != DeferredAliases.end();
+           /*no increment*/) {
+        const ValueDecl *Global = cast<ValueDecl>(It->second.getDecl());
+        if (It->first == getMangledName(D)) {
+          EmitAliasDefinition(Global);
+          It = DeferredAliases.erase(It);
+        } else {
+          ++It;
+        }
+      }
+    }
 
     // If we found out that we need to emit more decls, do that recursively.
     // This has the advantage that the decls are emitted in a DFS and related
@@ -2617,9 +2657,19 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
     return;
 
   // If this is an alias definition (which otherwise looks like a declaration)
-  // emit it now.
-  if (Global->hasAttr<AliasAttr>())
-    return EmitAliasDefinition(GD);
+  // handle it now.
+  if (AliasAttr *Attr = Global->getAttr<AliasAttr>()) {
+    // Emit the alias here if it is not SYCL device compilation.
+    if (!LangOpts.SYCLIsDevice)
+      return EmitAliasDefinition(GD);
+    // Defer for SYCL devices, until either the alias or what it aliases
+    // is used.
+    StringRef MangledName = getMangledName(GD);
+    DeferredDecls[MangledName] = GD;
+    StringRef AliaseeName = Attr->getAliasee();
+    DeferredAliases[AliaseeName] = GD;
+    return;
+  }
 
   // IFunc like an alias whose value is resolved at runtime by calling resolver.
   if (Global->hasAttr<IFuncAttr>())
@@ -4834,20 +4884,21 @@ void CodeGenModule::EmitAliasDefinition(GlobalDecl GD) {
   // if a deferred decl.
   llvm::Constant *Aliasee;
   llvm::GlobalValue::LinkageTypes LT;
+  unsigned AS;
   if (isa<llvm::FunctionType>(DeclTy)) {
     Aliasee = GetOrCreateLLVMFunction(AA->getAliasee(), DeclTy, GD,
                                       /*ForVTable=*/false);
     LT = getFunctionLinkage(GD);
+    AS = Aliasee->getType()->getPointerAddressSpace();
   } else {
-    Aliasee = GetOrCreateLLVMGlobal(AA->getAliasee(),
-                                    llvm::PointerType::getUnqual(DeclTy),
+    AS = ArgInfoAddressSpace(GetGlobalVarAddressSpace(/*D=*/nullptr));
+    Aliasee = GetOrCreateLLVMGlobal(AA->getAliasee(), DeclTy->getPointerTo(AS),
                                     /*D=*/nullptr);
     LT = getLLVMLinkageVarDefinition(cast<VarDecl>(GD.getDecl()),
                                      D->getType().isConstQualified());
   }
 
   // Create the new alias itself, but don't set a name yet.
-  unsigned AS = Aliasee->getType()->getPointerAddressSpace();
   auto *GA =
       llvm::GlobalAlias::create(DeclTy, AS, LT, "", Aliasee, &getModule());
 
@@ -4868,8 +4919,8 @@ void CodeGenModule::EmitAliasDefinition(GlobalDecl GD) {
     // Remove it and replace uses of it with the alias.
     GA->takeName(Entry);
 
-    Entry->replaceAllUsesWith(llvm::ConstantExpr::getBitCast(GA,
-                                                          Entry->getType()));
+    Entry->replaceAllUsesWith(
+        llvm::ConstantExpr::getBitCast(GA, Entry->getType()));
     Entry->eraseFromParent();
   } else {
     GA->setName(MangledName);

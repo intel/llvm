@@ -4,13 +4,17 @@ endif()
 
 function(get_system_libname libpath libname)
   get_filename_component(libpath ${libpath} NAME)
-  if( CMAKE_FIND_LIBRARY_PREFIXES )
-    string(REPLACE ";" "|" PREFIXES "${CMAKE_FIND_LIBRARY_PREFIXES}")
-    string(REGEX REPLACE "^(${PREFIXES})" "" libpath ${libpath})
+  set(prefixes ${CMAKE_FIND_LIBRARY_PREFIXES})
+  set(suffixes ${CMAKE_FIND_LIBRARY_SUFFIXES})
+  list(FILTER prefixes EXCLUDE REGEX "^\\s*$")
+  list(FILTER suffixes EXCLUDE REGEX "^\\s*$")
+  if( prefixes )
+    string(REPLACE ";" "|" prefixes "${prefixes}")
+    string(REGEX REPLACE "^(${prefixes})" "" libpath ${libpath})
   endif()
-  if( CMAKE_FIND_LIBRARY_SUFFIXES )
-    string(REPLACE ";" "|" SUFFIXES "${CMAKE_FIND_LIBRARY_SUFFIXES}")
-    string(REGEX REPLACE "(${SUFFIXES})$" "" libpath ${libpath})
+  if( suffixes )
+    string(REPLACE ";" "|" suffixes "${suffixes}")
+    string(REGEX REPLACE "(${suffixes})$" "" libpath ${libpath})
   endif()
   set(${libname} "${libpath}" PARENT_SCOPE)
 endfunction()
@@ -57,9 +61,35 @@ endif()
 
 # Link Z3 if the user wants to build it.
 if(LLVM_WITH_Z3)
-  set(Z3_LINK_FILES ${Z3_LIBRARIES})
-else()
-  set(Z3_LINK_FILES "")
+  set(system_libs ${system_libs} ${Z3_LIBRARIES})
+endif()
+
+# Override the C runtime allocator on Windows and embed it into LLVM tools & libraries
+if(LLVM_INTEGRATED_CRT_ALLOC)
+  if (CMAKE_BUILD_TYPE AND NOT ${LLVM_USE_CRT_${uppercase_CMAKE_BUILD_TYPE}} MATCHES "^(MT|MTd)$")
+    message(FATAL_ERROR "LLVM_INTEGRATED_CRT_ALLOC only works with /MT or /MTd. Use LLVM_USE_CRT_${uppercase_CMAKE_BUILD_TYPE} to set the appropriate option.")
+  endif()
+
+  string(REGEX REPLACE "(/|\\\\)$" "" LLVM_INTEGRATED_CRT_ALLOC "${LLVM_INTEGRATED_CRT_ALLOC}")
+
+  if(NOT EXISTS "${LLVM_INTEGRATED_CRT_ALLOC}")
+    message(FATAL_ERROR "Cannot find the path to `git clone` for the CRT allocator! (${LLVM_INTEGRATED_CRT_ALLOC}). Currently, rpmalloc, snmalloc and mimalloc are supported.")
+  endif()
+
+  if(LLVM_INTEGRATED_CRT_ALLOC MATCHES "rpmalloc$")
+    add_definitions(-DENABLE_OVERRIDE -DENABLE_PRELOAD)
+    set(ALLOCATOR_FILES "${LLVM_INTEGRATED_CRT_ALLOC}/rpmalloc/rpmalloc.c")
+  elseif(LLVM_INTEGRATED_CRT_ALLOC MATCHES "snmalloc$")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17" PARENT_SCOPE)
+    set(ALLOCATOR_FILES "${LLVM_INTEGRATED_CRT_ALLOC}/src/override/malloc.cc" "${LLVM_INTEGRATED_CRT_ALLOC}/src/override/new.cc")
+    set(system_libs ${system_libs} "mincore.lib" "-INCLUDE:malloc")
+  elseif(LLVM_INTEGRATED_CRT_ALLOC MATCHES "mimalloc$")
+    set(MIMALLOC_LIB "${LLVM_INTEGRATED_CRT_ALLOC}/out/msvc-x64/Release/mimalloc-static.lib")
+    if(NOT EXISTS "${MIMALLOC_LIB}")
+	  message(FATAL_ERROR "Cannot find the mimalloc static library. To build it, first apply the patch from https://github.com/microsoft/mimalloc/issues/268 then build the Release x64 target through ${LLVM_INTEGRATED_CRT_ALLOC}\\ide\\vs2019\\mimalloc.sln")
+    endif()
+    set(system_libs ${system_libs} "${MIMALLOC_LIB}" "-INCLUDE:malloc")
+  endif()
 endif()
 
 add_llvm_component_library(LLVMSupport
@@ -105,7 +135,6 @@ add_llvm_component_library(LLVMSupport
   Error.cpp
   ErrorHandling.cpp
   ExtensibleRTTI.cpp
-  FileCheck.cpp
   FileCollector.cpp
   FileUtilities.cpp
   FileOutputBuffer.cpp
@@ -186,6 +215,8 @@ add_llvm_component_library(LLVMSupport
   xxhash.cpp
   Z3Solver.cpp
 
+  ${ALLOCATOR_FILES}
+
 # System
   Atomic.cpp
   DynamicLibrary.cpp
@@ -209,7 +240,7 @@ add_llvm_component_library(LLVMSupport
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/ADT
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/Support
   ${Backtrace_INCLUDE_DIRS}
-  LINK_LIBS ${system_libs} ${imported_libs} ${delayload_flags} ${Z3_LINK_FILES}
+  LINK_LIBS ${system_libs} ${imported_libs} ${delayload_flags}
   )
 
 set(llvm_system_libs ${system_libs})

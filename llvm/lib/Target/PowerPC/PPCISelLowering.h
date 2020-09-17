@@ -453,6 +453,9 @@ namespace llvm {
     STRICT_FCFIDS,
     STRICT_FCFIDUS,
 
+    /// Constrained floating point add in round-to-zero mode.
+    STRICT_FADDRTZ,
+
     /// CHAIN = STBRX CHAIN, GPRC, Ptr, Type - This is a
     /// byte-swapping store instruction.  It byte-swaps the low "Type" bits of
     /// the GPRC input, then stores it through Ptr.  Type can be either i16 or
@@ -493,6 +496,12 @@ namespace llvm {
     /// Maps directly to an lxvd2x instruction that will be followed by
     /// an xxswapd.
     LXVD2X,
+
+    /// LXVRZX - Load VSX Vector Rightmost and Zero Extend
+    /// This node represents v1i128 BUILD_VECTOR of a zero extending load
+    /// instruction from <byte, halfword, word, or doubleword> to i128.
+    /// Allows utilization of the Load VSX Vector Rightmost Instructions.
+    LXVRZX,
 
     /// VSRC, CHAIN = LOAD_VEC_BE CHAIN, Ptr - Occurs only for little endian.
     /// Maps directly to one of lxvd2x/lxvw4x/lxvh8x/lxvb16x depending on

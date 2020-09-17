@@ -523,6 +523,9 @@ public:
     return UINT64_MAX;
   }
 
+  virtual void AutoCompleteDiskFileOrDirectory(CompletionRequest &request,
+                                               bool only_dir) {}
+
   virtual uint64_t ReadFile(lldb::user_id_t fd, uint64_t offset, void *dst,
                             uint64_t dst_len, Status &error) {
     error.SetErrorStringWithFormat(
@@ -618,7 +621,18 @@ public:
   }
 
   virtual lldb_private::Status RunShellCommand(
-      const char *command,         // Shouldn't be nullptr
+      llvm::StringRef command,
+      const FileSpec &working_dir, // Pass empty FileSpec to use the current
+                                   // working directory
+      int *status_ptr, // Pass nullptr if you don't want the process exit status
+      int *signo_ptr,  // Pass nullptr if you don't want the signal that caused
+                       // the process to exit
+      std::string
+          *command_output, // Pass nullptr if you don't want the command output
+      const Timeout<std::micro> &timeout);
+
+  virtual lldb_private::Status RunShellCommand(
+      llvm::StringRef shell, llvm::StringRef command,
       const FileSpec &working_dir, // Pass empty FileSpec to use the current
                                    // working directory
       int *status_ptr, // Pass nullptr if you don't want the process exit status

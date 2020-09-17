@@ -139,6 +139,7 @@ public:
   ArrayAttr getF32ArrayAttr(ArrayRef<float> values);
   ArrayAttr getF64ArrayAttr(ArrayRef<double> values);
   ArrayAttr getStrArrayAttr(ArrayRef<StringRef> values);
+  ArrayAttr getTypeArrayAttr(TypeRange values);
 
   // Affine expressions and affine maps.
   AffineExpr getAffineDimExpr(unsigned position);
@@ -325,6 +326,20 @@ public:
   /// will cause subsequent insertions to go right after it.
   void setInsertionPointAfter(Operation *op) {
     setInsertionPoint(op->getBlock(), ++Block::iterator(op));
+  }
+
+  /// Sets the insertion point to the node after the specified value. If value
+  /// has a defining operation, sets the insertion point to the node after such
+  /// defining operation. This will cause subsequent insertions to go right
+  /// after it. Otherwise, value is a BlockArgumen. Sets the insertion point to
+  /// the start of its block.
+  void setInsertionPointAfter(Value val) {
+    if (Operation *op = val.getDefiningOp()) {
+      setInsertionPointAfter(op);
+    } else {
+      auto blockArg = val.cast<BlockArgument>();
+      setInsertionPointToStart(blockArg.getOwner());
+    }
   }
 
   /// Sets the insertion point to the start of the specified block.

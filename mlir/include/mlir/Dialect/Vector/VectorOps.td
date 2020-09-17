@@ -348,14 +348,20 @@ def Vector_ExtractElementOp :
     %1 = vector.extractelement %0[%c : i32]: vector<16xf32>
     ```
   }];
+  let assemblyFormat = [{
+    $vector `[` $position `:` type($position) `]` attr-dict `:` type($vector)
+  }];
+
+  let builders = [OpBuilder<
+    "OpBuilder &builder, OperationState &result, Value source, "
+    "int64_t position">,
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, Value source, "
+    "Value position">];
   let extraClassDeclaration = [{
     VectorType getVectorType() {
       return vector().getType().cast<VectorType>();
     }
-  }];
-
-  let assemblyFormat = [{
-    $vector `[` $position `:` type($position) `]` attr-dict `:` type($vector)
   }];
 }
 
@@ -508,6 +514,17 @@ def Vector_InsertElementOp :
     %1 = vector.insertelement %f, %0[%c : i32]: vector<16xf32>
     ```
   }];
+  let assemblyFormat = [{
+    $source `,` $dest `[` $position `:` type($position) `]` attr-dict `:`
+    type($result)
+  }];
+
+  let builders = [OpBuilder<
+    "OpBuilder &builder, OperationState &result, Value source, "
+    "Value dest, int64_t position">,
+    OpBuilder<
+    "OpBuilder &builder, OperationState &result, Value source, "
+    "Value dest, Value position">];
   let extraClassDeclaration = [{
     Type getSourceType() { return source().getType(); }
     VectorType getDestVectorType() {
@@ -515,10 +532,6 @@ def Vector_InsertElementOp :
     }
   }];
 
-  let assemblyFormat = [{
-    $source `,` $dest `[` $position `:` type($position) `]` attr-dict `:`
-    type($result)
-  }];
 }
 
 def Vector_InsertOp :
@@ -1511,6 +1524,41 @@ def Vector_ShapeCastOp :
     // may have different shapes.
     %5 = vector.shape_cast %4 : tuple<vector<3x4x2xf32>, vector<3x3x2xf32>> to
                                 tuple<vector<12x2xf32>, vector<9x2xf32>>
+    ```
+  }];
+  let extraClassDeclaration = [{
+    VectorType getSourceVectorType() {
+      return source().getType().cast<VectorType>();
+    }
+    VectorType getResultVectorType() {
+      return getResult().getType().cast<VectorType>();
+    }
+  }];
+  let assemblyFormat = "$source attr-dict `:` type($source) `to` type($result)";
+  let hasFolder = 1;
+}
+
+def Vector_BitCastOp :
+  Vector_Op<"bitcast", [NoSideEffect, AllRanksMatch<["source", "result"]>]>,
+    Arguments<(ins AnyVector:$source)>,
+    Results<(outs AnyVector:$result)>{
+  let summary = "bitcast casts between vectors";
+  let description = [{
+    The bitcast operation casts between vectors of the same rank, the minor 1-D
+    vector size is casted to a vector with a different element type but same
+    bitwidth.
+
+    Example:
+
+    ```mlir
+    // Example casting to a smaller element type.
+    %1 = vector.bitcast %0 : vector<5x1x4x3xf32> to vector<5x1x4x6xi16>
+
+    // Example casting to a bigger element type.
+    %3 = vector.bitcast %2 : vector<10x12x8xi8> to vector<10x12x2xi32>
+
+    // Example casting to an element type of the same size.
+    %5 = vector.bitcast %4 : vector<5x1x4x3xf32> to vector<5x1x4x3xi32>
     ```
   }];
   let extraClassDeclaration = [{

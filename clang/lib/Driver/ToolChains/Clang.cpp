@@ -2116,20 +2116,28 @@ void Clang::AddX86TargetArgs(const ArgList &Args,
   }
 
   // Handle -mtune.
-  // FIXME: We should default to "generic" unless -march is set to match gcc.
+
+  // Default to "generic" unless -march is present or targetting the PS4.
+  std::string TuneCPU;
+  if (!Args.hasArg(clang::driver::options::OPT_march_EQ) &&
+      !getToolChain().getTriple().isPS4CPU())
+    TuneCPU = "generic";
+
+  // Override based on -mtune.
   if (const Arg *A = Args.getLastArg(clang::driver::options::OPT_mtune_EQ)) {
     StringRef Name = A->getValue();
 
-    if (Name == "native")
+    if (Name == "native") {
       Name = llvm::sys::getHostCPUName();
+      if (!Name.empty())
+        TuneCPU = std::string(Name);
+    } else
+      TuneCPU = std::string(Name);
+  }
 
-    // Ignore generic either from getHostCPUName or from command line.
-    // FIXME: We need to support this eventually but isValidCPUName and the
-    // backend aren't ready for it yet.
-    if (Name != "generic") {
-      CmdArgs.push_back("-tune-cpu");
-      CmdArgs.push_back(Args.MakeArgString(Name));
-    }
+  if (!TuneCPU.empty()) {
+    CmdArgs.push_back("-tune-cpu");
+    CmdArgs.push_back(Args.MakeArgString(TuneCPU));
   }
 }
 
@@ -4048,10 +4056,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // device toolchain.
   bool UseSYCLTriple = IsSYCLDevice && (!IsSYCL || IsSYCLOffloadDevice);
 
-  // Adjust IsWindowsXYZ for CUDA/HIP compilations.  Even when compiling in
+  // Adjust IsWindowsXYZ for CUDA/HIP/SYCL compilations.  Even when compiling in
   // device mode (i.e., getToolchain().getTriple() is NVPTX/AMDGCN, not
   // Windows), we need to pass Windows-specific flags to cc1.
-  if (IsCuda || IsHIP)
+  if (IsCuda || IsHIP || IsSYCL)
     IsWindowsMSVC |= AuxTriple && AuxTriple->isWindowsMSVCEnvironment();
 
   // C++ is not supported for IAMCU.
@@ -4147,7 +4155,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fenable-sycl-dae");
 
     // Pass the triple of host when doing SYCL
-    auto AuxT = llvm::Triple(llvm::sys::getProcessTriple());
+    llvm::Triple AuxT = C.getDefaultToolChain().getTriple();
+    if (Args.hasFlag(options::OPT_fsycl_device_only, OptSpecifier(), false))
+      AuxT = llvm::Triple(llvm::sys::getProcessTriple());
     std::string NormalizedTriple = AuxT.normalize();
     CmdArgs.push_back("-aux-triple");
     CmdArgs.push_back(Args.MakeArgString(NormalizedTriple));
@@ -4193,8 +4203,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       SYCLStdArg->render(Args, CmdArgs);
       CmdArgs.push_back("-fsycl-std-layout-kernel-params");
     } else {
-      // Ensure the default version in SYCL mode is 1.2.1 (aka 2017)
-      CmdArgs.push_back("-sycl-std=2017");
+      // Ensure the default version in SYCL mode is 2020
+      CmdArgs.push_back("-sycl-std=2020");
     }
   }
 
@@ -4357,6 +4367,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (Args.getLastArg(options::OPT_save_temps_EQ))
     Args.AddLastArg(CmdArgs, options::OPT_save_temps_EQ);
+
+  if (Args.hasFlag(options::OPT_fmemory_profile,
+                   options::OPT_fno_memory_profile, false))
+    Args.AddLastArg(CmdArgs, options::OPT_fmemory_profile);
 
   // Embed-bitcode option.
   // Only white-listed flags below are allowed to be embedded.
@@ -5160,7 +5174,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                                 /*Joined=*/true);
     else if (IsWindowsMSVC)
       ImplyVCPPCXXVer = true;
-    else if (IsSYCL)
+
+    if (IsSYCL && types::isCXX(InputType) &&
+        !Args.hasArg(options::OPT__SLASH_std))
       // For DPC++, we default to -std=c++17 for all compilations.  Use of -std
       // on the command line will override.
       CmdArgs.push_back("-std=c++17");
@@ -5346,6 +5362,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   Args.AddLastArg(CmdArgs, options::OPT_fvisibility_inlines_hidden);
+  Args.AddLastArg(CmdArgs, options::OPT_fvisibility_inlines_hidden_static_local_var,
+                           options::OPT_fno_visibility_inlines_hidden_static_local_var);
   Args.AddLastArg(CmdArgs, options::OPT_fvisibility_global_new_delete_hidden);
 
   Args.AddLastArg(CmdArgs, options::OPT_ftlsmodel_EQ);
@@ -5734,7 +5752,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       LanguageStandard = llvm::StringSwitch<StringRef>(StdArg->getValue())
                              .Case("c++14", "-std=c++14")
                              .Case("c++17", "-std=c++17")
-                             .Case("c++latest", "-std=c++2a")
+                             .Case("c++latest", "-std=c++20")
                              .Default("");
       if (LanguageStandard.empty())
         D.Diag(clang::diag::warn_drv_unused_argument)
@@ -5742,12 +5760,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
 
     if (LanguageStandard.empty()) {
-      if (IsMSVC2015Compatible)
-        if (IsSYCL)
-          // For DPC++, C++17 is the default.
-          LanguageStandard = "-std=c++17";
-        else
-          LanguageStandard = "-std=c++14";
+      if (IsSYCL)
+        // For DPC++, C++17 is the default.
+        LanguageStandard = "-std=c++17";
+      else if (IsMSVC2015Compatible)
+        LanguageStandard = "-std=c++14";
       else
         LanguageStandard = "-std=c++11";
     }
@@ -5801,7 +5818,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // FIXME: Find a better way to determine whether the language has modules
   // support by default, or just assume that all languages do.
   bool HaveModules =
-      Std && (Std->containsValue("c++2a") || Std->containsValue("c++latest"));
+      Std && (Std->containsValue("c++2a") || Std->containsValue("c++20") ||
+              Std->containsValue("c++latest"));
   RenderModulesOptions(C, D, Args, Input, Output, CmdArgs, HaveModules);
 
   if (Args.hasFlag(options::OPT_fpch_validate_input_files_content,
@@ -5984,10 +6002,17 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                     options::OPT_fno_gnu_inline_asm, true))
     CmdArgs.push_back("-fno-gnu-inline-asm");
 
+  bool EnableSYCLEarlyOptimizations =
+      Args.hasFlag(options::OPT_fsycl_early_optimizations,
+                   options::OPT_fno_sycl_early_optimizations,
+                   Triple.getSubArch() != llvm::Triple::SPIRSubArch_fpga);
+
   // Enable vectorization per default according to the optimization level
   // selected. For optimization levels that want vectorization we use the alias
   // option to simplify the hasFlag logic.
   bool EnableVec = shouldEnableVectorizerAtOLevel(Args, false);
+  if (UseSYCLTriple && EnableSYCLEarlyOptimizations)
+    EnableVec = false; // But disable vectorization for SYCL device code
   OptSpecifier VectorizeAliasOption =
       EnableVec ? options::OPT_O_Group : options::OPT_fvectorize;
   if (Args.hasFlag(options::OPT_fvectorize, VectorizeAliasOption,
@@ -5996,6 +6021,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // -fslp-vectorize is enabled based on the optimization level selected.
   bool EnableSLPVec = shouldEnableVectorizerAtOLevel(Args, true);
+  if (UseSYCLTriple && EnableSYCLEarlyOptimizations)
+    EnableSLPVec = false; // But disable vectorization for SYCL device code
   OptSpecifier SLPVectAliasOption =
       EnableSLPVec ? options::OPT_O_Group : options::OPT_fslp_vectorize;
   if (Args.hasFlag(options::OPT_fslp_vectorize, SLPVectAliasOption,
@@ -6241,11 +6268,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasArg(options::OPT_fsycl_unnamed_lambda))
       CmdArgs.push_back("-fsycl-unnamed-lambda");
 
-    // Enable generation of USM address spaces as opt-in.
+    // Enable generation of USM address spaces for FPGA.
     // __ENABLE_USM_ADDR_SPACE__ will be used during compilation of SYCL headers
     if (getToolChain().getTriple().getSubArch() ==
-            llvm::Triple::SPIRSubArch_fpga &&
-        Args.hasArg(options::OPT_fsycl_enable_usm_address_spaces))
+        llvm::Triple::SPIRSubArch_fpga)
       CmdArgs.push_back("-D__ENABLE_USM_ADDR_SPACE__");
   }
 
@@ -6744,14 +6770,26 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
                            bool *EmitCodeView) const {
   unsigned RTOptionID = options::OPT__SLASH_MT;
   bool isNVPTX = getToolChain().getTriple().isNVPTX();
+  bool isSYCL =
+      Args.hasArg(options::OPT_fsycl) ||
+      getToolChain().getTriple().getEnvironment() == llvm::Triple::SYCLDevice;
+  // For SYCL Windows, /MD is the default.
+  if (isSYCL)
+    RTOptionID = options::OPT__SLASH_MD;
 
   if (Args.hasArg(options::OPT__SLASH_LDd))
-    // The /LDd option implies /MTd. The dependent lib part can be overridden,
-    // but defining _DEBUG is sticky.
-    RTOptionID = options::OPT__SLASH_MTd;
+    // The /LDd option implies /MTd (/MDd for SYCL). The dependent lib part
+    // can be overridden but defining _DEBUG is sticky.
+    RTOptionID = isSYCL ? options::OPT__SLASH_MDd : options::OPT__SLASH_MTd;
 
-  if (Arg *A = Args.getLastArg(options::OPT__SLASH_M_Group))
+  if (Arg *A = Args.getLastArg(options::OPT__SLASH_M_Group)) {
     RTOptionID = A->getOption().getID();
+    if (isSYCL && (RTOptionID == options::OPT__SLASH_MT ||
+                   RTOptionID == options::OPT__SLASH_MTd))
+      // Use of /MT or /MTd is not supported for SYCL.
+      getToolChain().getDriver().Diag(diag::err_drv_unsupported_opt_dpcpp)
+          << A->getOption().getName();
+  }
 
   StringRef FlagForCRT;
   switch (RTOptionID) {
@@ -6794,6 +6832,16 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
     // users want.  The /Za flag to cl.exe turns this off, but it's not
     // implemented in clang.
     CmdArgs.push_back("--dependent-lib=oldnames");
+
+    // Add SYCL dependent library
+    if (Args.hasArg(options::OPT_fsycl) &&
+        !Args.hasArg(options::OPT_nolibsycl)) {
+      if (RTOptionID == options::OPT__SLASH_MDd ||
+          RTOptionID == options::OPT__SLASH_MTd)
+        CmdArgs.push_back("--dependent-lib=sycld");
+      else
+        CmdArgs.push_back("--dependent-lib=sycl");
+    }
   }
 
   if (Arg *ShowIncludes =
@@ -7379,7 +7427,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   bool IsMSVCEnv =
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   types::ID InputType(Input.getType());
-  bool IsFPGADepUnbundle = (JA.getType() == types::TY_FPGA_Dependencies);
+  bool IsFPGADepUnbundle = JA.getType() == types::TY_FPGA_Dependencies;
+  bool IsFPGADepLibUnbundle = JA.getType() == types::TY_FPGA_Dependencies_List;
   bool IsArchiveUnbundle =
       (!IsMSVCEnv && C.getDriver().getOffloadStaticLibSeen() &&
        (types::isArchive(InputType) || InputType == types::TY_Object));
@@ -7395,7 +7444,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     else
       TypeArg = "aoo";
   }
-  if (InputType == types::TY_FPGA_AOCO ||
+  if (InputType == types::TY_FPGA_AOCO || IsFPGADepLibUnbundle ||
       (IsMSVCEnv && types::isArchive(InputType)))
     TypeArg = "aoo";
   if (IsFPGADepUnbundle)
@@ -7454,7 +7503,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       Triples += Dep.DependentBoundArch;
     }
   }
-  if (IsFPGADepUnbundle) {
+  if (IsFPGADepUnbundle || IsFPGADepLibUnbundle) {
     // TODO - We are currently using the target triple inputs to slot a location
     // of the dependency information into the bundle.  It would be good to
     // separate this out to an explicit option in the bundler for the dependency
@@ -7475,7 +7524,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   // When dealing with -fintelfpga, there is an additional unbundle step
   // that occurs for the dependency file.  In that case, do not use the
   // dependent information, but just the output file.
-  if (IsFPGADepUnbundle)
+  if (IsFPGADepUnbundle || IsFPGADepLibUnbundle)
     UB += Outputs[0].getFilename();
   else {
     for (unsigned I = 0; I < Outputs.size(); ++I) {
@@ -7650,6 +7699,30 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   assert(JA.getInputs().size() == Inputs.size() &&
          "Not have inputs for all dependence actions??");
 
+  // For FPGA, we wrap the host objects before archiving them when using
+  // -fsycl-link.  This allows for better extraction control from the
+  // archive when we need the host objects for subsequent compilations.
+  if (OffloadingKind == Action::OFK_None &&
+      C.getArgs().hasArg(options::OPT_fintelfpga) &&
+      C.getArgs().hasArg(options::OPT_fsycl_link_EQ)) {
+
+    // Add offload targets and inputs.
+    CmdArgs.push_back(C.getArgs().MakeArgString(
+        Twine("-kind=") + Action::GetOffloadKindName(OffloadingKind)));
+    CmdArgs.push_back(
+        TCArgs.MakeArgString(Twine("-target=") + Triple.getTriple()));
+
+    // Add input.
+    assert(Inputs[0].isFilename() && "Invalid input.");
+    CmdArgs.push_back(TCArgs.MakeArgString(Inputs[0].getFilename()));
+
+    C.addCommand(std::make_unique<Command>(
+        JA, *this, ResponseFileSupport::None(),
+        TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
+        CmdArgs, Inputs));
+    return;
+  }
+
   // Add offload targets and inputs.
   for (unsigned I = 0; I < Inputs.size(); ++I) {
     // Get input's Offload Kind and ToolChain.
@@ -7699,18 +7772,28 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   TranslatorArgs.push_back(Output.getFilename());
   if (getToolChain().getTriple().isSYCLDeviceEnvironment()) {
     TranslatorArgs.push_back("-spirv-max-version=1.1");
-    std::string ExtArg("-spirv-ext=+all");
+    TranslatorArgs.push_back("-spirv-debug-info-version=legacy");
     if (C.getArgs().hasArg(options::OPT_fsycl_esimd))
       TranslatorArgs.push_back("-spirv-allow-unknown-intrinsics");
+
     // Disable SPV_INTEL_usm_storage_classes by default since it adds new
     // storage classes that represent global_device and global_host address
     // spaces, which are not supported for all targets. With the extension
     // disable the storage classes will be lowered to CrossWorkgroup storage
-    // class that is mapped to just global address space.
-    if (!(getToolChain().getTriple().getSubArch() ==
-              llvm::Triple::SPIRSubArch_fpga &&
-          TCArgs.hasArg(options::OPT_fsycl_enable_usm_address_spaces)))
-      ExtArg += ",-SPV_INTEL_usm_storage_classes";
+    // class that is mapped to just global address space. The extension is
+    // supposed to be enabled only for FPGA hardware.
+    std::string ExtArg("-spirv-ext=+all,-SPV_INTEL_usm_storage_classes");
+    if (getToolChain().getTriple().getSubArch() ==
+        llvm::Triple::SPIRSubArch_fpga) {
+      for (auto *A : TCArgs) {
+        if (A->getOption().matches(options::OPT_Xs_separate) ||
+            A->getOption().matches(options::OPT_Xs)) {
+          StringRef ArgString(A->getValue());
+          if (ArgString == "hardware" || ArgString == "simulation")
+            ExtArg = "-spirv-ext=+all";
+        }
+      }
+    }
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
   }
   for (auto I : Inputs) {

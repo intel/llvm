@@ -42,6 +42,7 @@ const char *SYCL::Linker::constructLLVMSpirvCommand(Compilation &C,
   } else {
     CmdArgs.push_back("-spirv-max-version=1.1");
     CmdArgs.push_back("-spirv-ext=+all");
+    CmdArgs.push_back("-spirv-debug-info-version=legacy");
     if (C.getArgs().hasArg(options::OPT_fsycl_esimd))
       CmdArgs.push_back("-spirv-allow-unknown-intrinsics");
     CmdArgs.push_back("-o");
@@ -204,6 +205,14 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                            SpirvInputs);
 }
 
+static const char *makeExeName(Compilation &C, StringRef Name) {
+  llvm::SmallString<8> ExeName(Name);
+  const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+  if (HostTC->getTriple().isWindowsMSVCEnvironment())
+    ExeName.append(".exe");
+  return C.getArgs().MakeArgString(ExeName);
+}
+
 void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
                                          const JobAction &JA,
                                          const InputInfo &Output,
@@ -225,7 +234,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
       // Add any FPGA library lists.  These come in as special tempfile lists.
       CmdArgs.push_back(Args.MakeArgString(Twine("-library-list=") +
           Filename));
-    else if (II.getType() == types::TY_FPGA_Dependencies)
+    else if (II.getType() == types::TY_FPGA_Dependencies ||
+             II.getType() == types::TY_FPGA_Dependencies_List)
       FPGADepFiles.push_back(II);
     else
       CmdArgs.push_back(C.getArgs().MakeArgString(Filename));
@@ -279,6 +289,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
     for (unsigned I = 0; I < FPGADepFiles.size(); ++I) {
       if (I)
         DepOpt += ',';
+      if (FPGADepFiles[I].getType() == types::TY_FPGA_Dependencies_List)
+        DepOpt += "@";
       DepOpt += FPGADepFiles[I].getFilename();
     }
     CmdArgs.push_back(C.getArgs().MakeArgString(DepOpt));
@@ -312,7 +324,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
     CmdArgs.push_back(Args.MakeArgString(A->getAsString(Args)));
   }
 
-  SmallString<128> ExecPath(getToolChain().GetProgramPath("aoc"));
+  SmallString<128> ExecPath(
+      getToolChain().GetProgramPath(makeExeName(C, "aoc")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(), Exec, CmdArgs, None);
@@ -349,7 +362,8 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
   TC.TranslateBackendTargetArgs(Args, CmdArgs);
   TC.TranslateLinkerTargetArgs(Args, CmdArgs);
-  SmallString<128> ExecPath(getToolChain().GetProgramPath("ocloc"));
+  SmallString<128> ExecPath(
+      getToolChain().GetProgramPath(makeExeName(C, "ocloc")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(), Exec, CmdArgs, None);
@@ -382,7 +396,8 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(Compilation &C,
 
   TC.TranslateBackendTargetArgs(Args, CmdArgs);
   TC.TranslateLinkerTargetArgs(Args, CmdArgs);
-  SmallString<128> ExecPath(getToolChain().GetProgramPath("opencl-aot"));
+  SmallString<128> ExecPath(
+      getToolChain().GetProgramPath(makeExeName(C, "opencl-aot")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(), Exec, CmdArgs, None);

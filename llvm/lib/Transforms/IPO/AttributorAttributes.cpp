@@ -2015,37 +2015,40 @@ struct AAUndefinedBehaviorImpl : public AAUndefinedBehavior {
         // the argument is poison. Furthermore, if the argument is poison and
         // the position is known to have noundef attriubte, this callsite is
         // considered UB.
-        // TODO: Check also nopoison attribute if it is introduced.
         if (idx >= Callee->arg_size())
           break;
         Value *ArgVal = CB.getArgOperand(idx);
-        if (!ArgVal || !ArgVal->getType()->isPointerTy())
-          continue;
-        IRPosition CalleeArgumentIRP = IRPosition::callsite_argument(CB, idx);
-        if (!CalleeArgumentIRP.hasAttr({Attribute::NoUndef}))
-          continue;
-        auto &NonNullAA = A.getAAFor<AANonNull>(*this, CalleeArgumentIRP);
-        if (!NonNullAA.isKnownNonNull())
-          continue;
-        const auto &ValueSimplifyAA =
-            A.getAAFor<AAValueSimplify>(*this, IRPosition::value(*ArgVal));
-        Optional<Value *> SimplifiedVal =
-            ValueSimplifyAA.getAssumedSimplifiedValue(A);
-
-        if (!ValueSimplifyAA.isKnown())
+        if (!ArgVal)
           continue;
         // Here, we handle three cases.
         //   (1) Not having a value means it is dead. (we can replace the value
         //       with undef)
-        //   (2) Simplified to null pointer. The argument is a poison value and
-        //       violate noundef attribute.
-        //   (3) Simplified to undef. The argument violate noundef attriubte.
+        //   (2) Simplified to undef. The argument violate noundef attriubte.
+        //   (3) Simplified to null pointer where known to be nonnull.
+        //       The argument is a poison value and violate noundef attribute.
+        IRPosition CalleeArgumentIRP = IRPosition::callsite_argument(CB, idx);
+        auto &NoUndefAA = A.getAAFor<AANoUndef>(*this, CalleeArgumentIRP,
+                                                /* TrackDependence */ false);
+        if (!NoUndefAA.isKnownNoUndef())
+          continue;
+        auto &ValueSimplifyAA = A.getAAFor<AAValueSimplify>(
+            *this, IRPosition::value(*ArgVal), /* TrackDependence */ false);
+        if (!ValueSimplifyAA.isKnown())
+          continue;
+        Optional<Value *> SimplifiedVal =
+            ValueSimplifyAA.getAssumedSimplifiedValue(A);
         if (!SimplifiedVal.hasValue() ||
-            isa<ConstantPointerNull>(*SimplifiedVal.getValue()) ||
             isa<UndefValue>(*SimplifiedVal.getValue())) {
           KnownUBInsts.insert(&I);
-          return true;
+          continue;
         }
+        if (!ArgVal->getType()->isPointerTy() ||
+            !isa<ConstantPointerNull>(*SimplifiedVal.getValue()))
+          continue;
+        auto &NonNullAA = A.getAAFor<AANonNull>(*this, CalleeArgumentIRP,
+                                                /* TrackDependence */ false);
+        if (NonNullAA.isKnownNonNull())
+          KnownUBInsts.insert(&I);
       }
       return true;
     };
@@ -2071,7 +2074,8 @@ struct AAUndefinedBehaviorImpl : public AAUndefinedBehavior {
           } else {
             if (isa<ConstantPointerNull>(V)) {
               auto &NonNullAA = A.getAAFor<AANonNull>(
-                  *this, IRPosition::returned(*getAnchorScope()));
+                  *this, IRPosition::returned(*getAnchorScope()),
+                  /* TrackDependence */ false);
               if (NonNullAA.isKnownNonNull())
                 FoundUB = true;
             }
@@ -2094,9 +2098,14 @@ struct AAUndefinedBehaviorImpl : public AAUndefinedBehavior {
 
     // If the returned position of the anchor scope has noundef attriubte, check
     // all returned instructions.
-    // TODO: If AANoUndef is implemented, ask it here.
-    if (IRPosition::returned(*getAnchorScope()).hasAttr({Attribute::NoUndef}))
-      A.checkForAllReturnedValuesAndReturnInsts(InspectReturnInstForUB, *this);
+    if (!getAnchorScope()->getReturnType()->isVoidTy()) {
+      auto &RetPosNoUndefAA =
+          A.getAAFor<AANoUndef>(*this, IRPosition::returned(*getAnchorScope()),
+                                /* TrackDependence */ false);
+      if (RetPosNoUndefAA.isKnownNoUndef())
+        A.checkForAllReturnedValuesAndReturnInsts(InspectReturnInstForUB,
+                                                  *this);
+    }
 
     if (NoUBPrevSize != AssumedNoUBInsts.size() ||
         UBPrevSize != KnownUBInsts.size())
@@ -3029,8 +3038,14 @@ struct AAIsDeadFunction : public AAIsDead {
   void initialize(Attributor &A) override {
     const Function *F = getAnchorScope();
     if (F && !F->isDeclaration()) {
-      ToBeExploredFrom.insert(&F->getEntryBlock().front());
-      assumeLive(A, F->getEntryBlock());
+      // We only want to compute liveness once. If the function is not part of
+      // the SCC, skip it.
+      if (A.isRunOn(*const_cast<Function *>(F))) {
+        ToBeExploredFrom.insert(&F->getEntryBlock().front());
+        assumeLive(A, F->getEntryBlock());
+      } else {
+        indicatePessimisticFixpoint();
+      }
     }
   }
 
@@ -3092,6 +3107,10 @@ struct AAIsDeadFunction : public AAIsDead {
 
   /// See AbstractAttribute::updateImpl(...).
   ChangeStatus updateImpl(Attributor &A) override;
+
+  bool isEdgeDead(const BasicBlock *From, const BasicBlock *To) const override {
+    return !AssumedLiveEdges.count(std::make_pair(From, To));
+  }
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override {}
@@ -3169,6 +3188,9 @@ struct AAIsDeadFunction : public AAIsDead {
 
   /// Collection of instructions that are known to not transfer control.
   SmallSetVector<const Instruction *, 8> KnownDeadEnds;
+
+  /// Collection of all assumed live edges
+  DenseSet<std::pair<const BasicBlock *, const BasicBlock *>> AssumedLiveEdges;
 
   /// Collection of all assumed live BasicBlocks.
   DenseSet<const BasicBlock *> AssumedLiveBlocks;
@@ -3287,7 +3309,7 @@ ChangeStatus AAIsDeadFunction::updateImpl(Attributor &A) {
 
     // Fast forward for uninteresting instructions. We could look for UB here
     // though.
-    while(!I->isTerminator() && !isa<CallBase>(I)) {
+    while (!I->isTerminator() && !isa<CallBase>(I)) {
       Change = ChangeStatus::CHANGED;
       I = I->getNextNode();
     }
@@ -3340,6 +3362,9 @@ ChangeStatus AAIsDeadFunction::updateImpl(Attributor &A) {
                "Non-terminator expected to have a single successor!");
         Worklist.push_back(AliveSuccessor);
       } else {
+        // record the assumed live edge
+        AssumedLiveEdges.insert(
+            std::make_pair(I->getParent(), AliveSuccessor->getParent()));
         if (assumeLive(A, *AliveSuccessor->getParent()))
           Worklist.push_back(AliveSuccessor);
       }
@@ -7343,10 +7368,7 @@ struct AAPotentialValuesFloating : AAPotentialValuesImpl {
     }
 
     if (isa<UndefValue>(&V)) {
-      // Collapse the undef state to 0.
-      unionAssumed(
-          APInt(/* numBits */ getAssociatedType()->getIntegerBitWidth(),
-                /* val */ 0));
+      unionAssumedWithUndef();
       indicateOptimisticFixpoint();
       return;
     }
@@ -7467,6 +7489,20 @@ struct AAPotentialValuesFloating : AAPotentialValuesImpl {
     }
   }
 
+  bool calculateBinaryOperatorAndTakeUnion(const BinaryOperator *BinOp,
+                                           const APInt &LHS, const APInt &RHS) {
+    bool SkipOperation = false;
+    bool Unsupported = false;
+    APInt Result =
+        calculateBinaryOperator(BinOp, LHS, RHS, SkipOperation, Unsupported);
+    if (Unsupported)
+      return false;
+    // If SkipOperation is true, we can ignore this operand pair (L, R).
+    if (!SkipOperation)
+      unionAssumed(Result);
+    return isValidState();
+  }
+
   ChangeStatus updateWithICmpInst(Attributor &A, ICmpInst *ICI) {
     auto AssumedBefore = getAssumed();
     Value *LHS = ICI->getOperand(0);
@@ -7485,15 +7521,39 @@ struct AAPotentialValuesFloating : AAPotentialValuesImpl {
     const DenseSet<APInt> &LHSAAPVS = LHSAA.getAssumedSet();
     const DenseSet<APInt> &RHSAAPVS = RHSAA.getAssumedSet();
 
-    // TODO: Handle undef correctly.
+    // TODO: make use of undef flag to limit potential values aggressively.
     bool MaybeTrue = false, MaybeFalse = false;
-    for (const APInt &L : LHSAAPVS) {
+    const APInt Zero(RHS->getType()->getIntegerBitWidth(), 0);
+    if (LHSAA.undefIsContained() && RHSAA.undefIsContained()) {
+      // The result of any comparison between undefs can be soundly replaced
+      // with undef.
+      unionAssumedWithUndef();
+    } else if (LHSAA.undefIsContained()) {
+      bool MaybeTrue = false, MaybeFalse = false;
       for (const APInt &R : RHSAAPVS) {
-        bool CmpResult = calculateICmpInst(ICI, L, R);
+        bool CmpResult = calculateICmpInst(ICI, Zero, R);
         MaybeTrue |= CmpResult;
         MaybeFalse |= !CmpResult;
         if (MaybeTrue & MaybeFalse)
           return indicatePessimisticFixpoint();
+      }
+    } else if (RHSAA.undefIsContained()) {
+      for (const APInt &L : LHSAAPVS) {
+        bool CmpResult = calculateICmpInst(ICI, L, Zero);
+        MaybeTrue |= CmpResult;
+        MaybeFalse |= !CmpResult;
+        if (MaybeTrue & MaybeFalse)
+          return indicatePessimisticFixpoint();
+      }
+    } else {
+      for (const APInt &L : LHSAAPVS) {
+        for (const APInt &R : RHSAAPVS) {
+          bool CmpResult = calculateICmpInst(ICI, L, R);
+          MaybeTrue |= CmpResult;
+          MaybeFalse |= !CmpResult;
+          if (MaybeTrue & MaybeFalse)
+            return indicatePessimisticFixpoint();
+        }
       }
     }
     if (MaybeTrue)
@@ -7520,8 +7580,13 @@ struct AAPotentialValuesFloating : AAPotentialValuesImpl {
     if (!RHSAA.isValidState())
       return indicatePessimisticFixpoint();
 
-    unionAssumed(LHSAA);
-    unionAssumed(RHSAA);
+    if (LHSAA.undefIsContained() && RHSAA.undefIsContained())
+      // select i1 *, undef , undef => undef
+      unionAssumedWithUndef();
+    else {
+      unionAssumed(LHSAA);
+      unionAssumed(RHSAA);
+    }
     return AssumedBefore == getAssumed() ? ChangeStatus::UNCHANGED
                                          : ChangeStatus::CHANGED;
   }
@@ -7537,11 +7602,14 @@ struct AAPotentialValuesFloating : AAPotentialValuesImpl {
     if (!SrcAA.isValidState())
       return indicatePessimisticFixpoint();
     const DenseSet<APInt> &SrcAAPVS = SrcAA.getAssumedSet();
-    for (const APInt &S : SrcAAPVS) {
-      APInt T = calculateCastInst(CI, S, ResultBitWidth);
-      unionAssumed(T);
+    if (SrcAA.undefIsContained())
+      unionAssumedWithUndef();
+    else {
+      for (const APInt &S : SrcAAPVS) {
+        APInt T = calculateCastInst(CI, S, ResultBitWidth);
+        unionAssumed(T);
+      }
     }
-    // TODO: Handle undef correctly.
     return AssumedBefore == getAssumed() ? ChangeStatus::UNCHANGED
                                          : ChangeStatus::CHANGED;
   }
@@ -7563,19 +7631,28 @@ struct AAPotentialValuesFloating : AAPotentialValuesImpl {
 
     const DenseSet<APInt> &LHSAAPVS = LHSAA.getAssumedSet();
     const DenseSet<APInt> &RHSAAPVS = RHSAA.getAssumedSet();
+    const APInt Zero = APInt(LHS->getType()->getIntegerBitWidth(), 0);
 
-    // TODO: Handle undef correctly
-    for (const APInt &L : LHSAAPVS) {
+    // TODO: make use of undef flag to limit potential values aggressively.
+    if (LHSAA.undefIsContained() && RHSAA.undefIsContained()) {
+      if (!calculateBinaryOperatorAndTakeUnion(BinOp, Zero, Zero))
+        return indicatePessimisticFixpoint();
+    } else if (LHSAA.undefIsContained()) {
       for (const APInt &R : RHSAAPVS) {
-        bool SkipOperation = false;
-        bool Unsupported = false;
-        APInt Result =
-            calculateBinaryOperator(BinOp, L, R, SkipOperation, Unsupported);
-        if (Unsupported)
+        if (!calculateBinaryOperatorAndTakeUnion(BinOp, Zero, R))
           return indicatePessimisticFixpoint();
-        // If SkipOperation is true, we can ignore this operand pair (L, R).
-        if (!SkipOperation)
-          unionAssumed(Result);
+      }
+    } else if (RHSAA.undefIsContained()) {
+      for (const APInt &L : LHSAAPVS) {
+        if (!calculateBinaryOperatorAndTakeUnion(BinOp, L, Zero))
+          return indicatePessimisticFixpoint();
+      }
+    } else {
+      for (const APInt &L : LHSAAPVS) {
+        for (const APInt &R : RHSAAPVS) {
+          if (!calculateBinaryOperatorAndTakeUnion(BinOp, L, R))
+            return indicatePessimisticFixpoint();
+        }
       }
     }
     return AssumedBefore == getAssumed() ? ChangeStatus::UNCHANGED
@@ -7590,7 +7667,10 @@ struct AAPotentialValuesFloating : AAPotentialValuesImpl {
           *this, IRPosition::value(*IncomingValue));
       if (!PotentialValuesAA.isValidState())
         return indicatePessimisticFixpoint();
-      unionAssumed(PotentialValuesAA.getAssumed());
+      if (PotentialValuesAA.undefIsContained())
+        unionAssumedWithUndef();
+      else
+        unionAssumed(PotentialValuesAA.getAssumed());
     }
     return AssumedBefore == getAssumed() ? ChangeStatus::UNCHANGED
                                          : ChangeStatus::CHANGED;
@@ -7678,10 +7758,7 @@ struct AAPotentialValuesCallSiteArgument : AAPotentialValuesFloating {
     }
 
     if (isa<UndefValue>(&V)) {
-      // Collapse the undef state to 0.
-      unionAssumed(
-          APInt(/* numBits */ getAssociatedType()->getIntegerBitWidth(),
-                /* val */ 0));
+      unionAssumedWithUndef();
       indicateOptimisticFixpoint();
       return;
     }
@@ -7710,6 +7787,10 @@ struct AANoUndefImpl : AANoUndef {
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
+    if (getIRPosition().hasAttr({Attribute::NoUndef})) {
+      indicateOptimisticFixpoint();
+      return;
+    }
     Value &V = getAssociatedValue();
     if (isa<UndefValue>(V))
       indicatePessimisticFixpoint();
@@ -7742,6 +7823,22 @@ struct AANoUndefImpl : AANoUndef {
   /// See AbstractAttribute::getAsStr().
   const std::string getAsStr() const override {
     return getAssumed() ? "noundef" : "may-undef-or-poison";
+  }
+
+  ChangeStatus manifest(Attributor &A) override {
+    // We don't manifest noundef attribute for dead positions because the
+    // associated values with dead positions would be replaced with undef
+    // values.
+    if (A.isAssumedDead(getIRPosition(), nullptr, nullptr))
+      return ChangeStatus::UNCHANGED;
+    // A position whose simplified value does not have any value is
+    // considered to be dead. We don't manifest noundef in such positions for
+    // the same reason above.
+    auto &ValueSimplifyAA = A.getAAFor<AAValueSimplify>(
+        *this, getIRPosition(), /* TrackDependence */ false);
+    if (!ValueSimplifyAA.getAssumedSimplifiedValue(A).hasValue())
+      return ChangeStatus::UNCHANGED;
+    return AANoUndef::manifest(A);
   }
 };
 

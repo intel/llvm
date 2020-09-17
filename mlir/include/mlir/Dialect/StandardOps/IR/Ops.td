@@ -658,7 +658,7 @@ def BranchOp : Std_Op<"br",
 // CallOp
 //===----------------------------------------------------------------------===//
 
-def CallOp : Std_Op<"call", [CallOpInterface]> {
+def CallOp : Std_Op<"call", [CallOpInterface, MemRefsNormalizable]> {
   let summary = "call operation";
   let description = [{
     The `call` operation represents a direct call to a function that is within
@@ -1388,7 +1388,8 @@ def SinOp : FloatUnaryOp<"sin"> {
 // DeallocOp
 //===----------------------------------------------------------------------===//
 
-def DeallocOp : Std_Op<"dealloc", [MemoryEffects<[MemFree]>]> {
+def DeallocOp : Std_Op<"dealloc",
+    [MemoryEffects<[MemFree]>, MemRefsNormalizable]> {
   let summary = "memory deallocation operation";
   let description = [{
     The `dealloc` operation frees the region of memory referenced by a memref
@@ -1472,6 +1473,37 @@ def DimOp : Std_Op<"dim", [NoSideEffect]> {
 
 def DivFOp : FloatArithmeticOp<"divf"> {
   let summary = "floating point division operation";
+}
+
+//===----------------------------------------------------------------------===//
+// DynamicTensorFromElementsOp
+//===----------------------------------------------------------------------===//
+
+def DynamicTensorFromElementsOp : Std_Op<"dynamic_tensor_from_elements",
+    [RecursiveSideEffects, SingleBlockImplicitTerminator<"YieldOp">]> {
+  string summary = "Creates a dynamically sized tensor from elements";
+  string description = [{
+    This operation creates a dynamically sized tensor with elements of any type.
+    It expects one index operand per dynamic extent of the result tensor.
+
+    The body region defines the tensor's elements. It takes index operands as
+    its region arguments that span the index space. The element at the given
+    position is yielded with the `yield` operation (see `YieldOp`).
+
+    Example:
+
+    ```mlir
+      %tnsr = dynamic_tensor_from_elements %m, %n {
+      ^bb0(%i : index, %j : index, %k : index):
+        ...
+        yield %elem : f32
+      } : tensor<?x3x?f32>
+    ```
+  }];
+
+  let arguments = (ins Variadic<Index>:$dynamicExtents);
+  let results = (outs AnyRankedTensor:$result);
+  let regions = (region SizedRegion<1>:$body);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2044,20 +2076,6 @@ def PrefetchOp : Std_Op<"prefetch"> {
                      IntMaxValue<3>]>:$localityHint,
                    BoolAttr:$isDataCache);
 
-  let builders = [OpBuilder<
-    "OpBuilder &builder, OperationState &result, Value memref,"
-    "ArrayRef<Value> indices, bool isWrite, unsigned hint, bool isData",
-    [{
-      auto hintAttr = builder.getI32IntegerAttr(hint);
-      auto isWriteAttr = builder.getBoolAttr(isWrite);
-      auto isDataCacheAttr = builder.getBoolAttr(isData);
-      result.addOperands(memref);
-      result.addOperands(indices);
-      result.addAttribute("localityHint", hintAttr);
-      result.addAttribute("isWrite", isWriteAttr);
-      result.addAttribute("isDataCache", isDataCacheAttr);
-    }]>];
-
   let extraClassDeclaration = [{
     MemRefType getMemRefType() {
       return memref().getType().cast<MemRefType>();
@@ -2144,8 +2162,8 @@ def RemFOp : FloatArithmeticOp<"remf"> {
 // ReturnOp
 //===----------------------------------------------------------------------===//
 
-def ReturnOp : Std_Op<"return", [NoSideEffect, HasParent<"FuncOp">, ReturnLike,
-                                 Terminator]> {
+def ReturnOp : Std_Op<"return", [NoSideEffect, HasParent<"FuncOp">,
+                                MemRefsNormalizable, ReturnLike, Terminator]> {
   let summary = "return operation";
   let description = [{
     The `return` operation represents a return operation within a function.
@@ -3263,6 +3281,24 @@ def ViewOp : Std_Op<"view", [
   }];
 
   let hasCanonicalizer = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// YieldOp
+//===----------------------------------------------------------------------===//
+
+def YieldOp : Std_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
+                               HasParent<"DynamicTensorFromElementsOp">]> {
+  let summary = "Yield a value from a region";
+  let description = [{
+     This operation is used to yield a single value from a within a region. It
+     is used to create dynamically sized tensors
+     (see `DynamicTensorFromElementsOp`).
+  }];
+
+  let arguments = (ins AnyType:$value);
+  let assemblyFormat = "$value attr-dict `:` type($value)";
+  let verifier = ?;
 }
 
 //===----------------------------------------------------------------------===//

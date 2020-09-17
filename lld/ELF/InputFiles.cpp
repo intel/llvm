@@ -27,6 +27,7 @@
 #include "llvm/Support/ARMBuildAttributes.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/RISCVAttributeParser.h"
 #include "llvm/Support/TarWriter.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -780,20 +781,21 @@ static void updateSupportedARMFeatures(const ARMAttributeParser &attributes) {
 // of zero or more type-length-value fields. We want to find a field of a
 // certain type. It seems a bit too much to just store a 32-bit value, perhaps
 // the ABI is unnecessarily complicated.
-template <class ELFT>
-static uint32_t readAndFeatures(ObjFile<ELFT> *obj, ArrayRef<uint8_t> data) {
+template <class ELFT> static uint32_t readAndFeatures(const InputSection &sec) {
   using Elf_Nhdr = typename ELFT::Nhdr;
   using Elf_Note = typename ELFT::Note;
 
   uint32_t featuresSet = 0;
+  ArrayRef<uint8_t> data = sec.data();
+  auto reportFatal = [&](const uint8_t *place, const char *msg) {
+    fatal(toString(sec.file) + ":(" + sec.name + "+0x" +
+          Twine::utohexstr(place - sec.data().data()) + "): " + msg);
+  };
   while (!data.empty()) {
     // Read one NOTE record.
-    if (data.size() < sizeof(Elf_Nhdr))
-      fatal(toString(obj) + ": .note.gnu.property: section too short");
-
     auto *nhdr = reinterpret_cast<const Elf_Nhdr *>(data.data());
-    if (data.size() < nhdr->getSize())
-      fatal(toString(obj) + ": .note.gnu.property: section too short");
+    if (data.size() < sizeof(Elf_Nhdr) || data.size() < nhdr->getSize())
+      reportFatal(data.data(), "data is too short");
 
     Elf_Note note(*nhdr);
     if (nhdr->n_type != NT_GNU_PROPERTY_TYPE_0 || note.getName() != "GNU") {
@@ -808,25 +810,26 @@ static uint32_t readAndFeatures(ObjFile<ELFT> *obj, ArrayRef<uint8_t> data) {
     // Read a body of a NOTE record, which consists of type-length-value fields.
     ArrayRef<uint8_t> desc = note.getDesc();
     while (!desc.empty()) {
+      const uint8_t *place = desc.data();
       if (desc.size() < 8)
-        fatal(toString(obj) + ": .note.gnu.property: section too short");
-
-      uint32_t type = read32le(desc.data());
-      uint32_t size = read32le(desc.data() + 4);
+        reportFatal(place, "program property is too short");
+      uint32_t type = read32<ELFT::TargetEndianness>(desc.data());
+      uint32_t size = read32<ELFT::TargetEndianness>(desc.data() + 4);
+      desc = desc.slice(8);
+      if (desc.size() < size)
+        reportFatal(place, "program property is too short");
 
       if (type == featureAndType) {
         // We found a FEATURE_1_AND field. There may be more than one of these
         // in a .note.gnu.property section, for a relocatable object we
         // accumulate the bits set.
-        featuresSet |= read32le(desc.data() + 8);
+        if (size < 4)
+          reportFatal(place, "FEATURE_1_AND entry is too short");
+        featuresSet |= read32<ELFT::TargetEndianness>(desc.data());
       }
 
-      // On 64-bit, a payload may be followed by a 4-byte padding to make its
-      // size a multiple of 8.
-      if (ELFT::Is64Bits)
-        size = alignTo(size, 8);
-
-      desc = desc.slice(size + 8); // +8 for Type and Size
+      // Padding is present in the note descriptor, if necessary.
+      desc = desc.slice(alignTo<(ELFT::Is64Bits ? 8 : 4)>(size));
     }
 
     // Go to next NOTE record to look for more FEATURE_1_AND descriptions.
@@ -865,10 +868,7 @@ template <class ELFT>
 InputSectionBase *ObjFile<ELFT>::createInputSection(const Elf_Shdr &sec) {
   StringRef name = getSectionName(sec);
 
-  switch (sec.sh_type) {
-  case SHT_ARM_ATTRIBUTES: {
-    if (config->emachine != EM_ARM)
-      break;
+  if (config->emachine == EM_ARM && sec.sh_type == SHT_ARM_ATTRIBUTES) {
     ARMAttributeParser attributes;
     ArrayRef<uint8_t> contents = check(this->getObj().getSectionContents(&sec));
     if (Error e = attributes.parse(contents, config->ekind == ELF32LEKind
@@ -876,20 +876,45 @@ InputSectionBase *ObjFile<ELFT>::createInputSection(const Elf_Shdr &sec) {
                                                  : support::big)) {
       auto *isec = make<InputSection>(*this, sec, name);
       warn(toString(isec) + ": " + llvm::toString(std::move(e)));
-      break;
-    }
-    updateSupportedARMFeatures(attributes);
-    updateARMVFPArgs(attributes, this);
+    } else {
+      updateSupportedARMFeatures(attributes);
+      updateARMVFPArgs(attributes, this);
 
-    // FIXME: Retain the first attribute section we see. The eglibc ARM
-    // dynamic loaders require the presence of an attribute section for dlopen
-    // to work. In a full implementation we would merge all attribute sections.
-    if (in.armAttributes == nullptr) {
-      in.armAttributes = make<InputSection>(*this, sec, name);
-      return in.armAttributes;
+      // FIXME: Retain the first attribute section we see. The eglibc ARM
+      // dynamic loaders require the presence of an attribute section for dlopen
+      // to work. In a full implementation we would merge all attribute
+      // sections.
+      if (in.attributes == nullptr) {
+        in.attributes = make<InputSection>(*this, sec, name);
+        return in.attributes;
+      }
+      return &InputSection::discarded;
     }
-    return &InputSection::discarded;
   }
+
+  if (config->emachine == EM_RISCV && sec.sh_type == SHT_RISCV_ATTRIBUTES) {
+    RISCVAttributeParser attributes;
+    ArrayRef<uint8_t> contents = check(this->getObj().getSectionContents(&sec));
+    if (Error e = attributes.parse(contents, support::little)) {
+      auto *isec = make<InputSection>(*this, sec, name);
+      warn(toString(isec) + ": " + llvm::toString(std::move(e)));
+    } else {
+      // FIXME: Validate arch tag contains C if and only if EF_RISCV_RVC is
+      // present.
+
+      // FIXME: Retain the first attribute section we see. Tools such as
+      // llvm-objdump make use of the attribute section to determine which
+      // standard extensions to enable. In a full implementation we would merge
+      // all attribute sections.
+      if (in.attributes == nullptr) {
+        in.attributes = make<InputSection>(*this, sec, name);
+        return in.attributes;
+      }
+      return &InputSection::discarded;
+    }
+  }
+
+  switch (sec.sh_type) {
   case SHT_LLVM_DEPENDENT_LIBRARIES: {
     if (config->relocatable)
       break;
@@ -985,8 +1010,7 @@ InputSectionBase *ObjFile<ELFT>::createInputSection(const Elf_Shdr &sec) {
   // .note.gnu.property containing a single AND'ed bitmap, we discard an input
   // file's .note.gnu.property section.
   if (name == ".note.gnu.property") {
-    ArrayRef<uint8_t> contents = check(this->getObj().getSectionContents(&sec));
-    this->andFeatures = readAndFeatures(this, contents);
+    this->andFeatures = readAndFeatures<ELFT>(InputSection(*this, sec, name));
     return &InputSection::discarded;
   }
 

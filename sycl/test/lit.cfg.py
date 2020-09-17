@@ -182,7 +182,7 @@ config.substitutions.append( ('%GPU_CHECK_ON_LINUX_PLACEHOLDER',  gpu_check_on_l
 
 acc_run_substitute = "true"
 acc_check_substitute = ""
-if getDeviceCount("accelerator")[0] and platform.system() == "Linux":
+if getDeviceCount("accelerator")[0]:
     found_at_least_one_device = True
     lit_config.note("Found available accelerator device")
     acc_run_substitute = " env SYCL_DEVICE_TYPE=ACC "

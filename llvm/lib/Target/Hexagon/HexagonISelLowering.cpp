@@ -1862,6 +1862,7 @@ const char* HexagonTargetLowering::getTargetNodeName(unsigned Opcode) const {
   case HexagonISD::TYPECAST:      return "HexagonISD::TYPECAST";
   case HexagonISD::VALIGN:        return "HexagonISD::VALIGN";
   case HexagonISD::VALIGNADDR:    return "HexagonISD::VALIGNADDR";
+  case HexagonISD::VPACKL:        return "HexagonISD::VPACKL";
   case HexagonISD::OP_END:        break;
   }
   return nullptr;
@@ -2064,20 +2065,9 @@ HexagonTargetLowering::getPreferredVectorAction(MVT VT) const {
     return TargetLoweringBase::TypeScalarizeVector;
 
   if (Subtarget.useHVXOps()) {
-    unsigned HwLen = Subtarget.getVectorLength();
-    // If the size of VT is at least half of the vector length,
-    // widen the vector. Note: the threshold was not selected in
-    // any scientific way.
-    ArrayRef<MVT> Tys = Subtarget.getHVXElementTypes();
-    if (llvm::find(Tys, ElemTy) != Tys.end()) {
-      unsigned HwWidth = 8*HwLen;
-      unsigned VecWidth = VT.getSizeInBits();
-      if (VecWidth >= HwWidth/2 && VecWidth < HwWidth)
-        return TargetLoweringBase::TypeWidenVector;
-    }
-    // Split vectors of i1 that correspond to (byte) vector pairs.
-    if (ElemTy == MVT::i1 && VecLen == 2*HwLen)
-      return TargetLoweringBase::TypeSplitVector;
+    unsigned Action = getPreferredHvxVectorAction(VT);
+    if (Action != ~0u)
+      return static_cast<TargetLoweringBase::LegalizeTypeAction>(Action);
   }
 
   // Always widen (remaining) vectors of i1.
@@ -3025,7 +3015,7 @@ HexagonTargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   if (Opc == ISD::INLINEASM || Opc == ISD::INLINEASM_BR)
     return LowerINLINEASM(Op, DAG);
 
-  if (isHvxOperation(Op)) {
+  if (isHvxOperation(Op.getNode(), DAG)) {
     // If HVX lowering returns nothing, try the default lowering.
     if (SDValue V = LowerHvxOperation(Op, DAG))
       return V;
@@ -3086,7 +3076,7 @@ void
 HexagonTargetLowering::LowerOperationWrapper(SDNode *N,
                                              SmallVectorImpl<SDValue> &Results,
                                              SelectionDAG &DAG) const {
-  if (isHvxOperation(N)) {
+  if (isHvxOperation(N, DAG)) {
     LowerHvxOperationWrapper(N, Results, DAG);
     if (!Results.empty())
       return;
@@ -3105,7 +3095,7 @@ void
 HexagonTargetLowering::ReplaceNodeResults(SDNode *N,
                                           SmallVectorImpl<SDValue> &Results,
                                           SelectionDAG &DAG) const {
-  if (isHvxOperation(N)) {
+  if (isHvxOperation(N, DAG)) {
     ReplaceHvxNodeResults(N, Results, DAG);
     if (!Results.empty())
       return;
@@ -3132,13 +3122,15 @@ HexagonTargetLowering::ReplaceNodeResults(SDNode *N,
 SDValue
 HexagonTargetLowering::PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI)
       const {
-  SDValue Op(N, 0);
-  if (isHvxOperation(Op)) {
+  if (DCI.isBeforeLegalizeOps())
+    return SDValue();
+  if (isHvxOperation(N, DCI.DAG)) {
     if (SDValue V = PerformHvxDAGCombine(N, DCI))
       return V;
     return SDValue();
   }
 
+  SDValue Op(N, 0);
   const SDLoc &dl(Op);
   unsigned Opc = Op.getOpcode();
 

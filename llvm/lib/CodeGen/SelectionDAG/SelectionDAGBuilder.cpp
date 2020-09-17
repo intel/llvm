@@ -389,7 +389,7 @@ static SDValue getCopyFromPartsVector(SelectionDAG &DAG, const SDLoc &DL,
       // as appropriate.
       for (unsigned i = 0; i != NumParts; ++i)
         Ops[i] = getCopyFromParts(DAG, DL, &Parts[i], 1,
-                                  PartVT, IntermediateVT, V);
+                                  PartVT, IntermediateVT, V, CallConv);
     } else if (NumParts > 0) {
       // If the intermediate type was expanded, build the intermediate
       // operands from the parts.
@@ -398,7 +398,7 @@ static SDValue getCopyFromPartsVector(SelectionDAG &DAG, const SDLoc &DL,
       unsigned Factor = NumParts / NumIntermediates;
       for (unsigned i = 0; i != NumIntermediates; ++i)
         Ops[i] = getCopyFromParts(DAG, DL, &Parts[i * Factor], Factor,
-                                  PartVT, IntermediateVT, V);
+                                  PartVT, IntermediateVT, V, CallConv);
     }
 
     // Build a vector with BUILD_VECTOR or CONCAT_VECTORS from the
@@ -428,10 +428,10 @@ static SDValue getCopyFromPartsVector(SelectionDAG &DAG, const SDLoc &DL,
     // vector widening case (e.g. <2 x float> -> <4 x float>).  Extract the
     // elements we want.
     if (PartEVT.getVectorElementType() == ValueVT.getVectorElementType()) {
-      assert((PartEVT.getVectorElementCount().Min >
-              ValueVT.getVectorElementCount().Min) &&
-             (PartEVT.getVectorElementCount().Scalable ==
-              ValueVT.getVectorElementCount().Scalable) &&
+      assert((PartEVT.getVectorElementCount().getKnownMinValue() >
+              ValueVT.getVectorElementCount().getKnownMinValue()) &&
+             (PartEVT.getVectorElementCount().isScalable() ==
+              ValueVT.getVectorElementCount().isScalable()) &&
              "Cannot narrow, it would be a lossy transformation");
       return DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, ValueVT, Val,
                          DAG.getVectorIdxConstant(0, DL));
@@ -1128,6 +1128,8 @@ void SelectionDAGBuilder::visit(const Instruction &I) {
       // TODO: We could handle all flags (nsw, etc) here.
       // TODO: If an IR instruction maps to >1 node, only the final node will have
       //       flags set.
+      // TODO: The handling of flags should be improved, see
+      //       https://reviews.llvm.org/D86871
       if (SDNode *Node = getNodeForIRValue(&I)) {
         SDNodeFlags IncomingFlags;
         IncomingFlags.copyFMF(*FPMO);
@@ -3751,7 +3753,7 @@ void SelectionDAGBuilder::visitGetElementPtr(const User &I) {
   if (IsVectorGEP && !N.getValueType().isVector()) {
     LLVMContext &Context = *DAG.getContext();
     EVT VT = EVT::getVectorVT(Context, N.getValueType(), VectorElementCount);
-    if (VectorElementCount.Scalable)
+    if (VectorElementCount.isScalable())
       N = DAG.getSplatVector(VT, dl, N);
     else
       N = DAG.getSplatBuildVector(VT, dl, N);
@@ -3824,7 +3826,7 @@ void SelectionDAGBuilder::visitGetElementPtr(const User &I) {
       if (!IdxN.getValueType().isVector() && IsVectorGEP) {
         EVT VT = EVT::getVectorVT(*Context, IdxN.getValueType(),
                                   VectorElementCount);
-        if (VectorElementCount.Scalable)
+        if (VectorElementCount.isScalable())
           IdxN = DAG.getSplatVector(VT, dl, IdxN);
         else
           IdxN = DAG.getSplatBuildVector(VT, dl, IdxN);
@@ -6890,31 +6892,31 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
   case Intrinsic::get_active_lane_mask: {
     auto DL = getCurSDLoc();
     SDValue Index = getValue(I.getOperand(0));
-    SDValue BTC = getValue(I.getOperand(1));
+    SDValue TripCount = getValue(I.getOperand(1));
     Type *ElementTy = I.getOperand(0)->getType();
     EVT VT = TLI.getValueType(DAG.getDataLayout(), I.getType());
     unsigned VecWidth = VT.getVectorNumElements();
 
-    SmallVector<SDValue, 16> OpsBTC;
+    SmallVector<SDValue, 16> OpsTripCount;
     SmallVector<SDValue, 16> OpsIndex;
     SmallVector<SDValue, 16> OpsStepConstants;
     for (unsigned i = 0; i < VecWidth; i++) {
-      OpsBTC.push_back(BTC);
+      OpsTripCount.push_back(TripCount);
       OpsIndex.push_back(Index);
-      OpsStepConstants.push_back(DAG.getConstant(i, DL, MVT::getVT(ElementTy)));
+      OpsStepConstants.push_back(
+          DAG.getConstant(i, DL, EVT::getEVT(ElementTy)));
     }
 
-    EVT CCVT = MVT::i1;
-    CCVT = EVT::getVectorVT(I.getContext(), CCVT, VecWidth);
+    EVT CCVT = EVT::getVectorVT(I.getContext(), MVT::i1, VecWidth);
 
-    auto VecTy = MVT::getVT(FixedVectorType::get(ElementTy, VecWidth));
+    auto VecTy = EVT::getEVT(FixedVectorType::get(ElementTy, VecWidth));
     SDValue VectorIndex = DAG.getBuildVector(VecTy, DL, OpsIndex);
     SDValue VectorStep = DAG.getBuildVector(VecTy, DL, OpsStepConstants);
     SDValue VectorInduction = DAG.getNode(
        ISD::UADDO, DL, DAG.getVTList(VecTy, CCVT), VectorIndex, VectorStep);
-    SDValue VectorBTC = DAG.getBuildVector(VecTy, DL, OpsBTC);
+    SDValue VectorTripCount = DAG.getBuildVector(VecTy, DL, OpsTripCount);
     SDValue SetCC = DAG.getSetCC(DL, CCVT, VectorInduction.getValue(0),
-                                 VectorBTC, ISD::CondCode::SETULE);
+                                 VectorTripCount, ISD::CondCode::SETULT);
     setValue(&I, DAG.getNode(ISD::AND, DL, CCVT,
                              DAG.getNOT(DL, VectorInduction.getValue(1), CCVT),
                              SetCC));

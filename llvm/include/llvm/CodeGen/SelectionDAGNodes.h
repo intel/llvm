@@ -357,9 +357,8 @@ template<> struct simplify_type<SDUse> {
 /// the backend.
 struct SDNodeFlags {
 private:
-  // This bit is used to determine if the flags are in a defined state.
-  // Flag bits can only be masked out during intersection if the masking flags
-  // are defined.
+  // This bit is used to determine if the flags are in a defined state. It is
+  // only used by SelectionDAGBuilder.
   bool AnyDefined : 1;
 
   bool NoUnsignedWrap : 1;
@@ -464,11 +463,9 @@ public:
   bool hasAllowReassociation() const { return AllowReassociation; }
   bool hasNoFPExcept() const { return NoFPExcept; }
 
-  /// Clear any flags in this flag set that aren't also set in Flags.
-  /// If the given Flags are undefined then don't do anything.
+  /// Clear any flags in this flag set that aren't also set in Flags. All
+  /// flags will be cleared if Flags are undefined.
   void intersectWith(const SDNodeFlags Flags) {
-    if (!Flags.isDefined())
-      return;
     NoUnsignedWrap &= Flags.NoUnsignedWrap;
     NoSignedWrap &= Flags.NoSignedWrap;
     Exact &= Flags.Exact;
@@ -1379,8 +1376,18 @@ public:
   }
 
   const SDValue &getChain() const { return getOperand(0); }
+
   const SDValue &getBasePtr() const {
-    return getOperand(getOpcode() == ISD::STORE ? 2 : 1);
+    switch (getOpcode()) {
+    case ISD::STORE:
+    case ISD::MSTORE:
+      return getOperand(2);
+    case ISD::MGATHER:
+    case ISD::MSCATTER:
+      return getOperand(3);
+    default:
+      return getOperand(1);
+    }
   }
 
   // Methods to support isa and dyn_cast
@@ -2292,9 +2299,6 @@ public:
   // MaskedLoadSDNode (Chain, ptr, offset, mask, passthru)
   // MaskedStoreSDNode (Chain, data, ptr, offset, mask)
   // Mask is a vector of i1 elements
-  const SDValue &getBasePtr() const {
-    return getOperand(getOpcode() == ISD::MLOAD ? 1 : 2);
-  }
   const SDValue &getOffset() const {
     return getOperand(getOpcode() == ISD::MLOAD ? 2 : 3);
   }

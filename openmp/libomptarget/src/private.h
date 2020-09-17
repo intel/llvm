@@ -14,6 +14,7 @@
 #define _OMPTARGET_PRIVATE_H
 
 #include <omptarget.h>
+#include <Debug.h>
 
 #include <cstdint>
 
@@ -79,33 +80,6 @@ typedef int (*TargetDataFuncPtrTy)(DeviceTy &, int32_t, void **, void **,
                                    int64_t *, int64_t *, void **,
                                    __tgt_async_info *);
 
-////////////////////////////////////////////////////////////////////////////////
-// implementation for messages
-////////////////////////////////////////////////////////////////////////////////
-
-#define MESSAGE0(_str)                                                         \
-  do {                                                                         \
-    fprintf(stderr, "Libomptarget message: %s\n", _str);                       \
-  } while (0)
-
-#define MESSAGE(_str, ...)                                                     \
-  do {                                                                         \
-    fprintf(stderr, "Libomptarget message: " _str "\n", __VA_ARGS__);          \
-  } while (0)
-
-#define FATAL_MESSAGE0(_num, _str)                                             \
-  do {                                                                         \
-    fprintf(stderr, "Libomptarget fatal error %d: %s\n", _num, _str);          \
-    abort();                                                                   \
-  } while (0)
-
-#define FATAL_MESSAGE(_num, _str, ...)                                         \
-  do {                                                                         \
-    fprintf(stderr, "Libomptarget fatal error %d:" _str "\n", _num,            \
-            __VA_ARGS__);                                                      \
-    abort();                                                                   \
-  } while (0)
-
 // Implemented in libomp, they are called from within __tgt_* functions.
 #ifdef __cplusplus
 extern "C" {
@@ -119,17 +93,7 @@ int __kmpc_get_target_offload(void) __attribute__((weak));
 }
 #endif
 
-#ifdef OMPTARGET_DEBUG
-extern int DebugLevel;
-
-#define DP(...) \
-  do { \
-    if (DebugLevel > 0) { \
-      DEBUGP("Libomptarget", __VA_ARGS__); \
-    } \
-  } while (false)
-#else // OMPTARGET_DEBUG
-#define DP(...) {}
-#endif // OMPTARGET_DEBUG
+#define TARGET_NAME Libomptarget
+#define DEBUG_PREFIX GETNAME(TARGET_NAME)
 
 #endif

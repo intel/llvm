@@ -335,7 +335,12 @@ static bool loadStoreBitcastWorkaround(const LLT Ty) {
     return false;
   if (!Ty.isVector())
     return true;
-  unsigned EltSize = Ty.getElementType().getSizeInBits();
+
+  LLT EltTy = Ty.getElementType();
+  if (EltTy.isPointer())
+    return true;
+
+  unsigned EltSize = EltTy.getSizeInBits();
   return EltSize != 32 && EltSize != 64;
 }
 
@@ -1492,6 +1497,7 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     };
 
     auto &Builder = getActionDefinitionsBuilder(Op)
+      .legalIf(all(isRegisterType(0), isRegisterType(1)))
       .lowerFor({{S16, V2S16}})
       .lowerIf([=](const LegalityQuery &Query) {
           const LLT BigTy = Query.Types[BigTyIdx];
@@ -1547,19 +1553,6 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
         }
         return std::make_pair(BigTyIdx, LLT::scalar(NewSizeInBits));
       })
-      .legalIf([=](const LegalityQuery &Query) {
-          const LLT &BigTy = Query.Types[BigTyIdx];
-          const LLT &LitTy = Query.Types[LitTyIdx];
-
-          if (BigTy.isVector() && BigTy.getSizeInBits() < 32)
-            return false;
-          if (LitTy.isVector() && LitTy.getSizeInBits() < 32)
-            return false;
-
-          return BigTy.getSizeInBits() % 16 == 0 &&
-                 LitTy.getSizeInBits() % 16 == 0 &&
-                 BigTy.getSizeInBits() <= MaxRegisterSize;
-        })
       // Any vectors left are the wrong size. Scalarize them.
       .scalarize(0)
       .scalarize(1);
@@ -2218,7 +2211,9 @@ bool AMDGPULegalizerInfo::buildPCRelGlobalAddress(Register DstReg, LLT PtrTy,
   // variable, but since the encoding of $symbol starts 4 bytes after the start
   // of the s_add_u32 instruction, we end up with an offset that is 4 bytes too
   // small. This requires us to add 4 to the global variable offset in order to
-  // compute the correct address.
+  // compute the correct address. Similarly for the s_addc_u32 instruction, the
+  // encoding of $symbol starts 12 bytes after the start of the s_add_u32
+  // instruction.
 
   LLT ConstPtrTy = LLT::pointer(AMDGPUAS::CONSTANT_ADDRESS, 64);
 
@@ -2232,7 +2227,7 @@ bool AMDGPULegalizerInfo::buildPCRelGlobalAddress(Register DstReg, LLT PtrTy,
   if (GAFlags == SIInstrInfo::MO_NONE)
     MIB.addImm(0);
   else
-    MIB.addGlobalAddress(GV, Offset + 4, GAFlags + 1);
+    MIB.addGlobalAddress(GV, Offset + 12, GAFlags + 1);
 
   B.getMRI()->setRegClass(PCReg, &AMDGPU::SReg_64RegClass);
 
@@ -2632,23 +2627,42 @@ bool AMDGPULegalizerInfo::legalizeBuildVector(
   return true;
 }
 
+// Check that this is a G_XOR x, -1
+static bool isNot(const MachineRegisterInfo &MRI, const MachineInstr &MI) {
+  if (MI.getOpcode() != TargetOpcode::G_XOR)
+    return false;
+  auto ConstVal = getConstantVRegVal(MI.getOperand(2).getReg(), MRI);
+  return ConstVal && *ConstVal == -1;
+}
+
 // Return the use branch instruction, otherwise null if the usage is invalid.
-static MachineInstr *verifyCFIntrinsic(MachineInstr &MI,
-                                       MachineRegisterInfo &MRI,
-                                       MachineInstr *&Br,
-                                       MachineBasicBlock *&UncondBrTarget) {
+static MachineInstr *
+verifyCFIntrinsic(MachineInstr &MI, MachineRegisterInfo &MRI, MachineInstr *&Br,
+                  MachineBasicBlock *&UncondBrTarget, bool &Negated) {
   Register CondDef = MI.getOperand(0).getReg();
   if (!MRI.hasOneNonDBGUse(CondDef))
     return nullptr;
 
   MachineBasicBlock *Parent = MI.getParent();
-  MachineInstr &UseMI = *MRI.use_instr_nodbg_begin(CondDef);
-  if (UseMI.getParent() != Parent ||
-      UseMI.getOpcode() != AMDGPU::G_BRCOND)
+  MachineInstr *UseMI = &*MRI.use_instr_nodbg_begin(CondDef);
+
+  if (isNot(MRI, *UseMI)) {
+    Register NegatedCond = UseMI->getOperand(0).getReg();
+    if (!MRI.hasOneNonDBGUse(NegatedCond))
+      return nullptr;
+
+    // We're deleting the def of this value, so we need to remove it.
+    UseMI->eraseFromParent();
+
+    UseMI = &*MRI.use_instr_nodbg_begin(NegatedCond);
+    Negated = true;
+  }
+
+  if (UseMI->getParent() != Parent || UseMI->getOpcode() != AMDGPU::G_BRCOND)
     return nullptr;
 
   // Make sure the cond br is followed by a G_BR, or is the last instruction.
-  MachineBasicBlock::iterator Next = std::next(UseMI.getIterator());
+  MachineBasicBlock::iterator Next = std::next(UseMI->getIterator());
   if (Next == Parent->end()) {
     MachineFunction::iterator NextMBB = std::next(Parent->getIterator());
     if (NextMBB == Parent->getParent()->end()) // Illegal intrinsic use.
@@ -2661,7 +2675,7 @@ static MachineInstr *verifyCFIntrinsic(MachineInstr &MI,
     UncondBrTarget = Br->getOperand(0).getMBB();
   }
 
-  return &UseMI;
+  return UseMI;
 }
 
 bool AMDGPULegalizerInfo::loadInputValue(Register DstReg, MachineIRBuilder &B,
@@ -3442,7 +3456,9 @@ bool AMDGPULegalizerInfo::legalizeIsAddrSpace(MachineInstr &MI,
                                               MachineIRBuilder &B,
                                               unsigned AddrSpace) const {
   Register ApertureReg = getSegmentAperture(AddrSpace, MRI, B);
-  auto Hi32 = B.buildExtract(LLT::scalar(32), MI.getOperand(2).getReg(), 32);
+  auto Unmerge = B.buildUnmerge(LLT::scalar(32), MI.getOperand(2).getReg());
+  Register Hi32 = Unmerge.getReg(1);
+
   B.buildICmp(ICmpInst::ICMP_EQ, MI.getOperand(0), Hi32, ApertureReg);
   MI.eraseFromParent();
   return true;
@@ -4472,7 +4488,9 @@ bool AMDGPULegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper,
   case Intrinsic::amdgcn_else: {
     MachineInstr *Br = nullptr;
     MachineBasicBlock *UncondBrTarget = nullptr;
-    if (MachineInstr *BrCond = verifyCFIntrinsic(MI, MRI, Br, UncondBrTarget)) {
+    bool Negated = false;
+    if (MachineInstr *BrCond =
+            verifyCFIntrinsic(MI, MRI, Br, UncondBrTarget, Negated)) {
       const SIRegisterInfo *TRI
         = static_cast<const SIRegisterInfo *>(MRI.getTargetRegisterInfo());
 
@@ -4480,6 +4498,10 @@ bool AMDGPULegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper,
       Register Use = MI.getOperand(3).getReg();
 
       MachineBasicBlock *CondBrTarget = BrCond->getOperand(1).getMBB();
+
+      if (Negated)
+        std::swap(CondBrTarget, UncondBrTarget);
+
       B.setInsertPt(B.getMBB(), BrCond->getIterator());
       if (IntrID == Intrinsic::amdgcn_if) {
         B.buildInstr(AMDGPU::SI_IF)
@@ -4515,12 +4537,17 @@ bool AMDGPULegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper,
   case Intrinsic::amdgcn_loop: {
     MachineInstr *Br = nullptr;
     MachineBasicBlock *UncondBrTarget = nullptr;
-    if (MachineInstr *BrCond = verifyCFIntrinsic(MI, MRI, Br, UncondBrTarget)) {
+    bool Negated = false;
+    if (MachineInstr *BrCond =
+            verifyCFIntrinsic(MI, MRI, Br, UncondBrTarget, Negated)) {
       const SIRegisterInfo *TRI
         = static_cast<const SIRegisterInfo *>(MRI.getTargetRegisterInfo());
 
       MachineBasicBlock *CondBrTarget = BrCond->getOperand(1).getMBB();
       Register Reg = MI.getOperand(2).getReg();
+
+      if (Negated)
+        std::swap(CondBrTarget, UncondBrTarget);
 
       B.setInsertPt(B.getMBB(), BrCond->getIterator());
       B.buildInstr(AMDGPU::SI_LOOP)

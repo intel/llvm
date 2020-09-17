@@ -2157,10 +2157,7 @@ public:
   bool RequireCompleteSizedType(SourceLocation Loc, QualType T, unsigned DiagID,
                                 const Ts &... Args) {
     SizelessTypeDiagnoser<Ts...> Diagnoser(DiagID, Args...);
-    CompleteTypeKind Kind = CompleteTypeKind::Normal;
-    if (T->isVLST())
-      Kind = CompleteTypeKind::AcceptSizeless;
-    return RequireCompleteType(Loc, T, Kind, Diagnoser);
+    return RequireCompleteType(Loc, T, CompleteTypeKind::Normal, Diagnoser);
   }
 
   void completeExprArrayBound(Expr *E);
@@ -2178,10 +2175,7 @@ public:
   bool RequireCompleteSizedExprType(Expr *E, unsigned DiagID,
                                     const Ts &... Args) {
     SizelessTypeDiagnoser<Ts...> Diagnoser(DiagID, Args...);
-    CompleteTypeKind Kind = CompleteTypeKind::Normal;
-    if (E->getType()->isVLST())
-      Kind = CompleteTypeKind::AcceptSizeless;
-    return RequireCompleteExprType(E, Kind, Diagnoser);
+    return RequireCompleteExprType(E, CompleteTypeKind::Normal, Diagnoser);
   }
 
   bool RequireLiteralType(SourceLocation Loc, QualType T,
@@ -9910,7 +9904,7 @@ public:
   /// \#pragma STDC FENV_ACCESS
   void ActOnPragmaFEnvAccess(SourceLocation Loc, bool IsEnabled);
 
-  /// Called to set rounding mode for floating point operations.
+  /// Called to set constant rounding mode for floating point operations.
   void setRoundingMode(SourceLocation Loc, llvm::RoundingMode);
 
   /// Called to set exception behavior for floating point operations.
@@ -10150,7 +10144,7 @@ public:
 private:
   void *VarDataSharingAttributesStack;
   /// Number of nested '#pragma omp declare target' directives.
-  unsigned DeclareTargetNestingLevel = 0;
+  SmallVector<SourceLocation, 4> DeclareTargetNesting;
   /// Initialization of data-sharing attributes stack.
   void InitDataSharingAttributesStack();
   void DestroyDataSharingAttributesStack();
@@ -10410,7 +10404,7 @@ public:
                                      SourceLocation Loc);
   /// Return true inside OpenMP declare target region.
   bool isInOpenMPDeclareTargetContext() const {
-    return DeclareTargetNestingLevel > 0;
+    return !DeclareTargetNesting.empty();
   }
   /// Return true inside OpenMP target region.
   bool isInOpenMPTargetExecutionDirective() const;
@@ -11406,10 +11400,6 @@ public:
   ExprResult PerformImplicitConversion(Expr *From, QualType ToType,
                                        AssignmentAction Action,
                                        bool AllowExplicit = false);
-  ExprResult PerformImplicitConversion(Expr *From, QualType ToType,
-                                       AssignmentAction Action,
-                                       bool AllowExplicit,
-                                       ImplicitConversionSequence& ICS);
   ExprResult PerformImplicitConversion(Expr *From, QualType ToType,
                                        const ImplicitConversionSequence& ICS,
                                        AssignmentAction Action,
