@@ -57,9 +57,9 @@
 
 /// Test behaviors of -foffload-static-lib=<lib> from source.
 // RUN: touch %t.lib
-// RUN: %clang --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t.lib -ccc-print-phases %s 2>&1 \
+// RUN: %clang --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all -foffload-static-lib=%t.lib -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -DLIB=%t.lib %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC
-// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t.lib -ccc-print-phases %s 2>&1 \
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all -foffload-static-lib=%t.lib -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -DLIB=%t.lib %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC
 
 // FOFFLOAD_STATIC_LIB_SRC: 0: input, "[[INPUTLIB:.+\.lib]]", object, (host-sycl)

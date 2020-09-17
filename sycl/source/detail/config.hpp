@@ -10,7 +10,9 @@
 
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/info/info_desc.hpp>
 
 #include <algorithm>
 #include <array>
@@ -160,6 +162,35 @@ public:
     Level = (ValStr ? std::atoi(ValStr) : 0);
     Initialized = true;
     return Level;
+  }
+};
+
+template <> class SYCLConfig<SYCL_DEVICE_FILTER> {
+  using BaseT = SYCLConfigBase<SYCL_DEVICE_FILTER>;
+
+public:
+  static device_filter_list *get() {
+    static bool Initialized = false;
+    static device_filter_list *FilterList = nullptr;
+
+    // Configuration parameters are processed only once, like reading a string
+    // from environment and converting it into a typed object.
+    if (Initialized) {
+      return FilterList;
+    }
+
+    const char *ValStr = BaseT::getRawValue();
+    if (ValStr) {
+      static device_filter_list DFL{ValStr};
+      FilterList = &DFL;
+    }
+    // As mentioned above, configuration parameters are processed only once.
+    // If multiple threads are checking this env var at the same time,
+    // they will end up setting the configration to the same value.
+    // If other threads check after one thread already set configration,
+    // the threads will get the same value as the first thread.
+    Initialized = true;
+    return FilterList;
   }
 };
 

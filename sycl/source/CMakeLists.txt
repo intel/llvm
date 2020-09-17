@@ -108,6 +108,7 @@ set(SYCL_SOURCES
     "detail/config.cpp"
     "detail/context_impl.cpp"
     "detail/device_binary_image.cpp"
+    "detail/device_filter.cpp"
     "detail/device_impl.cpp"
     "detail/error_handling/enqueue_kernel.cpp"
     "detail/event_impl.cpp"
