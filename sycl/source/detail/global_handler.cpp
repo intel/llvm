@@ -1,3 +1,11 @@
+//==--------- global_handler.cpp --- Global objects handler ----------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #include <CL/sycl/detail/spinlock.hpp>
 #include <detail/global_handler.hpp>
 
@@ -5,6 +13,8 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 GlobalHandler *SyclGlobalObjectsHandler;
+// SpinLock is chosen because, unlike std::mutex, it can be zero initialized,
+// which spares us from dealing with constructor/destructor call order.
 SpinLock GlobalWritesAllowed;
 
 GlobalHandler &GlobalHandler::instance() {
