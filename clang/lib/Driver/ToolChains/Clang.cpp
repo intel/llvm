@@ -6276,7 +6276,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     // SYCL library is guaranteed to work correctly only with dynamic runtime.
     if (!D.IsCLMode() &&
-            C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment()) {
+        C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment()) {
       CmdArgs.push_back("-D_MT");
       CmdArgs.push_back("-D_DLL");
       CmdArgs.push_back("--dependent-lib=msvcrt");
