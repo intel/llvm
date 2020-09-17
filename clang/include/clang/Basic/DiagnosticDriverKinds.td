@@ -273,7 +273,7 @@ def err_drv_expecting_fopenmp_with_fopenmp_targets : Error<
 def err_drv_expecting_fsycl_with_sycl_opt : Error<
   "The option %0 must be used in conjunction with -fsycl to enable offloading.">;
 def err_drv_fsycl_with_c_type : Error<
-  "The option %0%1 must not be used in conjunction with -fsycl which expects C++ source.">;
+  "The option '%0' must not be used in conjunction with '-fsycl' which expects C++ source.">;
 def warn_drv_omp_offload_target_duplicate : Warning<
   "The OpenMP offloading target '%0' is similar to target '%1' already specified - will be ignored.">,
   InGroup<OpenMPTarget>;
