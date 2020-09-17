@@ -6275,7 +6275,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-D__ENABLE_USM_ADDR_SPACE__");
 
     // SYCL library is guaranteed to work correctly only with dynamic runtime.
-    if (!D.IsCLMode() && C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment()) {
+    if (!D.IsCLMode() &&
+            C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment()) {
       CmdArgs.push_back("-D_MT");
       CmdArgs.push_back("-D_DLL");
       CmdArgs.push_back("--dependent-lib=msvcrt");
