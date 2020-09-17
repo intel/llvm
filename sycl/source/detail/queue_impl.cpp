@@ -97,9 +97,20 @@ event queue_impl::mem_advise(const shared_ptr_class<detail::queue_impl> &Self,
 }
 
 void queue_impl::addEvent(const event &Event) {
-  std::weak_ptr<event_impl> EventWeakPtr{getSyclObjImpl(Event)};
-  std::lock_guard<mutex_class> Lock(MMutex);
-  MEvents.push_back(std::move(EventWeakPtr));
+  // if the command behind the event has no memory dependencies,
+  // we need to track the event with the USMEvents, or it won't be properly
+  // released.
+  EventImplPtr Eimpl = getSyclObjImpl(Event);
+  Command *Cmd = (Command *)(Eimpl->getCommand());
+  if (Cmd && Cmd->MDeps.size() == 0) {
+    addUSMEvent(Event);
+    Eimpl->setCommand(nullptr); // decouple and free the command
+    delete Cmd;
+  } else {
+    std::weak_ptr<event_impl> EventWeakPtr{Eimpl};
+    std::lock_guard<mutex_class> Lock(MMutex);
+    MEvents.push_back(std::move(EventWeakPtr));
+  }
 }
 
 void queue_impl::addUSMEvent(const event &Event) {
