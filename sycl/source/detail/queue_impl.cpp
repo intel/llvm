@@ -97,25 +97,22 @@ event queue_impl::mem_advise(const shared_ptr_class<detail::queue_impl> &Self,
 }
 
 void queue_impl::addEvent(const event &Event) {
-  // if the command behind the event has no memory dependencies,
-  // we need to track the event with the USMEvents, or it won't be properly
-  // released.
   EventImplPtr Eimpl = getSyclObjImpl(Event);
   Command *Cmd = (Command *)(Eimpl->getCommand());
-  if (Cmd && Cmd->MDeps.size() == 0) {
+  if (!Cmd) {
+    // if there is no command on the event, we cannot track it with MEventsWeak
+    // as that will leave it with no owner. Track in MEventsShared
     addUSMEvent(Event);
-    Eimpl->setCommand(nullptr); // decouple and free the command
-    delete Cmd;
   } else {
     std::weak_ptr<event_impl> EventWeakPtr{Eimpl};
-    std::lock_guard<mutex_class> Lock(MMutex);
-    MEvents.push_back(std::move(EventWeakPtr));
+    std::lock_guard<mutex_class> Lock{MMutex};
+    MEventsWeak.push_back(std::move(EventWeakPtr));
   }
 }
 
 void queue_impl::addUSMEvent(const event &Event) {
   std::lock_guard<mutex_class> Lock(MMutex);
-  MUSMEvents.push_back(Event);
+  MEventsShared.push_back(Event);
 }
 
 void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
@@ -215,8 +212,8 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   vector_class<event> USMEvents;
   {
     std::lock_guard<mutex_class> Lock(MMutex);
-    Events = std::move(MEvents);
-    USMEvents = std::move(MUSMEvents);
+    Events = std::move(MEventsWeak);
+    USMEvents = std::move(MEventsShared);
   }
 
   for (std::weak_ptr<event_impl> &EventImplWeakPtr : Events)

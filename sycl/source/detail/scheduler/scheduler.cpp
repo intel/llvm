@@ -97,6 +97,12 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
 
+      if (NewCmd->MDeps.size() == 0) {
+        NewEvent->setCommand(nullptr); // if there are no memory dependencies,
+                                       // decouple and free the command
+        delete NewCmd;
+      }
+
       if (IsKernel)
         Streams = ((ExecCGCommand *)NewCmd)->getStreams();
     }
