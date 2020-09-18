@@ -4,6 +4,7 @@
 // RUN: %clang_cc1 -fsycl -triple spir64_gen -Werror=sycl-strict -DERROR -fsycl-is-device -fsyntax-only -verify %s
 
 #include "Inputs/sycl.hpp"
+class Foo;
 
 template <typename Name, typename F>
 __attribute__((sycl_kernel)) void kernel(F KernelFunc) {
@@ -37,5 +38,5 @@ void use() {
 #if defined(GPU) || defined(ERROR)
   // expected-note@+2 {{in instantiation of function template specialization 'parallel_for<Foo}}
 #endif
-  parallel_for<class Foo>(L);
+  parallel_for<Foo>(L);
 }
