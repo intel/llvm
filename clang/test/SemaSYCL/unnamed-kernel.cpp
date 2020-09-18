@@ -27,8 +27,9 @@ public:
   void test() {
     cl::sycl::queue q;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@+5 {{kernel needs to have a globally-visible name}}
-    // expected-note@+2 {{InvalidKernelName1 declared here}}
+    // expected-error@Inputs/sycl.hpp:220 {{kernel needs to have a globally-visible name}}
+    // expected-note@+3 {{InvalidKernelName1 declared here}}
+    // expected-note@+4{{in instantiation of function template specialization}}
 #endif
     class InvalidKernelName1 {};
     q.submit([&](cl::sycl::handler &h) {
@@ -36,8 +37,9 @@ public:
     });
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@+5 {{kernel needs to have a globally-visible name}}
-    // expected-note@+2 {{InvalidKernelName2 declared here}}
+    // expected-error@Inputs/sycl.hpp:220 {{kernel needs to have a globally-visible name}}
+    // expected-note@+3 {{InvalidKernelName2 declared here}}
+    // expected-note@+4{{in instantiation of function template specialization}}
 #endif
     class InvalidKernelName2 {};
     q.submit([&](cl::sycl::handler &h) {
@@ -45,16 +47,18 @@ public:
     });
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@+4 {{kernel needs to have a globally-visible name}}
+    // expected-error@Inputs/sycl.hpp:220 {{kernel needs to have a globally-visible name}}
     // expected-note@21 {{InvalidKernelName0 declared here}}
+    // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<InvalidKernelName0>([] {});
     });
 
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@+4 {{kernel needs to have a globally-visible name}}
+    // expected-error@Inputs/sycl.hpp:220 {{kernel needs to have a globally-visible name}}
     // expected-note@22 {{InvalidKernelName3 declared here}}
+    // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<namespace1::KernelName<InvalidKernelName3>>([] {});
@@ -74,8 +78,9 @@ public:
 
     using InvalidAlias = InvalidKernelName4;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@+4 {{kernel needs to have a globally-visible name}}
+    // expected-error@Inputs/sycl.hpp:220 {{kernel needs to have a globally-visible name}}
     // expected-note@23 {{InvalidKernelName4 declared here}}
+    // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<InvalidAlias>([] {});
@@ -83,8 +88,9 @@ public:
 
     using InvalidAlias1 = InvalidKernelName5;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-    // expected-error@+4 {{kernel needs to have a globally-visible name}}
+    // expected-error@Inputs/sycl.hpp:220 {{kernel needs to have a globally-visible name}}
     // expected-note@24 {{InvalidKernelName5 declared here}}
+    // expected-note@+3{{in instantiation of function template specialization}}
 #endif
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<namespace1::KernelName<InvalidAlias1>>([] {});
@@ -95,7 +101,8 @@ public:
 int main() {
   cl::sycl::queue q;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-  // expected-error@+2 {{kernel name is missing}}
+  // expected-error@Inputs/sycl.hpp:220 {{kernel name is missing}}
+  // expected-note@+2{{in instantiation of function template specialization}}
 #endif
   q.submit([&](cl::sycl::handler &h) { h.single_task([] {}); });
 
