@@ -2274,8 +2274,8 @@ void CodeGenModule::EmitDeferred() {
         // Emit what is aliased first.
         if (DDI != DeferredDecls.end()) {
           GlobalDecl GD = DDI->second;
-          llvm::GlobalValue *AliaseeGV = dyn_cast<llvm::GlobalValue>(
-              GetAddrOfGlobal(GD, ForDefinition));
+          llvm::GlobalValue *AliaseeGV =
+              dyn_cast<llvm::GlobalValue>(GetAddrOfGlobal(GD, ForDefinition));
           if (!AliaseeGV)
             AliaseeGV = GetGlobalValue(getMangledName(GD));
           assert(AliaseeGV);
