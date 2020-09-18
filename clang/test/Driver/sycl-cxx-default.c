@@ -13,3 +13,7 @@
 // RUN:   | FileCheck -check-prefix=CXX_TYPE_CHECK %s
 // CXX_TYPE_CHECK: "-x" "c++"
 // CXX_TYPE_CHECK-NOT: "-x" "c"
+
+// RUN: %clang -c -fsycl -std=c99 %s -### 2>&1 \
+// RUN:   | FileCheck -check-prefix=C_SYCL_ERROR_CHECK %s
+// C_SYCL_ERROR_CHECK: error: invalid argument '-std=c99' not allowed with '-fsycl
