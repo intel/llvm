@@ -1,11 +1,10 @@
 // REQUIRES: cpu,windows
 //
-// RUN: %clangxx -fsycl -c %s -o %t.o
-// RUN: %clangxx -fsycl %t.o %sycl_libs_dir/../bin/libsycl-msvc.o -o %t.out
-//
 // FIXME: OpenCL CPU backend compiler crashes on a call to _wassert.
 // Disable the test until the fix reaches SYCL test infrastructure.
 // XFAIL: *
+//
+// RUN: %clangxx -fsycl %s -o %t.out
 //
 // MSVC implementation of assert does not call an unreachable built-in, so the
 // program doesn't terminate when fallback is used.

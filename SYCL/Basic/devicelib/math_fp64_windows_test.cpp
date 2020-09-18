@@ -1,3 +1,6 @@
+// UNSUPPORTED: windows
+// Disabled on windows due to bug VS 2019 missing math builtins
+
 // REQUIRES: (cpu || host || accelerator) && windows
 // RUN: %clangxx -fsycl -c %s -o %t.o
 // RUN: %clangxx -fsycl %t.o %sycl_libs_dir/../bin/libsycl-cmath-fp64.o -o %t.out
