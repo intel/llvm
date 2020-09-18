@@ -145,6 +145,8 @@ static bool isMergePassthruOpcode(unsigned Opc) {
   case AArch64ISD::FROUND_MERGE_PASSTHRU:
   case AArch64ISD::FROUNDEVEN_MERGE_PASSTHRU:
   case AArch64ISD::FTRUNC_MERGE_PASSTHRU:
+  case AArch64ISD::FCVTZU_MERGE_PASSTHRU:
+  case AArch64ISD::FCVTZS_MERGE_PASSTHRU:
   case AArch64ISD::FSQRT_MERGE_PASSTHRU:
     return true;
   }
@@ -743,6 +745,7 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
   setTargetDAGCombine(ISD::INTRINSIC_VOID);
   setTargetDAGCombine(ISD::INTRINSIC_W_CHAIN);
   setTargetDAGCombine(ISD::INSERT_VECTOR_ELT);
+  setTargetDAGCombine(ISD::EXTRACT_VECTOR_ELT);
 
   setTargetDAGCombine(ISD::GlobalAddress);
 
@@ -945,6 +948,8 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
     for (MVT VT : MVT::integer_scalable_vector_valuetypes()) {
       if (isTypeLegal(VT)) {
         setOperationAction(ISD::INSERT_SUBVECTOR, VT, Custom);
+        setOperationAction(ISD::FP_TO_UINT, VT, Custom);
+        setOperationAction(ISD::FP_TO_SINT, VT, Custom);
         setOperationAction(ISD::MUL, VT, Custom);
         setOperationAction(ISD::SPLAT_VECTOR, VT, Custom);
         setOperationAction(ISD::SELECT, VT, Custom);
@@ -1504,6 +1509,8 @@ const char *AArch64TargetLowering::getTargetNodeName(unsigned Opcode) const {
     MAKE_CASE(AArch64ISD::FROUND_MERGE_PASSTHRU)
     MAKE_CASE(AArch64ISD::FROUNDEVEN_MERGE_PASSTHRU)
     MAKE_CASE(AArch64ISD::FTRUNC_MERGE_PASSTHRU)
+    MAKE_CASE(AArch64ISD::FCVTZU_MERGE_PASSTHRU)
+    MAKE_CASE(AArch64ISD::FCVTZS_MERGE_PASSTHRU)
     MAKE_CASE(AArch64ISD::FSQRT_MERGE_PASSTHRU)
     MAKE_CASE(AArch64ISD::SETCC_MERGE_ZERO)
     MAKE_CASE(AArch64ISD::ADC)
@@ -2870,6 +2877,14 @@ SDValue AArch64TargetLowering::LowerVectorFP_TO_INT(SDValue Op,
   // in the cost tables.
   EVT InVT = Op.getOperand(0).getValueType();
   EVT VT = Op.getValueType();
+
+  if (VT.isScalableVector()) {
+    unsigned Opcode = Op.getOpcode() == ISD::FP_TO_UINT
+                          ? AArch64ISD::FCVTZU_MERGE_PASSTHRU
+                          : AArch64ISD::FCVTZS_MERGE_PASSTHRU;
+    return LowerToPredicatedOp(Op, DAG, Opcode);
+  }
+
   unsigned NumElts = InVT.getVectorNumElements();
 
   // f16 conversions are promoted to f32 when full fp16 is not supported.
@@ -3388,6 +3403,14 @@ SDValue AArch64TargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
   case Intrinsic::aarch64_sve_frintz:
     return DAG.getNode(AArch64ISD::FTRUNC_MERGE_PASSTHRU, dl, Op.getValueType(),
                        Op.getOperand(2), Op.getOperand(3), Op.getOperand(1));
+  case Intrinsic::aarch64_sve_fcvtzu:
+    return DAG.getNode(AArch64ISD::FCVTZU_MERGE_PASSTHRU, dl,
+                       Op.getValueType(), Op.getOperand(2), Op.getOperand(3),
+                       Op.getOperand(1));
+  case Intrinsic::aarch64_sve_fcvtzs:
+    return DAG.getNode(AArch64ISD::FCVTZS_MERGE_PASSTHRU, dl,
+                       Op.getValueType(), Op.getOperand(2), Op.getOperand(3),
+                       Op.getOperand(1));
   case Intrinsic::aarch64_sve_fsqrt:
     return DAG.getNode(AArch64ISD::FSQRT_MERGE_PASSTHRU, dl, Op.getValueType(),
                        Op.getOperand(2), Op.getOperand(3), Op.getOperand(1));
@@ -11580,6 +11603,60 @@ performVectorTruncateCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI,
   return ResultHADD;
 }
 
+static bool hasPairwiseAdd(unsigned Opcode, EVT VT, bool FullFP16) {
+  switch (Opcode) {
+  case ISD::FADD:
+    return (FullFP16 && VT == MVT::f16) || VT == MVT::f32 || VT == MVT::f64;
+  case ISD::ADD:
+    return VT == MVT::i64;
+  default:
+    return false;
+  }
+}
+
+static SDValue performExtractVectorEltCombine(SDNode *N, SelectionDAG &DAG) {
+  SDValue N0 = N->getOperand(0), N1 = N->getOperand(1);
+  ConstantSDNode *ConstantN1 = dyn_cast<ConstantSDNode>(N1);
+
+  EVT VT = N->getValueType(0);
+  const bool FullFP16 =
+      static_cast<const AArch64Subtarget &>(DAG.getSubtarget()).hasFullFP16();
+
+  // Rewrite for pairwise fadd pattern
+  //   (f32 (extract_vector_elt
+  //           (fadd (vXf32 Other)
+  //                 (vector_shuffle (vXf32 Other) undef <1,X,...> )) 0))
+  // ->
+  //   (f32 (fadd (extract_vector_elt (vXf32 Other) 0)
+  //              (extract_vector_elt (vXf32 Other) 1))
+  if (ConstantN1 && ConstantN1->getZExtValue() == 0 &&
+      hasPairwiseAdd(N0->getOpcode(), VT, FullFP16)) {
+    SDLoc DL(N0);
+    SDValue N00 = N0->getOperand(0);
+    SDValue N01 = N0->getOperand(1);
+
+    ShuffleVectorSDNode *Shuffle = dyn_cast<ShuffleVectorSDNode>(N01);
+    SDValue Other = N00;
+
+    // And handle the commutative case.
+    if (!Shuffle) {
+      Shuffle = dyn_cast<ShuffleVectorSDNode>(N00);
+      Other = N01;
+    }
+
+    if (Shuffle && Shuffle->getMaskElt(0) == 1 &&
+        Other == Shuffle->getOperand(0)) {
+      return DAG.getNode(N0->getOpcode(), DL, VT,
+                         DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL, VT, Other,
+                                     DAG.getConstant(0, DL, MVT::i64)),
+                         DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL, VT, Other,
+                                     DAG.getConstant(1, DL, MVT::i64)));
+    }
+  }
+
+  return SDValue();
+}
+
 static SDValue performConcatVectorsCombine(SDNode *N,
                                            TargetLowering::DAGCombinerInfo &DCI,
                                            SelectionDAG &DAG) {
@@ -14403,6 +14480,8 @@ SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
     return performUzpCombine(N, DAG);
   case ISD::INSERT_VECTOR_ELT:
     return performPostLD1Combine(N, DCI, true);
+  case ISD::EXTRACT_VECTOR_ELT:
+    return performExtractVectorEltCombine(N, DAG);
   case ISD::INTRINSIC_VOID:
   case ISD::INTRINSIC_W_CHAIN:
     switch (cast<ConstantSDNode>(N->getOperand(1))->getZExtValue()) {

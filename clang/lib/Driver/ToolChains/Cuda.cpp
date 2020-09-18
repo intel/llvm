@@ -635,6 +635,10 @@ void CudaToolChain::addClangTargetOptions(
     if (DriverArgs.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
                            false))
       CC1Args.push_back("-fgpu-rdc");
+
+    if (DriverArgs.hasFlag(options::OPT_fgpu_defer_diag,
+                           options::OPT_fno_gpu_defer_diag, false))
+      CC1Args.push_back("-fgpu-defer-diag");
   }
 
   if (DeviceOffloadingKind == Action::OFK_SYCL) {
