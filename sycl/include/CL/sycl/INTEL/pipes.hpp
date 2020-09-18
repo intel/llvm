@@ -23,11 +23,11 @@ public:
   // friendly LLVM IR.
   static _dataT read(bool &_Success) {
 #ifdef __SYCL_DEVICE_ONLY__
-    RPipeTy<_dataT> RPipe =
+    RPipeTy<_dataT> _RPipe =
         __spirv_CreatePipeFromPipeStorage_read<_dataT>(&m_Storage);
     _dataT TempData;
     _Success = !static_cast<bool>(
-        __spirv_ReadPipe(RPipe, &TempData, m_Size, m_Alignment));
+        __spirv_ReadPipe(_RPipe, &TempData, m_Size, m_Alignment));
     return TempData;
 #else
     (void)_Success;
@@ -39,7 +39,7 @@ public:
   // friendly LLVM IR.
   static void write(const _dataT &_Data, bool &_Success) {
 #ifdef __SYCL_DEVICE_ONLY__
-    _WPipeTy<_dataT> _WPipe =
+    WPipeTy<_dataT> _WPipe =
         __spirv_CreatePipeFromPipeStorage_write<_dataT>(&m_Storage);
     _Success = !static_cast<bool>(
         __spirv_WritePipe(_WPipe, &_Data, m_Size, m_Alignment));
@@ -55,10 +55,10 @@ public:
   // friendly LLVM IR.
   static _dataT read() {
 #ifdef __SYCL_DEVICE_ONLY__
-    RPipeTy<_dataT> RPipe =
+    RPipeTy<_dataT> _RPipe =
         __spirv_CreatePipeFromPipeStorage_read<_dataT>(&m_Storage);
     _dataT TempData;
-    __spirv_ReadPipeBlockingINTEL(RPipe, &TempData, m_Size, m_Alignment);
+    __spirv_ReadPipeBlockingINTEL(_RPipe, &TempData, m_Size, m_Alignment);
     return TempData;
 #else
     assert(!"Pipes are not supported on a host device!");
@@ -69,7 +69,7 @@ public:
   // friendly LLVM IR.
   static void write(const _dataT &_Data) {
 #ifdef __SYCL_DEVICE_ONLY__
-    _WPipeTy<_dataT> _WPipe =
+    WPipeTy<_dataT> _WPipe =
         __spirv_CreatePipeFromPipeStorage_write<_dataT>(&m_Storage);
     __spirv_WritePipeBlockingINTEL(_WPipe, &_Data, m_Size, m_Alignment);
 #else
@@ -116,11 +116,11 @@ public:
   // friendly LLVM IR.
   static _dataT read(bool &_Success) {
 #ifdef __SYCL_DEVICE_ONLY__
-    RPipeTy<_dataT> RPipe =
+    RPipeTy<_dataT> _RPipe =
         __spirv_CreatePipeFromPipeStorage_read<_dataT>(&m_Storage);
     _dataT TempData;
     _Success = !static_cast<bool>(
-        __spirv_ReadPipe(RPipe, &TempData, m_Size, m_Alignment));
+        __spirv_ReadPipe(_RPipe, &TempData, m_Size, m_Alignment));
     return TempData;
 #else
     (void)_Success;
@@ -133,10 +133,10 @@ public:
   // friendly LLVM IR.
   static _dataT read() {
 #ifdef __SYCL_DEVICE_ONLY__
-    RPipeTy<_dataT> RPipe =
+    RPipeTy<_dataT> _RPipe =
         __spirv_CreatePipeFromPipeStorage_read<_dataT>(&m_Storage);
     _dataT TempData;
-    __spirv_ReadPipeBlockingINTEL(RPipe, &TempData, m_Size, m_Alignment);
+    __spirv_ReadPipeBlockingINTEL(_RPipe, &TempData, m_Size, m_Alignment);
     return TempData;
 #else
     assert(!"Pipes are not supported on a host device!");
@@ -162,7 +162,7 @@ public:
   // friendly LLVM IR.
   static void write(const _dataT &_Data, bool &_Success) {
 #ifdef __SYCL_DEVICE_ONLY__
-    _WPipeTy<_dataT> _WPipe =
+    WPipeTy<_dataT> _WPipe =
         __spirv_CreatePipeFromPipeStorage_write<_dataT>(&m_Storage);
     _Success = !static_cast<bool>(
         __spirv_WritePipe(_WPipe, &_Data, m_Size, m_Alignment));
@@ -178,7 +178,7 @@ public:
   // friendly LLVM IR.
   static void write(const _dataT &_Data) {
 #ifdef __SYCL_DEVICE_ONLY__
-    _WPipeTy<_dataT> _WPipe =
+    WPipeTy<_dataT> _WPipe =
         __spirv_CreatePipeFromPipeStorage_write<_dataT>(&m_Storage);
     __spirv_WritePipeBlockingINTEL(_WPipe, &_Data, m_Size, m_Alignment);
 #else
