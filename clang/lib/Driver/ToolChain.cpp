@@ -1257,7 +1257,9 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
     }
 
     if (!XOffloadTargetArg)
-      XOffloadTargetArg->setBaseArg(A);
+      continue;
+
+    XOffloadTargetArg->setBaseArg(A);
 
     A = XOffloadTargetArg.release();
     AllocatedArgs.push_back(A);
