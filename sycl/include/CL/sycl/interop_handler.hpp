@@ -18,7 +18,8 @@ namespace sycl {
 class interop_handler {
   // Make accessor class friend to access the detail mem objects
   template <typename DataT, int Dims, access::mode AccMode,
-            access::target AccTarget, access::placeholder isPlaceholder>
+            access::target AccTarget, access::placeholder isPlaceholder,
+            typename PropertyListT>
   friend class accessor;
 
 public:
