@@ -28,7 +28,8 @@ enum class image_channel_type : unsigned int;
 
 template <int Dimensions, typename AllocatorT> class image;
 template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder>
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename property_listT>
 class accessor;
 class handler;
 
