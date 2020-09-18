@@ -324,7 +324,7 @@ int main() {
 // CHECK-NEXT: OpaqueValueExpr {{.*}} 'int [2][3]' lvalue
 // CHECK-NEXT: MemberExpr {{.*}} 'int [2][3]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
-// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned long'
+// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned long
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'int' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <ArrayToPointerDecay>
@@ -334,5 +334,5 @@ int main() {
 // CHECK-NEXT: OpaqueValueExpr {{.*}} 'int [2][3]' lvalue
 // CHECK-NEXT: MemberExpr {{.*}} 'int [2][3]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
-// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned long'
-// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned long'
+// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned long
+// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned long
