@@ -32,17 +32,14 @@ class spec_const_error : public compile_program_error {
 };
 
 template <typename T, typename ID = T> class spec_constant {
-private:
-  // Implementation defined constructor.
-#ifdef __SYCL_DEVICE_ONLY__
 public:
   spec_constant() {}
 
 private:
-#else
-  spec_constant(T Cst) : Val(Cst) {}
-#endif
 #ifndef __SYCL_DEVICE_ONLY__
+  // Implementation defined constructor.
+  spec_constant(T Cst) : Val(Cst) {}
+
   T Val;
 #endif
   friend class cl::sycl::program;
