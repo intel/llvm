@@ -6258,6 +6258,19 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       if (Args.hasFlag(options::OPT_fsycl_esimd, options::OPT_fno_sycl_esimd,
                        false))
         CmdArgs.push_back("-fsycl-explicit-simd");
+
+      if (!D.IsCLMode()) {
+        // SYCL library is guaranteed to work correctly only with dynamic
+        // MSVC runtime.
+        llvm::Triple AuxT = C.getDefaultToolChain().getTriple();
+        if (Args.hasFlag(options::OPT_fsycl_device_only, OptSpecifier(), false))
+          AuxT = llvm::Triple(llvm::sys::getProcessTriple());
+        if (AuxT.isWindowsMSVCEnvironment()) {
+          CmdArgs.push_back("-D_MT");
+          CmdArgs.push_back("-D_DLL");
+          CmdArgs.push_back("--dependent-lib=msvcrt");
+        }
+      }
     }
     if (IsSYCLOffloadDevice && JA.getType() == types::TY_SYCL_Header) {
       // Generating a SYCL Header
@@ -6273,20 +6286,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (getToolChain().getTriple().getSubArch() ==
         llvm::Triple::SPIRSubArch_fpga)
       CmdArgs.push_back("-D__ENABLE_USM_ADDR_SPACE__");
-  }
-
-  if ((IsSYCL || UseSYCLTriple) && !D.IsCLMode()) {
-    // SYCL library is guaranteed to work correctly only with dynamic
-    // MSVC runtime.
-    llvm::Triple AuxT = C.getDefaultToolChain().getTriple();
-    if (Args.hasFlag(options::OPT_fsycl_device_only, OptSpecifier(), false))
-      AuxT = llvm::Triple(llvm::sys::getProcessTriple());
-    if (AuxT.isWindowsMSVCEnvironment()) {
-      CmdArgs.push_back("-D_MT");
-      CmdArgs.push_back("-D_DLL");
-      if (IsSYCL && !IsSYCLOffloadDevice && SYCLDeviceInput)
-        CmdArgs.push_back("--dependent-lib=msvcrt");
-    }
   }
 
   if (IsHIP)

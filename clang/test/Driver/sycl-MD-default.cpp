@@ -13,12 +13,6 @@
 // CHK-DEFAULT: "-D_MT" "-D_DLL"
 // CHK-DEFAULT: "--dependent-lib=msvcrt{{d*}}"
 
-// RUN: %clang -### -fsycl-device-only -c %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-DEFAULT-DEF %s
-// RUN: %clangxx -### -fsycl -c %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-DEFAULT-DEF %s
-// CHK-DEFAULT-DEF: "-D_MT" "-D_DLL"
-
 // RUN: %clang_cl -### -MT -fsycl -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-ERROR %s
 // RUN: %clang_cl -### -MTd -fsycl -c %s 2>&1 \
