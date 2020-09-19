@@ -83,8 +83,8 @@ private:
                                  llvm::opt::ArgStringList &cmdArgs,
                                  RewriteKind rewrite) const;
 
-  void AddClangCLArgs(const llvm::opt::ArgList &Args, types::ID InputType,
-                      llvm::opt::ArgStringList &CmdArgs,
+  void AddClangCLArgs(const JobAction &JA, const llvm::opt::ArgList &Args,
+                      types::ID InputType, llvm::opt::ArgStringList &CmdArgs,
                       codegenoptions::DebugInfoKind *DebugInfoKind,
                       bool *EmitCodeView) const;
 
