@@ -1,8 +1,8 @@
 // REQUIRES: clang-driver
 
-// RUN: %clang -### -fsycl -c %s 2>&1 \
+// RUN: %clang -### -fsycl -c -target x86_64-unknown-windows-msvc %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DEFAULT %s
-// RUN: %clangxx -### -fsycl -c %s 2>&1 \
+// RUN: %clangxx -### -fsycl -c -target x86_64-unknown-windows-msvc %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DEFAULT %s
 // RUN: %clang_cl -### -fsycl -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DEFAULT %s
