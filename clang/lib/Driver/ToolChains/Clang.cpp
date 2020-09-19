@@ -4941,7 +4941,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Add clang-cl arguments.
   types::ID InputType = Input.getType();
   if (D.IsCLMode())
-    AddClangCLArgs(JA, Args, InputType, CmdArgs, &DebugInfoKind, &EmitCodeView);
+    AddClangCLArgs(Args, InputType, CmdArgs, &DebugInfoKind, &EmitCodeView);
 
   DwarfFissionKind DwarfFission;
   RenderDebugOptions(TC, D, RawTriple, Args, EmitCodeView, CmdArgs,
@@ -6777,15 +6777,15 @@ static EHFlags parseClangCLEHFlags(const Driver &D, const ArgList &Args) {
   return EH;
 }
 
-void Clang::AddClangCLArgs(const JobAction &JA, const ArgList &Args,
-                           types::ID InputType, ArgStringList &CmdArgs,
+void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
+                           ArgStringList &CmdArgs,
                            codegenoptions::DebugInfoKind *DebugInfoKind,
                            bool *EmitCodeView) const {
   unsigned RTOptionID = options::OPT__SLASH_MT;
   bool isNVPTX = getToolChain().getTriple().isNVPTX();
-  bool isSYCL =
-      Args.hasArg(options::OPT_fsycl) ||
+  bool isSYCLDevice =
       getToolChain().getTriple().getEnvironment() == llvm::Triple::SYCLDevice;
+  bool isSYCL = Args.hasArg(options::OPT_fsycl) || isSYCLDevice;
   // For SYCL Windows, /MD is the default.
   if (isSYCL)
     RTOptionID = options::OPT__SLASH_MD;
@@ -6797,16 +6797,13 @@ void Clang::AddClangCLArgs(const JobAction &JA, const ArgList &Args,
 
   if (Arg *A = Args.getLastArg(options::OPT__SLASH_M_Group)) {
     RTOptionID = A->getOption().getID();
-    if (isSYCL && (RTOptionID == options::OPT__SLASH_MT ||
-                   RTOptionID == options::OPT__SLASH_MTd))
+    if (isSYCL && !isSYCLDevice && (RTOptionID == options::OPT__SLASH_MT ||
+                                    RTOptionID == options::OPT__SLASH_MTd))
       // Use of /MT or /MTd is not supported for SYCL.
       getToolChain().getDriver().Diag(diag::err_drv_unsupported_opt_dpcpp)
           << A->getOption().getName();
   }
 
-  bool isSYCLDevice = Args.hasArg(options::OPT_fsycl_device_only) ||
-                      (JA.isDeviceOffloading(Action::OFK_SYCL) &&
-                       JA.isOffloading(Action::OFK_SYCL));
   enum { addDEBUG = 0x1, addMT = 0x2, addDLL = 0x4 };
   auto addPreDefines = [&](unsigned Defines) {
     if (Defines & addDEBUG)
