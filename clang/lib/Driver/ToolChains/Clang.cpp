@@ -6797,8 +6797,9 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
 
   if (Arg *A = Args.getLastArg(options::OPT__SLASH_M_Group)) {
     RTOptionID = A->getOption().getID();
-    if (isSYCL && !isSYCLDevice && (RTOptionID == options::OPT__SLASH_MT ||
-                                    RTOptionID == options::OPT__SLASH_MTd))
+    if (isSYCL && !isSYCLDevice &&
+        (RTOptionID == options::OPT__SLASH_MT ||
+         RTOptionID == options::OPT__SLASH_MTd))
       // Use of /MT or /MTd is not supported for SYCL.
       getToolChain().getDriver().Diag(diag::err_drv_unsupported_opt_dpcpp)
           << A->getOption().getName();
