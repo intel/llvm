@@ -6258,6 +6258,19 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       if (Args.hasFlag(options::OPT_fsycl_esimd, options::OPT_fno_sycl_esimd,
                        false))
         CmdArgs.push_back("-fsycl-explicit-simd");
+
+      if (!D.IsCLMode()) {
+        // SYCL library is guaranteed to work correctly only with dynamic
+        // MSVC runtime.
+        llvm::Triple AuxT = C.getDefaultToolChain().getTriple();
+        if (Args.hasFlag(options::OPT_fsycl_device_only, OptSpecifier(), false))
+          AuxT = llvm::Triple(llvm::sys::getProcessTriple());
+        if (AuxT.isWindowsMSVCEnvironment()) {
+          CmdArgs.push_back("-D_MT");
+          CmdArgs.push_back("-D_DLL");
+          CmdArgs.push_back("--dependent-lib=msvcrt");
+        }
+      }
     }
     if (IsSYCLOffloadDevice && JA.getType() == types::TY_SYCL_Header) {
       // Generating a SYCL Header
@@ -6836,8 +6849,7 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
     // Add SYCL dependent library
     if (Args.hasArg(options::OPT_fsycl) &&
         !Args.hasArg(options::OPT_nolibsycl)) {
-      if (RTOptionID == options::OPT__SLASH_MDd ||
-          RTOptionID == options::OPT__SLASH_MTd)
+      if (RTOptionID == options::OPT__SLASH_MDd)
         CmdArgs.push_back("--dependent-lib=sycld");
       else
         CmdArgs.push_back("--dependent-lib=sycl");
