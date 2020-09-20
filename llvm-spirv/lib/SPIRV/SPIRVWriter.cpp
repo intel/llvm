@@ -759,7 +759,7 @@ SPIRVValue *LLVMToSPIRV::transConstant(Value *V) {
     }
     std::vector<SPIRVValue *> BV;
     for (auto I = ConstV->op_begin(), E = ConstV->op_end(); I != E; ++I)
-      BV.push_back(transValue(*I, nullptr));
+      BV.push_back(transValue(*I, nullptr, true, FuncTransMode::Pointer));
     return BM->addCompositeConstant(transType(V->getType()), BV);
   }
 
