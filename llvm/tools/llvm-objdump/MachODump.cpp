@@ -7083,8 +7083,8 @@ static const char *SymbolizerSymbolLookUp(void *DisInfo,
 
     adrp_imm =
         ((info->adrp_inst & 0x00ffffe0) >> 3) | ((info->adrp_inst >> 29) & 0x3);
-    if (info->adrp_inst & 0x0200000)
-      adrp_imm |= 0xfffffffffc000000LL;
+    if (adrp_imm & (1 << (21 - 1)))
+        adrp_imm |= ~((1LL << 21) - 1);
 
     addxri_inst = ReferenceValue;
     addxri_imm = (addxri_inst >> 10) & 0xfff;
@@ -7113,8 +7113,8 @@ static const char *SymbolizerSymbolLookUp(void *DisInfo,
 
     adrp_imm =
         ((info->adrp_inst & 0x00ffffe0) >> 3) | ((info->adrp_inst >> 29) & 0x3);
-    if (info->adrp_inst & 0x0200000)
-      adrp_imm |= 0xfffffffffc000000LL;
+    if (adrp_imm & (1 << (21 - 1)))
+        adrp_imm |= ~((1LL << 21) - 1);
 
     ldrxui_inst = ReferenceValue;
     ldrxui_imm = (ldrxui_inst >> 10) & 0xfff;
