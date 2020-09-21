@@ -155,7 +155,7 @@ The kernel descriptors below are added to the +info::kernel_device_specific+ enu
 |+info::kernel_device_specific::compile_sub_group_size+
 |N/A
 |+uint32_t+
-|Returns the required sub-group size specified by the kernel. Returns 0 if the requested size was `auto`, and returns the device's primary sub-group size if the requested size was `primary`.
+|Returns the required sub-group size of the kernel, set implicitly by the implementation or explicitly using a kernel attribute. Returns 0 if the requested size was `auto`, and returns the device's primary sub-group size if the requested size was `primary`.
 |===
 
 === The sub_group Class
