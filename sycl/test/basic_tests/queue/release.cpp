@@ -6,7 +6,7 @@ int main() {
   sycl::queue q;
 
   q.single_task<class test>([]() {});
-  // no wait. Ensure resources are released anyway.
+  // No wait. Ensure resources are released anyway.
 
   return 0;
 }
