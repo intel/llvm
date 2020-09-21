@@ -14,12 +14,10 @@
 #include "StatepointLowering.h"
 #include "SelectionDAGBuilder.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/FunctionLoweringInfo.h"
 #include "llvm/CodeGen/GCMetadata.h"
@@ -30,7 +28,6 @@
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/RuntimeLibcalls.h"
 #include "llvm/CodeGen/SelectionDAG.h"
-#include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/CodeGen/StackMaps.h"
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
@@ -841,7 +838,7 @@ SDValue SelectionDAGBuilder::LowerAsSTATEPOINT(
     Register Reg = FuncInfo.CreateRegs(RetTy);
     RegsForValue RFV(*DAG.getContext(), DAG.getTargetLoweringInfo(),
                      DAG.getDataLayout(), Reg, RetTy, None);
-    SDValue Chain = DAG.getEntryNode();
+    SDValue Chain = DAG.getRoot();
     RFV.getCopyToRegs(Relocated, DAG, getCurSDLoc(), Chain, nullptr);
     PendingExports.push_back(Chain);
     
@@ -919,8 +916,9 @@ SDValue SelectionDAGBuilder::LowerAsSTATEPOINT(
   // Remove original call node
   DAG.DeleteNode(CallNode);
 
-  // DON'T set the root - under the assumption that it's already set past the
-  // inserted node we created.
+  // Since we always emit CopyToRegs (even for local relocates), we must
+  // update root, so that they are emitted before any local uses.
+  (void)getControlRoot();
 
   // TODO: A better future implementation would be to emit a single variable
   // argument, variable return value STATEPOINT node here and then hookup the

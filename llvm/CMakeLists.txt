@@ -514,6 +514,19 @@ if( WIN32 AND NOT CYGWIN )
   set(LLVM_LIT_TOOLS_DIR "" CACHE PATH "Path to GnuWin32 tools")
 endif()
 
+set(LLVM_INTEGRATED_CRT_ALLOC "" CACHE PATH "Replace the Windows CRT allocator with any of {rpmalloc|mimalloc|snmalloc}. Only works with /MT enabled.")
+if(LLVM_INTEGRATED_CRT_ALLOC)
+  if(NOT WIN32)
+    message(FATAL_ERROR "LLVM_INTEGRATED_CRT_ALLOC is only supported on Windows.")
+  endif()
+  if(LLVM_USE_SANITIZER)
+    message(FATAL_ERROR "LLVM_INTEGRATED_CRT_ALLOC cannot be used along with LLVM_USE_SANITIZER!")
+  endif()
+  if(CMAKE_BUILD_TYPE AND uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
+    message(FATAL_ERROR "The Debug target isn't supported along with LLVM_INTEGRATED_CRT_ALLOC!")
+  endif()
+endif()
+
 # Define options to control the inclusion and default build behavior for
 # components which may not strictly be necessary (tools, examples, and tests).
 #
@@ -566,19 +579,6 @@ option (LLVM_BUILD_EXTERNAL_COMPILER_RT
 
 option (LLVM_VERSION_PRINTER_SHOW_HOST_TARGET_INFO
   "Show target and host info when tools are invoked with --version." ON)
-
-option(LLVM_INTEGRATED_CRT_ALLOC "Replace the Windows CRT allocator with any of {rpmalloc|mimalloc|snmalloc}. Only works with /MT enabled." OFF)
-if(LLVM_INTEGRATED_CRT_ALLOC)
-  if(NOT WIN32)
-    message(FATAL_ERROR "LLVM_INTEGRATED_CRT_ALLOC is only supported on Windows.")
-  endif()
-  if(LLVM_USE_SANITIZER)
-    message(FATAL_ERROR "LLVM_INTEGRATED_CRT_ALLOC cannot be used along with LLVM_USE_SANITIZER!")
-  endif()
-  if(CMAKE_BUILD_TYPE AND uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
-    message(FATAL_ERROR "The Debug target isn't supported along with LLVM_INTEGRATED_CRT_ALLOC!")
-  endif()
-endif()
 
 # You can configure which libraries from LLVM you want to include in the
 # shared library by setting LLVM_DYLIB_COMPONENTS to a semi-colon delimited
@@ -696,38 +696,19 @@ option(LLVM_ENABLE_PLUGINS "Enable plugin support" ${LLVM_ENABLE_PLUGINS_default
 
 include(HandleLLVMOptions)
 
-if(CMAKE_VERSION VERSION_LESS 3.12)
-  include(FindPythonInterp)
-  if( NOT PYTHONINTERP_FOUND )
-    message(FATAL_ERROR
-  "Unable to find Python interpreter, required for builds and testing.
-
-  Please install Python or specify the PYTHON_EXECUTABLE CMake variable.")
+find_package(Python3 COMPONENTS Interpreter)
+if(NOT Python3_Interpreter_FOUND)
+  message(WARNING "Python3 not found, using python2 as a fallback")
+  find_package(Python2 COMPONENTS Interpreter REQUIRED)
+  if(Python2_VERSION VERSION_LESS 2.7)
+    message(SEND_ERROR "Python 2.7 or newer is required")
   endif()
 
-  if( ${PYTHON_VERSION_STRING} VERSION_LESS 2.7 )
-    message(FATAL_ERROR "Python 2.7 or newer is required")
-  endif()
-
+  # Treat python2 as python3
   add_executable(Python3::Interpreter IMPORTED)
   set_target_properties(Python3::Interpreter PROPERTIES
-    IMPORTED_LOCATION ${PYTHON_EXECUTABLE})
-  set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
-else()
-  find_package(Python3 COMPONENTS Interpreter)
-  if(NOT Python3_Interpreter_FOUND)
-    message(WARNING "Python3 not found, using python2 as a fallback")
-    find_package(Python2 COMPONENTS Interpreter REQUIRED)
-    if(Python2_VERSION VERSION_LESS 2.7)
-      message(SEND_ERROR "Python 2.7 or newer is required")
-    endif()
-
-    # Treat python2 as python3
-    add_executable(Python3::Interpreter IMPORTED)
-    set_target_properties(Python3::Interpreter PROPERTIES
-      IMPORTED_LOCATION ${Python2_EXECUTABLE})
-    set(Python3_EXECUTABLE ${Python2_EXECUTABLE})
-  endif()
+    IMPORTED_LOCATION ${Python2_EXECUTABLE})
+  set(Python3_EXECUTABLE ${Python2_EXECUTABLE})
 endif()
 
 ######

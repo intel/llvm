@@ -107,6 +107,13 @@ unsigned AArch64InstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
     NumBytes = PatchPointOpers(&MI).getNumPatchBytes();
     assert(NumBytes % 4 == 0 && "Invalid number of NOP bytes requested!");
     break;
+  case TargetOpcode::STATEPOINT:
+    NumBytes = StatepointOpers(&MI).getNumPatchBytes();
+    assert(NumBytes % 4 == 0 && "Invalid number of NOP bytes requested!");
+    // No patch bytes means a normal call inst is emitted
+    if (NumBytes == 0)
+      NumBytes = 4;
+    break;
   case AArch64::TLSDESC_CALLSEQ:
     // This gets lowered to an instruction sequence which takes 16 bytes
     NumBytes = 16;
@@ -319,6 +326,56 @@ bool AArch64InstrInfo::analyzeBranch(MachineBasicBlock &MBB,
 
   // Otherwise, can't handle this.
   return true;
+}
+
+bool AArch64InstrInfo::analyzeBranchPredicate(MachineBasicBlock &MBB,
+                                              MachineBranchPredicate &MBP,
+                                              bool AllowModify) const {
+  // For the moment, handle only a block which ends with a cb(n)zx followed by
+  // a fallthrough.  Why this?  Because it is a common form.
+  // TODO: Should we handle b.cc?
+
+  MachineBasicBlock::iterator I = MBB.getLastNonDebugInstr();
+  if (I == MBB.end())
+    return true;
+
+  // Skip over SpeculationBarrierEndBB terminators
+  if (I->getOpcode() == AArch64::SpeculationBarrierISBDSBEndBB ||
+      I->getOpcode() == AArch64::SpeculationBarrierSBEndBB) {
+    --I;
+  }
+
+  if (!isUnpredicatedTerminator(*I))
+    return true;
+
+  // Get the last instruction in the block.
+  MachineInstr *LastInst = &*I;
+  unsigned LastOpc = LastInst->getOpcode();
+  if (!isCondBranchOpcode(LastOpc))
+    return true;
+
+  switch (LastOpc) {
+  default:
+    return true;
+  case AArch64::CBZW:
+  case AArch64::CBZX:
+  case AArch64::CBNZW:
+  case AArch64::CBNZX:
+    break;
+  };
+
+  MBP.TrueDest = LastInst->getOperand(1).getMBB();
+  assert(MBP.TrueDest && "expected!");
+  MBP.FalseDest = MBB.getNextNode();
+
+  MBP.ConditionDef = nullptr;
+  MBP.SingleUseCondition = false;
+
+  MBP.LHS = LastInst->getOperand(0);
+  MBP.RHS = MachineOperand::CreateImm(0);
+  MBP.Predicate = LastOpc == AArch64::CBNZX ? MachineBranchPredicate::PRED_NE
+                                            : MachineBranchPredicate::PRED_EQ;
+  return false;
 }
 
 bool AArch64InstrInfo::reverseBranchCondition(

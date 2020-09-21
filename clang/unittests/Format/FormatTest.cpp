@@ -2743,6 +2743,43 @@ TEST_F(FormatTest, FormatTryAsAVariable) {
   verifyFormat("int catch, size;");
   verifyFormat("catch = foo();");
   verifyFormat("if (catch < size) {\n  return true;\n}");
+
+  FormatStyle Style = getLLVMStyle();
+  Style.BreakBeforeBraces = FormatStyle::BS_Custom;
+  Style.BraceWrapping.AfterFunction = true;
+  Style.BraceWrapping.BeforeCatch = true;
+  verifyFormat("try {\n"
+               "  int bar = 1;\n"
+               "}\n"
+               "catch (...) {\n"
+               "  int bar = 1;\n"
+               "}",
+               Style);
+  verifyFormat("#if NO_EX\n"
+               "try\n"
+               "#endif\n"
+               "{\n"
+               "}\n"
+               "#if NO_EX\n"
+               "catch (...) {\n"
+               "}",
+               Style);
+  verifyFormat("try /* abc */ {\n"
+               "  int bar = 1;\n"
+               "}\n"
+               "catch (...) {\n"
+               "  int bar = 1;\n"
+               "}",
+               Style);
+  verifyFormat("try\n"
+               "// abc\n"
+               "{\n"
+               "  int bar = 1;\n"
+               "}\n"
+               "catch (...) {\n"
+               "  int bar = 1;\n"
+               "}",
+               Style);
 }
 
 TEST_F(FormatTest, FormatSEHTryCatch) {
@@ -7565,6 +7602,21 @@ TEST_F(FormatTest, UnderstandsTemplateParameters) {
   verifyFormat("static_assert(is_convertible<A &&, B>::value, \"AAA\");");
   verifyFormat("Constructor(A... a) : a_(X<A>{std::forward<A>(a)}...) {}");
   verifyFormat("< < < < < < < < < < < < < < < < < < < < < < < < < < < < < <");
+  verifyFormat("some_templated_type<decltype([](int i) { return i; })>");
+}
+
+TEST_F(FormatTest, UnderstandsShiftOperators) {
+  verifyFormat("if (i < x >> 1)");
+  verifyFormat("while (i < x >> 1)");
+  verifyFormat("for (unsigned i = 0; i < i; ++i, v = v >> 1)");
+  verifyFormat("for (unsigned i = 0; i < x >> 1; ++i, v = v >> 1)");
+  verifyFormat(
+      "for (std::vector<int>::iterator i = 0; i < x >> 1; ++i, v = v >> 1)");
+  verifyFormat("Foo.call<Bar<Function>>()");
+  verifyFormat("if (Foo.call<Bar<Function>>() == 0)");
+  verifyFormat("for (std::vector<std::pair<int>>::iterator i = 0; i < x >> 1; "
+               "++i, v = v >> 1)");
+  verifyFormat("if (w<u<v<x>>, 1>::t)");
 }
 
 TEST_F(FormatTest, BitshiftOperatorWidth) {

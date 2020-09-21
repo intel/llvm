@@ -696,7 +696,8 @@ public:
   /// before taking the branch. For loops with multiple exits, it may not be
   /// the number times that the loop header executes if the loop exits
   /// prematurely via another branch.
-  unsigned getSmallConstantTripCount(const Loop *L, BasicBlock *ExitingBlock);
+  unsigned getSmallConstantTripCount(const Loop *L,
+                                     const BasicBlock *ExitingBlock);
 
   /// Returns the upper bound of the loop trip count as a normal unsigned
   /// value.
@@ -718,8 +719,7 @@ public:
   /// for getSmallConstantTripCount, this assumes that control exits the loop
   /// via ExitingBlock.
   unsigned getSmallConstantTripMultiple(const Loop *L,
-                                        BasicBlock *ExitingBlock);
-
+                                        const BasicBlock *ExitingBlock);
 
   /// The terms "backedge taken count" and "exit count" are used
   /// interchangeably to refer to the number of times the backedge of a loop 
@@ -737,8 +737,8 @@ public:
   /// For a single exit loop, this value is equivelent to the result of
   /// getBackedgeTakenCount.  The loop is guaranteed to exit (via *some* exit)
   /// before the backedge is executed (ExitCount + 1) times.  Note that there
-  /// is no guarantee about *which* exit is taken on the exiting iteration.  
-  const SCEV *getExitCount(const Loop *L, BasicBlock *ExitingBlock,
+  /// is no guarantee about *which* exit is taken on the exiting iteration.
+  const SCEV *getExitCount(const Loop *L, const BasicBlock *ExitingBlock,
                            ExitCountKind Kind = Exact);
 
   /// If the specified loop has a predictable backedge-taken count, return it,
@@ -767,6 +767,11 @@ public:
   const SCEV *getConstantMaxBackedgeTakenCount(const Loop *L) {
     return getBackedgeTakenCount(L, ConstantMaximum);
   } 
+
+  /// Return a symbolic upper bound for the backedge taken count of the loop.
+  /// This is more general than getConstantMaxBackedgeTakenCount as it returns
+  /// an arbitrary expression as opposed to only constants.
+  const SCEV* computeMaxBackedgeTakenCount(const Loop *L);
 
   /// Return true if the backedge taken count is either the value returned by
   /// getConstantMaxBackedgeTakenCount or zero.
@@ -1181,7 +1186,7 @@ private:
   ValueExprMapType ValueExprMap;
 
   /// Mark predicate values currently being processed by isImpliedCond.
-  SmallPtrSet<Value *, 6> PendingLoopPredicates;
+  SmallPtrSet<const Value *, 6> PendingLoopPredicates;
 
   /// Mark SCEVUnknown Phis currently being processed by getRangeRef.
   SmallPtrSet<const PHINode *, 6> PendingPhiRanges;
@@ -1347,13 +1352,15 @@ private:
     /// edge, or SCEVCouldNotCompute. The loop is guaranteed not to exit via
     /// this block before this number of iterations, but may exit via another
     /// block.
-    const SCEV *getExact(BasicBlock *ExitingBlock, ScalarEvolution *SE) const;
+    const SCEV *getExact(const BasicBlock *ExitingBlock,
+                         ScalarEvolution *SE) const;
 
     /// Get the max backedge taken count for the loop.
     const SCEV *getMax(ScalarEvolution *SE) const;
 
     /// Get the max backedge taken count for the particular loop exit.
-    const SCEV *getMax(BasicBlock *ExitingBlock, ScalarEvolution *SE) const;
+    const SCEV *getMax(const BasicBlock *ExitingBlock,
+                       ScalarEvolution *SE) const;
 
     /// Return true if the number of times this backedge is taken is either the
     /// value returned by getMax or zero.
@@ -1655,13 +1662,13 @@ private:
   /// Return a predecessor of BB (which may not be an immediate predecessor)
   /// which has exactly one successor from which BB is reachable, or null if
   /// no such block is found.
-  std::pair<BasicBlock *, BasicBlock *>
-  getPredecessorWithUniqueSuccessorForBB(BasicBlock *BB);
+  std::pair<const BasicBlock *, const BasicBlock *>
+  getPredecessorWithUniqueSuccessorForBB(const BasicBlock *BB) const;
 
   /// Test whether the condition described by Pred, LHS, and RHS is true
   /// whenever the given FoundCondValue value evaluates to true.
   bool isImpliedCond(ICmpInst::Predicate Pred, const SCEV *LHS, const SCEV *RHS,
-                     Value *FoundCondValue, bool Inverse);
+                     const Value *FoundCondValue, bool Inverse);
 
   /// Test whether the condition described by Pred, LHS, and RHS is true
   /// whenever the condition described by FoundPred, FoundLHS, FoundRHS is
@@ -1708,7 +1715,7 @@ private:
 
   /// Return true if the condition denoted by \p LHS \p Pred \p RHS is implied
   /// by a call to @llvm.experimental.guard in \p BB.
-  bool isImpliedViaGuard(BasicBlock *BB, ICmpInst::Predicate Pred,
+  bool isImpliedViaGuard(const BasicBlock *BB, ICmpInst::Predicate Pred,
                          const SCEV *LHS, const SCEV *RHS);
 
   /// Test whether the condition described by Pred, LHS, and RHS is true

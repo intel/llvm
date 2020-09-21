@@ -410,9 +410,12 @@ uint32_t GVN::ValueTable::lookupOrAddCall(CallInst *C) {
     }
 
     if (local_dep.isDef()) {
-      CallInst* local_cdep = cast<CallInst>(local_dep.getInst());
+      // For masked load/store intrinsics, the local_dep may actully be
+      // a normal load or store instruction.
+      CallInst *local_cdep = dyn_cast<CallInst>(local_dep.getInst());
 
-      if (local_cdep->getNumArgOperands() != C->getNumArgOperands()) {
+      if (!local_cdep ||
+          local_cdep->getNumArgOperands() != C->getNumArgOperands()) {
         valueNumbering[C] = nextValueNumber;
         return nextValueNumber++;
       }
@@ -1608,6 +1611,11 @@ bool GVN::processAssumeIntrinsic(IntrinsicInst *IntrinsicI) {
   // call void @llvm.assume(i1 %cmp)
   // br i1 %cmp, label %bb1, label %bb2 ; will change %cmp to true
   ReplaceOperandsWithMap[V] = True;
+
+  // Similarly, after assume(!NotV) we know that NotV == false.
+  Value *NotV;
+  if (match(V, m_Not(m_Value(NotV))))
+    ReplaceOperandsWithMap[NotV] = ConstantInt::getFalse(V->getContext());
 
   // If we find an equality fact, canonicalize all dominated uses in this block
   // to one of the two values.  We heuristically choice the "oldest" of the
@@ -2850,7 +2858,6 @@ public:
     if (Impl.isMemDepEnabled())
       AU.addRequired<MemoryDependenceWrapperPass>();
     AU.addRequired<AAResultsWrapperPass>();
-
     AU.addPreserved<DominatorTreeWrapperPass>();
     AU.addPreserved<GlobalsAAWrapperPass>();
     AU.addPreserved<TargetLibraryInfoWrapperPass>();
