@@ -6783,9 +6783,9 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
                            bool *EmitCodeView) const {
   unsigned RTOptionID = options::OPT__SLASH_MT;
   bool isNVPTX = getToolChain().getTriple().isNVPTX();
-  bool isSYCL =
-      Args.hasArg(options::OPT_fsycl) ||
+  bool isSYCLDevice =
       getToolChain().getTriple().getEnvironment() == llvm::Triple::SYCLDevice;
+  bool isSYCL = Args.hasArg(options::OPT_fsycl) || isSYCLDevice;
   // For SYCL Windows, /MD is the default.
   if (isSYCL)
     RTOptionID = options::OPT__SLASH_MD;
@@ -6797,38 +6797,42 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
 
   if (Arg *A = Args.getLastArg(options::OPT__SLASH_M_Group)) {
     RTOptionID = A->getOption().getID();
-    if (isSYCL && (RTOptionID == options::OPT__SLASH_MT ||
-                   RTOptionID == options::OPT__SLASH_MTd))
+    if (isSYCL && !isSYCLDevice &&
+        (RTOptionID == options::OPT__SLASH_MT ||
+         RTOptionID == options::OPT__SLASH_MTd))
       // Use of /MT or /MTd is not supported for SYCL.
       getToolChain().getDriver().Diag(diag::err_drv_unsupported_opt_dpcpp)
           << A->getOption().getName();
   }
 
+  enum { addDEBUG = 0x1, addMT = 0x2, addDLL = 0x4 };
+  auto addPreDefines = [&](unsigned Defines) {
+    if (Defines & addDEBUG)
+      CmdArgs.push_back("-D_DEBUG");
+    if (Defines & addMT && !isSYCLDevice)
+      CmdArgs.push_back("-D_MT");
+    if (Defines & addDLL && !isSYCLDevice)
+      CmdArgs.push_back("-D_DLL");
+  };
   StringRef FlagForCRT;
   switch (RTOptionID) {
   case options::OPT__SLASH_MD:
-    if (Args.hasArg(options::OPT__SLASH_LDd))
-      CmdArgs.push_back("-D_DEBUG");
-    CmdArgs.push_back("-D_MT");
-    CmdArgs.push_back("-D_DLL");
+    addPreDefines((Args.hasArg(options::OPT__SLASH_LDd) ? addDEBUG : 0x0) |
+                  addMT | addDLL);
     FlagForCRT = "--dependent-lib=msvcrt";
     break;
   case options::OPT__SLASH_MDd:
-    CmdArgs.push_back("-D_DEBUG");
-    CmdArgs.push_back("-D_MT");
-    CmdArgs.push_back("-D_DLL");
+    addPreDefines(addDEBUG | addMT | addDLL);
     FlagForCRT = "--dependent-lib=msvcrtd";
     break;
   case options::OPT__SLASH_MT:
-    if (Args.hasArg(options::OPT__SLASH_LDd))
-      CmdArgs.push_back("-D_DEBUG");
-    CmdArgs.push_back("-D_MT");
+    addPreDefines((Args.hasArg(options::OPT__SLASH_LDd) ? addDEBUG : 0x0) |
+                  addMT);
     CmdArgs.push_back("-flto-visibility-public-std");
     FlagForCRT = "--dependent-lib=libcmt";
     break;
   case options::OPT__SLASH_MTd:
-    CmdArgs.push_back("-D_DEBUG");
-    CmdArgs.push_back("-D_MT");
+    addPreDefines(addDEBUG | addMT);
     CmdArgs.push_back("-flto-visibility-public-std");
     FlagForCRT = "--dependent-lib=libcmtd";
     break;
