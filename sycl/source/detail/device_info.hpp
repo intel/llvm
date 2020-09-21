@@ -122,8 +122,9 @@ template <info::device param> struct get_device_info<platform, param> {
   }
 };
 
-// Specialization for string return type, variable return size
-template <info::device param> struct get_device_info<string_class, param> {
+// Helper struct to allow using the specialization of get_device_info
+// for string return type in other specializations.
+template <info::device param> struct get_device_info_string {
   static string_class get(RT::PiDevice dev, const plugin &Plugin) {
     size_t resultSize;
     Plugin.call<PiApiKind::piDeviceGetInfo>(
@@ -137,6 +138,13 @@ template <info::device param> struct get_device_info<string_class, param> {
                                             resultSize, result.get(), nullptr);
 
     return string_class(result.get());
+  }
+};
+
+// Specialization for string return type, variable return size
+template <info::device param> struct get_device_info<string_class, param> {
+  static string_class get(RT::PiDevice dev, const plugin &Plugin) {
+    return get_device_info_string<param>::get(dev, Plugin);
   }
 };
 
@@ -173,6 +181,30 @@ struct get_device_info<vector_class<info::fp_config>, param> {
                                             pi::cast<RT::PiDeviceInfo>(param),
                                             sizeof(result), &result, nullptr);
     return read_fp_bitfield(result);
+  }
+};
+
+// Specialization for OpenCL version, splits the string returned by OpenCL
+template <> struct get_device_info<string_class, info::device::version> {
+  static string_class get(RT::PiDevice dev, const plugin &Plugin) {
+    string_class result =
+        get_device_info_string<info::device::version>::get(dev, Plugin);
+
+    // Extract OpenCL version from the returned string.
+    // For example, for the string "OpenCL 2.1 (Build 0)"
+    // return '2.1'.
+    auto dotPos = result.find('.');
+    if (dotPos == std::string::npos)
+      return result;
+
+    auto leftPos = result.rfind(' ', dotPos);
+    if (leftPos == std::string::npos)
+      leftPos = 0;
+    else
+      leftPos++;
+
+    auto rightPos = result.find(' ', dotPos);
+    return result.substr(leftPos, rightPos - leftPos);
   }
 };
 
