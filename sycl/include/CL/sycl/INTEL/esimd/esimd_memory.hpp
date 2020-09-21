@@ -421,11 +421,6 @@ ESIMD_NODEBUG ESIMD_INLINE
 /// generic work-group barrier
 inline ESIMD_NODEBUG void esimd_barrier() { __esimd_barrier(); }
 
-/// SLM functions
-
-/// declare per-work-group slm size
-SYCL_EXTERNAL void slm_init(uint32_t size);
-
 enum EsimdFenceMask {
   ESIMD_GLOBAL_COHERENT_FENCE = 0x1,
   ESIMD_L3_FLUSH_INSTRUCTIONS = 0x2,
@@ -437,8 +432,15 @@ enum EsimdFenceMask {
   ESIMD_SW_BARRIER = 0x80
 };
 
-/// slm_fence sets the SLM read/write order
-inline ESIMD_NODEBUG void slm_fence(uint8_t cntl) { __esimd_slm_fence(cntl); }
+/// esimd_fence sets the memory read/write order
+ESIMD_INLINE ESIMD_NODEBUG void esimd_fence(uint8_t cntl) {
+  __esimd_slm_fence(cntl);
+}
+
+/// SLM functions
+
+/// declare per-work-group slm size
+SYCL_EXTERNAL void slm_init(uint32_t size);
 
 /// SLM gather
 /// only allow simd-16 and simd-32
@@ -459,10 +461,10 @@ ESIMD_INLINE ESIMD_NODEBUG
 }
 
 /// SLM gather4
-/// only allow simd-16 and simd-32
+/// only allow simd-8, simd-16 and simd-32
 template <typename T, int n, ChannelMaskType Mask>
 ESIMD_INLINE ESIMD_NODEBUG
-    typename std::enable_if<(n == 16 || n == 32) && (sizeof(T) == 4),
+    typename std::enable_if<(n == 8 || n == 16 || n == 32) && (sizeof(T) == 4),
                             simd<T, n * NumChannels(Mask)>>::type
     slm_load4(simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
   return __esimd_slm_read4<T, n, Mask>(offsets.data(), pred.data());
@@ -470,7 +472,8 @@ ESIMD_INLINE ESIMD_NODEBUG
 
 /// SLM scatter4
 template <typename T, int n, ChannelMaskType Mask>
-typename std::enable_if<(n == 16 || n == 32) && (sizeof(T) == 4), void>::type
+typename std::enable_if<(n == 8 || n == 16 || n == 32) && (sizeof(T) == 4),
+                        void>::type
 slm_store4(simd<T, n * NumChannels(Mask)> vals, simd<uint32_t, n> offsets,
            simd<uint16_t, n> pred = 1) {
   __esimd_slm_write4<T, n, Mask>(offsets.data(), vals.data(), pred.data());
