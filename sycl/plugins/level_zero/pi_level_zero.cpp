@@ -619,7 +619,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     assert(ZeDriverCount == 1);
     ZE_CALL(zeDriverGet(&ZeDriverCount, &ZeDriver));
 
-    static pi_result Res = getOrCreatePlatform(ZeDriver, Platforms);
+    pi_result Res = getOrCreatePlatform(ZeDriver, Platforms);
     if (Res != PI_SUCCESS) {
       return Res;
     }
@@ -631,12 +631,14 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   return PI_SUCCESS;
 }
 
+// Retrieve a cached Platform that has a matching driver handle or use the
+// driver handle to create and initialize a new Platform.
 static pi_result getOrCreatePlatform(ze_driver_handle_t ZeDriver,
                                      pi_platform *Platform) {
 
   // We will retrieve the Max CommandList Cache in this lamda function so that
   // it only has to be executed once
-  static pi_uint32 CommandListCacheSizeValue = ([]() {
+  static pi_uint32 CommandListCacheSizeValue = ([] {
     const char *CommandListCacheSize =
         std::getenv("SYCL_PI_LEVEL0_MAX_COMMAND_LIST_CACHE");
     pi_uint32 CommandListCacheSizeValue;
@@ -683,19 +685,16 @@ static pi_result getOrCreatePlatform(ze_driver_handle_t ZeDriver,
     // Intel Level-Zero GPU driver stores version as:
     // | 31 - 24 | 23 - 16 | 15 - 0 |
     // |  Major  |  Minor  | Build  |
-    std::string VersionMajor =
-        std::to_string((ZeDriverVersion & 0xFF000000) >> 24);
-    std::string VersionMinor =
-        std::to_string((ZeDriverVersion & 0x00FF0000) >> 16);
-    std::string VersionBuild = std::to_string(ZeDriverVersion & 0x0000FFFF);
-    Platform[0]->ZeDriverVersion = VersionMajor + std::string(".") +
-                                   VersionMinor + std::string(".") +
-                                   VersionBuild;
+    auto VersionMajor = std::to_string((ZeDriverVersion & 0xFF000000) >> 24);
+    auto VersionMinor = std::to_string((ZeDriverVersion & 0x00FF0000) >> 16);
+    auto VersionBuild = std::to_string(ZeDriverVersion & 0x0000FFFF);
+    Platform[0]->ZeDriverVersion =
+        VersionMajor + "." + VersionMinor + "." + VersionBuild;
 
     ze_api_version_t ZeApiVersion;
     ZE_CALL(zeDriverGetApiVersion(ZeDriver, &ZeApiVersion));
     Platform[0]->ZeDriverApiVersion =
-        std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + std::string(".") +
+        std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + "." +
         std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
 
     Platform[0]->ZeMaxCommandListCache = CommandListCacheSizeValue;
@@ -775,11 +774,11 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle NativeHandle,
   assert(NativeHandle);
   assert(Platform);
 
-  // Create PI platform from the given Level Zero driver handle.
-  // TODO: get the platform from the platforms' cache.
+  // Create PI platform from the given Level Zero driver handle or retrieve it
+  // from the cache..
   auto ZeDriver = pi_cast<ze_driver_handle_t>(NativeHandle);
-  *Platform = new _pi_platform(ZeDriver);
-  return PI_SUCCESS;
+  pi_result Res = getOrCreatePlatform(ZeDriver, Platform);
+  return Res;
 }
 
 // Get the cahched PI device created for the L0 device handle.
