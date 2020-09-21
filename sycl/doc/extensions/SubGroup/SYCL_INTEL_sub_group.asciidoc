@@ -74,20 +74,7 @@ The +[[intel::reqd_named_sub_group_size(NAME)]]+ attribute indicates that the ke
 
 If no required sub-group size attribute appears on a kernel, the default behavior is as-if +[[intel::reqd_sub_group_size(auto)]]+ was specified.  This behavior may be overridden by an implementation (e.g. via compiler flags).
 
-In addition to device functions, the required sub-group size attribute may also be specified in the definition of a named functor object, as in the example below:
-
-[source, c++]
-----
-class Functor
-{
-  void operator()(item<1> item) [[intel::reqd_sub_group_size(16)]]
-  {
-    /* kernel code */
-  }
-}
-----
-
-It is illegal for a kernel or function to call a function with a mismatched sub-group size requirement, and the compiler should produce an error in this case.  The +reqd_sub_group_size+ attribute is not propagated from a device function to callers of the function, and must be specified explicitly when a kernel is defined.
+Sub-group size attributes may also be applied to `SYCL_EXTERNAL` functions.  If a kernel calls a `SYCL_EXTERNAL` function, or a `SYCL_EXTERNAL` function calls another `SYCL_EXTERNAL` function, the attributes applied to the caller and callee must match exactly.  If the attributes do not match, the compiler should produce an error.  Note that sub-group size attributes are not propagated from a device function to callers of the function, and must be specified explicitly.
 
 === Compiler Flags
 
@@ -314,6 +301,9 @@ Yes, the four shuffles in this extension are a defining feature of sub-groups.  
 The name adopted is "primary", to convey that it is an integral part of sub-group support provided by the device.  Other names considered are listed here for posterity: "default", "stable", "fixed", "core".  These terms are easy to misunderstand (i.e. the "default" size may not be chosen by default, the "stable" size is unrelated to the software release cycle, the "fixed" sub-group size may change between devices or compiler releases, the "core" size is unrelated to hardware cores).
 --
 
+. How does sub-group size interact with `SYCL_EXTERNAL` functions?
+The current behavior requires exact matching.  Should this be relaxed to allow alternative implementations (e.g. link-time optimization, multi-versioning)?
+
 //. asd
 //+
 //--
@@ -335,6 +325,7 @@ The name adopted is "primary", to convey that it is an integral part of sub-grou
 |6|2020-04-22|John Pennycook|*Align with SYCL_INTEL_device_specific_kernel_queries*
 |7|2020-07-13|John Pennycook|*Clarify that reqd_sub_group_size must be a compile-time constant*
 |8|2020-09-08|John Pennycook|*Provide some basic correctness guarantees*
+|9|2020-09-21|John Pennycook|*Clarify behavior of SYCL_EXTERNAL functions*
 |========================================
 
 //************************************************************************
