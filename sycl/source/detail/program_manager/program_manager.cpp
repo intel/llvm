@@ -196,7 +196,7 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
 #endif
 
     {
-      // Even if shared variable is atomic,it must be modified under the mutex
+      // Even if shared variable is atomic, it must be modified under the mutex
       // in order to correctly publish the modification to the waiting thread
       std::lock_guard<std::mutex> Lock(BuildResult->MBuildResultMutex);
       BuildResult->State.store(BS_Done);
