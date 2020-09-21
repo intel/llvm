@@ -91,7 +91,7 @@ It is illegal for a kernel or function to call a function with a mismatched sub-
 
 === Compiler Flags
 
-The +-fsycl-primary-sub-group-size+ flag compiles all kernels in the translation unit as though +[[intel::reqd_named_sub_group_size(primary)]]+ was specified.
+The +-fsycl-primary-sub-group-size+ flag compiles all kernels in the translation unit without a sub-group size attribute as though +[[intel::reqd_named_sub_group_size(primary)]]+ was applied to the kernel.
 
 === Sub-group Queries
 
