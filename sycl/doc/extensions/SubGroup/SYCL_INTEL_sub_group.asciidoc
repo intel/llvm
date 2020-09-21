@@ -68,17 +68,17 @@ Providing a generic group abstraction encapsulating the shared functionality of 
 
 === Attributes
 
-The +[[intel::reqd_sub_group_size(S)]]+ attribute indicates that the kernel must be compiled and executed with a specific sub-group size.  The value of _S_ must be a compile-time integral constant expression.  The kernel should only be submitted to a device that supports that sub-group size (as reported by +info::device::sub_group_sizes+).  If the kernel is submitted to a device that does not support the requested sub-group size, or a device on which the requested sub-group size is incompatible with any language features used by the kernel, the implementation must throw a synchronous exception with the `errc::feature_not_supported` error code from the kernel invocation command.
+The +[[intel::sub_group_size(S)]]+ attribute indicates that the kernel must be compiled and executed with a specific sub-group size.  The value of _S_ must be a compile-time integral constant expression.  The kernel should only be submitted to a device that supports that sub-group size (as reported by +info::device::sub_group_sizes+).  If the kernel is submitted to a device that does not support the requested sub-group size, or a device on which the requested sub-group size is incompatible with any language features used by the kernel, the implementation must throw a synchronous exception with the `errc::feature_not_supported` error code from the kernel invocation command.
 
-The +[[intel::reqd_named_sub_group_size(NAME)]]+ attribute indicates that the kernel must be compiled and executed with a named sub-group size.  _NAME_ must be one of the following special tokens: +auto+, +primary+.  If _NAME_ is +auto+, the implementation is free to select any of the valid sub-group sizes associated with the device to which the kernel is submitted; the manner in which the sub-group size is selected is implementation-defined.  If _NAME_ is +primary+, the implementation will select the device's primary sub-group size (as reported by the +info::device::primary_sub_group_size+ query) for all kernels with this attribute.
+The +[[intel::named_sub_group_size(NAME)]]+ attribute indicates that the kernel must be compiled and executed with a named sub-group size.  _NAME_ must be one of the following special tokens: +auto+, +primary+.  If _NAME_ is +auto+, the implementation is free to select any of the valid sub-group sizes associated with the device to which the kernel is submitted; the manner in which the sub-group size is selected is implementation-defined.  If _NAME_ is +primary+, the implementation will select the device's primary sub-group size (as reported by the +info::device::primary_sub_group_size+ query) for all kernels with this attribute.
 
-If no required sub-group size attribute appears on a kernel, the default behavior is as-if +[[intel::reqd_sub_group_size(auto)]]+ was specified.  This behavior may be overridden by an implementation (e.g. via compiler flags).
+If no sub-group size attribute appears on a kernel, the default behavior is as-if +[[intel::sub_group_size(auto)]]+ was specified.  This behavior may be overridden by an implementation (e.g. via compiler flags).
 
 Sub-group size attributes may also be applied to `SYCL_EXTERNAL` functions.  If a kernel calls a `SYCL_EXTERNAL` function, or a `SYCL_EXTERNAL` function calls another `SYCL_EXTERNAL` function, the attributes applied to the caller and callee must match exactly.  If the attributes do not match, the compiler should produce an error.  Note that sub-group size attributes are not propagated from a device function to callers of the function, and must be specified explicitly.
 
 === Compiler Flags
 
-The +-fsycl-primary-sub-group-size+ flag compiles all kernels in the translation unit without a sub-group size attribute as though +[[intel::reqd_named_sub_group_size(primary)]]+ was applied to the kernel.
+The +-fsycl-primary-sub-group-size+ flag compiles all kernels in the translation unit without a sub-group size attribute as though +[[intel::named_sub_group_size(primary)]]+ was applied to the kernel.
 
 === Sub-group Queries
 
@@ -142,7 +142,7 @@ The kernel descriptors below are added to the +info::kernel_device_specific+ enu
 |+info::kernel_device_specific::compile_sub_group_size+
 |N/A
 |+uint32_t+
-|Returns the required sub-group size of the kernel, set implicitly by the implementation or explicitly using a kernel attribute. Returns 0 if the requested size was `auto`, and returns the device's primary sub-group size if the requested size was `primary`.
+|Returns the sub-group size of the kernel, set implicitly by the implementation or explicitly using a kernel attribute. Returns 0 if the requested size was `auto`, and returns the device's primary sub-group size if the requested size was `primary`.
 |===
 
 === The sub_group Class
@@ -326,6 +326,7 @@ The current behavior requires exact matching.  Should this be relaxed to allow a
 |7|2020-07-13|John Pennycook|*Clarify that reqd_sub_group_size must be a compile-time constant*
 |8|2020-09-08|John Pennycook|*Provide some basic correctness guarantees*
 |9|2020-09-21|John Pennycook|*Clarify behavior of SYCL_EXTERNAL functions*
+|10|2020-09-21|John Pennycook|*Remove reqd_ prefix from attribute names*
 |========================================
 
 //************************************************************************
