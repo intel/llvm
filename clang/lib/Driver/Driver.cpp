@@ -2443,14 +2443,22 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
 
           // For SYCL, convert C-type sources to C++-type sources.
           if (IsSYCL) {
-            if (Ty == types::TY_C)
+            switch (Ty) {
+            case types::TY_C:
               Ty = types::TY_CXX;
-            if (Ty == types::TY_CHeader)
+              break;
+            case types::TY_CHeader:
               Ty = types::TY_CXXHeader;
-            if (Ty == types::TY_PP_C)
+              break;
+            case types::TY_PP_C:
               Ty = types::TY_PP_CXX;
-            if (Ty == types::TY_PP_CHeader)
+              break;
+            case types::TY_PP_CHeader:
               Ty = types::TY_PP_CXXHeader;
+              break;
+            default:
+              break;
+            }
           }
 
           if (Ty == types::TY_INVALID) {
