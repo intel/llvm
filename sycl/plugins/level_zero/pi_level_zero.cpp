@@ -563,6 +563,9 @@ static bool setEnvVar(const char *var, const char *value);
 static pi_result getOrCreatePlatform(ze_driver_handle_t ZeDriver,
                                      pi_platform *Platform);
 
+static pi_result getOrCreateDevice(pi_platform Platform, pi_uint32 NumEntries,
+                                   pi_device *Devices);
+
 // Forward declarations for mock implementations of Level Zero APIs that
 // do not yet work in the driver.
 // TODO: Remove these mock definitions when they work in the driver.
@@ -869,6 +872,17 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     assert(Devices == nullptr &&
            "Devices should be nullptr when querying the number of devices");
     return PI_SUCCESS;
+  }
+  return getOrCreateDevice(Platform, NumEntries, Devices);
+}
+
+static pi_result getOrCreateDevice(pi_platform Platform, pi_uint32 NumEntries,
+                                   pi_device *Devices) {
+
+  ze_driver_handle_t ZeDriver = Platform->ZeDriver;
+  uint32_t ZeDeviceCount = Platform->PiDevicesCache.size();
+  if (ZeDeviceCount == 0) {
+    ZE_CALL(zeDeviceGet(ZeDriver, &ZeDeviceCount, nullptr));
   }
 
   // if devices are already captured in cache, return them from the cache.
@@ -1473,11 +1487,25 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   assert(Device);
   assert(Platform);
 
-  // Create PI device from the given Level Zero device handle.
-  // TODO: get the device from the devices' cache.
+  // Create PI device from the given Level Zero device handle or retrieve it
+  // from the cache.
+
+  // This object mirrors the cache captured in Platform->PiDevicesCache
+  pi_device DeviceCache;
+
+  getOrCreateDevice(Platform, 1, &DeviceCache);
+
+  // Scan the cache for the requested device handle. If it is not present in the
+  // cache an error will be returned for an invalid value for the NativeHandle.
   auto ZeDevice = pi_cast<ze_device_handle_t>(NativeHandle);
-  *Device = new _pi_device(ZeDevice, Platform);
-  return (*Device)->initialize();
+  for (const pi_device &CachedDevice : Platform->PiDevicesCache) {
+    if (CachedDevice->ZeDevice == ZeDevice) {
+      *Device = CachedDevice;
+      return PI_SUCCESS;
+    }
+  }
+
+  return PI_INVALID_VALUE;
 }
 
 pi_result piContextCreate(const pi_context_properties *Properties,
