@@ -72,7 +72,7 @@ The +[[intel::sub_group_size(S)]]+ attribute indicates that the kernel must be c
 
 The +[[intel::named_sub_group_size(NAME)]]+ attribute indicates that the kernel must be compiled and executed with a named sub-group size.  _NAME_ must be one of the following special tokens: +auto+, +primary+.  If _NAME_ is +auto+, the implementation is free to select any of the valid sub-group sizes associated with the device to which the kernel is submitted; the manner in which the sub-group size is selected is implementation-defined.  If _NAME_ is +primary+, the implementation will select the device's primary sub-group size (as reported by the +info::device::primary_sub_group_size+ query) for all kernels with this attribute.
 
-If no sub-group size attribute appears on a kernel, the default behavior is as-if +[[intel::sub_group_size(auto)]]+ was specified.  This behavior may be overridden by an implementation (e.g. via compiler flags).
+If no sub-group size attribute appears on a kernel, the default behavior is as-if +[[intel::named_sub_group_size(auto)]]+ was specified.  This behavior may be overridden by an implementation (e.g. via compiler flags).
 
 Sub-group size attributes may also be applied to `SYCL_EXTERNAL` functions.  If a kernel calls a `SYCL_EXTERNAL` function, or a `SYCL_EXTERNAL` function calls another `SYCL_EXTERNAL` function, the attributes applied to the caller and callee must match exactly.  If the attributes do not match, the compiler should produce an error.  Note that sub-group size attributes are not propagated from a device function to callers of the function, and must be specified explicitly.
 
