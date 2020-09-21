@@ -340,11 +340,16 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
           LD->getPointerOperandType()->getPointerElementType());
       Value *EmptyVec = UndefValue::get(VecTy);
       Vectors.push_back(EmptyVec);
+      const DebugLoc &DLoc = LD->getDebugLoc();
       for (unsigned I = 0; I < VecTy->getNumElements(); ++I) {
         auto *Idx = ConstantInt::get(Type::getInt32Ty(*Context), I);
         auto *Call = CallInst::Create(Func, {Idx}, "", LD);
+        if (DLoc)
+          Call->setDebugLoc(DLoc);
         setAttrByCalledFunc(Call);
         auto *Insert = InsertElementInst::Create(Vectors.back(), Call, Idx);
+        if (DLoc)
+          Insert->setDebugLoc(DLoc);
         Insert->insertAfter(Call);
         Vectors.push_back(Insert);
       }
