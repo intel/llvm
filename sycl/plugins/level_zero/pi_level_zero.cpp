@@ -2231,16 +2231,22 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
       ZeHandles.push_back(Input->ZeModule);
     }
 
-    // Link all the modules together.  If this fails (or if we catch an
-    // exception below), we need to release the reference counts on the input
-    // modules, delete any copies, etc.
+    // Link all the modules together.
     ze_module_build_log_handle_t ZeBuildLog;
-    ZE_CALL(zeModuleDynamicLinkMock(ZeHandles.size(), ZeHandles.data(),
-                                    &ZeBuildLog));
+    ze_result_t ZeResult = ZE_CALL_NOCHECK(zeModuleDynamicLinkMock(
+        ZeHandles.size(), ZeHandles.data(), &ZeBuildLog));
 
     // Construct a new program object to represent the linked executable.  This
-    // new object holds a reference to all the input programs.
-    *RetProgram = new _pi_program(Context, std::move(Inputs), ZeBuildLog);
+    // new object holds a reference to all the input programs.  Note that we
+    // create this program object even if the link fails with "link failure"
+    // because we need the new program object to hold the buid log (which has
+    // the description of the failure).
+    if (ZeResult == ZE_RESULT_SUCCESS ||
+        ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
+      *RetProgram = new _pi_program(Context, std::move(Inputs), ZeBuildLog);
+    }
+    if (ZeResult != ZE_RESULT_SUCCESS)
+      return mapError(ZeResult);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -2356,9 +2362,8 @@ static pi_result compileOrBuild(pi_program Program, pi_uint32 NumDevices,
   ze_device_handle_t ZeDevice = DeviceList[0]->ZeDevice;
   ze_context_handle_t ZeContext = Program->Context->ZeContext;
   ze_module_handle_t ZeModule;
-  ze_module_build_log_handle_t ZeBuildLog;
   ZE_CALL(zeModuleCreate(ZeContext, ZeDevice, &ZeModuleDesc, &ZeModule,
-                         &ZeBuildLog));
+                         &Program->ZeBuildLog));
 
   // Check if this module imports any symbols, which we need to know if we
   // end up linking this module later.  See comments in piProgramLink() for
@@ -2371,7 +2376,6 @@ static pi_result compileOrBuild(pi_program Program, pi_uint32 NumDevices,
   // The caller must set the State to Object or Exe as appropriate.
   Program->Code.reset();
   Program->ZeModule = ZeModule;
-  Program->ZeBuildLog = ZeBuildLog;
   return PI_SUCCESS;
 }
 
