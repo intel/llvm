@@ -68,7 +68,9 @@ Providing a generic group abstraction encapsulating the shared functionality of 
 
 === Attributes
 
-The +[[intel::reqd_sub_group_size(S)]]+ attribute indicates that the kernel must be compiled and executed with a specific sub-group size.  The value of _S_ must be a compile-time integral constant expression or one of the following keywords: +auto+, +core+.  If the value of _S_ is an integer, the kernel should only be submitted to a device that supports that sub-group size (as reported by +info::device::sub_group_sizes+).  If the kernel is submitted to a device that does not support the requested sub-group size, or a device on which the requested sub-group size is incompatible with any language features used by the kernel, the implementation must throw a synchronous exception with the `errc::feature_not_supported` error code from the kernel invocation command.  If the value of _S_ is +auto+, the implementation is free to select any of the valid sub-group sizes associated with the device to which the kernel is submitted; the manner in which the sub-group size is selected is implementation-defined.  If the value of _S_ is +core+, the implementation will select the device's core sub-group size (as reported by the +info::device::core_sub_group_size+ query) for all kernels with this attribute.
+The +[[intel::reqd_sub_group_size(S)]]+ attribute indicates that the kernel must be compiled and executed with a specific sub-group size.  The value of _S_ must be a compile-time integral constant expression.  The kernel should only be submitted to a device that supports that sub-group size (as reported by +info::device::sub_group_sizes+).  If the kernel is submitted to a device that does not support the requested sub-group size, or a device on which the requested sub-group size is incompatible with any language features used by the kernel, the implementation must throw a synchronous exception with the `errc::feature_not_supported` error code from the kernel invocation command.
+
+The +[[intel::reqd_named_sub_group_size(NAME)]]+ attribute indicates that the kernel must be compiled and executed with a named sub-group size.  _NAME_ must be one of the following special tokens: +auto+, +primary+.  If _NAME_ is +auto+, the implementation is free to select any of the valid sub-group sizes associated with the device to which the kernel is submitted; the manner in which the sub-group size is selected is implementation-defined.  If _NAME_ is +primary+, the implementation will select the device's primary sub-group size (as reported by the +info::device::primary_sub_group_size+ query) for all kernels with this attribute.
 
 If no required sub-group size attribute appears on a kernel, the default behavior is as-if +[[intel::reqd_sub_group_size(auto)]]+ was specified.  This behavior may be overridden by an implementation (e.g. via compiler flags).
 
@@ -89,7 +91,7 @@ It is illegal for a kernel or function to call a function with a mismatched sub-
 
 === Compiler Flags
 
-The +-fsycl-core-sub-group-size+ flag compiles all kernels in the translation unit as though +[[intel::reqd_sub_group_size(core)]]+ was specified.
+The +-fsycl-primary-sub-group-size+ flag compiles all kernels in the translation unit as though +[[intel::reqd_named_sub_group_size(primary)]]+ was specified.
 
 === Sub-group Queries
 
@@ -112,7 +114,7 @@ The device descriptors below are added to the +info::device+ enumeration class:
 |+bool+
 |Returns +true+ if the device supports independent forward progress of sub-groups with respect to other sub-groups in the same work-group.
 
-|+info::device::core_sub_group_size+
+|+info::device::primary_sub_group_size+
 |+size_t+
 |Return a sub-group size supported by this device that is guaranteed to support all core language features for the device.
 
@@ -153,7 +155,7 @@ The kernel descriptors below are added to the +info::kernel_device_specific+ enu
 |+info::kernel_device_specific::compile_sub_group_size+
 |N/A
 |+uint32_t+
-|Returns the required sub-group size specified by the kernel. Returns 0 if the requested size was `auto`, and returns the device's core sub-group size if the requested size was `core`.
+|Returns the required sub-group size specified by the kernel. Returns 0 if the requested size was `auto`, and returns the device's primary sub-group size if the requested size was `primary`.
 |===
 
 === The sub_group Class
@@ -309,7 +311,7 @@ Yes, the four shuffles in this extension are a defining feature of sub-groups.  
 +
 --
 *RESOLVED*:
-The name adopted is "core", to convey that it supports all core (non-optional) language features and is an integral part of sub-group support provided by the device.  Other names considered are listed here for posterity: "default", "stable", "fixed", "primary".  With the exception of "primary", these terms are easy to misunderstand (i.e. the "default" size may not be chosen by default, the "stable" size is unrelated to the software release cycle, the "fixed" sub-group size may change between devices or compiler releases).  "core" was selected over "primary" because of its simplicity.
+The name adopted is "primary", to convey that it is an integral part of sub-group support provided by the device.  Other names considered are listed here for posterity: "default", "stable", "fixed", "core".  These terms are easy to misunderstand (i.e. the "default" size may not be chosen by default, the "stable" size is unrelated to the software release cycle, the "fixed" sub-group size may change between devices or compiler releases, the "core" size is unrelated to hardware cores).
 --
 
 //. asd
