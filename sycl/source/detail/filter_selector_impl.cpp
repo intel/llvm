@@ -133,17 +133,17 @@ int filter_selector_impl::operator()(const device &Dev) const {
       }
       // Backend is okay if the filter BE is set 'all'.
       if (Filter.Backend == backend::all)
-	BackendOK = true;
+        BackendOK = true;
       else
-	BackendOK = (BE == Filter.Backend);
+        BackendOK = (BE == Filter.Backend);
     }
     if (Filter.HasDeviceType) {
       info::device_type DT = Dev.get_info<info::device::device_type>();
       // DeviceType is okay if the filter is set 'all'.
       if (Filter.DeviceType == info::device_type::all)
-	DeviceTypeOK = true;
+        DeviceTypeOK = true;
       else
-	DeviceTypeOK = (DT == Filter.DeviceType);
+        DeviceTypeOK = (DT == Filter.DeviceType);
     }
     if (Filter.HasDeviceNum) {
       // Only check device number if we're good on the previous matches
