@@ -1,6 +1,6 @@
 // TODO: Enable compilation w/o -fno-sycl-early-optimizations option.
 // See https://github.com/intel/llvm/issues/2264 for more details.
-// XFAIL: gpu
+// XFAIL: gpu && windows
 
 // UNSUPPORTED: cuda
 // CUDA compilation and runtime do not yet support sub-groups.
