@@ -58,7 +58,7 @@ enum KernelInvocationKind {
 
 const static std::string InitMethodName = "__init";
 const static std::string FinalizeMethodName = "__finalize";
-constexpr unsigned GPUMaxKernelArgsSize = 2048;
+constexpr unsigned MaxKernelArgsSize = 2048;
 
 namespace {
 
@@ -1697,11 +1697,9 @@ public:
       : SyclKernelFieldHandler(S), KernelLoc(Loc) {}
 
   ~SyclKernelArgsSizeChecker() {
-    if (SemaRef.Context.getTargetInfo().getTriple().getSubArch() ==
-        llvm::Triple::SPIRSubArch_gen)
-      if (SizeOfParams > GPUMaxKernelArgsSize)
-        SemaRef.Diag(KernelLoc, diag::warn_sycl_kernel_too_big_args)
-            << SizeOfParams << GPUMaxKernelArgsSize;
+    if (SizeOfParams > MaxKernelArgsSize)
+      SemaRef.Diag(KernelLoc, diag::warn_sycl_kernel_too_big_args)
+          << SizeOfParams << MaxKernelArgsSize;
   }
 
   bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
