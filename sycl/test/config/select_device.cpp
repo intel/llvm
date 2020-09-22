@@ -100,28 +100,49 @@ std::vector<int> convertVersionString(std::string version) {
     throw sycl::runtime_error("Malformed syntax in version string",
                               PI_INVALID_VALUE);
   }
-  values.push_back(std::stoi(version.substr(start, pos)));
+  values.push_back(std::stoi(version.substr(start, pos - start)));
   pos++;
   start = pos;
   if ((pos = version.find(".", pos)) == std::string::npos) {
     throw sycl::runtime_error("Malformed syntax in version string",
                               PI_INVALID_VALUE);
   }
-  values.push_back(std::stoi(version.substr(start, pos)));
+  values.push_back(std::stoi(version.substr(start, pos - start)));
   pos++;
-  values.push_back(std::stoi(version.substr(pos)));
-
+  size_t prev = pos;
+  if ((pos = version.find(".", pos)) == std::string::npos) {
+    values.push_back(std::stoi(version.substr(prev)));
+  } else {
+    values.push_back(std::stoi(version.substr(start, pos - start)));
+    pos++;
+    values.push_back(std::stoi(version.substr(pos)));
+  }
   return values;
 }
 
 bool matchVersions(std::string version1, std::string version2) {
   std::vector<int> v1 = convertVersionString(version1);
   std::vector<int> v2 = convertVersionString(version2);
-  if (v1[0] >= v2[0] && v1[1] >= v2[1] && v1[2] >= v2[2]) {
-    return true;
-  } else {
+
+  if (v1.size() != v2.size()) {
     return false;
   }
+  if (v1[0] > v2[0]) {
+    return true;
+  }
+  if ((v1[0] == v2[0]) && (v1[1] >= v2[1])) {
+    return true;
+  }
+  if ((v1[0] == v2[0]) && (v1[1] == v2[1]) && (v1[2] >= v2[2])) {
+    return true;
+  }
+  if (v1.size() == 4) {
+    if ((v1[0] == v2[0]) && (v1[1] == v2[1]) && (v1[2] == v2[2]) &&
+        (v1[3] >= v2[3])) {
+      return true;
+    }
+  }
+  return false;
 }
 
 static std::vector<DevDescT> getAllowListDesc(std::string allowList) {
@@ -323,7 +344,7 @@ int main() {
             if (dev.has(aspect::gpu)) {
               std::string name = dev.get_info<info::device::name>();
               replaceSpecialCharacters(name);
-              std::string ver("12.34.56789");
+              std::string ver("98.76.54321");
               fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
                  << "}}" << std::endl;
               passed = true;
