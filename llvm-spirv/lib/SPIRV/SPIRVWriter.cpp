@@ -2702,7 +2702,14 @@ bool LLVMToSPIRV::transGlobalVariables() {
   for (auto I = M->global_begin(), E = M->global_end(); I != E; ++I) {
     if ((*I).getName() == "llvm.global.annotations")
       transGlobalAnnotation(&(*I));
-    else if (MDNode *IO = ((*I).getMetadata("io_pipe_id")))
+    else if ((I->getName() == "llvm.global_ctors" ||
+              I->getName() == "llvm.global_dtors") &&
+             !BM->isAllowedToUseExtension(
+                 ExtensionID::SPV_INTEL_function_pointers)) {
+      // Function pointers are required to represent structor lists; do not
+      // translate the variable if function pointers are not available.
+      continue;
+    } else if (MDNode *IO = ((*I).getMetadata("io_pipe_id")))
       transGlobalIOPipeStorage(&(*I), IO);
     else if (!transValue(&(*I), nullptr))
       return false;
