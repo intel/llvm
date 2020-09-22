@@ -3005,6 +3005,30 @@ static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D,
   S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNumSimdWorkItemsAttr>(D, Attr,
                                                                      E);
 }
+// Handles scheduler_target_fmax_mhz
+static void handleSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
+                                       const ParsedAttr &Attr) {
+  if (D->isInvalidDecl())
+    return;
+
+  uint32_t TargetFmaxMhz = 0;
+  const Expr *E = Attr.getArgAsExpr(0);
+  if (!checkUInt32Argument(S, Attr, E, TargetFmaxMhz, 0,
+                           /*StrictlyUnsigned=*/true))
+    return;
+
+  if (TargetFmaxMhz == 0) {
+    S.Diag(Attr.getLoc(), diag::err_attribute_argument_is_zero)
+        << Attr << E->getSourceRange();
+    return;
+  }
+
+  if (D->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>())
+    S.Diag(Attr.getLoc(), diag::warn_duplicate_attribute) << Attr;
+
+  D->addAttr(::new (S.Context) SYCLIntelSchedulerTargetFmaxMhzAttr(
+      S.Context, Attr, TargetFmaxMhz));
+}
 
 // Handles max_global_work_dim.
 static void handleMaxGlobalWorkDimAttr(Sema &S, Decl *D,
@@ -7892,6 +7916,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SYCLIntelNumSimdWorkItems:
     handleNumSimdWorkItemsAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLIntelSchedulerTargetFmaxMhz:
+    handleSchedulerTargetFmaxMhzAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelMaxGlobalWorkDim:
     handleMaxGlobalWorkDimAttr(S, D, AL);

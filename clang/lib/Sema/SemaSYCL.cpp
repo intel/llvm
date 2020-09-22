@@ -531,6 +531,9 @@ public:
       if (auto *A = FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>())
         Attrs.insert(A);
 
+      if (auto *A = FD->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>())
+        Attrs.insert(A);
+
       if (auto *A = FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>())
         Attrs.insert(A);
 
@@ -3166,6 +3169,7 @@ void Sema::MarkDevice(void) {
         }
         case attr::Kind::SYCLIntelKernelArgsRestrict:
         case attr::Kind::SYCLIntelNumSimdWorkItems:
+        case attr::Kind::SYCLIntelSchedulerTargetFmaxMhz:
         case attr::Kind::SYCLIntelMaxGlobalWorkDim:
         case attr::Kind::SYCLIntelNoGlobalWorkOffset:
         case attr::Kind::SYCLSimd: {
