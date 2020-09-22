@@ -2197,6 +2197,17 @@ device kernel, the attribute is ignored and it is not propagated to a kernel.
   }];
 }
 
+def SYCLIntelSchedulerTargetFmaxMhzAttrDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "scheduler_target_fmax_mhz (IntelFPGA)";
+  let Content = [{
+Applies to a device function/lambda function. Indicates that the kernel should
+be pipelined so as to achieve the specified target clock frequency (Fmax) of N
+MHz. The argument N may be a template parameter. This attribute should be
+ignored for the FPGA emulator device.
+  }];
+}
+
 def SYCLIntelNoGlobalWorkOffsetAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "no_global_work_offset (IntelFPGA)";
