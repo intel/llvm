@@ -31,15 +31,13 @@ int main() {
   auto DeviceType = D.get_info<info::device::device_type>();
 
   string_class OCLVersionStr = D.get_info<info::device::version>();
-  const bool OCLBackend = (OCLVersionStr.find("OpenCL") != string_class::npos);
-  assert((!OCLBackend || (OCLVersionStr.size() >= 10)) &&
-         "Unexpected device version string"); // strlen("OpenCL X.Y")
-  const char *OCLVersion = &OCLVersionStr[7]; // strlen("OpenCL ")
+  assert((OCLVersionStr.size() >= 3) && "Unexpected device version string"); 
+  assert(OCLVersionStr.find(".") != string_class::npos && "Unexpected device version string");
+  const char OCLVersionMajor = OCLVersionStr[0];
+  const char OCLVersionMinor = OCLVersionStr[2];  
 
-  // reqd_work_group_size is OpenCL specific.
-  if (OCLBackend) {
-    if (OCLVersion[0] == '1' ||
-        (OCLVersion[0] == '2' && OCLVersion[2] == '0')) {
+    if (OCLVersionMajor == '1' ||
+        (OCLVersionMajor == '2' && OCLVersionMinor == '0')) {
       // parallel_for, (16, 16, 16) global, (8, 8, 8) local, reqd_wg_size(4, 4,
       // 4)
       // -> fail
@@ -141,9 +139,8 @@ int main() {
                 << std::endl;
       return 1;
     }
-  } // if  (OCLBackend)
 
-  if (!OCLBackend || (OCLVersion[0] == '1')) {
+  if (OCLVersionMajor == '1') {
     // OpenCL 1.x or non-OpenCL backends which behave like OpenCl 1.2 in SYCL.
 
     // CL_INVALID_WORK_GROUP_SIZE if local_work_size is specified and
@@ -346,7 +343,7 @@ int main() {
                 << std::endl;
       return 1;
     }
-  } else if (OCLBackend && (OCLVersion[0] == '2')) {
+  } else if (OCLVersionMajor == '2') {
     // OpenCL 2.x
 
     // OpenCL 2.x:
