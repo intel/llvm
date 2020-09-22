@@ -549,7 +549,8 @@ static void instantiateIntelSYCLFunctionAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.addIntelSYCLFunctionAttr<AttrName>(New, *Attr, Result.getAs<Expr>());
+    S.addIntelSYCLSingleArgFunctionAttr<AttrName>(New, *Attr,
+                                                  Result.getAs<Expr>());
 }
 
 void Sema::InstantiateAttrsForDecl(

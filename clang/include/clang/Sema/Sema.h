@@ -9987,8 +9987,8 @@ public:
   void AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr **Exprs, unsigned Size);
   template <typename AttrType>
-  void addIntelSYCLFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
-                                Expr *E);
+  void addIntelSYCLSingleArgFunctionAttr(Decl *D,
+                                         const AttributeCommonInfo &CI, Expr *E);
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                       bool IsPackExpansion);
@@ -12835,8 +12835,9 @@ public:
 };
 
 template <typename AttrType>
-void Sema::addIntelSYCLFunctionAttr(Decl *D, const AttributeCommonInfo &Attr,
-                                    Expr *E) {
+void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
+                                             const AttributeCommonInfo &CI,
+                                             Expr *E) {
   if (!E)
     return;
 
@@ -12844,19 +12845,19 @@ void Sema::addIntelSYCLFunctionAttr(Decl *D, const AttributeCommonInfo &Attr,
     Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(getASTContext());
     if (!ArgVal) {
       Diag(E->getExprLoc(), diag::err_attribute_argument_type)
-          << Attr.getAttrName() << AANT_ArgumentIntegerConstant
+          << CI.getAttrName() << AANT_ArgumentIntegerConstant
           << E->getSourceRange();
       return;
     }
     int32_t ArgInt = ArgVal->getSExtValue();
     if (ArgInt <= 0) {
       Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << Attr.getAttrName() << /*positive*/ 0;
+          << CI.getAttrName() << /*positive*/ 0;
       return;
     }
   }
 
-  D->addAttr(::new (Context) AttrType(Context, Attr, E));
+  D->addAttr(::new (Context) AttrType(Context, CI, E));
 }
 
 template <typename AttrType>

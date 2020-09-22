@@ -2988,7 +2988,7 @@ static void handleSubGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (D->getAttr<IntelReqdSubGroupSizeAttr>())
     S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
 
-  S.addIntelSYCLFunctionAttr<IntelReqdSubGroupSizeAttr>(D, AL, E);
+  S.addIntelSYCLSingleArgFunctionAttr<IntelReqdSubGroupSizeAttr>(D, AL, E);
 }
 
 // Handles num_simd_work_items.
@@ -3002,7 +3002,7 @@ static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D,
   if (D->getAttr<SYCLIntelNumSimdWorkItemsAttr>())
     S.Diag(Attr.getLoc(), diag::warn_duplicate_attribute) << Attr;
 
-  S.addIntelSYCLFunctionAttr<SYCLIntelNumSimdWorkItemsAttr>(D, Attr, E);
+  S.addIntelSYCLSingleArgFunctionAttr<SYCLIntelNumSimdWorkItemsAttr>(D, Attr, E);
 }
 
 // Handles max_global_work_dim.
