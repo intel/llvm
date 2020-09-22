@@ -1080,22 +1080,17 @@ public:
   // handleStructType, enterStruct, leaveStruct, and visiting of sub-elements.
   virtual bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *,
                                      QualType) {
-    // TODO: Should this assert? Empty would have to do something about it.
     return true;
   }
   virtual bool handleNonDecompStruct(const CXXRecordDecl *,
                                      const CXXBaseSpecifier &, QualType) {
-    // TODO: Should this assert? Empty would have to do something about it.
     return true;
   }
 
   // Instead of handleArrayType, enterArray, leaveArray, and nextElement (plus
   // descending down the elements), this function gets called in the event of an
   // array containing simple elements (even in the case of an MD array).
-  virtual bool handleSimpleArrayType(FieldDecl *, QualType) {
-    // TODO: Should this assert? Empty would have to do something about it.
-    return true;
-  }
+  virtual bool handleSimpleArrayType(FieldDecl *, QualType) { return true; }
 
   // The following are only used for keeping track of where we are in the base
   // class/field graph. Int Headers use this to calculate offset, most others
@@ -1210,8 +1205,16 @@ void KernelObjVisitor::visitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
                                    QualType RecordTy,
                                    HandlerTys &... Handlers) {
   if (RecordTy->getAsRecordDecl()->hasAttr<SYCLRequiresDecompositionAttr>()) {
+    // If this container requires decomposition, we have to visit it as
+    // 'complex', so all handlers are called in this case with the 'complex'
+    // case.
     visitComplexRecord(Owner, Parent, Wrapper, RecordTy, Handlers...);
   } else {
+    // "Simple" Containers are those that do NOT need to be decomposed,
+    // "Complex" containers are those that DO. In the case where the container
+    // does NOT need to be decomposed, we can call VisitSimpleRecord on the
+    // handlers that have opted-out of VisitInsideSimpleContainers. The 'if'
+    // makes sure we only do that if at least 1 has opted out.
     if (!AllTrue<HandlerTys::VisitInsideSimpleContainers...>::Value)
       visitSimpleRecord(
           Owner, Parent, Wrapper, RecordTy,
@@ -1219,6 +1222,9 @@ void KernelObjVisitor::visitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
               Handlers)
               .Handler...);
 
+    // Even though this is a 'simple' container, some handlers (via
+    // VisitInsideSimpleContainers = true) need to treat it as if it needs
+    // decomposing, so we call VisitComplexRecord iif at least one has.
     if (AnyTrue<HandlerTys::VisitInsideSimpleContainers...>::Value)
       visitComplexRecord(
           Owner, Parent, Wrapper, RecordTy,
@@ -1877,8 +1883,8 @@ public:
   bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
     // Arrays are always wrapped in a struct since they cannot be passed
     // directly.
-    RecordDecl *WrappedPointer = wrapField(FD, FieldTy);
-    QualType ModTy = SemaRef.getASTContext().getRecordType(WrappedPointer);
+    RecordDecl *WrappedArray = wrapField(FD, FieldTy);
+    QualType ModTy = SemaRef.getASTContext().getRecordType(WrappedArray);
     addParam(FD, ModTy);
     return true;
   }
@@ -2162,14 +2168,10 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     Expr *DRE = SemaRef.BuildDeclRefExpr(KernelParameter, ParamType, VK_LValue,
                                          KernelCallerSrcLoc);
 
-    // Unwrapp the array.
+    // Unwrap the array.
     CXXRecordDecl *WrapperStruct = ParamType->getAsCXXRecordDecl();
     FieldDecl *ArrayField = *(WrapperStruct->field_begin());
-    DRE = buildMemberExpr(DRE, ArrayField);
-
-    // TODO: do we need to do the L->R val conversion?  I think this should
-    // happen automatically.
-    return DRE;
+    return buildMemberExpr(DRE, ArrayField);
   }
 
   // Returns 'true' if the thing we're visiting (Based on the FD/QualType pair)
