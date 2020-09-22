@@ -12838,7 +12838,7 @@ template <typename AttrType>
 void Sema::addIntelSYCLSingleArgFunctionAttr(Decl *D,
                                              const AttributeCommonInfo &CI,
                                              Expr *E) {
-  assert (!E);
+  assert(!E);
 
   if (!E->isInstantiationDependent()) {
     Optional<llvm::APSInt> ArgVal = E->getIntegerConstantExpr(getASTContext());
