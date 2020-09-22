@@ -640,7 +640,7 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
   }
 
   if (const SYCLIntelSchedulerTargetFmaxMhzAttr *A =
-      FD->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
+          FD->getAttr<SYCLIntelSchedulerTargetFmaxMhzAttr>()) {
     llvm::Metadata *AttrMDArgs[] = {
         llvm::ConstantAsMetadata::get(Builder.getInt32(A->getNumber()))};
     Fn->setMetadata("scheduler_target_fmax_mhz",

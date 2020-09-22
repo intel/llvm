@@ -3007,7 +3007,7 @@ static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D,
 }
 // Handles scheduler_target_fmax_mhz
 static void handleSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
-                                       const ParsedAttr &Attr) {
+                                             const ParsedAttr &Attr) {
   if (D->isInvalidDecl())
     return;
 
