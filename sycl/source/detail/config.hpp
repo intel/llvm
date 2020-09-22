@@ -184,7 +184,7 @@ public:
       static device_filter_list DFL{ValStr};
       FilterList = &DFL;
     }
-    
+
     // TODO: remove the following code when we remove the support for legacy
     // env vars.
     // Emit the deprecation warning message if SYCL_BE or SYCL_DEVICE_TYPE is
