@@ -14,7 +14,7 @@ namespace sycl {
 namespace detail {
 GlobalHandler *SyclGlobalObjectsHandler;
 // SpinLock is chosen because, unlike std::mutex, it can be zero initialized,
-// which spares us from dealing with constructor/destructor call order.
+// which spares us from dealing with global constructor/destructor call order.
 SpinLock GlobalWritesAllowed;
 
 GlobalHandler &GlobalHandler::instance() {

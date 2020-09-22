@@ -438,7 +438,6 @@ protected:
   friend struct GlobalHandler;
 
   Scheduler();
-  // static Scheduler instance;
 
   /// Provides exclusive access to std::shared_timed_mutex object with deadlock
   /// avoidance

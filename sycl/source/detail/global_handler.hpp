@@ -10,6 +10,9 @@
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/plugin.hpp>
+
+#include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -33,12 +36,14 @@ extern GlobalHandler *SyclGlobalObjectsHandler;
 /// There's no need to store trivial globals here, as no code for their
 /// construction or destruction is generated anyway.
 struct GlobalHandler {
+  // "I" stays for Instance.
   Scheduler IScheduler;
   ProgramManager IProgramManager;
   Sync ISync;
   std::vector<PlatformImplPtr> IPlatformCache;
   std::mutex IPlatformMapMutex;
   std::mutex IFilterMutex;
+  std::vector<plugin> IPlugins;
 
   /// \return a reference to a GlobalHandler singletone instance. Memory for
   /// storing objects is allocated on first call. The reference is valid as long

@@ -17,6 +17,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/config.hpp>
 #include <detail/plugin.hpp>
+#include <detail/global_handler.hpp>
 
 #include <bitset>
 #include <cstdarg>
@@ -266,7 +267,7 @@ const vector_class<plugin> &initialize() {
     // could eventually call down to initialize().  Therefore, there is no safe
     // time when "Plugins" could be deleted.
     Plugins = new vector_class<plugin>;
-    initializePlugins(Plugins);
+    initializePlugins(&GlobalHandler::instance().IPlugins);
   });
 
   return *Plugins;
