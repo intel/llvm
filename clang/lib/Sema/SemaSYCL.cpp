@@ -582,20 +582,10 @@ public:
       auto NewDecl = MappingPair.second;
       return DeclRefExpr::Create(
           SemaRef.getASTContext(), DRE->getQualifierLoc(),
-          DRE->getTemplateKeywordLoc(), NewDecl, false,
-          DeclarationNameInfo(DRE->getNameInfo().getName(), SourceLocation(),
-                              DRE->getNameInfo().getInfo()),
+          DRE->getTemplateKeywordLoc(), NewDecl, false, DRE->getNameInfo(),
           NewDecl->getType(), DRE->getValueKind());
     }
     return DRE;
-  }
-
-  StmtResult RebuildCompoundStmt(SourceLocation LBraceLoc,
-                                 MultiStmtArg Statements,
-                                 SourceLocation RBraceLoc, bool IsStmtExpr) {
-    // Build a new compound statement but clear the source locations.
-    return getSema().ActOnCompoundStmt(SourceLocation(), SourceLocation(),
-                                       Statements, IsStmtExpr);
   }
 
 private:
