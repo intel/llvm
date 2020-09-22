@@ -12,11 +12,9 @@ __attribute__((sycl_kernel)) void kernel(F KernelFunc) {
 template <typename Name, typename F>
 void parallel_for(F KernelFunc) {
 #ifdef ERROR
-  // expected-error@+6 {{size of kernel arguments (7994 bytes) may exceed supported maximum on some devices}}
-  // expected-note@+5 {{supported maximum on some devices is 2048 bytes}}
+  // expected-error@+4 {{size of kernel arguments (7994 bytes) may exceed the supported maximum of 2048 bytes on some devices}}
 #else
-  // expected-warning@+3 {{size of kernel arguments (7994 bytes) may exceed supported maximum on some devices}}
-  // expected-note@+2 {{supported maximum on some devices is 2048 bytes}}
+  // expected-warning@+2 {{size of kernel arguments (7994 bytes) may exceed the supported maximum of 2048 bytes on some devices}}
 #endif
   kernel<Name>(KernelFunc);
 }

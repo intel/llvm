@@ -1697,12 +1697,9 @@ public:
       : SyclKernelFieldHandler(S), KernelLoc(Loc) {}
 
   ~SyclKernelArgsSizeChecker() {
-    if (SizeOfParams > MaxKernelArgsSize) {
+    if (SizeOfParams > MaxKernelArgsSize)
       SemaRef.Diag(KernelLoc, diag::warn_sycl_kernel_too_big_args)
-          << SizeOfParams;
-      SemaRef.Diag(KernelLoc, diag::note_sycl_kernel_too_big_args)
-          << MaxKernelArgsSize;
-    }
+          << SizeOfParams << MaxKernelArgsSize;
   }
 
   bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
