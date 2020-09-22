@@ -668,7 +668,7 @@ static pi_result getOrCreatePlatform(ze_driver_handle_t ZeDriver,
     static auto PiPlatformsCacheMutex = new std::mutex;
 
     std::lock_guard<std::mutex> Lock(*PiPlatformsCacheMutex);
-    for (const pi_platform& CachedPlatform : *PiPlatformsCache) {
+    for (const pi_platform &CachedPlatform : *PiPlatformsCache) {
       if (CachedPlatform->ZeDriver == ZeDriver) {
         Platform[0] = CachedPlatform;
         return PI_SUCCESS;
