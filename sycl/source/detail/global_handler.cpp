@@ -16,6 +16,7 @@ GlobalHandler *SyclGlobalObjectsHandler;
 // SpinLock is chosen because, unlike std::mutex, it can be zero initialized,
 // which spares us from dealing with global constructor/destructor call order.
 SpinLock GlobalWritesAllowed;
+SpinLock ShutdownLock;
 
 GlobalHandler &GlobalHandler::instance() {
   if (!SyclGlobalObjectsHandler) {
@@ -28,10 +29,78 @@ GlobalHandler &GlobalHandler::instance() {
   return *SyclGlobalObjectsHandler;
 }
 
-static void shutdown() {
+Scheduler &GlobalHandler::getScheduler() {
+  if (!MScheduler) {
+    const std::lock_guard<SpinLock> Lock{MFieldsLock};
+    if (!MScheduler) {
+      MScheduler = std::make_unique<Scheduler>();
+    }
+  }
+  return *MScheduler;
+}
+ProgramManager &GlobalHandler::getProgramManager() {
+  if (!MProgramManager) {
+    const std::lock_guard<SpinLock> Lock{MFieldsLock};
+    if (!MProgramManager) {
+      MProgramManager = std::make_unique<ProgramManager>();
+    }
+  }
+  return *MProgramManager;
+}
+Sync &GlobalHandler::getSync() {
+  if (!MSync) {
+    const std::lock_guard<SpinLock> Lock{MFieldsLock};
+    if (!MSync) {
+      MSync = std::make_unique<Sync>();
+    }
+  }
+  return *MSync;
+}
+std::vector<PlatformImplPtr> &GlobalHandler::getPlatformCache() {
+  if (!MPlatformCache) {
+    const std::lock_guard<SpinLock> Lock{MFieldsLock};
+    if (!MPlatformCache) {
+      MPlatformCache = std::make_unique<std::vector<PlatformImplPtr>>();
+    }
+  }
+  return *MPlatformCache;
+}
+std::mutex &GlobalHandler::getPlatformMapMutex() {
+  if (!MPlatformMapMutex) {
+    const std::lock_guard<SpinLock> Lock{MFieldsLock};
+    if (!MPlatformMapMutex) {
+      MPlatformMapMutex = std::make_unique<std::mutex>();
+    }
+  }
+  return *MPlatformMapMutex;
+}
+std::mutex &GlobalHandler::getFilterMutex() {
+  if (!MFilterMutex) {
+    const std::lock_guard<SpinLock> Lock{MFieldsLock};
+    if (!MFilterMutex) {
+      MFilterMutex = std::make_unique<std::mutex>();
+    }
+  }
+  return *MFilterMutex;
+}
+std::vector<plugin> &GlobalHandler::getPlugins() {
+  if (!MPlugins) {
+    const std::lock_guard<SpinLock> Lock{MFieldsLock};
+    if (!MPlugins) {
+      MPlugins = std::make_unique<std::vector<plugin>>();
+    }
+  }
+  return *MPlugins;
+}
+
+void shutdown() {
   if (SyclGlobalObjectsHandler) {
-    const std::lock_guard<SpinLock> Lock{GlobalWritesAllowed};
+    const std::lock_guard<SpinLock> Lock{ShutdownLock};
     if (SyclGlobalObjectsHandler) {
+      // Acquire fields lock to make sure no thread creates fields while
+      // object destruction is in flight.
+      const std::lock_guard<SpinLock> Lock{
+          SyclGlobalObjectsHandler->getFieldsLock()};
       delete SyclGlobalObjectsHandler;
     }
   }

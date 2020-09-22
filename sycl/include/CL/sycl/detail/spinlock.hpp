@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#pragma once
+
 #include <CL/sycl/detail/defines.hpp>
 
 #include <atomic>

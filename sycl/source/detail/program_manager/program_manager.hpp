@@ -135,10 +135,10 @@ public:
                              const device &Device, pi::PiProgram NativePrg,
                              const string_class &KernelName, bool KnownProgram);
 
-private:
-  friend struct GlobalHandler;
   ProgramManager();
   ~ProgramManager() = default;
+
+private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
 

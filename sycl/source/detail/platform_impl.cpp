@@ -36,10 +36,10 @@ PlatformImplPtr platform_impl::getOrMakePlatformImpl(RT::PiPlatform PiPlatform,
   PlatformImplPtr Result;
   {
     const std::lock_guard<std::mutex> Guard(
-        GlobalHandler::instance().IPlatformMapMutex);
+        GlobalHandler::instance().getPlatformMapMutex());
 
     std::vector<PlatformImplPtr> &PlatformCache =
-        GlobalHandler::instance().IPlatformCache;
+        GlobalHandler::instance().getPlatformCache();
 
     // If we've already seen this platform, return the impl
     for (const auto &PlatImpl : PlatformCache) {

@@ -267,7 +267,7 @@ const vector_class<plugin> &initialize() {
     // could eventually call down to initialize().  Therefore, there is no safe
     // time when "Plugins" could be deleted.
     Plugins = new vector_class<plugin>;
-    initializePlugins(&GlobalHandler::instance().IPlugins);
+    initializePlugins(&GlobalHandler::instance().getPlugins());
   });
 
   return *Plugins;

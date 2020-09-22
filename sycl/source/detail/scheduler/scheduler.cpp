@@ -131,7 +131,7 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
 }
 
 Scheduler &Scheduler::getInstance() {
-  return GlobalHandler::instance().IScheduler;
+  return GlobalHandler::instance().getScheduler();
 }
 
 std::vector<EventImplPtr> Scheduler::getWaitList(EventImplPtr Event) {

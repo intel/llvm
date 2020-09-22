@@ -177,7 +177,7 @@ void filter_selector::reset() const { impl->reset(); }
 
 device filter_selector::select_device() const {
   std::lock_guard<std::mutex> Guard(
-      sycl::detail::GlobalHandler::instance().IFilterMutex);
+      sycl::detail::GlobalHandler::instance().getFilterMutex());
 
   device Result = device_selector::select_device();
 
