@@ -112,6 +112,8 @@ Release notes for commit range 5976ff0..1fc0e4f
   - Enabled USM indirect access for interoperability kernels [ebf5c4e]
 
 ## API/ABI breakages
+  - Added missing constructors and propety methods for context, program and
+    sampler[30b8acc]
 
 ## Known issues
   - The format of the object files produced by the compiler can change between
@@ -140,7 +142,7 @@ Release notes for commit range 5976ff0..1fc0e4f
 Release notes for the commit range 75b3dc2..5976ff0
 
 ## New features
-  - Implemented basic support for the [Explicit SIMD extension](./sycl/doc/extensions/ExplicitSIMD/dpcpp-explicit-simd.md)
+  - Implemented basic support for the [Explicit SIMD extension](doc/extensions/ExplicitSIMD/dpcpp-explicit-simd.md)
     for low-level GPU performance tuning [84bf234] [32bf607] [a lot of others]
   - Implemented support for the [SYCL_INTEL_usm_address_spaces extension](https://github.com/intel/llvm/pull/1840)
   - Implemented support for the [Use Pinned Host Memory Property extension](doc/extensions/UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc) [e5ea144][aee2d6c][396759d]

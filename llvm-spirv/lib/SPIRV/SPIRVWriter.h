@@ -133,6 +133,9 @@ public:
                               FuncTransMode FuncTrans = FuncTransMode::Decl);
   void transGlobalIOPipeStorage(GlobalVariable *V, MDNode *IO);
 
+  static SPIRVInstruction *applyRoundingModeConstraint(Value *V,
+                                                       SPIRVInstruction *I);
+
   typedef DenseMap<Type *, SPIRVType *> LLVMToSPIRVTypeMap;
   typedef DenseMap<Value *, SPIRVValue *> LLVMToSPIRVValueMap;
   typedef DenseMap<MDNode *, SPIRVId> LLVMToSPIRVMetadataMap;

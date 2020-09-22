@@ -57,18 +57,18 @@
 
 /// Test behaviors of -foffload-static-lib=<lib> from source.
 // RUN: touch %t.lib
-// RUN: %clang --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t.lib -ccc-print-phases %s 2>&1 \
+// RUN: %clang --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all -foffload-static-lib=%t.lib -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -DLIB=%t.lib %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC
-// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t.lib -ccc-print-phases %s 2>&1 \
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all -foffload-static-lib=%t.lib -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -DLIB=%t.lib %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC
 
 // FOFFLOAD_STATIC_LIB_SRC: 0: input, "[[INPUTLIB:.+\.lib]]", object, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 1: input, "[[INPUTC:.+\.c]]", c, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 2: preprocessor, {1}, cpp-output, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 3: input, "[[INPUTC]]", c, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 4: preprocessor, {3}, cpp-output, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 1: input, "[[INPUTC:.+\.c]]", c++, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 3: input, "[[INPUTC]]", c++, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 5: compiler, {4}, sycl-header, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 6: offload, "host-sycl (x86_64-pc-windows-msvc)" {2}, "device-sycl (spir64-unknown-unknown-sycldevice)" {5}, cpp-output
+// FOFFLOAD_STATIC_LIB_SRC: 6: offload, "host-sycl (x86_64-pc-windows-msvc)" {2}, "device-sycl (spir64-unknown-unknown-sycldevice)" {5}, c++-cpp-output
 // FOFFLOAD_STATIC_LIB_SRC: 7: compiler, {6}, ir, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 8: backend, {7}, assembler, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 9: assembler, {8}, object, (host-sycl)
@@ -97,9 +97,9 @@
 
 // Check for /P behaviors
 // RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -P %s -### 2>&1 | FileCheck -check-prefix=FSYCL_P %s
-// FSYCL_P: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown-sycldevice" {{.*}} "-E" {{.*}} "-o" "[[DEVICEPP:.+\.i]]"
-// FSYCL_P: clang{{.*}} "-cc1" "-triple" "x86_64-pc-windows-msvc{{.*}}" {{.*}} "-E" {{.*}} "-o" "[[HOSTPP:.+\.i]]"
-// FSYCL_P: clang-offload-bundler{{.*}} "-type=i" "-targets=sycl-spir64-unknown-unknown-sycldevice,host-x86_64-pc-windows-msvc" {{.*}} "-inputs=[[DEVICEPP]],[[HOSTPP]]"
+// FSYCL_P: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown-sycldevice" {{.*}} "-E" {{.*}} "-o" "[[DEVICEPP:.+\.ii]]"
+// FSYCL_P: clang{{.*}} "-cc1" "-triple" "x86_64-pc-windows-msvc{{.*}}" {{.*}} "-E" {{.*}} "-o" "[[HOSTPP:.+\.ii]]"
+// FSYCL_P: clang-offload-bundler{{.*}} "-type=ii" "-targets=sycl-spir64-unknown-unknown-sycldevice,host-x86_64-pc-windows-msvc" {{.*}} "-inputs=[[DEVICEPP]],[[HOSTPP]]"
 
 // TODO: SYCL specific fail - analyze and enable
 // XFAIL: windows-msvc

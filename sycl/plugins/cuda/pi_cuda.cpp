@@ -1782,7 +1782,7 @@ pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
   assert(memObj != nullptr);
 
   const auto bufferRegion =
-      *reinterpret_cast<const pi_buffer_region>(buffer_create_info);
+      *reinterpret_cast<pi_buffer_region>(buffer_create_info);
   assert((bufferRegion.size != 0u) && "PI_INVALID_BUFFER_SIZE");
 
   assert((bufferRegion.origin <= (bufferRegion.origin + bufferRegion.size)) &&
