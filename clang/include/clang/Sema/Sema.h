@@ -9987,8 +9987,8 @@ public:
   void AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr **Exprs, unsigned Size);
   template <typename AttrType>
-  void addIntelSYCLFunctionAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E);
-
+  void addIntelSYCLFunctionAttr(Decl *D, const AttributeCommonInfo &CI,
+                                Expr *E);
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                       bool IsPackExpansion);
@@ -12835,8 +12835,7 @@ public:
 };
 
 template <typename AttrType>
-void Sema::addIntelSYCLFunctionAttr(Decl *D,
-                                    const AttributeCommonInfo &Attr,
+void Sema::addIntelSYCLFunctionAttr(Decl *D, const AttributeCommonInfo &Attr,
                                     Expr *E) {
   if (!E)
     return;

@@ -53,10 +53,10 @@ int main() {
   [[intelfpga::num_simd_work_items(0)]] int Var = 0; // expected-error{{'num_simd_work_items' attribute only applies to functions}}
 
   kernel<class test_kernel4>(
-      []() [[intelfpga::num_simd_work_items(0)]] {}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+      []() [[intelfpga::num_simd_work_items(0)]]{}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 
   kernel<class test_kernel5>(
-      []() [[intelfpga::num_simd_work_items(-42)]] {}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+      []() [[intelfpga::num_simd_work_items(-42)]]{}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 
   kernel<class test_kernel6>(
       []() [[intelfpga::num_simd_work_items(1), intelfpga::num_simd_work_items(2)]] {}); // expected-warning{{attribute 'num_simd_work_items' is already applied with different parameters}}

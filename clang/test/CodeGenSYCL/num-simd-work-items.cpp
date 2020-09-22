@@ -25,7 +25,6 @@ void bar() {
 
   Functor<2> f;
   kernel<class kernel_name3>(f);
-
 }
 
 // CHECK: define spir_kernel void @{{.*}}kernel_name1() {{.*}} !num_simd_work_items ![[NUM1:[0-9]+]]
