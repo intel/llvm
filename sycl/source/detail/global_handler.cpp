@@ -13,6 +13,10 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
+#ifdef WIN32
+#include <windows.h>
+#endif
+
 #include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
