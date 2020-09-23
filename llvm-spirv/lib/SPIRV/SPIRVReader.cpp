@@ -3691,6 +3691,45 @@ void SPIRVToLLVM::transGlobalCtorDtors(SPIRVVariable *BV) {
   cast<GlobalValue>(V)->setLinkage(GlobalValue::AppendingLinkage);
 }
 
+void SPIRVToLLVM::createCXXStructor(const char *ListName,
+                                    SmallVectorImpl<Function *> &Funcs) {
+  if (Funcs.empty())
+    return;
+
+  // If the SPIR-V input contained a variable for the structor list and it
+  // has already been translated, then don't interfere.
+  if (M->getGlobalVariable(ListName))
+    return;
+
+  // Type of a structor entry: { i32, void ()*, i8* }
+  Type *PriorityTy = Type::getInt32Ty(*Context);
+  PointerType *CtorTy = PointerType::getUnqual(
+      FunctionType::get(Type::getVoidTy(*Context), false));
+  PointerType *ComdatTy = Type::getInt8PtrTy(*Context);
+  StructType *StructorTy = StructType::get(PriorityTy, CtorTy, ComdatTy);
+
+  ArrayType *ArrTy = ArrayType::get(StructorTy, Funcs.size());
+
+  GlobalVariable *GV =
+      cast<GlobalVariable>(M->getOrInsertGlobal(ListName, ArrTy));
+  GV->setLinkage(GlobalValue::AppendingLinkage);
+
+  // Build the initializer.
+  SmallVector<Constant *, 2> ArrayElts;
+  for (auto *F : Funcs) {
+    SmallVector<Constant *, 3> Elts;
+    // SPIR-V does not specify an order between Initializers, so set default
+    // priority.
+    Elts.push_back(ConstantInt::get(PriorityTy, 65535));
+    Elts.push_back(ConstantExpr::getBitCast(F, CtorTy));
+    Elts.push_back(ConstantPointerNull::get(ComdatTy));
+    ArrayElts.push_back(ConstantStruct::get(StructorTy, Elts));
+  }
+
+  Constant *NewArray = ConstantArray::get(ArrTy, ArrayElts);
+  GV->setInitializer(NewArray);
+}
+
 bool SPIRVToLLVM::transFPContractMetadata() {
   bool ContractOff = false;
   for (unsigned I = 0, E = BM->getNumFunctions(); I != E; ++I) {
@@ -3767,6 +3806,7 @@ static bool transKernelArgTypeMedataFromString(LLVMContext *Ctx,
 }
 
 bool SPIRVToLLVM::transMetadata() {
+  SmallVector<Function *, 2> CtorKernels;
   for (unsigned I = 0, E = BM->getNumFunctions(); I != E; ++I) {
     SPIRVFunction *BF = BM->getFunction(I);
     Function *F = static_cast<Function *>(getTranslatedValue(BF));
@@ -3798,6 +3838,10 @@ bool SPIRVToLLVM::transMetadata() {
           ConstantInt::get(Type::getInt32Ty(*Context), 1)));
       F->setMetadata(kSPIR2MD::VecTyHint, MDNode::get(*Context, MetadataVec));
     }
+    // Generate metadata for Initializer.
+    if (BF->getExecutionMode(ExecutionModeInitializer)) {
+      CtorKernels.push_back(F);
+    }
     // Generate metadata for intel_reqd_sub_group_size
     if (auto *EM = BF->getExecutionMode(ExecutionModeSubgroupSize)) {
       auto SizeMD = ConstantAsMetadata::get(getUInt32(M, EM->getLiterals()[0]));
@@ -3828,6 +3872,7 @@ bool SPIRVToLLVM::transMetadata() {
   MemoryModelMD->addOperand(
       getMDTwoInt(Context, static_cast<unsigned>(BM->getAddressingModel()),
                   static_cast<unsigned>(BM->getMemoryModel())));
+  createCXXStructor("llvm.global_ctors", CtorKernels);
   return true;
 }
 
