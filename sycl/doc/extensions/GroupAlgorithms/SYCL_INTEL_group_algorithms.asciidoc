@@ -143,7 +143,7 @@ Using functions from the group algorithms library inside of a kernel may introdu
 
 It is undefined behavior for any of these functions to be invoked within a +parallel_for_work_group+ or +parallel_for_work_item+ context, but this restriction may be lifted in a future version of the proposal.
 
-All restrictions on acceptable group types, input types and function objects must be implemented as constraints.
+A number of the restrictions regarding the types of parameters that are acceptable for each algorithm must implemented as constraints: group arguments must be of a supported group class type; binary operations must be one of the group algorithms function objects; pointer arguments must be pointers to fundamental data types; and value arguments must be scalar fundamental data types (or vectors of those types).
 
 ==== Vote
 
