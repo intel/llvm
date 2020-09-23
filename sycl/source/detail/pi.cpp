@@ -16,8 +16,8 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/config.hpp>
-#include <detail/plugin.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/plugin.hpp>
 
 #include <bitset>
 #include <cstdarg>

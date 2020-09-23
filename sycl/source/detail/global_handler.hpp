@@ -53,7 +53,6 @@ public:
   std::mutex &getFilterMutex();
   std::vector<plugin> &getPlugins();
 
-
 private:
   friend void shutdown();
   // Constructor and destructor are declared out-of-line to allow incomplete
