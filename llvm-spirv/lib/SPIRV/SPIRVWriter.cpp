@@ -684,8 +684,17 @@ SPIRVValue *LLVMToSPIRV::transConstant(Value *V) {
     return BM->addNullConstant(transType(AggType));
   }
 
-  if (auto ConstI = dyn_cast<ConstantInt>(V))
+  if (auto ConstI = dyn_cast<ConstantInt>(V)) {
+    unsigned BitWidth = ConstI->getType()->getBitWidth();
+    if (BitWidth > 64) {
+      BM->getErrorLog().checkError(
+          BM->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_arbitrary_precision_integers),
+          SPIRVEC_InvalidBitWidth, std::to_string(BitWidth));
+      return BM->addConstant(transType(V->getType()), ConstI->getValue());
+    }
     return BM->addConstant(transType(V->getType()), ConstI->getZExtValue());
+  }
 
   if (auto ConstFP = dyn_cast<ConstantFP>(V)) {
     auto BT = static_cast<SPIRVType *>(transType(V->getType()));
