@@ -60,7 +60,7 @@ event queue_impl::memset(const shared_ptr_class<detail::queue_impl> &Self,
     return event();
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
-  addUSMEvent(ResEvent);
+  addSharedEvent(ResEvent);
   return ResEvent;
 }
 
@@ -74,7 +74,7 @@ event queue_impl::memcpy(const shared_ptr_class<detail::queue_impl> &Self,
     return event();
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
-  addUSMEvent(ResEvent);
+  addSharedEvent(ResEvent);
   return ResEvent;
 }
 
@@ -92,7 +92,7 @@ event queue_impl::mem_advise(const shared_ptr_class<detail::queue_impl> &Self,
                                                    Advice, &NativeEvent);
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
-  addUSMEvent(ResEvent);
+  addSharedEvent(ResEvent);
   return ResEvent;
 }
 
@@ -102,7 +102,7 @@ void queue_impl::addEvent(const event &Event) {
   if (!Cmd) {
     // if there is no command on the event, we cannot track it with MEventsWeak
     // as that will leave it with no owner. Track in MEventsShared
-    addUSMEvent(Event);
+    addSharedEvent(Event);
   } else {
     std::weak_ptr<event_impl> EventWeakPtr{Eimpl};
     std::lock_guard<mutex_class> Lock{MMutex};
@@ -110,7 +110,10 @@ void queue_impl::addEvent(const event &Event) {
   }
 }
 
-void queue_impl::addUSMEvent(const event &Event) {
+/// addSharedEvent - queue_impl tracks events with weak pointers
+/// but some events have no other owner. In this case,
+/// addSharedEvent will have the queue track the events via a shared pointer.
+void queue_impl::addSharedEvent(const event &Event) {
   std::lock_guard<mutex_class> Lock(MMutex);
   MEventsShared.push_back(Event);
 }

@@ -403,7 +403,7 @@ private:
   /// Stores a USM operation event that should be associated with the queue
   ///
   /// \param Event is the event to be stored
-  void addUSMEvent(const event &Event);
+  void addSharedEvent(const event &Event);
 
   /// Stores an event that should be associated with the queue
   ///
