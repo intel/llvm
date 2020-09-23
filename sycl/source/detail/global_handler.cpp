@@ -8,6 +8,12 @@
 
 #include <CL/sycl/detail/spinlock.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/platform_impl.hpp>
+#include <detail/plugin.hpp>
+#include <detail/program_manager/program_manager.hpp>
+#include <detail/scheduler/scheduler.hpp>
+
+#include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -17,6 +23,9 @@ GlobalHandler *SyclGlobalObjectsHandler;
 // which spares us from dealing with global constructor/destructor call order.
 SpinLock GlobalWritesAllowed;
 SpinLock ShutdownLock;
+
+GlobalHandler::GlobalHandler() = default;
+GlobalHandler::~GlobalHandler() = default;
 
 GlobalHandler &GlobalHandler::instance() {
   if (!SyclGlobalObjectsHandler) {
