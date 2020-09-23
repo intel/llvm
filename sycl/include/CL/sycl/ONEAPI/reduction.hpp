@@ -142,6 +142,62 @@ using IsKnownIdentityOp =
                   IsMinimumIdentityOp<T, BinaryOperation>::value ||
                   IsMaximumIdentityOp<T, BinaryOperation>::value>;
 
+template <typename BinaryOperation, typename AccumulatorT>
+struct has_known_identity_impl {
+  static constexpr bool value =
+      IsKnownIdentityOp<AccumulatorT, BinaryOperation>::value;
+};
+
+template <typename BinaryOperation, typename AccumulatorT, typename = void>
+struct known_identity_impl {};
+
+/// Returns zero as identity for ADD, OR, XOR operations.
+template <typename BinaryOperation, typename AccumulatorT>
+struct known_identity_impl<BinaryOperation, AccumulatorT,
+                           typename std::enable_if<IsZeroIdentityOp<
+                               AccumulatorT, BinaryOperation>::value>::type> {
+  static constexpr AccumulatorT value = 0;
+};
+
+/// Returns one as identify for MULTIPLY operations.
+template <typename BinaryOperation, typename AccumulatorT>
+struct known_identity_impl<BinaryOperation, AccumulatorT,
+                           typename std::enable_if<IsOneIdentityOp<
+                               AccumulatorT, BinaryOperation>::value>::type> {
+  static constexpr AccumulatorT value = 1;
+};
+
+/// Returns bit image consisting of all ones as identity for AND operations.
+template <typename BinaryOperation, typename AccumulatorT>
+struct known_identity_impl<BinaryOperation, AccumulatorT,
+                           typename std::enable_if<IsOnesIdentityOp<
+                               AccumulatorT, BinaryOperation>::value>::type> {
+  static constexpr AccumulatorT value = ~static_cast<AccumulatorT>(0);
+};
+
+/// Returns maximal possible value as identity for MIN operations.
+template <typename BinaryOperation, typename AccumulatorT>
+struct known_identity_impl<BinaryOperation, AccumulatorT,
+                           typename std::enable_if<IsMinimumIdentityOp<
+                               AccumulatorT, BinaryOperation>::value>::type> {
+  static constexpr AccumulatorT value =
+      std::numeric_limits<AccumulatorT>::has_infinity
+          ? std::numeric_limits<AccumulatorT>::infinity()
+          : (std::numeric_limits<AccumulatorT>::max)();
+};
+
+/// Returns minimal possible value as identity for MAX operations.
+template <typename BinaryOperation, typename AccumulatorT>
+struct known_identity_impl<BinaryOperation, AccumulatorT,
+                           typename std::enable_if<IsMaximumIdentityOp<
+                               AccumulatorT, BinaryOperation>::value>::type> {
+  static constexpr AccumulatorT value =
+      std::numeric_limits<AccumulatorT>::has_infinity
+          ? static_cast<AccumulatorT>(
+                -std::numeric_limits<AccumulatorT>::infinity())
+          : std::numeric_limits<AccumulatorT>::lowest();
+};
+
 /// Class that is used to represent objects that are passed to user's lambda
 /// functions and representing users' reduction variable.
 /// The generic version of the class represents those reductions of those
@@ -191,43 +247,10 @@ public:
     MValue = BOp(MValue, Partial);
   }
 
-  /// Returns zero as identity for ADD, OR, XOR operations.
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  static enable_if_t<IsZeroIdentityOp<_T, _BinaryOperation>::value, _T>
+  static enable_if_t<has_known_identity_impl<_BinaryOperation, _T>::value, _T>
   getIdentity() {
-    return 0;
-  }
-
-  /// Returns one as identify for MULTIPLY operations.
-  template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  static enable_if_t<IsOneIdentityOp<_T, _BinaryOperation>::value, _T>
-  getIdentity() {
-    return 1;
-  }
-
-  /// Returns bit image consisting of all ones as identity for AND operations.
-  template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  static enable_if_t<IsOnesIdentityOp<_T, _BinaryOperation>::value, _T>
-  getIdentity() {
-    return ~static_cast<_T>(0);
-  }
-
-  /// Returns maximal possible value as identity for MIN operations.
-  template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  static enable_if_t<IsMinimumIdentityOp<_T, _BinaryOperation>::value, _T>
-  getIdentity() {
-    return std::numeric_limits<_T>::has_infinity
-               ? std::numeric_limits<_T>::infinity()
-               : (std::numeric_limits<_T>::max)();
-  }
-
-  /// Returns minimal possible value as identity for MAX operations.
-  template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  static enable_if_t<IsMaximumIdentityOp<_T, _BinaryOperation>::value, _T>
-  getIdentity() {
-    return std::numeric_limits<_T>::has_infinity
-               ? static_cast<_T>(-std::numeric_limits<_T>::infinity())
-               : std::numeric_limits<_T>::lowest();
+    return known_identity_impl<_BinaryOperation, _T>::value;
   }
 
   template <typename _T = T>
@@ -1075,6 +1098,26 @@ reduction(T *VarPtr, BinaryOperation) {
   return detail::reduction_impl<T, BinaryOperation, 0, true,
                                 access::mode::read_write>(VarPtr);
 }
+
+template <typename BinaryOperation, typename AccumulatorT>
+struct has_known_identity : detail::has_known_identity_impl<
+                                typename std::decay<BinaryOperation>::type,
+                                typename std::decay<AccumulatorT>::type> {};
+#if __cplusplus >= 201703L
+template <typename BinaryOperation, typename AccumulatorT>
+inline constexpr bool has_known_identity_v =
+    has_known_identity<BinaryOperation, AccumulatorT>::value;
+#endif
+
+template <typename BinaryOperation, typename AccumulatorT>
+struct known_identity
+    : detail::known_identity_impl<typename std::decay<BinaryOperation>::type,
+                                  typename std::decay<AccumulatorT>::type> {};
+#if __cplusplus >= 201703L
+template <typename BinaryOperation, typename AccumulatorT>
+inline constexpr AccumulatorT known_identity_v =
+    known_identity<BinaryOperation, AccumulatorT>::value;
+#endif
 
 } // namespace ONEAPI
 } // namespace sycl
