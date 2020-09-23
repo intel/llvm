@@ -12,9 +12,11 @@
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
 
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <set>
+#include <thread>
 #include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -153,11 +155,9 @@ void Scheduler::waitForEvent(EventImplPtr Event) {
 }
 
 void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
-  // Avoiding deadlock situation, where one thread is in the process of
-  // enqueueing (with a locked mutex) a currently blocked task that waits for
-  // another thread which is stuck at attempting cleanup.
-  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::try_to_lock);
-  if (Lock.owns_lock()) {
+  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
+  {
+    lockSharedTimedMutex(Lock);
     Command *FinishedCmd = static_cast<Command *>(FinishedEvent->getCommand());
     // The command might have been cleaned up (and set to nullptr) by another
     // thread
@@ -268,7 +268,8 @@ void Scheduler::lockSharedTimedMutex(
   // TODO: after switching to C++17, change std::shared_timed_mutex to
   // std::shared_mutex and use std::lock_guard here both for Windows and Linux.
   while (!Lock.owns_lock()) {
-    Lock.try_lock();
+    Lock.try_lock_for(std::chrono::milliseconds(10));
+    std::this_thread::yield();
   }
 #else
   // It is a deadlock on UNIX in implementation of lock and lock_shared, if
