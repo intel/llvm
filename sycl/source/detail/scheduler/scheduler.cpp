@@ -155,9 +155,11 @@ void Scheduler::waitForEvent(EventImplPtr Event) {
 }
 
 void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
-  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::defer_lock);
-  {
-    lockSharedTimedMutex(Lock);
+  // Avoiding deadlock situation, where one thread is in the process of
+  // enqueueing (with a locked mutex) a currently blocked task that waits for
+  // another thread which is stuck at attempting cleanup.
+  std::unique_lock<std::shared_timed_mutex> Lock(MGraphLock, std::try_to_lock);
+  if (Lock.owns_lock()) {
     Command *FinishedCmd = static_cast<Command *>(FinishedEvent->getCommand());
     // The command might have been cleaned up (and set to nullptr) by another
     // thread
