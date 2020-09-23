@@ -44,7 +44,15 @@ int main() {
     int foo_c;
   };
 
+  // Not decomposed.
+  struct foo2 {
+    int foo_a;
+    int foo_2D[2][1];
+    int foo_c;
+  };
+
   foo struct_array[2];
+  foo2 struct_array2[2];
 
   int array_2D[2][3];
 
@@ -81,6 +89,11 @@ int main() {
   a_kernel<class kernel_F>(
       [=]() {
         int local = array_2D[1][1];
+      });
+
+  a_kernel<class kernel_G>(
+      [=]() {
+        foo2 local = struct_array2[0];
       });
 }
 
@@ -245,7 +258,7 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr
 // CHECK-NEXT: DeclRefExpr{{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_c' 'int'
 
-// Initializer for first element of struct_array
+// Initializer for second element of struct_array
 // CHECK-NEXT: InitListExpr {{.*}} 'foo'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_foo_a' 'int'
@@ -335,4 +348,25 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}} 'int [2][3]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
 // CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned long
+// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned long
+
+// Check kernel_G parameters.
+// CHECK: FunctionDecl {{.*}}kernel_G{{.*}} 'void (__wrapper_class)'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ '__wrapper_class'
+// Check kernel_G inits
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: DeclStmt
+// CHECK-NEXT: VarDecl {{.*}} cinit
+// CHECK-NEXT: InitListExpr
+// CHECK-NEXT: ArrayInitLoopExpr {{.*}} 'foo2 [2]'
+// CHECK-NEXT: OpaqueValueExpr {{.*}} 'foo2 [2]' lvalue
+// CHECK-NEXT: MemberExpr {{.*}} 'foo2 [2]' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'foo2' 'void (const foo2 &) noexcept'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const foo2' lvalue <NoOp>
+// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'foo2' lvalue
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'foo2 *' <ArrayToPointerDecay>
+// CHECK-NEXT: OpaqueValueExpr {{.*}} 'foo2 [2]' lvalue
+// CHECK-NEXT: MemberExpr {{.*}} 'foo2 [2]' lvalue .
+// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
 // CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned long

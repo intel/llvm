@@ -1035,7 +1035,7 @@ class SyclKernelFieldHandlerBase {
 public:
   static constexpr const bool VisitUnionBody = false;
   static constexpr const bool VisitNthArrayElement = true;
-  // Opt-in based on whether we should visit inside Simple containers (structs,
+  // Opt-in based on whether we should visit inside simple containers (structs,
   // arrays). All of the 'check' types should likely be true, the int-header,
   // and kernel decl creation types should not.
   static constexpr const bool VisitInsideSimpleContainers = true;
@@ -2734,7 +2734,8 @@ public:
   }
 
   bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    // I think this is right, we need to always wrap arrays.
+    // Arrays are always wrapped inside of structs, so just treat it as a simple
+    // struct.
     addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
     return true;
   }
