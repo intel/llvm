@@ -1,4 +1,5 @@
 // XFAIL: cuda
+// UNSUPPORTED: linux
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out -DTEST_SHARED
 // RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
