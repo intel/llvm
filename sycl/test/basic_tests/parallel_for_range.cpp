@@ -31,7 +31,7 @@ int main() {
   auto DeviceType = D.get_info<info::device::device_type>();
 
   string_class OCLVersionStr = D.get_info<info::device::version>();
-  assert((OCLVersionStr.size() >= 3) && "Unexpected device version string");
+  assert((OCLVersionStr.size() == 3) && "Unexpected device version string");
   assert(OCLVersionStr.find(".") != string_class::npos &&
          "Unexpected device version string");
   const char OCLVersionMajor = OCLVersionStr[0];
