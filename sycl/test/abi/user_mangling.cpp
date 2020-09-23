@@ -8,6 +8,12 @@
 // CHK-DEVICE: define dso_local spir_func void @_Z3accN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEE(%"class._ZTSN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEE.cl::sycl::accessor"* byval(%"class._ZTSN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEE.cl::sycl::accessor") align 8 %0)
 SYCL_EXTERNAL void acc(sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer>) {} 
 
+// CHK-DEVICE: define dso_local spir_func void @_Z3accN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2016ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEE(%"class._ZTSN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2016ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEE.cl::sycl::accessor"* byval(%"class._ZTSN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2016ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEE.cl::sycl::accessor") align 8 %0)
+SYCL_EXTERNAL void acc(sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::local>) {} 
+
+// CHK-DEVICE: define dso_local spir_func void @_Z3accN2cl4sycl8accessorINS0_3vecIiLi4EEELi1ELNS0_6access4modeE1024ELNS4_6targetE2017ELNS4_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEE(%"class._ZTSN2cl4sycl8accessorINS0_3vecIiLi4EEELi1ELNS0_6access4modeE1024ELNS4_6targetE2017ELNS4_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEE.cl::sycl::accessor"* byval(%"class._ZTSN2cl4sycl8accessorINS0_3vecIiLi4EEELi1ELNS0_6access4modeE1024ELNS4_6targetE2017ELNS4_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEE.cl::sycl::accessor") align 8 %0)
+SYCL_EXTERNAL void acc(sycl::accessor<sycl::cl_int4, 1, sycl::access::mode::read, sycl::access::target::image>) {} 
+
 // CHK-DEVICE: define dso_local spir_func void @_Z11private_memN2cl4sycl14private_memoryIiLi1EEE(%"class._ZTSN2cl4sycl14private_memoryIiLi1EEE.cl::sycl::private_memory"* byval(%"class._ZTSN2cl4sycl14private_memoryIiLi1EEE.cl::sycl::private_memory") align 4 %0)
 SYCL_EXTERNAL void private_mem(sycl::private_memory<int, 1>) {};
 
@@ -31,6 +37,12 @@ SYCL_EXTERNAL void sampler(sycl::sampler) {}
 #else
 // CHK-HOST: define dso_local void @_Z3accN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2018ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEE(%"class.cl::sycl::accessor"* %0)
 void acc(sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::host_buffer>) {} 
+
+// CHK-HOST: define dso_local void @_Z3accN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2016ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEE(%"class.cl::sycl::accessor.3"* %0)
+void acc(sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::local>) {} 
+
+// CHK-HOST: define dso_local void @_Z3accN2cl4sycl8accessorINS0_3vecIiLi4EEELi1ELNS0_6access4modeE1024ELNS4_6targetE2019ELNS4_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEE(%"class.cl::sycl::accessor.8"* %0)
+void acc(sycl::accessor<sycl::cl_int4, 1, sycl::access::mode::read, sycl::access::target::host_image>) {} 
 
 // CHK-HOST: define dso_local void @_Z3bufN2cl4sycl6bufferIiLi1ENS0_6detail17aligned_allocatorIcEEvEE(%"class.cl::sycl::buffer"* %0)
 void buf(sycl::buffer<int>) {}
