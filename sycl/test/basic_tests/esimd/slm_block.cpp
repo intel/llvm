@@ -18,3 +18,13 @@ void kernel() __attribute__((sycl_device)) {
 
   slm_block_store<int, 32>(0, v0);
 }
+
+void kernel2() __attribute__((sycl_device)) {
+  simd<int, 64> v1(0, 1);
+
+  auto v0 = slm_block_load<int, 64>(0);
+
+  v0 = v0 + v1;
+
+  slm_block_store<int, 64>(0, v0);
+}

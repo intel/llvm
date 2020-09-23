@@ -84,7 +84,7 @@ constexpr unsigned int ElemsPerAddrEncoding() {
 template <typename T, int n, int ElemsPerAddr = 1,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
 ESIMD_INLINE ESIMD_NODEBUG
-    typename std::enable_if<((n == 8 || n == 16 || n == 32) &&
+    typename std::enable_if<(__esimd::isPowerOf2(n, 32) &&
                              (ElemsPerAddr == 1 || ElemsPerAddr == 2 ||
                               ElemsPerAddr == 4)),
                             simd<T, n * ElemsPerAddr>>::type
@@ -120,7 +120,7 @@ ESIMD_INLINE ESIMD_NODEBUG
 template <typename T, int n, int ElemsPerAddr = 1,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
 ESIMD_INLINE ESIMD_NODEBUG
-    typename std::enable_if<((n == 8 || n == 16 || n == 32) &&
+    typename std::enable_if<(__esimd::isPowerOf2(n, 32) &&
                              (ElemsPerAddr == 1 || ElemsPerAddr == 2 ||
                               ElemsPerAddr == 4)),
                             void>::type
@@ -487,9 +487,9 @@ ESIMD_INLINE ESIMD_NODEBUG simd<T, n> slm_block_load(uint32_t offset) {
   static_assert(Sz % __esimd::OWORD == 0,
                 "block size must be whole number of owords");
   static_assert(__esimd::isPowerOf2(Sz / __esimd::OWORD),
-                "block must be 1, 2, 4 or 8 owords long");
-  static_assert(Sz <= 8 * __esimd::OWORD,
-                "block size must be at most 8 owords");
+                "block must be 1, 2, 4, 8, 16 owords long");
+  static_assert(Sz <= 16 * __esimd::OWORD,
+                "block size must be at most 16 owords");
 
   return __esimd_slm_block_read<T, n>(offset);
 }
@@ -503,9 +503,9 @@ ESIMD_INLINE ESIMD_NODEBUG void slm_block_store(uint32_t offset,
   static_assert(Sz % __esimd::OWORD == 0,
                 "block size must be whole number of owords");
   static_assert(__esimd::isPowerOf2(Sz / __esimd::OWORD),
-                "block must be 1, 2, 4 or 8 owords long");
-  static_assert(Sz <= 8 * __esimd::OWORD,
-                "block size must be at most 8 owords");
+                "block must be 1, 2, 4, 8, or 16 owords long");
+  static_assert(Sz <= 16 * __esimd::OWORD,
+                "block size must be at most 16 owords");
 
   // offset in genx.oword.st is in owords
   __esimd_slm_block_write<T, n>(offset >> 4, vals.data());

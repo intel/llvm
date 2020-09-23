@@ -9,7 +9,22 @@
 using namespace sycl::INTEL::gpu;
 using namespace cl::sycl;
 
-void kernel(accessor<int, 1, access::mode::read_write, access::target::global_buffer> &buf) __attribute__((sycl_device)) {
+void kernel0(accessor<int, 1, access::mode::read_write,
+                      access::target::global_buffer> &buf)
+    __attribute__((sycl_device)) {
+  simd<uint32_t, 2> offsets(0, 1);
+  simd<int, 2> v1(0, 1);
+
+  auto v0 = gather<int, 2>(buf.get_pointer(), offsets);
+
+  v0 = v0 + v1;
+
+  scatter<int, 2>(buf.get_pointer(), v0, offsets);
+}
+
+void kernel(accessor<int, 1, access::mode::read_write,
+                     access::target::global_buffer> &buf)
+    __attribute__((sycl_device)) {
   simd<uint32_t, 32> offsets(0, 1);
   simd<int, 32> v1(0, 1);
 
@@ -20,7 +35,9 @@ void kernel(accessor<int, 1, access::mode::read_write, access::target::global_bu
   scatter<int, 32>(buf.get_pointer(), v0, offsets);
 }
 
-void kernel(accessor<uint8_t, 1, access::mode::read_write, access::target::global_buffer> &buf) __attribute__((sycl_device)) {
+void kernel(accessor<uint8_t, 1, access::mode::read_write,
+                     access::target::global_buffer> &buf)
+    __attribute__((sycl_device)) {
   simd<uint32_t, 32> offsets(0, 1);
   simd<uint8_t, 32> v1(0, 1);
 
@@ -33,7 +50,9 @@ void kernel(accessor<uint8_t, 1, access::mode::read_write, access::target::globa
   scatter<uint8_t, 32>(buf.get_pointer(), v0, offsets);
 }
 
-void kernel(accessor<uint16_t, 1, access::mode::read_write, access::target::global_buffer> &buf) __attribute__((sycl_device)) {
+void kernel(accessor<uint16_t, 1, access::mode::read_write,
+                     access::target::global_buffer> &buf)
+    __attribute__((sycl_device)) {
   simd<uint32_t, 32> offsets(0, 1);
   simd<uint16_t, 32> v1(0, 1);
 
