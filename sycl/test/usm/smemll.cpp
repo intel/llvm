@@ -1,4 +1,5 @@
 // XFAIL: cuda
+// UNSUPPORTED: linux
 // piextUSM*Alloc functions for CUDA are not behaving as described in
 // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/USM/USM.adoc
 // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/USM/cl_intel_unified_shared_memory.asciidoc
