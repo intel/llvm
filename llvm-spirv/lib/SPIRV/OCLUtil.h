@@ -321,6 +321,7 @@ namespace kOCLVer {
 const unsigned CL12 = 102000;
 const unsigned CL20 = 200000;
 const unsigned CL21 = 201000;
+const unsigned CL30 = 300000;
 } // namespace kOCLVer
 
 namespace OclExt {

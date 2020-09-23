@@ -107,7 +107,7 @@ bool OCL21ToSPIRV::runOnModule(Module &Module) {
     return false;
 
   CLVer = std::get<1>(Src);
-  if (CLVer < kOCLVer::CL21)
+  if (CLVer != kOCLVer::CL21)
     return false;
 
   LLVM_DEBUG(dbgs() << "Enter OCL21ToSPIRV:\n");

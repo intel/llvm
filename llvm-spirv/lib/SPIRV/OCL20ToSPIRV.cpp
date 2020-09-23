@@ -329,7 +329,7 @@ bool OCL20ToSPIRV::runOnModule(Module &Module) {
     return false;
 
   CLVer = std::get<1>(Src);
-  if (CLVer > kOCLVer::CL20)
+  if (CLVer == kOCLVer::CL21)
     return false;
 
   LLVM_DEBUG(dbgs() << "Enter OCL20ToSPIRV:\n");
@@ -406,7 +406,8 @@ void OCL20ToSPIRV::visitCallInst(CallInst &CI) {
         DemangledName == kOCLBuiltinName::AtomicCmpXchgStrong ||
         DemangledName == kOCLBuiltinName::AtomicCmpXchgWeakExplicit ||
         DemangledName == kOCLBuiltinName::AtomicCmpXchgStrongExplicit) {
-      assert(CLVer == kOCLVer::CL20 && "Wrong version of OpenCL");
+      assert((CLVer == kOCLVer::CL20 || CLVer == kOCLVer::CL30) &&
+             "Wrong version of OpenCL");
       PCI = visitCallAtomicCmpXchg(PCI);
     }
     visitCallAtomicLegacy(PCI, MangledName, DemangledName);
