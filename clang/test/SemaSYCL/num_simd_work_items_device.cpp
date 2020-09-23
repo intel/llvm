@@ -1,6 +1,5 @@
 // RUN: %clang_cc1 %s -fsycl -fsycl-is-device -triple spir64 -fsyntax-only -Wno-sycl-2017-compat -DTRIGGER_ERROR -verify
 // RUN: %clang_cc1 %s -fsycl -fsycl-is-device -triple spir64 -fsyntax-only -Wno-sycl-2017-compat -ast-dump | FileCheck %s
-// RUN: %clang_cc1 -fsycl -fsycl-is-host -fsyntax-only -Wno-sycl-2017-compat -verify %s
 
 #ifndef __SYCL_DEVICE_ONLY__
 struct FuncObj {
@@ -20,7 +19,6 @@ void foo() {
 }
 
 #else // __SYCL_DEVICE_ONLY__
-
 [[intelfpga::num_simd_work_items(2)]] void func_do_not_ignore() {}
 
 struct FuncObj {
@@ -34,17 +32,20 @@ __attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
 
 int main() {
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
-  // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}} 42
+  // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+  // CHECK-NEXT:  IntegerLiteral{{.*}}42{{$}}
   kernel<class test_kernel1>(
       FuncObj());
 
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
-  // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}} 8
+  // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+  // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
   kernel<class test_kernel2>(
       []() [[intelfpga::num_simd_work_items(8)]] {});
 
   // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
-  // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}} 2
+  // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}
+  // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
   kernel<class test_kernel3>(
       []() { func_do_not_ignore(); });
 
@@ -52,10 +53,10 @@ int main() {
   [[intelfpga::num_simd_work_items(0)]] int Var = 0; // expected-error{{'num_simd_work_items' attribute only applies to functions}}
 
   kernel<class test_kernel4>(
-      []() [[intelfpga::num_simd_work_items(0)]] {}); // expected-error{{'num_simd_work_items' attribute must be greater than 0}}
+      []() [[intelfpga::num_simd_work_items(0)]]{}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 
   kernel<class test_kernel5>(
-      []() [[intelfpga::num_simd_work_items(-42)]] {}); // expected-error{{'num_simd_work_items' attribute requires a non-negative integral compile time constant expression}}
+      []() [[intelfpga::num_simd_work_items(-42)]]{}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 
   kernel<class test_kernel6>(
       []() [[intelfpga::num_simd_work_items(1), intelfpga::num_simd_work_items(2)]] {}); // expected-warning{{attribute 'num_simd_work_items' is already applied with different parameters}}

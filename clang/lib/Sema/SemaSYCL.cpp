@@ -2738,15 +2738,15 @@ void Sema::MarkDevice(void) {
               KernelBody ? KernelBody->getAttr<SYCLSimdAttr>() : nullptr;
           if (auto *Existing =
                   SYCLKernel->getAttr<IntelReqdSubGroupSizeAttr>()) {
-            if (getIntExprValue(Existing->getSubGroupSize(), getASTContext()) !=
-                getIntExprValue(Attr->getSubGroupSize(), getASTContext())) {
+            if (getIntExprValue(Existing->getValue(), getASTContext()) !=
+                getIntExprValue(Attr->getValue(), getASTContext())) {
               Diag(SYCLKernel->getLocation(),
                    diag::err_conflicting_sycl_kernel_attributes);
               Diag(Existing->getLocation(), diag::note_conflicting_attribute);
               Diag(Attr->getLocation(), diag::note_conflicting_attribute);
               SYCLKernel->setInvalidDecl();
             }
-          } else if (KBSimdAttr && (getIntExprValue(Attr->getSubGroupSize(),
+          } else if (KBSimdAttr && (getIntExprValue(Attr->getValue(),
                                                     getASTContext()) != 1)) {
             reportConflictingAttrs(*this, KernelBody, KBSimdAttr, Attr);
           } else {
