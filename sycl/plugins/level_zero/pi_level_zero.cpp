@@ -217,6 +217,7 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &ZePool,
         NumEventsLiveInEventPoolMutex, std::adopt_lock);
 
     ze_event_pool_desc_t ZeEventPoolDesc = {};
+    ZeEventPoolDesc.stype = ZE_STRUCTURE_TYPE_EVENT_POOL_DESC;
     ZeEventPoolDesc.count = MaxNumEventsPerPool;
     ZeEventPoolDesc.flags = ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
 
