@@ -1,11 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUN: env SYCL_BE=PI_OPENCL %CPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_BE=PI_OPENCL %GPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_BE=PI_OPENCL %ACC_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_BE=PI_LEVEL_ZERO %CPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_BE=PI_LEVEL_ZERO %GPU_RUN_PLACEHOLDER %t.out
-// RUN: env SYCL_BE=PI_LEVEL_ZERO %ACC_RUN_PLACEHOLDER %t.out
+// RUN: env %CPU_RUN_PLACEHOLDER %t.out
+// RUN: env %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env %ACC_RUN_PLACEHOLDER %t.out
 
 //==--------info_ocl_version.cpp - SYCL objects get_info() test ------------==//
 //
