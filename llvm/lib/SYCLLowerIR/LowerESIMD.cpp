@@ -1218,7 +1218,7 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Function &F,
         llvm::Value *Src = CastOp->getOperand(0);
         auto TmpTy = llvm::FixedVectorType::get(
             llvm::Type::getInt32Ty(DstTy->getContext()),
-            cast<VectorType>(DstTy)->getNumElements());
+            cast<FixedVectorType>(DstTy)->getNumElements());
         Src = Builder.CreateFPToSI(Src, TmpTy);
 
         llvm::Instruction::CastOps TruncOp = llvm::Instruction::Trunc;

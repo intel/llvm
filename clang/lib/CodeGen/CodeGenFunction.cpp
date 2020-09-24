@@ -611,7 +611,7 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
           FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
     llvm::LLVMContext &Context = getLLVMContext();
     Optional<llvm::APSInt> ArgVal =
-        A->getSubGroupSize()->getIntegerConstantExpr(FD->getASTContext());
+        A->getValue()->getIntegerConstantExpr(FD->getASTContext());
     assert(ArgVal.hasValue() && "Not an integer constant expression");
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
@@ -629,8 +629,12 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
 
   if (const SYCLIntelNumSimdWorkItemsAttr *A =
       FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
-    llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getNumber()))};
+    llvm::LLVMContext &Context = getLLVMContext();
+    Optional<llvm::APSInt> ArgVal =
+        A->getValue()->getIntegerConstantExpr(FD->getASTContext());
+    assert(ArgVal.hasValue() && "Not an integer constant expression");
+    llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
+        Builder.getInt32(ArgVal->getSExtValue()))};
     Fn->setMetadata("num_simd_work_items",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }

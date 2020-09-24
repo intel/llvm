@@ -541,15 +541,16 @@ static void instantiateSYCLIntelPipeIOAttr(
     S.addSYCLIntelPipeIOAttr(New, *Attr, Result.getAs<Expr>());
 }
 
-static void instantiateIntelReqdSubGroupSizeAttr(
+template <typename AttrName>
+static void instantiateIntelSYCLFunctionAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const IntelReqdSubGroupSizeAttr *Attr, Decl *New) {
-  // The SubGroupSize expression is a constant expression.
+    const AttrName *Attr, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(Attr->getSubGroupSize(), TemplateArgs);
+  ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.addIntelReqdSubGroupSizeAttr(New, *Attr, Result.getAs<Expr>());
+    S.addIntelSYCLSingleArgFunctionAttr<AttrName>(New, *Attr,
+                                                  Result.getAs<Expr>());
 }
 
 void Sema::InstantiateAttrsForDecl(
@@ -697,8 +698,14 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
     if (const auto *IntelReqdSubGroupSize =
             dyn_cast<IntelReqdSubGroupSizeAttr>(TmplAttr)) {
-      instantiateIntelReqdSubGroupSizeAttr(*this, TemplateArgs,
-                                           IntelReqdSubGroupSize, New);
+      instantiateIntelSYCLFunctionAttr<IntelReqdSubGroupSizeAttr>(
+          *this, TemplateArgs, IntelReqdSubGroupSize, New);
+      continue;
+    }
+    if (const auto *SYCLIntelNumSimdWorkItems =
+            dyn_cast<SYCLIntelNumSimdWorkItemsAttr>(TmplAttr)) {
+      instantiateIntelSYCLFunctionAttr<SYCLIntelNumSimdWorkItemsAttr>(
+          *this, TemplateArgs, SYCLIntelNumSimdWorkItems, New);
       continue;
     }
     // Existing DLL attribute on the instantiation takes precedence.
