@@ -54,7 +54,7 @@ If `has_known_identity` returns `true` for a given combination of accumulator ty
 ```c++
 template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity {
-  static constexpr T value;
+  static constexpr AccumulatorT value;
 };
 
 // Available if C++17
