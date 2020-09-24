@@ -296,7 +296,10 @@ void macho::addNonLazyBindingEntries(const Symbol *sym,
 }
 
 StubsSection::StubsSection()
-    : SyntheticSection(segment_names::text, "__stubs") {}
+    : SyntheticSection(segment_names::text, "__stubs") {
+  flags = MachO::S_SYMBOL_STUBS;
+  reserved2 = target->stubSize;
+}
 
 uint64_t StubsSection::getSize() const {
   return entries.size() * target->stubSize;
@@ -441,6 +444,7 @@ ExportSection::ExportSection()
     : LinkEditSection(segment_names::linkEdit, section_names::export_) {}
 
 void ExportSection::finalizeContents() {
+  trieBuilder.setImageBase(in.header->addr);
   // TODO: We should check symbol visibility.
   for (const Symbol *sym : symtab->getSymbols()) {
     if (const auto *defined = dyn_cast<Defined>(sym)) {
@@ -463,9 +467,12 @@ uint64_t SymtabSection::getRawSize() const {
 
 void SymtabSection::finalizeContents() {
   // TODO support other symbol types
-  for (Symbol *sym : symtab->getSymbols())
-    if (isa<Defined>(sym))
+  for (Symbol *sym : symtab->getSymbols()) {
+    if (isa<Defined>(sym) || sym->isInGot() || sym->isInStubs()) {
+      sym->symtabIndex = symbols.size();
       symbols.push_back({sym, stringTableSection.addString(sym->getName())});
+    }
+  }
 }
 
 void SymtabSection::writeTo(uint8_t *buf) const {
@@ -473,14 +480,56 @@ void SymtabSection::writeTo(uint8_t *buf) const {
   for (const SymtabEntry &entry : symbols) {
     nList->n_strx = entry.strx;
     // TODO support other symbol types
-    // TODO populate n_desc
+    // TODO populate n_desc with more flags
     if (auto *defined = dyn_cast<Defined>(entry.sym)) {
       nList->n_type = MachO::N_EXT | MachO::N_SECT;
       nList->n_sect = defined->isec->parent->index;
+      nList->n_desc |= defined->isWeakDef() ? MachO::N_WEAK_DEF : 0;
       // For the N_SECT symbol type, n_value is the address of the symbol
       nList->n_value = defined->value + defined->isec->getVA();
     }
     ++nList;
+  }
+}
+
+IndirectSymtabSection::IndirectSymtabSection()
+    : LinkEditSection(segment_names::linkEdit,
+                      section_names::indirectSymbolTable) {}
+
+uint32_t IndirectSymtabSection::getNumSymbols() const {
+  return in.got->getEntries().size() + in.tlvPointers->getEntries().size() +
+         in.stubs->getEntries().size();
+}
+
+bool IndirectSymtabSection::isNeeded() const {
+  return in.got->isNeeded() || in.tlvPointers->isNeeded() ||
+         in.stubs->isNeeded();
+}
+
+void IndirectSymtabSection::finalizeContents() {
+  uint32_t off = 0;
+  in.got->reserved1 = off;
+  off += in.got->getEntries().size();
+  in.tlvPointers->reserved1 = off;
+  off += in.tlvPointers->getEntries().size();
+  // There is a 1:1 correspondence between stubs and LazyPointerSection
+  // entries, so they can share the same sub-array in the table.
+  in.stubs->reserved1 = in.lazyPointers->reserved1 = off;
+}
+
+void IndirectSymtabSection::writeTo(uint8_t *buf) const {
+  uint32_t off = 0;
+  for (const Symbol *sym : in.got->getEntries()) {
+    write32le(buf + off * sizeof(uint32_t), sym->symtabIndex);
+    ++off;
+  }
+  for (const Symbol *sym : in.tlvPointers->getEntries()) {
+    write32le(buf + off * sizeof(uint32_t), sym->symtabIndex);
+    ++off;
+  }
+  for (const Symbol *sym : in.stubs->getEntries()) {
+    write32le(buf + off * sizeof(uint32_t), sym->symtabIndex);
+    ++off;
   }
 }
 

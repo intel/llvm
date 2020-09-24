@@ -314,7 +314,8 @@ public:
   }
 
   unsigned getIntImmCostInst(unsigned Opcode, unsigned Idx, const APInt &Imm,
-                             Type *Ty, TTI::TargetCostKind CostKind) {
+                             Type *Ty, TTI::TargetCostKind CostKind,
+                             Instruction *Inst = nullptr) {
     return TTI::TCC_Free;
   }
 
@@ -1003,41 +1004,23 @@ public:
       if (CI)
         Idx = CI->getZExtValue();
 
-      // Try to match a reduction sequence (series of shufflevector and
-      // vector  adds followed by a extractelement).
-      unsigned ReduxOpCode;
-      VectorType *ReduxType;
-
-      switch (TTI::matchVectorSplittingReduction(EEI, ReduxOpCode,
-                                                 ReduxType)) {
+      // Try to match a reduction (a series of shufflevector and vector ops
+      // followed by an extractelement).
+      unsigned RdxOpcode;
+      VectorType *RdxType;
+      bool IsPairwise;
+      switch (TTI::matchVectorReduction(EEI, RdxOpcode, RdxType, IsPairwise)) {
       case TTI::RK_Arithmetic:
-        return TargetTTI->getArithmeticReductionCost(ReduxOpCode, ReduxType,
-                                          /*IsPairwiseForm=*/false,
-                                          CostKind);
+        return TargetTTI->getArithmeticReductionCost(RdxOpcode, RdxType,
+                                                     IsPairwise, CostKind);
       case TTI::RK_MinMax:
         return TargetTTI->getMinMaxReductionCost(
-            ReduxType, cast<VectorType>(CmpInst::makeCmpResultType(ReduxType)),
-            /*IsPairwiseForm=*/false, /*IsUnsigned=*/false, CostKind);
+            RdxType, cast<VectorType>(CmpInst::makeCmpResultType(RdxType)),
+            IsPairwise, /*IsUnsigned=*/false, CostKind);
       case TTI::RK_UnsignedMinMax:
         return TargetTTI->getMinMaxReductionCost(
-            ReduxType, cast<VectorType>(CmpInst::makeCmpResultType(ReduxType)),
-            /*IsPairwiseForm=*/false, /*IsUnsigned=*/true, CostKind);
-      case TTI::RK_None:
-        break;
-      }
-
-      switch (TTI::matchPairwiseReduction(EEI, ReduxOpCode, ReduxType)) {
-      case TTI::RK_Arithmetic:
-        return TargetTTI->getArithmeticReductionCost(ReduxOpCode, ReduxType,
-                                          /*IsPairwiseForm=*/true, CostKind);
-      case TTI::RK_MinMax:
-        return TargetTTI->getMinMaxReductionCost(
-            ReduxType, cast<VectorType>(CmpInst::makeCmpResultType(ReduxType)),
-            /*IsPairwiseForm=*/true, /*IsUnsigned=*/false, CostKind);
-      case TTI::RK_UnsignedMinMax:
-        return TargetTTI->getMinMaxReductionCost(
-            ReduxType, cast<VectorType>(CmpInst::makeCmpResultType(ReduxType)),
-            /*IsPairwiseForm=*/true, /*IsUnsigned=*/true, CostKind);
+            RdxType, cast<VectorType>(CmpInst::makeCmpResultType(RdxType)),
+            IsPairwise, /*IsUnsigned=*/true, CostKind);
       case TTI::RK_None:
         break;
       }

@@ -570,11 +570,11 @@ int TargetTransformInfo::getIntImmCost(const APInt &Imm, Type *Ty,
   return Cost;
 }
 
-int
-TargetTransformInfo::getIntImmCostInst(unsigned Opcode, unsigned Idx,
-                                       const APInt &Imm, Type *Ty,
-                                       TTI::TargetCostKind CostKind) const {
-  int Cost = TTIImpl->getIntImmCostInst(Opcode, Idx, Imm, Ty, CostKind);
+int TargetTransformInfo::getIntImmCostInst(unsigned Opcode, unsigned Idx,
+                                           const APInt &Imm, Type *Ty,
+                                           TTI::TargetCostKind CostKind,
+                                           Instruction *Inst) const {
+  int Cost = TTIImpl->getIntImmCostInst(Opcode, Idx, Imm, Ty, CostKind, Inst);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
@@ -1306,6 +1306,18 @@ TTI::ReductionKind TTI::matchVectorSplittingReduction(
   Opcode = RD->Opcode;
   Ty = VecTy;
   return RD->Kind;
+}
+
+TTI::ReductionKind
+TTI::matchVectorReduction(const ExtractElementInst *Root, unsigned &Opcode,
+                          VectorType *&Ty, bool &IsPairwise) {
+  TTI::ReductionKind RdxKind = matchVectorSplittingReduction(Root, Opcode, Ty);
+  if (RdxKind != TTI::ReductionKind::RK_None) {
+    IsPairwise = false;
+    return RdxKind;
+  }
+  IsPairwise = true;
+  return matchPairwiseReduction(Root, Opcode, Ty);
 }
 
 int TargetTransformInfo::getInstructionThroughput(const Instruction *I) const {

@@ -228,7 +228,7 @@ computeCallSiteTable(SmallVectorImpl<CallSiteEntry> &CallSites,
   computePadMap(LandingPads, PadMap);
 
   // The end label of the previous invoke or nounwind try-range.
-  MCSymbol *LastLabel = nullptr;
+  MCSymbol *LastLabel = Asm->getFunctionBegin();
 
   // Whether there is a potentially throwing instruction (currently this means
   // an ordinary call) between the end of the previous try-range and now.
@@ -269,8 +269,7 @@ computeCallSiteTable(SmallVectorImpl<CallSiteEntry> &CallSites,
       // create a call-site entry with no landing pad for the region between the
       // try-ranges.
       if (SawPotentiallyThrowing && Asm->MAI->usesCFIForEH()) {
-        CallSiteEntry Site = { LastLabel, BeginLabel, nullptr, 0 };
-        CallSites.push_back(Site);
+        CallSites.push_back({LastLabel, BeginLabel, nullptr, 0});
         PreviousIsInvoke = false;
       }
 
@@ -318,10 +317,8 @@ computeCallSiteTable(SmallVectorImpl<CallSiteEntry> &CallSites,
   // If some instruction between the previous try-range and the end of the
   // function may throw, create a call-site entry with no landing pad for the
   // region following the try-range.
-  if (SawPotentiallyThrowing && !IsSJLJ) {
-    CallSiteEntry Site = { LastLabel, nullptr, nullptr, 0 };
-    CallSites.push_back(Site);
-  }
+  if (SawPotentiallyThrowing && !IsSJLJ)
+    CallSites.push_back({LastLabel, Asm->getFunctionEnd(), nullptr, 0});
 }
 
 /// Emit landing pads and actions.
@@ -514,22 +511,15 @@ MCSymbol *EHStreamer::emitExceptionTable() {
 
       MCSymbol *EHFuncBeginSym = Asm->getFunctionBegin();
 
-      MCSymbol *BeginLabel = S.BeginLabel;
-      if (!BeginLabel)
-        BeginLabel = EHFuncBeginSym;
-      MCSymbol *EndLabel = S.EndLabel;
-      if (!EndLabel)
-        EndLabel = Asm->getFunctionEnd();
-
       // Offset of the call site relative to the start of the procedure.
       if (VerboseAsm)
         Asm->OutStreamer->AddComment(">> Call Site " + Twine(++Entry) + " <<");
-      Asm->emitCallSiteOffset(BeginLabel, EHFuncBeginSym, CallSiteEncoding);
+      Asm->emitCallSiteOffset(S.BeginLabel, EHFuncBeginSym, CallSiteEncoding);
       if (VerboseAsm)
         Asm->OutStreamer->AddComment(Twine("  Call between ") +
-                                     BeginLabel->getName() + " and " +
-                                     EndLabel->getName());
-      Asm->emitCallSiteOffset(EndLabel, BeginLabel, CallSiteEncoding);
+                                     S.BeginLabel->getName() + " and " +
+                                     S.EndLabel->getName());
+      Asm->emitCallSiteOffset(S.EndLabel, S.BeginLabel, CallSiteEncoding);
 
       // Offset of the landing pad relative to the start of the procedure.
       if (!S.LPad) {
@@ -587,15 +577,12 @@ MCSymbol *EHStreamer::emitExceptionTable() {
     Asm->emitSLEB128(Action.ValueForTypeID);
 
     // Action Record
-    //
-    //   Self-relative signed displacement in bytes of the next action record,
-    //   or 0 if there is no next action record.
     if (VerboseAsm) {
-      if (Action.NextAction == 0) {
+      if (Action.Previous == unsigned(-1)) {
         Asm->OutStreamer->AddComment("  No further actions");
       } else {
-        unsigned NextAction = Entry + (Action.NextAction + 1) / 2;
-        Asm->OutStreamer->AddComment("  Continue to action "+Twine(NextAction));
+        Asm->OutStreamer->AddComment("  Continue to action " +
+                                     Twine(Action.Previous + 1));
       }
     }
     Asm->emitSLEB128(Action.NextAction);

@@ -492,6 +492,43 @@ def AssumeAlignmentOp : Std_Op<"assume_alignment"> {
   let assemblyFormat = "$memref `,` $alignment attr-dict `:` type($memref)";
 }
 
+//===----------------------------------------------------------------------===//
+// AtanOp
+//===----------------------------------------------------------------------===//
+
+def AtanOp : FloatUnaryOp<"atan", []>{
+  let summary = "arcus tangent of the given value";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `std.atan` ssa-use `:` type
+    ```
+
+    The `atan` operation computes the arcus tangent of a given value.  It takes
+    one operand and returns one result of the same type.  This type may be a
+    float scalar type, a vector whose element type is float, or a tensor of
+    floats.  It has no standard attributes.
+
+    Example:
+
+    ```mlir
+    // Arcus tangent of scalar value.
+    %a = atan %b : f64
+
+    // SIMD vector element-wise arcus tangent.
+    %f = atan %g : vector<4xf32>
+
+    // Tensor element-wise arcus tangent.
+    %x = atan %y : tensor<4x?xf8>
+    ```
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// AtomicRMWOp
+//===----------------------------------------------------------------------===//
+
 def AtomicRMWOp : Std_Op<"atomic_rmw", [
       AllTypesMatch<["value", "result"]>,
       TypesMatchWith<"value type matches element type of memref",
@@ -684,13 +721,13 @@ def CallOp : Std_Op<"call", [CallOpInterface, MemRefsNormalizable]> {
       result.addTypes(callee.getType().getResults());
   }]>, OpBuilder<
     "OpBuilder &builder, OperationState &result, SymbolRefAttr callee,"
-    "ArrayRef<Type> results, ValueRange operands = {}", [{
+    "TypeRange results, ValueRange operands = {}", [{
       result.addOperands(operands);
       result.addAttribute("callee", callee);
       result.addTypes(results);
   }]>, OpBuilder<
     "OpBuilder &builder, OperationState &result, StringRef callee,"
-    "ArrayRef<Type> results, ValueRange operands = {}", [{
+    "TypeRange results, ValueRange operands = {}", [{
       build(builder, result, builder.getSymbolRefAttr(callee), results,
             operands);
   }]>];
@@ -1354,6 +1391,10 @@ def CosOp : FloatUnaryOp<"cos"> {
   }];
 }
 
+//===----------------------------------------------------------------------===//
+// SinOp
+//===----------------------------------------------------------------------===//
+
 def SinOp : FloatUnaryOp<"sin"> {
   let summary = "sine of the specified value";
   let description = [{
@@ -1382,7 +1423,6 @@ def SinOp : FloatUnaryOp<"sin"> {
     ```
   }];
 }
-
 
 //===----------------------------------------------------------------------===//
 // DeallocOp
@@ -2772,7 +2812,7 @@ def SubViewOp : Std_Op<"subview", [
   let results = (outs AnyMemRef:$result);
 
   let builders = [
-    // Build a SubViewOp with mized static and dynamic entries.
+    // Build a SubViewOp with mixed static and dynamic entries.
     OpBuilder<
       "OpBuilder &b, OperationState &result, Value source, "
       "ArrayRef<int64_t> staticOffsets, ArrayRef<int64_t> staticSizes,"

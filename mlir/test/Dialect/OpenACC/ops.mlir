@@ -1,8 +1,8 @@
-// RUN: mlir-opt -allow-unregistered-dialect %s | FileCheck %s
+// RUN: mlir-opt -split-input-file -allow-unregistered-dialect %s | FileCheck %s
 // Verify the printed output can be parsed.
-// RUN: mlir-opt -allow-unregistered-dialect %s | mlir-opt -allow-unregistered-dialect  | FileCheck %s
+// RUN: mlir-opt -split-input-file -allow-unregistered-dialect %s | mlir-opt -allow-unregistered-dialect  | FileCheck %s
 // Verify the generic form can be parsed.
-// RUN: mlir-opt -allow-unregistered-dialect -mlir-print-op-generic %s | mlir-opt -allow-unregistered-dialect | FileCheck %s
+// RUN: mlir-opt -split-input-file -allow-unregistered-dialect -mlir-print-op-generic %s | mlir-opt -allow-unregistered-dialect | FileCheck %s
 
 func @compute1(%A: memref<10x10xf32>, %B: memref<10x10xf32>, %C: memref<10x10xf32>) -> memref<10x10xf32> {
   %c0 = constant 0 : index
@@ -58,6 +58,8 @@ func @compute1(%A: memref<10x10xf32>, %B: memref<10x10xf32>, %C: memref<10x10xf3
 //  CHECK-NEXT:   return %{{.*}} : memref<10x10xf32>
 //  CHECK-NEXT: }
 
+// -----
+
 func @compute2(%A: memref<10x10xf32>, %B: memref<10x10xf32>, %C: memref<10x10xf32>) -> memref<10x10xf32> {
   %c0 = constant 0 : index
   %c10 = constant 10 : index
@@ -110,6 +112,7 @@ func @compute2(%A: memref<10x10xf32>, %B: memref<10x10xf32>, %C: memref<10x10xf3
 //  CHECK-NEXT:   return %{{.*}} : memref<10x10xf32>
 //  CHECK-NEXT: }
 
+// -----
 
 func @compute3(%a: memref<10x10xf32>, %b: memref<10x10xf32>, %c: memref<10xf32>, %d: memref<10xf32>) -> memref<10xf32> {
   %lb = constant 0 : index
@@ -192,85 +195,133 @@ func @compute3(%a: memref<10x10xf32>, %b: memref<10x10xf32>, %c: memref<10xf32>,
 // CHECK-NEXT:   return %{{.*}} : memref<10xf32>
 // CHECK-NEXT: }
 
-func @testop(%a: memref<10xf32>) -> () {
-  %workerNum = constant 1 : i64
-  %vectorLength = constant 128 : i64
-  %gangNum = constant 8 : i64
-  %gangStatic = constant 2 : i64
-  %tileSize = constant 2 : i64
+// -----
+
+func @testloopop() -> () {
+  %i64Value = constant 1 : i64
+  %i32Value = constant 128 : i32
+  %idxValue = constant 8 : index
+
   acc.loop gang worker vector {
     "some.op"() : () -> ()
     acc.yield
   }
-  acc.loop gang(num: %gangNum) {
+  acc.loop gang(num=%i64Value: i64) {
     "some.op"() : () -> ()
     acc.yield
   }
-  acc.loop gang(static: %gangStatic) {
+  acc.loop gang(static=%i64Value: i64) {
     "some.op"() : () -> ()
     acc.yield
   }
-  acc.loop worker(%workerNum) {
+  acc.loop worker(%i64Value: i64) {
     "some.op"() : () -> ()
     acc.yield
   }
-  acc.loop vector(%vectorLength) {
+  acc.loop worker(%i32Value: i32) {
     "some.op"() : () -> ()
     acc.yield
   }
-  acc.loop gang(num: %gangNum) worker vector {
+  acc.loop worker(%idxValue: index) {
     "some.op"() : () -> ()
     acc.yield
   }
-  acc.loop gang(num: %gangNum, static: %gangStatic) worker(%workerNum) vector(%vectorLength) {
+  acc.loop vector(%i64Value: i64) {
     "some.op"() : () -> ()
     acc.yield
   }
-  acc.loop tile(%tileSize : i64, %tileSize : i64) {
+  acc.loop vector(%i32Value: i32) {
+    "some.op"() : () -> ()
+    acc.yield
+  }
+  acc.loop vector(%idxValue: index) {
+    "some.op"() : () -> ()
+    acc.yield
+  }
+  acc.loop gang(num=%i64Value: i64) worker vector {
+    "some.op"() : () -> ()
+    acc.yield
+  }
+  acc.loop gang(num=%i64Value: i64, static=%i64Value: i64) worker(%i64Value: i64) vector(%i64Value: i64) {
+    "some.op"() : () -> ()
+    acc.yield
+  }
+  acc.loop gang(num=%i32Value: i32, static=%idxValue: index) {
+    "some.op"() : () -> ()
+    acc.yield
+  }
+  acc.loop tile(%i64Value: i64, %i64Value: i64) {
+    "some.op"() : () -> ()
+    acc.yield
+  }
+  acc.loop tile(%i32Value: i32, %i32Value: i32) {
     "some.op"() : () -> ()
     acc.yield
   }
   return
 }
 
-// CHECK:      [[WORKERNUM:%.*]] = constant 1 : i64
-// CHECK-NEXT: [[VECTORLENGTH:%.*]] = constant 128 : i64
-// CHECK-NEXT: [[GANGNUM:%.*]] = constant 8 : i64
-// CHECK-NEXT: [[GANGSTATIC:%.*]] = constant 2 : i64
-// CHECK-NEXT: [[TILESIZE:%.*]] = constant 2 : i64
-// CHECK-NEXT: acc.loop gang worker vector {
+// CHECK:      [[I64VALUE:%.*]] = constant 1 : i64
+// CHECK-NEXT: [[I32VALUE:%.*]] = constant 128 : i32
+// CHECK-NEXT: [[IDXVALUE:%.*]] = constant 8 : index
+// CHECK:      acc.loop gang worker vector {
 // CHECK-NEXT:   "some.op"() : () -> ()
 // CHECK-NEXT:   acc.yield
 // CHECK-NEXT: }
-// CHECK-NEXT: acc.loop gang(num: [[GANGNUM]]) {
+// CHECK:      acc.loop gang(num=[[I64VALUE]]: i64) {
 // CHECK-NEXT:   "some.op"() : () -> ()
 // CHECK-NEXT:   acc.yield
 // CHECK-NEXT: }
-// CHECK-NEXT: acc.loop gang(static: [[GANGSTATIC]]) {
+// CHECK:      acc.loop gang(static=[[I64VALUE]]: i64) {
 // CHECK-NEXT:   "some.op"() : () -> ()
 // CHECK-NEXT:   acc.yield
 // CHECK-NEXT: }
-// CHECK-NEXT: acc.loop worker([[WORKERNUM]]) {
+// CHECK:      acc.loop worker([[I64VALUE]]: i64) {
 // CHECK-NEXT:   "some.op"() : () -> ()
 // CHECK-NEXT:   acc.yield
 // CHECK-NEXT: }
-// CHECK-NEXT: acc.loop vector([[VECTORLENGTH]]) {
+// CHECK:      acc.loop worker([[I32VALUE]]: i32) {
 // CHECK-NEXT:   "some.op"() : () -> ()
 // CHECK-NEXT:   acc.yield
 // CHECK-NEXT: }
-// CHECK-NEXT: acc.loop gang(num: [[GANGNUM]]) worker vector {
+// CHECK:      acc.loop worker([[IDXVALUE]]: index) {
 // CHECK-NEXT:   "some.op"() : () -> ()
 // CHECK-NEXT:   acc.yield
 // CHECK-NEXT: }
-// CHECK-NEXT: acc.loop gang(num: [[GANGNUM]], static: [[GANGSTATIC]]) worker([[WORKERNUM]]) vector([[VECTORLENGTH]]) {
+// CHECK:      acc.loop vector([[I64VALUE]]: i64) {
 // CHECK-NEXT:   "some.op"() : () -> ()
 // CHECK-NEXT:   acc.yield
 // CHECK-NEXT: }
-// CHECK-NEXT: acc.loop tile([[TILESIZE]]: i64, [[TILESIZE]]: i64) {
+// CHECK:      acc.loop vector([[I32VALUE]]: i32) {
+// CHECK-NEXT:   "some.op"() : () -> ()
+// CHECK-NEXT:   acc.yield
+// CHECK-NEXT: }
+// CHECK:      acc.loop vector([[IDXVALUE]]: index) {
+// CHECK-NEXT:   "some.op"() : () -> ()
+// CHECK-NEXT:   acc.yield
+// CHECK-NEXT: }
+// CHECK:      acc.loop gang(num=[[I64VALUE]]: i64) worker vector {
+// CHECK-NEXT:   "some.op"() : () -> ()
+// CHECK-NEXT:   acc.yield
+// CHECK-NEXT: }
+// CHECK:      acc.loop gang(num=[[I64VALUE]]: i64, static=[[I64VALUE]]: i64) worker([[I64VALUE]]: i64) vector([[I64VALUE]]: i64) {
+// CHECK-NEXT:   "some.op"() : () -> ()
+// CHECK-NEXT:   acc.yield
+// CHECK-NEXT: }
+// CHECK:      acc.loop gang(num=[[I32VALUE]]: i32, static=[[IDXVALUE]]: index) {
+// CHECK-NEXT:   "some.op"() : () -> ()
+// CHECK-NEXT:   acc.yield
+// CHECK-NEXT: }
+// CHECK:      acc.loop tile([[I64VALUE]]: i64, [[I64VALUE]]: i64) {
+// CHECK-NEXT:   "some.op"() : () -> ()
+// CHECK-NEXT:   acc.yield
+// CHECK-NEXT: }
+// CHECK:      acc.loop tile([[I32VALUE]]: i32, [[I32VALUE]]: i32) {
 // CHECK-NEXT:   "some.op"() : () -> ()
 // CHECK-NEXT:   acc.yield
 // CHECK-NEXT: }
 
+// -----
 
 func @testparallelop(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) -> () {
   %i64value = constant 1 : i64
@@ -328,6 +379,12 @@ func @testparallelop(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf3
   } attributes {defaultAttr = "none"}
   acc.parallel {
   } attributes {defaultAttr = "present"}
+  acc.parallel {
+  } attributes {asyncAttr}
+  acc.parallel {
+  } attributes {waitAttr}
+  acc.parallel {
+  } attributes {selfAttr}
   return
 }
 
@@ -387,3 +444,69 @@ func @testparallelop(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf3
 // CHECK-NEXT: } attributes {defaultAttr = "none"}
 // CHECK:      acc.parallel {
 // CHECK-NEXT: } attributes {defaultAttr = "present"}
+// CHECK:      acc.parallel {
+// CHECK-NEXT: } attributes {asyncAttr}
+// CHECK:      acc.parallel {
+// CHECK-NEXT: } attributes {waitAttr}
+// CHECK:      acc.parallel {
+// CHECK-NEXT: } attributes {selfAttr}
+
+// -----
+
+func @testdataop(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) -> () {
+  acc.data present(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) {
+  }
+  acc.data copy(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) {
+  }
+  acc.data copyin(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) {
+  }
+  acc.data copyin_readonly(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) {
+  }
+  acc.data copyout(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) {
+  }
+  acc.data copyout_zero(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) {
+  }
+  acc.data create(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) {
+  }
+  acc.data create_zero(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) {
+  }
+  acc.data no_create(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) {
+  }
+  acc.data delete(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) {
+  }
+  acc.data attach(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) {
+  }
+  acc.data detach(%a: memref<10xf32>, %b: memref<10xf32>, %c: memref<10x10xf32>) {
+  }
+  acc.data present(%a: memref<10xf32>) copyin(%b: memref<10xf32>) copyout(%c: memref<10x10xf32>) {
+  }
+  return
+}
+
+// CHECK:      func @testdataop([[ARGA:%.*]]: memref<10xf32>, [[ARGB:%.*]]: memref<10xf32>, [[ARGC:%.*]]: memref<10x10xf32>) {
+// CHECK:      acc.data present([[ARGA]]: memref<10xf32>, [[ARGB]]: memref<10xf32>, [[ARGC]]: memref<10x10xf32>) {
+// CHECK-NEXT: }
+// CHECK:      acc.data copy([[ARGA]]: memref<10xf32>, [[ARGB]]: memref<10xf32>, [[ARGC]]: memref<10x10xf32>) {
+// CHECK-NEXT: }
+// CHECK:      acc.data copyin([[ARGA]]: memref<10xf32>, [[ARGB]]: memref<10xf32>, [[ARGC]]: memref<10x10xf32>) {
+// CHECK-NEXT: }
+// CHECK:      acc.data copyin_readonly([[ARGA]]: memref<10xf32>, [[ARGB]]: memref<10xf32>, [[ARGC]]: memref<10x10xf32>) {
+// CHECK-NEXT: }
+// CHECK:      acc.data copyout([[ARGA]]: memref<10xf32>, [[ARGB]]: memref<10xf32>, [[ARGC]]: memref<10x10xf32>) {
+// CHECK-NEXT: }
+// CHECK:      acc.data copyout_zero([[ARGA]]: memref<10xf32>, [[ARGB]]: memref<10xf32>, [[ARGC]]: memref<10x10xf32>) {
+// CHECK-NEXT: }
+// CHECK:      acc.data create([[ARGA]]: memref<10xf32>, [[ARGB]]: memref<10xf32>, [[ARGC]]: memref<10x10xf32>) {
+// CHECK-NEXT: }
+// CHECK:      acc.data create_zero([[ARGA]]: memref<10xf32>, [[ARGB]]: memref<10xf32>, [[ARGC]]: memref<10x10xf32>) {
+// CHECK-NEXT: }
+// CHECK:      acc.data no_create([[ARGA]]: memref<10xf32>, [[ARGB]]: memref<10xf32>, [[ARGC]]: memref<10x10xf32>) {
+// CHECK-NEXT: }
+// CHECK:      acc.data delete([[ARGA]]: memref<10xf32>, [[ARGB]]: memref<10xf32>, [[ARGC]]: memref<10x10xf32>) {
+// CHECK-NEXT: }
+// CHECK:      acc.data attach([[ARGA]]: memref<10xf32>, [[ARGB]]: memref<10xf32>, [[ARGC]]: memref<10x10xf32>) {
+// CHECK-NEXT: }
+// CHECK:      acc.data detach([[ARGA]]: memref<10xf32>, [[ARGB]]: memref<10xf32>, [[ARGC]]: memref<10x10xf32>) {
+// CHECK-NEXT: }
+// CHECK:      acc.data present([[ARGA]]: memref<10xf32>) copyin([[ARGB]]: memref<10xf32>) copyout([[ARGC]]: memref<10x10xf32>) {
+// CHECK-NEXT: }
